@@ -47,7 +47,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
               <HeartPulse className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 font-medium">Patient Portal</p>
+              <p className="text-xs text-slate-400 dark:text-slate-400 font-medium">Patient Portal</p>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{patient?.full_name || 'Patient'}</p>
             </div>
           </div>
@@ -56,12 +56,12 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
         {/* Delivery History */}
         <div className="flex-1 overflow-y-auto p-3">
           <div className="flex items-center gap-2 px-1 mb-3">
-            <Package className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+            <Package className="w-4 h-4 text-slate-400 dark:text-slate-400" />
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               Delivery History
             </p>
             {sorted.length > 0 && (
-              <span className="ml-auto text-xs bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 rounded-full px-2 py-0.5 font-medium">
+              <span className="ml-auto text-xs bg-slate-200 text-slate-600 dark:text-slate-400 rounded-full px-2 py-0.5 font-medium">
                 {sorted.length}
               </span>
             )}
@@ -70,7 +70,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
           {sorted.length === 0 ? (
             <div className="text-center py-8 px-4">
               <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400">No past deliveries yet.</p>
+              <p className="text-sm text-slate-400 dark:text-slate-400">No past deliveries yet.</p>
             </div>
           ) : (
             <div className="space-y-2 relative">
@@ -108,7 +108,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
               {sorted.length > 10 && (
                 <button
                   onClick={() => setShowAll((v) => !v)}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300 py-2 mt-1"
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 py-2 mt-1"
                 >
                   {showAll ? (
                     <><ChevronUp className="w-3.5 h-3.5" /> Show Less</>
@@ -130,7 +130,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
         >
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Sign Out

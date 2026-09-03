@@ -51,13 +51,13 @@ export default function DeviceSelectionModal({
           {/* Device Type Display */}
           <div>
             <label className="block text-sm font-medium mb-3">Detected Device Type</label>
-            <div className="flex items-center gap-3 p-4 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-              <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+              <div className="text-slate-600 dark:text-slate-400">
                 {getDeviceIcon(selectedType)}
               </div>
               <div>
-                <p className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{selectedType}</p>
-                <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
+                <p className="font-semibold text-body">{selectedType}</p>
+                <p className="text-sm text-muted">
                   {selectedType === 'Mobile' && 'Phone or mobile device'}
                   {selectedType === 'Tablet' && 'Tablet device'}
                   {selectedType === 'Desktop' && 'Desktop or laptop computer'}
@@ -68,7 +68,7 @@ export default function DeviceSelectionModal({
 
           {/* Device Name Input */}
           <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-slate-900)' }}>
+            <label className="block text-sm font-medium mb-2 text-body">
               Device Name
             </label>
             <Input
@@ -83,14 +83,14 @@ export default function DeviceSelectionModal({
               }}
               className="w-full"
             />
-            <p className="text-xs mt-2" style={{ color: 'var(--text-slate-500)' }}>
+            <p className="text-xs mt-2 text-muted">
               Give this device a memorable name (e.g., "Work iPhone", "Home Tablet")
             </p>
           </div>
 
           {/* Info Box */}
           <div className="p-4 rounded-lg" style={{ background: 'var(--bg-slate-100)' }}>
-            <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>
+            <p className="text-sm text-secondary">
               <strong>Note:</strong> Device-specific settings (like map view preferences and sidebar width) will be saved to this device only. Global settings (like notifications) sync across all your devices.
             </p>
           </div>

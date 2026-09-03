@@ -218,10 +218,10 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
   return (
     <Dialog open={showDialog} onOpenChange={() => {}}>
-      <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()} style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">
         <DialogHeader>
-          <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Device Registration</DialogTitle>
-          <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
+          <DialogTitle className="text-body">Device Registration</DialogTitle>
+          <DialogDescription className="text-label">
             {existingDevices.length > 0 
               ? 'Select your device or register a new one'
               : 'Register this device to enable location tracking'}
@@ -232,7 +232,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
           {existingDevices.length > 0 && !isCreatingNew && (
             <>
               <div className="space-y-2">
-                <Label style={{ color: 'var(--text-slate-700)' }}>Your Registered Devices</Label>
+                <Label className="text-secondary">Your Registered Devices</Label>
                 <div className="space-y-2">
                   {existingDevices.map((device) => {
                     const displayOS = device.device_info?.os === 'Linux' ? 'Android' : device.device_info?.os;
@@ -267,8 +267,8 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                         <div className="flex items-center gap-2 flex-1">
                           {getDeviceIcon(device.device_info?.device_type)}
                           <div className="flex-1">
-                            <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{device.device_name}</div>
-                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                            <div className="font-medium text-body">{device.device_name}</div>
+                            <div className="text-xs text-muted">
                               {displayOS} • {lastActive}
                             </div>
                           </div>
@@ -287,11 +287,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                 onClick={() => setIsCreatingNew(true)}
                 className="w-full"
                 disabled={isSaving}
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: 'var(--border-slate-300)',
-                  color: 'var(--text-slate-900)'
-                }}
+                style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card"
               >
                 Register New Device
               </Button>
@@ -301,7 +297,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
           {(isCreatingNew || existingDevices.length === 0) && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="deviceName" style={{ color: 'var(--text-slate-700)' }}>Device Name</Label>
+                <Label htmlFor="deviceName" className="text-secondary">Device Name</Label>
                 <Input
                   id="deviceName"
                   value={newDeviceName}
@@ -313,12 +309,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                     }
                   }}
                   placeholder="e.g., My iPhone 15 Pro"
-                  className="placeholder:text-slate-500 dark:text-slate-400 dark:text-slate-500"
-                  style={{ 
-                    background: 'var(--bg-white)', 
-                    borderColor: 'var(--border-slate-300)',
-                    color: 'var(--text-slate-900)'
-                  }}
+                  className="placeholder:text-slate-500 dark:text-slate-400 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
                 />
               </div>
 
@@ -332,9 +323,9 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                     onChange={(e) => setIsPrimaryTracker(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  <Label htmlFor="isPrimary" className="text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
+                  <Label htmlFor="isPrimary" className="text-sm cursor-pointer text-secondary">
                     Set as primary tracker
-                    <span className="block text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <span className="block text-xs mt-1 text-muted">
                       Only the primary device updates your location on the map
                     </span>
                   </Label>
@@ -348,12 +339,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                     setIsCreatingNew(false);
                     setSelectedDeviceId(null);
                   }}
-                  className="w-full"
-                  style={{ 
-                    background: 'var(--bg-white)', 
-                    borderColor: 'var(--border-slate-300)',
-                    color: 'var(--text-slate-900)'
-                  }}
+                  className="w-full text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
                 >
                   Back to Device List
                 </Button>

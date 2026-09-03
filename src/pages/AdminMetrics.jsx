@@ -745,7 +745,7 @@ export default function AdminMetrics() {
   const renderHeaderSection = () =>
   <div className="shrink-0 space-y-3">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+        <h1 className="text-2xl md:text-3xl font-bold text-body">
           Admin Metrics
         </h1>
       </div>
@@ -807,9 +807,9 @@ export default function AdminMetrics() {
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
-          <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
+        <Card className="p-8 text-center text-body bg-card">
+          <h2 className="text-xl font-bold mb-2 text-body">Access Denied</h2>
+          <p className="text-label">Only app owners can access this page.</p>
         </Card>
       </div>);
 
@@ -820,9 +820,9 @@ export default function AdminMetrics() {
       <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
           {renderHeaderSection()}
-          <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Select a City</h2>
-            <p style={{ color: 'var(--text-slate-600)' }}>Choose a city to load admin metrics.</p>
+          <Card className="p-8 text-center text-body bg-card">
+            <h2 className="text-xl font-bold mb-2 text-body">Select a City</h2>
+            <p className="text-label">Choose a city to load admin metrics.</p>
           </Card>
         </div>
       </div>);
@@ -833,7 +833,7 @@ export default function AdminMetrics() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-        <span className="ml-3 text-lg" style={{ color: 'var(--text-slate-600)' }}>Loading metrics...</span>
+        <span className="ml-3 text-lg text-label">Loading metrics...</span>
       </div>);
 
   }
@@ -841,9 +841,9 @@ export default function AdminMetrics() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+        <Card className="p-8 text-center text-body bg-card">
           <h2 className="text-xl font-bold mb-2" style={{ color: '#ef4444' }}>Error Loading Metrics</h2>
-          <p style={{ color: 'var(--text-slate-600)', marginBottom: '1rem' }}>{error}</p>
+          <p style={{ marginBottom: '1rem' }} className="text-label">{error}</p>
           <Button onClick={() => fetchMetrics(selectedYear, selectedCityId, false)}>Retry</Button>
         </Card>
       </div>);
@@ -857,13 +857,13 @@ export default function AdminMetrics() {
         {renderHeaderSection()}
 
         {showNoDataMessage &&
-        <Card className="p-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <p style={{ color: 'var(--text-slate-600)' }}>No admin metrics data was found for the selected city yet.</p>
+        <Card className="p-4 bg-card border-card">
+            <p className="text-label">No admin metrics data was found for the selected city yet.</p>
           </Card>
         }
 
         {(liveSyncStatus || showBackgroundSyncLabel) &&
-        <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+        <div className="flex items-center gap-2 text-xs md:text-sm text-label">
             {liveSyncStatus &&
           <Badge variant="secondary">
                 {loadedFromOffline ? 'Loaded from offline cache' : liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
@@ -876,14 +876,14 @@ export default function AdminMetrics() {
 
         {/* Summary Cards */}
         <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardContent className="p-4 pt-3 pb-3 min-w-[75px]">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth || selectedStoreMonth ? `${MONTH_NAMES[(selectedStoreMonth?.month || selectedMonth) - 1]} Billable` : `${selectedYear} Billable`}</p>
+              <p className="text-sm mb-2 text-muted">{selectedMonth || selectedStoreMonth ? `${MONTH_NAMES[(selectedStoreMonth?.month || selectedMonth) - 1]} Billable` : `${selectedYear} Billable`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                <p className="text-2xl font-bold text-body">
                   {(() => {
                     const sourceRows = selectedMonth ?
                     displayMetricsData.monthlyStoreData?.[selectedMonth] || [] :
@@ -898,14 +898,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Non-Billable` : `${selectedYear} Non-Billable`}</p>
+              <p className="text-sm mb-2 text-muted">{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Non-Billable` : `${selectedYear} Non-Billable`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#fed7aa' }}>
                   <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                <p className="text-2xl font-bold text-body">
                   {(() => {
                     const sourceRows = selectedMonth ?
                     displayMetricsData.monthlyStoreData?.[selectedMonth] || [] :
@@ -920,40 +920,40 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Active Drivers</p>
+              <p className="text-sm mb-2 text-muted">Active Drivers</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#e9d5ff' }}>
                   <Truck className="w-5 h-5" style={{ color: '#7e22ce' }} />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{displayMetricsData.yearTotals?.activeDrivers || 0}</p>
+                <p className="text-2xl font-bold text-body">{displayMetricsData.yearTotals?.activeDrivers || 0}</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Stores Paying</p>
+              <p className="text-sm mb-2 text-muted">Stores Paying</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#dbeafe' }}>
                   <Store className="w-5 h-5" style={{ color: '#1e40af' }} />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                <p className="text-2xl font-bold text-body">
                   {feeTotals?.stores_paying_fees || 0} / {feeTotals?.total_stores || feeTotals?.active_stores || feeTotals?.totalStores || 0}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Fee Rate</p>
+              <p className="text-sm mb-2 text-muted">Fee Rate</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: 'var(--bg-slate-200)' }}>
-                  <DollarSign className="w-5 h-5" style={{ color: 'var(--text-slate-600)' }} />
+                  <DollarSign className="w-5 h-5 text-label" />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                <p className="text-2xl font-bold text-body">
                   {formatCurrency(feeTotals?.app_fee_rate || 0)}
                 </p>
               </div>
@@ -1021,7 +1021,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
-        <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card className="min-h-0 overflow-hidden bg-card border-card">
           <CardHeader className="px-4 py-2 space-y-1.5 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
@@ -1163,9 +1163,9 @@ export default function AdminMetrics() {
         {/* Row 3: Monthly Deliveries + Driver Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Monthly Deliveries Chart - Shows daily breakdown when month selected */}
-          <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="min-h-0 overflow-hidden bg-card border-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <CardTitle className="flex items-center gap-2 text-body">
                 <BarChart3 className="w-5 h-5" />
                 {selectedMonth ?
                   `Daily ${metricsViewMode === 'fees' ? 'App Fees' : metricsViewMode === 'extra_km' ? 'Extra KM' : 'Deliveries'} - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}${selectedDriverId !== 'all' ? ` - ${displayMetricsData.driverData?.find((d) => d.driverId === selectedDriverId)?.name}` : ''}` :
@@ -1224,9 +1224,9 @@ export default function AdminMetrics() {
           </Card>
 
           {/* Driver Performance Chart - Breakdown by Driver */}
-          <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="min-h-0 overflow-hidden bg-card border-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <CardTitle className="flex items-center gap-2 text-body">
                 <Users className="w-5 h-5" />
                 {metricsViewMode === 'fees' ? 'Driver App Fees' : metricsViewMode === 'extra_km' ? 'Driver Extra KM' : 'Driver Breakdown'} 
                 {selectedStoreMonth ?

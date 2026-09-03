@@ -38,7 +38,7 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
       case 'route_updated':
         return <MapPin className="w-5 h-5 text-amber-500" />;
       default:
-        return <MapPin className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />;
+        return <MapPin className="w-5 h-5 text-slate-500 dark:text-slate-400" />;
     }
   };
   
@@ -75,13 +75,13 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
                 <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
                   {notification.title}
                 </h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                   {notification.message}
                 </p>
                 
                 {notification.aiSuggestion && (
                   <div className="mt-2 p-2 bg-white/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-start gap-1">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-1">
                       <span className="text-purple-500">💡</span>
                       {notification.aiSuggestion}
                     </p>

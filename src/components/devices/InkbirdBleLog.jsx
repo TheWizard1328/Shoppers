@@ -81,12 +81,11 @@ export default function InkbirdBleLog() {
   };
 
   return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="bg-card border-card">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle
-            className="text-base font-semibold flex items-center gap-2 cursor-pointer select-none"
-            style={{ color: 'var(--text-slate-700)' }}
+            className="text-base font-semibold flex items-center gap-2 cursor-pointer select-none text-secondary"
             onClick={() => setExpanded(v => !v)}
           >
             <Bluetooth className="w-4 h-4 text-blue-500" />
@@ -110,8 +109,8 @@ export default function InkbirdBleLog() {
       {expanded && (
         <CardContent className="space-y-3 pt-0">
           {/* Environment snapshot */}
-          <div className="rounded-lg border p-3 space-y-1 text-xs" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-            <p className="font-semibold mb-1" style={{ color: 'var(--text-slate-700)' }}>BLE Environment</p>
+          <div className="rounded-lg border p-3 space-y-1 text-xs border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <p className="font-semibold mb-1 text-secondary">BLE Environment</p>
             {[
               ['Web Bluetooth API', bleInfo.hasBluetooth],
               ['getDevices() available', bleInfo.hasGetDevices],
@@ -120,14 +119,14 @@ export default function InkbirdBleLog() {
               ['Top-level frame (not iframe)', bleInfo.isTopFrame],
             ].map(([label, ok]) => (
               <div key={label} className="flex items-center justify-between">
-                <span style={{ color: 'var(--text-slate-600)' }}>{label}</span>
+                <span className="text-label">{label}</span>
                 <Badge className={ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                   {ok ? '✓ Yes' : '✗ No'}
                 </Badge>
               </div>
             ))}
             <div className="flex items-center justify-between">
-              <span style={{ color: 'var(--text-slate-600)' }}>Saved sensor name</span>
+              <span className="text-label">Saved sensor name</span>
               <span className="font-mono text-xs" style={{ color: 'var(--text-slate-800)' }}>
                 {bleInfo.savedSensor || '(none)'}
               </span>

@@ -427,14 +427,14 @@ export default function DeliveryFormStaged({
       })}
 
       {isLoadingPredictions &&
-      <div className="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center gap-2">
+      <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-xs flex items-center justify-center gap-2">
           <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
           Refreshing projections...
         </div>
       }
 
       {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && sortedProjectedDeliveries.length === 0 &&
-      <div className="p-4 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-xs">
+      <div className="p-4 text-center text-slate-400 dark:text-slate-400 text-xs">
           No deliveries staged yet
         </div>
       }

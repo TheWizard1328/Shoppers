@@ -41,25 +41,25 @@ export default function RestartConfirmDialog({ open, onClose, onConfirm, deliver
           </div>
 
           {address && (
-            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
               <span className="font-medium text-slate-700 dark:text-slate-300">Address: </span>{address}
             </div>
           )}
 
           {phone && (
-            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
               <span className="font-medium text-slate-700 dark:text-slate-300">Phone: </span>
               <a href={`tel:${phone}`} className="text-blue-600 underline">{phone}</a>
             </div>
           )}
 
           {notes && (
-            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+            <div className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
               <span className="font-medium text-slate-700 dark:text-slate-300">Notes: </span>{notes}
             </div>
           )}
 
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 pt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 pt-1">
             This will move the delivery back to <strong>In Transit</strong> and place it as the next stop.
           </p>
         </div>

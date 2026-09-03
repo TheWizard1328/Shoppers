@@ -135,7 +135,7 @@ export default function StopCardPOD({
               <X className="w-5 h-5" />
             </button>
             <img src={viewingImageUrl} alt="Proof of delivery" className="max-w-full max-h-[75vh] object-contain rounded-lg" style={{ background: 'white' }} />
-            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">Tap outside to close</p>
+            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 font-medium">Tap outside to close</p>
           </div>
         </div>,
         document.body

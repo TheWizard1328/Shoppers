@@ -99,7 +99,7 @@ export default function StopCardCODCollection({
         }}
         onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
-            <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
+            <span className="text-sm md:text-xs font-semibold text-secondary">Collect COD Payments</span>
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
             if (codRefreshPauseRef.current) {
               smartRefreshManager.resume();
@@ -122,7 +122,7 @@ export default function StopCardCODCollection({
 
           <div className="space-y-2 max-h-48 overflow-y-visible">
             {codPayments.map((payment, index) =>
-          <div key={index} className="flex items-center gap-2 rounded px-1" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+          <div key={index} className="flex items-center gap-2 rounded px-1 bg-card border-card" style={{ borderWidth: '1px' }}>
                 <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
                   <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                     <SelectValue placeholder="Type" />
@@ -136,14 +136,12 @@ export default function StopCardCODCollection({
                 </Select>
 
                 <div className="relative flex-1">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs" style={{ color: 'var(--text-slate-500)' }}>$</span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs text-muted">$</span>
                   <input
                 ref={(el) => codAmountInputRefs.current[index] = el}
                 type="text"
                 value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-10 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
-
-                style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+                onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-10 w-full pl-5 pr-2 text-sm md:text-xs rounded-md text-body bg-card" style={{ borderWidth: '1px', borderColor: 'var(--border-slate-300)' }}
                 placeholder="0.00"
                 onClick={(e) => e.stopPropagation()}
                 onFocus={(e) => e.target.select()} />
@@ -161,13 +159,13 @@ export default function StopCardCODCollection({
             Add Payment
           </Button>
 
-          <div className="flex items-center justify-between" style={{ borderTopWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+          <div className="flex items-center justify-between border-card" style={{ borderTopWidth: '1px' }}>
             <div className="text-sm md:text-xs">
-              <span style={{ color: 'var(--text-slate-600)' }}>Total: </span>
+              <span className="text-label">Total: </span>
               <span className="font-bold" style={{ color: isCODComplete ? 'var(--text-emerald-600)' : 'var(--text-amber-600)' }}>
                 ${codTotalCollected.toFixed(2)}
               </span>
-              <span style={{ color: 'var(--text-slate-600)' }}> / ${codTotalRequired.toFixed(2)}</span>
+              <span className="text-label"> / ${codTotalRequired.toFixed(2)}</span>
             </div>
 
             <Button

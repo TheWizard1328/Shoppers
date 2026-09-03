@@ -150,7 +150,7 @@ export default function ResegmentStopsDialog({
           <Scissors className="w-5 h-5 text-orange-600 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-base">Reclip Stop Segments</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
               Pick which stops to re-slice from the master trail.
             </p>
           </div>
@@ -293,7 +293,7 @@ function Stat({ label, value, accent }) {
   return (
     <div className="bg-white dark:bg-slate-900 flex flex-col items-center justify-center py-3 px-2 text-center">
       <span className={`text-xl font-bold ${colorMap[accent] || 'text-slate-800 dark:text-slate-200'}`}>{value}</span>
-      <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</span>
     </div>
   );
 }

@@ -214,9 +214,9 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`} />
-          <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
+          <span className="font-medium text-label">{label}</span>
         </div>
-        <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+        <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px] text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
           {value}{superscript > 0 && <sup className="ml-0.5 text-[9px] font-bold" style={{ color: 'var(--text-slate-400)' }}>{superscript}</sup>}
         </Badge>
       </div>;
@@ -244,7 +244,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
 
   if (hasError && !stats) {
     return (
-      <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+      <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
         Unable to load stats
       </div>);
 
@@ -258,17 +258,17 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   return (
     <div className="space-y-1 py-1 px-4">
       {showOfflineSync &&
-      <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="border-b pb-2 border-card">
           <OfflineSyncIndicator embedded={true} />
         </div>
       }
       <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>
+        <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-muted">
           {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
         <div className="space-y-1">
           {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
-          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} superscript={stats.today.inTransitInterStore} colorClass="text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} superscript={stats.today.inTransitInterStore} colorClass="text-slate-600 dark:text-slate-400" />
           <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} superscript={stats.today.completedInterStore} colorClass="text-green-600" />
           {(stats.today.failed > 0 || stats.today.returns > 0) &&
           <StatItem
@@ -282,7 +282,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
       </div>
 
       <div>
-        <h4 className="xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>{format(selectedDate, 'MMMM yyyy')}:</h4>
+        <h4 className="xs font-semibold uppercase tracking-wider mb-2 text-muted">{format(selectedDate, 'MMMM yyyy')}:</h4>
         <div className="space-y-1">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&

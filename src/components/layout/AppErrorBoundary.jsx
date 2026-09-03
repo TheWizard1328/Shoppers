@@ -204,7 +204,7 @@ export default class AppErrorBoundary extends React.Component {
       <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-800 p-4 overflow-auto">
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Something went wrong</h1>
-          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">An error occurred while loading the app.</p>
+          <p className="text-slate-600 dark:text-slate-400 mb-2">An error occurred while loading the app.</p>
           {this.state.crashCount > 1 && (
             <p className="text-sm text-amber-600 dark:text-amber-400 mb-2">
               This app has crashed {this.state.crashCount} times this session.

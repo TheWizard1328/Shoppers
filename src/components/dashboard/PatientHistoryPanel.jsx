@@ -91,29 +91,21 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-0 right-0 h-full z-[9991] flex flex-col shadow-2xl"
-          style={{
-            width: 'min(400px, 100vw)',
-            background: 'var(--bg-white)',
-            borderLeft: '1px solid var(--border-slate-200)',
-            paddingTop: 'env(safe-area-inset-top, 0px)',
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)'
-          }}>
+          className="fixed top-0 right-0 h-full z-[9991] flex flex-col shadow-2xl bg-card" style={{ width: 'min(400px, 100vw)', borderLeft: '1px solid var(--border-slate-200)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 border-card" style={{ background: 'var(--bg-slate-50)' }}>
               <div className="min-w-0">
-                <h2 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
+                <h2 className="font-semibold text-base truncate text-body">
                   {patient.full_name}
                 </h2>
-                <p className="text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>
+                <p className="text-xs truncate text-muted">
                   {patient.address}
                 </p>
               </div>
               <button
               onClick={onClose}
-              className="ml-2 p-1.5 rounded-lg hover:bg-slate-200 transition-colors flex-shrink-0"
-              style={{ color: 'var(--text-slate-600)' }}>
+              className="ml-2 p-1.5 rounded-lg hover:bg-slate-200 transition-colors flex-shrink-0 text-label">
               
                 <X className="w-5 h-5" />
               </button>
@@ -123,7 +115,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             <div className="flex-1 flex flex-col overflow-hidden px-3 py-3 space-y-3">
 
               {isLoading &&
-            <div className="flex items-center justify-center py-10 gap-2" style={{ color: 'var(--text-slate-500)' }}>
+            <div className="flex items-center justify-center py-10 gap-2 text-muted">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-sm">Loading history...</span>
                 </div>
@@ -131,12 +123,12 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
               {/* Analytics Card */}
               {!isLoading && deliveryStats &&
-            <div className="rounded-xl border shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <div className="rounded-xl border shadow-sm bg-card border-card">
                   <div
                 className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
                 onClick={() => setAnalyticsCollapsed((v) => !v)}>
                 
-                    <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                    <span className="flex items-center gap-2 font-semibold text-sm text-body">
                       <BarChart3 className="w-4 h-4 text-blue-600" />
                       Delivery Analytics
                     </span>
@@ -150,23 +142,23 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
               <div className="px-3 pb-3 space-y-2">
                       <div className="grid grid-cols-2 gap-2">
                         <div className="text-center p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                          <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{deliveryStats.totalDeliveries}</p>
-                          <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Total</p>
+                          <p className="text-2xl font-bold text-body">{deliveryStats.totalDeliveries}</p>
+                          <p className="text-sm text-label">Total</p>
                         </div>
                         <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(16,185,129,0.1)' }}>
                           <p className="text-2xl font-bold" style={{ color: '#059669' }}>
                             {deliveryStats.mostCommonDay ? dayAbbreviations[deliveryStats.mostCommonDay] || deliveryStats.mostCommonDay.substring(0, 3) : 'N/A'}
                           </p>
-                          <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Most Common Day</p>
+                          <p className="text-sm text-label">Most Common Day</p>
                         </div>
                       </div>
 
                       {deliveryStats.lastDeliveryDate &&
                 <div className="flex items-center gap-3 text-sm p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                          <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
+                          <Calendar className="w-4 h-4 flex-shrink-0 text-muted" />
                           <div>
-                            <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>Last Delivery</p>
-                            <p style={{ color: 'var(--text-slate-600)' }}>
+                            <p className="font-medium text-body">Last Delivery</p>
+                            <p className="text-label">
                               {format(new Date(deliveryStats.lastDeliveryDate + 'T12:00:00'), 'EEE, MMM d, yyyy')}
                             </p>
                           </div>
@@ -175,13 +167,13 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
                       {deliveryStats.dayFrequency && Object.keys(deliveryStats.dayFrequency).length > 0 &&
                 <div>
-                          <p className="font-medium mb-2 text-sm" style={{ color: 'var(--text-slate-900)' }}>Delivery Pattern</p>
+                          <p className="font-medium mb-2 text-sm text-body">Delivery Pattern</p>
                           <div className="space-y-1">
                             {Object.entries(deliveryStats.dayFrequency).
                     sort(([, a], [, b]) => b - a).
                     map(([day, count]) =>
                     <div key={day} className="flex justify-between items-center text-sm">
-                                  <span className="min-w-[36px]" style={{ color: 'var(--text-slate-600)' }}>
+                                  <span className="min-w-[36px] text-label">
                                     {dayAbbreviations[day] || day.substring(0, 3)}
                                   </span>
                                   <div className="flex items-center gap-2 flex-1">
@@ -204,14 +196,14 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             }
 
               {/* Recent Deliveries */}
-              {!isLoading && <div className="rounded-xl border shadow-sm flex flex-col flex-1 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              {!isLoading && <div className="rounded-xl border shadow-sm flex flex-col flex-1 overflow-hidden bg-card border-card">
                 <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-100)' }}>
-                  <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                  <span className="flex items-center gap-2 font-semibold text-sm text-body">
                      <Package className="w-4 h-4 text-blue-600" />
                      Recent Deliveries
                    </span>
                    {codCount > 0 &&
-                <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none" style={{ color: 'var(--text-slate-600)' }}>
+                <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none text-label">
                        <input
                     type="checkbox"
                     checked={codOnly}
@@ -225,7 +217,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
                 <div className="p-3 overflow-y-auto flex-1">
                   {patientDeliveries.length === 0 ?
-                <p className="text-sm text-center py-4" style={{ color: 'var(--text-slate-500)' }}>No deliveries found</p> :
+                <p className="text-sm text-center py-4 text-muted">No deliveries found</p> :
 
                 <>
                     <div className="space-y-2">
@@ -234,21 +226,20 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                       return (
                         <div
                           key={delivery.id}
-                          className="p-3 rounded-lg border"
-                          style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          className="p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
                           
                             <div className="grid grid-cols-2 gap-3 mb-2">
                               <div className="text-xs space-y-1">
-                                <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                                <div className="text-sm font-medium text-body">
                                   {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
                                 </div>
                                 {delivery.tracking_number &&
-                              <div style={{ color: 'var(--text-slate-600)' }}>
+                              <div className="text-label">
                                     <span className="font-medium">TR#:</span> {delivery.tracking_number}
                                   </div>
                               }
                                 {delivery.actual_delivery_time &&
-                              <div style={{ color: 'var(--text-slate-600)' }}>
+                              <div className="text-label">
                                     <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
                                   </div>
                               }
@@ -261,7 +252,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                 delivery.status === 'failed' ? 'Failed' : delivery.status}
                                 </Badge>
                                 {delivery.driver_name &&
-                              <Badge variant="outline" className="text-xs" style={{ color: 'var(--text-slate-700)' }}>
+                              <Badge variant="outline" className="text-xs text-secondary">
                                     {delivery.driver_name}
                                   </Badge>
                               }
@@ -281,7 +272,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
 
                               
-                                  <span style={{ color: 'var(--text-slate-600)' }}>{delivery.delivery_notes}</span>
+                                  <span className="text-label">{delivery.delivery_notes}</span>
                                 </div> :
 
                             <span
@@ -295,8 +286,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                 {userHasRole(currentUser, 'admin') && onEditDelivery &&
                               <button
                                 onClick={() => onEditDelivery(delivery)}
-                                className="flex items-center gap-1 text-xs font-medium shrink-0"
-                                style={{ color: 'var(--text-slate-500)' }}>
+                                className="flex items-center gap-1 text-xs font-medium shrink-0 text-muted">
                                 
                                     <Pencil className="w-3 h-3" />
                                     Edit
@@ -319,8 +309,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                     {hasMore &&
                   <button
                     onClick={() => setVisibleCount((c) => c + 60)}
-                    className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100"
-                    style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-200)' }}>
+                    className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 text-label border-card">
                     
                         Show more ({filteredDeliveries.length - visibleCount} more)
                       </button>

@@ -173,8 +173,8 @@ export default function DashboardDialogs({
           setShowQuickAdjustments(true);
         }
       }}>
-        <DialogContent className="max-w-[300px] max-h-[80vh] overflow-hidden z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-          <DialogHeader><DialogTitle style={{ color: 'var(--text-slate-900)' }}>Quick Route Adjustments</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-[300px] max-h-[80vh] overflow-hidden z-[10001] text-body bg-card border-card">
+          <DialogHeader><DialogTitle className="text-body">Quick Route Adjustments</DialogTitle></DialogHeader>
           <QuickRouteAdjustments
             deliveries={deliveriesWithStopOrder}
             patients={patients}

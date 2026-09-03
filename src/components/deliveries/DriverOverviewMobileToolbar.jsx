@@ -17,26 +17,26 @@ export default function DriverOverviewMobileToolbar({
     <div className="flex items-center gap-3 w-full">
       {hasCityFilter && (
         <Select value={selectedCityId} onValueChange={onCityChange}>
-          <SelectTrigger className="flex-1" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+          <SelectTrigger className="flex-1 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
             <SelectValue placeholder="Select City" />
           </SelectTrigger>
-          <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
+          <SelectContent className="bg-card border-card">
+            <SelectItem value="all" className="text-body">All Cities</SelectItem>
             {cities.map((city) => (
-              <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>{city.name}</SelectItem>
+              <SelectItem key={city.id} value={city.id} className="text-body">{city.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       )}
 
       <Select value={selectedOverviewYear} onValueChange={onOverviewYearChange}>
-        <SelectTrigger className="flex-1" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+        <SelectTrigger className="flex-1 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Years</SelectItem>
+        <SelectContent className="bg-card border-card">
+          <SelectItem value="all" className="text-body">All Years</SelectItem>
           {availableOverviewYears.map((year) => (
-            <SelectItem key={year} value={year.toString()} style={{ color: 'var(--text-slate-900)' }}>{year}</SelectItem>
+            <SelectItem key={year} value={year.toString()} className="text-body">{year}</SelectItem>
           ))}
         </SelectContent>
       </Select>

@@ -10,7 +10,7 @@ export default function InterStoreDropoffDialog({ open, delivery, match, onConfi
       <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-slate-900 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 space-y-4">
         <div>
           <h3 className="text-lg font-semibold">Create InterStore Drop-off?</h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">This completed stop looks like an InterStore Pickup.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">This completed stop looks like an InterStore Pickup.</p>
         </div>
 
         <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-sm space-y-1">

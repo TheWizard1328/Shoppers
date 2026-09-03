@@ -105,7 +105,7 @@ const DeliveryRow = memo(({
         return <Badge className="rounded-full text-[11px] px-2 py-0.5 text-white" style={{ background: dColor }} title={delivery.driver_name}>{label}</Badge>;
       })())
     : (store?.abbreviation && (
-        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
+        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 bg-card" style={{ color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
           {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
         </Badge>
       ));
@@ -140,10 +140,9 @@ const DeliveryRow = memo(({
     isMobile ?
     <div
       onClick={handleRowClick}
-      className={`flex flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+      className={flex flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
       isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60'} ${
-      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
-      style={{ borderColor: 'var(--border-slate-200)' }}>
+      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''} border-card}>
       
         <div className="flex flex-col gap-1.5 w-full">
           {/* Row 1: Stop# • TR# (left) | Store badge • Time • Status+time (right) */}
@@ -164,7 +163,7 @@ const DeliveryRow = memo(({
                 {actualTm && <span className="opacity-80 font-normal">• {actualTm}</span>}
               </Badge>
               {minutesOnLocation !== null && (
-                <Badge variant="outline" className="flex items-center gap-1 text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-300)' }}>
+                <Badge variant="outline" className="flex items-center gap-1 text-[11px] px-2 py-0.5 text-label bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <Clock className="w-3 h-3" />{minutesOnLocation} min
                 </Badge>
               )}
@@ -184,7 +183,7 @@ const DeliveryRow = memo(({
                 : (finalDisplayAddress && <span className="text-xs text-slate-500 dark:text-slate-400 truncate flex-1 min-w-0">{finalDisplayAddress}</span>)
               }
               {unitNumber && (
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 flex-shrink-0 text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
                   Unit {unitNumber}
                 </Badge>
               )}
@@ -217,7 +216,7 @@ const DeliveryRow = memo(({
               {codPayments.map((p, idx) => (
                 <span key={idx} className="contents">
                   <span className="text-slate-400 dark:text-slate-500">-</span>
-                  <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                  <Badge variant="secondary" className="text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
                     {p.type}: ${Number(p.amount || 0).toFixed(2)}
                   </Badge>
                 </span>
@@ -249,7 +248,7 @@ const DeliveryRow = memo(({
           {hasPodRow && (
             <div className="flex flex-wrap items-center gap-2">
               {hasSig && (
-                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert" style={{ borderColor: 'var(--border-slate-200)' }} onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
+                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert border-card" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
               )}
               {photos.slice(0, 2).map((url, i) => (
                 <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: url, title: `Photo ${i + 1}` }); }} />
@@ -259,7 +258,7 @@ const DeliveryRow = memo(({
               )}
               {barcodeList.length > 0 && (
                 <button className="flex items-center gap-1 cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: barcodeList[0], title: isPickup ? 'Receipt Barcode' : 'Rx Barcode' }); }}>
-                  <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center border-card">
                     <BarcodeThumb value={barcodeList[0]} height={24} className="w-full h-6" />
                   </div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">x{barcodeList.length}</span>
@@ -271,9 +270,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_250px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1"
-
-      style={{ borderColor: 'var(--border-slate-200)' }}>
+      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_250px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1 border-card">
       
         {bulkEditMode &&
       <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
@@ -283,7 +280,7 @@ const DeliveryRow = memo(({
         <div className="flex items-center justify-center">
           <div className="flex flex-col leading-tight">
             <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700 dark:text-slate-300'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
-            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{delivery.tracking_number || '—'}</span>
+            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{delivery.tracking_number || '—'}</span>
           </div>
         </div>
 
@@ -311,10 +308,10 @@ const DeliveryRow = memo(({
             </span>
             {isCyclingMarker
               ? (store?.name &&
-            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{store.name}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{store.name}</span>
           )
               : (finalDisplayAddress &&
-            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{finalDisplayAddress}</span>
           )}
           </div>
         </div>
@@ -323,13 +320,13 @@ const DeliveryRow = memo(({
         <div className="flex min-w-0 items-center py-1 text-xs text-slate-700 dark:text-slate-300 overflow-hidden">
           <div className="min-w-0 w-full space-y-1 overflow-hidden leading-4">
             {isCarePros && (delivery.cp_envelopes || patient?.cp_envelopes) > 0 &&
-          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">E:</span> Envelopes: {delivery.cp_envelopes || patient?.cp_envelopes}</div>
+          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400">E:</span> Envelopes: {delivery.cp_envelopes || patient?.cp_envelopes}</div>
           }
             {patient?.notes &&
-          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">P:</span> {patient.notes}</div>
+          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400">P:</span> {patient.notes}</div>
           }
             {delivery?.delivery_notes &&
-          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">D:</span> {delivery.delivery_notes}</div>
+          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400">D:</span> {delivery.delivery_notes}</div>
           }
           </div>
         </div>
@@ -344,10 +341,10 @@ const DeliveryRow = memo(({
               <div className="w-[72px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                 <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={28} className="w-full h-7" />
               </div>
-              <span className="text-[11px] text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.receipt_barcode_values.length}</span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400">x{delivery.receipt_barcode_values.length}</span>
             </button> :
 
-        <div className="w-[82px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
+        <div className="w-[82px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center justify-center text-slate-400 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -361,10 +358,10 @@ const DeliveryRow = memo(({
               <div className="w-[72px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                 <BarcodeThumb value={delivery.barcode_values[0]} height={28} className="w-full h-7" />
               </div>
-              <span className="text-[11px] text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.barcode_values.length}</span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400">x{delivery.barcode_values.length}</span>
             </button> :
 
-        <div className="w-[82px] h-18 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
+        <div className="w-[82px] h-18 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center justify-center text-slate-400 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -374,11 +371,10 @@ const DeliveryRow = memo(({
         <img
           src={delivery.signature_image_url}
           alt="Signature"
-          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert"
-          style={{ borderColor: 'var(--border-slate-200)' }}
+          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert border-card"
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' });}} /> :
 
-        <div className="w-20 h-7 rounded-sm border flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
+        <div className="w-20 h-7 rounded-sm border flex items-center justify-center text-slate-400 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -405,7 +401,7 @@ const DeliveryRow = memo(({
           }
             </div> :
 
-        <div className="w-20 h-7 rounded-md border flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
+        <div className="w-20 h-7 rounded-md border flex items-center justify-center text-slate-400 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -490,7 +486,7 @@ const DeliveryListView = ({
   const getCODDisplay = useCallback((delivery) => {
     const requiredAmount = Number(delivery?.cod_total_amount_required || 0);
     if (requiredAmount <= 0) {
-      return <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>;
+      return <span className="text-slate-400 dark:text-slate-400">—</span>;
     }
 
     const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
@@ -512,7 +508,7 @@ const DeliveryListView = ({
       <div className="flex flex-col items-center">
         <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
         {isFailed ?
-        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Cancelled</span> :
+        <span className="text-xs text-slate-500 dark:text-slate-400">Cancelled</span> :
         <span className="text-xs text-amber-600 dark:text-amber-300">Pending collection</span>
         }
       </div>);
@@ -555,7 +551,7 @@ const DeliveryListView = ({
               <span className="font-medium">{actualLabel || arrivalLabel}</span>
             </div>
             {minutesOnSite !== null &&
-            <span className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{minutesOnSite} min</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">{minutesOnSite} min</span>
             }
           </div>);
       }
@@ -571,7 +567,7 @@ const DeliveryListView = ({
 
     }
 
-    return <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>;
+    return <span className="text-slate-400 dark:text-slate-400">—</span>;
   }, []);
 
   const handleSelect = useCallback((deliveryId) => {
@@ -685,16 +681,16 @@ const DeliveryListView = ({
   return (
     <>
       <style>{`.delivery-list-header-scroll{scrollbar-width:none;-ms-overflow-style:none;}.delivery-list-header-scroll::-webkit-scrollbar{display:none;}`}</style>
-      <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
+      <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden bg-card">
         {/* Table Header */}
-        <div className="sticky top-0 flex-shrink-0 border-b z-20" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+        <div className="sticky top-0 flex-shrink-0 border-b z-20 border-card" style={{ background: 'var(--bg-slate-50)' }}>
           {!isMobile &&
           <div
             ref={headerScrollRef}
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className="grid min-w-max grid-cols-[120px_100px_100px_250px_minmax(0,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
+              <div className="grid min-w-max grid-cols-[120px_100px_100px_250px_minmax(0,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold text-secondary" style={{ width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox
@@ -724,7 +720,7 @@ const DeliveryListView = ({
           onScroll={syncBodyScroll}
           className={`flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full ${isMobile ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-auto overflow-y-hidden'}`}>
           {deliveries.length === 0 ?
-          <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400">
               No deliveries found
             </div> :
           isMobile ?
@@ -766,7 +762,7 @@ const DeliveryListView = ({
                 {renderVirtualRow}
               </List>
             </div> :
-          <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400">
               Loading deliveries...
             </div>
           }

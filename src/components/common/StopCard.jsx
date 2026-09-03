@@ -877,13 +877,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           if (startTapLockRef.current || completeTapLockRef.current || actionTapLockRef.current || isStarting || isCompleting || isRestarting || isProcessingBackground || isFailing) return;
           onClick && onClick(delivery);
         }}
-        style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', minWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}>
+        style={{ borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', minWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }} className="bg-card">
         
         <CardContent className={`p-6 px-1 flex flex-col py-0 ${shouldAnchorExpandedCard ? 'max-h-full overflow-y-auto overscroll-contain' : ''}`}>
           <div className="flex items-start">
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
             <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
-                <GripVertical className="w-5 h-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" />
+                <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300" />
               </div>
             }
             <StopCardHeader
@@ -911,7 +911,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             
           </div>
 
-          {showMiddleSection && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {showMiddleSection && <div className="border-t border-card"></div>}
 
           {showMiddleSection &&
           <div className="flex flex-col">
@@ -919,11 +919,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px]">
                   {finalDisplayAddress ?
                 <>
-                      <div className="flex items-start gap-2 text-lg" style={{ color: 'var(--text-slate-700)' }}>
+                      <div className="flex items-start gap-2 text-lg text-secondary">
                         <span className="text-xl font-medium truncate">{isISPorISD && interStoreLocation?.store_address ? interStoreLocation.store_address : (isPickup ? store?.address || '' : patient?.address || '')}</span>
                       </div>
                       {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center gap-3 min-h-[26px]" style={{ color: 'var(--text-slate-600)' }}>
+                  <div className="flex items-center gap-3 min-h-[26px] text-label">
                           {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
                       const fullAddress = isPickup ? store?.address || '' : patient?.address || '';

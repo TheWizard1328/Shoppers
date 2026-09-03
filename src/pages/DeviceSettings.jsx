@@ -14,13 +14,13 @@ export default function DeviceSettings() {
         <div>
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-slate-200 mb-3"
+            className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 mb-3"
           >
             <ChevronLeft className="w-4 h-4" /> Back
           </button>
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Devices</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+            <h1 className="text-2xl font-bold text-body">Devices</h1>
+            <p className="text-sm mt-0.5 text-muted">
               Manage your registered devices and location tracking.
             </p>
           </div>

@@ -123,9 +123,9 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
   const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
 
   return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="bg-card border-card">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
+        <CardTitle className="flex items-center justify-between text-body">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
             User Settings
@@ -139,15 +139,15 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
           </div>
         </CardTitle>
-        <CardDescription style={{ color: 'var(--text-slate-500)' }}>View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.</CardDescription>
+        <CardDescription className="text-muted">View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500" /><span className="ml-2" style={{ color: 'var(--text-slate-600)' }}>Loading user settings...</span></div>
+          <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500" /><span className="ml-2 text-label">Loading user settings...</span></div>
         ) : displayedSettings.length === 0 ? (
-          <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>No {viewMode} user settings found.</div>
+          <div className="text-center py-8 text-muted">No {viewMode} user settings found.</div>
         ) : (
-          <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <div className="border rounded-md overflow-hidden border-card">
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
@@ -173,16 +173,16 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
                   }).map((setting) => {
                     const selectedDriverName = setting.selected_driver_id ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id)) : '-';
                     return (
-                      <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                        {visibleColumns.includes('user_name') && <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>}
+                      <tr key={setting.id} className="border-t border-card">
+                        {visibleColumns.includes('user_name') && <td className="p-3 font-medium text-body">{getUserName(setting.user_id)}</td>}
                         {visibleColumns.includes('device_type') && <td className="p-3"><Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>{setting.device_type || 'Unknown'}</Badge></td>}
-                        {visibleColumns.includes('selected_driver') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>}
-                        {visibleColumns.includes('selected_date') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>}
+                        {visibleColumns.includes('selected_driver') && <td className="p-3 text-body">{selectedDriverName}</td>}
+                        {visibleColumns.includes('selected_date') && <td className="p-3 text-body">{setting.selected_date || '-'}</td>}
                         {visibleColumns.includes('show_all_markers') && <td className="p-3"><Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>{setting.show_all_driver_markers ? '✓ Enabled' : 'Disabled'}</Badge></td>}
-                        {visibleColumns.includes('sidebar_width') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>}
+                        {visibleColumns.includes('sidebar_width') && <td className="p-3 text-body">{setting.sidebar_width || 240}px</td>}
                         {visibleColumns.includes('theme') && <td className="p-3"><Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge></td>}
-                        {visibleColumns.includes('created') && <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>{setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}</td>}
-                        {visibleColumns.includes('updated') && <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>{setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}</td>}
+                        {visibleColumns.includes('created') && <td className="p-3 text-xs text-label">{setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}</td>}
+                        {visibleColumns.includes('updated') && <td className="p-3 text-xs text-label">{setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}</td>}
                         {visibleColumns.includes('actions') && <td className="p-3"><Button variant="destructive" size="sm" onClick={() => handleDeleteSetting(setting.id)}><Trash2 className="w-4 h-4" /></Button></td>}
                       </tr>
                     );

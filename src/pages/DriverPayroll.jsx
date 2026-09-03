@@ -1354,9 +1354,9 @@ export default function DriverPayroll() {
     </SettingsDialog>
   );
 
-  if (!currentUser) return <>{eTransDialog}<div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400 dark:text-slate-500">Please log in to view payroll</span></div></>;
-  if (needsCitySelection) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400 dark:text-slate-500">Select a city to view payroll.</span></div>{eTransDialog}</>;
-  if (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading payroll data...</span></div>{eTransDialog}</>;
+  if (!currentUser) return <>{eTransDialog}<div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400">Please log in to view payroll</span></div></>;
+  if (needsCitySelection) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400">Select a city to view payroll.</span></div>{eTransDialog}</>;
+  if (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading payroll data...</span></div>{eTransDialog}</>;
 
   return <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
@@ -1366,7 +1366,7 @@ export default function DriverPayroll() {
           <div className="flex items-center gap-3 justify-between w-full lg:w-auto">
             <div className="flex items-center gap-2 min-w-0 flex-1 lg:flex-initial lg:gap-3">
               <DollarSign className="w-6 h-6 lg:w-8 lg:h-8 text-emerald-600 flex-shrink-0" />
-              <h1 className="text-lg lg:text-2xl font-bold truncate lg:min-w-[200px]" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
+              <h1 className="text-lg lg:text-2xl font-bold truncate lg:min-w-[200px] text-body">Driver Payroll</h1>
 
             </div>
             
@@ -1379,36 +1379,36 @@ export default function DriverPayroll() {
                 setSelectedCityId(v);
               });
             }} disabled={isDriver || !sortedCities.length}>
-                <SelectTrigger className="w-[78px] text-xs px-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[78px] text-xs px-2 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
-                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <SelectContent className="bg-card border-card">
                   {sortedCities.map((city) =>
-                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                <SelectItem key={city.id} value={city.id} className="text-body">
                       {city.name}
                     </SelectItem>
                 )}
                 </SelectContent>
               </Select>
               <Button
-              onClick={handleManualRefresh}
-              disabled={isRefreshing || isLoadingPayroll}
-              size="sm"
-              variant="ghost"
-              className="p-2 h-auto border border-slate-900 dark:border-white"
-              title="Refresh payroll data"
-              style={{ color: 'var(--text-slate-900)' }}>
+ onClick={handleManualRefresh}
+ disabled={isRefreshing || isLoadingPayroll}
+ size="sm"
+ variant="ghost"
+ className="p-2 h-auto border border-slate-900 dark:border-white text-body"
+ title="Refresh payroll data"
+ >
               
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
-              onClick={handleCaptureScreenshot}
-              disabled={isCapturingScreenshot}
-              size="sm"
-              variant="ghost"
-              className="p-2 h-auto border border-slate-900 dark:border-white"
-              title="Capture and share screenshot"
-              style={{ color: 'var(--text-slate-900)' }}>
+ onClick={handleCaptureScreenshot}
+ disabled={isCapturingScreenshot}
+ size="sm"
+ variant="ghost"
+ className="p-2 h-auto border border-slate-900 dark:border-white text-body"
+ title="Capture and share screenshot"
+ >
               
                 {isCapturingScreenshot ?
               <Loader2 className="w-5 h-5 animate-spin" /> :
@@ -1431,12 +1431,12 @@ export default function DriverPayroll() {
                 setSelectedCityId(v);
               });
             }} disabled={isDriver || !sortedCities.length}>
-                <SelectTrigger ref={citySelectTriggerRef} className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger ref={citySelectTriggerRef} className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
-                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <SelectContent className="bg-card border-card">
                   {sortedCities.map((city) =>
-                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                <SelectItem key={city.id} value={city.id} className="text-body">
                       {city.name}
                     </SelectItem>
                 )}
@@ -1450,12 +1450,12 @@ export default function DriverPayroll() {
                 setSelectedYear(Number(v));
               });
             }}>
-                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <SelectContent className="bg-card border-card">
                   {years.map((year) =>
-                <SelectItem key={year} value={String(year)} style={{ color: 'var(--text-slate-900)' }}>
+                <SelectItem key={year} value={String(year)} className="text-body">
                       {year}
                     </SelectItem>
                 )}
@@ -1474,13 +1474,13 @@ export default function DriverPayroll() {
 
               setTimeout(() => {isManualChangeRef.current = false;}, 200);
             }} disabled={isDriver}>
-                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="Driver" />
                 </SelectTrigger>
-                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
+                <SelectContent className="bg-card border-card">
+                  <SelectItem value="all" className="text-body">All Drivers ({driversInPayCycle.length})</SelectItem>
                   {driversInPayCycle.map((driver) =>
-                <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
+                <SelectItem key={driver.user_id} value={driver.user_id} className="text-body">
                       {getDriverDisplayName(driver)}
                     </SelectItem>
                 )}
@@ -1489,12 +1489,12 @@ export default function DriverPayroll() {
 
               {/* Pay Cycle Selector - 4th position dropdown */}
               <Select value={payPeriod || 'monthly'} onValueChange={handlePayPeriodChange} disabled={isDriver}>
-                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="Cycle" />
                 </SelectTrigger>
-                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <SelectContent className="bg-card border-card">
                   {payCycleInfo.cycles.map((cycle) =>
-                <SelectItem key={cycle} value={cycle} style={{ color: 'var(--text-slate-900)' }}>
+                <SelectItem key={cycle} value={cycle} className="text-body">
                       {cycle.charAt(0).toUpperCase() + cycle.slice(1)}
                     </SelectItem>
                 )}
@@ -1505,24 +1505,24 @@ export default function DriverPayroll() {
             {/* Icon Buttons - Far Right (Desktop only) */}
             <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
               <Button
-              onClick={handleManualRefresh}
-              disabled={isRefreshing || isLoadingPayroll}
-              size="sm"
-              variant="ghost"
-              className="p-2 h-auto"
-              title="Refresh payroll data"
-              style={{ color: 'var(--text-slate-900)' }}>
+ onClick={handleManualRefresh}
+ disabled={isRefreshing || isLoadingPayroll}
+ size="sm"
+ variant="ghost"
+ className="p-2 h-auto text-body"
+ title="Refresh payroll data"
+ >
               
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
-              onClick={handleCaptureScreenshot}
-              disabled={isCapturingScreenshot}
-              size="sm"
-              variant="ghost"
-              className="p-2 h-auto"
-              title="Capture and share screenshot"
-              style={{ color: 'var(--text-slate-900)' }}>
+ onClick={handleCaptureScreenshot}
+ disabled={isCapturingScreenshot}
+ size="sm"
+ variant="ghost"
+ className="p-2 h-auto text-body"
+ title="Capture and share screenshot"
+ >
               
                 {isCapturingScreenshot ?
               <Loader2 className="w-5 h-5 animate-spin" /> :

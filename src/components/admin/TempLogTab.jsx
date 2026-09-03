@@ -915,7 +915,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
         </Button>
 
         {!loading &&
-        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-1">
+        <span className="text-xs text-slate-500 dark:text-slate-400 ml-1">
             {logs.length} log{logs.length !== 1 ? 's' : ''} • {totalReadings} reading{totalReadings !== 1 ? 's' : ''}
           </span>
         }
@@ -953,10 +953,10 @@ export default function TempLogTab({ drivers = [], currentUser }) {
       {loading ?
       <div className="flex items-center justify-center h-48">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-          <span className="ml-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Loading temp logs…</span>
+          <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">Loading temp logs…</span>
         </div> :
       chartData.length === 0 ?
-      <div className="flex flex-col items-center justify-center h-48 text-slate-400 dark:text-slate-500 dark:text-slate-400 gap-2">
+      <div className="flex flex-col items-center justify-center h-48 text-slate-400 dark:text-slate-400 gap-2">
           <Thermometer className="w-8 h-8 opacity-40" />
           <span className="text-sm">No temperature readings for this date / driver.</span>
         </div> :
@@ -964,7 +964,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cooler Temperature — {selectedDate}</div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="#2563eb" /></svg>
               Fridge item on board
             </div>
@@ -980,8 +980,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
             return (
               <div className="mb-4 px-1 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Time Range — {driverName}</span>
-                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{minLabel} → {maxLabel}</span>
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Time Range — {driverName}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{minLabel} → {maxLabel}</span>
                 </div>
                 <div className="px-2">
                   <Slider
@@ -992,9 +992,9 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     onValueChange={(val) => setTimeRange(val)}
                     className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1.5">
+                  <div className="flex justify-between text-xs text-slate-400 dark:text-slate-400 mt-1.5">
                     <span>{expandedLogTimestamps[0]?.slice(11, 16)}</span>
-                    <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-center">Drag a point on the chart ↕ to adjust</span>
+                    <span className="text-slate-400 dark:text-slate-400 text-center">Drag a point on the chart ↕ to adjust</span>
                     <span>{expandedLogTimestamps[expandedLogTimestamps.length - 1]?.slice(11, 16)}</span>
                   </div>
                 </div>
@@ -1167,7 +1167,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                       <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{driver.name}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{driverLogs.length} log{driverLogs.length !== 1 ? 's' : ''}</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-400">{driverLogs.length} log{driverLogs.length !== 1 ? 's' : ''}</span>
                         {canDelete && (
                     confirmDelete?.type === 'all' && confirmDelete?.driverId === driver.id ?
                     <div className="flex items-center gap-1.5">
@@ -1178,7 +1178,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                               <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
                             </div> :
 
-                    <button onClick={() => setConfirmDelete({ type: 'all', driverId: driver.id })} title="Delete all logs for this driver" className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-red-500 transition-colors">
+                    <button onClick={() => setConfirmDelete({ type: 'all', driverId: driver.id })} title="Delete all logs for this driver" className="text-slate-400 dark:text-slate-400 hover:text-red-500 transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>)
 
@@ -1204,12 +1204,12 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                           })}
                           className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
                           
-                              {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0" />}
+                              {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-400 flex-shrink-0" />}
                               <Thermometer className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                               <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{logDate}</span>
-                              <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 ml-1">• {readingCount} reading{readingCount !== 1 ? 's' : ''}</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-400 ml-1">• {readingCount} reading{readingCount !== 1 ? 's' : ''}</span>
                               {log.latest_reading?.temperature_celsius != null &&
-                          <span className="text-xs font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-1">latest: {log.latest_reading.temperature_celsius.toFixed(1)}°C</span>
+                          <span className="text-xs font-mono text-slate-500 dark:text-slate-400 ml-1">latest: {log.latest_reading.temperature_celsius.toFixed(1)}°C</span>
                           }
                             </button>
                             {canDelete && (
@@ -1232,7 +1232,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                           {isExpanded &&
                       <div className="pl-12 pr-4 pb-2 space-y-0.5">
                               {readings.length === 0 ?
-                        <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 py-1">No readings recorded.</div> :
+                        <div className="text-xs text-slate-400 dark:text-slate-400 py-1">No readings recorded.</div> :
                         readings.map((r, idx) => {
                           const time = r.timestamp ? String(r.timestamp).replace('Z', '').slice(11, 16) : '??:??';
                           const temp = r.temperature_celsius;
@@ -1241,12 +1241,12 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                           const isOut = isLow || isHigh;
                           return (
                             <div key={idx} className="flex items-center gap-3 py-0.5">
-                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500 w-12">{time}</span>
+                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-12">{time}</span>
                                     <span className={`text-xs font-mono font-semibold ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>
                                       {temp != null ? `${temp.toFixed(1)}°C` : '—'}
                                     </span>
                                     {r.humidity_percent != null &&
-                              <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{r.humidity_percent.toFixed(0)}% RH</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-400">{r.humidity_percent.toFixed(0)}% RH</span>
                               }
                                     {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
                                   </div>);
@@ -1271,13 +1271,13 @@ export default function TempLogTab({ drivers = [], currentUser }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-2 text-left font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Driver</th>
-                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Readings</th>
-                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Min</th>
-                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Max</th>
-                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Avg</th>
-                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Latest</th>
-                <th className="px-4 py-2 text-center font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Status</th>
+                <th className="px-4 py-2 text-left font-semibold text-slate-600 dark:text-slate-400">Driver</th>
+                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400">Readings</th>
+                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400">Min</th>
+                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400">Max</th>
+                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400">Avg</th>
+                <th className="px-4 py-2 text-right font-semibold text-slate-600 dark:text-slate-400">Latest</th>
+                <th className="px-4 py-2 text-center font-semibold text-slate-600 dark:text-slate-400">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -1338,17 +1338,17 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     className={`border-b border-slate-100 last:border-0 cursor-pointer transition-colors ${isExpanded ? 'bg-slate-100' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}>
                       <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-200">
                         <div className="flex items-center gap-1.5">
-                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 dark:text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 dark:text-slate-400" />}
+                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />}
                           {getDriverName(log.driver_id)}
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                      <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">
                         {bounds ? <span title="route readings / total readings">{tempsRoute.length}/{allReadings.length}</span> : allReadings.length}
                       </td>
                       <td className={`px-4 py-2 text-right font-mono ${min < fridgeCfg.safe_min ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>{min.toFixed(1)}°C</td>
                       <td className={`px-4 py-2 text-right font-mono ${max > fridgeCfg.safe_max ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>{max.toFixed(1)}°C</td>
                       <td className={`px-4 py-2 text-right font-mono font-semibold ${outOfRange ? 'text-red-600' : 'text-emerald-700'}`}>{avg.toFixed(1)}°C</td>
-                      <td className="px-4 py-2 text-right font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500">{latest?.toFixed(1)}°C</td>
+                      <td className="px-4 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{latest?.toFixed(1)}°C</td>
                       <td className="px-4 py-2 text-center">
                         {outOfRange ?
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-950 px-2 py-0.5 rounded-full">⚠ Out of Range</span> :
@@ -1360,7 +1360,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     <td colSpan={7} className="px-4 py-3">
                      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                        <div className="flex items-center gap-2">
-                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
+                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
                          {logSelectedCount > 0 && <span className="text-xs text-blue-600 font-medium">{logSelectedCount} selected</span>}
                        </div>
                        <div className="flex items-center gap-2">
@@ -1370,7 +1370,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                            </button>
                          )}
                          {logSelectedCount > 0 && (
-                           <button onClick={(e) => { e.stopPropagation(); setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); }} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 transition-colors">Clear</button>
+                           <button onClick={(e) => { e.stopPropagation(); setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); }} className="text-xs text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 transition-colors">Clear</button>
                          )}
                          {(() => {
                            if (!canDelete || !allReadings.length || !routeBoundaries[log.driver_id]) return null;
@@ -1396,11 +1396,11 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                              <button onClick={() => deleteAllReadingsForLog(log.id)} disabled={deleting === `allReadings-${log.id}`} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">{deleting === `allReadings-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
                              <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
                            </div> :
-                           <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'allReadings', logId: log.id }); }} className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="w-3 h-3" /> Delete all</button>
+                           <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'allReadings', logId: log.id }); }} className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="w-3 h-3" /> Delete all</button>
                          )}
                        </div>
                      </div>
-                     {allReadings.length === 0 ? <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">No readings recorded.</div> :
+                     {allReadings.length === 0 ? <div className="text-xs text-slate-400 dark:text-slate-400">No readings recorded.</div> :
                      <div className="space-y-0.5 max-h-64 overflow-y-auto">
                        {allReadings.map((r, idx) => {
                          const time = r.timestamp ? String(r.timestamp).replace('Z','').slice(11,16) : '??:??';
@@ -1412,9 +1412,9 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                          return (
                            <div key={idx} className={`flex items-center gap-2 py-1 px-1 rounded group cursor-pointer transition-colors ${isChecked ? 'bg-blue-50 dark:bg-blue-950' : 'hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800'} ${outsideSlider ? 'opacity-30 pointer-events-none' : ''}`} onClick={(e) => { e.stopPropagation(); if (!outsideSlider) toggleReadingSelection(log.id, idx); }}>
                              <Checkbox checked={isChecked} onCheckedChange={() => toggleReadingSelection(log.id, idx)} onClick={(e) => e.stopPropagation()} className="flex-shrink-0" />
-                             <span className="text-xs font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500 w-12">{time}</span>
+                             <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-12">{time}</span>
                              <span className={`text-xs font-mono font-semibold w-16 ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>{temp != null ? `${temp.toFixed(1)}°C` : '—'}</span>
-                             {r.humidity_percent != null && <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>}
+                             {r.humidity_percent != null && <span className="text-xs text-slate-400 dark:text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>}
                              {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
                              <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                <button title="Edit this reading" onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(log.id, idx, temp); }} className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"><Pencil className="w-3 h-3" /></button>
@@ -1450,7 +1450,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
             <DialogTitle>Edit Temperature Reading</DialogTitle>
           </DialogHeader>
           <div className="py-2 space-y-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               Current value: <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{editDialog?.currentTemp?.toFixed(1)}°C</span>
             </div>
             <div className="flex items-center gap-2">
@@ -1463,7 +1463,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); }}
               />
-              <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 flex-shrink-0">°C</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400 flex-shrink-0">°C</span>
             </div>
           </div>
           <DialogFooter>
@@ -1482,7 +1482,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
             <DialogTitle>Adjust {adjustDialog?.indices?.length} Readings</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-5">
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
+            <div className="text-xs text-slate-500 dark:text-slate-400 text-center">
               Slide to adjust all selected readings up or down
             </div>
             <div className="text-center text-2xl font-mono font-bold text-slate-800 dark:text-slate-200">
@@ -1497,13 +1497,13 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                 onValueChange={([v]) => setAdjustDelta(parseFloat((v / 10).toFixed(1)))}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">
+              <div className="flex justify-between text-xs text-slate-400 dark:text-slate-400 mt-1">
                 <span>-5°C</span>
                 <span>0</span>
                 <span>+5°C</span>
               </div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
+            <div className="text-xs text-slate-500 dark:text-slate-400 text-center">
               All {adjustDialog?.indices?.length} selected values will be shifted by {adjustDelta > 0 ? '+' : ''}{adjustDelta.toFixed(1)}°C
             </div>
           </div>

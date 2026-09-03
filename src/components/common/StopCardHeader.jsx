@@ -372,7 +372,7 @@ export default function StopCardHeader({
 
       {/* Center section */}
       <div className="flex-1 min-w-0">
-        <h3 className="pt-0 text-xl font-semibold text-center truncate" style={{ color: "var(--text-slate-900)" }}>
+        <h3 className="pt-0 text-xl font-semibold text-center truncate text-body">
           {finalDisplayName}
         </h3>
         <div className="flex flex-col items-center min-h-[43px]">
@@ -390,7 +390,7 @@ export default function StopCardHeader({
 
           {/* Time window for active stops — ISP/ISD only shows start time, no end */}
           {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-          <div className="text-xs font-bold" style={{ color: "var(--text-slate-500)" }}>
+          <div className="text-xs font-bold text-muted">
               {isInterStore ? (
                 delivery?.delivery_time_start ? <>{formatTime24Hour(delivery.delivery_time_start)} →</> : null
               ) : delivery?.delivery_time_start && delivery?.delivery_time_end ?

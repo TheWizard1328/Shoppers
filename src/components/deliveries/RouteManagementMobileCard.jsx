@@ -199,14 +199,9 @@ export default function RouteManagementMobileCard({
       )}
 
       <div
-        className={`w-full rounded-xl border-2 shadow-md cursor-pointer transition-all overflow-hidden ${
+        className={w-full rounded-xl border-2 shadow-md cursor-pointer transition-all overflow-hidden ${
           isSelected ? "ring-2 ring-blue-500" : ""
-        }`}
-        style={{
-          background: "var(--bg-white)",
-          borderColor,
-          opacity: 1,
-        }}
+        } bg-card} style={{ borderColor, opacity: 1 }}
         onClick={() => onClick?.(delivery)}
       >
         <div className="px-3 py-2 flex flex-col gap-1.5">
@@ -223,7 +218,7 @@ export default function RouteManagementMobileCard({
               {trLabel && (
                 <>
                   <span className="text-slate-400 dark:text-slate-500 text-xs">•</span>
-                  <span className="text-xs font-semibold" style={{ color: "var(--text-slate-600)" }}>
+                  <span className="text-xs font-semibold text-label">
                     {trLabel}
                   </span>
                 </>
@@ -240,7 +235,7 @@ export default function RouteManagementMobileCard({
                 </Badge>
               )}
               {timeAtLocation && (
-                <span className="text-xs font-semibold" style={{ color: "var(--text-slate-600)" }}>
+                <span className="text-xs font-semibold text-label">
                   {timeAtLocation}
                 </span>
               )}
@@ -254,7 +249,7 @@ export default function RouteManagementMobileCard({
           {(displayName || addrLine) && (
             <div className="flex items-baseline gap-1.5 min-w-0">
               {displayName && (
-                <span className="text-sm font-semibold truncate" style={{ color: "var(--text-slate-900)" }}>
+                <span className="text-sm font-semibold truncate text-body">
                   {displayName}
                 </span>
               )}
@@ -270,7 +265,7 @@ export default function RouteManagementMobileCard({
                   {addrLine}
                 </a>
               ) : addrLine ? (
-                <span className="text-xs truncate flex-1 min-w-0" style={{ color: "var(--text-slate-600)" }}>
+                <span className="text-xs truncate flex-1 min-w-0 text-label">
                   {addrLine}
                 </span>
               ) : null}
@@ -305,8 +300,8 @@ export default function RouteManagementMobileCard({
 
           {/* ── Row 4: COD info (single row) ── */}
           {hasCODRow && (
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs" style={{ color: "var(--text-slate-700)" }}>
-              <span className="font-medium flex items-center gap-1" style={{ color: "var(--text-slate-500)" }}>
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-secondary">
+              <span className="font-medium flex items-center gap-1 text-muted">
                 <DollarSign className="w-3 h-3" /> COD Payment:
               </span>
               {codRequired > 0 && (
@@ -315,7 +310,7 @@ export default function RouteManagementMobileCard({
               {codPayments.map((p, idx) => (
                 <span key={idx} className="contents">
                   <span style={{ color: "var(--text-slate-400)" }}>-</span>
-                  <Badge variant="secondary" className="text-xs" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)" }}>
+                  <Badge variant="secondary" className="text-xs text-secondary" style={{ background: "var(--bg-slate-100)" }}>
                     {p.type}: ${Number(p.amount || 0).toFixed(2)}
                   </Badge>
                 </span>
@@ -327,7 +322,7 @@ export default function RouteManagementMobileCard({
           {patientNotes && (
             <div className="flex items-start gap-1 min-w-0">
               <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "var(--text-slate-400)" }} />
-              <p className="text-xs whitespace-pre-wrap break-words" style={{ color: "var(--text-slate-700)" }}>
+              <p className="text-xs whitespace-pre-wrap break-words text-secondary">
                 <span className="font-medium">Patient Notes:</span> {patientNotes}
               </p>
             </div>
@@ -337,7 +332,7 @@ export default function RouteManagementMobileCard({
           {driverNotes && (
             <div className="flex items-start gap-1 min-w-0">
               <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "var(--text-slate-400)" }} />
-              <p className="text-xs whitespace-pre-wrap break-words" style={{ color: "var(--text-slate-700)" }}>
+              <p className="text-xs whitespace-pre-wrap break-words text-secondary">
                 <span className="font-medium">Driver Notes:</span> {driverNotes}
               </p>
             </div>

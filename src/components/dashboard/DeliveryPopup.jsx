@@ -23,7 +23,7 @@ export default function DeliveryPopup({ delivery, isPickup = false, stores = [],
   }, [isISP, delivery?.delivery_id, delivery?._interstore_source_id, stores]);
 
   return (
-    <div className="min-w-[220px] max-w-[320px]" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+    <div className="min-w-[220px] max-w-[320px] text-body bg-card">
       <MarkerInfoBalloon
         delivery={delivery}
         store={store}

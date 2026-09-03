@@ -114,7 +114,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
         {markers.map((m) =>
         <span
           key={m}
-          className="absolute top-0 text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 -translate-x-1/2 select-none"
+          className="absolute top-0 text-[10px] text-slate-400 dark:text-slate-400 -translate-x-1/2 select-none"
           style={{ left: `${(m - windowStart) / windowMinutes * 100}%` }}>
             {formatHourLabel(m)}
           </span>
@@ -133,7 +133,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
             {/* Mobile: name + time above bar, full-width bar */}
             <div className="flex items-center gap-2 mb-0.5 sm:hidden">
               <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{name}</span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400">{formatDuration(totalMin)}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-400">{formatDuration(totalMin)}</span>
               <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
@@ -143,7 +143,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
               {/* Desktop: name on left */}
               <div className="hidden sm:block w-28 flex-shrink-0 text-right pr-2">
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate block">{name}</span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400">{formatDuration(totalMin)}</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-400">{formatDuration(totalMin)}</span>
               </div>
               <div className="flex-1 relative h-8 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
                 {/* On-duty segments */}
@@ -221,7 +221,7 @@ function CardGridView({ records, driverNames, onEdit, onDelete }) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-semibold text-sm text-slate-900 dark:text-slate-100">{name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{totalMin > 0 ? `Total: ${formatDuration(totalMin)}` : 'No segments'}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{totalMin > 0 ? `Total: ${formatDuration(totalMin)}` : 'No segments'}</p>
                 </div>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
@@ -230,14 +230,14 @@ function CardGridView({ records, driverNames, onEdit, onDelete }) {
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-1">
-              {segments.length === 0 && <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 italic">No activity recorded</p>}
+              {segments.length === 0 && <p className="text-xs text-slate-400 dark:text-slate-400 italic">No activity recorded</p>}
               {segments.map((seg, i) =>
               <div key={i} className="flex items-center gap-2 text-xs">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{formatTime(seg.start_time)}</span>
-                  <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">→</span>
-                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{seg.end_time ? formatTime(seg.end_time) : <span className="text-emerald-600 font-medium">Active</span>}</span>
-                  {seg.tot != null && <span className="ml-auto text-slate-400 dark:text-slate-500 dark:text-slate-400">{formatDuration(seg.tot)}</span>}
+                  <span className="text-slate-600 dark:text-slate-400">{formatTime(seg.start_time)}</span>
+                  <span className="text-slate-400 dark:text-slate-400">→</span>
+                  <span className="text-slate-600 dark:text-slate-400">{seg.end_time ? formatTime(seg.end_time) : <span className="text-emerald-600 font-medium">Active</span>}</span>
+                  {seg.tot != null && <span className="ml-auto text-slate-400 dark:text-slate-400">{formatDuration(seg.tot)}</span>}
                 </div>
               )}
             </CardContent>
@@ -255,11 +255,11 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">Driver</th>
-            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">Segments</th>
-            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">First On</th>
-            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">Last Off</th>
-            <th className="text-right px-3 py-2 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">Total On-Duty</th>
+            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 text-xs">Driver</th>
+            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 text-xs">Segments</th>
+            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 text-xs">First On</th>
+            <th className="text-left px-3 py-2 font-medium text-slate-600 dark:text-slate-400 text-xs">Last Off</th>
+            <th className="text-right px-3 py-2 font-medium text-slate-600 dark:text-slate-400 text-xs">Total On-Duty</th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
@@ -281,8 +281,8 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
                 <td className="px-3 py-2">
                   <Badge variant="secondary" className="text-xs">{segs.length}</Badge>
                 </td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">{formatTime(firstSeg?.start_time)}</td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-400 text-xs">{formatTime(firstSeg?.start_time)}</td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-400 text-xs">
                   {lastSeg?.end_time ? formatTime(lastSeg.end_time) : <span className="text-emerald-600 font-medium text-xs">Still active</span>}
                 </td>
                 <td className="px-3 py-2 text-right font-medium text-slate-800 dark:text-slate-200">{formatDuration(totalMin)}</td>
@@ -346,7 +346,7 @@ function SegmentDialog({ record, onSave, onClose }) {
           {segments.map((seg, i) =>
           <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Segment {i + 1}</span>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Segment {i + 1}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -608,7 +608,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         </div> :
       records.length === 0 ?
-      <div className="text-center py-16 text-slate-400 dark:text-slate-500 dark:text-slate-400">
+      <div className="text-center py-16 text-slate-400 dark:text-slate-400">
           <User className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="font-medium">No activity records for {selectedDate}</p>
           <p className="text-sm mt-1">Add a record or change the date.</p>
@@ -649,7 +649,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
                 {newSegments.map((seg, i) =>
               <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Segment {i + 1}</span>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Segment {i + 1}</span>
                       {newSegments.length > 1 &&
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500"
                   onClick={() => setNewSegments((prev) => prev.filter((_, idx) => idx !== i))}>
@@ -694,7 +694,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
       <Dialog open onOpenChange={(open) => {if (!open) setDeleteTarget(null);}}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500" />Delete Activity Record?</DialogTitle></DialogHeader>
-            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               This will permanently delete the activity record for <strong>{driverNames[deleteTarget.driver_id] || deleteTarget.driver_id}</strong> on {deleteTarget.activity_date}.
             </p>
             <DialogFooter className="gap-2">

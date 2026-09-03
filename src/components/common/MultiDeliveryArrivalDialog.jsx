@@ -148,7 +148,7 @@ export default function MultiDeliveryArrivalDialog({
               <MapPin className="w-5 h-5 text-blue-600" />
               {allAtLocation.length} Deliveries at This Address
             </DialogTitle>
-            <p className="text-base text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium mt-0.5">
+            <p className="text-base text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               {patients.find((p) => p?.id === currentDelivery?.patient_id)?.address || 'Same location'}
             </p>
           </DialogHeader>
@@ -205,14 +205,14 @@ export default function MultiDeliveryArrivalDialog({
                   </div>
 
                   {/* Row 2: Unit + Tracking # (address removed — shown in dialog header) */}
-                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                     {(delivery.unit_number || patient?.unit_number) && (
                       <span className="font-semibold text-slate-700 dark:text-slate-300">
                         Unit #{delivery.unit_number || patient?.unit_number}
                       </span>
                     )}
                     {delivery.tracking_number && (
-                      <span className={`flex items-center gap-1 text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400 ${(delivery.unit_number || patient?.unit_number) ? 'ml-auto' : 'ml-0'}`}>
+                      <span className={`flex items-center gap-1 text-sm text-slate-400 dark:text-slate-400${(delivery.unit_number || patient?.unit_number) ? 'ml-auto' : 'ml-0'}`}>
                         <Hash className="w-3.5 h-3.5" />TR#{delivery.tracking_number}
                       </span>
                     )}
@@ -220,7 +220,7 @@ export default function MultiDeliveryArrivalDialog({
 
                   {/* Row 3: Phone */}
                   {(patient?.phone || delivery.phone) && (
-                    <div className="flex items-center gap-1.5 text-base text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                    <div className="flex items-center gap-1.5 text-base text-slate-600 dark:text-slate-400">
                       <Phone className="w-4 h-4 flex-shrink-0" />
                       <a
                         href={`tel:${String(patient?.phone || delivery.phone).replace(/\D/g, '')}`}
@@ -231,7 +231,7 @@ export default function MultiDeliveryArrivalDialog({
                       </a>
                       {patient?.phone_secondary && (
                         <>
-                          <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">·</span>
+                          <span className="text-slate-400 dark:text-slate-400">·</span>
                           <a
                             href={`tel:${String(patient.phone_secondary).replace(/\D/g, '')}`}
                             onClick={(e) => e.stopPropagation()}

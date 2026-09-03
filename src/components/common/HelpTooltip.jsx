@@ -33,7 +33,7 @@ export default function HelpTooltip({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className={`inline-flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 transition-colors ${className}`}
+            className={`inline-flex items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 transition-colors${className}`}
             onClick={(e) => e.stopPropagation()}
           >
             <HelpCircle className={sizeClasses[size]} />
@@ -41,15 +41,14 @@ export default function HelpTooltip({
         </TooltipTrigger>
         <TooltipContent 
           side={side} 
-          className="max-w-[280px] p-3 z-[10000]"
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+          className="max-w-[280px] p-3 z-[10000] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
         >
           {title && (
-            <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
+            <p className="font-semibold text-sm mb-1 text-body">
               {title}
             </p>
           )}
-          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-slate-600)' }}>
+          <p className="text-xs leading-relaxed text-label">
             {content}
           </p>
         </TooltipContent>

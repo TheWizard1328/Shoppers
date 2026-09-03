@@ -63,14 +63,14 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                 {result.status === 'pending_review' ? 'Pending Review' : result.status === 'applied' ? 'Applied' : 'Dismissed'}
               </Badge>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex gap-3 flex-wrap">
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex gap-3 flex-wrap">
               <span>{store?.name || result.store_name}</span>
               <span>Analyzed: {result.analysis_date}</span>
               {getLastDeliveryDate(result) && <span>Last delivery: {getLastDeliveryDate(result)}</span>}
               <span>{result.total_deliveries_analyzed} deliveries analyzed</span>
             </div>
           </div>
-          <button onClick={() => setExpanded(v => !v)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 p-1">
+          <button onClick={() => setExpanded(v => !v)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 p-1">
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
@@ -102,10 +102,10 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{pattern.pattern_label}</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Confidence: {pattern.confidence}%</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Confidence: {pattern.confidence}%</span>
                         {idx === 0 && <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">Best Match</Badge>}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{pattern.supporting_data}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{pattern.supporting_data}</p>
                     </div>
                     {isPending && (
                       <Button
@@ -129,7 +129,7 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                     variant="ghost"
                     disabled={loading}
                     onClick={handleDismiss}
-                    className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-red-600"
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-red-600"
                   >
                     <XCircle className="w-3.5 h-3.5 mr-1" />
                     Dismiss
@@ -248,7 +248,7 @@ export default function PatientActivityReview() {
             <Activity className="w-6 h-6 text-blue-600" />
             Patient Activity Review
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             AI-detected inactivity and recurring pattern suggestions
           </p>
         </div>
@@ -335,9 +335,9 @@ export default function PatientActivityReview() {
 
       {/* Results List */}
       {loading ? (
-        <div className="text-center py-12 text-slate-400 dark:text-slate-500 dark:text-slate-400">Loading...</div>
+        <div className="text-center py-12 text-slate-400 dark:text-slate-400">Loading...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-slate-400 dark:text-slate-500 dark:text-slate-400">No results found for these filters.</div>
+        <div className="text-center py-12 text-slate-400 dark:text-slate-400">No results found for these filters.</div>
       ) : (
         <div className="space-y-2">
           {filtered.map(result => (

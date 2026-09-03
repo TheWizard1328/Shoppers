@@ -61,14 +61,14 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
   const hasMore = filteredDeliveries.length > visibleCount;
 
   return (
-    <Card className="shadow-sm flex flex-col h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="shadow-sm flex flex-col h-full bg-card border-card">
       <CardHeader className="px-4 py-2 flex-shrink-0">
-        <CardTitle className="flex items-center justify-between gap-2" style={{ color: 'var(--text-slate-900)' }}>
+        <CardTitle className="flex items-center justify-between gap-2 text-body">
           <span className="flex items-center gap-2">
             <Package className="w-5 h-5 text-blue-600" />
             Recent Deliveries
           </span>
-          <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none" style={{ color: 'var(--text-slate-600)' }}>
+          <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none text-label">
             <input
               type="checkbox"
               checked={codOnly}
@@ -81,12 +81,12 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
       </CardHeader>
       <CardContent className="flex-1 min-h-0 flex flex-col">
         {isLoading ?
-        <div className="flex items-center justify-center gap-2 py-6 text-sm" style={{ color: 'var(--text-slate-500)' }}>
+        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted">
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading deliveries...
           </div> :
         patientDeliveries.length === 0 ?
-        <p className="text-sm text-center py-4" style={{ color: 'var(--text-slate-500)' }}>
+        <p className="text-sm text-center py-4 text-muted">
             No deliveries found
           </p> :
 
@@ -97,20 +97,19 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
             return (
               <div
                 key={delivery.id}
-                className={`p-3 rounded-lg border`}
-                style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                className={p-3 rounded-lg border border-card} style={{ background: 'var(--bg-slate-50)' }}>
                   <div className="grid grid-cols-2 gap-3 mb-2">
                     <div className="text-xs space-y-1">
-                      <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                      <div className="text-sm font-medium text-body">
                         {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
                       </div>
                       {delivery.tracking_number &&
-                    <div style={{ color: 'var(--text-slate-600)' }}>
+                    <div className="text-label">
                           <span className="font-medium">TR#:</span> {delivery.tracking_number}
                         </div>
                     }
                       {delivery.actual_delivery_time &&
-                    <div style={{ color: 'var(--text-slate-600)' }}>
+                    <div className="text-label">
                           <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
                         </div>
                     }
@@ -126,7 +125,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
                       delivery.status}
                       </Badge>
                       {delivery.driver_name &&
-                    <Badge variant="outline" className="text-xs" style={{ color: 'var(--text-slate-700)' }}>
+                    <Badge variant="outline" className="text-xs text-secondary">
                           {delivery.driver_name}
                         </Badge>
                     }
@@ -139,7 +138,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
                   </div>
                   <div className={`flex items-center justify-between ${delivery.delivery_notes ? 'pt-2 border-t' : ''}`} style={{ borderColor: 'var(--border-slate-300)' }}>
                     {delivery.delivery_notes &&
-                  <div className="text-xs flex-1 mr-2 whitespace-pre-wrap" style={{ color: 'var(--text-slate-600)' }}>
+                  <div className="text-xs flex-1 mr-2 whitespace-pre-wrap text-label">
                         <div className="font-medium">Notes:</div>
                         <div className="mt-0.5 whitespace-pre-wrap">{delivery.delivery_notes}</div>
                       </div>
@@ -148,8 +147,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
                       {userHasRole(currentUser, 'admin') && onEditDelivery &&
                     <button
                       onClick={() => onEditDelivery(delivery)}
-                      className="flex items-center gap-1 text-xs font-medium shrink-0"
-                      style={{ color: 'var(--text-slate-500)' }}>
+                      className="flex items-center gap-1 text-xs font-medium shrink-0 text-muted">
                       
                           <Pencil className="w-3 h-3" />
                           Edit
@@ -171,8 +169,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
           {hasMore &&
           <button
             onClick={() => setVisibleCount((c) => c + 60)}
-            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0"
-            style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-200)' }}>
+            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0 text-label border-card">
               Show more ({filteredDeliveries.length - visibleCount} more)
             </button>
           }
@@ -261,7 +258,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
 
   if (!patient) {
     return (
-      <div className="text-center py-10" style={{ color: 'var(--text-slate-500)' }}>
+      <div className="text-center py-10 text-muted">
         <p className="text-lg mb-2">Select a patient to view details</p>
         <p className="text-sm">Click on any patient card on the left to see analytics and recent delivery history.</p>
       </div>);
@@ -283,7 +280,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
     <div className="flex flex-col h-full overflow-hidden px-3 py-3 gap-3">
       {/* Delivery Statistics */}
       {deliveryStats &&
-      <Card className="shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <Card className="shadow-sm bg-card border-card">
           <CardHeader
           className="cursor-pointer select-none"
           style={{ touchAction: 'none' }}
@@ -292,7 +289,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
           onTouchStart={handleAnalyticsHeaderPointerDown}
           onTouchEnd={handleAnalyticsHeaderPointerUp}>
           
-            <CardTitle className="flex items-center justify-between gap-2" style={{ color: 'var(--text-slate-900)' }}>
+            <CardTitle className="flex items-center justify-between gap-2 text-body">
               <span className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-blue-600" />
                 Delivery Analytics
@@ -306,23 +303,23 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
           {!analyticsCollapsed && <CardContent className="space-y-2 px-2 py-2">
             <div className="grid grid-cols-2 gap-2">
               <div className="text-center p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{deliveryStats.totalDeliveries}</p>
-                <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Total</p>
+                <p className="text-2xl font-bold text-body">{deliveryStats.totalDeliveries}</p>
+                <p className="text-sm text-label">Total</p>
               </div>
               <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(16,185,129,0.1)' }}>
                 <p className="text-2xl font-bold" style={{ color: '#059669' }}>
                   {deliveryStats.mostCommonDay ? dayAbbreviations[deliveryStats.mostCommonDay] || deliveryStats.mostCommonDay.substring(0, 3) : 'N/A'}
                 </p>
-                <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Most Common Day</p>
+                <p className="text-sm text-label">Most Common Day</p>
               </div>
             </div>
 
             {deliveryStats.lastDeliveryDate &&
           <div className="flex items-center gap-3 text-sm p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
+                <Calendar className="w-4 h-4 flex-shrink-0 text-muted" />
                 <div>
-                  <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>Last Delivery</p>
-                  <p style={{ color: 'var(--text-slate-600)' }}>
+                  <p className="font-medium text-body">Last Delivery</p>
+                  <p className="text-label">
                     {format(new Date(deliveryStats.lastDeliveryDate + 'T12:00:00'), 'EEE, MMM d, yyyy')}
                   </p>
                 </div>
@@ -331,13 +328,13 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
 
             {deliveryStats.dayFrequency && Object.keys(deliveryStats.dayFrequency).length > 0 &&
           <div>
-                <p className="font-medium mb-3" style={{ color: 'var(--text-slate-900)' }}>Delivery Pattern</p>
+                <p className="font-medium mb-3 text-body">Delivery Pattern</p>
                 <div className="space-y-1">
                   {Object.entries(deliveryStats.dayFrequency).
               sort(([, a], [, b]) => b - a).
               map(([day, count]) =>
               <div key={day} className="flex justify-between items-center text-sm">
-                        <span className="min-w-[40px]" style={{ color: 'var(--text-slate-600)' }}>{dayAbbreviations[day] || day.substring(0, 3)}</span>
+                        <span className="min-w-[40px] text-label">{dayAbbreviations[day] || day.substring(0, 3)}</span>
                         <div className="flex items-center gap-2 flex-1">
                           <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-slate-200)' }}>
                             <div

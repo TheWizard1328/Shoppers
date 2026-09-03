@@ -99,31 +99,31 @@ export default function CompanyDataTab() {
     return (
       <div className="flex justify-center items-center h-40">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading company data...</span>
+        <span className="ml-3 text-slate-600 dark:text-slate-400">Loading company data...</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg px-3 py-2">
+      <div className="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg px-3 py-2">
         Records with a blank <code className="font-mono text-xs bg-blue-100 px-1 rounded">company_id</code> are counted under <strong>RGistics (default)</strong>. As you add more companies and assign records, their counts will appear here.
       </div>
 
       {rows.map((row) => {
         const total = statDefs.reduce((sum, s) => sum + getCount(s.key, row.id), 0);
         return (
-          <Card key={row.id} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card key={row.id} className="bg-card border-card">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
-                <Building2 className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+              <CardTitle className="flex items-center gap-2 text-base text-body">
+                <Building2 className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                 {row.name}
                 {row.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
                 {row.isOrphaned && <Badge variant="destructive" className="text-xs">Orphaned ID</Badge>}
-                <span className="ml-auto text-sm font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">{total.toLocaleString()} total records</span>
+                <span className="ml-auto text-sm font-normal text-slate-500 dark:text-slate-400">{total.toLocaleString()} total records</span>
               </CardTitle>
               {row.company && (
-                <CardDescription style={{ color: 'var(--text-slate-500)' }}>
+                <CardDescription className="text-muted">
                   {row.company.contact_email || row.company.website_url || ''}
                 </CardDescription>
               )}
@@ -133,14 +133,13 @@ export default function CompanyDataTab() {
                 {statDefs.map(({ key, label, Icon, color }) => (
                   <div
                     key={key}
-                    className="flex flex-col items-center justify-center rounded-lg border p-3 gap-1"
-                    style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
+                    className="flex flex-col items-center justify-center rounded-lg border p-3 gap-1 border-card" style={{ background: 'var(--bg-slate-50)' }}
                   >
                     <Icon className={`w-4 h-4 ${color}`} />
-                    <span className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                    <span className="text-xl font-bold text-body">
                       {getCount(key, row.id).toLocaleString()}
                     </span>
-                    <span className="text-xs text-center" style={{ color: 'var(--text-slate-500)' }}>{label}</span>
+                    <span className="text-xs text-center text-muted">{label}</span>
                   </div>
                 ))}
               </div>

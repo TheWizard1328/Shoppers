@@ -20,7 +20,7 @@ export default function DriverLegend({ legendRef, legendLeft, isStatsCardExpande
       onMouseEnter={() => onLegendInteraction(true)}
       onMouseLeave={() => onLegendInteraction(false)}
     >
-      <div className="backdrop-blur-sm rounded-lg shadow-lg border px-3 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}>
+      <div className="backdrop-blur-sm rounded-lg shadow-lg border px-3 py-2 bg-card border-card" style={{ opacity: 0.95 }}>
         <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
           {sortedRoutes.map((route) => (
             <div
@@ -34,10 +34,10 @@ export default function DriverLegend({ legendRef, legendLeft, isStatsCardExpande
                 className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
                 style={{ backgroundColor: route.color }}
               />
-              <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
+              <span className="text-xs font-medium whitespace-nowrap text-secondary">
                 {route.driverName}
               </span>
-              <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+              <span className="text-xs text-muted">
                 ({route.totalStops})
               </span>
             </div>

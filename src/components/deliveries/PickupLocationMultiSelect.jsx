@@ -123,26 +123,24 @@ export default function PickupLocationMultiSelect({
   };
 
   return (
-    <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
+    <div className="space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+      <Label className="text-sm font-semibold text-body">Pickup Location *</Label>
       <div className="relative" ref={containerRef}>
         {/* Trigger */}
         <button
           type="button"
           disabled={isSaving}
           onClick={() => setOpen((v) => !v)}
-          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: selectedCount === 0 ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 bg-card" style={{ borderColor: 'var(--border-slate-300)', color: selectedCount === 0 ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
         >
           <span className="truncate">{getLabel()}</span>
-          <ChevronDown className={`ml-2 h-4 w-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'var(--text-slate-500)' }} />
+          <ChevronDown className={ml-2 h-4 w-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} text-muted} />
         </button>
 
         {/* Dropdown */}
         {open && (
           <div
-            className="absolute z-[999999] mt-1 w-full rounded-md border shadow-lg"
-            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+            className="absolute z-[999999] mt-1 w-full rounded-md border shadow-lg bg-card border-card"
           >
             {/* Select All / Deselect All */}
             {availableStores.length > 1 && (
@@ -155,7 +153,7 @@ export default function PickupLocationMultiSelect({
                   {selectedPickupStoreIds.size === availableStores.length ? 'Deselect All' : 'Select All'}
                 </button>
                 {selectedCount > 0 && (
-                  <span className="ml-auto text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                  <span className="ml-auto text-xs text-muted">
                     {selectedCount} selected
                   </span>
                 )}
@@ -176,8 +174,7 @@ export default function PickupLocationMultiSelect({
                     key={store.id}
                     type="button"
                     onClick={() => toggleStore(store)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors text-left"
-                    style={{ color: 'var(--text-slate-900)' }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors text-left text-body"
                   >
                     <div className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${isChecked ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'}`}>
                       {isChecked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}

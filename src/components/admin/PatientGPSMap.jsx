@@ -87,7 +87,7 @@ export default function PatientGPSMap({ log, matchingPatients = [] }) {
 
   if (!log) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">
+      <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-400 text-sm">
         <div className="text-center">
           <div className="text-3xl mb-2">🗺️</div>
           <div>Select a patient card to view on map</div>
@@ -122,9 +122,9 @@ export default function PatientGPSMap({ log, matchingPatients = [] }) {
           <Marker position={[log.old_latitude, log.old_longitude]} icon={OLD_ICON}>
             <Popup autoPan={false} closeButton={false} className="custom-popup">
               <div className="text-xs">
-                <div className="font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-0.5">Old Position</div>
-                <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{log.patient_name}</div>
-                <div className="text-slate-400 dark:text-slate-500 dark:text-slate-400 font-mono">{log.old_latitude?.toFixed(5)}, {log.old_longitude?.toFixed(5)}</div>
+                <div className="font-bold text-slate-500 dark:text-slate-400 mb-0.5">Old Position</div>
+                <div className="text-slate-600 dark:text-slate-400">{log.patient_name}</div>
+                <div className="text-slate-400 dark:text-slate-400 font-mono">{log.old_latitude?.toFixed(5)}, {log.old_longitude?.toFixed(5)}</div>
               </div>
             </Popup>
           </Marker>
@@ -146,8 +146,8 @@ export default function PatientGPSMap({ log, matchingPatients = [] }) {
               <div className="text-xs">
                 <div className="font-bold text-blue-700 mb-0.5">★ Direct Change</div>
                 <div className="text-slate-700 dark:text-slate-300 font-medium">{log.patient_name}</div>
-                {log.patient_address && <div className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{log.patient_address}</div>}
-                <div className="text-slate-400 dark:text-slate-500 dark:text-slate-400 font-mono mt-0.5">{log.new_latitude?.toFixed(5)}, {log.new_longitude?.toFixed(5)}</div>
+                {log.patient_address && <div className="text-slate-500 dark:text-slate-400">{log.patient_address}</div>}
+                <div className="text-slate-400 dark:text-slate-400 font-mono mt-0.5">{log.new_latitude?.toFixed(5)}, {log.new_longitude?.toFixed(5)}</div>
               </div>
             </Popup>
           </Marker>
@@ -166,7 +166,7 @@ export default function PatientGPSMap({ log, matchingPatients = [] }) {
                     {isActive ? 'Active' : 'Inactive'} — Same Address
                   </div>
                   <div className="text-slate-700 dark:text-slate-300 font-medium">{p.full_name}</div>
-                  {p.unit_number && <div className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Unit: {p.unit_number}</div>}
+                  {p.unit_number && <div className="text-slate-500 dark:text-slate-400">Unit: {p.unit_number}</div>}
                 </div>
               </Popup>
             </Marker>

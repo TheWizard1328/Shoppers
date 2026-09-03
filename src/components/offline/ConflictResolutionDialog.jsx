@@ -64,7 +64,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
             <AlertTriangle className="w-5 h-5 text-orange-500" />
             Data Conflict Detected
             {conflicts.length > 1 && (
-              <span className="text-sm font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
                 ({currentIndex + 1} of {conflicts.length})
               </span>
             )}
@@ -72,7 +72,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
         </DialogHeader>
         
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             This record was modified both offline and online. Choose which version to keep:
           </p>
           
@@ -84,7 +84,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
                 <h3 className="font-semibold text-blue-900">Your Changes</h3>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                   <Clock className="w-3 h-3" />
                   <span>{conflict.timestamp ? format(new Date(conflict.timestamp), 'MMM dd, HH:mm:ss') : format(new Date(conflict.action?.timestamp), 'MMM dd, HH:mm:ss')}</span>
                 </div>
@@ -98,7 +98,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
                 <h3 className="font-semibold text-emerald-900">Server Version</h3>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                   <Clock className="w-3 h-3" />
                   <span>
                     {conflict.serverData?.updated_date 

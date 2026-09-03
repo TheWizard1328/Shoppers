@@ -68,12 +68,7 @@ export default function RealTimeRouteOptimizer({
           style={{ transform: 'none' }}
         >
           <div
-            className="rounded-xl shadow-2xl p-4 border-2"
-            style={{
-              background: 'var(--bg-white)',
-              borderColor: 'var(--border-slate-300)',
-              boxShadow: '0 25px 50px -12px var(--shadow-color)'
-            }}
+            className="rounded-xl shadow-2xl p-4 border-2 bg-card" style={{ borderColor: 'var(--border-slate-300)', boxShadow: '0 25px 50px -12px var(--shadow-color)' }}
           >
             <div className="flex items-start gap-3">
               <div
@@ -84,11 +79,11 @@ export default function RealTimeRouteOptimizer({
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
+                <h4 className="font-bold text-sm mb-1 text-body">
                   Route Optimized
                 </h4>
 
-                <p className="text-sm mb-2" style={{ color: 'var(--text-slate-600)' }}>
+                <p className="text-sm mb-2 text-label">
                   {(() => {
                     const activeCount = (notification.updates || []).filter(s => !s.isPending).length;
                     return `${activeCount} stop${activeCount !== 1 ? 's' : ''} resequenced based on current traffic`;

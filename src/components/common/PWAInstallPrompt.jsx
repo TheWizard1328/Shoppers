@@ -66,7 +66,7 @@ export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' 
               
               <div className="flex-1">
                 <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Install RxDeliver</h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-3">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
                   Add to your home screen for faster access and offline support
                 </p>
                 

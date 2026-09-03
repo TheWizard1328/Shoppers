@@ -24,7 +24,7 @@ const TimeField = React.forwardRef(function TimeField({ value, onChange, onClear
       <button
         type="button"
         onClick={onClear}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900"
         aria-label="Clear time">
         
           <X className="w-4 h-4" />
@@ -155,7 +155,7 @@ export default function DeliveryStatusAndTiming({
 
   const statusSelect =
   <div className="flex-1 space-y-1">
-      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isCyclingMarker ? 'Cycling Status' : isPickupMode ? 'Pickup Status' : 'Status'}</Label>
+      <Label className="text-sm font-semibold text-body">{isCyclingMarker ? 'Cycling Status' : isPickupMode ? 'Pickup Status' : 'Status'}</Label>
       <Select value={effectiveStatus} onValueChange={handleStatusChange} disabled={isSaving}>
         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
         <SelectContent className="z-[10030]">
@@ -174,7 +174,7 @@ export default function DeliveryStatusAndTiming({
 
   const storeSelect =
   <div className="flex-1 space-y-1">
-      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+      <Label className="text-sm font-semibold text-body">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
       <Select value={storeSelectValue} onValueChange={handleStoreChange} disabled={isSaving || isPickupMode && !!delivery}>
         <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
         <SelectContent className="z-[10030]">{storeOptions}</SelectContent>
@@ -197,7 +197,7 @@ export default function DeliveryStatusAndTiming({
             {statusSelect}
           </div>
           <div className="flex-1 space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Start Time</Label>
+            <Label className="text-sm font-semibold text-body">Start Time</Label>
             <TimeField
               value={formData.delivery_time_start}
               onChange={(e) => setFormData((prev) => ({ ...prev, delivery_time_start: e.target.value }))}
@@ -205,7 +205,7 @@ export default function DeliveryStatusAndTiming({
               isSaving={isSaving} />
           </div>
           <div className="flex-1 space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>End Time</Label>
+            <Label className="text-sm font-semibold text-body">End Time</Label>
             <TimeField
               value={formData.delivery_time_end}
               onChange={(e) => setFormData((prev) => ({ ...prev, delivery_time_end: e.target.value }))}
@@ -228,7 +228,7 @@ export default function DeliveryStatusAndTiming({
         `}</style>
         <div className="grid grid-cols-10 gap-2 items-end">
           <div className="col-span-4 space-y-1">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Cycling Status</Label>
+            <Label className="text-sm font-semibold text-body">Cycling Status</Label>
             <Select value={effectiveStatus} onValueChange={handleStatusChange} disabled={isSaving}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent className="z-[10030]">
@@ -239,7 +239,7 @@ export default function DeliveryStatusAndTiming({
           </div>
           {isAppOwner(currentUser) &&
             <div className="col-span-3 space-y-1">
-              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Arrival Time</Label>
+              <Label className="text-sm font-semibold text-body">Arrival Time</Label>
               <TimeField
                 value={formData.arrival_time !== undefined ? formData.arrival_time : delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''}
                 onChange={(e) => setFormData((prev) => ({ ...prev, arrival_time: e.target.value }))}
@@ -248,7 +248,7 @@ export default function DeliveryStatusAndTiming({
             </div>
           }
           <div className={`${isAppOwner(currentUser) ? 'col-span-3' : 'col-span-6'} space-y-1`}>
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completed At *</Label>
+            <Label className="text-sm font-semibold text-body">Completed At *</Label>
             <TimeField
               ref={completionTimeRef}
               value={completionTime}
@@ -288,7 +288,7 @@ export default function DeliveryStatusAndTiming({
         {isActive &&
         <div className="grid gap-2 grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+              <Label className="text-sm font-semibold text-body">
                 {isPickupMode ? 'Start Time' : 'Delivery Start'}
               </Label>
               <TimeField
@@ -300,7 +300,7 @@ export default function DeliveryStatusAndTiming({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+              <Label className="text-sm font-semibold text-body">
                 {isPickupMode ? 'End Time' : 'Delivery End'}
               </Label>
               <TimeField
@@ -314,7 +314,7 @@ export default function DeliveryStatusAndTiming({
             {!isPickupMode &&
           <>
                 <div className="space-y-1">
-                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Start</Label>
+                  <Label className="text-sm font-semibold text-body">Patient Start</Label>
                   <TimeField
                 value={formData.time_window_start}
                 onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
@@ -324,7 +324,7 @@ export default function DeliveryStatusAndTiming({
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient End</Label>
+                  <Label className="text-sm font-semibold text-body">Patient End</Label>
                   <TimeField
                 value={formData.time_window_end}
                 onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
@@ -342,7 +342,7 @@ export default function DeliveryStatusAndTiming({
         <div className="flex gap-3">
             {isAppOwner(currentUser) &&
           <div className="flex-1 space-y-1">
-                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                <Label className="text-sm font-semibold text-body">
                   Arrival Time
                 </Label>
                 <TimeField
@@ -354,7 +354,7 @@ export default function DeliveryStatusAndTiming({
               </div>
           }
             <div className="flex-1 space-y-1">
-              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+              <Label className="text-sm font-semibold text-body">
                 Completed At *
               </Label>
               <TimeField

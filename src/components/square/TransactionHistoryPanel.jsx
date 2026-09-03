@@ -103,7 +103,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
         <div className="sticky top-0 bg-white dark:bg-slate-900 border-b flex items-center justify-between py-3 px-6">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{location.name}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Transaction History</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Transaction History</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="w-4 h-4" />
@@ -152,11 +152,11 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Uncollected Items</h3>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Pending Collection</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Pending Collection</p>
                 <p className="text-2xl font-bold text-amber-600">${uncollectedTotal.toFixed(2)}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Items</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Items</p>
                 <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{uncollectedCatalogItems.length}</p>
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
           <div className="space-y-4 py-3 px-3">
             {uncollectedCatalogItems.length === 0 ?
-            <div className="text-center py-12 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
                 <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>All items collected</p>
               </div> :
@@ -174,17 +174,17 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                   <CardContent className="px-4 py-2">
                     <div className="flex gap-4 mb-3">
                       <div className="w-3/4">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Item</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Item</p>
                         <p className="font-semibold text-slate-900 dark:text-slate-100">{item.name || 'N/A'}</p>
                       </div>
                       <div className="w-1/4 text-right">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Amount</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Amount</p>
                         <p className="font-bold text-amber-600">${(item.price_dollars || 0).toFixed(2)}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                      <span><span className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500">Last Updated: </span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}</span>
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <span><span className="font-medium text-slate-600 dark:text-slate-400">Last Updated: </span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}</span>
                       <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                     </div>
                   </CardContent>
@@ -198,12 +198,12 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
         <div>
           <div className="bg-slate-50 dark:bg-slate-800 border-b px-6 py-1">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Card Activity</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Card spends, refunds, and driver collections</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Card spends, refunds, and driver collections</p>
           </div>
 
           <div className="space-y-4 py-3 px-3">
             {activityTransactions.length === 0 ?
-            <div className="text-center py-12 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No activity found</p>
               </div> :
@@ -213,11 +213,11 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                   <CardContent className="py-2 px-4">
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Item</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Item</p>
                         <p className="font-semibold text-slate-900 dark:text-slate-100">{t.item_name || 'N/A'}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Amount</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Amount</p>
                         <p className="font-bold">${(t.amount || 0).toFixed(2)}</p>
                       </div>
                     </div>
@@ -228,13 +228,13 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                       {t.payment_method && getPaymentMethodBadge(t.payment_method)}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-500 dark:text-slate-400">
                       <div>
-                        <p className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">Date</p>
+                        <p className="font-medium text-slate-600 dark:text-slate-400 mb-1">Date</p>
                         {new Date(t.created_date).toLocaleString()}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">Driver</p>
+                        <p className="font-medium text-slate-600 dark:text-slate-400 mb-1">Driver</p>
                         {t.driver_id ? drivers.find((d) => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
                       </div>
                     </div>

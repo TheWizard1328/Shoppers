@@ -2772,7 +2772,7 @@ export default function DeliveriesPage() {
       <div className="flex h-full items-center justify-center text-xl text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800">
         <div className="text-center p-6 bg-white dark:bg-slate-900 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Access Denied</h2>
-          <p className="text-base text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-6">
+          <p className="text-base text-slate-600 dark:text-slate-400 mb-6">
             You do not have permission to view this page. Please contact your administrator.
           </p>
           <Button onClick={() => navigate('/')} className="bg-emerald-600 hover:bg-emerald-700">
@@ -2788,17 +2788,17 @@ export default function DeliveriesPage() {
   return (
     <div className="h-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
 
-      <div className={`${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20`} style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
+      <div className={${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20 bg-card} style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
         {isDriverOverviewMode ?
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
             <div className="flex items-center gap-3">
               <SmartRefreshIndicator inline={true} />
-              <h1 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
+              <h1 className="text-xl font-bold text-body">Driver Overview</h1>
             </div>
           </div> :
 
         <div className="flex justify-between items-center">
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Management</h1>
+            <h1 className="text-xl font-bold text-body">Route Management</h1>
             <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen((v) => !v)}>
               <CalendarIcon className="w-5 h-5" />
             </Button>
@@ -2806,14 +2806,14 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="hidden lg:block flex-shrink-0 z-20 px-4 py-2" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
+      <div className="hidden lg:block flex-shrink-0 z-20 px-4 py-2 bg-card" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
         {isDriverOverviewMode ?
         <div className="flex items-center gap-3">
           <SmartRefreshIndicator inline={true} />
           {isLoadingStats &&
           <div className="animate-spin w-6 h-6 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0" />
           }
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
+          <h1 className="text-3xl font-bold text-body">Driver Overview</h1>
         </div> :
 
         <RouteManagementHeader
@@ -2837,9 +2837,9 @@ export default function DeliveriesPage() {
       <div className="flex-1 flex overflow-hidden min-h-0" style={{ paddingBottom: isMobile ? 'var(--bottom-nav-height, 88px)' : 0 }}>
 
         {!isDriverOverviewMode &&
-        <div className="hidden lg:flex w-72 flex-col h-full" style={{ background: 'var(--bg-white)', borderRight: '1px solid var(--border-slate-200)' }}>
+        <div className="hidden lg:flex w-72 flex-col h-full bg-card" style={{ borderRight: '1px solid var(--border-slate-200)' }}>
             <div className="p-2 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-              <CalendarIcon className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+              <CalendarIcon className="w-5 h-5 text-secondary" />
               <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
             </div>
             <div className="flex-1 p-1 sm:p-2 overflow-y-auto">
@@ -2913,8 +2913,7 @@ export default function DeliveriesPage() {
         {!isDriverOverviewMode && !activeDriver && isMobile &&
         <button
           onClick={() => setIsMobileMenuOpen((v) => !v)}
-          className="absolute left-0 top-24 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center"
-          style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
+          className="absolute left-0 top-24 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center text-secondary bg-card" style={{ borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
             <CalendarIcon className="w-5 h-5" />
           </button>
@@ -2934,13 +2933,12 @@ export default function DeliveriesPage() {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed left-0 w-64 shadow-xl z-[9999] flex flex-col overflow-hidden"
-            style={{ background: 'var(--bg-white)', top: 'calc(var(--mobile-header-height, 64px) + var(--native-safe-top, 0px))', bottom: 'calc(var(--bottom-nav-height, 88px) + var(--native-safe-bottom, 0px))', height: 'auto' }}
+            className="fixed left-0 w-64 shadow-xl z-[9999] flex flex-col overflow-hidden bg-card" style={{ top: 'calc(var(--mobile-header-height, 64px) + var(--native-safe-top, 0px))', bottom: 'calc(var(--bottom-nav-height, 88px) + var(--native-safe-bottom, 0px))', height: 'auto' }}
             onClick={(e) => e.stopPropagation()}>
 
               <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                 <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+                  <CalendarIcon className="w-5 h-5 text-secondary" />
                   <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
@@ -3025,7 +3023,7 @@ export default function DeliveriesPage() {
 
            {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">
-              <Card className="backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              <Card className="backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2 bg-card border-card">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
                     {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
@@ -3033,13 +3031,13 @@ export default function DeliveriesPage() {
                     setSelectedCityId(value);
                     updateUrl({ city: value });
                   }}>
-                        <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                        <SelectTrigger className="w-[140px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                           <SelectValue placeholder="Select City" />
                         </SelectTrigger>
-                        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                          <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
+                        <SelectContent className="bg-card border-card">
+                          <SelectItem value="all" className="text-body">All Cities</SelectItem>
                           {cities.map((city) =>
-                      <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>{city.name}</SelectItem>
+                      <SelectItem key={city.id} value={city.id} className="text-body">{city.name}</SelectItem>
                       )}
                         </SelectContent>
                       </Select>
@@ -3056,13 +3054,13 @@ export default function DeliveriesPage() {
                     }
                     navigate(`${location.pathname}?${params.toString()}`, { replace: true });
                   }}>
-                      <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                      <SelectTrigger className="w-[140px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                        <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Years</SelectItem>
+                      <SelectContent className="bg-card border-card">
+                        <SelectItem value="all" className="text-body">All Years</SelectItem>
                         {availableOverviewYears.map((year) =>
-                      <SelectItem key={year} value={year.toString()} style={{ color: 'var(--text-slate-900)' }}>{year}</SelectItem>
+                      <SelectItem key={year} value={year.toString()} className="text-body">{year}</SelectItem>
                       )}
                       </SelectContent>
                     </Select>
@@ -3118,7 +3116,7 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              <Card className="backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              <Card className="backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2 bg-card border-card">
                 <CardContent className="p-4">
                   <DriverOverviewMobileToolbar
                   currentUser={currentUser}
@@ -3155,12 +3153,12 @@ export default function DeliveriesPage() {
 
               <div className="flex-1 flex flex-col min-h-0 px-4">
                 {(isLoadingData || isLoadingStats) && driverCards.length === 0 ?
-              <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
+              <div className="text-center py-12 text-muted">
                     <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                     <p className="text-lg font-medium">Loading driver stats...</p>
                   </div> :
               driverCards.length === 0 ?
-              <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
+              <div className="text-center py-12 text-muted">
                     <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
                     <p className="text-lg font-medium">No drivers with deliveries for this period</p>
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
@@ -3171,13 +3169,12 @@ export default function DeliveriesPage() {
                   const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
                   return (
                     <Card
-                      key={card.driver.id || card.driver.appUserId || card.firstName} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', minWidth: '280px', display: 'flex', flexDirection: 'column' }}
+                      key={card.driver.id || card.driver.appUserId || card.firstName} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto text-body bg-card border-card" style={{ minWidth: '280px', display: 'flex', flexDirection: 'column' }}
                       onClick={() => handleDriverCardClick(card.driver)}>
 
                         <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
                           <CardTitle className="text-base flex items-center justify-between">
-                            <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                            <span className="text-lg font-bold text-body">
                               {card.firstName}
                             </span>
                             <Badge
@@ -3203,16 +3200,16 @@ export default function DeliveriesPage() {
                           </div>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between items-center">
-                              <span style={{ color: 'var(--text-slate-600)' }}>Pickups:</span>
+                              <span className="text-label">Pickups:</span>
                               <span className="bg-blue-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">{card.stats.pickups}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span style={{ color: 'var(--text-slate-600)' }}>Completed:</span>
+                              <span className="text-label">Completed:</span>
                               <span className="bg-emerald-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">{card.stats.completed}</span>
                             </div>
                             {(card.stats.failed > 0 || card.stats.returned > 0) &&
                           <div className="flex justify-between items-center">
-                                <span style={{ color: 'var(--text-slate-600)' }}>Failed/Returned:</span>
+                                <span className="text-label">Failed/Returned:</span>
                                 <span className="bg-red-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">
                                   {card.stats.failed}/{card.stats.returned}
                                 </span>

@@ -63,8 +63,8 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
       style={rowStyle}
       className={`transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/50${dimmed ? ' opacity-60' : ''}`}>
       <td className="p-3 min-w-[180px]">
-        <div className="font-medium text-sm text-slate-900 dark:text-slate-100 dark:text-slate-50 whitespace-nowrap">{row.itemName || 'N/A'}</div>
-        <div className="text-xs mt-1 text-slate-500 dark:text-slate-400 dark:text-slate-500">{formatDate(row.collectionDate || row.deliveryDate)}</div>
+        <div className="font-medium text-sm text-slate-900 dark:text-slate-50 whitespace-nowrap">{row.itemName || 'N/A'}</div>
+        <div className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</div>
       </td>
       <td className="p-3 whitespace-nowrap">
         <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
@@ -75,32 +75,32 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
         }
       </td>
       <td className="p-3 whitespace-nowrap">
-        <div className="text-sm text-slate-900 dark:text-slate-100 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
+        <div className="text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
       </td>
       {showLocationColumn &&
         <td className="p-3">
-          <div className="text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">
+          <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
             {row.locationId || '--'}
           </div>
         </td>
       }
       <td className="p-3">
-        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">
+        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
           {row.catalogId || '--'}
         </div>
       </td>
       <td className="p-3">
-        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">
+        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
           {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
         </div>
       </td>
       <td className="p-3">
         <div className="space-y-1">
           <div className="flex justify-start [&>button]:w-24 [&>div>button]:w-24" onClick={(e) => e.stopPropagation()}>
-            {row.actions || <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>}
+            {row.actions || <span className="text-slate-400 dark:text-slate-400">—</span>}
           </div>
           {row.notes &&
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-pre-wrap text-right">{row.notes}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">{row.notes}</div>
           }
         </div>
       </td>
@@ -112,7 +112,7 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
 const SectionDivider = ({ label, colSpan }) =>
 <tr>
     <td colSpan={colSpan} className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700">
-      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
         <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
         <span>{label}</span>
         <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
@@ -137,15 +137,15 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
     <div
       key={row.id || `${row.itemName}-${index}`}
       style={cardBorderStyle}
-      className={`rounded-2xl bg-white dark:bg-slate-900 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden${dimmed ? ' opacity-60' : ''}`}>
+      className={`rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden${dimmed ? ' opacity-60' : ''}`}>
       {/* Collapsed summary row — always visible */}
       <div
         onClick={handleClick}
         role="button"
         className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-[14px] leading-5 text-slate-900 dark:text-slate-100 dark:text-slate-50 truncate">{row.itemName || 'N/A'}</p>
-          <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400 dark:text-slate-500">{formatDate(row.collectionDate || row.deliveryDate)}</p>
+          <p className="font-semibold text-[14px] leading-5 text-slate-900 dark:text-slate-50 truncate">{row.itemName || 'N/A'}</p>
+          <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
         </div>
         <div className="shrink-0 text-base font-bold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
         {showCatalogColumn
@@ -154,34 +154,34 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
             ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
             : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>
         }
-        <ChevronDown className={`shrink-0 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`shrink-0 w-4 h-4 text-slate-400 dark:text-slate-400 transition-transform duration-200${expanded ? 'rotate-180' : ''}`} />
       </div>
 
       {/* Expanded detail section */}
       {expanded && (
         <div className="border-t border-slate-100 dark:border-slate-700/70 p-4 space-y-3">
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Store</div>
-            <div className="mt-1 text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{row.storeName || 'Unknown'}</div>
-            {row.subtext && <div className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>{row.subtext}</div>}
+            <div className="text-[11px] uppercase tracking-wide text-muted">Store</div>
+            <div className="mt-1 text-sm font-medium truncate text-body">{row.storeName || 'Unknown'}</div>
+            {row.subtext && <div className="mt-0.5 text-xs truncate text-muted">{row.subtext}</div>}
           </div>
           {showLocationColumn &&
             <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-              <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Square Location ID</div>
-              <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
+              <div className="text-[11px] uppercase tracking-wide text-muted">Square Location ID</div>
+              <div className="mt-1 text-xs font-mono break-all text-secondary">
                 {row.locationId || '--'}
               </div>
             </div>
           }
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Catalog ID</div>
-            <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
+            <div className="text-[11px] uppercase tracking-wide text-muted">Catalog ID</div>
+            <div className="mt-1 text-xs font-mono break-all text-secondary">
               {row.catalogId || '--'}
             </div>
           </div>
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
-            <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
+            <div className="text-[11px] uppercase tracking-wide text-muted">Transaction ID</div>
+            <div className="mt-1 text-xs font-mono break-all text-secondary">
               {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
             </div>
           </div>
@@ -259,14 +259,14 @@ export default function SquareCodDatasetTable({
         <div className="flex flex-col md:flex-row md:items-center md:flex-wrap gap-2 md:gap-3">
           {/* Mobile Row 1: Title + Update Catalog. Desktop: contents → children flow into parent. */}
           <div className="flex items-center justify-between gap-2 md:contents">
-            <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-100 dark:text-slate-50 shrink-0 md:order-1">{title}</CardTitle>
+            <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50 shrink-0 md:order-1">{title}</CardTitle>
             {headerActions && <div className="flex items-center gap-2 shrink-0 md:order-4 md:ml-auto">{headerActions}</div>}
           </div>
           {/* Mobile Row 2 / Desktop after search: Sync status badge */}
           {headerStatus && <div className="flex items-center gap-2 shrink-0 md:order-3">{headerStatus}</div>}
           {/* Mobile Row 3 / Desktop after title: Search field */}
           <div className="relative w-full md:flex-1 md:min-w-[140px] md:max-w-[280px] md:order-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
             <Input
               type="text"
               value={searchTerm}
@@ -278,7 +278,7 @@ export default function SquareCodDatasetTable({
               <button
                 type="button"
                 onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:text-slate-200 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:text-slate-200 transition-colors"
                 aria-label="Clear search"
               >
                 <X className="w-4 h-4" />
@@ -293,13 +293,13 @@ export default function SquareCodDatasetTable({
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
           </div> :
         rows.length === 0 && dedupedNewCatalogRows.length === 0 ?
-        <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400">
             <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
             <p className="text-sm md:text-base">{emptyTitle}</p>
             {emptyDescription && <p className="text-xs md:text-sm mt-1">{emptyDescription}</p>}
           </div> :
         filteredRows.length === 0 && filteredNewCatalogRows.length === 0 ?
-        <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400">
             <Search className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
             <p className="text-sm md:text-base">No matches for "{searchTerm}"</p>
             <button type="button" onClick={() => setSearchTerm("")} className="text-xs md:text-sm mt-1 text-emerald-600 dark:text-emerald-400 hover:underline">Clear search</button>
@@ -310,7 +310,7 @@ export default function SquareCodDatasetTable({
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
                 <table className="w-full table-auto">
                   <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
-                    <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700">
+                    <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
                       <th className="p-3 whitespace-nowrap">Item Name</th>
                       <th className="p-3 whitespace-nowrap">Amount</th>
                       <th className="p-3 whitespace-nowrap">Store</th>
@@ -357,7 +357,7 @@ export default function SquareCodDatasetTable({
             <MobileCard key={row.id || `${row.itemName}-new-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
             )}
               {groupByCollected && notCollected.length > 0 &&
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider py-1">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1">
                   <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
                   <span>Not Collected ({notCollected.length})</span>
                   <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
@@ -367,7 +367,7 @@ export default function SquareCodDatasetTable({
             <MobileCard key={row.id || `${row.itemName}-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
             )}
               {groupByCollected && collected.length > 0 &&
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider py-1 mt-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1 mt-2">
                   <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
                   <span>Collected ({collected.length})</span>
                   <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />

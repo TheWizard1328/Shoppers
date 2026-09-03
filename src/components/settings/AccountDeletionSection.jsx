@@ -50,7 +50,7 @@ export default function AccountDeletionSection() {
 
   return (
     <>
-      <Card className="border-2" style={{ background: 'var(--bg-white)', borderColor: '#fca5a5' }}>
+      <Card className="border-2 bg-card" style={{ borderColor: '#fca5a5' }}>
         <CardHeader className="px-4 py-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2 text-red-600">
             <AlertTriangle className="w-4 h-4" />
@@ -59,10 +59,10 @@ export default function AccountDeletionSection() {
         </CardHeader>
         <CardContent className="space-y-4 pt-3 pr-3 pl-3 pb-3">
           <div className="space-y-2">
-            <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+            <p className="text-sm font-medium text-body">
               Permanently delete your account and associated personal data.
             </p>
-            <ul className="list-disc pl-5 space-y-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>
+            <ul className="list-disc pl-5 space-y-2 text-sm text-label">
               <li>Your signed-in access will be removed.</li>
               <li>Your saved device settings and personal app data will be deleted.</li>
               <li>This action cannot be undone later.</li>
@@ -85,7 +85,7 @@ export default function AccountDeletionSection() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete My Account</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-4 text-sm" style={{ color: 'var(--text-slate-600)' }}>
+              <div className="space-y-4 text-sm text-label">
                 <p>
                   This will permanently remove your account from this app and immediately sign you out.
                 </p>
@@ -95,7 +95,7 @@ export default function AccountDeletionSection() {
                   <li>Your personal messaging history in this app</li>
                 </ul>
                 <div className="space-y-2">
-                  <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                  <p className="font-medium text-body">
                     Type DELETE to confirm.
                   </p>
                   <Input

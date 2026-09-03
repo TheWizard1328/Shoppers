@@ -670,7 +670,7 @@ export default function Documents() {
           <div className="flex items-center gap-2">
             <Shield className="w-6 h-6 text-blue-600" />
             <h1 className="text-xl font-bold">Documents</h1>
-            <Badge className="ml-2 bg-slate-100 dark:bg-slate-800 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-200 border-0">
+            <Badge className="ml-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-0">
               {documents.length} files
             </Badge>
           </div>
@@ -790,7 +790,7 @@ export default function Documents() {
                        </p>
                        <span
                           onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
-                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
+                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
                          {existingDoc ? 'Replace' : 'Upload'}
                        </span>
                      </div>

@@ -33,7 +33,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
           <Magnet className="w-5 h-5 text-cyan-600 flex-shrink-0" />
           <div>
             <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-base">Route Gap Analysis</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Gaps &gt; {gap_threshold_m}m flagged for surgical snapping</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Gaps &gt; {gap_threshold_m}m flagged for surgical snapping</p>
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
             </div>
           ) : (
             <>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
                 {snap_zones} consolidated snap zone{snap_zones !== 1 ? 's' : ''} detected.
                 Dense sections between zones are preserved untouched.
               </p>
@@ -70,7 +70,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
                         Stop #{z.stop_before ?? '?'} → Stop #{z.stop_after ?? '?'}
                       </div>
                     )}
-                    <div className="text-slate-500 dark:text-slate-400 dark:text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    <div className="text-slate-500 dark:text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                       <span>Pts #{z.start_idx}–#{z.end_idx} ({z.points_in_zone} total)</span>
                       <span>Largest gap: {z.max_gap_m.toLocaleString()}m</span>
                       <span>Total missing: {(z.total_gap_distance_m / 1000).toFixed(2)}km</span>
@@ -125,7 +125,7 @@ function Stat({ label, value, accent }) {
   return (
     <div className="bg-white dark:bg-slate-900 flex flex-col items-center justify-center py-3 px-2 text-center">
       <span className={`text-xl font-bold ${colorMap[accent] || 'text-slate-800 dark:text-slate-200'}`}>{value}</span>
-      <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</span>
     </div>
   );
 }

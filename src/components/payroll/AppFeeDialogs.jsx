@@ -58,13 +58,13 @@ export function AppFeeAllDriversDialog({
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-        <DialogHeader><DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Owner App Fee</DialogTitle></DialogHeader>
+      <DialogContent className="bg-card border-card">
+        <DialogHeader><DialogTitle className="text-body">Manage App Owner App Fee</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">Configure app fees for operational costs.</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">Configure app fees for operational costs.</p>
           <div className="mt-4">
-            <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Driver App Fee Breakdown</h3>
-            <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '350px', overflowY: 'auto' }}>
+            <h3 className="text-sm font-semibold mb-2 text-body">Driver App Fee Breakdown</h3>
+            <div className="border rounded border-card" style={{ maxHeight: '350px', overflowY: 'auto' }}>
               <table className="w-full text-xs border-collapse">
                 <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
                   <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
@@ -116,11 +116,11 @@ export function AppFeeAllDriversDialog({
             <div>Sum of Other Drivers: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
             <div>App Owner (You): <strong>{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</strong></div>
             <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 font-semibold">Total: {(sumAllDriversAppFeePercent + (driverEdits[currentUser?.id]?.appFeePercent || 0) + otherAppFeePercent).toFixed(2)}% / 100%</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-semibold">Total: {(sumAllDriversAppFeePercent + (driverEdits[currentUser?.id]?.appFeePercent || 0) + otherAppFeePercent).toFixed(2)}% / 100%</div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={handleSaveAndClose} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>Save & Close</Button>
+          <Button variant="outline" onClick={handleSaveAndClose} style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">Save & Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -137,13 +137,13 @@ export function AppFeeSingleDriverDialog({
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-        <DialogHeader><DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee</DialogTitle></DialogHeader>
+      <DialogContent className="bg-card border-card">
+        <DialogHeader><DialogTitle className="text-body">Manage App Fee</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">For {driverName}:</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">For {driverName}:</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee %</label>
+              <label className="text-xs font-semibold block mb-2 text-label">App Fee %</label>
               <div className="flex gap-1">
                 <input type="number" value={driverEdits[driverId]?.appFeePercent || 0}
                   onChange={(e) => {
@@ -151,13 +151,13 @@ export function AppFeeSingleDriverDialog({
                     setDriverEdits((prev) => ({ ...prev, [driverId]: { ...prev[driverId], appFeePercent: pct, appFeeAmount: calculateAppFeeAmount(driverId, pct) } }));
                   }}
                   placeholder="0" className="flex-1 px-2 py-1 text-sm border rounded" step="0.01" min="0" max="100" />
-                <span className="flex items-center text-slate-500 dark:text-slate-400 dark:text-slate-500">%</span>
+                <span className="flex items-center text-slate-500 dark:text-slate-400">%</span>
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee Amount</label>
+              <label className="text-xs font-semibold block mb-2 text-label">App Fee Amount</label>
               <div className="flex gap-1">
-                <span className="flex items-center text-slate-500 dark:text-slate-400 dark:text-slate-500">$</span>
+                <span className="flex items-center text-slate-500 dark:text-slate-400">$</span>
                 <input type="number" value={driverEdits[driverId]?.appFeeAmount || 0}
                   onChange={(e) => {
                     const amt = parseFloat(e.target.value) || 0;
@@ -175,7 +175,7 @@ export function AppFeeSingleDriverDialog({
               savePayrollChanges(driverId, { app_fee_percentage: driverEdits[driverId]?.appFeePercent || 0, app_fee_amount: driverEdits[driverId]?.appFeeAmount || 0 });
               onClose();
             }}
-            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>Close</Button>
+            style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

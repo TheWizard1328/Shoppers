@@ -65,21 +65,14 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
     <nav
       ref={ref}
       data-mobile-bottom-nav
-      className="relative z-[150] shrink-0 border-t"
-      style={{
-        background: 'var(--bg-white)',
-        borderColor: 'var(--border-slate-200)',
-        boxShadow: '0 -2px 10px var(--shadow-color)',
-        // No safe-area-inset-bottom here — the .app-container already handles it.
-        // Adding it here too creates a double-padding dead bar at the bottom.
-      }}
+      className="relative z-[150] shrink-0 border-t bg-card border-card" style={{ boxShadow: '0 -2px 10px var(--shadow-color)', // No safe-area-inset-bottom here — the .app-container already handles it.
+        // Adding it here too creates a double-padding dead bar at the bottom. }}
     >
       <div className="flex items-center gap-1 px-1">
         <button
           type="button"
           onClick={onSidebarToggle}
-          className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors shrink-0 relative"
-          style={{ color: 'var(--text-slate-500)' }}
+          className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors shrink-0 relative text-muted"
           aria-label="Open side panel"
         >
           <Menu className="w-5 h-5" />
@@ -108,8 +101,8 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                   {...sharedProps}
                   onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
                 >
-                  <Icon className="w-5 h-5 mb-0.5" style={{ color: 'var(--text-slate-500)' }} />
-                  <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-500)', maxWidth: '80px' }}>
+                  <Icon className="w-5 h-5 mb-0.5 text-muted" />
+                  <span className="text-sm font-medium truncate text-muted" style={{ maxWidth: '80px' }}>
                     {item.name}
                   </span>
                 </button>

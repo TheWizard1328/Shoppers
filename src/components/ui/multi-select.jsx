@@ -109,7 +109,7 @@ export const MultiSelect = React.forwardRef((props, ref) => {
 
             }) :
 
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{placeholder}</span>
+            <span className="text-slate-500 dark:text-slate-400">{placeholder}</span>
             }
                     </div>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />

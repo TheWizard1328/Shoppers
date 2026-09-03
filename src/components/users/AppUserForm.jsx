@@ -294,7 +294,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
             {/* Pay Rate History */}
             {formData.pay_rate_history && formData.pay_rate_history.length > 0 && (
               <div className="pt-2 border-t">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   Pay Rate History
                 </Label>
@@ -307,14 +307,14 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                           <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                           </span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap font-medium">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 dark:text-slate-400 whitespace-nowrap font-medium">
                             {(() => {
                               const c = entry.pay_cycle_type || 'monthly';
                               return c === 'semimonthly' ? 'Semi-Mo' : c === 'biweekly' ? 'Bi-Wk' : c === 'weekly' ? 'Wkly' : c.charAt(0).toUpperCase() + c.slice(1);
                             })()}
                           </span>
                         </div>
-                        <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px]">
+                        <div className="text-slate-600 dark:text-slate-400 text-[10px]">
                           ${(entry.pay_rate_per_delivery || 0).toFixed(2)} / ${(entry.extra_km_rate || 0).toFixed(2)}/km / {(entry.extra_km_limit || 0).toFixed(2)}km / OS: ${(entry.oversized_item_rate || 0).toFixed(2)}
                         </div>
                         <Button

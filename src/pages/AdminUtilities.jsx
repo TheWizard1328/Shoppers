@@ -263,7 +263,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
     return null;
   };
 
-  return (<Dialog open={true} onOpenChange={onCancel}><DialogContent><DialogHeader><DialogTitle>Import AM/PM Designations</DialogTitle><DialogDescription>Upload a CSV file to update delivery AM/PM designations.</DialogDescription></DialogHeader><div className="space-y-4"><Input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} /><div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-3"><p className="font-semibold mb-1">CSV Format:</p><ul className="list-disc list-inside space-y-1"><li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li><li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li><li>First row is treated as header and will be skipped</li></ul></div><p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{status || "Select a CSV file to begin import."}</p>{loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />}</div><DialogFooter><Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button><Button onClick={handleImport} disabled={loading || !csvFile}>{loading ? 'Importing...' : 'Import AM/PM Data'}</Button></DialogFooter></DialogContent></Dialog>);
+  return (<Dialog open={true} onOpenChange={onCancel}><DialogContent><DialogHeader><DialogTitle>Import AM/PM Designations</DialogTitle><DialogDescription>Upload a CSV file to update delivery AM/PM designations.</DialogDescription></DialogHeader><div className="space-y-4"><Input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} /><div className="text-xs text-slate-600 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-3"><p className="font-semibold mb-1">CSV Format:</p><ul className="list-disc list-inside space-y-1"><li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li><li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li><li>First row is treated as header and will be skipped</li></ul></div><p className="text-sm text-slate-600 dark:text-slate-400">{status || "Select a CSV file to begin import."}</p>{loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />}</div><DialogFooter><Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button><Button onClick={handleImport} disabled={loading || !csvFile}>{loading ? 'Importing...' : 'Import AM/PM Data'}</Button></DialogFooter></DialogContent></Dialog>);
 };
 
 // COLUMN_CONFIGS and useColumnVisibility moved to AdminDataTables.jsx
@@ -1657,7 +1657,7 @@ export default function AdminUtilities() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-lg" style={{ color: 'var(--text-slate-600)' }}>Loading initial data...</span>
+        <span className="ml-3 text-lg text-label">Loading initial data...</span>
       </div>);
 
   }
@@ -1665,10 +1665,10 @@ export default function AdminUtilities() {
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card className="p-8 text-center bg-card border-card">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
-          <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
+          <h2 className="text-xl font-bold mb-2 text-body">Access Denied</h2>
+          <p className="text-label">Only app owners can access this page.</p>
         </Card>
       </div>);
 
@@ -1680,7 +1680,7 @@ export default function AdminUtilities() {
       <div className="flex-shrink-0 px-2 md:px-3 pt-2 md:pt-3 pb-2" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-            <h1 className="text-xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
+            <h1 className="text-xl md:text-3xl font-bold text-body">Admin Utilities</h1>
             <SmartRefreshIndicator inline={true} onManualRefresh={handleRefreshAllData} />
           </div>
         </div>
@@ -1711,7 +1711,7 @@ export default function AdminUtilities() {
             {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
             <div className="flex justify-center items-center h-60">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-                <span className="ml-3 text-lg text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading data...</span>
+                <span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading data...</span>
               </div> :
 
             <div className="space-y-6">
@@ -1955,11 +1955,11 @@ export default function AdminUtilities() {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-sm text-slate-600 dark:text-slate-400">
               {bulkDelete.processed} / {bulkDelete.total} processed
               {bulkDelete.currentLabel ? ` • Last: ${bulkDelete.currentLabel}` : ""}
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               Current delay: {Math.round(bulkDelete.currentDelay)} ms • Retrying: {bulkDelete.retryQueue}
             </div>
             <Progress value={bulkDelete.total ? bulkDelete.processed / bulkDelete.total * 100 : 0} />

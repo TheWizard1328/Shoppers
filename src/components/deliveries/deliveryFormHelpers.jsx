@@ -23,8 +23,8 @@ export function renderDeliveryIdentifiersSection({
   if (!isAppOwner(currentUser) || !delivery) return null;
 
   return (
-    <div className="px-1 py-1 rounded-lg space-y-1 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
-      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
+    <div className="px-1 py-1 rounded-lg space-y-1 border border-card" style={{ background: 'var(--bg-slate-100)' }}>
+      <Label className="text-sm font-semibold text-body">Delivery Identifiers</Label>
       <div className="flex gap-2">
         <div className="flex-1 space-y-1">
           <Label className="text-xs">TR#</Label>
@@ -66,7 +66,7 @@ export function renderDeliveryIdentifiersSection({
               disabled={isSaving} />
             
               {pidInputValue !== originalPidRef.current &&
-            <button type="button" onClick={() => {setPidInputValue(originalPidRef.current);setPidLookupStatus(null);}} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300">
+            <button type="button" onClick={() => {setPidInputValue(originalPidRef.current);setPidLookupStatus(null);}} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300">
                   <X className="w-3 h-3" />
                 </button>
             }

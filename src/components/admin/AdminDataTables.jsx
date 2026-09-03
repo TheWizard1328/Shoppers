@@ -114,7 +114,7 @@ export const PatientDataTable = ({
 
   const getSortIcon = (col) => sortColumn === col
     ? <ArrowUpDown className="w-4 h-4 inline ml-1 transform rotate-180" />
-    : <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 dark:text-slate-500 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+    : <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
 
   const handleSelectAll = (checked) => setSelectedPatients(checked ? new Set(filteredPatients.map((p) => p.id)) : new Set());
   const handleSelectPatient = (id, checked) => setSelectedPatients((prev) => { const s = new Set(prev); checked ? s.add(id) : s.delete(id); return s; });
@@ -220,10 +220,10 @@ export const PatientDataTable = ({
             </Button>
           </div>
         </div>
-        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="border rounded-md overflow-hidden border-card">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
-              <thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+              <thead className="border-b sticky top-0 z-10 border-card" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
                   <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}><Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''} /></ResizableColumnHeader>
                   {visibleColumns.includes('id') && <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}><Button variant="ghost" onClick={() => onSortChange('id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 font-semibold" style={textPrimary}>System ID {getSortIcon('id')}</Button></ResizableColumnHeader>}
@@ -238,7 +238,7 @@ export const PatientDataTable = ({
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr>
                 : filteredPatients.length > 0 ? filteredPatients.map((patient) => {
                     const isDupNA = detectDuplicates.nameAndAddress.has(patient.id);
                     const isDupAddr = detectDuplicates.address.has(patient.id);
@@ -246,15 +246,15 @@ export const PatientDataTable = ({
                     const isDupPid = detectDuplicates.pid.has(patient.id);
                     const patientStore = stores.find((s) => s.id === patient.store_id);
                     return (
-                      <tr key={patient.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                      <tr key={patient.id} className="border-t border-card">
                         <td className="p-3"><Checkbox checked={selectedPatients.has(patient.id)} onCheckedChange={(c) => handleSelectPatient(patient.id, c)} /></td>
-                        {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs select-all" style={{ color: 'var(--text-slate-700)' }}>{patient.id}</td>}
+                        {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs select-all text-secondary">{patient.id}</td>}
                         {visibleColumns.includes('full_name') && <td className={`p-3 ${isDupNA ? 'bg-orange-50' : ''}`} style={textPrimary}>{patient.full_name}{isDupNA && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
                         {visibleColumns.includes('patient_id') && <td className={`p-3 font-mono text-xs ${isDupPid ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.patient_id || '-'}{isDupPid && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
                         {visibleColumns.includes('phone') && <td className={`p-3 ${isDupPhone ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.phone}{isDupPhone && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
                         {visibleColumns.includes('address') && <td className={`p-3 ${isDupNA ? 'bg-orange-50' : isDupAddr ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.address}{isDupNA && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
                         {visibleColumns.includes('unit') && <td className="p-3 text-xs" style={textPrimary}>{patient.unit_number || '-'}</td>}
-                        {visibleColumns.includes('store') && <td className="p-3">{patientStore ? <div className="flex flex-col"><span className="font-medium" style={textPrimary}>{patientStore.name}</span><span className="text-xs font-mono select-all" style={{ color: 'var(--text-slate-500)' }}>{patient.id}</span></div> : <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>}</td>}
+                        {visibleColumns.includes('store') && <td className="p-3">{patientStore ? <div className="flex flex-col"><span className="font-medium" style={textPrimary}>{patientStore.name}</span><span className="text-xs font-mono select-all text-muted">{patient.id}</span></div> : <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>}</td>}
                         {visibleColumns.includes('last_delivery_date') && <td className="p-3 text-sm" style={textPrimary}>{getLastDeliveryDate(patient) ? (() => { const d = parseFlexibleDate(getLastDeliveryDate(patient)); return d && !isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : <span className="text-amber-600 text-xs">{getLastDeliveryDate(patient)}</span>; })() : <span style={{ color: 'var(--text-slate-400)' }}>Never</span>}</td>}
                         {visibleColumns.includes('actions') && <td className="p-3 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(patient)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950" onClick={() => onDelete(patient)}><Trash2 className="w-4 h-4" /></Button></div></td>}
                       </tr>
@@ -286,19 +286,19 @@ export const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isL
   const isSomeSelected = selectedStores.size > 0 && selectedStores.size < (stores || []).length;
 
   return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="bg-card border-card">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
+        <CardTitle className="flex items-center justify-between text-body">
           <span>Stores</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
             {selectedStores.size > 0 && <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isLoadingData}>Delete Selected ({selectedStores.size})</Button>}
           </div>
         </CardTitle>
-        <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all stores.</CardDescription>
+        <CardDescription className="text-muted">List of all stores.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="border rounded-md overflow-hidden border-card">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
@@ -314,20 +314,20 @@ export const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isL
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
                 : stores.length > 0 ? stores.map((store) => (
-                    <tr key={store.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <tr key={store.id} className="border-t border-card">
                       <td className="p-2"><Checkbox checked={selectedStores.has(store.id)} onCheckedChange={(c) => handleSelectStore(store.id, c)} /></td>
-                      {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={store.id}>{store.id.substring(0, 8)}...</td>}
-                      {visibleColumns.includes('name') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.name}</td>}
-                      {visibleColumns.includes('abbreviation') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.abbreviation}</td>}
-                      {visibleColumns.includes('address') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.address}</td>}
-                      {visibleColumns.includes('phone') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.phone}</td>}
-                      {visibleColumns.includes('city') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.city_id || '-'}</td>}
-                      {visibleColumns.includes('actions') && <td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => onEdit(store)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button><Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(store)}>Delete</Button></td>}
+                      {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs text-muted" title={store.id}>{store.id.substring(0, 8)}...</td>}
+                      {visibleColumns.includes('name') && <td className="p-3 text-body">{store.name}</td>}
+                      {visibleColumns.includes('abbreviation') && <td className="p-3 text-body">{store.abbreviation}</td>}
+                      {visibleColumns.includes('address') && <td className="p-3 text-body">{store.address}</td>}
+                      {visibleColumns.includes('phone') && <td className="p-3 text-body">{store.phone}</td>}
+                      {visibleColumns.includes('city') && <td className="p-3 text-body">{store.city_id || '-'}</td>}
+                      {visibleColumns.includes('actions') && <td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => onEdit(store)} className="text-body bg-card border-card">Edit</Button><Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(store)}>Delete</Button></td>}
                     </tr>
                   ))
-                : <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No stores found.</td></tr>}
+                : <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-muted">No stores found.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -353,19 +353,19 @@ export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoa
   const isSomeSelected = selectedUsers.size > 0 && selectedUsers.size < (users || []).length;
 
   return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="bg-card border-card">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
+        <CardTitle className="flex items-center justify-between text-body">
           <span>App Users</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
             {selectedUsers.size > 0 && <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isLoadingData}>Delete Selected ({selectedUsers.size})</Button>}
           </div>
         </CardTitle>
-        <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all application users.</CardDescription>
+        <CardDescription className="text-muted">List of all application users.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="border rounded-md overflow-hidden border-card">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
@@ -385,24 +385,24 @@ export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoa
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
                 : users.length > 0 ? users.map((user) => (
-                    <tr key={user.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <tr key={user.id} className="border-t border-card">
                       <td className="p-2"><Checkbox checked={selectedUsers.has(user.id)} onCheckedChange={(c) => handleSelectUser(user.id, c)} /></td>
-                      {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={user.id}>{user.id.substring(0, 8)}...</td>}
-                      {visibleColumns.includes('user_name') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.user_name}</td>}
-                      {visibleColumns.includes('phone') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.phone}</td>}
-                      {visibleColumns.includes('roles') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>}
-                      {visibleColumns.includes('status') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.status}</td>}
+                      {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs text-muted" title={user.id}>{user.id.substring(0, 8)}...</td>}
+                      {visibleColumns.includes('user_name') && <td className="p-3 text-body">{user.user_name}</td>}
+                      {visibleColumns.includes('phone') && <td className="p-3 text-body">{user.phone}</td>}
+                      {visibleColumns.includes('roles') && <td className="p-3 text-body">{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>}
+                      {visibleColumns.includes('status') && <td className="p-3 text-body">{user.status}</td>}
                       {visibleColumns.includes('location_tracking') && <td className="p-3"><Badge variant={user.location_tracking_enabled ? 'default' : 'secondary'}>{user.location_tracking_enabled ? '✓ Enabled' : 'Disabled'}</Badge></td>}
-                      {visibleColumns.includes('home_coords') && <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>{user.home_latitude && user.home_longitude ? `${user.home_latitude.toFixed(5)}, ${user.home_longitude.toFixed(5)}` : '-'}</td>}
-                      {visibleColumns.includes('current_coords') && <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>{user.current_latitude && user.current_longitude ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}` : '-'}</td>}
-                      {visibleColumns.includes('city') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.city_id || '-'}</td>}
-                      {visibleColumns.includes('stores') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.store_ids?.length > 0 ? user.store_ids.map((id) => id.substring(0, 4)).join(', ') + '...' : '-'}</td>}
-                      {visibleColumns.includes('actions') && <td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => onEdit(user)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button><Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(user)}>Delete</Button></td>}
+                      {visibleColumns.includes('home_coords') && <td className="p-3 font-mono text-xs text-body">{user.home_latitude && user.home_longitude ? `${user.home_latitude.toFixed(5)}, ${user.home_longitude.toFixed(5)}` : '-'}</td>}
+                      {visibleColumns.includes('current_coords') && <td className="p-3 font-mono text-xs text-body">{user.current_latitude && user.current_longitude ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}` : '-'}</td>}
+                      {visibleColumns.includes('city') && <td className="p-3 text-body">{user.city_id || '-'}</td>}
+                      {visibleColumns.includes('stores') && <td className="p-3 text-body">{user.store_ids?.length > 0 ? user.store_ids.map((id) => id.substring(0, 4)).join(', ') + '...' : '-'}</td>}
+                      {visibleColumns.includes('actions') && <td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => onEdit(user)} className="text-body bg-card border-card">Edit</Button><Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(user)}>Delete</Button></td>}
                     </tr>
                   ))
-                : <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No app users found.</td></tr>}
+                : <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-muted">No app users found.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -428,19 +428,19 @@ export const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLo
   const isSomeSelected = selectedCities.size > 0 && selectedCities.size < (cities || []).length;
 
   return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="bg-card border-card">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
+        <CardTitle className="flex items-center justify-between text-body">
           <span>Cities</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
             {selectedCities.size > 0 && <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isLoadingData}>Delete Selected ({selectedCities.size})</Button>}
           </div>
         </CardTitle>
-        <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all cities.</CardDescription>
+        <CardDescription className="text-muted">List of all cities.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="border rounded-md overflow-hidden border-card">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
@@ -454,18 +454,18 @@ export const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLo
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
                 : cities.length > 0 ? cities.map((city) => (
-                    <tr key={city.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <tr key={city.id} className="border-t border-card">
                       <td className="p-2"><Checkbox checked={selectedCities.has(city.id)} onCheckedChange={(c) => handleSelectCity(city.id, c)} /></td>
-                      {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={city.id}>{city.id.substring(0, 8)}...</td>}
-                      {visibleColumns.includes('name') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.name}</td>}
-                      {visibleColumns.includes('province') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.province}</td>}
-                      {visibleColumns.includes('country') && <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.country}</td>}
-                      {visibleColumns.includes('actions') && <td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => onEdit(city)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button><Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(city)}>Delete</Button></td>}
+                      {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs text-muted" title={city.id}>{city.id.substring(0, 8)}...</td>}
+                      {visibleColumns.includes('name') && <td className="p-3 text-body">{city.name}</td>}
+                      {visibleColumns.includes('province') && <td className="p-3 text-body">{city.province}</td>}
+                      {visibleColumns.includes('country') && <td className="p-3 text-body">{city.country}</td>}
+                      {visibleColumns.includes('actions') && <td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => onEdit(city)} className="text-body bg-card border-card">Edit</Button><Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(city)}>Delete</Button></td>}
                     </tr>
                   ))
-                : <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No cities found.</td></tr>}
+                : <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-muted">No cities found.</td></tr>}
               </tbody>
             </table>
           </div>

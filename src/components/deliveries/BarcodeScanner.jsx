@@ -474,7 +474,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         </Button>
       </div>
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-slate-400 dark:text-slate-400">
         Use a hand scanner or tap the camera icon to scan with the device camera.
       </p>
 
@@ -538,8 +538,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
             {barcodeValues.map((val, idx) => (
               <div
                 key={idx}
-                className="relative rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700"
-                style={{ borderColor: 'var(--border-slate-200)' }}
+                className="relative rounded-lg border bg-white dark:bg-slate-900 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700 border-card"
                 onClick={() => onSelectBarcode(val)}
                 title={val}
               >

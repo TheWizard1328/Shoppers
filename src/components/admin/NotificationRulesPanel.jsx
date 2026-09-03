@@ -78,12 +78,12 @@ function EntityMultiSelect({ field, value, onChange, stores, drivers }) {
         <span className="truncate">
           {selectedLabels.length === 0 ? 'Select…' : selectedLabels.join(', ')}
         </span>
-        <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">▾</span>
+        <span className="text-slate-400 dark:text-slate-400">▾</span>
       </button>
       {open && (
         <div className="absolute z-50 mt-1 bg-white dark:bg-slate-900 border rounded-lg shadow-lg p-2 space-y-1 max-h-52 overflow-y-auto min-w-[180px]">
           {options.length === 0 && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 px-1">No options loaded</p>
+            <p className="text-xs text-slate-400 dark:text-slate-400 px-1">No options loaded</p>
           )}
           {options.map((opt) => (
             <label key={opt.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 rounded">
@@ -117,7 +117,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 w-4">{index === 0 ? 'IF' : 'AND'}</span>
+      <span className="text-xs text-slate-400 dark:text-slate-400 w-4">{index === 0 ? 'IF' : 'AND'}</span>
       <Select value={condition.field} onValueChange={handleFieldChange}>
         <SelectTrigger className="h-8 text-xs w-36">
           <SelectValue placeholder="Field" />
@@ -152,7 +152,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
           />
         )
       )}
-      <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-8 w-8 p-0 text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-red-500">
+      <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-8 w-8 p-0 text-slate-400 dark:text-slate-400 hover:text-red-500">
         <Trash2 className="w-3 h-3" />
       </Button>
     </div>
@@ -235,7 +235,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
     <div className="space-y-3">
       <Card className="mb-3">
         <CardContent className="pb-2 p-3 pt-2 my-6">
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Define <strong>when</strong> each notification fires and <strong>who</strong> receives it.
             No conditions = always fires. Multiple conditions = ALL must pass (AND logic).
           </p>
@@ -277,19 +277,19 @@ export default function NotificationRulesPanel({ records, setRecords }) {
                         {RECIPIENT_OPTIONS.find((o) => o.value === r)?.label.replace(/^[^\s]+ /, '') || r}
                       </span>
                     ) :
-                    <span className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400 italic">No recipients set</span>
+                    <span className="text-sm text-slate-400 dark:text-slate-400 italic">No recipients set</span>
                   }
                 </div>
 
                 {/* Conditions summary */}
                 {conditions.length === 0 ?
-                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">✓ Always fires</p> :
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">✓ Always fires</p> :
                   <div className="space-y-0.5">
                     {conditions.map((c, i) =>
                       <p key={i} className="text-sm text-slate-700 dark:text-slate-300 font-mono">
-                        <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">{i === 0 ? 'IF ' : 'AND '}</span>
+                        <span className="text-slate-400 dark:text-slate-400">{i === 0 ? 'IF ' : 'AND '}</span>
                         {FIELD_OPTIONS.find((f) => f.value === c.field)?.label || c.field}
-                        <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400"> {c.operator.replace(/_/g, ' ')} </span>
+                        <span className="text-slate-400 dark:text-slate-400"> {c.operator.replace(/_/g, ' ')} </span>
                         {c.value ? <span>{resolveValueLabels(c.field, c.value, stores, drivers)}</span> : null}
                       </p>
                     )}
@@ -333,7 +333,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
           <div className="space-y-5 py-2">
             {/* Recipients */}
             <div>
-              <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2 block">Who receives this notification</Label>
+              <Label className="text-xs text-slate-600 dark:text-slate-400 mb-2 block">Who receives this notification</Label>
               <div className="space-y-2">
                 {RECIPIENT_OPTIONS.map((opt) =>
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
@@ -349,7 +349,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
             {/* Conditions */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">Trigger Conditions (ALL must pass)</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-400">Trigger Conditions (ALL must pass)</Label>
                 <Button size="sm" variant="outline" onClick={addCondition} className="gap-1 text-xs h-7">
                   <Plus className="w-3 h-3" /> Add Condition
                 </Button>

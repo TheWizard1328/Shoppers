@@ -136,7 +136,7 @@ export default function RouteMapView({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">
+            <p className="text-slate-600 dark:text-slate-400 mt-1">
               {mapData.markers.length} stops • {mapData.storesToShow.length} stores
             </p>
           </CardHeader>
@@ -166,7 +166,7 @@ export default function RouteMapView({
                 />
               </MapContainer>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400">
                 <div className="text-center">
                   <p className="text-lg font-medium">No stops to display</p>
                   <p className="text-sm">No deliveries or pickups found for this route.</p>

@@ -38,19 +38,11 @@ export default function DriverRouteHeader({
 
   return (
     <Card
-      className="flex-shrink-0 shadow-sm relative min-w-0 overflow-hidden"
-      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+      className="flex-shrink-0 shadow-sm relative min-w-0 overflow-hidden bg-card border-card"
     >
       <button
         onClick={() => setIsMobileMenuOpen((v) => !v)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden"
-        style={{
-          background: 'var(--bg-white)',
-          color: 'var(--text-slate-700)',
-          borderTop: '1px solid var(--border-slate-200)',
-          borderRight: '1px solid var(--border-slate-200)',
-          borderBottom: '1px solid var(--border-slate-200)',
-        }}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden text-secondary bg-card" style={{ borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}
       >
         <CalendarIcon className="w-5 h-5" />
       </button>
@@ -66,12 +58,12 @@ export default function DriverRouteHeader({
               className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center"
               style={{ background: 'var(--bg-slate-100)' }}
             >
-              <span className="text-3xl font-bold" style={{ color: 'var(--text-slate-600)' }}>
+              <span className="text-3xl font-bold text-label">
                 {getDriverDisplayName(activeDriver).charAt(0)}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+              <h2 className="text-2xl font-bold text-body">
                 {getDriverDisplayName(activeDriver)}
               </h2>
               {isDispatcherViewingInactive ? (
@@ -79,16 +71,16 @@ export default function DriverRouteHeader({
                   ••• ••• ••••
                 </p>
               ) : (
-                <p className="font-medium" style={{ color: 'var(--text-slate-600)' }}>
+                <p className="font-medium text-label">
                   {formatPhoneNumber(activeDriver.phone)}
                 </p>
               )}
               <div className="flex items-center gap-2">
-                <p className="text-sm capitalize" style={{ color: 'var(--text-slate-500)' }}>
+                <p className="text-sm capitalize text-muted">
                   {activeDriver.app_roles?.[0]}
                 </p>
                 <span style={{ color: 'var(--text-slate-400)' }}>•</span>
-                <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                <p className="text-sm font-medium text-secondary">
                   {selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}
                 </p>
               </div>
@@ -98,17 +90,12 @@ export default function DriverRouteHeader({
               <div className="flex-shrink-0">
                 <Select value={driverFilter} onValueChange={handleDriverChange}>
                   <SelectTrigger
-                    className="w-[120px] h-9 text-xs"
-                    style={{
-                      background: 'var(--bg-white)',
-                      borderColor: 'var(--border-slate-300)',
-                      color: 'var(--text-slate-900)',
-                    }}
+                    className="w-[120px] h-9 text-xs text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
                   >
                     <SelectValue placeholder="Driver" />
                   </SelectTrigger>
-                  <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                    <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
+                  <SelectContent className="bg-card border-card">
+                    <SelectItem value="all" className="text-body">All Drivers</SelectItem>
                     {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver'))).map((driver) => {
                       const dup = (effectiveDrivers || []).filter(
                         (x) => getDriverDisplayName(x) === getDriverDisplayName(driver)
@@ -121,7 +108,7 @@ export default function DriverRouteHeader({
                         <SelectItem
                           key={driver.id || driver.appUserId || getDriverDisplayName(driver)}
                           value={driver.id}
-                          style={{ color: 'var(--text-slate-900)' }}
+                          className="text-body"
                         >
                           {name}
                         </SelectItem>

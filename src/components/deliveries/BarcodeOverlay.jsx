@@ -39,7 +39,7 @@ export default function BarcodeOverlay({ value, onClose, isRx = false }) {
             ) : (
               <p className="text-xs text-slate-700 dark:text-slate-300 break-all">{value}</p>
             )}
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Tap anywhere to close</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Tap anywhere to close</p>
           </div>
         </div>
       </div>

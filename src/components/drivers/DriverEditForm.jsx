@@ -284,7 +284,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(e) => setFormData(prev => ({ ...prev, effective_date: e.target.value }))}
                 className="w-full"
               />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
             </div>
           )}
 
@@ -335,14 +335,14 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               />
             </div>
           </div>
-          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+          <p className="text-xs text-muted">
             KM Limit: Minimum km before extra pay starts
           </p>
 
           {/* Square Card Locations */}
           {squareLocations.length > 0 && (
             <div className="pt-2 border-t">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
                 <CreditCard className="w-3 h-3" />
                 Square Card Locations
               </Label>
@@ -355,7 +355,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(values) => setFormData((prev) => ({ ...prev, square_location_ids: values }))}
                 placeholder="Select Square card locations..."
               />
-              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
+              <p className="text-xs mt-1 text-muted">
                 Assign Square terminals/cards for COD processing
               </p>
             </div>
@@ -511,7 +511,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 </div>
               </div>
             </div>
-            <p className="text-xs mt-1.5" style={{ color: 'var(--text-slate-500)' }}>
+            <p className="text-xs mt-1.5 text-muted">
               These deductions will be applied to each payroll period that starts within the date range.
             </p>
           </div>
@@ -519,7 +519,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           {/* Pay Rate History */}
           {formData.pay_rate_history && formData.pay_rate_history.length > 0 && (
             <div className="pt-2 border-t">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 Rate History
               </Label>
@@ -539,7 +539,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                           })()}
                         </span>
                       </div>
-                      <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px]">
+                      <div className="text-slate-600 dark:text-slate-400 text-[10px]">
                         ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
                       </div>
                       <Button

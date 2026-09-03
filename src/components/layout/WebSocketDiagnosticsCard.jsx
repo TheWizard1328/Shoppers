@@ -194,7 +194,7 @@ export default function WebSocketDiagnosticsCard() {
         </div>
         <button
           onClick={() => setEvent(null)}
-          className="text-blue-400 hover:text-blue-600 flex-shrink-0 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-200"
+          className="text-blue-400 hover:text-blue-600 flex-shrink-0 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <X className="w-4 h-4" />
         </button>

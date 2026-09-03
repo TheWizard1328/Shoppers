@@ -71,16 +71,16 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
   }
 
   return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="bg-card border-card">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-secondary">{title}</CardTitle>
         <div className={`p-2 rounded-full ${colorClasses[color]}`}>
           <Icon className="h-4 w-4" />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</div>
-        {subtitle && <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>{subtitle}</p>}
+        <div className="text-2xl font-bold text-body">{value}</div>
+        {subtitle && <p className="text-xs mt-1 text-muted">{subtitle}</p>}
         {percentChange !== null &&
         <div className={`flex items-center mt-2 text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
             {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
@@ -948,7 +948,7 @@ export default function DeliveryMetrics() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p style={{ color: 'var(--text-slate-600)' }}>Loading metrics...</p>
+          <p className="text-label">Loading metrics...</p>
         </div>
       </div>);
 
@@ -960,11 +960,11 @@ export default function DeliveryMetrics() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Metrics</h1>
+              <h1 className="text-3xl font-bold text-body">Route Metrics</h1>
               <SmartRefreshIndicator inline={true} />
             </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p style={{ color: 'var(--text-slate-600)' }}>
+              <p className="text-label">
                 {(() => {
                   const startYear = startDate.getFullYear();
                   const endYear = endDate.getFullYear();
@@ -976,7 +976,7 @@ export default function DeliveryMetrics() {
                 })()}
               </p>
               {showComparison && prevStartDate && prevEndDate &&
-                <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                <span className="text-xs text-muted">
                   (vs {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')})
                 </span>
               }
@@ -1055,7 +1055,7 @@ export default function DeliveryMetrics() {
               </SelectContent>
             </Select>
 
-            <Button onClick={() => loadData()} variant="outline" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+            <Button onClick={() => loadData()} variant="outline" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
               Refresh Data
             </Button>
           </div>
@@ -1107,9 +1107,9 @@ export default function DeliveryMetrics() {
 
           <TabsContent value="daily" className="space-y-4">
             {dateRange === 'today' && (
-              <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              <Card className="bg-card border-card">
                 <CardHeader>
-                  <CardTitle style={{ color: 'var(--text-slate-900)' }}>Deliveries by Hour of Day</CardTitle>
+                  <CardTitle className="text-body">Deliveries by Hour of Day</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -1127,9 +1127,9 @@ export default function DeliveryMetrics() {
                 </CardContent>
               </Card>
             )}
-            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="bg-card border-card">
               <CardHeader>
-                <CardTitle style={{ color: 'var(--text-slate-900)' }}>
+                <CardTitle className="text-body">
                   {dateRange === 'year' ? 'Monthly Delivery Performance' : 'Daily Delivery Performance'}
                   {isWeeklyRangeForChart && showComparison ? " (Current vs. Previous Week)" : ""}
                 </CardTitle>
@@ -1156,19 +1156,19 @@ export default function DeliveryMetrics() {
                         return (
                           <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-6 mt-2 text-xs">
                             <div className="flex flex-col items-center gap-1">
-                              <span className="font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Current:</span>
+                              <span className="font-semibold text-slate-600 dark:text-slate-400">Current:</span>
                               <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
                                 {currentItems.map((item, index) => (
                                   <span key={index} className="flex items-center gap-1">
                                     <span className="w-3 h-0.5 rounded" style={{ backgroundColor: item.color }}></span>
-                                    <span style={{ color: 'var(--text-slate-600)' }}>{item.value}</span>
+                                    <span className="text-label">{item.value}</span>
                                   </span>
                                 ))}
                               </div>
                             </div>
                             {prevItems.length > 0 && (
                               <div className="flex flex-col items-center gap-1">
-                                <span className="font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400">Previous:</span>
+                                <span className="font-semibold text-slate-400 dark:text-slate-400">Previous:</span>
                                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
                                   {prevItems.map((item, index) => (
                                     <span key={index} className="flex items-center gap-1">
@@ -1202,12 +1202,12 @@ export default function DeliveryMetrics() {
 
             {/* Render separate chart for previous period if not a weekly range and comparison is enabled */}
             {showComparison && !isWeeklyRangeForChart && metrics.prevDailyData.length > 0 &&
-            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="bg-card border-card">
                 <CardHeader>
-                  <CardTitle style={{ color: 'var(--text-slate-900)' }}>
+                  <CardTitle className="text-body">
                     Daily Delivery Performance - Previous Period
                     {prevStartDate && prevEndDate && (
-                      <span className="text-sm font-normal ml-2" style={{ color: 'var(--text-slate-500)' }}>
+                      <span className="text-sm font-normal ml-2 text-muted">
                         ({format(prevStartDate, 'MMM d, yyyy')} - {format(prevEndDate, 'MMM d, yyyy')})
                       </span>
                     )}
@@ -1233,9 +1233,9 @@ export default function DeliveryMetrics() {
           </TabsContent>
 
           <TabsContent value="drivers" className="space-y-4">
-            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="bg-card border-card">
               <CardHeader>
-                <CardTitle style={{ color: 'var(--text-slate-900)' }}>Performance by Driver</CardTitle>
+                <CardTitle className="text-body">Performance by Driver</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -1262,9 +1262,9 @@ export default function DeliveryMetrics() {
           </TabsContent>
 
           <TabsContent value="status" className="space-y-4">
-            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="bg-card border-card">
               <CardHeader>
-                <CardTitle style={{ color: 'var(--text-slate-900)' }}>Delivery Status Distribution</CardTitle>
+                <CardTitle className="text-body">Delivery Status Distribution</CardTitle>
               </CardHeader>
               <CardContent className="flex justify-center">
                 <ResponsiveContainer width="100%" height={300}>
@@ -1314,42 +1314,42 @@ export default function DeliveryMetrics() {
 
         {/* Additional Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Total Distance</CardTitle>
-              <MapPin className="h-4 w-4" style={{ color: 'var(--text-slate-500)' }} />
+              <CardTitle className="text-sm font-medium text-secondary">Total Distance</CardTitle>
+              <MapPin className="h-4 w-4 text-muted" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metrics.totalDistance} km</div>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>Across all routes</p>
+              <div className="text-2xl font-bold text-body">{metrics.totalDistance} km</div>
+              <p className="text-xs mt-1 text-muted">Across all routes</p>
               {showComparison &&
               <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevTotalDistance} km</p>
               }
             </CardContent>
           </Card>
 
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Failed Returned</CardTitle>
+              <CardTitle className="text-sm font-medium text-secondary">Failed Returned</CardTitle>
               <XCircle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metrics.failedDeliveries}/{metrics.returnedDeliveries}</div>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>Total failed and returned</p>
+              <div className="text-2xl font-bold text-body">{metrics.failedDeliveries}/{metrics.returnedDeliveries}</div>
+              <p className="text-xs mt-1 text-muted">Total failed and returned</p>
               {showComparison &&
               <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevFailedDeliveries}/{metrics.prevReturnedDeliveries}</p>
               }
             </CardContent>
           </Card>
 
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="bg-card border-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Avg Distance</CardTitle>
+              <CardTitle className="text-sm font-medium text-secondary">Avg Distance</CardTitle>
               <Truck className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metrics.avgDistance} km</div>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>Between deliveries</p>
+              <div className="text-2xl font-bold text-body">{metrics.avgDistance} km</div>
+              <p className="text-xs mt-1 text-muted">Between deliveries</p>
               {showComparison &&
               <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevAvgDistance} km</p>
               }

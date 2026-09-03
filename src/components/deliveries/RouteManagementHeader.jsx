@@ -76,8 +76,7 @@ export function RouteManagementStopDetailsOverlay({
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed left-0 right-0 z-[201] overflow-hidden rounded-t-2xl"
-        style={{ background: 'var(--bg-white)', bottom: 'calc(var(--bottom-nav-height, 88px) + var(--native-safe-bottom, 0px))', maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - var(--native-safe-bottom, 0px) - 8px)' }}
+        className="fixed left-0 right-0 z-[201] overflow-hidden rounded-t-2xl bg-card" style={{ bottom: 'calc(var(--bottom-nav-height, 88px) + var(--native-safe-bottom, 0px))', maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - var(--native-safe-bottom, 0px) - 8px)' }}
         onClick={(e) => e.stopPropagation()}>
         
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - var(--native-safe-bottom, 0px) - 8px)' }}>
@@ -90,8 +89,7 @@ export function RouteManagementStopDetailsOverlay({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="absolute right-0 top-0 bottom-0 w-[560px] shadow-xl z-[201] overflow-hidden"
-        style={{ background: 'var(--bg-white)' }}
+        className="absolute right-0 top-0 bottom-0 w-[560px] shadow-xl z-[201] overflow-hidden bg-card"
         onClick={(e) => e.stopPropagation()}>
         
           <div className="h-full overflow-y-auto">
@@ -122,9 +120,9 @@ export default function RouteManagementHeader({
     <>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
+          <h1 className="text-3xl font-bold flex items-center gap-3 text-body">
             Route Management
-            <Badge variant="outline" className="ml-2 text-sm font-normal" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="ml-2 text-sm font-normal text-secondary" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
               {format(new Date(), 'MMM d, yyyy')}
             </Badge>
             <SmartRefreshIndicator inline={true} />
@@ -141,7 +139,7 @@ export default function RouteManagementHeader({
       </div>
       <div className="flex items-center gap-3">
         <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
           <Input placeholder="Search patient, address, Rx details, tracking..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" />
         </div>
         <Select value={driverFilter} onValueChange={handleDriverChange} disabled={(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin'))}>

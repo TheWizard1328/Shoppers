@@ -193,7 +193,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
     <div className="space-y-3">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Template Variables</CardTitle>
+          <CardTitle className="text-sm text-slate-600 dark:text-slate-400">Template Variables</CardTitle>
         </CardHeader>
         <CardContent className="px-3 py-2">
           <div className="flex flex-wrap gap-2 text-xs">
@@ -303,23 +303,23 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
           {editDraft &&
           <div className="space-y-4 py-2">
               <div>
-                <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Title / Label</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">Title / Label</Label>
                 <Input value={editDraft.label} onChange={(e) => setEditDraft((d) => ({ ...d, label: e.target.value }))} className="text-sm" />
               </div>
               <div>
-                <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Message Template</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">Message Template</Label>
                 <Textarea ref={textareaRef} value={editDraft.message_template}
               onChange={(e) => setEditDraft((d) => ({ ...d, message_template: e.target.value }))}
               rows={4} className="text-sm" />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {TEMPLATE_VARIABLES.map((v) =>
                 <button key={v} type="button" onClick={() => insertVariable(v)}
-                className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 hover:text-blue-700 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-300 transition-colors cursor-pointer font-mono">
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 hover:text-blue-700 text-slate-600 dark:text-slate-400 text-xs px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-300 transition-colors cursor-pointer font-mono">
                       {v}
                     </button>
                 )}
                 </div>
-                <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-2">Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em></p>
+                <p className="text-xs text-slate-400 dark:text-slate-400 mt-2">Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em></p>
               </div>
               <div className="flex flex-wrap gap-6">
                 <div className="flex items-center gap-2">
@@ -335,7 +335,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
           }
           <DialogFooter className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-orange-500 gap-1">
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 dark:text-slate-400 hover:text-orange-500 gap-1">
                 <RotateCcw className="w-3 h-3" /> Reset
               </Button>
               <Button size="sm" variant="outline" disabled={!!isTesting}

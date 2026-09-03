@@ -261,7 +261,7 @@ export default function SecureDocViewer() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-800">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Verifying access...</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Verifying access...</p>
         </div>
       </div>
     );
@@ -274,7 +274,7 @@ export default function SecureDocViewer() {
           <CardContent className="p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Access Denied</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-4">{error}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{error}</p>
             <Button onClick={() => navigate(-1)} variant="outline" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Go Back
@@ -313,7 +313,7 @@ export default function SecureDocViewer() {
         {/* Document list */}
         {!viewingDoc && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
               {documents.length} document{documents.length !== 1 ? 's' : ''} available.
               Access expires in <span className="font-semibold text-amber-700">{timeRemaining || '—'}</span> or at midnight, whichever comes first.
             </p>
@@ -327,18 +327,18 @@ export default function SecureDocViewer() {
                     <p className="font-medium text-slate-900 dark:text-slate-100 capitalize">
                       {doc.document_type?.replace(/_/g, ' ')}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Uploaded {new Date(doc.uploaded_at || doc.created_date).toLocaleDateString()}
                       {doc.document_expiry_date && ` • Expires ${new Date(doc.document_expiry_date).toLocaleDateString()}`}
                     </p>
                   </div>
-                  <Eye className="w-5 h-5 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+                  <Eye className="w-5 h-5 text-slate-400 dark:text-slate-400" />
                 </CardContent>
               </Card>
             ))}
             {documents.length === 0 && (
               <Card>
-                <CardContent className="py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <CardContent className="py-8 text-center text-slate-500 dark:text-slate-400">
                   No documents uploaded for this driver.
                 </CardContent>
               </Card>

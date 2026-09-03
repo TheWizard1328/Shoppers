@@ -76,13 +76,13 @@ export default function ScreenshotShareModal({ isOpen, onClose, imageDataUrl, fi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-card border-card">
         <DialogHeader>
-          <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Screenshot Preview</DialogTitle>
+          <DialogTitle className="text-body">Screenshot Preview</DialogTitle>
         </DialogHeader>
 
         {/* Screenshot Preview */}
-        <div className="overflow-auto max-h-[60vh] border rounded-lg" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+        <div className="overflow-auto max-h-[60vh] border rounded-lg border-card" style={{ background: 'var(--bg-slate-50)' }}>
           {imageDataUrl ? (
             <img 
               src={imageDataUrl} 
@@ -97,11 +97,11 @@ export default function ScreenshotShareModal({ isOpen, onClose, imageDataUrl, fi
         </div>
 
         <DialogFooter className="flex-row gap-2 justify-end">
-          <Button variant="outline" onClick={handleDownload} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+          <Button variant="outline" onClick={handleDownload} className="gap-2 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
             <Download className="w-4 h-4" />
             Save
           </Button>
-          <Button variant="outline" onClick={handlePrint} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+          <Button variant="outline" onClick={handlePrint} className="gap-2 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
             <Printer className="w-4 h-4" />
             Print
           </Button>

@@ -107,9 +107,9 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} h-[102px] flex flex-col justify-between p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+    <div className={${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} h-[102px] flex flex-col justify-between p-3 rounded-lg border border-card} style={{ background: 'var(--bg-slate-50)' }}>
       <div className="flex items-center justify-between min-h-[28px] mb-1">
-        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
+        <Label className="text-sm font-semibold text-body">Patient Search</Label>
         <div className="min-h-[28px] flex items-center justify-end">
           {selectedPatient &&
           <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
@@ -136,7 +136,7 @@ export default function DeliveryPatientSearch({
 
       <div className="relative flex gap-2 items-end flex-nowrap">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 z-10" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 z-10" />
           <Input
             ref={patientSearchInputRef}
             autoFocus
@@ -165,7 +165,7 @@ export default function DeliveryPatientSearch({
       </div>
 
       {patientSearch && !formData.patient_id &&
-      <div className={`absolute top-full left-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[40] ${isMobile || mobileStandalone ? 'right-0 w-full' : '-right-[150px]'}`} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <div className={absolute top-full left-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[40] ${isMobile || mobileStandalone ? 'right-0 w-full' : '-right-[150px]'} bg-card border-card}>
           {selectedPatientIds.size > 1 &&
         <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
               <span className="text-sm font-medium text-emerald-700">{selectedPatientIds.size} selected</span>
@@ -177,7 +177,7 @@ export default function DeliveryPatientSearch({
         }
 
           {visiblePatients.length === 0 ?
-        <div className="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">
+        <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-sm">
               No patients found
               {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
           <Button

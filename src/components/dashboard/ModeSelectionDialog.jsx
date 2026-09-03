@@ -38,16 +38,16 @@ export default function ModeSelectionDialog({
   const panelContent = (
     <>
       {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700" style={{ borderColor: 'var(--border-slate-200)' }}>
-        <h2 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+      <div className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700 border-card">
+        <h2 className="text-xl font-bold text-body">
           Select Stops for Cycling Mode
         </h2>
       </div>
 
       {/* Stop list */}
-      <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex-1 overflow-y-auto divide-y border-card">
         {nearbyStops.length === 0 && (
-          <div className="px-6 py-8 text-sm text-center" style={{ color: 'var(--text-slate-500)' }}>
+          <div className="px-6 py-8 text-sm text-center text-muted">
             No stops found on this route.
           </div>
         )}
@@ -60,7 +60,7 @@ export default function ModeSelectionDialog({
               className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors"
             >
               {/* Name */}
-              <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)', flex: '1 1 0', minWidth: 0 }}>
+              <span className="font-semibold text-sm truncate text-body" style={{ flex: '1 1 0', minWidth: 0 }}>
                 {stop.label}
               </span>
               {/* Distance + store abbreviation */}
@@ -73,7 +73,7 @@ export default function ModeSelectionDialog({
                     {stop.storeAbbreviation.slice(0, 2).toUpperCase()}
                   </span>
                 )}
-                <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-slate-500)' }}>
+                <span className="text-xs whitespace-nowrap text-muted">
                   {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '—'}
                 </span>
               </div>
@@ -91,7 +91,7 @@ export default function ModeSelectionDialog({
       </div>
 
       {/* Footer */}
-      <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex gap-3 px-6 py-4 border-t border-card">
         <Button
           variant="outline"
           onClick={() => onOpenChange?.(false)}

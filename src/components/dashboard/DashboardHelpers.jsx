@@ -11,7 +11,7 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
     emerald: "bg-emerald-100 text-emerald-600",
     green: "bg-green-100 text-green-600",
     red: "bg-red-100 text-red-600",
-    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
   };
 
   const badge =
@@ -21,11 +21,11 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
       </div>
       <div className="relative">
         {driverCount !== undefined && driverCount > 0 &&
-          <span className="absolute -top-1 -right-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
+          <span className="absolute -top-1 -right-1 text-[9px] font-bold text-muted">
             {driverCount}
           </span>
         }
-        <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
+        <span className="text-lg font-bold text-body">{value}</span>
       </div>
     </div>;
 
@@ -35,7 +35,7 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
         <TooltipTrigger asChild>
           {badge}
         </TooltipTrigger>
-        <TooltipContent className="z-[9999] border" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-300)' }}>
+        <TooltipContent className="z-[9999] border text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
           <p>{tooltip || ''}</p>
         </TooltipContent>
       </Tooltip>

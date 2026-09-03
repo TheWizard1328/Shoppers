@@ -288,7 +288,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
               />
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
               {isDownloadAppFlow
                 ? <>Scan to download the <span className="font-semibold">Android APK{versionLabel ? ` (${versionLabel})` : ''}</span>.</>
                 : selectedRole === 'patient'

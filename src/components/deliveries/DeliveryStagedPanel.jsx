@@ -79,8 +79,8 @@ export function DeliveryStagedPanelDesktop({
   selectedDate
 }) {
   return (
-    <div className="px-2 py-2 rounded-lg w-[300px] self-stretch flex-shrink-0 border-2 flex flex-col h-full min-h-0 overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-      <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
+    <div className="px-2 py-2 rounded-lg w-[300px] self-stretch flex-shrink-0 border-2 flex flex-col h-full min-h-0 overflow-hidden border-card" style={{ background: 'var(--bg-slate-50)' }}>
+      <Label className="text-sm font-semibold mb-2 text-body">
         Deliveries: (S: {sortedStagedDeliveries.filter((s) => !s.id).length} P: {sortedStagedDeliveries.filter((s) => s.id).length})
       </Label>
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -107,7 +107,7 @@ export function DeliveryStagedPanelDesktop({
           selectedDate={selectedDate} />
         
       </div>
-      <div className="pt-2 mt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="pt-2 mt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto border-card">
         <Button
           type="button"
           variant="outline"
@@ -119,7 +119,7 @@ export function DeliveryStagedPanelDesktop({
             console.log('[DeliveryStagedPanel] Refresh Projections clicked (desktop)');
             onRefreshProjections?.();
           }}
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+          style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
           
           {isLoadingPredictions ? 'Refreshing Projections...' : 'Refresh Projections'}
         </Button>
@@ -170,11 +170,10 @@ export function DeliveryStagedPanelMobile({
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-0 bottom-0 w-[300px] shadow-2xl flex flex-col"
-          style={{ background: 'var(--bg-white)' }}>
+          className="absolute right-0 top-0 bottom-0 w-[300px] shadow-2xl flex flex-col bg-card">
           
-            <div className="border-b p-4 flex items-center justify-between" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-              <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+            <div className="border-b p-4 flex items-center justify-between border-card" style={{ background: 'var(--bg-slate-50)' }}>
+              <h3 className="text-lg font-semibold text-body">
                 Deliveries: (S: {sortedStagedDeliveries.filter((s) => !s.id).length} P: {sortedStagedDeliveries.filter((s) => s.id).length})
               </h3>
               <Button variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
@@ -203,7 +202,7 @@ export function DeliveryStagedPanelMobile({
               selectedDate={selectedDate} />
             
             </div>
-            <div className="mx-3 mb-2 pt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <div className="mx-3 mb-2 pt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto border-card">
               <Button
               type="button"
               variant="outline"
@@ -215,7 +214,7 @@ export function DeliveryStagedPanelMobile({
                 console.log('[DeliveryStagedPanel] Refresh Projections clicked (mobile)');
                 onRefreshProjections?.();
               }}
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
               
                 {isLoadingPredictions ? 'Refreshing Projections...' : 'Refresh Projections'}
               </Button>
@@ -255,12 +254,12 @@ export function DeliveryDeleteConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-[60000] bg-black/60 flex items-center justify-center p-4">
-      <div className="rounded-lg shadow-xl max-w-md w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-        <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
+      <div className="rounded-lg shadow-xl max-w-md w-full p-4 border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+        <h3 className="text-lg font-semibold mb-2 text-body">
           Delete Pending {isPickup ? 'Pickup' : 'Delivery'}?
         </h3>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-slate-600)' }}>
-          {isPickup ? <>Delete pickup for <strong style={{ color: 'var(--text-slate-900)' }}>{staged.store_name}</strong> [{staged.ampm_deliveries}]?</> : <>Delete delivery for <strong style={{ color: 'var(--text-slate-900)' }}>{staged.patient_name}</strong>? This action cannot be undone.</>}
+        <p className="text-sm mb-4 text-label">
+          {isPickup ? <>Delete pickup for <strong className="text-body">{staged.store_name}</strong> [{staged.ampm_deliveries}]?</> : <>Delete delivery for <strong className="text-body">{staged.patient_name}</strong>? This action cannot be undone.</>}
         </p>
 
         {isPickup && linkedStops.length > 0 &&

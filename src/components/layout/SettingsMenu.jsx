@@ -100,13 +100,7 @@ export default function SettingsMenu({
       <DemoModeDialog open={showDemoModeDialog} onOpenChange={setShowDemoModeDialog} />
     <DropdownMenuContent 
       align="end" 
-      className="w-60 z-[99999]" 
-      style={{ 
-        background: 'var(--bg-white)', 
-        borderColor: '#ffffff', 
-        color: 'var(--text-slate-900)', 
-        fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-      }}
+      className="w-60 z-[99999] text-body bg-card" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
 
@@ -114,7 +108,7 @@ export default function SettingsMenu({
       {currentUser?.app_roles?.includes('admin') || currentUser?.app_roles?.includes('dispatcher') || currentUser?.app_roles?.includes('driver') ? (
         <>
           <DropdownMenuLabel 
-            className="px-2 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500" 
+            className="px-2 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400" 
             style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
           >
             Display
@@ -124,11 +118,7 @@ export default function SettingsMenu({
           {isMobileForTheme && (
         <div className="px-2 py-2">
           <label 
-            className="font-medium mb-1.5 block" 
-            style={{ 
-              color: 'var(--text-slate-700)', 
-              fontSize: isMobileDeviceForUI ? '15px' : '14px' 
-            }}
+            className="font-medium mb-1.5 block text-secondary" style={{ fontSize: isMobileDeviceForUI ? '15px' : '14px' }}
           >
             Theme
           </label>
@@ -145,27 +135,16 @@ export default function SettingsMenu({
           ) : (
             <Select value={themePreference} onValueChange={onThemeChange}>
               <SelectTrigger 
-                className="w-full min-h-11" 
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: 'var(--border-slate-300)', 
-                  color: 'var(--text-slate-900)', 
-                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-                }}
+                className="w-full min-h-11 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent 
-                className="z-[10003]" 
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: '#ffffff', 
-                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-                }}
+                className="z-[10003] bg-card" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
-                <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
-                <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
-                <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
+                <SelectItem value="auto" className="text-body">Auto (System)</SelectItem>
+                <SelectItem value="light" className="text-body">Light</SelectItem>
+                <SelectItem value="dark" className="text-body">Dark</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -180,11 +159,7 @@ export default function SettingsMenu({
       {currentUser?.app_roles?.includes('admin') && cities && cities.length > 0 && (
         <div className="px-2 py-2">
           <label 
-            className="font-medium mb-1.5 block" 
-            style={{ 
-              color: 'var(--text-slate-700)', 
-              fontSize: isMobileDeviceForUI ? '14px' : '13px' 
-            }}
+            className="font-medium mb-1.5 block text-secondary" style={{ fontSize: isMobileDeviceForUI ? '14px' : '13px' }}
           >
             City Filter
           </label>
@@ -200,26 +175,15 @@ export default function SettingsMenu({
               onValueChange={handleCityFilterChange}
             >
               <SelectTrigger 
-                className="w-full min-h-11" 
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: 'var(--border-slate-300)', 
-                  color: 'var(--text-slate-900)', 
-                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-                }}
+                className="w-full min-h-11 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 <SelectValue placeholder="City" />
               </SelectTrigger>
               <SelectContent 
-                className="max-h-[300px] overflow-y-auto z-[10002]" 
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: '#ffffff', 
-                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-                }}
+                className="max-h-[300px] overflow-y-auto z-[10002] bg-card" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 {cities.map((city) => (
-                  <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                  <SelectItem key={city.id} value={city.id} className="text-body">
                     {city.name}
                   </SelectItem>
                 ))}

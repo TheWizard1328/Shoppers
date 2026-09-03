@@ -42,7 +42,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
 
     return {
       icon: <Clock className="w-4 h-4" />,
-      color: "text-gray-600 dark:text-slate-400 dark:text-slate-500",
+      color: "text-gray-600 dark:text-slate-400",
       bgColor: "bg-gray-50 dark:bg-slate-800",
       borderColor: "border-gray-200 dark:border-slate-700",
       text: "Never Synced"

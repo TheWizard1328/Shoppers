@@ -112,7 +112,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
   const getStatusBadge = (status) => {
     if (status === 'pending_review') return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
     if (status === 'applied') return <Badge className="bg-green-100 text-green-800 border-green-200">Applied</Badge>;
-    if (status === 'dismissed') return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700">Dismissed</Badge>;
+    if (status === 'dismissed') return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">Dismissed</Badge>;
     return null;
   };
 
@@ -128,9 +128,9 @@ export default function PatientAnalysisReview({ stores = [] }) {
   return (
     <div className="space-y-4">
       {/* Header / Run Controls */}
-      <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <Card className="bg-card border-card">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between flex-wrap gap-2" style={{ color: 'var(--text-slate-900)' }}>
+          <CardTitle className="flex items-center justify-between flex-wrap gap-2 text-body">
             <div className="flex items-center gap-2">
               Patient History Analysis
               {pendingCount > 0 && (
@@ -195,17 +195,16 @@ export default function PatientAnalysisReview({ stores = [] }) {
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-          <span className="ml-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>Loading results...</span>
+          <span className="ml-2 text-sm text-label">Loading results...</span>
         </div>
       ) : results.length === 0 ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text-slate-500)' }}>
+        <div className="text-center py-12 text-sm text-muted">
           No analysis results found.
         </div>
       ) : (
         <div className="space-y-2">
           {results.map(result => (
-            <Card key={result.id} className="cursor-pointer hover:shadow-md transition-shadow" 
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+            <Card key={result.id} className="cursor-pointer hover:shadow-md transition-shadow bg-card border-card"
               onClick={() => result.status === 'pending_review' ? setSelectedResult(result) : null}
             >
               <CardContent className="p-3">
@@ -214,13 +213,13 @@ export default function PatientAnalysisReview({ stores = [] }) {
                     <User className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                        <span className="font-medium text-sm text-body">
                           {result.patient_name}
                         </span>
                         {getResultTypeBadge(result.result_type)}
                         {getStatusBadge(result.status)}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                      <div className="flex items-center gap-3 mt-1 text-xs flex-wrap text-muted">
                         <span className="flex items-center gap-1">
                           <Store className="w-3 h-3" />{result.store_name}
                         </span>
@@ -277,15 +276,14 @@ export default function PatientAnalysisReview({ stores = [] }) {
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+              <p className="text-sm font-medium text-secondary">
                 Select the correct recurring pattern:
               </p>
               {(selectedResult.suggested_patterns || []).map((p, i) => (
-                <div key={i} className="flex items-start justify-between gap-3 p-3 rounded-lg border"
-                  style={{ borderColor: 'var(--border-slate-200)', background: i === 0 ? 'var(--bg-emerald-50)' : 'var(--bg-slate-50)' }}>
+                <div key={i} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-card" style={{ background: i === 0 ? 'var(--bg-emerald-50)' : 'var(--bg-slate-50)' }}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                      <span className="font-medium text-sm text-body">
                         {p.pattern_label}
                       </span>
                       <Badge className={`text-xs ${i === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>
@@ -293,7 +291,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
                       </Badge>
                       {i === 0 && <Badge className="text-xs bg-blue-100 text-blue-800">Top match</Badge>}
                     </div>
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>{p.supporting_data}</p>
+                    <p className="text-xs mt-1 text-muted">{p.supporting_data}</p>
                   </div>
                   <Button
                     size="sm"

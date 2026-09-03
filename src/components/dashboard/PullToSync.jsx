@@ -295,12 +295,7 @@ export default function PullToSync({
             className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex justify-center -translate-x-[30px]"
           >
             <div 
-              className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
-              style={{
-                background: 'var(--bg-white)',
-                borderColor: 'var(--border-slate-200)',
-                opacity: 1
-              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm bg-card border-card" style={{ opacity: 1 }}
             >
               <RefreshCw 
                 className="w-4 h-4"
@@ -310,8 +305,7 @@ export default function PullToSync({
                 }}
               />
               <span 
-                className="text-sm font-medium"
-                style={{ color: 'var(--text-slate-700)' }}
+                className="text-sm font-medium text-secondary"
               >
                 {pullProgress >= 1 ? 'Release to sync' : 'Pull to sync'}
               </span>
@@ -330,8 +324,7 @@ export default function PullToSync({
             className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
           >
             <div 
-              className="rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
-              style={{ background: 'var(--bg-white)', opacity: 1 }}
+              className="rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4 bg-card" style={{ opacity: 1 }}
             >
               <div 
                 className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin"
@@ -339,14 +332,12 @@ export default function PullToSync({
               />
               <div className="text-center">
                 <p 
-                  className="text-lg font-semibold"
-                  style={{ color: 'var(--text-slate-900)' }}
+                  className="text-lg font-semibold text-body"
                 >
                   Syncing Data
                 </p>
                 <p 
-                  className="text-sm mt-1"
-                  style={{ color: 'var(--text-slate-600)' }}
+                  className="text-sm mt-1 text-label"
                 >
                   Updating deliveries, patients & drivers
                 </p>

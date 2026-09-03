@@ -225,7 +225,7 @@ export default function IntegrationCreditsTab() {
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
-          <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading credit monitoring...</span>
+          <span className="text-slate-600 dark:text-slate-400">Loading credit monitoring...</span>
         </CardContent>
       </Card>);
 
@@ -242,8 +242,8 @@ export default function IntegrationCreditsTab() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Integration Credits</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Monitor estimated credit usage by task, user, and integration call.</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">Loaded {logs.length} recent logs, showing {filteredLogs.length} in the selected window.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Monitor estimated credit usage by task, user, and integration call.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">Loaded {logs.length} recent logs, showing {filteredLogs.length} in the selected window.</p>
         </div>
         <div className="w-full lg:w-56">
           <Select value={timeframeMinutes} onValueChange={setTimeframeMinutes}>
@@ -267,7 +267,7 @@ export default function IntegrationCreditsTab() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">{summary.totalEstimatedCredits}</div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">In the selected timeframe</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">In the selected timeframe</p>
             </CardContent>
           </Card>
           <Card>
@@ -276,7 +276,7 @@ export default function IntegrationCreditsTab() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">{summary.successfulCalls}</div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Out of {summary.successfulCalls + summary.failedCalls} tracked calls</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Out of {summary.successfulCalls + summary.failedCalls} tracked calls</p>
             </CardContent>
           </Card>
           <Card>
@@ -285,7 +285,7 @@ export default function IntegrationCreditsTab() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-red-600">{summary.failedCalls}</div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Calls that ended in failure</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Calls that ended in failure</p>
             </CardContent>
           </Card>
           <Card>
@@ -294,7 +294,7 @@ export default function IntegrationCreditsTab() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">{formatDuration(summary.avgDuration)}</div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Average integration runtime</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Average integration runtime</p>
             </CardContent>
           </Card>
         </div>
@@ -307,17 +307,17 @@ export default function IntegrationCreditsTab() {
           <CardContent className="px-3 py-3">
             <div className="space-y-1.5">
               {summary.topTasks.length === 0 &&
-              <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No tracked integration usage yet.</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">No tracked integration usage yet.</div>
               }
               {summary.topTasks.map((task) =>
               <div key={task.name} className="px-3 py-2 rounded-lg flex items-center justify-between border">
                   <div>
                     <div className="font-medium text-slate-900 dark:text-slate-100">{task.name}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{task.integration}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{task.integration}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-slate-900 dark:text-slate-100">{task.credits} credits</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{task.calls} call{task.calls === 1 ? '' : 's'}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{task.calls} call{task.calls === 1 ? '' : 's'}</div>
                   </div>
                 </div>
               )}
@@ -326,7 +326,7 @@ export default function IntegrationCreditsTab() {
                 <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">Failure Hotspots</div>
                 <div className="space-y-2">
                   {summary.failureHotspots.length === 0 &&
-                  <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No repeated failures in this window.</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">No repeated failures in this window.</div>
                   }
                   {summary.failureHotspots.map((item) =>
                   <div key={item.key} className="px-3 py-2 rounded-lg border">
@@ -334,7 +334,7 @@ export default function IntegrationCreditsTab() {
                         <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{item.integration}</div>
                         <Badge variant="destructive">{item.count} failures</Badge>
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 break-words">{item.error}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 break-words">{item.error}</div>
                     </div>
                   )}
                 </div>
@@ -352,7 +352,7 @@ export default function IntegrationCreditsTab() {
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <Label className="text-sm font-medium">Enable monitoring</Label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Runs on a schedule and checks recent estimated credit usage.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Runs on a schedule and checks recent estimated credit usage.</p>
               </div>
               <Switch
                 checked={settings.enabled}
@@ -387,7 +387,7 @@ export default function IntegrationCreditsTab() {
               </div>
             </div>
 
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-600 dark:text-slate-400">
               Current rule: message {settings.recipient_name || 'Robert T'} if estimated usage reaches <span className="font-semibold text-slate-900 dark:text-slate-100">{settings.threshold_credits}</span> credits inside <span className="font-semibold text-slate-900 dark:text-slate-100">{settings.window_minutes}</span> minutes.
             </div>
 
@@ -422,21 +422,21 @@ export default function IntegrationCreditsTab() {
               <tbody>
                 {filteredLogs.length === 0 &&
                 <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">No integration usage has been logged yet.</td>
+                    <td colSpan={8} className="p-6 text-center text-slate-500 dark:text-slate-400">No integration usage has been logged yet.</td>
                   </tr>
                 }
                 {filteredLogs.map((log) =>
                 <tr key={log.id} className="border-t">
-                    <td className="text-slate-600 dark:text-slate-400 dark:text-slate-500 px-3 py-1">{formatDistanceToNowStrict(new Date(log.timestamp || log.created_date), { addSuffix: true })}</td>
+                    <td className="text-slate-600 dark:text-slate-400 px-3 py-1">{formatDistanceToNowStrict(new Date(log.timestamp || log.created_date), { addSuffix: true })}</td>
                     <td className="text-slate-900 dark:text-slate-100 px-3 py-1">{log.app_user_name || 'Unknown user'}</td>
                     <td className="text-slate-900 dark:text-slate-100 px-3 py-1">{log.feature || '—'}</td>
-                    <td className="text-slate-600 dark:text-slate-400 dark:text-slate-500 px-3 py-1">{log.integration_name}.{log.operation_name}</td>
+                    <td className="text-slate-600 dark:text-slate-400 px-3 py-1">{log.integration_name}.{log.operation_name}</td>
                     <td className="text-slate-900 dark:text-slate-100 px-3 py-1">{log.estimated_credits_used || 0}</td>
-                    <td className="text-slate-600 dark:text-slate-400 dark:text-slate-500 px-3 py-1">{formatDuration(log.duration_ms)}</td>
+                    <td className="text-slate-600 dark:text-slate-400 px-3 py-1">{formatDuration(log.duration_ms)}</td>
                     <td className="px-3 py-1">
                       <Badge variant={log.success ? 'default' : 'destructive'}>{log.success ? 'Success' : 'Failed'}</Badge>
                     </td>
-                    <td className="text-slate-600 dark:text-slate-400 dark:text-slate-500 px-3 py-1 max-w-[280px] truncate" title={log.error_message || ''}>
+                    <td className="text-slate-600 dark:text-slate-400 px-3 py-1 max-w-[280px] truncate" title={log.error_message || ''}>
                       {log.error_message || '—'}
                     </td>
                   </tr>

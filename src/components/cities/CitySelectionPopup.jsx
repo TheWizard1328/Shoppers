@@ -92,13 +92,13 @@ export default function CitySelectionPopup({ cities: citiesProp, currentUser, on
           exit={{ scale: 0.9, opacity: 0 }}
           className="w-full max-w-md"
         >
-          <Card className="border-2 border-emerald-500 shadow-2xl" style={{ background: 'var(--bg-white)', borderColor: '#10b981' }}>
+          <Card className="border-2 border-emerald-500 shadow-2xl bg-card" style={{ borderColor: '#10b981' }}>
             <CardHeader className="text-center space-y-2 pb-4">
               <div className="mx-auto w-12 h-12 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center mb-2">
                 <MapPin className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <CardTitle className="text-2xl" style={{ color: 'var(--text-slate-900)' }}>Welcome to RxDeliver</CardTitle>
-              <CardDescription className="text-base" style={{ color: 'var(--text-slate-500)' }}>
+              <CardTitle className="text-2xl text-body">Welcome to RxDeliver</CardTitle>
+              <CardDescription className="text-base text-muted">
                 Please select your city to continue
               </CardDescription>
             </CardHeader>
@@ -112,18 +112,18 @@ export default function CitySelectionPopup({ cities: citiesProp, currentUser, on
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                <label className="text-sm font-medium text-secondary">
                   Select Your City *
                 </label>
                 <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto p-1">
                   {isLoadingCities && (
-                    <div className="flex items-center justify-center py-8 gap-2" style={{ color: 'var(--text-slate-500)' }}>
+                    <div className="flex items-center justify-center py-8 gap-2 text-muted">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span className="text-sm">Loading cities…</span>
                     </div>
                   )}
                   {!isLoadingCities && !cities.length && (
-                    <div className="flex flex-col items-center justify-center py-8 gap-3" style={{ color: 'var(--text-slate-500)' }}>
+                    <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted">
                       <span className="text-sm">No cities available.</span>
                       <Button variant="outline" size="sm" onClick={() => { setIsLoadingCities(true); setError(null); setCities([]); }}>Retry</Button>
                     </div>
@@ -144,8 +144,8 @@ export default function CitySelectionPopup({ cities: citiesProp, currentUser, on
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{city.name}</h3>
-                          <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <h3 className="font-semibold text-body">{city.name}</h3>
+                          <p className="text-sm text-label">
                             {city.province_state}, {city.country}
                           </p>
                         </div>
@@ -177,7 +177,7 @@ export default function CitySelectionPopup({ cities: citiesProp, currentUser, on
                 )}
               </Button>
 
-              <p className="text-xs text-center" style={{ color: 'var(--text-slate-500)' }}>
+              <p className="text-xs text-center text-muted">
                 This will be saved to your profile
               </p>
             </CardContent>

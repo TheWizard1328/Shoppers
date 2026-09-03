@@ -98,7 +98,7 @@ export default function PickupMarkers({
         {!pickup.useSimpleCircle && !pickup.isOtherDriver && (isClustered && !isFanned ? (
           <Popup autoPan={false} closeButton={false} offset={[0,-20]} className="custom-popup">
             <div className="min-w-[240px] max-w-[320px]">
-              <div className="font-semibold text-sm pb-1 mb-2 border-b" style={{color:'var(--text-slate-900)',borderColor:'var(--border-slate-200)'}}>{pickup.duplicateCount} stops at this location</div>
+              <div className="font-semibold text-sm pb-1 mb-2 border-b text-body border-card">{pickup.duplicateCount} stops at this location</div>
               {(() => {
                 const DONE = ['completed', 'failed', 'cancelled'];
                 const all = [...(groupedPickupMarkers.get(lk)||[]),...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
@@ -124,9 +124,9 @@ export default function PickupMarkers({
                   const dGroup = driverMap[driverId];
                   return (
                     <div key={`dg-${driverId}`}>
-                      {dIdx > 0 && <div className="border-t my-2" style={{borderColor:'var(--border-slate-200)'}} />}
+                      {dIdx > 0 && <div className="border-t my-2 border-card" />}
                       {/* Driver — shown once */}
-                      <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{color:'var(--text-slate-900)'}}>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5 text-body">
                         <Truck className="w-3.5 h-3.5 flex-shrink-0" />
                         <span>{dGroup.driver?.user_name || dGroup.driver?.full_name || 'Unknown Driver'}</span>
                       </div>
@@ -135,7 +135,7 @@ export default function PickupMarkers({
                         return (
                           <div key={`sg-${storeId}`} className="mb-1.5">
                             {/* Store — shown once per store */}
-                            <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1" style={{color:'var(--text-slate-600)'}}>
+                            <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1 text-label">
                               <Home className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
                             </div>
@@ -156,9 +156,9 @@ export default function PickupMarkers({
                                   className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1 cursor-pointer rounded hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800"
                                   onClick={() => { document.querySelectorAll('.leaflet-popup').forEach(p=>p.remove()); document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}); }}
                                 >
-                                  <div className="flex min-w-0 items-center gap-1" style={{color:'var(--text-slate-900)'}}>
-                                    <MapPin className="w-3 h-3 flex-shrink-0" style={{color:'var(--text-slate-500)'}} />
-                                    <span className="shrink-0 font-medium" style={{color:'var(--text-slate-500)', fontFamily:'Courier New, monospace'}}>#{String(stopNum).padStart(2, '0')}</span>
+                                  <div className="flex min-w-0 items-center gap-1 text-body">
+                                    <MapPin className="w-3 h-3 flex-shrink-0 text-muted" />
+                                    <span className="shrink-0 font-medium text-muted" style={{ fontFamily:'Courier New, monospace' }}>#{String(stopNum).padStart(2, '0')}</span>
                                     <span className="truncate">{name}</span>
                                   </div>
                                   {timeLabel && (
@@ -205,15 +205,15 @@ export default function PickupMarkers({
                 });
                 return (
                   <>
-                    <div className="font-semibold text-sm pb-1 mb-2 border-b" style={{color:'var(--text-slate-900)',borderColor:'var(--border-slate-200)'}}>
+                    <div className="font-semibold text-sm pb-1 mb-2 border-b text-body border-card">
                       {pickup.duplicateCount} stops at this location
                     </div>
                     {driverOrder.map((driverId, dIdx) => {
                       const dGroup = driverMap[driverId];
                       return (
                         <div key={`dg-${driverId}`}>
-                          {dIdx > 0 && <div className="border-t my-2" style={{borderColor:'var(--border-slate-200)'}} />}
-                          <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{color:'var(--text-slate-900)'}}>
+                          {dIdx > 0 && <div className="border-t my-2 border-card" />}
+                          <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5 text-body">
                             <Truck className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>{dGroup.driver?.user_name || dGroup.driver?.full_name || 'Unknown Driver'}</span>
                           </div>
@@ -221,7 +221,7 @@ export default function PickupMarkers({
                             const sg = dGroup.storeMap[storeId];
                             return (
                               <div key={`sg-${storeId}`} className="mb-1.5">
-                                <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1" style={{color:'var(--text-slate-600)'}}>
+                                <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1 text-label">
                                   <Home className="w-3 h-3 flex-shrink-0" />
                                   <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
                                 </div>
@@ -235,9 +235,9 @@ export default function PickupMarkers({
                                   const timeColor = m.status === 'completed' ? 'text-emerald-600' : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600' : ''; //m.status === 'returned' ? 'text-orange-600' : 
                                   return (
                                     <div key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`} className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1">
-                                      <div className="flex min-w-0 items-center gap-1" style={{color:'var(--text-slate-900)'}}>
-                                        <MapPin className="w-3 h-3 flex-shrink-0" style={{color:'var(--text-slate-500)'}} />
-                                        <span className="shrink-0 font-medium" style={{color:'var(--text-slate-500)',fontFamily:'Courier New, monospace'}}>#{stopNum != null ? String(stopNum).padStart(2, '0') : '??'}</span>
+                                      <div className="flex min-w-0 items-center gap-1 text-body">
+                                        <MapPin className="w-3 h-3 flex-shrink-0 text-muted" />
+                                        <span className="shrink-0 font-medium text-muted" style={{ fontFamily:'Courier New, monospace' }}>#{stopNum != null ? String(stopNum).padStart(2, '0') : '??'}</span>
                                         <span className="truncate">{name}</span>
                                       </div>
                                       {timeLabel && (

@@ -316,23 +316,23 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
             <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Basic Information Section */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-semibold pb-2" style={{ color: 'var(--text-slate-900)', borderBottom: '1px solid var(--border-slate-200)' }}>Basic Information</h3>
+                    <h3 className="text-lg font-semibold pb-2 text-body" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>Basic Information</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <Label htmlFor="name" style={{ color: 'var(--text-slate-900)' }}>Store Name *</Label>
+                            <Label htmlFor="name" className="text-body">Store Name *</Label>
                             <Input
                 id="name"
                 name="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                         </div>
 
                         <div>
-                            <Label htmlFor="abbreviation" style={{ color: 'var(--text-slate-900)' }}>Abbreviation (2 chars) *</Label>
+                            <Label htmlFor="abbreviation" className="text-body">Abbreviation (2 chars) *</Label>
                             <Input
                 id="abbreviation"
                 name="abbreviation"
@@ -340,12 +340,12 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value.substring(0, 2).toUpperCase() })}
                 maxLength={2}
                 required
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                         </div>
 
                         <div>
-                            <Label htmlFor="status" style={{ color: 'var(--text-slate-900)' }}>Store Status</Label>
+                            <Label htmlFor="status" className="text-body">Store Status</Label>
                             <div className="flex items-center gap-3 h-10 mt-1">
                                 <Switch
                   id="status"
@@ -361,19 +361,19 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
-                            <Label htmlFor="address" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
+                            <Label htmlFor="address" className="text-body">Address *</Label>
                             <Input
                 id="address"
                 name="address"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 required
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                         </div>
                         
                         <div>
-                            <Label htmlFor="phone" style={{ color: 'var(--text-slate-900)' }}>Phone Number *</Label>
+                            <Label htmlFor="phone" className="text-body">Phone Number *</Label>
                             <PhoneInput
                 id="phone"
                 value={formData.phone}
@@ -384,18 +384,18 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="city_id" style={{ color: 'var(--text-slate-900)' }}>City *</Label>
+                            <Label htmlFor="city_id" className="text-body">City *</Label>
                             <Select
                 value={formData.city_id || ''}
                 onValueChange={(value) => setFormData({ ...formData, city_id: value })}
                 required>
 
-                                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                                <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
                                     <SelectValue placeholder="Select city..." />
                                 </SelectTrigger>
-                                <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
                                     {sortedCities.map((city) =>
-                  <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                  <SelectItem key={city.id} value={city.id} className="text-body">
                                             {city.name}
                                         </SelectItem>
                   )}
@@ -404,7 +404,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="sort_order" style={{ color: 'var(--text-slate-900)' }}>Sort Order</Label>
+                            <Label htmlFor="sort_order" className="text-body">Sort Order</Label>
                             <Input
                 id="sort_order"
                 name="sort_order"
@@ -412,14 +412,14 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.sort_order ?? ''}
                 onChange={(e) => setFormData({ ...formData, sort_order: e.target.value })}
                 placeholder="Optional"
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
-                            <Label htmlFor="latitude" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
+                            <Label htmlFor="latitude" className="text-body">Latitude</Label>
                             <Input
                 id="latitude"
                 name="latitude"
@@ -428,12 +428,12 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.latitude ?? ''}
                 onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
                 placeholder="e.g., 49.2827"
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                         </div>
 
                         <div>
-                            <Label htmlFor="longitude" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
+                            <Label htmlFor="longitude" className="text-body">Longitude</Label>
                             <Input
                 id="longitude"
                 name="longitude"
@@ -442,28 +442,28 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.longitude ?? ''}
                 onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
                 placeholder="e.g., -123.1207"
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                         </div>
 
                         <div>
-                            <Label htmlFor="dispatcher_id" style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatcher</Label>
+                            <Label htmlFor="dispatcher_id" className="text-body">Assigned Dispatcher</Label>
                             <Select
                 value={formData.dispatcher_id || 'null'}
                 onValueChange={handleDispatcherSelect}>
-                                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                                <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
                                     <SelectValue placeholder="Select dispatcher...">
                                         {formData.dispatcher_id ?
                     sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
                     "Select dispatcher..."}
                                     </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                    <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Dispatcher</SelectItem>
+                                <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                                    <SelectItem value="null" className="text-body">No Dispatcher</SelectItem>
                                     {sortedUsers.
                   filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher')).
                   map((dispatcher) =>
-                  <SelectItem key={dispatcher.id} value={dispatcher.id} style={{ color: 'var(--text-slate-900)' }}>
+                  <SelectItem key={dispatcher.id} value={dispatcher.id} className="text-body">
                                                 {dispatcher.user_name || dispatcher.full_name}
                                             </SelectItem>
                   )}
@@ -472,14 +472,14 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                          <Label htmlFor="patient_scan_day" style={{ color: 'var(--text-slate-900)' }}>Patient Scan Day</Label>
+                          <Label htmlFor="patient_scan_day" className="text-body">Patient Scan Day</Label>
                           <Select
                 value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
                 onValueChange={(v) => setFormData({ ...formData, patient_scan_day: v === 'null' ? null : Number(v) })}>
-                            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                            <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
                               <SelectValue placeholder="No scan day" />
                             </SelectTrigger>
-                            <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)' }}>
+                            <SelectContent className="z-[10001] bg-card" position="popper" sideOffset={4}>
                               <SelectItem value="null">No Scan</SelectItem>
                               <SelectItem value="0">Sunday</SelectItem>
                               <SelectItem value="1">Monday</SelectItem>
@@ -493,7 +493,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                          <Label htmlFor="square_location_config_id" style={{ color: 'var(--text-slate-900)' }}>
+                          <Label htmlFor="square_location_config_id" className="text-body">
                             <span className="flex items-center gap-2">
                               <CreditCard className="w-4 h-4" />
                               Square Location
@@ -502,17 +502,17 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                           <Select
                 value={formData.square_location_config_id || 'null'}
                 onValueChange={(value) => setFormData({ ...formData, square_location_config_id: value === 'null' ? null : value })}>
-                            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                            <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
                               <SelectValue placeholder="Select Square location...">
                                 {formData.square_location_config_id ?
                     squareLocationConfigs.find((c) => c.id === formData.square_location_config_id)?.name :
                     "None"}
                               </SelectValue>
                             </SelectTrigger>
-                            <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                              <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Square location</SelectItem>
+                            <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                              <SelectItem value="null" className="text-body">No Square location</SelectItem>
                               {squareLocationConfigs.map((config) =>
-                  <SelectItem key={config.id} value={config.id} style={{ color: 'var(--text-slate-900)' }}>
+                  <SelectItem key={config.id} value={config.id} className="text-body">
                                   {config.name}
                                 </SelectItem>
                   )}
@@ -524,7 +524,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     {/* App Fee History Manager */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <Label style={{ color: 'var(--text-slate-900)' }}>App Fee Status & History</Label>
+                            <Label className="text-body">App Fee Status & History</Label>
                             <div className="flex items-center gap-2">
                                 <Switch
                   id="pays_app_fees"
@@ -539,8 +539,8 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                         {/* App Fee History List */}
                         {formData.app_fee_history && formData.app_fee_history.length > 0 &&
-            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Fee Payment History:</p>
+            <div className="border rounded-lg p-3 space-y-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Fee Payment History:</p>
                                 {formData.app_fee_history.
               slice().
               sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date)).
@@ -555,8 +555,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                       updated[idx] = { ...entry, effective_date: e.target.value };
                       setFormData({ ...formData, app_fee_history: updated });
                     }}
-                    className="w-36 h-8 text-xs"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }} />
+                    className="w-36 h-8 text-xs bg-card" style={{ borderColor: 'var(--menu-border)' }} />
                   
                                                 <Select
                     value={entry.pays_app_fees ? 'true' : 'false'}
@@ -565,7 +564,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                       updated[idx] = { ...entry, pays_app_fees: value === 'true' };
                       setFormData({ ...formData, app_fee_history: updated });
                     }}>
-                                                    <SelectTrigger className="w-32 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }}>
+                                                    <SelectTrigger className="w-32 h-8 bg-card" style={{ borderColor: 'var(--menu-border)' }}>
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent className="z-[10001]">
@@ -574,7 +573,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                                                     </SelectContent>
                                                 </Select>
                                                 {entry.changed_by &&
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">by {entry.changed_by}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">by {entry.changed_by}</span>
                   }
                                             </div>
                                             <Button
@@ -618,12 +617,12 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                 {/* Driver Assignments & Pickup Times Section - NEW TABLE LAYOUT */}
                 <div className="space-y-2">
-                    <h3 className="text-lg font-semibold pb-2" style={{ color: 'var(--text-slate-900)', borderBottom: '1px solid var(--border-slate-200)' }}>
+                    <h3 className="text-lg font-semibold pb-2 text-body" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
                         Driver Assignments & Pickup Times
                     </h3>
 
                     {/* Table Header */}
-                    <div className="grid grid-cols-7 gap-2 text-sm font-semibold pb-1" style={{ color: 'var(--text-slate-700)', borderBottom: '1px solid var(--border-slate-200)' }}>
+                    <div className="grid grid-cols-7 gap-2 text-sm font-semibold pb-1 text-secondary" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
                         <div className="col-span-1">Day</div>
                         <div className="col-span-3 text-center">AM Shift</div>
                         <div className="col-span-3 text-center">PM Shift</div>
@@ -631,7 +630,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Weekdays Row */}
                     <div className="grid grid-cols-7 gap-2 items-start" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-                        <div className="col-span-1 font-medium pt-2" style={{ color: 'var(--text-slate-700)' }}>
+                        <div className="col-span-1 font-medium pt-2 text-secondary">
                             Mon-Fri
                         </div>
                         
@@ -654,17 +653,17 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                   value={formData.weekday_am_driver_id || 'null'}
                   onValueChange={(value) => handleDriverSelect(value, "weekday_am")}>
 
-                                        <SelectTrigger className="h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                                        <SelectTrigger className="h-9 text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
                                             <SelectValue placeholder="Select driver...">
                                                 {formData.weekday_am_driver_id ?
                       sortedDrivers.find((d) => d.id === formData.weekday_am_driver_id)?.user_name || sortedDrivers.find((d) => d.id === formData.weekday_am_driver_id)?.full_name :
                       "Select driver..."}
                                             </SelectValue>
                                         </SelectTrigger>
-                                        <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                            <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Driver</SelectItem>
+                                        <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                                            <SelectItem value="null" className="text-body">No Driver</SelectItem>
                                             {sortedDrivers.map((driver) =>
-                    <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                    <SelectItem key={driver.id} value={driver.id} className="text-body">
                                                     {driver.user_name || driver.full_name}
                                                 </SelectItem>
                     )}
@@ -678,7 +677,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     onChange={(e) => setFormData({ ...formData, weekday_am_start: e.target.value })}
                     className="h-9 text-xs"
                     placeholder="Start"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                    style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                                         <Input
                     type="time"
@@ -686,7 +685,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     onChange={(e) => setFormData({ ...formData, weekday_am_end: e.target.value })}
                     className="h-9 text-xs"
                     placeholder="End"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                    style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
 
                                     </div>
                                 </>
@@ -752,7 +751,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Saturday Row */}
                     <div className="grid grid-cols-7 gap-2 items-start" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-                        <div className="col-span-1 font-medium pt-2" style={{ color: 'var(--text-slate-700)' }}>
+                        <div className="col-span-1 font-medium pt-2 text-secondary">
                             Saturday
                         </div>
                         
@@ -871,7 +870,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Sunday Row */}
                     <div className="grid grid-cols-7 gap-2 items-start">
-                        <div className="col-span-1 font-medium pt-2" style={{ color: 'var(--text-slate-700)' }}>
+                        <div className="col-span-1 font-medium pt-2 text-secondary">
                             Sunday
                         </div>
                         
@@ -991,7 +990,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                 {/* Form Actions */}
                 <div className="flex justify-end gap-3 py-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
-                    <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+                    <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
                         Cancel
                     </Button>
                     <Button

@@ -277,10 +277,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
         <div className="flex items-center gap-2">
           {getStatusIcon()}
           <div>
-            <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
+            <span className="text-xs font-medium text-secondary">
               {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
-            <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+            <span className="text-xs text-muted">
               ({totalRecords})
             </span>
             <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>
@@ -290,7 +290,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
             </div>
           </div>
         </div>
-        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />}
+        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-400" />}
       </button>
 
       <AnimatePresence>
@@ -313,15 +313,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
                         <span>{getEntityIcon('appUsers')}</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
+                        <span className="font-medium text-secondary">Users</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                      <div className="flex items-center gap-1 text-[10px] text-muted">
                         <Clock className="w-3 h-3" />
                         <span>{formatLastSync(cachedLastSync.appUsers)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.appUsers}</div>
+                      <div className="font-bold text-body">{cachedCounts.appUsers}</div>
                       {stats.fullSyncStatus?.appUsers?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                     </div>
                   </div>
@@ -331,15 +331,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       <div className="flex-1">
                         <div className="flex items-center gap-1 mb-1">
                           <span>{getEntityIcon('cities')}</span>
-                          <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
+                          <span className="font-medium text-secondary">Cities</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                        <div className="flex items-center gap-1 text-[10px] text-muted">
                           <Clock className="w-3 h-3" />
                           <span>{formatLastSync(cachedLastSync.cities)}</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.cities}</div>
+                        <div className="font-bold text-body">{cachedCounts.cities}</div>
                         {stats.fullSyncStatus?.cities?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                       </div>
                     </div>
@@ -349,15 +349,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
                         <span>{getEntityIcon('patients')}</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Patients</span>
+                        <span className="font-medium text-secondary">Patients</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                      <div className="flex items-center gap-1 text-[10px] text-muted">
                         <Clock className="w-3 h-3" />
                         <span>{formatLastSync(cachedLastSync.patients)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.patients}</div>
+                      <div className="font-bold text-body">{cachedCounts.patients}</div>
                       {stats.fullSyncStatus?.patients?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                     </div>
                   </div>
@@ -366,15 +366,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
                         <span>{getEntityIcon('deliveries')}</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries / Stats</span>
+                        <span className="font-medium text-secondary">Deliveries / Stats</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                      <div className="flex items-center gap-1 text-[10px] text-muted">
                         <Clock className="w-3 h-3" />
                         <span>{formatLastSync(cachedLastSync.deliveries)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.deliveries} / {cachedCounts.driverOverviewStats}</div>
+                      <div className="font-bold text-body">{cachedCounts.deliveries} / {cachedCounts.driverOverviewStats}</div>
                       {stats.fullSyncStatus?.deliveries?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                     </div>
                   </div>
@@ -384,15 +384,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       <div className="flex-1">
                         <div className="flex items-center gap-1 mb-1">
                           <span>{getEntityIcon('squareTransactions')}</span>
-                          <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Square TX</span>
+                          <span className="font-medium text-secondary">Square TX</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                        <div className="flex items-center gap-1 text-[10px] text-muted">
                           <Clock className="w-3 h-3" />
                           <span>{formatLastSync(cachedLastSync.squareTransactions)}</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.squareTransactions}</div>
+                        <div className="font-bold text-body">{cachedCounts.squareTransactions}</div>
                         {stats.fullSyncStatus?.squareTransactions?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                       </div>
                     </div>
@@ -425,13 +425,13 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
               </>}
 
               <Button
-                onClick={handleForceSync}
-                disabled={isSyncing}
-                size="sm"
-                variant="outline"
-                className="w-full text-xs font-medium"
-                data-offline-sync-button
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+ onClick={handleForceSync}
+ disabled={isSyncing}
+ size="sm"
+ variant="outline"
+ className="w-full text-xs font-medium text-body bg-card"
+ data-offline-sync-button
+ style={{ borderColor: 'var(--border-slate-300)' }}>
                 <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
                 {isSyncing ? 'Syncing...' : 'Force Sync All'}
               </Button>

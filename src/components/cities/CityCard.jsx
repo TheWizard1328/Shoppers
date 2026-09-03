@@ -24,7 +24,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
             whileHover={{ y: -2 }}
             transition={{ duration: 0.2 }}
         >
-            <Card className="shadow-sm hover:shadow-md transition-shadow duration-300 h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card className="shadow-sm hover:shadow-md transition-shadow duration-300 h-full bg-card border-card">
                 <CardContent className="p-6 flex flex-col justify-between h-full">
                     <div>
                         <div className="flex items-start justify-between mb-4">
@@ -33,10 +33,10 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                                     <Building2 className="w-6 h-6 text-blue-600" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-lg" style={{ color: 'var(--text-slate-900)' }}>
+                                    <h3 className="font-semibold text-lg text-body">
                                         {city.name}
                                     </h3>
-                                    <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                                    <p className="text-sm text-label">
                                         {city.province_state}, {city.country}
                                     </p>
                                 </div>
@@ -51,16 +51,16 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                             <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2">
                                     <Users className="w-4 h-4 text-emerald-600" />
-                                    <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>Drivers</span>
+                                    <span className="font-medium text-label">Drivers</span>
                                 </div>
-                                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{cityStats?.drivers || 0}</span>
+                                <span className="font-semibold text-body">{cityStats?.drivers || 0}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2">
                                     <Building className="w-4 h-4 text-purple-600" />
-                                    <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>Stores</span>
+                                    <span className="font-medium text-label">Stores</span>
                                 </div>
-                                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{cityStats?.stores || 0}</span>
+                                <span className="font-semibold text-body">{cityStats?.stores || 0}</span>
                             </div>
                         </div>
 
@@ -77,15 +77,15 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                                     Delete
                                 </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                            <AlertDialogContent className="bg-card border-card">
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle style={{ color: 'var(--text-slate-900)' }}>Delete City</AlertDialogTitle>
-                                    <AlertDialogDescription style={{ color: 'var(--text-slate-600)' }}>
+                                    <AlertDialogTitle className="text-body">Delete City</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-label">
                                         Are you sure you want to delete {city.name}? This action cannot be undone.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">Cancel</AlertDialogCancel>
                                     <AlertDialogAction
                                         onClick={() => onDelete(city.id)}
                                         className="bg-red-600 hover:bg-red-700"
@@ -99,7 +99,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                             variant="outline"
                             size="sm"
                             onClick={() => onEdit(city)}
-                            style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+                            style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card"
                         >
                             <Edit className="w-4 h-4 mr-2" />
                             Edit

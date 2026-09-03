@@ -180,7 +180,7 @@ export default function AppUsers() {
             <div className="flex items-center gap-3">
               <SmartRefreshIndicator inline={true} />
               <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">App Users</h1>
-              <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">Manage application-specific user data and roles</p>
+              <p className="text-slate-600 dark:text-slate-400 mt-1">Manage application-specific user data and roles</p>
             </div>
             <Button onClick={() => { setEditingAppUser(null); setShowForm(true); }} className="bg-emerald-500 hover:bg-emerald-600">
               <Plus className="w-4 h-4 mr-2" />
@@ -192,7 +192,7 @@ export default function AppUsers() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
                   <Input
                     placeholder="Search by name or email..."
                     value={searchQuery}
@@ -250,8 +250,8 @@ export default function AppUsers() {
                             {getDriverDisplayName(user)}
                           </div>
                         </td>
-                        <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{user.full_name}</td>
-                        <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{user.email}</td>
+                        <td className="p-3 text-slate-600 dark:text-slate-400">{user.full_name}</td>
+                        <td className="p-3 text-slate-600 dark:text-slate-400">{user.email}</td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
                             {(user.app_roles || []).map(role => (
@@ -276,7 +276,7 @@ export default function AppUsers() {
                               {formatPhoneNumber(user.phone)}
                             </a>
                           ) : (
-                            <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>
+                            <span className="text-slate-400 dark:text-slate-400">—</span>
                           )}
                         </td>
                         {/* End of Modified Phone column */}

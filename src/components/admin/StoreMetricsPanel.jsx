@@ -260,7 +260,7 @@ export default function StoreMetricsPanel() {
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
-          <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading store metrics...</span>
+          <span className="text-slate-600 dark:text-slate-400">Loading store metrics...</span>
         </CardContent>
       </Card>);
 
@@ -276,7 +276,7 @@ export default function StoreMetricsPanel() {
                 <Store className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Stores Paying Fees</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Stores Paying Fees</p>
                 <p className="text-lg md:text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {metrics?.totals?.stores_paying_fees || 0} / {metrics?.totals?.total_stores || 0}
                 </p>
@@ -292,7 +292,7 @@ export default function StoreMetricsPanel() {
                 <Package className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Billable Deliveries</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Billable Deliveries</p>
                 <p className="text-lg md:text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {metrics?.totals?.total_billable_while_paying || 0}
                 </p>
@@ -308,7 +308,7 @@ export default function StoreMetricsPanel() {
                 <DollarSign className="w-6 h-6 text-amber-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Fee Rate</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Fee Rate</p>
                 <p className="text-lg md:text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {formatCurrency(metrics?.totals?.app_fee_rate || 0)}
                 </p>
@@ -402,7 +402,7 @@ export default function StoreMetricsPanel() {
                           <div className="flex flex-col">
                             <span className="font-medium text-slate-900 dark:text-slate-100">{store.store_name}</span>
                             {store.store_abbreviation &&
-                        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{store.store_abbreviation}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{store.store_abbreviation}</span>
                         }
                           </div>
                         </TableCell>
@@ -418,7 +418,7 @@ export default function StoreMetricsPanel() {
                         </TableCell>
                         <TableCell>
                           {store.current_fee_period ?
-                      <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                      <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
                               <Calendar className="w-3 h-3" />
                               {format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM d, yyyy')}
                               <span className="mx-1">→</span>
@@ -427,7 +427,7 @@ export default function StoreMetricsPanel() {
                         'Present'}
                             </div> :
 
-                      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-400">—</span>
                       }
                         </TableCell>
                         <TableCell className="text-right font-mono">{store.total_deliveries}</TableCell>
@@ -455,15 +455,15 @@ export default function StoreMetricsPanel() {
                 </Table>
               </div> :
 
-            <div className="text-center py-12 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
                 No store data available for {MONTH_NAMES[parseInt(selectedMonth, 10) - 1]} {selectedYear}
               </div>
             }
           </div>
         </CardContent>
         <CardFooter className="px-6 py-3 flex items-center shrink-0 justify-between">
-          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Showing {metrics?.stores?.length || 0} stores</span>
-          <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Scroll to view more</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Showing {metrics?.stores?.length || 0} stores</span>
+          <span className="text-xs text-slate-400 dark:text-slate-400">Scroll to view more</span>
         </CardFooter>
       </Card>
     </div>);

@@ -380,9 +380,7 @@ export default function StatsPanel({
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
             onMouseLeave={() => handleCardInteraction(false)}
-            onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full"
-
-            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
+            onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full bg-card border-card" style={{ pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 
           <div className="mb-0 flex items-center mt-0.25">
             {/* Left: title + status indicators — tapping anywhere here triggers manual refresh */}
@@ -394,7 +392,7 @@ export default function StatsPanel({
                   const syncButton = document.querySelector('[data-offline-sync-button]');
                   if (syncButton) syncButton.click();
                 }}>
-              <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
+              <h2 className="pl-2 text-lg font-bold text-body">Dashboard</h2>
 
               {currentUser && <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
                   const syncButton = document.querySelector('[data-offline-sync-button]');
@@ -426,7 +424,7 @@ export default function StatsPanel({
             <div className="flex items-center gap-2 flex-shrink-0">
               <Popover open={isCalendarOpen} onOpenChange={(open) => {setIsCalendarOpen(open);if (open) setCalendarMonth(selectedDate);}} modal={true}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                  <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors shadow-sm gap-2 h-8 text-body bg-card border-card" style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
                     {hasPendingNextDate ? (
                       <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-[3px]" style={{ backgroundColor: '#2563eb' }} title="Pending stops scheduled for the next date">
                         <CalendarIcon className="w-2.5 h-2.5" style={{ color: '#ffffff' }} strokeWidth={2.5} />
@@ -437,7 +435,7 @@ export default function StatsPanel({
                     <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                <PopoverContent className="w-auto p-0 z-[10001] text-body bg-card border-card" align="end" style={{ pointerEvents: 'auto' }}>
                  {(() => {
                       const todayStr = format(new Date(), 'yyyy-MM-dd');
                       // Build per-date info: has any delivery, has failed delivery, has active delivery
@@ -486,12 +484,11 @@ export default function StatsPanel({
                           onMonthChange={setCalendarMonth}
                           components={{ DayContent }}
                           footer={
-                          <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 pb-2 pt-1 border-t border-card">
                         <TooltipProvider><Tooltip>
                           <TooltipTrigger asChild>
                             <button type="button" onClick={() => {const d = new Date();setCalendarMonth(d);handleDateChange(d);}}
-                                  className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
-                                  style={{ color: 'var(--text-slate-600)' }}
+                                  className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs text-label"
                                   onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-100)';e.currentTarget.style.color = 'var(--text-slate-800)';}}
                                   onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent';e.currentTarget.style.color = 'var(--text-slate-600)';}}>
                               <Clock className="w-3 h-3" />Today
@@ -501,7 +498,7 @@ export default function StatsPanel({
                         </Tooltip></TooltipProvider>
                       </div>
                           }
-                          className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />);
+                          className="rdp p-3 text-body" />);
 
                     })()}
                 </PopoverContent>
@@ -549,9 +546,9 @@ export default function StatsPanel({
 
           <AnimatePresence>
             {showExpandedContent && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-              <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="pt-1 pb-1 border-t flex items-center gap-2 border-card">
                 <Select value={selectedDriverId || 'all'} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
-                  <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1 text-body bg-card" style={{ pointerEvents: 'auto', touchAction: 'manipulation', borderColor: 'var(--border-slate-300)' }}>
                     <SelectValue placeholder="All Drivers">{
                         (() => {
                           // Dispatchers: "All Drivers" only makes sense with >1 driver assigned
@@ -569,11 +566,11 @@ export default function StatsPanel({
                         })()
                         }</SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                  <SelectContent className="z-[10001] text-body bg-card border-card" style={{ pointerEvents: 'auto' }}>
                     {/* "All Drivers" is only useful when more than 1 driver has stops for the
                                     selected date. Otherwise it's redundant (1 driver) or meaningless (0). */}
                     {(!isDispatcher || driversList.length > 1) &&
-                      <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
+                      <SelectItem value="all" className="text-body">All Drivers</SelectItem>
                       }
                     {/* Empty dispatcher list — show a disabled placeholder so the dropdown
                                     isn't blank. */}
@@ -730,7 +727,7 @@ export default function StatsPanel({
                 {isDispatcherLockedExpanded && <div className="flex-1" />}
 
                 {!isDispatcherLockedExpanded &&
-                  <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
                     <Settings className="w-3.5 h-3.5" />
                   </Button>
                   }
@@ -775,10 +772,10 @@ export default function StatsPanel({
                 <div className="flex items-center gap-1">
                   <LocationTrackingToggle user={currentUser} onUserUpdate={async () => {await refreshUser();}} />
                   {isDriver && <>
-                    <Button variant="outline" size="sm" onClick={() => setShowQuickAdjustments(true)} className="h-8 gap-1.5 px-2 flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Button variant="outline" size="sm" onClick={() => setShowQuickAdjustments(true)} className="h-8 gap-1.5 px-2 flex-shrink-0 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                       <span className="text-xs">Adjust</span>
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} className="text-body">
                       <MapIcon className="w-3.5 h-3.5" />
                     </Button>
                   </>}
@@ -832,7 +829,7 @@ export default function StatsPanel({
               const showStoreRow = showStoreStatusRow && storeStatusData.length > 0;
               if (!showDriverLegendRow && !showStoreRow) return null;
               return (
-                <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
+                <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full bg-card border-card" style={{ opacity: 1 }}
                 onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
                   {showDriverLegendRow &&
                   <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
@@ -868,9 +865,9 @@ export default function StatsPanel({
                               style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
                         </div>
-                        <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
+                        <span className="text-sm font-medium leading-none whitespace-nowrap text-secondary">{route.driverName || 'Unknown'}</span>
                         {!(isDriver && !isAdmin) &&
-                          <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                          <span className="text-sm leading-none text-muted">({route.totalStops})</span>
                           }
                       </button>);
 
@@ -888,13 +885,13 @@ export default function StatsPanel({
                       rows.push(storeStatusData.slice(i, i + perRow));
                     }
                     return (
-                      <div className={`${showDriverLegendRow ? 'border-t mt-0.5 pt-0.5' : ''}`} style={{ borderColor: 'var(--border-slate-200)' }}>
+                      <div className={${showDriverLegendRow ? 'border-t mt-0.5 pt-0.5' : ''} border-card}>
                         {rows.map((row, rowIdx) => (
                           <div key={rowIdx} className="flex h-auto flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
                             {row.map((store) => (
                               <div key={store.id} className="text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center px-0.5 py-0 h-[18px]" title={store.abbreviation}>
                                 <div className="relative w-2 h-2 rounded-full shadow-sm flex-shrink-0" style={{ backgroundColor: store.color }} />
-                                <span className="text-xs font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{store.abbreviation}</span>
+                                <span className="text-xs font-medium leading-none whitespace-nowrap text-secondary">{store.abbreviation}</span>
                               </div>
                             ))}
                           </div>

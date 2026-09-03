@@ -301,7 +301,7 @@ export default function StoresPage() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="text-center">
           <div className="animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p style={{ color: 'var(--text-slate-600)' }}>Loading stores...</p>
+          <p className="text-label">Loading stores...</p>
         </div>
       </div>);
 
@@ -315,8 +315,8 @@ export default function StoresPage() {
           <div className="flex items-center gap-3">
             <SmartRefreshIndicator inline={true} />
             <div>
-              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Stores</h1>
-              <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
+              <h1 className="text-3xl font-bold text-body">Stores</h1>
+              <p className="mt-1 text-label">
                 Manage your pharmacy store locations and schedules
               </p>
             </div>
@@ -357,9 +357,9 @@ export default function StoresPage() {
             </div> :
 
           <div className="text-center py-12">
-              <p className="mb-4" style={{ color: 'var(--text-slate-500)' }}>No stores found</p>
+              <p className="mb-4 text-muted">No stores found</p>
               {currentUser && userHasRole(currentUser, 'admin') &&
-            <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+            <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Your First Store
                 </Button>
@@ -370,7 +370,7 @@ export default function StoresPage() {
       </div>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-3 bg-card border-card">
           <StoreForm
             store={editingStore}
             onSave={handleSaveStore}

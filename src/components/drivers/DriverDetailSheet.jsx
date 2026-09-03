@@ -94,7 +94,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-sm w-full rounded-2xl p-0 overflow-hidden" style={{ background: 'var(--bg-white)' }}>
+      <DialogContent className="max-w-sm w-full rounded-2xl p-0 overflow-hidden bg-card">
         {/* Header */}
         <DialogHeader className="px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border-slate-100)' }}>
           <div className="flex items-center gap-3">
@@ -104,7 +104,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
               </span>
             </div>
             <div>
-              <DialogTitle className="text-base font-bold leading-tight" style={{ color: 'var(--text-slate-900)' }}>
+              <DialogTitle className="text-base font-bold leading-tight text-body">
                 {getDriverDisplayName(driver)}
               </DialogTitle>
               <div className="flex items-center gap-2 mt-1">
@@ -136,7 +136,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
           {/* Dispatcher: doc type checklist + request button */}
           {isDispatcher && !requestStatus && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Select Documents to Request</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Select Documents to Request</p>
               <div className="space-y-2">
                 {DOC_TYPES.map((type) => (
                   <label
@@ -201,7 +201,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
                 View Documents
                 <ArrowRight className="w-4 h-4" />
               </Button>
-              <p className="text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 italic">Admins have direct access</p>
+              <p className="text-center text-xs text-slate-400 dark:text-slate-400 italic">Admins have direct access</p>
             </div>
           )}
 

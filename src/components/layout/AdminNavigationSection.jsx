@@ -35,8 +35,7 @@ export default function AdminNavigationSection({
             {item.count !== undefined &&
           <Badge
             variant="secondary"
-            className="ml-auto justify-center w-[50px] rounded-[10px]"
-            style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
+            className="ml-auto justify-center w-[50px] rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>
             
                 {item.count}
               </Badge>

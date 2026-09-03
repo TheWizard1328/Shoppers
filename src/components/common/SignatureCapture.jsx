@@ -145,17 +145,16 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       onTouchStart={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="w-full h-full md:max-h-[80vh] md:max-w-2xl md:rounded-xl flex flex-col overflow-hidden shadow-2xl" style={{ background: 'var(--bg-white)' }}>
+      <div className="w-full h-full md:max-h-[80vh] md:max-w-2xl md:rounded-xl flex flex-col overflow-hidden shadow-2xl bg-card">
         <div
-          className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0"
-          style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
+          className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0 border-card" style={{ background: 'var(--bg-slate-50)' }}
         >
           <div className="flex items-center gap-3">
-            <h3 className="text-base font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+            <h3 className="text-base font-semibold text-body">
               Customer Signature
             </h3>
             {customerName && (
-              <span className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+              <span className="text-sm text-label">
                 — {customerName}
               </span>
             )}
@@ -166,12 +165,11 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
         </div>
 
         <div
-          className="border-b px-4 py-3 flex gap-2 justify-between items-center flex-shrink-0"
-          style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+          className="border-b px-4 py-3 flex gap-2 justify-between items-center flex-shrink-0 bg-card border-card"
         >
           <div>
             {isSaving && (
-              <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
               </span>
             )}

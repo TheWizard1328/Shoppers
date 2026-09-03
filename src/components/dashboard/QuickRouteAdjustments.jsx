@@ -125,7 +125,7 @@ export default function QuickRouteAdjustments({
   };
 
   if (localOrder.length === 0) return (
-    <p className="text-sm py-4" style={{ color: 'var(--text-slate-500)' }}>No active stops to adjust</p>);
+    <p className="text-sm py-4 text-muted">No active stops to adjust</p>);
 
 
   return (
@@ -168,9 +168,9 @@ export default function QuickRouteAdjustments({
                           <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
                           <div className="flex-1 min-w-0 flex items-center gap-2">
                             <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-slate-400)' }}>#{originalOrders[delivery.id] ?? '?'}</span>
-                            <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>{getStopName(delivery)}</span>
+                            <span className="text-sm font-medium truncate flex-1 text-body">{getStopName(delivery)}</span>
                             {isNext && <Badge className="bg-emerald-500 text-white text-[9px] px-1.5 flex-shrink-0">NEXT</Badge>}
-                            <span className="text-xs font-bold flex-shrink-0 ml-auto" style={{ color: 'var(--text-slate-700)' }}>→#{index + 1}</span>
+                            <span className="text-xs font-bold flex-shrink-0 ml-auto text-secondary">→#{index + 1}</span>
                           </div>
                         </div>;
 
@@ -185,7 +185,7 @@ export default function QuickRouteAdjustments({
         </Droppable>
       </DragDropContext>
 
-      <div className="flex gap-2 pt-2 border-t pb-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex gap-2 pt-2 border-t pb-2 border-card">
         <Button variant="outline" className="flex-1" onClick={onCancel} disabled={isOptimizing}>Cancel</Button>
         <Button 
           className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed" 

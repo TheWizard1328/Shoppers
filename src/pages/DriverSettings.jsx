@@ -250,18 +250,18 @@ export default function DriverSettings() {
   return (
     <div className="p-6 max-w-auto mx-auto h-full overflow-y-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
+        <h1 className="text-2xl font-bold flex items-center gap-3 text-body">
           <Truck className="w-7 h-7 text-emerald-600" />
           Driver Settings
           <SmartRefreshIndicator inline={true} />
         </h1>
-        <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage drivers and configure driver app settings</p>
+        <p className="mt-1 text-label">Manage drivers and configure driver app settings</p>
       </div>
 
       {/* Search and City Selector */}
       <div className="mb-4 flex gap-3 items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
           <Input
             placeholder="Search drivers by name, phone, or email..."
             value={searchQuery}
@@ -273,15 +273,15 @@ export default function DriverSettings() {
           value={selectedCityId}
           onValueChange={(cityId) => globalFilters.setSelectedCityId(cityId)}>
           
-            <SelectTrigger className="w-[150px] h-10" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+            <SelectTrigger className="w-[150px] h-10 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
                 <SelectValue placeholder="City" />
               </div>
             </SelectTrigger>
-            <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <SelectContent className="bg-card border-card">
               {sortedCities.map((city) =>
-            <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+            <SelectItem key={city.id} value={city.id} className="text-body">
                   {city.name}
                 </SelectItem>
             )}
@@ -291,7 +291,7 @@ export default function DriverSettings() {
       </div>
 
       {/* Driver Count */}
-      <div className="mb-4 text-sm" style={{ color: 'var(--text-slate-600)' }}>
+      <div className="mb-4 text-sm text-label">
         {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
       </div>
 
@@ -301,8 +301,8 @@ export default function DriverSettings() {
         return (
           <div className={`grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(275px,1fr))] ${isAdmin ? '[grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]' : ""}`}>
             {filteredDrivers.length === 0 ?
-            <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
+            <Card className="col-span-full bg-card border-card">
+                <CardContent className="py-8 text-center text-muted">
                   {searchQuery ? 'No drivers match your search' : 'No drivers found'}
                 </CardContent>
               </Card> :
@@ -336,8 +336,7 @@ export default function DriverSettings() {
                   <Card
                     key={driver.id}
                     onClick={() => setSelectedDriver(driver)}
-                    className="rounded-xl border shadow hover:shadow-md transition-shadow cursor-pointer active:opacity-70"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    className="rounded-xl border shadow hover:shadow-md transition-shadow cursor-pointer active:opacity-70 bg-card border-card">
                     
                     <CardContent className="p-3">
                       {/* 3-column grid: Avatar | Name+Phone | Badges */}
@@ -350,7 +349,7 @@ export default function DriverSettings() {
                         </div>
 
                         {/* Col 2 Row 1: Name */}
-                        <p className="font-semibold text-sm truncate leading-tight pt-0.5" style={{ color: 'var(--text-slate-900)' }}>
+                        <p className="font-semibold text-sm truncate leading-tight pt-0.5 text-body">
                           {getDriverDisplayName(driver)}
                         </p>
 
@@ -360,7 +359,7 @@ export default function DriverSettings() {
                         </div>
 
                         {/* Col 2 Row 2: Phone (non-tappable) */}
-                        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                        <div className="flex items-center gap-1 text-xs text-muted">
                           {driver.phone ?
                           <>
                               <Phone className="w-3 h-3 flex-shrink-0" />
@@ -397,7 +396,7 @@ export default function DriverSettings() {
 
               // Full card for admins
               return (
-                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full w-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full w-full bg-card border-card">
                   <CardContent className="h-full px-2 py-2">
                     <div className="flex items-start h-full gap-2">
                       {/* Avatar */}
@@ -411,7 +410,7 @@ export default function DriverSettings() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
-                            <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
+                            <h3 className="font-semibold truncate text-body">
                               {getDriverDisplayName(driver)}
                             </h3>
                           </div>
@@ -437,7 +436,7 @@ export default function DriverSettings() {
                           }
                         </div>
 
-                        <div className="flex flex-col gap-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                        <div className="flex flex-col gap-1 mt-1 text-sm text-label">
                           {driver.phone &&
                           <div className="flex items-center gap-1">
                               <Phone className="w-3.5 h-3.5" />
@@ -456,7 +455,7 @@ export default function DriverSettings() {
 
                         {/* Pay rates display - admins only */}
                         {(latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
-                        <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                        <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap text-muted">
                             {latestAppUser?.pay_cycle_type &&
                           <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
                           }
@@ -467,7 +466,7 @@ export default function DriverSettings() {
                           </div>
                         }
                         {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
-                        <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap text-muted">
                             {latestAppUser?.extra_km_rate > 0 && <span>${Number(latestAppUser.extra_km_rate).toFixed(2)}/km</span>}
                             {latestAppUser?.extra_km_rate > 0 && latestAppUser?.extra_km_limit > 0 && <span>•</span>}
                             {latestAppUser?.extra_km_limit > 0 && <span>{Number(latestAppUser.extra_km_limit).toFixed(2)}km limit</span>}
@@ -487,7 +486,7 @@ export default function DriverSettings() {
                             <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/50 space-y-0.5">
                               <div className="flex items-center gap-1.5 text-xs">
                                 <DollarSign className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                                <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>
+                                <span className="font-medium text-label">
                                   Deductions ({active.length}/{deductions.length})
                                 </span>
                                 <span className="text-slate-500 dark:text-slate-400">•</span>
@@ -497,7 +496,7 @@ export default function DriverSettings() {
                                 {deductions.map((d, i) => {
                                   const isActive = active.includes(d);
                                   return (
-                                    <div key={i} className={`flex items-center gap-1.5 text-[11px] ${isActive ? '' : 'opacity-50 line-through'}`} style={{ color: 'var(--text-slate-500)' }}>
+                                    <div key={i} className={flex items-center gap-1.5 text-[11px] ${isActive ? '' : 'opacity-50 line-through'} text-muted}>
                                       <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
                                       <span className="truncate">{d.name}: ${Number(d.amount || 0).toFixed(2)}</span>
                                       {(() => {
@@ -520,7 +519,7 @@ export default function DriverSettings() {
                           <Edit className="w-3.5 h-3.5" />
                           <span className="text-xs">Edit</span>
                         </Button>
-                        <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
+                        <Badge variant="outline" className="text-xs text-label" style={{ borderColor: 'var(--border-slate-300)' }}>
                           #{driver.sort_order || '—'}
                         </Badge>
                       </div>

@@ -922,42 +922,41 @@ export default function PatientForm({
         exit={{ opacity: 0, scale: 0.95 }}
         className={`flex flex-col ${isMobile ? 'w-screen rounded-none h-full max-h-full' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}>
 
-        <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', height: '100%', maxHeight: '100%' }}>
-          <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+        <Card className="shadow-xl flex flex-col overflow-hidden text-body bg-card border-card" style={{ height: '100%', maxHeight: '100%' }}>
+          <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0 bg-card border-card">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <CardTitle className="text-xl font-bold flex items-center gap-2 text-body">
                 <UserPlus className="w-5 h-5 text-emerald-600" />
                 {duplicateMode === 'duplicate' || duplicateMode === 'newAddress' ? 'Add New Patient' : patient ? 'Edit Patient' : 'Add New Patient'}
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={onCancel}>
-                <X className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} />
+                <X className="w-4 h-4 text-secondary" />
               </Button>
             </div>
           </CardHeader>
 
-          <CardContent className="px-2 py-2 overflow-y-auto flex-1" style={{ background: 'var(--bg-white)' }}>
+          <CardContent className="px-2 py-2 overflow-y-auto flex-1 bg-card">
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
               {(isAppOwner(currentUser) || forceAppOwnerView) &&
               <div className="px-2 rounded-[10px] py-2 border-2 space-y-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-slate-200)' }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <Label className="text-xs font-semibold uppercase" style={{ color: 'var(--text-slate-700)' }}>App Owner Controls</Label>
+                    <Label className="text-xs font-semibold uppercase text-secondary">App Owner Controls</Label>
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-none w-[75px] space-y-1">
-                        <Label htmlFor="patient_id_appowner" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>PID</Label>
+                        <Label htmlFor="patient_id_appowner" className="text-sm font-medium text-body">PID</Label>
                       <Input
                       id="patient_id_appowner"
                       value={formData.patient_id}
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
                       placeholder="5-chr"
-                      className="h-10 md:h-9 text-sm"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+                      className="h-10 md:h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
                       maxLength={5} />
                     </div>
                     <div className="flex-1 min-w-0 space-y-1" style={{ maxWidth: 'calc(50% - 60px)' }}>
-                      <Label htmlFor="latitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
+                      <Label htmlFor="latitude" className="text-sm font-medium text-body">Latitude</Label>
                       <Input
                       id="latitude"
                       type="number"
@@ -966,11 +965,10 @@ export default function PatientForm({
                       value={Number.isFinite(formData.latitude) ? formData.latitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, latitude: toFiniteNumber(e.target.value) }))}
                       placeholder="GPS Lat"
-                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                     </div>
                     <div className="flex-1 min-w-0 space-y-1" style={{ maxWidth: 'calc(50% - 60px)' }}>
-                      <Label htmlFor="longitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
+                      <Label htmlFor="longitude" className="text-sm font-medium text-body">Longitude</Label>
                       <Input
                       id="longitude"
                       type="number"
@@ -979,11 +977,10 @@ export default function PatientForm({
                       value={Number.isFinite(formData.longitude) ? formData.longitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, longitude: toFiniteNumber(e.target.value) }))}
                       placeholder="GPS Lon"
-                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                     </div>
                     <div className="flex-none w-[75px] space-y-1">
-                      <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist</Label>
+                      <Label htmlFor="distance" className="text-sm font-medium text-body">Dist</Label>
                       <Input
                       id="distance"
                       type="number"
@@ -992,30 +989,27 @@ export default function PatientForm({
                       value={Number.isFinite(formData.distance_from_store) ? formData.distance_from_store : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: toFiniteNumber(e.target.value) }))}
                       placeholder="km"
-                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                     </div>
                   </div>
                   {/* System Record ID + Last Delivery Date - only shown when editing existing patient */}
                   {patient?.id &&
                 <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>System Record ID</Label>
+                      <Label className="text-xs font-medium text-muted">System Record ID</Label>
                       <div
-                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 px-2"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)', color: 'var(--text-slate-500)' }}>
+                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 px-2 text-muted bg-card" style={{ borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)' }}>
                         {patient.id}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="last_delivery_date" className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Last Delivery Date</Label>
+                      <Label htmlFor="last_delivery_date" className="text-xs font-medium text-muted">Last Delivery Date</Label>
                       <Input
                       id="last_delivery_date"
                       type="date"
                       value={formData.last_delivery_date || ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
-                      className="h-9 text-xs"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-9 text-xs text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                     </div>
                   </div>
                 }
@@ -1026,15 +1020,15 @@ export default function PatientForm({
               <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-6 space-y-1">
-                    <Label htmlFor="store_id" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Assigned Store *</Label>
+                    <Label htmlFor="store_id" className="text-sm font-medium text-body">Assigned Store *</Label>
                     <Select
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
                       disabled={isStoreDisabled || disableOtherFieldsDuringAddressLookup}>
-                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                         <SelectValue placeholder="Select store..." />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[300px] overflow-y-auto z-[99999]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                      <SelectContent className="max-h-[300px] overflow-y-auto z-[99999] text-body bg-card border-card">
                         {availableStores.map((store) =>
                         <SelectItem key={store.id} value={store.id}>
                             {store.name}
@@ -1045,15 +1039,15 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-6 space-y-1">
-                    <Label htmlFor="status" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Status</Label>
+                    <Label htmlFor="status" className="text-sm font-medium text-body">Status</Label>
                     <Select
                       value={formData.status}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}>
-                      <SelectTrigger className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                      <SelectTrigger className="h-10 md:h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[200px] overflow-y-auto z-[99999]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                      <SelectContent className="max-h-[200px] overflow-y-auto z-[99999] text-body bg-card border-card">
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                       </SelectContent>
@@ -1070,7 +1064,7 @@ export default function PatientForm({
                 <div className="grid grid-cols-12 gap-x-2 gap-y-0">
                   {/* Label row — + New Address is absolute so it adds zero height */}
                   <div className="col-span-8 relative pb-3" style={{ height: '2rem' }}>
-                    <Label htmlFor="address" className="text-sm font-medium leading-none" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
+                    <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
                     {patient && !duplicateMode && onCreateDuplicate &&
                     <span
                       role="button"
@@ -1087,7 +1081,7 @@ export default function PatientForm({
                   </div>
                   <div className="col-span-4 pb-3" style={{ height: '2rem' }}>
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="unit_number" className="text-sm font-medium leading-none" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                      <Label htmlFor="unit_number" className="text-sm font-medium leading-none text-body">Unit #</Label>
                       <button
                         type="button"
                         disabled={!formData.unit_number || disableOtherFieldsDuringAddressLookup}
@@ -1117,8 +1111,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       value={formData.unit_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
-                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className={h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} />
                   </div>
 
                   {/* Buzzer portal dialog */}
@@ -1138,7 +1131,7 @@ export default function PatientForm({
                           placeholder="e.g. 223"
                           className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-sm mb-2 outline-none focus:ring-2 focus:ring-blue-500" />
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setShowBuzzerInput(false)} className="flex-1 text-xs py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
+                          <button type="button" onClick={() => setShowBuzzerInput(false)} className="flex-1 text-xs py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
                           <button type="button" onClick={handleBuzzerConfirm} className="flex-1 text-xs py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
                         </div>
                       </div>
@@ -1150,18 +1143,17 @@ export default function PatientForm({
                 {/* Row 1: Full Name + Email (50/50) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label htmlFor="full_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Full Name *</Label>
+                    <Label htmlFor="full_name" className="text-sm font-medium text-body">Full Name *</Label>
                     <Input
                       id="full_name"
                       value={formData.full_name}
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, full_name: capitalizeName(e.target.value) }))}
                       required
-                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
-                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className={h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="email" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Email Address</Label>
+                    <Label htmlFor="email" className="text-sm font-medium text-body">Email Address</Label>
                     <Input
                       id="email"
                       type="email"
@@ -1169,15 +1161,14 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                       placeholder="Email address"
-                      className="h-10 md:h-9 text-sm"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-10 md:h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                   </div>
                 </div>
 
                 {/* Row 2: Phone + Alt. Phone (50/50) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <Label htmlFor="phone" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Phone Number</Label>
+                    <Label htmlFor="phone" className="text-sm font-medium text-body">Phone Number</Label>
                     <PhoneInput
                       id="phone"
                       value={formData.phone}
@@ -1188,7 +1179,7 @@ export default function PatientForm({
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <Label htmlFor="phone_secondary" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Alt. Phone</Label>
+                    <Label htmlFor="phone_secondary" className="text-sm font-medium text-body">Alt. Phone</Label>
                     <PhoneInput
                       id="phone_secondary"
                       value={formData.phone_secondary}
@@ -1202,27 +1193,25 @@ export default function PatientForm({
 
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-6 space-y-1">
-                    <Label htmlFor="time_window_start" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver After</Label>
+                    <Label htmlFor="time_window_start" className="text-sm font-medium text-body">Deliver After</Label>
                     <Input
                       id="time_window_start"
                       type="time"
                       value={formData.time_window_start}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-10 md:h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                   </div>
 
                   <div className="col-span-6 space-y-1">
-                    <Label htmlFor="time_window_end" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver Before</Label>
+                    <Label htmlFor="time_window_end" className="text-sm font-medium text-body">Deliver Before</Label>
                     <Input
                       id="time_window_end"
                       type="time"
                       value={formData.time_window_end}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className="h-10 md:h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                   </div>
                 </div>
               </div>
@@ -1231,17 +1220,17 @@ export default function PatientForm({
               <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">
                   <div className="flex items-start justify-between">
-                    <Label htmlFor="notes" className="text-sm font-medium pt-1" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
+                    <Label htmlFor="notes" className="text-sm font-medium pt-1 text-body">Patient Notes</Label>
                     {formData.care_pros ?
                     <div className="flex items-center justify-between gap-3 w-2/5 pl-2">
-                        <Label htmlFor="cp_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Name</Label>
+                        <Label htmlFor="cp_name" className="text-sm font-medium text-body">CP Name</Label>
                         <div className="flex items-center space-x-2">
                           <Checkbox
                           id="care_pros"
                           checked={formData.care_pros}
                           disabled={disableOtherFieldsDuringAddressLookup}
                           onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, care_pros: checked }))} />
-                          <Label htmlFor="care_pros" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                          <Label htmlFor="care_pros" className="text-sm font-medium text-body">
                             Care Pro's
                           </Label>
                         </div>
@@ -1253,7 +1242,7 @@ export default function PatientForm({
                         checked={formData.care_pros}
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, care_pros: checked }))} />
-                        <Label htmlFor="care_pros" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                        <Label htmlFor="care_pros" className="text-sm font-medium text-body">
                           Care Pro's
                         </Label>
                       </div>
@@ -1267,8 +1256,7 @@ export default function PatientForm({
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                         placeholder="Special delivery instructions, preferences, etc."
-                        className="h-24 md:h-32 text-sm resize-none"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                        className="h-24 md:h-32 text-sm resize-none text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                     </div>
                     {formData.care_pros &&
                     <div className="col-span-2 space-y-2">
@@ -1278,10 +1266,9 @@ export default function PatientForm({
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
                         placeholder="Care Pro name"
-                        className="h-9 text-sm"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                        className="h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                         <div className="space-y-0.5">
-                          <Label htmlFor="cp_envelopes" className="text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Envelopes</Label>
+                          <Label htmlFor="cp_envelopes" className="text-xs font-medium text-body">CP Envelopes</Label>
                           <Input
                           id="cp_envelopes"
                           type="number"
@@ -1290,8 +1277,7 @@ export default function PatientForm({
                           disabled={disableOtherFieldsDuringAddressLookup}
                           onChange={(e) => setFormData((prev) => ({ ...prev, cp_envelopes: Number(e.target.value) }))}
                           placeholder="0"
-                          className="h-9 text-sm"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                          className="h-9 text-sm text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }} />
                         </div>
                       </div>
                     }
@@ -1302,7 +1288,7 @@ export default function PatientForm({
               <div className="grid grid-cols-2 gap-2" style={{ opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                     <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
                       <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
-                        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Preferences</h3>
+                        <h3 className="text-sm font-semibold text-body">Delivery Preferences</h3>
                       </div>
 
                   <div className="space-y-3">
@@ -1351,7 +1337,7 @@ export default function PatientForm({
                         checked={isRecurring}
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onCheckedChange={handleRecurringChange} />
-                          <Label htmlFor="recurring" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                          <Label htmlFor="recurring" className="text-sm font-medium text-body">
                             Recurring
                           </Label>
                         </div>
@@ -1455,8 +1441,8 @@ export default function PatientForm({
                       </RadioGroup>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly' || frequency === 'weekly-x4') &&
-                  <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-                      <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-900)' }}>Select Days:</p>
+                  <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20 text-body bg-card">
+                      <p className="text-sm font-semibold mb-3 text-body">Select Days:</p>
                       <div className="space-y-2">
                         {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) =>
                       <div key={day} className="flex items-center space-x-2">
@@ -1465,7 +1451,7 @@ export default function PatientForm({
                           checked={weeklyDays.includes(day)}
                           onCheckedChange={() => handleWeeklyDayToggle(day)} />
 
-                            <Label htmlFor={`day-${day}`} className="text-sm capitalize cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
+                            <Label htmlFor={`day-${day}`} className="text-sm capitalize cursor-pointer text-body">
                               {day.charAt(0).toUpperCase() + day.slice(1)}
                             </Label>
                           </div>
@@ -1487,9 +1473,9 @@ export default function PatientForm({
             </form>
           </CardContent>
 
-          <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+          <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0 border-card" style={{ background: 'var(--bg-slate-50)' }}>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={onCancel} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
                 Cancel
               </Button>
               <Button type="button" onClick={handleSubmit} disabled={!isFormValid || disableOtherFieldsDuringAddressLookup} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">

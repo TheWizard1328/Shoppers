@@ -46,7 +46,7 @@ export default function StopCardConfirmDialogs({
           onClick={() => setShowDeleteConfirm(false)}>
           <div
             onClick={(e) => e.stopPropagation()}
-            className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4" style={{ background: 'var(--bg-white)' }}>
+            className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4 bg-card">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
               <Trash2 className="w-5 h-5" />
               Confirm Delete
@@ -58,15 +58,15 @@ export default function StopCardConfirmDialogs({
               </p>
 
               <div className="rounded-lg p-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                <span style={{ color: 'var(--text-slate-900)' }}>{effectiveDisplayName}</span>
+                <span className="font-semibold text-secondary">Name:</span>
+                <span className="text-body">{effectiveDisplayName}</span>
                 {effectiveDisplayAddress && <>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                  <span style={{ color: 'var(--text-slate-900)' }}>{effectiveDisplayAddress}</span>
+                  <span className="font-semibold text-secondary">Address:</span>
+                  <span className="text-body">{effectiveDisplayAddress}</span>
                 </>}
                 {delivery.tracking_number && <>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                  <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
+                  <span className="font-semibold text-secondary">Tr#:</span>
+                  <span className="text-body">{delivery.tracking_number}</span>
                 </>}
               </div>
 

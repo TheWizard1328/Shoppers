@@ -359,3 +359,21 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   .blink-new-message { animation: none; background-color: hsl(152 90% 96%); }
   .dark .blink-new-message { animation: none; background-color: hsl(152 45% 22% / 0.45); }
 }
+/* ── Semantic theme-aware utility classes ─────────────────────────────────
+   Replacements for the former inline `style={{ color: 'var(--text-slate-900)' }}`
+   patterns. Defined UNLAYERED (outside @layer) so they carry the same precedence
+   the inline styles had — they override Tailwind utilities (incl. dark:*) in both
+   themes. The vars themselves are theme-aware (redefined under html.dark-theme
+   in layoutStyles.jsx), so these classes render identically in light and dark.
+   .text-body     = color: var(--text-slate-900)   (primary text)
+   .text-secondary= color: var(--text-slate-700)
+   .text-label    = color: var(--text-slate-600)
+   .text-muted    = color: var(--text-slate-500)
+   .bg-card       = background: var(--bg-white)
+   .border-card   = border-color: var(--border-slate-200) */
+.text-body { color: var(--text-slate-900); }
+.text-secondary { color: var(--text-slate-700); }
+.text-label { color: var(--text-slate-600); }
+.text-muted { color: var(--text-slate-500); }
+.bg-card { background: var(--bg-white); }
+.border-card { border-color: var(--border-slate-200); }

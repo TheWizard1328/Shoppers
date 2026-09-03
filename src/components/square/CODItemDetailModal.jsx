@@ -79,7 +79,7 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
               Transaction History ({itemTransactions.length})
             </h3>
             {itemTransactions.length === 0 ? (
-              <p className="text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 py-6">No transactions yet</p>
+              <p className="text-center text-slate-500 dark:text-slate-400 py-6">No transactions yet</p>
             ) : (
               <div className="space-y-3">
                 {itemTransactions.map(t => (
@@ -88,7 +88,7 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">${(t.amount || 0).toFixed(2)}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {new Date(t.created_date).toLocaleString()}
                           </p>
                         </div>
@@ -99,13 +99,13 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-xs mt-3">
                         <div>
-                          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Driver</p>
+                          <p className="text-slate-500 dark:text-slate-400">Driver</p>
                           <p className="font-medium text-slate-700 dark:text-slate-300">
                             {deliveries.find(d => d.id === t.delivery_id)?.driver_name || 'N/A'}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Date</p>
+                          <p className="text-slate-500 dark:text-slate-400">Date</p>
                           <p className="font-medium text-slate-700 dark:text-slate-300">
                             {deliveries.find(d => d.id === t.delivery_id)?.delivery_date ? new Date(deliveries.find(d => d.id === t.delivery_id).delivery_date).toLocaleDateString() : ''}
                           </p>
@@ -120,8 +120,8 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
 
           {/* Item Metadata */}
           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium mb-3">Additional Info</p>
-            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-3">Additional Info</p>
+            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
               <div className="flex justify-between">
                 <span>Created</span>
                 <span>{item.created_date ? new Date(item.created_date).toLocaleString() : 'N/A'}</span>

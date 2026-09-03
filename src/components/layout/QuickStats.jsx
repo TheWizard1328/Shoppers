@@ -104,7 +104,7 @@ export default function QuickStats({ currentUser }) {
         >
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-emerald-600" />
-            <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">Active Deliveries</span>
+            <span className="text-slate-600 dark:text-slate-400 font-medium">Active Deliveries</span>
           </div>
           <div className="flex items-center gap-1">
             <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
@@ -119,14 +119,14 @@ export default function QuickStats({ currentUser }) {
             {activeDeliveriesByDriver.length > 0 ? (
               activeDeliveriesByDriver.map(driver => (
                 <div key={driver.name} className="flex justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 truncate">{driver.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400 truncate">{driver.name}</span>
                   <Badge variant="outline" className="text-xs">
                     {driver.count}
                   </Badge>
                 </div>
               ))
             ) : (
-              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">No active deliveries</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">No active deliveries</div>
             )}
           </div>
         )}
@@ -141,7 +141,7 @@ export default function QuickStats({ currentUser }) {
           >
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-600" />
-              <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">Total Patients</span>
+              <span className="text-slate-600 dark:text-slate-400 font-medium">Total Patients</span>
             </div>
             <div className="flex items-center gap-1">
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
@@ -155,7 +155,7 @@ export default function QuickStats({ currentUser }) {
             <div className="ml-6 mt-2 space-y-1">
               {patientsByStore.map(store => (
                 <div key={store.name} className="flex justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 truncate">{store.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400 truncate">{store.name}</span>
                   <Badge variant="outline" className="text-xs">
                     {store.count}
                   </Badge>
@@ -174,7 +174,7 @@ export default function QuickStats({ currentUser }) {
         >
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-purple-600" />
-            <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">Active Routes</span>
+            <span className="text-slate-600 dark:text-slate-400 font-medium">Active Routes</span>
           </div>
           <div className="flex items-center gap-1">
             <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
@@ -204,7 +204,7 @@ export default function QuickStats({ currentUser }) {
                 </div>
               ))
             ) : (
-              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">No active routes today</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">No active routes today</div>
             )}
           </div>
         )}

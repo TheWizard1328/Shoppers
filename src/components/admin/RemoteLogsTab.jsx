@@ -170,7 +170,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 
               </div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">If nobody is selected, logging applies to all users except excluded ones.</div>
           </div>
         </CardContent>
       </Card>

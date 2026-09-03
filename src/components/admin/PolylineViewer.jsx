@@ -1366,16 +1366,16 @@ export default function PolylineViewer({ users = [] }) {
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
                 </Badge>
               </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-0.5">
+              <div className="text-xs text-slate-600 dark:text-slate-400 space-y-0.5">
                 <div className="flex items-center justify-between gap-2">
                   <span>📅 {item.delivery_date ? format(new Date(item.delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</span>
-                  {isBreadcrumb && item.stop_order != null && <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stop #{item.stop_order} · {item.point_count || 0} pts</span>}
-                  {!isBreadcrumb && item.stop_order != null && <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stop #{item.stop_order}</span>}
+                  {isBreadcrumb && item.stop_order != null && <span className="text-slate-500 dark:text-slate-400">Stop #{item.stop_order} · {item.point_count || 0} pts</span>}
+                  {!isBreadcrumb && item.stop_order != null && <span className="text-slate-500 dark:text-slate-400">Stop #{item.stop_order}</span>}
                 </div>
                 {!isBreadcrumb && (item.estimated_distance_km || item.estimated_duration_minutes) && (
                   <div className="flex items-center justify-between gap-2">
                     <span>🕒 {item.estimated_duration_minutes?.toFixed(0) || '?'} min</span>
-                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</span>
+                    <span className="text-slate-500 dark:text-slate-400">📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</span>
                   </div>
                 )}
                 {isBreadcrumb && (() => {
@@ -1388,7 +1388,7 @@ export default function PolylineViewer({ users = [] }) {
                     <>
                       <div className="flex items-center justify-between gap-1">
                         <span>{activeMode ? `${activeMode === 'cycling' ? '🚲' : activeMode === 'pedestrian' ? '🚶' : '🚗'} ${activeMode}` : ''}</span>
-                        <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">📏 {distStr}</span>
+                        <span className="text-slate-500 dark:text-slate-400">📏 {distStr}</span>
                       </div>
                       {isFocused && (
                         <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100" onClick={e => e.stopPropagation()}>
@@ -1401,7 +1401,7 @@ export default function PolylineViewer({ users = [] }) {
                             <button
                               title={`Undo last removal (${undoStack.length} steps)`}
                               onClick={e => { e.stopPropagation(); handleUndo(); }}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 transition-colors"
+                              className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 transition-colors"
                             >
                               <Undo2 className="w-3.5 h-3.5" />
                             </button>
@@ -1572,10 +1572,10 @@ export default function PolylineViewer({ users = [] }) {
               )}
             </div>
           </div>
-          <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-0.5">
+          <div className="text-xs text-slate-600 dark:text-slate-400 space-y-0.5">
             <div className="flex items-center justify-between gap-2">
               <span>📅 {delivery_date ? format(new Date(delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</span>
-              {stop_order != null && <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stop #{stop_order}</span>}
+              {stop_order != null && <span className="text-slate-500 dark:text-slate-400">Stop #{stop_order}</span>}
             </div>
             {hasPoly && delivery && (delivery.estimated_distance_km || delivery.estimated_duration_minutes) && (
               <div className="flex items-center justify-between gap-2 text-blue-700">
@@ -1599,7 +1599,7 @@ export default function PolylineViewer({ users = [] }) {
               <span className="text-xs text-orange-700 font-medium mr-1">{cleanedPoints.length} pts</span>
             )}
             {isEditingCrumb && undoStack.length > 0 && (
-              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 transition-colors">
+              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 transition-colors">
                 <Undo2 className="w-3.5 h-3.5" />
               </button>
             )}
@@ -1696,9 +1696,9 @@ export default function PolylineViewer({ users = [] }) {
       </Select>
       {/* Date range filter */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">From date</label>
+        <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">From date</label>
         <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full" />
-        <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">To date</label>
+        <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">To date</label>
         <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full" />
       </div>
       {(driverFilter !== 'all' || dateFrom || dateTo) && (
@@ -1767,7 +1767,7 @@ export default function PolylineViewer({ users = [] }) {
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-            <span className="ml-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading route data…</span>
+            <span className="ml-3 text-slate-600 dark:text-slate-400">Loading route data…</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3 flex-1 min-h-0">
@@ -1833,9 +1833,9 @@ export default function PolylineViewer({ users = [] }) {
               </Select>
               {/* Date range filter */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">From</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">From</span>
                 <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
-                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">To</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">To</span>
                 <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
               </div>
               {(driverFilter !== 'all' || dateFrom || dateTo) && (
@@ -1880,19 +1880,19 @@ export default function PolylineViewer({ users = [] }) {
                 <div className="flex-1 overflow-y-auto" onScroll={handleListScroll} ref={listRef}>
                   {viewMode === 'combined' ? (
                     combinedStopGroups.length === 0
-                      ? <div className="p-6 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">No records found</div>
+                      ? <div className="p-6 text-center text-slate-400 dark:text-slate-400 text-sm">No records found</div>
                       : combinedStopGroups.slice(0, visibleCount).map(g => renderCombinedStopCard(g))
                   ) : (
                     activeItems.length === 0
-                      ? <div className="p-6 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">No records found</div>
+                      ? <div className="p-6 text-center text-slate-400 dark:text-slate-400 text-sm">No records found</div>
                       : activeItems.slice(0, visibleCount).map(item => renderListItem(item))
                   )}
                   {viewMode === 'combined'
                     ? visibleCount < combinedStopGroups.length && (
-                        <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Scroll for more ({combinedStopGroups.length - visibleCount} remaining)</div>
+                        <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-400">Scroll for more ({combinedStopGroups.length - visibleCount} remaining)</div>
                       )
                     : visibleCount < activeItems.length && (
-                        <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Scroll for more ({activeItems.length - visibleCount} remaining)</div>
+                        <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-400">Scroll for more ({activeItems.length - visibleCount} remaining)</div>
                       )
                   }
                 </div>
@@ -2045,7 +2045,7 @@ export default function PolylineViewer({ users = [] }) {
                     />
                   </MapContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 gap-2">
+                  <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-400 gap-2">
                     <MapPin className="w-10 h-10 opacity-30" />
                     <p className="text-sm">
                       {activeItems.length === 0
@@ -2053,7 +2053,7 @@ export default function PolylineViewer({ users = [] }) {
                         : 'Click a record in the list, or check multiple records to compare on the map.'}
                     </p>
                     {viewMode === 'combined' && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Combined mode shows Delivery Polylines (solid) + GPS Breadcrumbs (dashed)
                       </p>
                     )}
@@ -2064,7 +2064,7 @@ export default function PolylineViewer({ users = [] }) {
 
             {/* Legend */}
             {viewMode === 'combined' && (
-              <div className="hidden md:flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 px-1">
+              <div className="hidden md:flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 px-1">
                 <div className="flex items-center gap-1.5">
                   <div className="w-8 h-1 bg-blue-600 rounded" />
                   <span>Delivery Polyline (HERE API)</span>

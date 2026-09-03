@@ -54,14 +54,14 @@ export default function SkippedStopsDialog({ isOpen, skippedStops, onClose }) {
                       {stop.patientName || 'Unknown Patient'}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                     {stop.address || 'No address available'}
                   </p>
                   <Badge variant="secondary" className="bg-red-100 text-red-700">
                     {getReasonLabel(stop.reason)}
                   </Badge>
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
                   Delivery ID: {stop.deliveryId}
                 </div>
               </div>

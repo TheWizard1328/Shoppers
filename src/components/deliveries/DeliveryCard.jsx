@@ -198,9 +198,9 @@ function DeliveryCard({
 
     return (
       <div className="flex items-center gap-1 text-xs">
-        <Clock className="w-3 h-3 flex-shrink-0 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+        <Clock className="w-3 h-3 flex-shrink-0 text-slate-600 dark:text-slate-400" />
         <span className="font-medium text-slate-700 dark:text-slate-300">ETA:</span>
-        <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{time}</span>
+        <span className="text-slate-600 dark:text-slate-400">{time}</span>
       </div>
     );
   };
@@ -274,7 +274,7 @@ function DeliveryCard({
               {canBeDragged && (
                 <div
                   {...dragHandleProps}
-                  className="cursor-grab hover:cursor-grabbing p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                  className="cursor-grab hover:cursor-grabbing p-1 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 transition-colors"
                   title="Drag to reorder"
                 >
                   <GripVertical className="w-4 h-4" />
@@ -325,19 +325,19 @@ function DeliveryCard({
           )}
 
           <div className="space-y-1 mb-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 min-w-0">
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 min-w-0">
               <MapPin className="w-3 h-3 flex-shrink-0" />
               <span className="truncate min-w-0 flex-1">{displayAddress}</span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
               <Phone className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">{displayPhone}</span>
             </div>
 
             {/* New patient display section added from outline, adjusted for existing redaction logic and context */}
             {patient && !isPickup && (
-              <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-1 mt-2 border-t pt-2 border-slate-100">
+              <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1 mt-2 border-t pt-2 border-slate-100">
                 <div className="flex items-center gap-2">
                   <User className="w-3 h-3" />
                   <span className="font-medium">{displayName}</span> {/* Using existing redacted displayName */}
@@ -357,8 +357,8 @@ function DeliveryCard({
 
             {/* Driver Name Display */}
             <div className="flex items-center gap-1.5 text-xs">
-              <Truck className="w-3 h-3 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
-              <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">
+              <Truck className="w-3 h-3 text-slate-500 dark:text-slate-400" />
+              <span className="text-slate-600 dark:text-slate-400 font-medium">
                 {delivery.driver_name ? delivery.driver_name.split(' ')[0] : 'Unassigned'}
               </span>
             </div>
@@ -443,10 +443,10 @@ function DeliveryCard({
                     exit={{ opacity: 0, y: -10 }}
                     className="mt-2"
                   >
-                    <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Projected Deliveries ({delivery.projected_deliveries.length})</h4>
+                    <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Projected Deliveries ({delivery.projected_deliveries.length})</h4>
                     <div className="max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-800 rounded border">
                       {delivery.projected_deliveries.length === 0 ? (
-                        <div className="p-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
+                        <div className="p-3 text-xs text-slate-500 dark:text-slate-400 text-center">
                           No deliveries projected for this store
                         </div>
                       ) : (
@@ -470,7 +470,7 @@ function DeliveryCard({
                               <div className="col-span-5 text-slate-900 dark:text-slate-100 truncate" title={projectedDelivery.patient_name}>
                                 {projectedDelivery.patient_name}
                               </div>
-                              <div className="col-span-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                              <div className="col-span-3 text-slate-600 dark:text-slate-400">
                                 {projectedDelivery.patient_distance ? `${projectedDelivery.patient_distance.toFixed(1)}km` : 'N/A'}
                               </div>
                             </div>
@@ -486,7 +486,7 @@ function DeliveryCard({
             // Regular notes section for non-projected cards
             <div className="mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
               <div className="flex flex-col min-w-0">
-                <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">Patient Notes</h4>
+                <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Patient Notes</h4>
                 <Textarea
                   value={localPatientNotes}
                   onChange={(e) => setLocalPatientNotes(e.target.value)}
@@ -498,7 +498,7 @@ function DeliveryCard({
                 />
               </div>
               <div className="flex flex-col min-w-0">
-                <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">Driver Notes</h4>
+                <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Driver Notes</h4>
                 <Textarea
                   value={localDriverNotes}
                   onChange={(e) => setLocalDriverNotes(e.target.value)}

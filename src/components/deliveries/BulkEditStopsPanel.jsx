@@ -53,7 +53,7 @@ function TimeField({ value, onChange, onClear, disabled, style }) {
         <button
           type="button"
           onClick={onClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-slate-400 dark:text-slate-400 hover:text-slate-900"
           aria-label="Clear time">
           <X className="w-3.5 h-3.5" />
         </button>
@@ -213,18 +213,18 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
       className="flex h-full flex-col">
       
       <div className="flex-1 overflow-y-auto px-4 space-y-2 pb-2">
-        <div className="rounded-lg border p-3" style={{ background: "var(--bg-slate-50)", borderColor: "var(--border-slate-200)" }}>
-          <p className="text-sm font-medium" style={{ color: "var(--text-slate-900)" }}>
+        <div className="rounded-lg border p-3 border-card" style={{ background: "var(--bg-slate-50)" }}>
+          <p className="text-sm font-medium text-body">
             {selectedCount} stop{selectedCount === 1 ? "" : "s"} selected
           </p>
-          <p className="text-xs mt-1" style={{ color: "var(--text-slate-500)" }}>
+          <p className="text-xs mt-1 text-muted">
             Leave any field blank or set to Keep current to skip it.
           </p>
         </div>
 
         <div className={`grid gap-4 items-end ${(isDriver || isAdmin) ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-2'}`}>
           <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
+            <Label className="text-body">Assigned Driver</Label>
             <Select
               value={values.driverChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, driverChoice: value }))}>
@@ -245,7 +245,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
           </div>
 
           <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>Delivery Date</Label>
+            <Label className="text-body">Delivery Date</Label>
             <Input
               type="date"
               value={values.delivery_date}
@@ -256,7 +256,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
           {(isDriver || isAdmin) ? (
           <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
+              <Label className="text-body">Travel Mode</Label>
               <TravelModeButtons
               value={values.travelModeChoice || 'driving'}
               isMixed={isMixedTravelMode}
@@ -268,7 +268,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>Status</Label>
+            <Label className="text-body">Status</Label>
             <Select
               value={values.statusChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, statusChoice: value }))}>
@@ -285,7 +285,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
           </div>
 
           <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>
+            <Label className="text-body">
               Pickup Location
               {hasMixedPuids && <span className="ml-1 text-xs text-amber-600">(mixed)</span>}
             </Label>
@@ -319,7 +319,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
           {/* AM/PM — inside the 2-col grid for admin/driver; moved out for dispatcher */}
           {!(!isAdmin && !isDriver) && (
             <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
+              <Label className="text-body">AM/PM</Label>
               <Select
                 value={values.ampmChoice}
                 onValueChange={(value) => {
@@ -350,7 +350,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
           {isAdmin && (
             <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>PUID</Label>
+              <Label className="text-body">PUID</Label>
               <Input
                 value={values.puid}
                 onChange={(event) => setValues((current) => ({ ...current, puid: event.target.value }))}
@@ -365,7 +365,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
         {!isAdmin && !isDriver && (
           <div className={`grid gap-4 ${shouldShowTimeWindows ? 'grid-cols-3' : 'grid-cols-1'}`}>
             <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
+              <Label className="text-body">AM/PM</Label>
               <Select
                 value={values.ampmChoice}
                 onValueChange={(value) => {
@@ -394,7 +394,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
             {shouldShowTimeWindows && (
               <>
                 <div className="space-y-2">
-                  <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
+                  <Label className="text-body">Time Window Start</Label>
                   <TimeField
                     value={values.delivery_time_start}
                     onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
@@ -403,7 +403,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                     style={getFieldStyle('delivery_time_start')} />
                 </div>
                 <div className="space-y-2">
-                  <Label style={{ color: "var(--text-slate-900)" }}>Time Window End</Label>
+                  <Label className="text-body">Time Window End</Label>
                   <TimeField
                     value={values.delivery_time_end}
                     onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
@@ -417,16 +417,16 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
         )}
 
         {patientWindowSummary && (
-          <div className="rounded-lg border px-3 py-2 flex items-center gap-2" style={{ background: "var(--bg-slate-50)", borderColor: "var(--border-slate-200)" }}>
-            <span className="text-xs font-medium" style={{ color: "var(--text-slate-500)" }}>Patient preferred window:</span>
-            <span className="text-xs font-semibold" style={{ color: "var(--text-slate-900)" }}>{patientWindowSummary}</span>
+          <div className="rounded-lg border px-3 py-2 flex items-center gap-2 border-card" style={{ background: "var(--bg-slate-50)" }}>
+            <span className="text-xs font-medium text-muted">Patient preferred window:</span>
+            <span className="text-xs font-semibold text-body">{patientWindowSummary}</span>
           </div>
         )}
 
         {(isAdmin || isDriver) && shouldShowTimeWindows && (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
+              <Label className="text-body">Time Window Start</Label>
               <TimeField
                 value={values.delivery_time_start}
                 onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
@@ -435,7 +435,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                 style={getFieldStyle('delivery_time_start')} />
             </div>
             <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>Time Window End</Label>
+              <Label className="text-body">Time Window End</Label>
               <TimeField
                 value={values.delivery_time_end}
                 onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
@@ -447,7 +447,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
         )}
       </div>
 
-      <div className="border-t px-4 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
+      <div className="border-t px-4 py-2 border-card">
         <div className="flex items-center gap-3">
           {allPickups && (
             <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
@@ -456,7 +456,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                 onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
                 disabled={isSaving}
                 className="mt-0.5 shrink-0" />
-              <span className="text-xs font-medium leading-tight" style={{ color: "var(--text-slate-700)" }}>
+              <span className="text-xs font-medium leading-tight text-secondary">
                 After Hours
               </span>
             </label>
@@ -589,15 +589,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
           // redundant and shows as extra empty space under Cancel/Apply. `pb-0`
           // overrides it via tailwind-merge (cn() in drawer.jsx uses twMerge, so
           // the later pb-0 here wins over the primitive's default pb- class).
-          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)] pb-0"
-          style={{
-            background: "var(--bg-white)",
-            bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))",
-          }}>
+          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)] pb-0 bg-card" style={{ bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))" }}>
           
           <DrawerHeader style={{ paddingTop: "max(1rem, var(--native-safe-top, env(safe-area-inset-top, 0px)))" }}>
-            <DrawerTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</DrawerTitle>
-            <DrawerDescription style={{ color: "var(--text-slate-500)" }}>
+            <DrawerTitle className="text-body">Bulk Edit Stops</DrawerTitle>
+            <DrawerDescription className="text-muted">
               Update the basic route info for the selected stops.
             </DrawerDescription>
           </DrawerHeader>
@@ -625,12 +621,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       
       {/* Panel */}
       <div
-        className="relative z-[11001] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl"
-        style={{ background: "var(--bg-white)" }}>
+        className="relative z-[11001] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl bg-card">
         
-        <div className="border-b px-6 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
-          <h2 className="text-lg font-semibold" style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</h2>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-slate-500)" }}>
+        <div className="border-b px-6 py-2 border-card">
+          <h2 className="text-lg font-semibold text-body">Bulk Edit Stops</h2>
+          <p className="text-sm mt-0.5 text-muted">
             Update the basic route info for the selected stops.
           </p>
         </div>

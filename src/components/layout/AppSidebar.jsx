@@ -209,8 +209,8 @@ export default function AppSidebar({
   return (
     <>
 {/* Sidebar */}
-<div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
-  <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+<div className={app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200] bg-card border-card}>
+  <div className="border-b p-4 flex-shrink-0 border-card">
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
@@ -218,7 +218,7 @@ export default function AppSidebar({
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-2 rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700">
-            <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+            <X className="w-5 h-5 text-secondary" />
           </button>
               }
 
@@ -242,12 +242,12 @@ export default function AppSidebar({
               }
 
         <div>
-          <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>
+          <h2 className="font-bold text-lg text-body">
             {'RxDeliver'}
           </h2>
-          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
+          <p className="text-xs text-muted">Pharmacy Logistics</p>
           <div className="flex items-center gap-1">
-            <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
+            <p className="text-xs text-muted">{appVersion}</p>
             {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
         </div>
@@ -264,7 +264,7 @@ export default function AppSidebar({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
-                      <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                      <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                       {hasWebUpdate && <UpdateArrow type="web" size={8} />}
                     </Button>
                   </DropdownMenuTrigger>
@@ -319,7 +319,7 @@ export default function AppSidebar({
     </div>
   </div>
 
-  <div className="pt-1 flex-1 overflow-y-auto custom-scrollbar pr-2 pl-2 pb-2" style={{ background: 'var(--bg-white)' }} onClickCapture={(e) => {if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) {window.dispatchEvent(new CustomEvent('overlayNavigateClose'));}}}>
+  <div className="pt-1 flex-1 overflow-y-auto custom-scrollbar pr-2 pl-2 pb-2 bg-card" onClickCapture={(e) => {if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) {window.dispatchEvent(new CustomEvent('overlayNavigateClose'));}}}>
     <div className="py-0.5">
       <Link
               to={constructUrlWithParams("Dashboard")}
@@ -379,7 +379,7 @@ export default function AppSidebar({
               }}>
             <Users className="w-5 h-5" />
             <span className="font-semibold">Patients</span>
-            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{userHasRole(currentUser, 'admin') ? entityCounts.patients : patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}</Badge>
+            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{userHasRole(currentUser, 'admin') ? entityCounts.patients : patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}</Badge>
             </Link>
             }
 
@@ -400,7 +400,7 @@ export default function AppSidebar({
               }}>
             <Package className="w-5 h-5" />
             <span className="font-semibold">Routes</span>
-            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
+            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{totalRoutesCount}</Badge>
             </Link>
             }
 
@@ -419,7 +419,7 @@ export default function AppSidebar({
               }}>
              <Building className="w-5 h-5" />
              <span className="font-semibold">Stores</span>
-             <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
+             <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
              </Link>
             }
 
@@ -439,7 +439,7 @@ export default function AppSidebar({
                 }}>
                <Truck className="w-5 h-5" />
                <span className="font-semibold">Drivers</span>
-               <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineDriversCount}/${drivers.length}`}</Badge>
+               <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{`${onlineCounts.onlineDriversCount}/${drivers.length}`}</Badge>
               </Link>
 
               {/* Fridge temp badges per driver - dispatchers only */}
@@ -491,7 +491,7 @@ export default function AppSidebar({
             </div>
             }
 
-            <div className="border-t mb-2 py-0.5 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+            <div className="border-t mb-2 py-0.5 mt-1 border-card"></div>
 
       {/* Square COD - Admins and Drivers only, clickable only if active */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
@@ -532,7 +532,7 @@ export default function AppSidebar({
             <DollarSign className="w-5 h-5" />
             <span className="font-semibold">Driver Payroll</span>
             {currentPayrollNetPay !== null && currentPayrollNetPay !== undefined &&
-              <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
+              <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>
                 ${currentPayrollNetPay.toFixed(2)}
               </Badge>
               }
@@ -598,7 +598,7 @@ export default function AppSidebar({
         </Link>
             }
 
-      <div className="border-t mb-2 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+      <div className="border-t mb-2 mt-1 border-card"></div>
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
             <Link
@@ -633,7 +633,7 @@ export default function AppSidebar({
 
     {currentPageName === 'Dashboard' &&
           <div className="mt-0">
-          <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+          <div className="border-t mb-2 border-card"></div>
           <SidebarSectionLabel>Quick Stats</SidebarSectionLabel>
           <QuickStats
               currentUser={currentUser}

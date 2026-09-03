@@ -272,8 +272,7 @@ export default function ExportRouteEmailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="bg-background px-4 py-3 fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-h-[85vh] overflow-hidden max-w-[480px]"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+        className="bg-background px-4 py-3 fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-h-[85vh] overflow-hidden max-w-[480px] text-body bg-card border-card">
 
         <DialogHeader>
           <DialogTitle>Route export</DialogTitle>
@@ -287,11 +286,11 @@ export default function ExportRouteEmailDialog({
           {/* Date range */}
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text-slate-900)' }}>
+              <label className="text-sm font-medium block mb-1 text-body">
                 Start Date
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
                 <input
                   type="date"
                   value={startDate}
@@ -301,18 +300,17 @@ export default function ExportRouteEmailDialog({
                     setStartDate(val);
                     if (val > endDate) setEndDate(val);
                   }}
-                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-card border-card"
                 />
               </div>
             </div>
 
             <div className="flex-1">
-              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text-slate-900)' }}>
+              <label className="text-sm font-medium block mb-1 text-body">
                 End Date
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
                 <input
                   type="date"
                   value={endDate}
@@ -322,8 +320,7 @@ export default function ExportRouteEmailDialog({
                     setEndDate(val);
                     if (val < startDate) setStartDate(val);
                   }}
-                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-card border-card"
                 />
               </div>
             </div>
@@ -358,7 +355,7 @@ export default function ExportRouteEmailDialog({
                 <span className="text-xs text-blue-600 font-medium">
                   {exportProgress < 100 ? `Generating PDF… ${exportProgress}%` : '✓ Done!'}
                 </span>
-                <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{dayCount} day{dayCount !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-400">{dayCount} day{dayCount !== 1 ? 's' : ''}</span>
               </div>
               <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-slate-200, #e2e8f0)' }}>
                 <div
@@ -375,16 +372,15 @@ export default function ExportRouteEmailDialog({
           {/* Testing email — fixed below date pickers */}
           {isAppOwner(currentUser) && (
             <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--border-blue-200)', background: 'var(--bg-blue-50, #eff6ff)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                Preview / Testing Email <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400">(App Owner only — always receives a copy)</span>
+              <p className="text-sm font-semibold text-body">
+                Preview / Testing Email <span className="text-xs font-normal text-slate-400 dark:text-slate-400">(App Owner only — always receives a copy)</span>
               </p>
               <Input
                 type="email"
                 placeholder="owner@example.com"
                 value={testingEmail}
                 onChange={(e) => setTestingEmail(e.target.value)}
-                className="h-8 text-sm"
-                style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+                className="h-8 text-sm text-body bg-card border-card"
               />
             </div>
           )}
@@ -394,21 +390,20 @@ export default function ExportRouteEmailDialog({
         <div className="overflow-y-auto flex-1 pr-1">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-400" />
             </div>
           ) : stores.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center py-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
               No stores with deliveries found for the selected date{isRange ? ' range' : ''}.
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-3">
               {stores.map((store) => (
-                <div key={store.id} className="rounded-lg border p-3 space-y-2"
-                  style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div key={store.id} className="rounded-lg border p-3 space-y-2 border-card">
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</p>
+                    <p className="text-sm font-semibold text-body">{store.name}</p>
                     {driverNamesByStore[store.id]?.length > 0 && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Driver{driverNamesByStore[store.id].length > 1 ? 's' : ''}: {driverNamesByStore[store.id].join(', ')}
                       </p>
                     )}
@@ -417,8 +412,7 @@ export default function ExportRouteEmailDialog({
                   {/* Existing emails */}
                   <div className="space-y-1">
                     {(emailDrafts[store.id] || []).map((email) => (
-                      <div key={email} className="flex items-center justify-between rounded px-2 py-1 text-xs"
-                        style={{ background: 'var(--bg-slate-50)', color: 'var(--text-slate-700)' }}>
+                      <div key={email} className="flex items-center justify-between rounded px-2 py-1 text-xs text-secondary" style={{ background: 'var(--bg-slate-50)' }}>
                         <span className="truncate">{email}</span>
                         <button type="button" onClick={() => removeEmail(store.id, email)}
                           className="text-red-400 hover:text-red-600 ml-2 flex-shrink-0">
@@ -436,8 +430,7 @@ export default function ExportRouteEmailDialog({
                       value={pendingEmails[store.id] || ""}
                       onChange={(e) => setPendingEmails((p) => ({ ...p, [store.id]: e.target.value }))}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addEmail(store.id); } }}
-                      className="flex-1 h-7 text-xs"
-                      style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+                      className="flex-1 h-7 text-xs text-body bg-card border-card"
                     />
                     <Button type="button" size="sm" variant="outline" onClick={() => addEmail(store.id)}
                       className="h-7 px-2 flex-shrink-0">
@@ -450,11 +443,11 @@ export default function ExportRouteEmailDialog({
           )}
         </div>
 
-        <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2 border-card">
           {/* Left: Rx Type label + # / barcode segmented toggle */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500">Rx Type:</span>
-          <div className="flex-shrink-0 flex rounded-md border overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Rx Type:</span>
+          <div className="flex-shrink-0 flex rounded-md border overflow-hidden border-card">
             <button
               type="button"
               onClick={() => setUseBarcodes(false)}
@@ -466,8 +459,7 @@ export default function ExportRouteEmailDialog({
             <button
               type="button"
               onClick={() => setUseBarcodes(true)}
-              className="flex items-center justify-center w-9 h-8 border-l transition-colors"
-              style={{ borderColor: 'var(--border-slate-200)', background: useBarcodes ? '#1e293b' : 'var(--bg-white)', color: useBarcodes ? '#fff' : '#64748b' }}
+              className="flex items-center justify-center w-9 h-8 border-l transition-colors border-card" style={{ background: useBarcodes ? '#1e293b' : 'var(--bg-white)', color: useBarcodes ? '#fff' : '#64748b' }}
             >
               <Barcode className="w-3.5 h-3.5" />
             </button>

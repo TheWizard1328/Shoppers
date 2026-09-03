@@ -15,9 +15,9 @@ function InfoRow({ icon: Icon, label, value }) {
   if (!value) return null;
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-slate-100 last:border-0">
-      <Icon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0 mt-0.5" />
+      <Icon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{label}: </span>
+        <span className="text-xs text-slate-400 dark:text-slate-400">{label}: </span>
         <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">{value}</span>
       </div>
     </div>
@@ -78,8 +78,8 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               {config.label}
             </span>
             {expanded
-              ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
-              : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+              ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+              : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
             }
           </div>
         </div>
@@ -100,13 +100,13 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
 
           {hasCod && codPayments.length > 0 && (
             <div className="px-3 pb-3">
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
                 <DollarSign className="w-3 h-3" /> COD Payments Collected
               </p>
               <div className="space-y-1">
                 {codPayments.map((p, i) => (
                   <div key={i} className="flex items-center justify-between text-xs bg-green-50 dark:bg-green-950 border border-green-100 rounded-lg px-2.5 py-1.5">
-                    <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">{p.type}</span>
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">{p.type}</span>
                     <span className="text-green-700 font-semibold">${Number(p.amount).toFixed(2)}</span>
                   </div>
                 ))}
@@ -116,7 +116,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
 
           {delivery.proof_photo_urls?.length > 0 && (
             <div className="px-3 pb-3">
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
                 <Camera className="w-3 h-3" /> Proof of Delivery
               </p>
               <div className="grid grid-cols-2 gap-1.5">
@@ -131,7 +131,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
 
           {delivery.signature_image_url && (
             <div className="px-3 pb-3">
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Signature</p>
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide mb-1.5">Signature</p>
               <img src={delivery.signature_image_url} alt="Signature" className="w-full max-h-20 object-contain rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2" />
             </div>
           )}

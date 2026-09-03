@@ -85,8 +85,8 @@ export default function CompaniesPage() {
           <div className="flex items-center gap-3">
             <SmartRefreshIndicator inline={true} />
             <div>
-              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Companies</h1>
-              <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage company profiles, contacts, linked stores, and primary settings.</p>
+              <h1 className="text-3xl font-bold text-body">Companies</h1>
+              <p className="mt-1 text-label">Manage company profiles, contacts, linked stores, and primary settings.</p>
             </div>
           </div>
 
@@ -96,7 +96,7 @@ export default function CompaniesPage() {
           </Button>
         </div>
 
-        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card className="bg-card border-card">
           <CardContent className="p-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
@@ -114,13 +114,13 @@ export default function CompaniesPage() {
           <div className="flex justify-center items-center h-64">
             <div className="text-center">
               <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p style={{ color: 'var(--text-slate-600)' }}>Loading companies...</p>
+              <p className="text-label">Loading companies...</p>
             </div>
           </div>
         ) : filteredCompanies.length === 0 ? (
           <div className="text-center py-16">
             <h3 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>No companies found</h3>
-            <p className="mt-2" style={{ color: 'var(--text-slate-500)' }}>
+            <p className="mt-2 text-muted">
               {searchTerm ? `Your search for "${searchTerm}" did not return any results.` : 'Click "Add Company" to create your first company profile.'}
             </p>
           </div>

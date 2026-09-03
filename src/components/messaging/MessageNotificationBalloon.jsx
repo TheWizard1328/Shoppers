@@ -112,8 +112,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
           className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-[10002] max-w-sm w-full cursor-pointer"
         >
           <div 
-            className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow"
-            style={{ background: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
+            className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow bg-card" style={{ border: '1px solid var(--border-slate-200)' }}
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 flex items-center justify-between">
@@ -138,10 +137,10 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                  <p className="font-semibold text-sm text-body">
                     {notification.sender_name || 'Unknown'}
                   </p>
-                  <p className="text-sm mt-1 line-clamp-2" style={{ color: 'var(--text-slate-600)' }}>
+                  <p className="text-sm mt-1 line-clamp-2 text-label">
                     {notification.content}
                   </p>
                 </div>

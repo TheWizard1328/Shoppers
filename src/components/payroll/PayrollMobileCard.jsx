@@ -120,10 +120,10 @@ export default function PayrollMobileCard({
       {/* Driver Name Header */}
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+          <h3 className="font-semibold text-body">
             {data.driver.user_name || data.driver.full_name}
             {eTransEmail &&
-              <span className="text-xs font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">(E-Trans: {eTransEmail})</span>
             }
             {showBadge &&
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500"
@@ -147,55 +147,50 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Deliveries Section - Collapsible */}
-      <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="border rounded border-card">
         <button
           onClick={() => toggleSection('deliveries')}
-          className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors"
-          style={{ background: 'var(--bg-white)' }}>
+          className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors bg-card">
 
-          <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
+          <span className="text-xs font-semibold text-secondary">Deliveries</span>
           <ChevronDown
-            className="w-4 h-4 transition-transform"
-            style={{
-              transform: expandedSection === 'deliveries' ? 'rotate(180deg)' : 'rotate(0deg)',
-              color: 'var(--text-slate-500)'
-            }} />
+            className="w-4 h-4 transition-transform text-muted" style={{ transform: expandedSection === 'deliveries' ? 'rotate(180deg)' : 'rotate(0deg)' }} />
 
         </button>
         {expandedSection === 'deliveries' &&
-        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-hidden w-full" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
+        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-hidden w-full bg-card" style={{ borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
             {/* 5-column grid layout */}
             <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace', minWidth: 0, width: '100%' }}>
               {/* Total */}
-              <span style={{ color: 'var(--text-slate-600)' }}>Total:</span>
-              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalDeliveries}x</span>
-              <span className="text-right" style={{ color: 'var(--text-slate-600)' }}>@ {formatCurrency(data.payRate)}</span>
-              <span style={{ color: 'var(--text-slate-600)' }}>= $</span>
-              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalBasePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-label">Total:</span>
+              <span className="font-semibold text-right text-body">{data.totalDeliveries}x</span>
+              <span className="text-right text-label">@ {formatCurrency(data.payRate)}</span>
+              <span className="text-label">= $</span>
+              <span className="font-semibold text-right text-body">{data.totalBasePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 
               {/* Extra KM */}
-              <span style={{ color: 'var(--text-slate-600)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>Extra KM:</span>
-              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>{data.totalExtraKm.toFixed(2)}km</span>
-              <span className="text-right" style={{ color: 'var(--text-slate-600)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>@ {formatCurrency(data.extraKmRate, 3)}</span>
-              <span style={{ color: 'var(--text-slate-600)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>= $</span>
-              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>{data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span style={{ display: data.totalExtraKm > 0 ? 'block' : 'none' }} className="text-label">Extra KM:</span>
+              <span className="font-semibold text-right text-body" style={{ display: data.totalExtraKm > 0 ? 'block' : 'none' }}>{data.totalExtraKm.toFixed(2)}km</span>
+              <span className="text-right text-label" style={{ display: data.totalExtraKm > 0 ? 'block' : 'none' }}>@ {formatCurrency(data.extraKmRate, 3)}</span>
+              <span style={{ display: data.totalExtraKm > 0 ? 'block' : 'none' }} className="text-label">= $</span>
+              <span className="font-semibold text-right text-body" style={{ display: data.totalExtraKm > 0 ? 'block' : 'none' }}>{data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 
               {/* Oversized */}
-              <span style={{ color: 'var(--text-slate-600)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>Oversized:</span>
-              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>{data.oversizedCount}x</span>
-              <span className="text-right" style={{ color: 'var(--text-slate-600)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>@ {formatCurrency(data.oversizedRate)}</span>
-              <span style={{ color: 'var(--text-slate-600)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>= $</span>
-              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>{data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span style={{ display: data.oversizedCount > 0 ? 'block' : 'none' }} className="text-label">Oversized:</span>
+              <span className="font-semibold text-right text-body" style={{ display: data.oversizedCount > 0 ? 'block' : 'none' }}>{data.oversizedCount}x</span>
+              <span className="text-right text-label" style={{ display: data.oversizedCount > 0 ? 'block' : 'none' }}>@ {formatCurrency(data.oversizedRate)}</span>
+              <span style={{ display: data.oversizedCount > 0 ? 'block' : 'none' }} className="text-label">= $</span>
+              <span className="font-semibold text-right text-body" style={{ display: data.oversizedCount > 0 ? 'block' : 'none' }}>{data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
 
             {/* Failed & Returns counts */}
-            <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <div className="flex items-center gap-3 pt-1 border-t border-card">
               {(data.failedCount > 0 || data.returnsCount > 0 || Number(data.afterHoursCount) > 0 || Number(data.noChargeCount) > 0) &&
             <>
                   <span style={{ color: 'var(--text-red-600)' }}>Failed: <span className="font-semibold">{data.failedCount}</span></span>
                   <span style={{ color: 'var(--text-orange-600)' }}>Returns: <span className="font-semibold">{data.returnsCount}</span></span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>A/H: <span className="font-semibold">{Number(data.afterHoursPickupCount) || 0}p + {Number(data.afterHoursDeliveryCount) || 0}d</span></span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>N/C: <span className="font-semibold">{Number(data.noChargeCount) || 0}</span></span>
+                  <span className="text-label">A/H: <span className="font-semibold">{Number(data.afterHoursPickupCount) || 0}p + {Number(data.afterHoursDeliveryCount) || 0}d</span></span>
+                  <span className="text-label">N/C: <span className="font-semibold">{Number(data.noChargeCount) || 0}</span></span>
                 </>
             }
             </div>
@@ -205,18 +200,10 @@ export default function PayrollMobileCard({
 
       {/* Pay Summary - Table Layout with Aligned Columns */}
       {currentPeriod &&
-      <div className="px-2 py-2 rounded-lg border w-full overflow-x-hidden" style={{
-        background: 'var(--bg-white)',
-        borderColor: 'var(--border-slate-200)',
-        fontVariantNumeric: 'tabular-nums'
-      }}>
-        <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)', minWidth: 0, width: '100%' }}>
+      <div className="px-2 py-2 rounded-lg border w-full overflow-x-hidden bg-card border-card" style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <div className="text-xs font-mono text-body" style={{ minWidth: 0, width: '100%' }}>
           {/* Header Row */}
-          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
-            gridTemplateColumns: '1fr 22px 60px 22px 60px',
-            borderColor: 'var(--border-slate-200)',
-            color: 'var(--text-slate-700)'
-          }}>
+          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-secondary border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div></div>
             <div></div>
             <div className="text-right">Period</div>
@@ -226,20 +213,20 @@ export default function PayrollMobileCard({
 
           {/* Net */}
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Gross:</div>
-            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-left text-label">Gross:</div>
+            <div className="text-right pr-0.5 text-label">$</div>
             <div className="text-right font-semibold">{periodGross.toFixed(2)}</div>
-            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-right pr-0.5 text-label">$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Tax (if any) */}
           {((data.taxAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) > 0) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Tax:</div>
-            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-left text-label">Tax:</div>
+            <div className="text-right pr-0.5 text-label">$</div>
             <div className="text-right font-semibold">{periodTax.toFixed(2)}</div>
-            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-right pr-0.5 text-label">$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
           </div>
           }
@@ -309,11 +296,7 @@ export default function PayrollMobileCard({
           }
 
           {/* Gross (bold, divider) */}
-          <div className="grid gap-1 pt-1 border-t font-bold" style={{
-            gridTemplateColumns: '1fr 22px 60px 22px 60px',
-            borderColor: 'var(--border-slate-200)',
-            color: '#10b981'
-          }}>
+          <div className="grid gap-1 pt-1 border-t font-bold border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: '#10b981' }}>
             <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{periodNet.toFixed(2)}</div>
@@ -321,7 +304,7 @@ export default function PayrollMobileCard({
             <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
-          <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+          <div className="grid gap-1 text-label" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">Paid:</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right font-semibold">
@@ -363,7 +346,7 @@ export default function PayrollMobileCard({
                 className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                 placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"} />
               
-                {isSavingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Saving...</div>}
+                {isSavingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
               </div>
             }
             <div>
@@ -376,7 +359,7 @@ export default function PayrollMobileCard({
                 className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                 placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"} />
               
-              {isSavingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Saving...</div>}
+              {isSavingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
             </div>
           </div>
         </div>

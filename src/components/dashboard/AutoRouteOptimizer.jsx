@@ -182,11 +182,10 @@ export default function AutoRouteOptimizer({
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border bg-card border-card"
       >
         <Zap className={`w-4 h-4 ${autoOptimizeEnabled ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500 dark:text-slate-400'}`} />
-        <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
+        <span className="text-xs font-medium text-secondary">
           Auto-Optimize
         </span>
         <button
@@ -210,8 +209,7 @@ export default function AutoRouteOptimizer({
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="px-3 py-2 rounded-lg shadow-lg border"
-            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+            className="px-3 py-2 rounded-lg shadow-lg border bg-card border-card"
           >
             <div className="flex items-center gap-2">
               {isOptimizing ? (
@@ -225,7 +223,7 @@ export default function AutoRouteOptimizer({
                   <div className="flex flex-col">
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Route Optimized</span>
                     {lastOptimized && (
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{getTimeSinceOptimization()}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">{getTimeSinceOptimization()}</span>
                     )}
                   </div>
                 </>
@@ -233,7 +231,7 @@ export default function AutoRouteOptimizer({
             </div>
 
             {optimizationCount > 0 && (
-              <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
+              <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 text-center">
                 {optimizationCount} optimization{optimizationCount !== 1 ? 's' : ''} today
               </div>
             )}

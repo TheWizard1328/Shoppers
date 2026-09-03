@@ -453,7 +453,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   return (
     <>
       {/* Panel container — sits above driver info cards */}
-      <div className="px-2 pt-1 pb-1 border-t" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+      <div className="px-2 pt-1 pb-1 border-t bg-card border-card">
         {/* IDLE STATE */}
         {phase === 'idle' && (
           <div className="flex flex-col gap-1">
@@ -572,7 +572,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
 
         {/* COOLDOWN STATE */}
         {phase === 'cooldown' && (
-          <div className="rounded-lg border p-2 flex flex-col gap-0.5" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+          <div className="rounded-lg border p-2 flex flex-col gap-0.5 border-card" style={{ background: 'var(--bg-slate-50)' }}>
             <div className="flex items-start gap-1.5">
               <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
               <span className="text-[11px] font-semibold text-slate-500 flex-1 whitespace-normal break-words">

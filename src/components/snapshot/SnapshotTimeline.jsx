@@ -122,7 +122,7 @@ export default function SnapshotTimeline({
           <div className="text-sm font-bold">
             {format(new Date(currentSnapshot.timestamp), 'h:mm')}
           </div>
-          <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
+          <div className="text-xs text-slate-400 dark:text-slate-400">
             {selectedIndex + 1}/{snapshots.length}
           </div>
         </div>

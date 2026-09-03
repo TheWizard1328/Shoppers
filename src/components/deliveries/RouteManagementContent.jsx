@@ -172,7 +172,7 @@ export default function RouteManagementContent({
 
   if (!deliveries || deliveries.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-500 dark:text-slate-400 dark:text-slate-500 col-span-full">
+      <div className="text-center py-12 text-slate-500 dark:text-slate-400 col-span-full">
         <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
         <p className="text-lg font-medium">No deliveries for this date</p>
       </div>);
@@ -182,14 +182,14 @@ export default function RouteManagementContent({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{ paddingBottom: isMobile ? 'var(--bottom-nav-height, 88px)' : 0 }}>
       {canBulkEdit &&
-      <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
+      <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2 bg-card border-card">
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium" style={{ color: "var(--text-slate-700)" }}>
+              <p className="text-sm font-medium text-secondary">
                 {bulkEditMode ? "Select the stops you want to update." : "Bulk edit driver, date, status, pickup location, and time windows for multiple stops."}
               </p>
               {bulkEditMode &&
-            <Badge variant="secondary" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)" }}>
+            <Badge variant="secondary" style={{ background: "var(--bg-slate-100)" }} className="text-secondary">
                   {selectedBulkDeliveryIds.length} selected
                 </Badge>
             }
@@ -248,7 +248,7 @@ export default function RouteManagementContent({
           </div>
 
           {showSplitView &&
-        <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
+        <div className="flex-1 h-full overflow-hidden rounded-lg border bg-card border-card">
               <StopDetailsPanel
             delivery={selectedDelivery}
             patient={selectedPatient}
@@ -297,7 +297,7 @@ export default function RouteManagementContent({
 
       {isMobile && !showSplitView && resolvedViewMode === "cards" && selectedDeliveryId &&
       <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedDeliveryId(null)}>
-          <div className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl" style={{ background: "var(--bg-white)" }} onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl bg-card" onClick={(event) => event.stopPropagation()}>
             <StopDetailsPanel
             delivery={selectedDelivery}
             patient={selectedPatient}

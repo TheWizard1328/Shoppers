@@ -64,33 +64,33 @@ export default function FailureReasonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md z-[10020] border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-md z-[10020] border bg-card" style={{ borderColor: 'var(--border-slate-300)' }} onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertCircle className="w-5 h-5" />
-            <span style={{ color: 'var(--text-slate-900)' }}>
+            <span className="text-body">
               {statusType === 'cancelled' ? 'Cancel' : 'Mark as Failed'} - {isPickup ? 'Pickup' : 'Delivery'}
             </span>
           </DialogTitle>
-          <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
+          <DialogDescription className="text-label">
             Please select a reason for marking this {isPickup ? 'pickup' : 'delivery'} as {statusType}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{deliveryName}</p>
+          <div className="rounded-lg p-3 border border-card" style={{ background: 'var(--bg-slate-100)' }}>
+            <p className="text-sm font-semibold text-body">{deliveryName}</p>
           </div>
 
           <div className="space-y-3">
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+            <Label className="text-sm font-semibold text-body">
               Reason {isPickup && statusType === 'cancelled' ? 'for Cancellation' : 'for Failure'}:
             </Label>
             <RadioGroup value={selectedReason} onValueChange={setSelectedReason}>
               {failureReasons.map((reason) => (
                 <div key={reason} className="flex items-center space-x-2">
                   <RadioGroupItem value={reason} id={reason} />
-                  <Label htmlFor={reason} className="text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
+                  <Label htmlFor={reason} className="text-sm cursor-pointer text-secondary">
                     {reason}
                   </Label>
                 </div>
@@ -99,7 +99,7 @@ export default function FailureReasonDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+            <Label className="text-sm font-medium text-body">
               Additional Notes (Optional):
             </Label>
             <Textarea
@@ -113,11 +113,11 @@ export default function FailureReasonDialog({
 
           <div className="flex gap-3 pt-2">
             <Button
-              variant="outline"
-              className="flex-1"
-              onClick={handleClose}
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-            >
+ variant="outline"
+ className="flex-1 text-body bg-card"
+ onClick={handleClose}
+ style={{ borderColor: 'var(--border-slate-300)' }}
+ >
               Cancel
             </Button>
             <Button

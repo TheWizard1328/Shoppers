@@ -189,7 +189,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
             </div>
 
             <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">Document Expiry Date (optional)</label>
+              <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Document Expiry Date (optional)</label>
               <input
                 type="date"
                 value={expiryDate}
@@ -262,9 +262,9 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
 
       {/* Document list */}
       {loading ? (
-        <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Loading documents...</div>
+        <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">Loading documents...</div>
       ) : documents.length === 0 ? (
-        <div className="text-center py-8 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="text-center py-8 text-sm text-slate-500 dark:text-slate-400">
           No documents uploaded yet.
         </div>
       ) : (
@@ -280,7 +280,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
                     {doc.document_type?.replace(/_/g, ' ')}
                   </p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
                       {new Date(doc.uploaded_at || doc.created_date).toLocaleDateString()}
                     </span>
                     {doc.document_expiry_date && (
@@ -289,7 +289,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
                       </Badge>
                     )}
                     {doc.uploaded_by_name && (
-                      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-400">
                         by {doc.uploaded_by_name}
                       </span>
                     )}
@@ -312,7 +312,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
       )}
 
       {!canUpload && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 text-center">
+        <p className="text-xs text-slate-400 dark:text-slate-400 text-center">
           Only the driver or an admin can upload documents.
         </p>
       )}

@@ -22,17 +22,17 @@ export default function PeriodColumnWithNotes({
       <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
       <table className="border-collapse">
         <tbody>
-          <tr style={{ color: 'var(--text-slate-600)' }}>
+          <tr className="text-label">
             <td className="text-left pr-2">Net:</td>
             <td className="text-right pr-0.5">$</td>
             <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
           </tr>
-          <tr style={{ color: 'var(--text-slate-600)' }}>
+          <tr className="text-label">
             <td className="text-left pr-2">Tax:</td>
             <td className="text-right pr-0.5">$</td>
             <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
           </tr>
-          <tr style={{ color: 'var(--text-slate-600)' }}>
+          <tr className="text-label">
             <td className="text-left pr-2">
               {isAdmin ? (
                 <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -45,7 +45,7 @@ export default function PeriodColumnWithNotes({
             <td className="text-right pr-0.5">-$</td>
             <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
           </tr>
-          <tr style={{ color: 'var(--text-slate-600)' }}>
+          <tr className="text-label">
             <td className="text-left pr-2">
               {isAdmin ? (
                 <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -59,7 +59,7 @@ export default function PeriodColumnWithNotes({
             <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
           </tr>
           {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) && (
-            <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
+            <tr className="text-label" data-app-fee-row="true">
               <td className="text-left pr-2">
                 <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                   App Fee %:

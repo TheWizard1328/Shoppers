@@ -261,7 +261,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 onChange={(e) => handleSettingChange('defaultTravelTimeMinutes', parseInt(e.target.value) || 5)}
                 className="h-9" />
 
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Time between each stop</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Time between each stop</p>
             </div>
 
             <div className="space-y-2">
@@ -277,7 +277,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 onChange={(e) => handleSettingChange('defaultStopTimeMinutes', parseInt(e.target.value) || 5)}
                 className="h-9" />
 
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Time spent at each delivery</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Time spent at each delivery</p>
             </div>
           </div>
         </div>
@@ -296,7 +296,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
               <Label htmlFor="useDriverHome" className="text-sm">
                 Include home in route calculation
               </Label>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Route will start/end at driver home if set
               </p>
             </div>
@@ -377,7 +377,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 <Label htmlFor="prioritizePickups" className="text-sm">
                   Always prioritize store pickups first
                 </Label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Pickups scheduled before deliveries
                 </p>
               </div>
@@ -393,7 +393,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 <Label htmlFor="respectTimeWindows" className="text-sm">
                   Respect delivery time windows
                 </Label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Schedule within patient time windows
                 </p>
               </div>
@@ -409,7 +409,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 <Label htmlFor="minimizeBacktracking" className="text-sm">
                   Minimize backtracking
                 </Label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Optimize for shortest total distance
                 </p>
               </div>
@@ -436,7 +436,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
               <Label htmlFor="breadcrumbsEnabled" className="text-sm">
                 Enable GPS breadcrumb tracking
               </Label>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isPrimaryDevice ? 
                   'Record GPS location every 15 seconds during deliveries' :
                   'Only available on primary tracking device'
@@ -486,7 +486,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                   <Label htmlFor="enableRouteDeviationDetection" className="text-sm">
                     Enable route deviation detection
                   </Label>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Auto-recalculate route when driver strays too far
                   </p>
                 </div>
@@ -521,7 +521,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                     onChange={(e) => handleSettingChange('routeDeviationThresholdMeters', parseInt(e.target.value) || 200)}
                     className="h-9" />
 
-                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Distance before re-routing</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Distance before re-routing</p>
                     </div>
 
                     <div className="space-y-2">
@@ -537,7 +537,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                     onChange={(e) => handleSettingChange('routeDeviationCooldownMinutes', parseInt(e.target.value) || 5)}
                     className="h-9" />
 
-                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Min time between re-routes</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Min time between re-routes</p>
                     </div>
                   </div>
                 </div>
@@ -560,7 +560,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                   onChange={(e) => handleSettingChange('locationUpdateIntervalSeconds', parseInt(e.target.value) || 30)}
                   className="h-9" />
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">How often to update location</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">How often to update location</p>
                 </div>
 
                 <div className="space-y-2">
@@ -577,7 +577,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                   onChange={(e) => handleSettingChange('minMovementDistanceMeters', parseInt(e.target.value) || 50)}
                   className="h-9" />
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Min distance to trigger update</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Min distance to trigger update</p>
                 </div>
               </div>
             </div>

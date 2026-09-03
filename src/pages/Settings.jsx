@@ -75,7 +75,7 @@ export function ProfilePanel({ currentUser, onClose }) {
       <div className="space-y-1">
         <Label htmlFor="email">Email</Label>
         <Input id="email" value={currentUser?.email || ''} disabled className="opacity-60 cursor-not-allowed" />
-        <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Email cannot be changed here.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-400">Email cannot be changed here.</p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="phone">Phone Number</Label>
@@ -85,7 +85,7 @@ export function ProfilePanel({ currentUser, onClose }) {
       <div className="space-y-1">
         <Label htmlFor="eTransEmail">e-Transfer Email</Label>
         <Input id="eTransEmail" value={eTransEmail} onChange={(e) => setETransEmail(e.target.value)} placeholder="your@email.com" type="email" />
-        <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Used for Interac e-Transfer payroll payments.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-400">Used for Interac e-Transfer payroll payments.</p>
       </div>
       )}
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2 mt-2">
@@ -195,13 +195,13 @@ function NotificationsPanel({ currentUser, settings }) {
       {/* Enable push notifications toggle */}
       <div className="flex items-center justify-between py-4">
         <div>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Enable Push Notifications</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+          <p className="text-sm font-medium text-body">Enable Push Notifications</p>
+          <p className="text-xs mt-0.5 text-muted">
             {browserPermission === 'granted' ? 'Permission granted ✓' : 'Receive alerts even when the app is in the background'}
           </p>
         </div>
         {subscribing
-          ? <Loader2 className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+          ? <Loader2 className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-400" />
           : <Switch
               checked={notificationsEnabled && browserPermission === 'granted'}
               disabled={permissionDenied}
@@ -214,8 +214,8 @@ function NotificationsPanel({ currentUser, settings }) {
       {browserPermission === 'granted' && (
         <div className="flex items-center justify-between py-4">
           <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Re-register Device</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>Force a fresh push subscription for this device</p>
+            <p className="text-sm font-medium text-body">Re-register Device</p>
+            <p className="text-xs mt-0.5 text-muted">Force a fresh push subscription for this device</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleResubscribe} disabled={subscribing}>
             {subscribing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Refresh'}
@@ -227,8 +227,8 @@ function NotificationsPanel({ currentUser, settings }) {
       {rows.map((row) => (
         <div key={row.key} className="flex items-center justify-between py-4">
           <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{row.label}</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>{row.description}</p>
+            <p className="text-sm font-medium text-body">{row.label}</p>
+            <p className="text-xs mt-0.5 text-muted">{row.description}</p>
           </div>
           <Switch checked={row.value} onCheckedChange={(val) => handleToggle(row.key, val, row.setter)} />
         </div>
@@ -287,8 +287,8 @@ function PushDiagnosticsPanel({ userId }) {
     <div className="py-4 border-t border-slate-100 dark:border-slate-800 mt-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Push Diagnostics</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+          <p className="text-sm font-medium text-body">Push Diagnostics</p>
+          <p className="text-xs mt-0.5 text-muted">
             Check FCM registration, token status, and subscriptions
           </p>
         </div>
@@ -367,8 +367,8 @@ function SendTestPush({ userId }) {
   return (
     <div className="flex items-center justify-between py-4 border-t border-slate-100 dark:border-slate-800">
       <div>
-        <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Send Test Push</p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+        <p className="text-sm font-medium text-body">Send Test Push</p>
+        <p className="text-xs mt-0.5 text-muted">
           Send a test notification to this device
         </p>
       </div>
@@ -400,7 +400,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
   return (
     <div className="space-y-6 p-1">
       <div>
-        <p className="text-sm font-medium mb-3" style={{ color: 'var(--text-slate-900)' }}>Theme</p>
+        <p className="text-sm font-medium mb-3 text-body">Theme</p>
         <div className="grid grid-cols-3 gap-2">
           <button onClick={() => handleTheme('light')}
             className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${theme === 'light' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
@@ -430,13 +430,13 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
         </div>
       </div>
       <div className="pb-4">
-        <p className="text-sm font-medium mb-3" style={{ color: 'var(--text-slate-900)' }}>Distance Units</p>
+        <p className="text-sm font-medium mb-3 text-body">Distance Units</p>
         <div className="grid grid-cols-2 gap-2">
           {['kilometers', 'miles'].map((val) => (
             <button key={val} onClick={() => handleUnits(val)}
               className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium capitalize ${units === val ? 'border-slate-900 bg-slate-50 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}>
-              <Ruler className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} />
-              <span style={{ color: 'var(--text-slate-700)' }}>{val}</span>
+              <Ruler className="w-4 h-4 text-secondary" />
+              <span className="text-secondary">{val}</span>
               {units === val && <Check className="w-3 h-3 text-green-600" />}
             </button>
           ))}
@@ -724,7 +724,7 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {}, onClose, do
     return (
       <div className="py-4 text-center">
         <ShieldAlert className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
-        <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No APK build available yet. The build runs automatically on code updates.</p>
+        <p className="text-sm text-muted">No APK build available yet. The build runs automatically on code updates.</p>
       </div>
     );
   }
@@ -749,8 +749,8 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {}, onClose, do
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
-          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+          <p className="text-sm font-medium text-body">RxDeliver Android App</p>
+          <p className="text-xs text-muted">
             {updateAvailable ? 'Update available' : 'Grey icon · Background GPS'}
           </p>
           {buildText && (
@@ -920,16 +920,16 @@ export default function Settings() {
     <div className="h-full overflow-y-auto pb-20" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-2xl mx-auto p-4 space-y-4">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-slate-900)' }}>Settings</h1>
-          <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Manage your account, devices, and preferences.</p>
+          <h1 className="text-2xl font-bold mb-1 text-body">Settings</h1>
+          <p className="text-sm text-muted">Manage your account, devices, and preferences.</p>
         </div>
 
         {sections.map((section) => {
           const SectionIcon = section.icon;
           return (
-            <Card key={section.key} className={section.disabled ? 'opacity-50' : ''} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card key={section.key} className={section.disabled ? 'opacity-50 bg-card border-card' : 'bg-card border-card'}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
+                <CardTitle className="text-base font-semibold flex items-center gap-2 text-secondary">
                   <SectionIcon className="w-4 h-4" />
                   {section.title}
                 </CardTitle>
@@ -940,15 +940,15 @@ export default function Settings() {
                     return (
                       <div key={i} className="flex items-center gap-2 px-3 py-3 opacity-60">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Email</p>
-                          <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.description}</p>
+                          <p className="text-xs font-medium text-muted">Email</p>
+                          <p className="text-sm truncate text-body">{item.description}</p>
                         </div>
                         {!item.hideETransfer && (
                           <>
                             <div className="w-px self-stretch" style={{ background: 'var(--border-slate-200)' }} />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>e-Transfer Email</p>
-                              <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.eTransEmail}</p>
+                              <p className="text-xs font-medium text-muted">e-Transfer Email</p>
+                              <p className="text-sm truncate text-body">{item.eTransEmail}</p>
                             </div>
                           </>
                         )}
@@ -964,7 +964,7 @@ export default function Settings() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
+                          <p className="text-sm font-medium text-body">{item.label}</p>
                           {item.showUpdateBadge && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: '#2563EB' }}>
                               <RefreshCw className="w-2.5 h-2.5" />
@@ -972,10 +972,10 @@ export default function Settings() {
                             </span>
                           )}
                         </div>
-                        {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
+                        {item.description && <p className="text-sm truncate text-muted">{item.description}</p>}
                         {item.subDescription && <p className="text-xs truncate" style={{ color: 'var(--text-slate-400)' }}>{item.subDescription}</p>}
                       </div>
-                      {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0 ml-2" />}
+                      {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-400 flex-shrink-0 ml-2" />}
                     </button>
                   );
                 })}
@@ -985,7 +985,7 @@ export default function Settings() {
         })}
 
         {/* Sign Out */}
-        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card className="bg-card border-card">
           <CardContent className="p-4">
             <Button onClick={() => authLogout(true)} variant="outline" className="w-full justify-start gap-2 select-none">
               <LogOut className="w-4 h-4" /> Sign Out

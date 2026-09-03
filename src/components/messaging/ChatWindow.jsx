@@ -224,16 +224,16 @@ function ChatWindow({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-white)' }}>
+      <div className="flex items-center justify-center h-full bg-card">
         <div className="animate-spin w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg-white)' }}>
+    <div className="flex flex-col h-full bg-card">
       {/* Header */}
-      <div className="p-3 flex items-center gap-3" style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}>
+      <div className="p-3 flex items-center gap-3 bg-card" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
         {onBack && (
           <Button
             variant="ghost"
@@ -245,19 +245,19 @@ function ChatWindow({
             onClick={onBack}
             className="lg:hidden"
           >
-            <ArrowLeft className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+            <ArrowLeft className="w-5 h-5 text-secondary" />
           </Button>
         )}
         <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-semibold">
           {(otherUserName || '?')[0].toUpperCase()}
         </div>
-        <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{otherUserName || 'Unknown User'}</span>
+        <span className="font-semibold text-body">{otherUserName || 'Unknown User'}</span>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: 'var(--bg-slate-50)' }}>
         {messages.length === 0 && (
-          <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
+          <div className="text-center py-8 text-muted">
             <p>No messages yet. Start the conversation!</p>
           </div>
         )}
@@ -301,7 +301,7 @@ function ChatWindow({
       </div>
 
       {/* Input */}
-      <div className="p-3" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
+      <div className="p-3 bg-card" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
         <div className="flex gap-2">
           <Input
             ref={inputRef}

@@ -123,7 +123,7 @@ export default function StopDetailsPanel({
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Package className="w-16 h-16 mb-4 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
-        <p className="text-lg font-medium" style={{ color: 'var(--text-slate-500)' }}>Select a stop to view details</p>
+        <p className="text-lg font-medium text-muted">Select a stop to view details</p>
         <p className="text-sm mt-1" style={{ color: 'var(--text-slate-400)' }}>Click on a stop card to see patient and delivery information</p>
       </div>);
 
@@ -421,7 +421,7 @@ export default function StopDetailsPanel({
         }
       `}</style>
       {/* Header */}
-      <div className="flex-shrink-0 border-b px-4 py-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex-shrink-0 border-b px-4 py-2 bg-card border-card">
 
         {/* ── DESKTOP layout (md+): two-row header ── */}
         <div className="hidden md:flex flex-col gap-1">
@@ -429,26 +429,26 @@ export default function StopDetailsPanel({
           <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h2 className="text-lg font-bold flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
+          <h2 className="text-lg font-bold flex-shrink-0 text-body">Stop Details</h2>
           <div className="flex-1" />
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {store?.abbreviation &&
-            <Badge variant="outline" className="rounded-full" style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+            <Badge variant="outline" className="rounded-full bg-card" style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)' }}>
               {store.abbreviation}
             </Badge>
             }
             {delivery.stop_order &&
-            <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="rounded-full text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               Stop# {String(delivery.stop_order).padStart(2, '0')}
             </Badge>
             }
             {delivery.tracking_number &&
-            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
               TR# {String(delivery.tracking_number).padStart(2, '0')}
             </Badge>
             }
             {delivery.ampm_deliveries &&
-            <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="rounded-full text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               {delivery.ampm_deliveries}
             </Badge>
             }
@@ -465,17 +465,17 @@ export default function StopDetailsPanel({
 
             
             {isAppOwner(currentUser) && delivery.puid &&
-            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="font-mono rounded-full text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               PUID {delivery.puid}
             </Badge>
             }
             {isAppOwner(currentUser) && delivery.stop_id &&
-            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="font-mono rounded-full text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               SID {delivery.stop_id}
             </Badge>
             }
             {isAppOwner(currentUser) && patient?.patient_id &&
-            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="font-mono rounded-full text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               PID {patient.patient_id}
             </Badge>
             }
@@ -493,13 +493,13 @@ export default function StopDetailsPanel({
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {/* Arrival badge (LEFT) — ETA replaces Arrival while in-transit */}
             {delivery.status === 'in_transit' && delivery?.delivery_time_eta &&
-            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
               <Clock className="w-3 h-3 mr-1" />
               ETA {delivery.delivery_time_eta}
             </Badge>
             }
             {!['pending', 'in_transit'].includes(delivery.status) && delivery?.arrival_time &&
-            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
               <Clock className="w-3 h-3 mr-1" />
               Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
             </Badge>
@@ -520,10 +520,10 @@ export default function StopDetailsPanel({
             <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0 -ml-2">
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h2 className="text-lg font-bold flex-1" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
+            <h2 className="text-lg font-bold flex-1 text-body">Stop Details</h2>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {store?.abbreviation &&
-              <Badge variant="outline" className="rounded-full" style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+              <Badge variant="outline" className="rounded-full bg-card" style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)' }}>
                 {store.abbreviation}
               </Badge>
               }
@@ -537,28 +537,28 @@ export default function StopDetailsPanel({
           {/* Row 2: Stop#, TR#, AM/PM, delivery time */}
           <div className="flex items-center gap-1.5 flex-wrap pl-1">
             {delivery.stop_order &&
-            <Badge variant="outline" className="rounded-full text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="rounded-full text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               Stop# {String(delivery.stop_order).padStart(2, '0')}
             </Badge>
             }
             {delivery.tracking_number &&
-            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
               TR# {String(delivery.tracking_number).padStart(2, '0')}
             </Badge>
             }
             {delivery.ampm_deliveries &&
-            <Badge variant="outline" className="rounded-full text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="rounded-full text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               {delivery.ampm_deliveries}
             </Badge>
             }
             {delivery.arrival_time &&
-            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
               <Clock className="w-3 h-3 mr-1" />
               Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
             </Badge>
             }
             {delivery.actual_delivery_time &&
-            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
               <Clock className="w-3 h-3 mr-1" />
               {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
             </Badge>
@@ -569,17 +569,17 @@ export default function StopDetailsPanel({
           {isAppOwner(currentUser) && (delivery.puid || delivery.stop_id || patient?.patient_id) &&
           <div className="flex items-center gap-1.5 flex-wrap pl-1">
             {delivery.puid &&
-            <Badge variant="outline" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="font-mono rounded-full text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               PUID {delivery.puid}
             </Badge>
             }
             {delivery.stop_id &&
-            <Badge variant="outline" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="font-mono rounded-full text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               SID {delivery.stop_id}
             </Badge>
             }
             {patient?.patient_id &&
-            <Badge variant="outline" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            <Badge variant="outline" className="font-mono rounded-full text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
               PID {patient.patient_id}
             </Badge>
             }
@@ -592,18 +592,18 @@ export default function StopDetailsPanel({
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto space-y-4 py-2 px-2">
         {/* Patient Info Card */}
-        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card className="bg-card border-card">
           <CardHeader className="px-4">
             <div className="flex items-center justify-between gap-1">
               {/* Patient Name */}
-                <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                <p className="text-lg font-bold text-body">
                   {finalDisplayName}{patient?.care_pros && patient?.cp_name ? ` (${patient.cp_name})` : ''}
                 </p>
               {/* Edit/Delete Buttons inline with name */}
               {canManageStop &&
               <div className="flex items-center gap-1 flex-shrink-0">
                 <Button onClick={() => onEdit(delivery)} variant="ghost" size="icon" className="h-8 w-8">
-                  <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
+                  <Pencil className="w-4 h-4 text-muted" />
                 </Button>
                 <Button
                   onClick={() => {
@@ -629,20 +629,20 @@ export default function StopDetailsPanel({
             {isPickup ?
             <>
                 <div>
-                  <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                  <p className="text-lg font-bold text-body">
                     {store?.name || 'Store Pickup'}
                   </p>
                 </div>
                 {store?.address &&
               <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-                    <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
+                    <p className="text-sm text-label">{store.address}</p>
                   </div>
               }
                 {store?.phone &&
               <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                    <a href={`tel:${store.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                    <a href={`tel:${store.phone}`} className="text-sm hover:underline text-secondary">
                       {formatPhoneNumber(store.phone)}
                     </a>
                   </div>
@@ -672,10 +672,10 @@ export default function StopDetailsPanel({
                         style={{ color: '#2563eb' }}>
                         {finalDisplayAddress}</button>
                         {patient?.unit_number &&
-                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)' }} className="text-secondary">Unit {patient.unit_number}</Badge>
                       }
                      {patient?.distance_from_store > 0 &&
-                      <Badge variant="outline" className="text-xs" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+                      <Badge variant="outline" className="text-xs bg-card" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)' }}>
                        {patient.distance_from_store.toFixed(1)} km from store
                      </Badge>
                       }
@@ -688,11 +688,11 @@ export default function StopDetailsPanel({
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                   {shouldRedact ?
-                  <span className="text-sm" style={{ color: 'var(--text-slate-700)' }}>
+                  <span className="text-sm text-secondary">
                       {finalDisplayPhone}
                     </span> :
 
-                  <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                  <a href={`tel:${patient.phone}`} className="text-sm hover:underline text-secondary">
                       {formatPhoneNumber(patient.phone)}
                     </a>
                   }
@@ -702,7 +702,7 @@ export default function StopDetailsPanel({
                 {patient?.phone_secondary &&
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                  <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                  <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline text-secondary">
                     {formatPhoneNumber(patient.phone_secondary)} (Alt)
                   </a>
                 </div>
@@ -713,12 +713,12 @@ export default function StopDetailsPanel({
                 <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                   {canEditCodInCurrentState ?
                   <div className="flex flex-col gap-2 mt-2">
-                    <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <p className="text-xs font-medium flex items-center gap-1 text-muted">
                       <DollarSign className="w-3 h-3" /> COD Payment
                     </p>
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
-                        <Label className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                        <Label className="text-xs font-semibold text-secondary">
                           Amount to collect
                         </Label>
                         <Input
@@ -740,8 +740,8 @@ export default function StopDetailsPanel({
                       }
                     </div>
                   </div> :
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2 text-sm" style={{ color: 'var(--text-slate-700)' }}>
-                    <span className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2 text-sm text-secondary">
+                    <span className="text-xs font-medium flex items-center gap-1 text-muted">
                       <DollarSign className="w-3 h-3" /> COD Payment:
                     </span>
                     {delivery.cod_total_amount_required > 0 &&
@@ -750,7 +750,7 @@ export default function StopDetailsPanel({
                     {delivery.cod_payments && delivery.cod_payments.length > 0 && delivery.cod_payments.map((payment, idx) =>
                     <span key={idx} className="contents">
                       <span style={{ color: 'var(--text-slate-400)' }}>-</span>
-                      <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                      <Badge variant="secondary" className="text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
                         {payment.type}: ${payment.amount.toFixed(2)}
                       </Badge>
                     </span>
@@ -763,27 +763,27 @@ export default function StopDetailsPanel({
                 {/* Patient Preferences */}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {patient?.mailbox_ok &&
-                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                  <Badge variant="outline" className="text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <Mail className="w-3 h-3 mr-1" /> Mailbox OK
                   </Badge>
                   }
                   {patient?.call_upon_arrival &&
-                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                  <Badge variant="outline" className="text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <Phone className="w-3 h-3 mr-1" /> Call on Arrival
                   </Badge>
                   }
                   {patient?.ring_bell && !patient?.dont_ring_bell &&
-                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                  <Badge variant="outline" className="text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <Bell className="w-3 h-3 mr-1" /> Ring Bell
                   </Badge>
                   }
                   {patient?.dont_ring_bell &&
-                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
+                  <Badge variant="outline" className="text-xs bg-card" style={{ color: '#ea580c', borderColor: '#fdba74' }}>
                     <BellOff className="w-3 h-3 mr-1" /> Don't Ring
                   </Badge>
                   }
                   {patient?.back_door &&
-                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                  <Badge variant="outline" className="text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <Home className="w-3 h-3 mr-1" /> Back Door
                   </Badge>
                   }
@@ -796,34 +796,34 @@ export default function StopDetailsPanel({
                 {patient?.notes && delivery.delivery_notes ?
                 <>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <p className="text-xs font-medium mb-1 flex items-center gap-1 text-muted">
                         <StickyNote className="w-3 h-3" /> Patient Notes
                       </p>
-                      <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                      <p className="text-sm whitespace-pre-wrap break-words text-secondary">{patient.notes}</p>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <p className="text-xs font-medium mb-1 flex items-center gap-1 text-muted">
                         <StickyNote className="w-3 h-3" /> Driver Notes
                       </p>
-                      <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
+                      <p className="text-sm whitespace-pre-wrap break-words text-secondary">{delivery.delivery_notes}</p>
                     </div>
                   </> :
 
                 <div className="w-full min-w-0">
                     {patient?.notes &&
                   <>
-                        <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                        <p className="text-xs font-medium mb-1 flex items-center gap-1 text-muted">
                           <StickyNote className="w-3 h-3" /> Patient Notes
                         </p>
-                        <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                        <p className="text-sm whitespace-pre-wrap break-words text-secondary">{patient.notes}</p>
                       </>
                   }
                     {delivery.delivery_notes &&
                   <>
-                        <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                        <p className="text-xs font-medium mb-1 flex items-center gap-1 text-muted">
                           <StickyNote className="w-3 h-3" /> Driver Notes
                         </p>
-                        <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
+                        <p className="text-sm whitespace-pre-wrap break-words text-secondary">{delivery.delivery_notes}</p>
                       </>
                   }
                   </div>
@@ -832,13 +832,13 @@ export default function StopDetailsPanel({
               }
             </div> :
 
-            <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
+            <p className="text-sm text-muted">Patient information not available</p>
             }
 
             {/* Status & Timing (drivers/admins only — dispatchers see badges in header) */}
             {canEditStatusTiming && typeof onStatusUpdate === 'function' &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-              <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+              <p className="text-xs font-medium mb-2 text-muted">
                 Status & Timing
               </p>
 
@@ -847,7 +847,7 @@ export default function StopDetailsPanel({
               <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
 
                 <div className="min-w-0 w-full space-y-1">
-                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                  <Label className="text-sm font-semibold text-body">
                     {isPickup ? 'Pickup Status' : 'Delivery Status'}
                   </Label>
                   <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating || canEditTimeWindows || isDriverUser && isRouteCompleted(delivery, allDeliveries)}>
@@ -875,13 +875,13 @@ export default function StopDetailsPanel({
                 </div>
 
                 <div className="min-w-0 w-full space-y-1">
-                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                  <Label className="text-sm font-semibold text-body">
                     Arrival
                   </Label>
                   <div className="relative">
                     <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                     {showDesktopClearButtons && arrivalTime &&
-                    <button type="button" onClick={() => setArrivalTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                    <button type="button" onClick={() => setArrivalTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300" disabled={isUpdating}>
                       <X className="w-4 h-4" />
                     </button>
                     }
@@ -891,26 +891,26 @@ export default function StopDetailsPanel({
                 {showTimeWindowEditors &&
                 <>
                   <div className="min-w-0 w-full space-y-1">
-                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    <Label className="text-sm font-semibold text-body">
                       Start
                     </Label>
                     <div className="relative">
                       <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                       {showDesktopClearButtons && deliveryTimeStart &&
-                      <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300" disabled={isUpdating}>
                         <X className="w-4 h-4" />
                       </button>
                       }
                     </div>
                   </div>
                   <div className="min-w-0 w-full space-y-1">
-                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    <Label className="text-sm font-semibold text-body">
                       End
                     </Label>
                     <div className="relative">
                       <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                       {showDesktopClearButtons && deliveryTimeEnd &&
-                      <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300" disabled={isUpdating}>
                         <X className="w-4 h-4" />
                       </button>
                       }
@@ -922,13 +922,13 @@ export default function StopDetailsPanel({
                 {isCompletionEditStatus &&
                 <>
                   <div className="min-w-0 w-full space-y-1">
-                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    <Label className="text-sm font-semibold text-body">
                       Completion
                     </Label>
                     <div className="relative">
                     <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                     {showDesktopClearButtons && completionTime &&
-                      <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300" disabled={isUpdating}>
                       <X className="w-4 h-4" />
                     </button>
                       }
@@ -993,9 +993,9 @@ export default function StopDetailsPanel({
 
           {/* Proof of Delivery - LEFT */}
           {canViewProofOfDelivery &&
-          <Card className="flex-1 min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="flex-1 min-w-0 bg-card border-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-secondary">
                 <Image className="w-4 h-4" />
                 Proof of Delivery
               </CardTitle>
@@ -1004,7 +1004,7 @@ export default function StopDetailsPanel({
               {/* Signature */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                  <p className="text-xs font-medium flex items-center gap-1 text-muted">
                     <FileSignature className="w-3 h-3" /> Signature
                   </p>
                   {!isCompleted && canEditProofOfDelivery &&
@@ -1017,8 +1017,7 @@ export default function StopDetailsPanel({
                       {hasSignature ? 'Re-Capture' : 'Capture'}
                     </Button>
                     {hasSignature &&
-                    <Button onClick={clearSignature} disabled={isUpdating} variant="outline" size="sm" className="h-7 px-2 text-xs"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}>
+                    <Button onClick={clearSignature} disabled={isUpdating} variant="outline" size="sm" className="h-7 px-2 text-xs text-secondary bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
                       <RotateCcw className="w-3 h-3" />
                     </Button>
                     }
@@ -1026,18 +1025,17 @@ export default function StopDetailsPanel({
                   }
                 </div>
                 {delivery.signature_image_url ?
-                <div className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                style={{ borderColor: 'var(--border-slate-200)' }}
+                <div className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border-card"
                 onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}>
                   <img src={delivery.signature_image_url} alt="Customer Signature"
-                  className="w-full h-auto max-h-24 object-contain" style={{ background: 'var(--bg-white)' }} />
+                  className="w-full h-auto max-h-24 object-contain bg-card" />
                 </div> :
                 delivery.signature_needed ?
-                <div className="text-center py-3 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                <div className="text-center py-3 border rounded-lg border-card" style={{ background: 'var(--bg-slate-50)' }}>
                   <FileSignature className="w-6 h-6 mx-auto mb-1 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
-                  <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Not captured yet</p>
+                  <p className="text-xs text-muted">Not captured yet</p>
                 </div> :
-                <div className="text-center py-3 border rounded-lg border-dashed" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="text-center py-3 border rounded-lg border-dashed border-card">
                   <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No signature</p>
                 </div>
                 }
@@ -1046,7 +1044,7 @@ export default function StopDetailsPanel({
               {/* Proof Photos */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                  <p className="text-xs font-medium flex items-center gap-1 text-muted">
                     <Image className="w-3 h-3" /> Photos {delivery.proof_photo_urls?.length > 0 ? `(${delivery.proof_photo_urls.length})` : ''}
                   </p>
                   {!isCompleted && canEditProofOfDelivery &&
@@ -1062,7 +1060,7 @@ export default function StopDetailsPanel({
                 {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
                 <div className="grid grid-cols-2 gap-1">
                   {delivery.proof_photo_urls.map((url, index) =>
-                  <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div key={index} className="relative border rounded-lg overflow-hidden group border-card">
                     <img src={url} alt={`Proof photo ${index + 1}`}
                     className="w-full h-20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })} />
@@ -1074,7 +1072,7 @@ export default function StopDetailsPanel({
                   </div>
                   )}
                 </div> :
-                <div className="text-center py-3 border rounded-lg border-dashed" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="text-center py-3 border rounded-lg border-dashed border-card">
                   <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No photos</p>
                 </div>
                 }
@@ -1085,27 +1083,26 @@ export default function StopDetailsPanel({
 
           {/* Barcodes - RIGHT */}
           {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) &&
-          <Card className="flex-1 min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="flex-1 min-w-0 bg-card border-card">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                <CardTitle className="text-sm font-semibold text-secondary">
                   Barcodes
                 </CardTitle>
                 {delivery?.barcode_values?.length > 0 &&
-                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Rx ({delivery.barcode_values.length})</span>
+                <span className="text-xs font-medium text-muted">Rx ({delivery.barcode_values.length})</span>
                 }
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {delivery?.receipt_barcode_values?.length > 0 &&
               <div>
-                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                <p className="text-xs font-medium mb-2 text-muted">
                   Receipt ({delivery.receipt_barcode_values.length})
                 </p>
                 <div className="flex flex-col gap-2">
                   {delivery.receipt_barcode_values.map((val, idx) =>
-                  <div key={`rb-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  <div key={`rb-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors bg-card border-card"
                   onClick={() => setBarcodePreview({ value: val, isRx: false })}>
                     <BarcodeThumb value={val} />
                   </div>
@@ -1117,11 +1114,10 @@ export default function StopDetailsPanel({
               <div>
                 <div className="flex flex-col gap-2">
                   {delivery.barcode_values.map((val, idx) =>
-                  <div key={`rx-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  <div key={`rx-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors bg-card border-card"
                   onClick={() => setBarcodePreview({ value: val, isRx: true })}>
                     <BarcodeThumb value={val} isRx={true} />
-                    <p className="mt-1 text-[11px] text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
+                    <p className="mt-1 text-[11px] text-center text-slate-500 dark:text-slate-400 font-mono font-semibold">{String(val).slice(0, 8)}</p>
                   </div>
                   )}
                 </div>
@@ -1136,7 +1132,7 @@ export default function StopDetailsPanel({
 
       {/* Action Buttons - Drivers */}
       {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && !isRouteCompleted(delivery, allDeliveries) &&
-      <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex-shrink-0 p-4 border-t bg-card border-card">
           <div className="flex gap-2">
             <Button
             onClick={() => onRestart(delivery.id)}

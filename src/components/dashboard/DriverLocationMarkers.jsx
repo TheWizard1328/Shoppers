@@ -797,7 +797,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
               <div className="text-sm">
                 <p className="font-semibold">{displayName}</p>
                 {isSharedLocation && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 italic">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
                     📍 Shared location from primary device
                   </p>
                 )}
@@ -807,12 +807,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                   </p>
                 )}
                 {user._fromLastKnownCache && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 italic">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
                     📍 Showing last known location
                   </p>
                 )}
                 {staleness === 'unknown' && !user.location_updated_at && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 italic">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
                     📍 Last known location (no timestamp)
                   </p>
                 )}
@@ -843,7 +843,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                     </div>
                   </>
                 )}
-                <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
                   Updated: {getLocationAge(stableUpdatedAt)}
                 </p>
               </div>

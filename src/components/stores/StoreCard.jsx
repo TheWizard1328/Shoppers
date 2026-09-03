@@ -155,8 +155,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
       className="h-full">
 
       <Card
-        className={`overflow-hidden hover:border-emerald-400 transition-all duration-200 hover:shadow-lg cursor-pointer h-full ${isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''}`}
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+        className={overflow-hidden hover:border-emerald-400 transition-all duration-200 hover:shadow-lg cursor-pointer h-full ${isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''} bg-card border-card}
         onClick={() => onSelect?.(store)}>
 
         <CardContent className="p-4 flex flex-col justify-between h-full">
@@ -165,7 +164,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap flex-1">
-                  <h3 className="font-semibold text-xl" style={{ color: 'var(--text-slate-900)' }}>
+                  <h3 className="font-semibold text-xl text-body">
                     {store.name}
                   </h3>
                   {store.abbreviation &&
@@ -217,14 +216,14 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
+                  <p className="text-sm text-label">{store.address}</p>
                   {store.phone &&
-                  <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                  <p className="text-sm mt-1 text-muted">
                       {formatPhoneNumber(store.phone)}
                     </p>
                   }
                   {store.latitude && store.longitude &&
-                  <p className="text-xs mt-2 mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                  <p className="text-xs mt-2 mb-2 text-muted">
                       GPS: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
                     </p>
                   }
@@ -357,9 +356,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           (Effective: {formatEffectiveDate(currentPeriod.effective_date)} → {endPeriod ? formatEffectiveDate(endPeriod.effective_date) : 'Present'})
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3 z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }} onClick={(e) => e.stopPropagation()}>
+                      <PopoverContent className="w-auto p-3 z-[100] bg-card border-card" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-3">
-                          <div className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Edit Date Range</div>
+                          <div className="text-sm font-medium text-secondary">Edit Date Range</div>
                           <div className="flex gap-2">
                             <Button
                             variant={editingDateType === 'start' ? 'default' : 'outline'}
@@ -425,8 +424,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
               <button
                 onClick={(e) => {e.stopPropagation();setEditingColor(true);}}
-                className="flex items-center gap-2 text-sm"
-                style={{ color: 'var(--text-slate-600)' }}>
+                className="flex items-center gap-2 text-sm text-label">
 
                   <div
                   className="w-4 h-4 rounded-full"
@@ -477,11 +475,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   const inner = (
                     <div className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canEdit ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                       style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store[enabledField], driverId) }}>
-                      <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>{label}</div>
+                      <div className="text-xs font-medium text-secondary">{label}</div>
                       {isEnabled && driverId ?
                         <>
-                          <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{driverName}</div>
-                          {timeStr && <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{timeStr}</div>}
+                          <div className="text-sm font-medium text-body">{driverName}</div>
+                          {timeStr && <div className="text-xs text-muted">{timeStr}</div>}
                         </> :
                         <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                           {!isEnabled ? 'Disabled' : 'No driver'}
@@ -497,12 +495,12 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         {inner}
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent className="z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }} onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem onSelect={() => handleSlotDriverSelect(slotKey, 'null')} style={{ color: 'var(--text-slate-500)' }}>
+                      <DropdownMenuContent className="z-[10002] bg-card border-card" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onSelect={() => handleSlotDriverSelect(slotKey, 'null')} className="text-muted">
                           No Driver
                         </DropdownMenuItem>
                         {(drivers || []).filter((driver) => driver?.app_roles?.includes('driver')).map((driver) =>
-                          <DropdownMenuItem key={driver.id} onSelect={() => handleSlotDriverSelect(slotKey, driver.id)} style={{ color: 'var(--text-slate-900)' }}>
+                          <DropdownMenuItem key={driver.id} onSelect={() => handleSlotDriverSelect(slotKey, driver.id)} className="text-body">
                             {driver.user_name || driver.full_name}
                           </DropdownMenuItem>
                         )}
@@ -515,7 +513,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   <>
                     {/* AM ROW */}
                     <div className="bg-transparent space-y-1">
-                      <h5 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-slate-600)' }}>
+                      <h5 className="text-xs font-semibold uppercase tracking-wider mb-3 text-label">
                         AM Drivers & Pickup Windows
                       </h5>
                       <div className="grid grid-cols-3 gap-4">
@@ -527,7 +525,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                     {/* PM ROW */}
                     <div>
-                      <h5 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-slate-600)' }}>
+                      <h5 className="text-xs font-semibold uppercase tracking-wider mb-3 text-label">
                         PM Drivers & Pickup Windows
                       </h5>
                       <div className="grid grid-cols-3 gap-4">
@@ -546,8 +544,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
           {!isLimitedView && <div className="space-y-0" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             {/* Store ID with Copy */}
             <div className="flex items-center">
-              <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Store ID:</span>
-              <span className="text-xs font-mono truncate flex-1 mr-2" style={{ color: 'var(--text-slate-500)' }} title={store.id}>
+              <span className="text-xs font-mono w-28 flex-shrink-0 text-muted">Store ID:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2 text-muted" title={store.id}>
                 {store.id}
               </span>
               <Button
@@ -571,8 +569,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             {/* Dispatcher ID with Copy */}
             {store.dispatcher_id &&
             <div className="flex items-center">
-              <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Dispatcher ID:</span>
-              <span className="text-xs font-mono truncate flex-1 mr-2" style={{ color: 'var(--text-slate-500)' }} title={store.dispatcher_id}>
+              <span className="text-xs font-mono w-28 flex-shrink-0 text-muted">Dispatcher ID:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2 text-muted" title={store.dispatcher_id}>
                 {store.dispatcher_id}
               </span>
               <Button

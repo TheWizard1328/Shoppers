@@ -258,16 +258,16 @@ export default function EndOfDayStatsDialog({
   if (!stats && !isProcessing) return null;
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="max-w-md z-[10030] border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md z-[10030] border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-emerald-600" />
-            <span style={{ color: 'var(--text-slate-900)' }}>Route Complete!</span>
+            <span className="text-body">Route Complete!</span>
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center py-10 gap-3">
           <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-          <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Finalizing your route stats...</p>
+          <p className="text-sm text-label">Finalizing your route stats...</p>
         </div>
       </DialogContent>
     </Dialog>
@@ -275,38 +275,38 @@ export default function EndOfDayStatsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md z-[10030] border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md z-[10030] border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
-            <span style={{ color: 'var(--text-slate-900)' }}>{stats?.routeComplete ? 'Route Complete!' : 'Route Summary'}</span>
+            <span className="text-body">{stats?.routeComplete ? 'Route Complete!' : 'Route Summary'}</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* Driver & Date */}
-          <div className="text-center pb-3 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
-            <p className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+          <div className="text-center pb-3 border-b border-card">
+            <p className="text-lg font-semibold text-body">
               {driver?.user_name || driver?.full_name || 'Driver'}
             </p>
-            <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+            <p className="text-sm text-label">
               {deliveryDate ? format(new Date(deliveryDate + 'T00:00:00'), 'EEEE, MMMM d, yyyy') : ''}
             </p>
           </div>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-              <Package className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
-              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
-              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Stops</div>
+            <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+              <Package className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
+              <div className="text-2xl font-bold text-body">{stats.total}</div>
+              <div className="text-xs text-label">Total Stops</div>
             </div>
 
             {stats.timeOnDuty && (
-              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
-                <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.timeOnDuty}</div>
-                <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Time on Duty</div>
+              <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
+                <div className="text-lg font-bold text-body">{stats.timeOnDuty}</div>
+                <div className="text-xs text-label">Time on Duty</div>
               </div>
             )}
 
@@ -317,12 +317,12 @@ export default function EndOfDayStatsDialog({
                 <>
                   <div className="flex justify-center items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-emerald-700">{stats.completed}</span>
-                    <span className="text-base font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400">/</span>
+                    <span className="text-base font-semibold text-slate-400 dark:text-slate-400">/</span>
                     <span className="text-2xl font-bold text-amber-600">{stats.pending}</span>
                   </div>
                   <div className="flex justify-center gap-2 mt-0.5">
                     <span className="text-xs text-emerald-600">Done</span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">/</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-400">/</span>
                     <span className="text-xs text-amber-600">Pending</span>
                   </div>
                 </>
@@ -344,37 +344,37 @@ export default function EndOfDayStatsDialog({
             </div>
 
             {/* Distance — single card, shows Total + Remaining when incomplete */}
-            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-              <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+            <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+              <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
               {stats.estimatedDistance != null ? (
                 // Not started — show full est. total
                 <>
-                  <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.estimatedDistance} km</div>
-                  <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Est. Distance</div>
+                  <div className="text-lg font-bold text-body">{stats.estimatedDistance} km</div>
+                  <div className="text-xs text-label">Est. Distance</div>
                 </>
               ) : stats.remainingDistance != null ? (
                 // In progress — show actual total + remaining est.
                 <>
                   <div className="flex justify-center items-baseline gap-1.5">
-                    <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance}</span>
-                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400">+{stats.remainingDistance}</span>
-                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>km</span>
+                    <span className="text-lg font-bold text-body">{stats.totalDistance}</span>
+                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-400">+{stats.remainingDistance}</span>
+                    <span className="text-xs text-muted">km</span>
                   </div>
                   <div className="flex justify-center gap-2 mt-0.5">
-                    <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Done</span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">/</span>
-                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Est. Rem.</span>
+                    <span className="text-xs text-label">Done</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-400">/</span>
+                    <span className="text-xs text-muted">Est. Rem.</span>
                   </div>
                 </>
               ) : (
                 // Complete
                 <>
-                  <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
-                  <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+                  <div className="text-lg font-bold text-body">{stats.totalDistance} km</div>
+                  <div className="text-xs text-label">Total Distance</div>
                 </>
               )}
               {(parseFloat(stats.drivingDistance) > 0 && parseFloat(stats.cyclingDistance) > 0) && (
-                <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t border-card">
                   <div className="flex items-center gap-1">
                     <Car className="w-3 h-3 text-blue-600 shrink-0" />
                     <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
@@ -387,10 +387,10 @@ export default function EndOfDayStatsDialog({
               )}
             </div>
 
-            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-              <Camera className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
-              <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
-              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Proof of Delivery</div>
+            <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+              <Camera className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
+              <div className="text-lg font-bold text-body">{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
+              <div className="text-xs text-label">Proof of Delivery</div>
             </div>
 
             {stats.totalPay !== null && (

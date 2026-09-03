@@ -125,24 +125,23 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger asChild>
           <button
-          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
-          onTouchStart={showApiTooltipForTouch}
-          onClick={showApiTooltipForTouch}
-          style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
+ type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm text-label border-card"
+ onTouchStart={showApiTooltipForTouch}
+ onClick={showApiTooltipForTouch}
+ style={{ background: "transparent" }}>
             🛣️ {googleCount ?? "..."} / {hereRoutingCount ?? "..."} / {hereTileCount ?? "..."}
           </button>
         </TooltipTrigger>
         <TooltipContent
         side="top"
-        className="max-w-[280px] p-3 z-[10000]"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-          <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
+        className="max-w-[280px] p-3 z-[10000] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+          <p className="font-semibold text-sm mb-1 text-body">
             Active Maps API Key
           </p>
-          <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-slate-600)' }}>
+          <p className="text-xs leading-relaxed mb-2 text-label">
             {selectedApiKey}
           </p>
-          <div className="space-y-1 text-xs" style={{ color: 'var(--text-slate-700)' }}>
+          <div className="space-y-1 text-xs text-secondary">
             <div>Google API: {googleCount ?? '...'}</div>
             <div>HERE Routing API: {hereRoutingCount ?? '...'}</div>
             <div>HERE Map Tile API: {hereTileCount ?? '...'}</div>
@@ -157,7 +156,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       {counterButton}
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
-          <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>
+          <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1 border-card" style={{ background: 'transparent' }}>
             <div className="flex items-start justify-between gap-3">
               <RadioGroup
               value={selectedPolylineOption}
@@ -173,14 +172,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
                   value="polylines"
                   id="completed-route-polylines" />
                 
-                  <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div>
+                  <div className="space-y-1"><div className="text-sm font-medium text-body">Show Polylines</div></div>
                 </label>
                 <label htmlFor="completed-route-breadcrumbs" className="flex items-center gap-3 cursor-pointer">
                   <RadioGroupItem
                   value="breadcrumbs"
                   id="completed-route-breadcrumbs" />
                 
-                  <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div>
+                  <div className="space-y-1"><div className="text-sm font-medium text-body">Show Breadcrumbs</div></div>
                 </label>
               </RadioGroup>
               <ResetPolylinesButton selectedDriverIds={selectedDriverIds} selectedDate={selectedDate} selectedPolylineOption={selectedPolylineOption} />

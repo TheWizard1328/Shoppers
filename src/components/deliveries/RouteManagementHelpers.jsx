@@ -54,7 +54,7 @@ export function ProjectedPickupCard({ pickup, stopOrder, stopOrderMap }) {
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{pickup.full_name}</h3>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-200">PROJECTED</span>
               </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1 space-y-0.5">
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 space-y-0.5">
                 <p>ETA: {pickup.delivery_time_start}</p>
                 <p className="truncate">{pickup.delivery_address}</p>
                 {pickup.phone && <p>{formatPhoneNumber(pickup.phone)}</p>}
@@ -93,7 +93,7 @@ export function StatBox({ value, label, valueClass, onMeasure, fixedWidth }) {
       style={{ background: "var(--bg-slate-100)", ...(fixedWidth ? { width: fixedWidth } : {}) }}
     >
       <p className={`text-2xl font-bold ${valueClass}`}>{value}</p>
-      <p className="text-xs" style={{ color: "var(--text-slate-500)" }}>{label}</p>
+      <p className="text-xs text-muted">{label}</p>
     </div>
   );
 }

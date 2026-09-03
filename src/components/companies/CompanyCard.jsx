@@ -28,7 +28,7 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
   }, [appUsers]);
 
   return (
-    <Card className="hover:shadow-lg transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+    <Card className="hover:shadow-lg transition-shadow bg-card border-card">
       <CardContent className="p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -41,12 +41,12 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap min-h-12">
-                <h3 className="text-lg font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>{company.name}</h3>
+                <h3 className="text-lg font-semibold truncate text-body">{company.name}</h3>
                 <Badge variant={company.status === 'active' ? 'default' : 'secondary'}>
                   {company.status || 'active'}
                 </Badge>
               </div>
-              {company.contact_name && <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{company.contact_name}</p>}
+              {company.contact_name && <p className="text-sm text-label">{company.contact_name}</p>}
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -60,20 +60,20 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-          {company.contact_email && <div className="flex items-center gap-2" style={{ color: 'var(--text-slate-600)' }}><Mail className="w-4 h-4" />{company.contact_email}</div>}
-          {company.contact_phone && <div className="flex items-center gap-2" style={{ color: 'var(--text-slate-600)' }}><Phone className="w-4 h-4" />{company.contact_phone}</div>}
-          {company.website_url && <div className="flex items-center gap-2" style={{ color: 'var(--text-slate-600)' }}><Globe className="w-4 h-4" />{company.website_url}</div>}
-          {company.timezone && <div className="flex items-center gap-2" style={{ color: 'var(--text-slate-600)' }}><Settings className="w-4 h-4" />{company.timezone}</div>}
+          {company.contact_email && <div className="flex items-center gap-2 text-label"><Mail className="w-4 h-4" />{company.contact_email}</div>}
+          {company.contact_phone && <div className="flex items-center gap-2 text-label"><Phone className="w-4 h-4" />{company.contact_phone}</div>}
+          {company.website_url && <div className="flex items-center gap-2 text-label"><Globe className="w-4 h-4" />{company.website_url}</div>}
+          {company.timezone && <div className="flex items-center gap-2 text-label"><Settings className="w-4 h-4" />{company.timezone}</div>}
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+          <div className="flex items-center gap-2 text-sm font-medium text-secondary">
             <StoreIcon className="w-4 h-4" />
             Associated Stores ({linkedStores.length})
           </div>
           <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 items-stretch">
             {linkedStores.length === 0 ? (
-              <span className="text-sm col-span-full" style={{ color: 'var(--text-slate-500)' }}>No stores linked yet.</span>
+              <span className="text-sm col-span-full text-muted">No stores linked yet.</span>
             ) : linkedStores.map((store) => (
               <Badge
                 key={store.id}
@@ -96,10 +96,10 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
         </div>
 
         {(company.notes || company.support_email || company.support_phone) && (
-          <div className="pt-3 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-            {company.support_email && <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Support: {company.support_email}</p>}
-            {company.support_phone && <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{company.support_phone}</p>}
-            {company.notes && <p className="text-sm mt-2" style={{ color: 'var(--text-slate-500)' }}>{company.notes}</p>}
+          <div className="pt-3 border-t border-card">
+            {company.support_email && <p className="text-sm text-label">Support: {company.support_email}</p>}
+            {company.support_phone && <p className="text-sm text-label">{company.support_phone}</p>}
+            {company.notes && <p className="text-sm mt-2 text-muted">{company.notes}</p>}
           </div>
         )}
       </CardContent>

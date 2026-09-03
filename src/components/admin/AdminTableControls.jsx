@@ -52,14 +52,14 @@ export const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) =>
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+        <Button variant="outline" size="sm" className="gap-2 text-body bg-card border-card">
           <Settings className="w-4 h-4" />
           Columns ({visibleColumns.length}/{config.length})
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="end" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <PopoverContent className="w-64 p-2 bg-card border-card" align="end">
         <div className="space-y-2">
-          <h4 className="font-semibold text-sm mb-3 px-1" style={{ color: 'var(--text-slate-900)' }}>Toggle Columns</h4>
+          <h4 className="font-semibold text-sm mb-3 px-1 text-body">Toggle Columns</h4>
           {config.map((column) => (
             <div key={column.id} className="flex items-center gap-2 p-1 rounded-sm">
               <Checkbox

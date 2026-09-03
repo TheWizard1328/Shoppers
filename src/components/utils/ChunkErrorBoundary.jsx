@@ -155,7 +155,7 @@ export class ChunkErrorBoundary extends Component {
           <div className="text-5xl">🔄</div>
           <div>
             <p className="text-xl font-semibold mb-2">Update available</p>
-            <p className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400 max-w-xs">
+            <p className="text-sm text-slate-400 dark:text-slate-400 max-w-xs">
               RxDeliver was updated. Reload to clear the old version and get the latest build.
             </p>
           </div>
@@ -174,7 +174,7 @@ export class ChunkErrorBoundary extends Component {
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 p-8 bg-slate-900 text-white text-center">
         <div className="text-4xl">⚠️</div>
         <p className="text-lg font-semibold">Something went wrong</p>
-        <p className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400 max-w-xs">
+        <p className="text-sm text-slate-400 dark:text-slate-400 max-w-xs">
           An unexpected error occurred. Try reloading the app.
         </p>
         <button

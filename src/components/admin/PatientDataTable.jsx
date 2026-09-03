@@ -84,7 +84,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
   };
 
   const SortIcon = ({ field }) => {
-    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />;
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-slate-400 dark:text-slate-400" />;
     return sortDirection === "asc" 
       ? <ArrowUp className="w-4 h-4 text-emerald-600" />
       : <ArrowDown className="w-4 h-4 text-emerald-600" />;
@@ -101,7 +101,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="md:col-span-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
             <Input
               placeholder="Search by name, ID, address, phone..."
               value={searchTerm}
@@ -139,7 +139,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+      <div className="text-sm text-slate-600 dark:text-slate-400">
         Showing {paginatedPatients.length} of {filteredAndSortedPatients.length} patients
         {searchTerm && ` (filtered from ${patients.length} total)`}
       </div>
@@ -222,13 +222,13 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
                 <tr key={patient.id} className="border-b hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">
                   <td className="p-3 font-mono text-sm">{patient.patient_id || "—"}</td>
                   <td className="p-3 font-medium">{patient.full_name}</td>
-                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
+                  <td className="p-3 text-slate-600 dark:text-slate-400 text-sm">
                     {patient.address}
                     {patient.unit_number && ` ${patient.unit_number}`}
                   </td>
-                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">{patient.phone || "—"}</td>
-                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">{getStoreName(patient.store_id)}</td>
-                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
+                  <td className="p-3 text-slate-600 dark:text-slate-400 text-sm">{patient.phone || "—"}</td>
+                  <td className="p-3 text-slate-600 dark:text-slate-400 text-sm">{getStoreName(patient.store_id)}</td>
+                  <td className="p-3 text-slate-600 dark:text-slate-400 text-sm">
                     {getLastDeliveryDate(patient) 
                       ? format(new Date(getLastDeliveryDate(patient)), 'MMM d, yyyy')
                       : "—"
@@ -239,14 +239,14 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
                       {patient.status || "active"}
                     </Badge>
                   </td>
-                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
+                  <td className="p-3 text-slate-600 dark:text-slate-400 text-sm">
                     {patient.last_login_date ? (
                       <div>
                         <div>{format(new Date(patient.last_login_date), 'MMM d, yyyy')}</div>
-                        <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{patient.portal_login_count ?? 0} login{(patient.portal_login_count ?? 0) !== 1 ? 's' : ''}</div>
+                        <div className="text-xs text-slate-400 dark:text-slate-400">{patient.portal_login_count ?? 0} login{(patient.portal_login_count ?? 0) !== 1 ? 's' : ''}</div>
                       </div>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">Never</span>
+                      <span className="text-slate-400 dark:text-slate-400">Never</span>
                     )}
                   </td>
                   <td className="p-3">
@@ -274,7 +274,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+          <div className="text-sm text-slate-600 dark:text-slate-400">
             Page {currentPage} of {totalPages}
           </div>
           <div className="flex gap-2">

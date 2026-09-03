@@ -102,13 +102,9 @@ export default function MobileHeader({
   return (
     <header
       data-mobile-header
-      className="mobile-header border-b sticky top-0 z-50 overflow-visible"
-      style={{
-        borderColor: 'var(--border-slate-200)',
-        background: 'var(--bg-white)'
+      className="mobile-header border-b sticky top-0 z-50 overflow-visible border-card" style={{ background: 'var(--bg-white)'
         // No safe-area-inset-top here — the .app-container already handles it.
-        // Adding it here too creates a double-padding dead bar at the top.
-      }}>
+        // Adding it here too creates a double-padding dead bar at the top. }}>
       
       <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">
         {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
@@ -155,7 +151,7 @@ export default function MobileHeader({
           <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu">
-                  <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                  <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                   {hasWebUpdate && <UpdateArrow type="web" />}
                 </Button>
               </DropdownMenuTrigger>
@@ -180,7 +176,7 @@ export default function MobileHeader({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu">
-                  <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                  <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                   {hasWebUpdate && <UpdateArrow type="web" />}
                 </Button>
               </DropdownMenuTrigger>
@@ -213,7 +209,7 @@ export default function MobileHeader({
             aria-label="Generate invite QR code"
             className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 touch-manipulation"
             title="Generate Invite QR Code">
-              <QrCode className="w-6 h-6 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300" />
+              <QrCode className="w-6 h-6 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" />
             </button>
           </div>
         }
@@ -229,7 +225,7 @@ export default function MobileHeader({
             aria-label="Generate invite QR code"
             className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 touch-manipulation"
             title="Generate Invite QR Code">
-                <QrCode className="w-6 h-6 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300" />
+                <QrCode className="w-6 h-6 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" />
               </button>
           }
             <BatteryIndicator vertical={true} />

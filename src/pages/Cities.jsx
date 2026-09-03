@@ -112,8 +112,8 @@ export default function CitiesPage() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <SmartRefreshIndicator inline={true} />
-                        <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Cities</h1>
-                        <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage cities and their locations</p>
+                        <h1 className="text-3xl font-bold text-body">Cities</h1>
+                        <p className="mt-1 text-label">Manage cities and their locations</p>
                     </div>
                     <Button onClick={() => { setEditingCity(null); setShowForm(true); }} className="bg-emerald-600 hover:bg-emerald-700">
                         <Plus className="w-4 h-4 mr-2" />
@@ -122,7 +122,7 @@ export default function CitiesPage() {
                 </div>
 
                 {/* Search and Filter */}
-                <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <Card className="bg-card border-card">
                     <CardContent className="p-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
@@ -130,8 +130,7 @@ export default function CitiesPage() {
                                 placeholder="Search cities..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+                                className="pl-10 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
                             />
                         </div>
                     </CardContent>
@@ -141,7 +140,7 @@ export default function CitiesPage() {
                     <div className="flex justify-center items-center h-64">
                         <div className="text-center">
                             <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                            <p style={{ color: 'var(--text-slate-600)' }}>Loading cities...</p>
+                            <p className="text-label">Loading cities...</p>
                         </div>
                     </div>
                 ) : (
@@ -149,16 +148,16 @@ export default function CitiesPage() {
                         {filteredCities.length === 0 ? (
                             <div className="text-center py-16">
                                 <h3 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>No cities found</h3>
-                                <p className="mt-2" style={{ color: 'var(--text-slate-500)' }}>
+                                <p className="mt-2 text-muted">
                                     {searchTerm ? `Your search for "${searchTerm}" did not return any results.` : 'Click "Add City" to get started.'}
                                 </p>
                             </div>
                         ) : (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {filteredCities.map((city) => (
-                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative bg-card border-card">
                                         {city.sort_order !== undefined && (
-                                            <Badge className="absolute top-2 left-2 text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                                            <Badge className="absolute top-2 left-2 text-xs text-secondary" style={{ background: 'var(--bg-slate-200)' }}>
                                                 {city.sort_order}
                                             </Badge>
                                         )}
@@ -169,8 +168,8 @@ export default function CitiesPage() {
                                                         <MapPin className="w-6 h-6 text-emerald-600" />
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>{city.name}</h3>
-                                                        <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{city.province_state}, {city.country}</p>
+                                                        <h3 className="font-bold text-lg text-body">{city.name}</h3>
+                                                        <p className="text-sm text-muted">{city.province_state}, {city.country}</p>
                                                         <p className="text-xs font-mono mt-1" style={{ color: 'var(--text-slate-400)' }}>ID: {city.id}</p>
                                                     </div>
                                                 </div>
@@ -184,11 +183,11 @@ export default function CitiesPage() {
                                             </div>
 
                                             <div className="space-y-2 text-sm">
-                                                <div className="flex items-center gap-2" style={{ color: 'var(--text-slate-600)' }}>
+                                                <div className="flex items-center gap-2 text-label">
                                                     <MapPin className="w-4 h-4" />
                                                     <span>Lat: {city.latitude?.toFixed(6)}, Lng: {city.longitude?.toFixed(6)}</span>
                                                 </div>
-                                                <div className="flex items-center gap-4" style={{ color: 'var(--text-slate-600)' }}>
+                                                <div className="flex items-center gap-4 text-label">
                                                     <div className="flex items-center gap-1">
                                                         <Truck className="w-4 h-4 text-emerald-600" />
                                                         <span>{getCityCounts(city.id).drivers} Drivers</span>

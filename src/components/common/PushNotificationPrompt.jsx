@@ -56,7 +56,7 @@ export default function PushNotificationPrompt({ userId }) {
 
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Enable Notifications</h4>
-                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                   Get instant alerts for new chat messages and delivery updates — even when the app is closed.
                 </p>
 
@@ -80,7 +80,7 @@ export default function PushNotificationPrompt({ userId }) {
 
               <button
                 onClick={handleDismiss}
-                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 flex-shrink-0 mt-0.5"
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0 mt-0.5"
                 aria-label="Dismiss"
               >
                 <X className="w-4 h-4" />

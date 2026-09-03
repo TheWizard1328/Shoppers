@@ -192,9 +192,9 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
       className="fixed z-[99999] bg-black flex items-center justify-center left-0 right-0 top-[calc(var(--native-safe-top,env(safe-area-inset-top,0px))+57px)] md:top-0 bottom-[calc(var(--bottom-nav-height,0px)+var(--native-safe-bottom,0px))] md:bottom-0" 
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)' }}>
-        <div className="border-b p-4 flex items-center justify-between" style={{ borderColor: 'var(--border-slate-200)' }}>
-          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Proof of Delivery Photos</h3>
+      <div className="rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col overflow-hidden bg-card">
+        <div className="border-b p-4 flex items-center justify-between border-card">
+          <h3 className="text-lg font-semibold text-body">Proof of Delivery Photos</h3>
           <Button variant="ghost" size="icon" onClick={handleCancel} disabled={isCapturing}>
             <X className="w-5 h-5" />
           </Button>
@@ -234,7 +234,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
           {capturedPhotos.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                <p className="text-sm font-medium text-secondary">
                   Captured Photos ({capturedPhotos.length}/{maxPhotos})
                 </p>
                 {!isCameraActive && capturedPhotos.length < maxPhotos && (
@@ -263,8 +263,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
                       <img
                         src={photo.url}
                         alt={`Photo ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border-2"
-                        style={{ borderColor: 'var(--border-slate-200)' }}
+                        className="w-full h-32 object-cover rounded-lg border-2 border-card"
                       />
                       <Button
                         variant="destructive"
@@ -283,7 +282,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
           )}
         </div>
 
-        <div className="border-t p-4 flex gap-3 justify-end" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+        <div className="border-t p-4 flex gap-3 justify-end bg-card border-card">
           <Button variant="outline" onClick={handleCancel} disabled={isCapturing}>
             Cancel
           </Button>

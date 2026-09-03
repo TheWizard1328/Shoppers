@@ -154,7 +154,7 @@ export default function CyclingLocationSearch({
 
   return (
     <div className="space-y-1">
-      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+      <Label className="text-sm font-semibold text-body">
         Saved Location Library
       </Label>
 
@@ -175,7 +175,7 @@ export default function CyclingLocationSearch({
         </div>
       ) : (
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
           <Input
             ref={inputRef}
             type="text"
@@ -189,13 +189,12 @@ export default function CyclingLocationSearch({
           {isOpen && (
             <div
               ref={dropdownRef}
-              className="absolute z-[999999] top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden"
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+              className="absolute z-[999999] top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden bg-card border-card"
             >
               {isLoading ? (
-                <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Searching…</div>
+                <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Searching…</div>
               ) : results.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">No saved locations found</div>
+                <div className="px-3 py-2 text-xs text-slate-400 dark:text-slate-400">No saved locations found</div>
               ) : (
                 results.map((loc) => (
                   <button
@@ -208,7 +207,7 @@ export default function CyclingLocationSearch({
                     <MapPin className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                     <span className="flex-1 truncate font-medium">{loc.name}</span>
                     {loc.usage_count > 0 && (
-                      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0">×{loc.usage_count}</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-400 flex-shrink-0">×{loc.usage_count}</span>
                     )}
                   </button>
                 ))

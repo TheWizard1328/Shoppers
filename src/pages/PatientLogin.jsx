@@ -127,7 +127,7 @@ export default function PatientLogin() {
             <HeartPulse className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Patient Portal</h1>
-          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 text-sm">Track your pharmacy deliveries</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Track your pharmacy deliveries</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
@@ -135,7 +135,7 @@ export default function PatientLogin() {
           {/* ── Main login form ── */}
           <>
               <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1">Sign in to your portal</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-6">Enter your phone number to get started.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Enter your phone number to get started.</p>
 
               {success && (
                 <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 text-green-700 text-sm flex items-center gap-2">
@@ -151,11 +151,11 @@ export default function PatientLogin() {
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
                     <Input id="phone" type="tel" placeholder="e.g. 780-555-1234" value={phone}
                       onChange={(e) => setPhone(e.target.value)} className="pl-10 h-12" required autoFocus />
                     {lookingUp && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 animate-spin" />
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 animate-spin" />
                     )}
                   </div>
                 </div>
@@ -179,7 +179,7 @@ export default function PatientLogin() {
                           <option key={m.id} value={m.id}>{m.full_name}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
                     </div>
                   </div>
                 )}
@@ -224,14 +224,14 @@ export default function PatientLogin() {
               </form>
           </>
 
-          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
+          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-400">
             Having trouble? Contact your pharmacy for assistance.
           </p>
         </div>
 
-        <p className="text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-6">
+        <p className="text-center text-xs text-slate-400 dark:text-slate-400 mt-6">
           Staff?{' '}
-          <a href="/login" className="text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:underline font-medium">Staff Login →</a>
+          <a href="/login" className="text-slate-600 dark:text-slate-400 hover:underline font-medium">Staff Login →</a>
         </p>
       </div>
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />

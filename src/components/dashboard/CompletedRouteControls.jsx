@@ -47,14 +47,12 @@ export default function CompletedRouteControls({
   return (
     <div className="absolute top-3 right-3 z-[1200] pointer-events-auto">
       <div
-        className="rounded-lg border shadow-md overflow-hidden"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+        className="rounded-lg border shadow-md overflow-hidden bg-card border-card"
       >
         <div className="flex items-stretch">
           <div className="px-3 py-2 flex flex-col gap-2 min-w-[148px]">
             <div
-              className="flex items-center gap-2 text-sm cursor-pointer select-none"
-              style={{ color: 'var(--text-slate-900)' }}
+              className="flex items-center gap-2 text-sm cursor-pointer select-none text-body"
               onClick={handleShowPolylines}
             >
               <span
@@ -66,8 +64,7 @@ export default function CompletedRouteControls({
             </div>
 
             <div
-              className="flex items-center gap-2 text-sm cursor-pointer select-none"
-              style={{ color: 'var(--text-slate-900)' }}
+              className="flex items-center gap-2 text-sm cursor-pointer select-none text-body"
               onClick={handleShowBreadcrumbs}
             >
               <span
@@ -79,7 +76,7 @@ export default function CompletedRouteControls({
             </div>
           </div>
 
-          <div className="border-l flex items-start justify-center p-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <div className="border-l flex items-start justify-center p-2 border-card">
             <ResetPolylinesButton
               selectedDriverIds={[selectedDriverId]}
               selectedDate={format(selectedDate, 'yyyy-MM-dd')}
