@@ -439,11 +439,29 @@ function DeliveryMap({
     const mergedUsers = Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0 ? [...realtimeAppUsers] : [...(Array.isArray(users) ? users : [])];
     const selectedDriverKey = selectedDriverId && selectedDriverId !== "all" ? selectedDriverId : null;
     if (selectedDriverKey && currentUser?.id === selectedDriverKey) {
+      // CRITICAL: currentUser is served from a 30-minute TTL cache (auth.jsx
+      // getEffectiveUser). Its TRANSIENT driver fields go stale immediately after
+      // a DriverStatusToggle — the toggle updates the AppUser record + appUsers
+      // state but deliberately never re-fetches the effective user (that would
+      // trigger a full data reload). Spreading raw currentUser over the fresh
+      // AppUser record made offDutyDriverIds (UnifiedRoutePolylines) see a stale
+      // off_duty/on_break status, permanently suppressing the blue current-leg
+      // polyline even after the driver returned on duty. Strip the transient
+      // fields so the AppUser-sourced record (which receives live status toggles,
+      // GPS uploads, and WS sync) stays the sole authority for them.
+      const {
+        driver_status, location_tracking_enabled, location_updated_at,
+        current_latitude, current_longitude, last_seen_at,
+        ...stableCurrentUser
+      } = currentUser || {};
       const existingIndex = mergedUsers.findIndex((user) => user?.id === selectedDriverKey || user?.user_id === selectedDriverKey);
       if (existingIndex >= 0) {
-        mergedUsers[existingIndex] = { ...mergedUsers[existingIndex], ...currentUser };
+        mergedUsers[existingIndex] = { ...mergedUsers[existingIndex], ...stableCurrentUser };
       } else {
-        mergedUsers.push(currentUser);
+        // Driver not in appUsers yet — push stable fields only. No driver_status
+        // means offDutyDriverIds fails OPEN (leg renders), which is correct:
+        // a missing record must never guess the driver off duty.
+        mergedUsers.push(stableCurrentUser);
       }
     }
     return mergedUsers;

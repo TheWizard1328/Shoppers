@@ -325,6 +325,25 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('userRolesChanged', handleUserRolesChanged);
 
+    // Patch the cached effective user's driver_status in-memory when a status
+    // toggle lands. getEffectiveUser() is backed by a 30-minute TTL cache, so
+    // currentUser.driver_status goes stale the moment a driver toggles
+    // on_duty/off_duty/on_break (a full re-fetch is deliberately avoided — it
+    // triggers a data reload). Consumers that read currentUser.driver_status
+    // (ETATracker pause/resume, MobileHeader BackgroundLocationNudge, EOD
+    // guards) need the LIVE status without waiting out the cache TTL. This is a
+    // state-level patch only — the IDB/server record was already written by the
+    // toggle itself, and the auth cache is intentionally left untouched so no
+    // stale status is ever persisted back.
+    const handleDriverStatusChanged = (event) => {
+      const { userId, newStatus } = event.detail || {};
+      if (!userId || !newStatus || !currentUser) return;
+      if (currentUser.id !== userId && currentUser.user_id !== userId) return;
+      if (currentUser.driver_status === newStatus) return;
+      setCurrentUser({ ...currentUser, driver_status: newStatus });
+    };
+    window.addEventListener('driverStatusChanged', handleDriverStatusChanged);
+
     // Listen for conflict events and show resolution UI
     const handleConflict = async (event) => {
       const { conflicts } = event.detail || {};
@@ -740,6 +759,7 @@ export function useLayoutEventHandlers({
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       window.removeEventListener('patientsUpdated', handlePatientsUpdated);
       window.removeEventListener('userRolesChanged', handleUserRolesChanged);
+    window.removeEventListener('driverStatusChanged', handleDriverStatusChanged);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('storeUpdated', handleStoreUpdated);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
