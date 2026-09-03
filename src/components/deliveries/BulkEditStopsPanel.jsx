@@ -14,9 +14,6 @@ import { X, Car, Bike } from "lucide-react";
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
 
-// Extract HH:MM from a "YYYY-MM-DDTHH:MM:SS" local datetime string for time-only editing
-const toTimeOnly = (dt) => (typeof dt === 'string' && dt.length >= 16) ? dt.slice(11, 16) : "";
-
 const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
   if (!store || !deliveryDate) return [];
 
@@ -184,14 +181,11 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
     return Object.keys(initialValues).some((key) => values[key] !== initialValues[key]);
   }, [initialValues, values]);
 
-  // Show time windows only when ALL selected stops are still active (non-terminal).
-  // Show arrival/completion times only when ALL selected stops are finished.
-  // When the selection is mixed (some active, some finished), show neither.
-  const allFinished = selectedDeliveries.length > 0 && selectedDeliveries.every((d) => TERMINAL_STATUSES.includes(d?.status));
-  const hasMixedFinished = selectedDeliveries.length > 0 &&
-    selectedDeliveries.some((d) => TERMINAL_STATUSES.includes(d?.status)) && !allFinished;
-  const shouldShowTimeWindows = !allFinished && !hasMixedFinished;
-  const shouldShowArrivalCompletion = allFinished;
+  // Time slot (window) fields are only visible when NO selected stop is finished.
+  // If any selected stop has a terminal status, hide all time fields entirely.
+  const anyFinished = selectedDeliveries.length > 0 &&
+    selectedDeliveries.some((d) => TERMINAL_STATUSES.includes(d?.status));
+  const shouldShowTimeWindows = !anyFinished;
 
   // Patient time windows — shown as read-only reference for all selected stops that have a patient
   const patientWindowSummary = useMemo(() => {
@@ -369,7 +363,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
         {/* Dispatcher: AM/PM + Time Windows on one row */}
         {!isAdmin && !isDriver && (
-          <div className={`grid gap-4 ${shouldShowTimeWindows || shouldShowArrivalCompletion ? 'grid-cols-3' : 'grid-cols-1'}`}>
+          <div className={`grid gap-4 ${shouldShowTimeWindows ? 'grid-cols-3' : 'grid-cols-1'}`}>
             <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
               <Select
@@ -419,28 +413,6 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                 </div>
               </>
             )}
-            {shouldShowArrivalCompletion && (
-              <>
-                <div className="space-y-2">
-                  <Label style={{ color: "var(--text-slate-900)" }}>Arrived At</Label>
-                  <TimeField
-                    value={values.arrival_time}
-                    onChange={(event) => setValues((current) => ({ ...current, arrival_time: event.target.value }))}
-                    onClear={() => setValues((current) => ({ ...current, arrival_time: '' }))}
-                    disabled={isSaving}
-                    style={getFieldStyle('arrival_time')} />
-                </div>
-                <div className="space-y-2">
-                  <Label style={{ color: "var(--text-slate-900)" }}>Completed At</Label>
-                  <TimeField
-                    value={values.actual_delivery_time}
-                    onChange={(event) => setValues((current) => ({ ...current, actual_delivery_time: event.target.value }))}
-                    onClear={() => setValues((current) => ({ ...current, actual_delivery_time: '' }))}
-                    disabled={isSaving}
-                    style={getFieldStyle('actual_delivery_time')} />
-                </div>
-              </>
-            )}
           </div>
         )}
 
@@ -470,28 +442,6 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                 onClear={() => setValues((current) => ({ ...current, delivery_time_end: '' }))}
                 disabled={isSaving}
                 style={getFieldStyle('delivery_time_end')} />
-            </div>
-          </div>
-        )}
-        {(isAdmin || isDriver) && shouldShowArrivalCompletion && (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>Arrived At</Label>
-              <TimeField
-                value={values.arrival_time}
-                onChange={(event) => setValues((current) => ({ ...current, arrival_time: event.target.value }))}
-                onClear={() => setValues((current) => ({ ...current, arrival_time: '' }))}
-                disabled={isSaving}
-                style={getFieldStyle('arrival_time')} />
-            </div>
-            <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>Completed At</Label>
-              <TimeField
-                value={values.actual_delivery_time}
-                onChange={(event) => setValues((current) => ({ ...current, actual_delivery_time: event.target.value }))}
-                onClear={() => setValues((current) => ({ ...current, actual_delivery_time: '' }))}
-                disabled={isSaving}
-                style={getFieldStyle('actual_delivery_time')} />
             </div>
           </div>
         )}
@@ -577,8 +527,6 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.transport_mode ?? delivery?.finished_leg_transport_mode, "mixed"),
     delivery_time_start: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_start, ""),
     delivery_time_end: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_end, ""),
-    arrival_time: getSharedValue(selectedDeliveries, (delivery) => toTimeOnly(delivery?.arrival_time), ""),
-    actual_delivery_time: getSharedValue(selectedDeliveries, (delivery) => toTimeOnly(delivery?.actual_delivery_time), ""),
     // Auto-select "unchanged" if any terminal status is present
     // Normalize in_transit/en_route to the combined select value
     statusChoice: hasTerminalStatus ? "unchanged" : (() => {
