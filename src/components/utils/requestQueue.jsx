@@ -5,6 +5,11 @@
 
 const MIN_REQUEST_INTERVAL = 600; // Minimum 600ms between requests to avoid bursts and 429s
 const DEDUP_WINDOW = 500; // Deduplicate identical requests within 500ms window
+// Per-request timeout: a black-holed fetch (mobile sleep/wake, Wi-Fi handoff) never
+// settles on its own — without this, one hung request at the queue head freezes
+// `processing` forever and starves every queued entity fetch (the frozen
+// smart-refresh spinner / dead manager bug).
+const REQUEST_TIMEOUT_MS = 30000;
 
 class RequestQueue {
   constructor() {
@@ -12,6 +17,19 @@ class RequestQueue {
     this.queue = [];
     this.processing = false;
     this.pendingRequests = new Map(); // Key: request hash, Value: { promise, timestamp }
+  }
+
+  /**
+   * Emergency unstick: if `processing` was left true by a path that bypassed the
+   * per-request timeout race (should no longer happen, but belt-and-suspenders),
+   * reset it and drop stale waits. Called by smartRefreshManager.checkHeartbeatAndSync().
+   */
+  forceUnstick() {
+    if (!this.processing && this.queue.length === 0) return false;
+    console.warn(`🔧 [RequestQueue] Force-unsticking queue (${this.queue.length} waiting) — processing was ${this.processing}`);
+    this.processing = false;
+    this.queue.length = 0; // stale waits are retried by the next refresh cycle
+    return true;
   }
 
   /**
@@ -86,7 +104,19 @@ class RequestQueue {
 
       try {
         console.log(`📤 [RequestQueue] Executing request: "${requestName}"`);
-        const result = await requestFn();
+        // TIMEOUT RACE: never let a hung fetch stall the queue. If the underlying
+        // request exceeds REQUEST_TIMEOUT_MS, reject it and move on — the next
+        // refresh cycle retries. The abandoned request's late resolve() is a no-op
+        // on an already-settled promise.
+        let timeoutId;
+        const timeoutPromise = new Promise((_, timeoutReject) => {
+          timeoutId = setTimeout(
+            () => timeoutReject(new Error(`Request "${requestName}" timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)),
+            REQUEST_TIMEOUT_MS
+          );
+        });
+        const result = await Promise.race([requestFn(), timeoutPromise]);
+        clearTimeout(timeoutId);
         resolve(result);
       } catch (error) {
         console.warn(`❌ [RequestQueue] Request failed: "${requestName}" -`, error.message);

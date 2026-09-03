@@ -5,7 +5,7 @@
 import { base44 } from "@/api/base44Client";
 import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp } from "./dataDiffer";
 import { format } from "date-fns";
-import { queueEntityRequest } from "./requestQueue";
+import { queueEntityRequest, requestQueue } from "./requestQueue";
 import { touchUserCache } from "./auth";
 import { globalFilters } from "./globalFilters";
 
@@ -50,6 +50,7 @@ class LightweightRefreshManager {
     this.deletedPatientIds = new Set();
 
     this.isRefreshing = false;
+    this._refreshStartedAt = null;
     this.refreshCallbacks = new Set();
   }
 
@@ -320,6 +321,7 @@ class LightweightRefreshManager {
     }
 
     this.isRefreshing = true;
+    this._refreshStartedAt = Date.now();
     const updates = {};
 
     try {
@@ -488,6 +490,7 @@ class LightweightRefreshManager {
       return null;
     } finally {
       this.isRefreshing = false;
+      this._refreshStartedAt = null;
     }
   }
 
@@ -571,6 +574,38 @@ class LightweightRefreshManager {
       console.warn('⚠️ [SmartRefresh] Location refresh failed:', error.message);
       return { hasChanges: false, appUsers: currentAppUsers };
     }
+  }
+
+  /**
+   * HEARTBEAT WATCHDOG — called every 60s by Dashboard's refresh interval.
+   *
+   * The interval at src/pages/Dashboard.jsx has guarded against this method with
+   * `smartRefreshManager?.checkHeartbeatAndSync` since it was written — but the
+   * method never existed, so the optional-chaining silently no-oped and a hung
+   * refresh cycle (black-holed fetch leaving `isRefreshing` true forever) froze
+   * the manager permanently: frozen green spinner, all lightweight cycles dead,
+   * until a manual page reload.
+   *
+   * Now: if a refresh cycle has been "in progress" for more than 2 minutes
+   * (normal cycles complete in a few seconds; the request queue times out
+   * individual requests at 30s), force-clear the flag and unstick the shared
+   * request queue so the next 60s tick starts fresh.
+   */
+  checkHeartbeatAndSync() {
+    if (!this.isRefreshing) return false;
+    const startedAt = this._refreshStartedAt;
+    if (!startedAt || Date.now() - startedAt < 120000) return false;
+
+    console.warn(`🧹 [SmartRefresh] Heartbeat watchdog: refresh stuck for ${Math.round((Date.now() - startedAt) / 1000)}s — force-clearing and unsticking request queue`);
+    this.isRefreshing = false;
+    this._refreshStartedAt = null;
+    this.recordError(); // counts toward the existing 60s error backoff
+    try {
+      requestQueue.forceUnstick();
+    } catch (e) {
+      console.warn('🧹 [SmartRefresh] forceUnstick failed:', e.message);
+    }
+    return true;
   }
 
   /**
