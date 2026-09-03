@@ -44,6 +44,30 @@ const decodePolyline = (str) => {
   return coords.length > 1 ? coords : null;
 };
 
+// ── Decode cache ─────────────────────────────────────────────────────────────
+// Encoded polylines are large strings; decoding them on every render re-parses
+// every stop's string for every driver on each delivery change. Cache decoded
+// coordinate arrays keyed by the encoded string itself — this also returns the
+// SAME array reference on repeat renders, so react-leaflet skips setLatLngs and
+// Leaflet avoids redrawing identical geometry.
+const POLY_DECODE_CACHE_LIMIT = 500;
+const polyDecodeCache = new Map();
+const cachedDecodePolyline = (str) => {
+  if (!str || typeof str !== 'string') return null;
+  if (polyDecodeCache.has(str)) return polyDecodeCache.get(str);
+  const decoded = decodePolyline(str);
+  if (polyDecodeCache.size >= POLY_DECODE_CACHE_LIMIT) {
+    // Evict oldest ~125 entries (Map preserves insertion order).
+    let evict = 125;
+    for (const key of polyDecodeCache.keys()) {
+      polyDecodeCache.delete(key);
+      if (--evict <= 0) break;
+    }
+  }
+  polyDecodeCache.set(str, decoded);
+  return decoded;
+};
+
 const samePoint = (a, b) =>
   Math.abs(Number(a?.latitude) - Number(b?.latitude)) < 1e-5 &&
   Math.abs(Number(a?.longitude) - Number(b?.longitude)) < 1e-5;
@@ -280,7 +304,7 @@ function UnifiedRoutePolylines({
         const isPM = stop.ampm_deliveries === "PM";
         const style = getTravelModeLineStyle(mode, color, isPM);
 
-        let coords = decodePolyline(stop.encoded_polyline);
+        let coords = cachedDecodePolyline(stop.encoded_polyline);
         let isFallback = false;
         if (!coords && i > 0) {
           const prev = allOrdered[i - 1];
@@ -356,7 +380,7 @@ function UnifiedRoutePolylines({
           }
         }
 
-        let coords = decodePolyline(currentStop.encoded_polyline);
+        let coords = cachedDecodePolyline(currentStop.encoded_polyline);
         let isFallback = false;
         if (!coords && originFallback) {
           // currentStop coords are already corrected via the driverStops useMemo above,
@@ -416,7 +440,7 @@ function UnifiedRoutePolylines({
       const isPM = stop.ampm_deliveries === "PM";
       const style = getTravelModeLineStyle(mode, color, isPM);
 
-      let coords = decodePolyline(stop.encoded_polyline);
+      let coords = cachedDecodePolyline(stop.encoded_polyline);
       let isFallback = false;
       if (!coords) {
         coords = makeFallback(prev, stop);

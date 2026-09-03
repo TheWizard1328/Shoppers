@@ -12,6 +12,7 @@ class DriverLocationPoller {
     this.currentUser = null;
     this._lastNotifiedKey = null; // CRITICAL: Track last notification to prevent duplicates
     this._lastNotifyTs = 0; // Throttle broadcast to reduce UI churn
+    this.lastNotifiedLocations = null; // Last broadcast payload — replayed to late subscribers (change-detection can suppress repeats)
   }
 
   /**
@@ -280,14 +281,28 @@ class DriverLocationPoller {
        return false;
      });
 
-    // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
-    // Don't check for changes - just broadcast the current state every time
-
+    // Change detection: broadcast ONLY when something actually changed.
+    // Fingerprint = id + coords + driver_status + staleness bucket. Previously this
+    // broadcast a fresh array on EVERY call (any driver's GPS heartbeat / smart-refresh
+    // tick), re-rendering the entire Dashboard + map tree for identical data.
+    // Marker-safety is preserved: drivers appearing/disappearing changes the map SIZE
+    // (which notifies), and empty batches still notify via the direct
+    // notifySubscribers([]) calls above. Targeted single-driver WS updates also
+    // notify (size mismatch vs the previous full-set fingerprint).
     const newLocations = new Map();
     activeDriversWithLocation.forEach(user => {
-      const locationKey = `${user.id}_${user.current_latitude}_${user.current_longitude}_${user.driver_status}`;
+      const locationKey = `${user.id}_${user.current_latitude}_${user.current_longitude}_${user.driver_status}_${user._staleness || 'fresh'}`;
       newLocations.set(user.id, locationKey);
     });
+
+    const prevLocations = this.lastLocations;
+    if (prevLocations && prevLocations.size === newLocations.size) {
+      let unchanged = true;
+      for (const [id, locationKey] of newLocations) {
+        if (prevLocations.get(id) !== locationKey) { unchanged = false; break; }
+      }
+      if (unchanged) return; // Identical payload — subscribers already hold this state.
+    }
 
     this.lastLocations = newLocations;
     this.notifySubscribers(activeDriversWithLocation, forceNotify);
@@ -332,6 +347,8 @@ class DriverLocationPoller {
       };
     });
 
+    this.lastNotifiedLocations = locationObjects;
+
     this.subscribers.forEach(callback => {
       try {
         callback(locationObjects);
@@ -371,6 +388,16 @@ class DriverLocationPoller {
     }
 
     this.subscribers.add(callback);
+
+    // Replay the last broadcast so late subscribers don't wait for the next CHANGE —
+    // with fingerprint change-detection, identical data is no longer re-broadcast.
+    if (this.lastNotifiedLocations) {
+      try {
+        callback(this.lastNotifiedLocations);
+      } catch (error) {
+        console.error('Error notifying driver location subscriber:', error);
+      }
+    }
 
     // Return unsubscribe function
     return () => {

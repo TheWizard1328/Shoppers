@@ -76,6 +76,12 @@ export default function useDriverLocationSync({
   // Stable ref so the app-resume effect can call syncLocation without a stale closure.
   const syncLocationRef = useRef(null);
 
+  // Last position actually pushed to driverLocation React state. Raw GPS ticks fire
+  // every 1-5s; pushing every one re-renders the whole Dashboard for sub-visual
+  // movement. The ref (driverLocationRef) always holds the freshest tick — only
+  // the state push is throttled.
+  const lastStateLocationRef = useRef(null);
+
   // Proximity snap: remember which stop we last snapped to so we don't re-snap
   // repeatedly while the driver is parked at the same stop.
   const lastProximitySnappedStopIdRef = useRef(null);
@@ -106,6 +112,24 @@ export default function useDriverLocationSync({
     const syncLocation = (newLocation) => {
       if (!newLocation?.latitude || !newLocation?.longitude) return;
       if (driverLocationRef) driverLocationRef.current = newLocation;
+
+      // Movement gate: only push to React state when the device actually moved
+      // (> ~13m in degree-space) or the last push is older than 60s (keeps the
+      // state's `timestamp` fresh for consumers). Stationary GPS jitter no longer
+      // re-renders the Dashboard; the ref above always carries the full-precision
+      // position for proximity snap / map triggers.
+      const lastPushed = lastStateLocationRef.current;
+      if (lastPushed) {
+        const dLat = newLocation.latitude - lastPushed.latitude;
+        const dLng = newLocation.longitude - lastPushed.longitude;
+        const movedFarEnough = (dLat * dLat + dLng * dLng) > 1.5e-8; // ~13m squared
+        const pushIsStale = Date.now() - lastPushed.pushedAt > 60_000;
+        if (!movedFarEnough && !pushIsStale) {
+          syncLocationRef.current = syncLocation;
+          return;
+        }
+      }
+      lastStateLocationRef.current = { latitude: newLocation.latitude, longitude: newLocation.longitude, pushedAt: Date.now() };
       setDriverLocation(newLocation);
       syncLocationRef.current = syncLocation;
     };
@@ -124,6 +148,7 @@ export default function useDriverLocationSync({
           source:    'shared_location',
         });
       } else {
+        lastStateLocationRef.current = null; // Reset gate — state is null, next fix must push.
         setDriverLocation(null);
       }
       return;
