@@ -94,7 +94,6 @@ class LocationTracker {
       this.updateInterval = 15000; // 15s GPS polling — drivers only
       this.minDistanceChange = 100;
       this.breadcrumbSaveInterval = 5000; // 5s — offline DB write frequency, on_duty drivers only
-      console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, breadcrumb: ${this.breadcrumbSaveInterval / 1000}s, distance: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000;
@@ -131,7 +130,6 @@ class LocationTracker {
         const nowISO = getLocalTimestamp();
         await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO, last_seen_at: nowISO });
         this.lastHeartbeatAt = Date.now();
-        console.log(`💓 [LocationTracker] Dispatcher/Admin heartbeat sent`);
         this._logLocationRemote('info', 'DISPATCHER-HEARTBEAT', { latitude: null, longitude: null, accuracy: null, timestampOnly: true });
       } catch (err) {
         console.warn('⚠️ [LocationTracker] Dispatcher heartbeat failed:', err?.message);
@@ -141,7 +139,6 @@ class LocationTracker {
     // Send immediately on start, then repeat every 60s
     await doHeartbeat();
     this.heartbeatInterval = setInterval(doHeartbeat, 60000);
-    console.log(`📍 [LocationTracker] Dispatcher/Admin heartbeat-only mode started (60s interval, no GPS)`);
   }
 
   /**
@@ -156,7 +153,6 @@ class LocationTracker {
     // broadcastMutation, causing marker color flicker between green/red.
     if (this.currentUser) this.currentUser.driver_status = status;
     
-    console.log(`📍 [LocationTracker] Driver status changed: ${previousStatus} → ${status}`);
     
     
     // EVENT-DRIVEN: Mark for immediate update on next poll
@@ -267,7 +263,6 @@ class LocationTracker {
   slowBreadcrumbsForStop() {
     if (this.isBreadcrumbSlowed) return; // already slowed
     this.isBreadcrumbSlowed = true;
-    console.log('🐢 [LocationTracker] At-stop detected — slowing breadcrumbs to 60s interval');
 
     // Clear the normal 5s interval and watchdog
     if (this.breadcrumbInterval) {
@@ -303,7 +298,6 @@ class LocationTracker {
   resumeNormalBreadcrumbs() {
     if (!this.isBreadcrumbSlowed) return; // already normal
     this.isBreadcrumbSlowed = false;
-    console.log('🏃 [LocationTracker] Stop finished — resuming normal 5s breadcrumb interval');
 
     if (this._atStopBreadcrumbInterval) {
       clearInterval(this._atStopBreadcrumbInterval);
@@ -347,7 +341,6 @@ class LocationTracker {
    * Triggers immediate GPS upload on next poll
    */
   signalStopEvent(eventType = 'completion') {
-    console.log(`🎯 [LocationTracker] Stop event: ${eventType} - marking for GPS upload`);
     this._pendingEventUpdate = true;
     this._eventUpdateTime = Date.now();
   }
@@ -358,7 +351,6 @@ class LocationTracker {
    * Triggers immediate GPS upload on next poll
    */
   signalLocationSharingToggle(enabled) {
-    console.log(`📍 [LocationTracker] Location sharing toggled: ${enabled ? 'ON' : 'OFF'} - marking for GPS upload`);
     this._pendingEventUpdate = true;
     this._eventUpdateTime = Date.now();
   }
@@ -395,20 +387,17 @@ class LocationTracker {
     try {
       const currentDevice = await getCurrentDevice(user.id);
       this.isPrimaryDevice = currentDevice !== null && currentDevice?.status !== 'inactive' && currentDevice?.is_primary_tracker === true;
-      console.log(`📱 [LocationTracker] Web-only mode — isPrimary: ${this.isPrimaryDevice} (device: ${currentDevice?.device_name || 'NOT REGISTERED'})`);
     } catch (_) {
       this.isPrimaryDevice = false;
     }
 
     // CRITICAL: Non-primary devices must not run the web-only heartbeat
     if (!this.isPrimaryDevice) {
-      console.log(`🚫 [LocationTracker] Non-primary device — skipping web-only tracking`);
       // Safety: Stop any lingering native foreground service from a previous session
       try {
         const { BackgroundGeolocation } = await import('./locationProviders/capacitorRuntime');
         if (BackgroundGeolocation?.stop) {
           await BackgroundGeolocation.stop();
-          console.log('📱 [LocationTracker] Stopped lingering native GPS service (web-only non-primary safety)');
         }
       } catch (_) { /* not native or already stopped */ }
       return;
@@ -416,7 +405,6 @@ class LocationTracker {
 
     // Dispatcher/Admin: timestamp-only heartbeat, no GPS
     if (this._isDispatcherOrAdminOnly()) {
-      console.log(`📡 [LocationTracker] Dispatcher/Admin web-only — starting timestamp-only heartbeat`);
       try {
         const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
         if (appUsers && appUsers.length > 0) this.appUserId = user.appUserId || appUsers[0].id;
@@ -472,7 +460,6 @@ class LocationTracker {
     // force-close the app via App.exitApp() to free device resources.
     this._setupWebOnlyVisibilityHandler();
 
-    console.log(`📍 [LocationTracker] Web-only tracking started (off-duty heartbeat every ${this.updateInterval / 1000}s, idle kill at ${30}min)`);
   }
 
   /**
@@ -577,7 +564,6 @@ class LocationTracker {
 
     // Check if we're in backoff period (unless forced)
     if (!forceUpdate && !timestampOnly && this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
-      console.log('⏸️ [LocationTracker] Skipping update - in backoff period');
       return;
     }
 
@@ -587,7 +573,6 @@ class LocationTracker {
     // forceUpdate=true is reserved for the very first GPS fix on tracking start.
     if (!forceUpdate && !timestampOnly && (now - this.lastUploadTime) < this.updateInterval) {
       const msRemaining = this.updateInterval - (now - this.lastUploadTime);
-      console.log(`⏳ [LocationTracker] 15s gate: suppressing GPS write — ${Math.round(msRemaining / 1000)}s remaining`);
       return;
     }
 
@@ -597,7 +582,6 @@ class LocationTracker {
     const isNativeBackground = this.locationProvider?.backgroundCapable === true;
     if (!isNativeBackground && typeof document !== 'undefined' && document.hidden && !forceUpdate && !timestampOnly) {
       if (now - this.lastCoordinateUpdate < 60000) { // at most once per 60s while hidden
-        console.log('⏸️ [LocationTracker] Page hidden - skipping upload to save battery');
         return;
       }
     }
@@ -617,7 +601,6 @@ class LocationTracker {
     // CRITICAL: Non-primary devices must not write ANYTHING to AppUser — no coordinates, no timestamps.
     // The primary device is the sole owner of the authoritative GPS record.
     if (!this.isPrimaryDevice) {
-      console.log(`🚫 [LocationTracker] NON-PRIMARY DEVICE — skipping all AppUser writes (no coords, no timestamp)`);
       this._logLocationRemote('warn', 'SKIP-NON-PRIMARY', { latitude, longitude, accuracy, timestampOnly });
       return;
     }
@@ -626,9 +609,7 @@ class LocationTracker {
     // has a running native watcher, we should not be processing its GPS callbacks.
 
     if (forceUpdate) {
-      console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
     } else {
-      console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp`);
     }
 
     // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication
@@ -638,12 +619,10 @@ class LocationTracker {
     try {
       // Check if online before attempting update
       if (!navigator.onLine) {
-        console.log('❌ [LocationTracker] Device offline - skipping upload');
         return;
       }
 
       if (!this.appUserId || !this.currentUser) {
-        console.log('❌ [LocationTracker] Missing appUserId or currentUser - skipping upload');
         return;
       }
 
@@ -658,15 +637,6 @@ class LocationTracker {
       const timeDiffMs = timestampDate.getTime() - now.getTime();
       const timeDiffSec = Math.round(timeDiffMs / 1000);
 
-      console.log(`📤 [LocationTracker] Uploading location for ${userName} (...${userIdLast4}):`, {
-        lat: latitude.toFixed(6),
-        lng: longitude.toFixed(6),
-        timestamp: nowISO,
-        timestampOnly,
-        timeDiffFromNow: `${timeDiffSec >= 0 ? '+' : ''}${timeDiffSec}s`,
-        isFuture: timeDiffMs > 1000,
-        localTime: now.toISOString()
-      });
 
       // Primary device always writes full coordinates + timestamp at 7dp precision (~1cm)
       const updateData = {
@@ -677,13 +647,6 @@ class LocationTracker {
 
       // Step 1: Upload this driver's location to API
       const savedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-      console.log(`✅ [LocationTracker] UPLOADED TO API - ${userName} (...${userIdLast4}):`, {
-        lat: latitude.toFixed(6),
-        lon: longitude.toFixed(6),
-        timestamp: nowISO,
-        appUserId: this.appUserId,
-        uploadedData: updateData
-      });
       this._logLocationRemote('info', 'UPLOAD-SUCCESS', { latitude, longitude, accuracy, timestampOnly, forceUpdate, distance });
 
       // Step 2: Build the broadcast record from what we just wrote (no extra fetch round-trip).
@@ -792,7 +755,6 @@ class LocationTracker {
         // (handleBatchSave, entityMutations, accept/complete/cancel actions).
       }
 
-      console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
       // NOTE: driverPositionUpdated is dispatched in handleLocationSuccess (live GPS callback)
       // for the blue dot on the primary device. We do NOT re-dispatch a location event here
       // after the DB write — that path leads to shared marker updates on all devices.
@@ -910,7 +872,6 @@ class LocationTracker {
     const isNativeProvider = this.locationProvider?.backgroundCapable === true;
     const timeSinceLastUpload = Date.now() - this.lastUploadTime;
     if (!isNativeProvider && timeSinceLastUpload < this.updateInterval) {
-      console.log(`📍 [LocationTracker] watchPosition throttled — ${Math.round((this.updateInterval - timeSinceLastUpload) / 1000)}s until next upload`);
       return;
     }
 
@@ -962,11 +923,9 @@ class LocationTracker {
       // Permission prompting is handled by start(requestPermissions: true).
       // We do NOT block tracking here — the plugin will prompt inline when start() is called.
       // If the user denies, the watcher error callback fires with code NOT_AUTHORIZED.
-      console.log('📍 [LocationTracker] Native Android — permission will be requested by start()');
     }
 
     if (this.isTracking) {
-      console.log('📍 [LocationTracker] Already tracking - skipping start');
       return;
     }
 
@@ -978,7 +937,6 @@ class LocationTracker {
     const userName = user.user_name || user.full_name || 'Unknown';
     const userIdLast4 = user.id ? user.id.slice(-4) : '????';
 
-    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4})`);
 
     this.locationProvider = getLocationProvider();
 
@@ -1004,11 +962,6 @@ class LocationTracker {
       this.isPrimaryDevice = currentDevice !== null && currentDevice?.status !== 'inactive' && currentDevice?.is_primary_tracker === true;
 
       this._currentDeviceName = currentDevice?.device_name || 'Unknown';
-      console.log(`✅ [LocationTracker] Device status:`, {
-        deviceId: currentDevice?.device_identifier || 'NOT REGISTERED',
-        isPrimaryTracker: this.isPrimaryDevice,
-        deviceName: currentDevice?.device_name || 'No device record'
-      });
     } catch (error) {
       console.error('❌ [LocationTracker] Device check FAILED - aborting GPS start:', error.message);
       throw new Error('Failed to verify device status. Please try again.');
@@ -1060,7 +1013,6 @@ class LocationTracker {
     // CRITICAL: Non-primary devices must not start GPS tracking at all.
     // Abort here so no watchPosition, no heartbeat interval, and no DB writes ever happen.
     if (!this.isPrimaryDevice) {
-      console.log(`🚫 [LocationTracker] Non-primary device — GPS tracking aborted. No data will be uploaded.`);
       // Safety: Stop any lingering native foreground service from a previous session
       // where this device may have been primary. The CapGo singleton persists across
       // app restarts — if the service was started before and never explicitly stopped
@@ -1070,7 +1022,6 @@ class LocationTracker {
         const { BackgroundGeolocation } = await import('./locationProviders/capacitorRuntime');
         if (BackgroundGeolocation?.stop) {
           await BackgroundGeolocation.stop();
-          console.log('📱 [LocationTracker] Stopped lingering native GPS service (non-primary safety)');
         }
       } catch (_) { /* not native or already stopped */ }
       return;
@@ -1084,7 +1035,6 @@ class LocationTracker {
 
     // DISPATCHER / ADMIN ONLY: Skip GPS entirely — just send a timestamp heartbeat once per minute.
     if (this._isDispatcherOrAdminOnly()) {
-      console.log(`📡 [LocationTracker] Dispatcher/Admin role — starting timestamp-only heartbeat (no GPS, no coordinates)`);
       await this._startDispatcherHeartbeat();
       return;
     }
@@ -1092,21 +1042,12 @@ class LocationTracker {
     return new Promise(async (resolve, reject) => {
       try {
         const providerName = (this.locationProvider?.name || 'web').toUpperCase();
-        console.log(`📍 [${providerName} PROVIDER] Starting location watch...`);
 
         this.watchId = await this.locationProvider.watchPosition(
           async (position) => {
             if (!this.isTracking) {
               this.isTracking = true;
-              console.log(`✅ [${providerName} PROVIDER] GPS watch established - uploading initial location now`);
 
-              console.log(`🚀 [${providerName} PROVIDER] Initial location upload:`, {
-                lat: position.coords.latitude.toFixed(6),
-                lng: position.coords.longitude.toFixed(6),
-                accuracy: position.coords.accuracy?.toFixed(0) + 'm',
-                timestamp: new Date(position.timestamp).toISOString(),
-                appUserId: this.appUserId
-              });
 
               await this.updateLocationInDatabase(
                 position.coords.latitude,
@@ -1174,7 +1115,6 @@ class LocationTracker {
                   'Authorization': `Bearer ${accessToken}`,
                   'X-AppUser-Id': this.appUserId,
                 };
-                console.log(`📡 [LocationTracker] Native POST configured: ${startOpts.url}`);
               } else {
                 console.warn('⚠️ [LocationTracker] Missing token/serverUrl/appId — native POST disabled, falling back to JS-only uploads');
               }
@@ -1233,7 +1173,6 @@ class LocationTracker {
               try {
                 const nowISO = getLocalTimestamp();
                 await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
-                console.log(`💓 [${providerName} PROVIDER] Timestamp-only heartbeat (GPS unavailable)`);
               } catch (e) {
                 console.warn(`⚠️ [${providerName} PROVIDER] Timestamp heartbeat failed:`, e?.message);
               }
@@ -1311,7 +1250,6 @@ class LocationTracker {
           }
         }, 10000);
 
-        console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s + 3s watchdog`);
 
         // ── Token-watch interval ──────────────────────────────────────────
         // The Base44 SDK refreshes access tokens internally via axios interceptors.
@@ -1326,12 +1264,10 @@ class LocationTracker {
             if (!this.isTracking) return;
             const currentToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
             if (currentToken && currentToken !== this._lastTokenUsed) {
-              console.log('🔑 [LocationTracker] Access token changed — updating native POST headers');
               this._lastTokenUsed = currentToken;
               this.updateNativePostHeaders().catch(() => {});
             }
           }, 60000); // Check every 60s
-          console.log('🔑 [LocationTracker] Token-watch interval started (60s)');
         }
       } catch (error) {
         console.error('❌ Failed to start location provider:', error);
@@ -1362,7 +1298,6 @@ class LocationTracker {
           'X-AppUser-Id': this.appUserId,
         }
       });
-      console.log('📡 [LocationTracker] Native POST headers updated (token refresh)');
     } catch (e) {
       console.warn('⚠️ [LocationTracker] Failed to update native POST headers:', e?.message);
     }
@@ -1376,7 +1311,6 @@ class LocationTracker {
       this._nativeOffDutyWatcher = false;
       const provider = getLocationProvider();
       Promise.resolve(provider?.clearWatch?.(offDutyId)).catch(() => {});
-      console.log('📱 [LocationTracker] Stopped native off-duty Foreground Service');
     }
     if (this.watchId !== null) {
       const activeWatchId = this.watchId;
@@ -1391,7 +1325,6 @@ class LocationTracker {
       clearInterval(this._tokenWatchInterval);
       this._tokenWatchInterval = null;
       this._lastTokenUsed = null;
-      console.log('🔑 [LocationTracker] Token-watch interval stopped');
     }
     if (this.breadcrumbInterval) {
       clearInterval(this.breadcrumbInterval);
@@ -1406,7 +1339,6 @@ class LocationTracker {
       this._atStopBreadcrumbInterval = null;
     }
     this.isBreadcrumbSlowed = false;
-    console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals + watchdog');
     this.isTracking = false;
     this._webOnlyMode = false;
     this._nativeOffDutyWatcher = false;
@@ -1510,7 +1442,6 @@ class LocationTracker {
 
       if (newStatus) {
         // TURNING ON: Make location visible to other drivers
-        console.log('🟢 [Location Sharing] Enabling - others can now see my location');
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
@@ -1521,7 +1452,6 @@ class LocationTracker {
         return true;
       } else {
         // TURNING OFF: Hide location from other drivers only
-        console.log('🔴 [Location Sharing] Disabling visibility only - background tracking stays active on the primary device');
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
           // Keep coordinates and location_updated_at intact for stale marker display
@@ -1615,7 +1545,6 @@ class LocationTracker {
 
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
       this.lastBreadcrumbSavedAt = timestamp;
-      console.log(`🍞 [LocationTracker] Collected breadcrumb for ${result.pendingKey}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
     }
@@ -1703,7 +1632,6 @@ class LocationTracker {
       const { latitude, longitude, accuracy } = position.coords;
       const now = Date.now();
 
-      console.log(`📍 [LocationTracker] Resume fix acquired: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}] ±${accuracy?.toFixed(0)}m`);
 
       // (a) Update lastPosition so everything downstream has current coords
       this.lastPosition = { latitude, longitude, accuracy };
@@ -1765,7 +1693,6 @@ class LocationTracker {
       this.lastBreadcrumbSavedAt = 0;
       await this.collectBreadcrumb(latitude, longitude, now);
 
-      console.log(`🍞 [LocationTracker] Resume breadcrumb saved at [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (err) {
       console.warn('⚠️ [LocationTracker] Resume GPS fix failed:', err?.message);
       // Even if the fix fails, still reset breadcrumb timer so the next interval tick tries again
@@ -1830,10 +1757,8 @@ class LocationTracker {
           console.warn(`⚠️ [${providerName} PROVIDER] Fresh GPS fix failed on resumed heartbeat:`, err?.message);
         }
       }, this.updateInterval);
-      console.log(`💓 [LocationTracker] Heartbeat interval restarted after resume — ${this.updateInterval / 1000}s`);
     }
 
-    console.log(`🍞 [LocationTracker] Breadcrumb timer restarted — interval ${this.breadcrumbSaveInterval / 1000}s`);
 
     // (f) Always signal useLiveBreadcrumbsSync to reload from DB so the polyline
     //     reflects the fresh breadcrumb immediately (not just on the next delivery event).
@@ -1953,15 +1878,12 @@ class LocationTracker {
 
       if (hasMoved) {
         this._offDutyBackgroundedAt = Date.now();
-        console.log(`📱 [IdleKill] Timer reset — driver moved >50m while off duty`);
       } else {
         const mins = Math.round(elapsed / 60000);
-        console.log(`📱 [IdleKill] Threshold reached (${mins}min off-duty + backgrounded) — force closing app`);
         this._forceCloseApp(`App closed after ${mins} min off duty in background to save battery.`);
       }
     }, 60 * 1000); // Check every 60s (throttled to ~1/min in background)
 
-    console.log(`📱 [IdleKill] Timer started — will force close after 30min of background inactivity while off duty`);
   }
 
   _stopIdleKillTimer() {
@@ -1981,7 +1903,6 @@ class LocationTracker {
         // ── App going to background while off duty ──
         // Part A: Pause heartbeat to stop phantom heartbeats
         this._clearHeartbeat();
-        console.log('📱 [Web-only] Heartbeat paused — app backgrounded while off duty');
 
         // Part B: Start idle kill timer
         this._startIdleKillTimer();
@@ -1994,11 +1915,9 @@ class LocationTracker {
           const elapsed = Date.now() - this._offDutyBackgroundedAt;
           if (elapsed >= 30 * 60 * 1000) {
             const mins = Math.round(elapsed / 60000);
-            console.log(`📱 [IdleKill] App returned after ${mins}min background off-duty — force closing`);
             this._forceCloseApp(`You've been off duty for ${mins} minutes. Closing app to save battery.`);
             return;
           }
-          console.log(`📱 [Web-only] App returned after ${Math.round(elapsed / 1000)}s — resuming heartbeat`);
         }
 
         this._offDutyBackgroundedAt = null;
@@ -2018,7 +1937,6 @@ class LocationTracker {
   }
 
   async _forceCloseApp(message) {
-    console.log(`📱 [IdleKill] Force closing app: ${message}`);
     try { remoteLogger.warn('[IDLE_KILL] FORCE_CLOSE | ' + message); } catch (_) {}
 
     this._stopIdleKillTimer();
@@ -2069,7 +1987,6 @@ if (typeof document !== 'undefined') {
       focusLostAt > 0 &&
       awayDuration > 5000
     ) {
-      console.log(`🔄 [LocationTracker] App resumed after ${Math.round(awayDuration / 1000)}s away — resyncing GPS, breadcrumbs, and offline DB`);
       locationTracker._resumeAfterAbsence(awayDuration);
       // _resumeAfterAbsence handles checkImmediateArrival after acquiring fresh GPS — no duplicate needed here.
     } else if (
@@ -2112,7 +2029,6 @@ if (typeof document !== 'undefined') {
       locationTracker.isPrimaryDevice &&
       locationTracker.appUserId
     ) {
-      console.log('📍 [LocationTracker] Web-only mode — refreshing GPS on foreground return');
       (async () => {
         try {
           const provider = getLocationProvider();
@@ -2165,7 +2081,6 @@ if (typeof document !== 'undefined') {
       const { latitude, longitude, accuracy } = pos.coords;
       locationTracker.lastPosition = { latitude, longitude, accuracy };
       locationTracker.collectBreadcrumb(latitude, longitude, Date.now()).catch(() => {});
-      console.log('🍞 [LocationTracker] Post-completion breadcrumb collected');
     }).catch((err) => {
       // Fallback: use last known position if fresh fix fails
       if (locationTracker.lastPosition?.latitude) {
@@ -2174,7 +2089,6 @@ if (typeof document !== 'undefined') {
           locationTracker.lastPosition.longitude,
           Date.now()
         ).catch(() => {});
-        console.log('🍞 [LocationTracker] Post-completion breadcrumb (stale position fallback)');
       } else {
         console.warn('🍞 [LocationTracker] Post-completion breadcrumb failed — no GPS fix', err?.message);
       }

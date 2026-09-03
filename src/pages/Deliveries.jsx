@@ -230,7 +230,6 @@ export default function DeliveriesPage() {
     try {
       const user = await getEffectiveUser();
       if (!user) {
-        console.log("❌ [Deliveries] No user found");
         setHasAccess(false);
         return false;
       }
@@ -239,12 +238,10 @@ export default function DeliveriesPage() {
 
       // Allow access for admin, dispatcher, and driver roles
       if (userHasRole(user, 'admin') || userHasRole(user, 'dispatcher') || userHasRole(user, 'driver')) {
-        console.log("✅ [Deliveries] Access granted for role:", user.app_roles);
         setHasAccess(true);
         return true;
       }
 
-      console.log("❌ [Deliveries] No valid role found");
       setHasAccess(false);
       return false;
 
@@ -260,22 +257,17 @@ export default function DeliveriesPage() {
     const timeSinceLastLoad = now - lastLoadTime.current;
 
     if (!forceRefresh && timeSinceLastLoad < 2000 && loadInProgress.current > 0) {
-      console.log(`🛑 [Deliveries] Blocked loadData - only ${timeSinceLastLoad}ms since last load, skipping...`);
       return;
     }
 
     if (loadInProgress.current > 0) {
-      console.log('🛑 [Deliveries] Load already in progress (ref), skipping...');
       return;
     }
 
     if (isLoadingData && !forceRefresh) {
-      console.log('🛑 [Deliveries] isLoadingData is true (state), skipping...');
       return;
     }
 
-    console.log('🔄 [Deliveries] Starting loadData...', forceRefresh ? '(FORCE REFRESH)' : '');
-    console.log(`🔍 [Deliveries] Mode: ${isDriverOverviewMode ? 'Driver Overview' : 'Route View'}, Year filter: ${selectedOverviewYear}`);
 
     loadInProgress.current = 1;
     lastLoadTime.current = now;
@@ -290,11 +282,6 @@ export default function DeliveriesPage() {
         }
       }
 
-      console.log('USER ROLE CHECK');
-      console.log('User:', user?.user_name || user?.full_name);
-      console.log('Platform role:', user?.role);
-      console.log('App role:', user?.app_roles?.[0]);
-      console.log('IS APP OWNER (dual admin):', isAppOwner(user));
 
       const [storesData, appUsersData, citiesData] = await Promise.all([
       getData('Store', '-created_date', null, forceRefresh),
@@ -308,18 +295,11 @@ export default function DeliveriesPage() {
 
       let allAuthUsers = [];
       if (user?.role === 'admin' || isAppOwner(user)) {
-        console.log('User is admin, fetching all User entities...');
         const usersData = await getData('User', '-created_date', null, forceRefresh);
         allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
-        console.log('Fetched User entities:', allAuthUsers.length);
       } else {
-        console.log('User is not admin, skipping User.list()');
       }
 
-      console.log('Filtering users from raw data:', {
-        totalAuthUsers: allAuthUsers.length,
-        totalAppUsers: (appUsersData || []).length
-      });
 
       let mergedUsers = [];
 
@@ -386,10 +366,6 @@ export default function DeliveriesPage() {
         return !matchesStoreName;
       });
 
-      console.log('Filtered merged users:', {
-        beforeFilter: preFilterCount,
-        afterFilter: mergedUsers.length
-      });
 
       mergedUsers = mergedUsers.filter((u) => {
         const roles = Array.isArray(u.app_roles) ? u.app_roles : u.app_role ? [u.app_role] : [];
@@ -404,7 +380,6 @@ export default function DeliveriesPage() {
       let deliveriesData = [];
 
       if (isDriverOverviewMode) {
-        console.log('📋 [Deliveries] Loading Driver Overview - OFFLINE FIRST approach');
 
         // STEP 1: Load immediately from offline DB
         try {
@@ -413,7 +388,6 @@ export default function DeliveriesPage() {
 
           if (offlineDeliveries && offlineDeliveries.length > 0) {
             deliveriesData = offlineDeliveries;
-            console.log(`✅ [Deliveries] Loaded ${deliveriesData.length} deliveries from offline DB (INSTANT)`);
 
             // Update UI immediately with cached data
             if (isMounted.current) {
@@ -454,12 +428,10 @@ export default function DeliveriesPage() {
         const shouldSync = hoursSinceLastSync > intervals.recent;
 
         if (shouldSync) {
-          console.log(`🔄 [Deliveries] Starting background historical sync (last sync: ${hoursSinceLastSync.toFixed(1)}h ago)`);
           setTimeout(async () => {
             try {
               const { runHistoricalDeliveriesSync } = await import('../components/deliveries/deliveriesDataLoader');
               const allYearData = await runHistoricalDeliveriesSync();
-              console.log(`✅ [Deliveries Background] Synced ${allYearData.length} deliveries from online DB`);
 
               // Filter out deleted deliveries before saving to offline DB
               const { smartRefreshManager } = await import('../components/utils/smartRefreshManager');
@@ -468,26 +440,21 @@ export default function DeliveriesPage() {
               if (filteredData.length > 0) {
                 const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
                 await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, filteredData);
-                console.log(`💾 [Deliveries Background] Saved ${filteredData.length} to offline DB`);
                 if (isMounted.current) {
                   setAllDeliveries(filteredData);
-                  console.log('✅ [Deliveries Background] UI updated with fresh online data (deleted filtered)');
                 }
               }
 
               localStorage.setItem(lastHistoricalSyncKey, Date.now().toString());
-              console.log('🕐 [Deliveries Background] Historical sync timestamp updated');
             } catch (error) {
               console.error('❌ [Deliveries Background] Sync failed:', error);
             }
           }, 100); // Start background sync after 100ms
         } else {
-          console.log(`⏭️ [Deliveries] Skipping historical sync (last sync: ${hoursSinceLastSync.toFixed(1)}h ago, need >24h)`);
         }
 
         if (deliveriesData && deliveriesData.length > 0) {
           const dates = deliveriesData.map((d) => d.delivery_date).filter(Boolean).sort();
-          console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
         // Rolling ~90-day window back through end of current year — independent of
@@ -516,16 +483,13 @@ export default function DeliveriesPage() {
       let patientsData = [];
 
       if (userHasRole(user, 'admin')) {
-        console.log('Admin - Fetching ALL patients (will filter in memory)');
         try {
           const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
-          console.log('Admin - Fetched all patients:', allPatientsRaw?.length || 0);
 
           const uniquePatientIds = new Set(
             (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
           );
           patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
-          console.log('Admin - Filtered to patients with deliveries:', patientsData.length);
         } catch (error) {
           console.error('Failed to fetch patients for admin:', error.message);
           patientsData = [];
@@ -535,14 +499,12 @@ export default function DeliveriesPage() {
         if (dispatcherStoreIds.length > 0) {
           try {
             patientsData = await getData('Patient', 'full_name', { store_id: { $in: dispatcherStoreIds } }, forceRefresh);
-            console.log('Dispatcher - Fetched patients:', patientsData?.length || 0);
           } catch (error) {
             console.error('Failed to fetch patients for dispatcher:', error.message);
             patientsData = [];
           }
         }
       } else if (userHasRole(user, 'driver')) {
-        console.log('Driver - Fetching ALL patients (will filter in memory)');
         try {
           const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
 
@@ -550,7 +512,6 @@ export default function DeliveriesPage() {
             (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
           );
           patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
-          console.log('Driver - Filtered to patients with deliveries:', patientsData.length);
         } catch (error) {
           console.error('Failed to fetch patients for driver:', error.message);
           patientsData = [];
@@ -561,7 +522,6 @@ export default function DeliveriesPage() {
         setAllPatients(patientsData || []);
       }
 
-      console.log('✅ [Deliveries] Data refresh complete');
       initialLoadDone.current = true;
 
     } catch (error) {
@@ -603,20 +563,17 @@ export default function DeliveriesPage() {
   useEffect(() => {
     const handleSmartRefreshComplete = () => {
       if (!isDriverOverviewMode) {
-        console.log('🔄 [Deliveries] Smart refresh complete - forcing UI update');
         setRefreshKey((prev) => prev + 1);
       }
     };
 
     const handleImportComplete = () => {
       if (!isDriverOverviewMode) {
-        console.log('📥 [Deliveries] Import complete - forcing UI update');
         setRefreshKey((prev) => prev + 1);
       }
     };
 
     const handleDataRefresh = () => {
-      console.log('🔄 [Deliveries] Data refresh event - forcing UI update');
       setRefreshKey((prev) => prev + 1);
     };
 
@@ -659,7 +616,6 @@ export default function DeliveriesPage() {
     }
 
     if (Date.now() < skipContextSyncUntil.current) {
-      console.log('⏸️ [Deliveries] Skipping context sync - drag operation in progress');
       return;
     }
 
@@ -667,7 +623,6 @@ export default function DeliveriesPage() {
     // NEVER sync context deliveries into Route Management (both overview and with driver selected)
     // Route Management is completely decoupled from Dashboard
     if (!isDriverOverviewMode) {
-      console.log('⏸️ [Deliveries] Skipping context sync for deliveries - Route Management loads independently from offline DB');
       // Still sync other data
       if (contextPatients.length > 0) {
         setAllPatients(contextPatients);
@@ -686,7 +641,6 @@ export default function DeliveriesPage() {
 
     // Driver Overview: DO NOT sync deliveries from context (contextDeliveries is date-filtered)
     // Driver Overview loads its own data independently from offline DB
-    console.log('⏸️ [Deliveries] Skipping context delivery sync for Driver Overview - loads independently from offline DB');
 
     if (contextPatients.length > 0) {
       setAllPatients(contextPatients);
@@ -706,7 +660,6 @@ export default function DeliveriesPage() {
   }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, dataLoaded, isDriverOverviewMode]);
 
   useEffect(() => {
-    console.log('🔐 [Deliveries] Running checkAccess on mount...');
     checkAccess();
   }, [checkAccess]);
 
@@ -717,7 +670,6 @@ export default function DeliveriesPage() {
     // Driver-only users: auto-select themselves
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
       if (driverFilter === 'all') {
-        console.log('🚗 [Deliveries] Driver user detected, auto-selecting self:', currentUser.id);
         setDriverFilter(currentUser.id);
       }
     }
@@ -727,11 +679,9 @@ export default function DeliveriesPage() {
 
   useEffect(() => {
     if (!hasAccess || initialLoadDone.current) {
-      console.log(`⏩ [Deliveries] Skipping initial loadData (hasAccess: ${hasAccess}, initialLoadDone: ${initialLoadDone.current})`);
       return;
     }
 
-    console.log('🚀 [Deliveries] Running initial loadData on page mount...');
 
     initialLoadDone.current = true;
 
@@ -754,14 +704,11 @@ export default function DeliveriesPage() {
   }, [isDriverOverviewMode, driverFilter, loadData, selectedYear, selectedMonth]);
 
   const availableOverviewYears = useMemo(() => {
-    console.log('🗓️ Calculating availableOverviewYears...');
 
     if (!allDeliveries || !Array.isArray(allDeliveries) || allDeliveries.length === 0) {
-      console.log('⚠️ No allDeliveries, returning empty years');
       return [];
     }
 
-    console.log('📊 allDeliveries count for year calculation:', allDeliveries.length);
 
     const years = [...new Set(allDeliveries.map((d) => {
       if (!d || !d.delivery_date) return null;
@@ -774,7 +721,6 @@ export default function DeliveriesPage() {
     }).filter(Boolean))];
 
     const sortedYears = years.sort((a, b) => b - a);
-    console.log(`✅ Available overview years (from all deliveries):`, sortedYears);
 
     return sortedYears;
   }, [allDeliveries.length]);
@@ -791,7 +737,6 @@ export default function DeliveriesPage() {
     const yearParam = params.get('overviewYear');
 
     if (yearParam) {
-      console.log('📅 [Deliveries] URL has year param:', yearParam);
       if (yearParam === 'all') {
         setSelectedOverviewYear('all');
       } else {
@@ -808,7 +753,6 @@ export default function DeliveriesPage() {
     availableOverviewYears[0]?.toString();
 
     if (targetYear) {
-      console.log('📅 [Deliveries] Auto-selecting year:', targetYear);
       setSelectedOverviewYear(targetYear);
     }
 
@@ -953,17 +897,9 @@ export default function DeliveriesPage() {
 
   const effectiveDrivers = useMemo(() => {
     if (!currentUser || !allUsers || !Array.isArray(allUsers)) {
-      console.log('❌ [Deliveries] effectiveDrivers: No data available', {
-        hasCurrentUser: !!currentUser,
-        hasAllUsers: !!allUsers,
-        isArray: Array.isArray(allUsers),
-        allUsersLength: allUsers?.length
-      });
       return [];
     }
 
-    console.log('🔍 [Deliveries] Building effectiveDrivers list...');
-    console.log('📊 [Deliveries] Total allUsers:', allUsers.length);
 
     let driversOnly = allUsers.filter((u) => {
       if (!u) {
@@ -973,20 +909,16 @@ export default function DeliveriesPage() {
       const hasDriverRole = userHasRole(u, 'driver') || userHasRole(u, 'admin') || userHasRole(u, 'dispatcher');
 
       if (!hasDriverRole) {
-        console.log('❌ [Deliveries] Excluding (no driver/admin/dispatcher role):', u.user_name || u.full_name, 'roles:', u.app_roles);
         return false;
       }
 
-      console.log('✅ [Deliveries] Including user with driver role:', u.user_name || u.full_name, 'roles:', u.app_roles);
       return true;
     });
 
-    console.log('📊 [Deliveries] After role filtering:', driversOnly.length, 'drivers remaining');
 
     if (userHasRole(currentUser, 'admin')) {
       // CRITICAL: Include specific driver from URL even if inactive (for history viewing or cleanup)
       const filtered = driversOnly.filter((u) => u && (u.status === 'active' || u.id === driverFilter));
-      console.log('👑 [Deliveries] Admin view - filtered drivers:', filtered.length);
       return filtered;
     }
 
@@ -996,30 +928,21 @@ export default function DeliveriesPage() {
       if (currentUser.city_id) {
         const beforeCityFilter = filteredDrivers.length;
         filteredDrivers = filteredDrivers.filter((d) => d && d.city_id === currentUser.city_id);
-        console.log('📍 [Deliveries] Dispatcher city filter:', {
-          before: beforeCityFilter,
-          after: filteredDrivers.length,
-          cityId: currentUser.city_id
-        });
       }
-      console.log('👔 [Deliveries] Dispatcher view - filtered:', filteredDrivers.length);
       return filteredDrivers;
     }
 
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
       const filtered = driversOnly.filter((d) => d.id === currentUser.id);
-      console.log('🚗 [Deliveries] Driver view - own account only:', filtered.length);
       return filtered;
     }
 
-    console.log('⚠️ [Deliveries] No matching role, returning empty array');
     return [];
   }, [currentUser, allUsers, isDriverOverviewMode]);
 
   useEffect(() => {
     if (!dataLoaded || !hasAccess || isLoadingData) return;
 
-    console.log('🔍 [Deliveries] Processing URL parameters and setting initial state');
 
     const params = new URLSearchParams(location.search);
     const driverParam = params.get("driver");
@@ -1043,13 +966,6 @@ export default function DeliveriesPage() {
       initialSelectedMonth = new Date().getMonth();
     }
 
-    console.log('📅 [Deliveries] Setting year/month from URL:', {
-      year: initialSelectedYear,
-      month: initialSelectedMonth,
-      monthParam,
-      hasMonthParam: !!monthParam,
-      isInitialLoad: isInitialPageLoadRef.current
-    });
 
     setSelectedYear(initialSelectedYear);
     setSelectedMonth(initialSelectedMonth);
@@ -1071,7 +987,6 @@ export default function DeliveriesPage() {
 
     if (driverParam) {
       newDriverFilter = driverParam;
-      console.log('🚗 [Deliveries] Using driver from URL:', driverParam);
     } else if (userHasRole(currentUser, 'driver')) {
       const driverUser = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
       if (driverUser) {
@@ -1143,7 +1058,6 @@ export default function DeliveriesPage() {
       deliveriesToGroup = driverFilteredDeliveries.filter((d) =>
       d && d.store_id && dispatcherStoreIds.has(d.store_id)
       );
-      console.log(`👔 [Deliveries] Dispatcher filter: ${deliveriesToGroup.length} of ${driverFilteredDeliveries.length} deliveries in assigned stores`);
     }
 
     // Show all dates from loaded data (current month through end of year + any past dates loaded)
@@ -1252,7 +1166,6 @@ export default function DeliveriesPage() {
       const topDateObj = new Date(topDate.replace(/-/g, '/'));
       topDateObj.setHours(0, 0, 0, 0);
       manualDateSelectionRef.current = false;
-      console.log(`📅 [Deliveries] ${reason}: ${format(topDateObj, 'yyyy-MM-dd')}`);
       setSelectedDate(topDateObj);
     };
 
@@ -1618,15 +1531,9 @@ export default function DeliveriesPage() {
   }, [allPatients, stores]);
 
   const handleSaveDelivery = useCallback(async (deliveryData) => {
-    console.log('🚀 [Deliveries] handleSaveDelivery called with data:', deliveryData);
-    console.log('🏷️  [Deliveries] Received tracking_number:', deliveryData.tracking_number);
-    console.log('⏰ [Deliveries] Received delivery_time_start:', deliveryData.delivery_time_start);
-    console.log('📊 [Deliveries] Received status:', deliveryData.status);
 
     try {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
-        console.log(`📦 [Deliveries] Processing batch save for ${deliveryData._stagedDeliveries.length} deliveries`);
-        console.log('📦 [Deliveries] Staged deliveries:', deliveryData._stagedDeliveries);
 
         const stagedDeliveries = deliveryData._stagedDeliveries;
 
@@ -1694,23 +1601,19 @@ export default function DeliveriesPage() {
           delete finalDeliveryData.distanceFromStore;
           delete finalDeliveryData.delivery_address;
 
-          console.log(`✅ [Deliveries] Created delivery for ${staged.patient_name || 'pickup'}`);
           await base44.entities.Delivery.create(finalDeliveryData);
 
           if (actualDriver) {
-            console.log(`🔄 [Deliveries] Optimizing route for store ${store.name}`);
             await optimizeRouteOrder(store.id, staged.delivery_date, actualDriver);
           }
         }
 
-        console.log(`✅ [Deliveries] All ${stagedDeliveries.length} deliveries created, refreshing data...`);
         await invalidate('Delivery');
         const freshDeliveries = await base44.entities.Delivery.list('-created_date');
         setAllDeliveries(freshDeliveries || []);
         setShowDeliveryForm(false);
         setEditingDelivery(null);
 
-        console.log(`✅ [Deliveries] Batch save complete - UI refreshed`);
         return;
       }
 
@@ -1748,10 +1651,6 @@ export default function DeliveriesPage() {
         if (selectedStore) {
           if (selectedStore.dispatcher_id) {
             deliveryData.dispatcher_id = selectedStore.dispatcher_id;
-            console.log('✅ [Deliveries] Assigned dispatcher_id from store:', {
-              store: selectedStore.name,
-              dispatcher_id: selectedStore.dispatcher_id
-            });
           } else if (selectedStore.dispatcher_name) {
             console.warn('⚠️ [Deliveries] Store has dispatcher_name but no dispatcher_id, falling back to name lookup');
             const dispatcher = allUsers.find((u) => {
@@ -1761,7 +1660,6 @@ export default function DeliveriesPage() {
             });
             if (dispatcher) {
               deliveryData.dispatcher_id = dispatcher.id;
-              console.log('✅ [Deliveries] Found dispatcher via name fallback:', dispatcher.user_name || dispatcher.full_name);
             } else {
               deliveryData.dispatcher_id = null;
               console.warn('⚠️ [Deliveries] No dispatcher found for name:', selectedStore.dispatcher_name);
@@ -1832,11 +1730,9 @@ export default function DeliveriesPage() {
   }, [editingDelivery, allPatients, stores, setShowDeliveryForm, setEditingDelivery, createDriverPickupStops, calculateOptimalTimeWindow, optimizeRouteOrder, effectiveDrivers, setAllDeliveries, allUsers]);
 
   const handleImportComplete = useCallback(async () => {
-    console.log('✅ [Deliveries] Route import completed, refreshing data...');
 
     try {
 
-      console.log('🗑️ [Deliveries] Invalidating all caches...');
 
       invalidate('Delivery');
       invalidate('Patient');
@@ -1845,7 +1741,6 @@ export default function DeliveriesPage() {
       invalidate('AppUser');
       invalidate('City');
 
-      console.log('🔄 [Deliveries] Forcing data refresh...');
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -1857,13 +1752,6 @@ export default function DeliveriesPage() {
       getData('City', '-created_date', null, true)]
       );
 
-      console.log('📊 [Deliveries] Fetched fresh data:', {
-        deliveries: freshDeliveries?.length || 0,
-        patients: freshPatients?.length || 0,
-        stores: freshStores?.length || 0,
-        appUsers: freshAppUsers?.length || 0,
-        cities: freshCities?.length || 0
-      });
 
       if (isMounted.current) {
         setAllDeliveries(freshDeliveries || []);
@@ -1951,7 +1839,6 @@ export default function DeliveriesPage() {
 
         setRefreshKey((k) => k + 1);
 
-        console.log('✅ [Deliveries] Data refresh complete after import');
       }
 
     } catch (error) {
@@ -1970,7 +1857,6 @@ export default function DeliveriesPage() {
     if (patientToEdit) {
       setEditingPatient(patientToEdit);
       alert(`Edit Patient: ${patientToEdit.full_name} (ID: ${patientToEdit.id}) - Form not yet implemented.`);
-      console.log('Editing patient:', patientToEdit);
     }
   }, [allPatients]);
 
@@ -1992,13 +1878,11 @@ export default function DeliveriesPage() {
         const now = new Date();
         if (now && typeof now.toISOString === 'function') {
           updateData.actual_delivery_time = now.toISOString();
-          console.log('✅ [Deliveries] Set timestamp for finished status:', newStatus);
         }
       }
 
       if (wasFinished && !isFinishing) {
         updateData.actual_delivery_time = null;
-        console.log('🗑️ [Deliveries] Cleared timestamp - moving from finished to active');
       }
 
       await updateDeliveryLocal(deliveryId, updateData);
@@ -2031,7 +1915,6 @@ export default function DeliveriesPage() {
         updateDeliveryLocal(d.id, { status: 'in_transit' })
         );
         await Promise.all(updatePromises);
-        console.log(`✅ [Deliveries] Updated ${relatedDeliveries.length} deliveries to in_transit after pickup`);
 
         setAllDeliveries((prev) =>
         prev.map((d) => {
@@ -2246,7 +2129,6 @@ export default function DeliveriesPage() {
     const cacheKey = `${selectedOverviewYear}-${currentUser.id}`;
     const now = Date.now();
     if (lastStatsParamsRef.current.year === cacheKey && now - lastStatsParamsRef.current.timestamp < 30000) {
-      console.log('⏸️ [Deliveries] Skipping stats fetch - cached params:', cacheKey);
       return;
     }
 
@@ -2270,7 +2152,6 @@ export default function DeliveriesPage() {
         if (cachedStats) {
           const cacheAge = Date.now() - new Date(cachedStats.calculated_at).getTime();
           const cacheAgeMinutes = Math.round(cacheAge / 60000);
-          console.log(`✅ [Deliveries] Loaded driver stats from offline DB (age: ${cacheAgeMinutes}min)`);
           setBackendDriverStats(cachedStats.driver_stats || []);
           lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
           setIsLoadingStats(false);
@@ -2278,7 +2159,6 @@ export default function DeliveriesPage() {
         }
 
         // CRITICAL: Fetch from lighter overview endpoint if not cached
-        console.log(`📥 [Deliveries] Fetching driver overview stats for year: ${selectedOverviewYear}`);
 
         const response = await base44.functions.invoke('getDriverOverviewStats', {
           year: selectedOverviewYear || new Date().getFullYear(),
@@ -2287,7 +2167,6 @@ export default function DeliveriesPage() {
         });
 
         const statsData = response?.data?.driverStats || response?.driverStats || [];
-        console.log(`✅ [Deliveries] Fetched ${statsData.length} driver stats from backend`);
 
         // CRITICAL: Cache in offline DB for future use
         if (statsData.length > 0) {
@@ -2298,7 +2177,6 @@ export default function DeliveriesPage() {
             calculated_at: new Date().toISOString()
           };
           await offlineDBInstance.save(offlineDBInstance.STORES.DRIVER_OVERVIEW_STATS, cacheRecord);
-          console.log(`💾 [Deliveries] Cached ${statsData.length} driver stats in offline DB`);
         }
 
         setBackendDriverStats(statsData);
@@ -2319,28 +2197,12 @@ export default function DeliveriesPage() {
       return [];
     }
 
-    console.log('🎯 Building driver cards for overview mode');
-    console.log(`👤 Current user:`, currentUser?.user_name || currentUser?.full_name);
-    console.log(`👤 User roles:`, currentUser?.app_roles);
-    console.log(`📊 Total users in allUsers:`, allUsers?.length || 0);
-    console.log(`📊 Total users in effectiveDrivers:`, effectiveDrivers?.length || 0);
-    console.log(`📅 Selected overview year: ${selectedOverviewYear}`);
-    console.log(`📍 Selected City ID: ${selectedCityId}`);
-    console.log(`📊 Backend stats available: ${backendDriverStats ? 'YES' : 'NO'}`);
 
     // CRITICAL: Always use allDeliveries for Driver Overview (never fall back to contextDeliveries which is date-filtered)
     const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : [];
     const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
     const usersToUse = allUsers?.length > 0 ? allUsers : contextUsers;
 
-    console.log(`🔍 [DriverCards] Data sources selected:`, {
-      deliveries: deliveriesToUse.length,
-      deliveriesSource: allDeliveries?.length > 0 ? 'allDeliveries' : 'contextDeliveries',
-      patients: patientsToUse.length,
-      patientsSource: allPatients?.length > 0 ? 'allPatients' : 'contextPatients',
-      users: usersToUse.length,
-      usersSource: allUsers?.length > 0 ? 'allUsers' : 'contextUsers'
-    });
 
     if (!deliveriesToUse || !Array.isArray(deliveriesToUse)) {
       console.warn('⚠️ No deliveries available');
@@ -2369,18 +2231,13 @@ export default function DeliveriesPage() {
       }
     });
 
-    console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${deliveriesToUse.length} total`);
 
     if (yearFilteredDeliveries.length > 0) {
       const dates = yearFilteredDeliveries.map((d) => d.delivery_date).filter(Boolean).sort();
-      console.log(`📊 Date range in yearFilteredDeliveries: ${dates[0]} to ${dates[dates.length - 1]}`);
-      console.log(`📊 Sample delivery dates:`, dates.slice(0, 5), '...', dates.slice(-5));
     }
 
     const driverNamesInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => (d.driver_name || '').toLowerCase().trim()).filter(Boolean))];
     const driverIdsInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => d.driver_id).filter(Boolean))];
-    console.log(`📊 Unique driver names in deliveries:`, driverNamesInDeliveries);
-    console.log(`📊 Unique driver IDs in deliveries:`, driverIdsInDeliveries);
 
     const driversWithRoles = usersToUse.filter((u) => {
       if (!u) return false;
@@ -2389,30 +2246,23 @@ export default function DeliveriesPage() {
       const isAdminDriver = roles.includes('admin') && roles.includes('driver');
 
       if (hasDriverRole || isAdminDriver) {
-        console.log(`✅ Including driver ${u.user_name || u.full_name} (id: ${u.id}, appUserId: ${u.appUserId}) with roles: ${roles.join(', ')}, status: ${u.status}`);
         return true;
       }
       return false;
     });
-    console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
 
     const deliveryDriverIds = [...new Set(deliveriesToUse.map((d) => d.driver_id).filter(Boolean))];
-    console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
-    console.log(`📊 [Debug] Driver IDs from driversWithRoles:`, driversWithRoles.map((d) => ({ name: d.user_name, id: d.id, appUserId: d.appUserId })));
 
     let cityFilteredDrivers = driversWithRoles;
 
     if (userHasRole(currentUser, 'admin')) {
       if (selectedCityId && selectedCityId !== 'all') {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === selectedCityId);
-        console.log(`👑 Admin - filtered to city ${selectedCityId}: ${cityFilteredDrivers.length} drivers`);
       } else {
-        console.log('👑 Admin - showing all drivers from all cities');
       }
     } else if (userHasRole(currentUser, 'dispatcher')) {
       // CRITICAL: Dispatchers should only see drivers who have deliveries for their assigned stores
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-      console.log(`👔 Dispatcher store IDs:`, Array.from(dispatcherStoreIds));
 
       // Find all driver IDs that have deliveries for the dispatcher's stores
       const driversWithStoreDeliveries = new Set();
@@ -2426,7 +2276,6 @@ export default function DeliveriesPage() {
           }
         }
       });
-      console.log(`👔 Drivers with deliveries for dispatcher's stores:`, Array.from(driversWithStoreDeliveries));
 
       // Filter to only show drivers who have deliveries for dispatcher's stores
       cityFilteredDrivers = driversWithRoles.filter((d) => {
@@ -2437,11 +2286,9 @@ export default function DeliveriesPage() {
         driversWithStoreDeliveries.has((d.user_name || '').toLowerCase().trim());
         return driverIdMatch || driverNameMatch;
       });
-      console.log(`👔 Dispatcher - filtered to drivers with store deliveries: ${cityFilteredDrivers.length} drivers`);
     } else if (userHasRole(currentUser, 'driver')) {
       if (currentUser.city_id) {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
-        console.log(`📍 Filtered to user's city ${currentUser.city_id}: ${cityFilteredDrivers.length} drivers`);
       }
     }
 
@@ -2457,34 +2304,27 @@ export default function DeliveriesPage() {
       driverNamesInDeliveries.includes(userUserNameLower);
 
       if (!hasDeliveries) {
-        console.log(`   ⏭️ Skipping driver (no deliveries): ${u.user_name || u.full_name}`);
         return false;
       }
 
-      console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
       return true;
     });
 
-    console.log(`✅ Found ${driversWithDeliveries.length} drivers to show (after city filter)`);
 
     let driversToShow = [];
 
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
       driversToShow = driversWithDeliveries;
-      console.log(`👑 Admin/Dispatcher - showing ${driversToShow.length} drivers`);
     } else if (userHasRole(currentUser, 'driver')) {
       // Drivers can only see their own card
       driversToShow = driversWithDeliveries.filter((d) =>
       d.id === currentUser.id || d.appUserId === currentUser.id
       );
-      console.log(`🚗 Driver - showing own card only: ${driversToShow.length} drivers`);
     } else {
-      console.log(`❌ User has no valid role for driver overview`);
       return [];
     }
 
     if (!driversToShow.length) {
-      console.log('❌ No drivers to show');
       return [];
     }
 
@@ -2501,7 +2341,6 @@ export default function DeliveriesPage() {
       const backendStats = backendDriverStats?.find((s) => s.driverId === driver.id || s.driverId === driver.appUserId);
 
       if (backendStats) {
-        console.log(`✅ Using backend stats for driver: ${driver.user_name || driver.full_name}`);
         return {
           driver: driver,
           firstName: getDriverDisplayName(driver),
@@ -2518,7 +2357,6 @@ export default function DeliveriesPage() {
       }
 
       // Fallback to local calculation if backend stats not available
-      console.log(`⚠️ Falling back to local calculation for driver: ${driver.user_name || driver.full_name}`);
 
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (!d) return false;
@@ -2612,9 +2450,6 @@ export default function DeliveriesPage() {
     const cardsWithStops = cards.filter((c) => c.stats.totalStops > 0);
 
     const sortedCards = sortUsers(cardsWithStops.map((c) => ({ ...c.driver, _cardData: c }))).map((driver) => driver._cardData);
-    console.log(`📋 Final sorted cards: ${sortedCards.length} cards (${cards.length - cardsWithStops.length} drivers hidden with 0 stops)`);
-    console.log(`📋 Display names:`, sortedCards.map((c) => c.firstName));
-    console.log(`📋 Card stats:`, sortedCards.map((c) => `${c.firstName}: ${c.stats.totalStops} stops`));
 
     return sortedCards;
   }, [
@@ -2651,7 +2486,6 @@ export default function DeliveriesPage() {
   }, [freshAppUsers]);
 
   const handleDriverCardClick = useCallback((driver) => {
-    console.log('🎯 [Deliveries] Driver card clicked:', driver.user_name || driver.full_name);
 
     const driverDeliveries = (effectiveDeliveries || []).filter((d) =>
     d.driver_id && (d.driver_id === driver.id || d.driver_id === driver.appUserId) ||
@@ -2680,11 +2514,6 @@ export default function DeliveriesPage() {
     const targetYear = targetDate.getFullYear();
     const targetMonth = targetDate.getMonth();
 
-    console.log('🎯 [Deliveries] Switching to Route Management:', {
-      driverId: driver.id,
-      year: targetYear,
-      month: targetMonth + 1
-    });
 
     // CRITICAL: Set driver filter immediately to prevent it from being cleared
     setDriverFilter(driver.id);
@@ -2858,7 +2687,6 @@ export default function DeliveriesPage() {
                   );
                   const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
 
-                  console.log(`🗑️ [DeleteRoute] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
                   await batchDeleteDeliveriesLocal(deliveryIds, {
                     userId: currentUser?.id,
@@ -2868,7 +2696,6 @@ export default function DeliveriesPage() {
                   setAllDeliveries((prev) => prev.filter((d) => !deliveryIds.includes(d.id)));
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
-                  console.log(`✅ [DeleteRoute] Route deleted successfully`);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
                   alert('Failed to delete route. Please try again.');
@@ -2890,14 +2717,12 @@ export default function DeliveriesPage() {
                   );
                   const deliveryIds = deliveriesToDelete.map((d) => d.id);
 
-                  console.log(`🗑️ [DeleteMonth] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}${driverId ? ` (driver: ${driverId})` : ''}`);
 
                   await batchDeleteDeliveriesLocal(deliveryIds, {
                     userId: currentUser?.id,
                     userName: currentUser?.user_name || currentUser?.full_name
                   });
 
-                  console.log(`✅ [DeleteMonth] Month deleted successfully`);
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
                 } catch (error) {
@@ -2964,7 +2789,6 @@ export default function DeliveriesPage() {
                     );
                     const deliveryIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
 
-                    console.log(`🗑️ [DeleteRoute-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
                     await batchDeleteDeliveriesLocal(deliveryIds, {
                       userId: currentUser?.id,
@@ -2975,7 +2799,6 @@ export default function DeliveriesPage() {
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
-                    console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
                     alert('Failed to delete route. Please try again.');
@@ -2997,14 +2820,12 @@ export default function DeliveriesPage() {
                     );
                     const deliveryIds = deliveriesToDelete.map((d) => d.id);
 
-                    console.log(`🗑️ [DeleteMonth-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}${driverId ? ` (driver: ${driverId})` : ''}`);
 
                     await batchDeleteDeliveriesLocal(deliveryIds, {
                       userId: currentUser?.id,
                       userName: currentUser?.user_name || currentUser?.full_name
                     });
 
-                    console.log(`✅ [DeleteMonth-Mobile] Month deleted successfully`);
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);

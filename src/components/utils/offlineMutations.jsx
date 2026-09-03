@@ -59,7 +59,6 @@ let mutationsPaused = false; // CRITICAL: Pause mutations during route optimizat
  * Pause offline mutations (during route optimization)
  */
 export const pauseOfflineMutations = () => {
-  console.log('⏸️ [OfflineMutations] Paused');
   mutationsPaused = true;
 };
 
@@ -67,7 +66,6 @@ export const pauseOfflineMutations = () => {
  * Resume offline mutations
  */
 export const resumeOfflineMutations = () => {
-  console.log('▶️ [OfflineMutations] Resumed');
   mutationsPaused = false;
 };
 
@@ -92,7 +90,6 @@ export const subscribeMutations = (callback) => {
 export const notifyMutation = (mutation) => {
   // CRITICAL: Don't notify if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] Notification skipped - mutations paused');
     return;
   }
 
@@ -125,7 +122,6 @@ const restartSmartRefresh = async () => {
   try {
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.restart();
-    console.log('🔄 [OfflineMutations] Smart refresh restarted after mutation');
   } catch (error) {
     console.warn('⚠️ [OfflineMutations] Failed to restart smart refresh:', error);
   }
@@ -137,7 +133,6 @@ const restartSmartRefresh = async () => {
 export const createPatientLocal = async (patientData) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] createPatientLocal skipped - mutations paused');
     throw new Error('Mutations are paused during route optimization');
   }
 
@@ -146,7 +141,6 @@ export const createPatientLocal = async (patientData) => {
   smartRefreshManager.pause();
 
   try {
-    console.log('📝 [OfflineMutations] Creating patient locally...');
     
     // Generate temporary ID if not provided
     const tempId = patientData.id || `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -161,7 +155,6 @@ export const createPatientLocal = async (patientData) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [localPatient]);
 
-    console.log('✅ [OfflineMutations] Patient created locally:', tempId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
     notifyMutation({ 
@@ -175,7 +168,6 @@ export const createPatientLocal = async (patientData) => {
     try {
       const { base44 } = await import('@/api/base44Client');
       const backendPatient = await base44.entities.Patient.create(patientData);
-      console.log('✅ [Sync] Patient synced to backend immediately:', tempId, '→', backendPatient.id);
       
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -199,7 +191,6 @@ export const createPatientLocal = async (patientData) => {
         data: backendPatient 
       });
       
-      console.log('✅ [Sync] Temp patient replaced with backend patient in IndexedDB');
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
@@ -232,7 +223,6 @@ export const createPatientLocal = async (patientData) => {
 export const updatePatientLocal = async (patientId, updates) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] updatePatientLocal skipped - mutations paused');
     throw new Error('Mutations are paused during route optimization');
   }
 
@@ -249,7 +239,6 @@ export const updatePatientLocal = async (patientId, updates) => {
   smartRefreshManager.pause();
 
   try {
-    console.log('📝 [OfflineMutations] Updating patient locally:', patientId);
     
     // Get current patient from IndexedDB
     const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
@@ -269,7 +258,6 @@ export const updatePatientLocal = async (patientId, updates) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
 
-    console.log('✅ [OfflineMutations] Patient updated locally:', patientId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
     notifyMutation({ 
@@ -285,7 +273,6 @@ export const updatePatientLocal = async (patientId, updates) => {
     try {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Patient.update(patientId, updatedPatient);
-      console.log('✅ [Sync] Patient synced to backend (full record):', patientId);
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
@@ -318,7 +305,6 @@ export const updatePatientLocal = async (patientId, updates) => {
 export const deletePatientLocal = async (patientId) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] deletePatientLocal skipped - mutations paused');
     throw new Error('Mutations are paused during route optimization');
   }
 
@@ -327,7 +313,6 @@ export const deletePatientLocal = async (patientId) => {
   smartRefreshManager.pause();
 
   try {
-    console.log('📝 [OfflineMutations] Deleting patient locally:', patientId);
 
     // Remove from local IndexedDB
     const db = await offlineDB.openDatabase();
@@ -340,7 +325,6 @@ export const deletePatientLocal = async (patientId) => {
       request.onerror = () => reject(request.error);
     });
 
-    console.log('✅ [OfflineMutations] Patient deleted locally:', patientId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
     notifyMutation({ 
@@ -354,14 +338,12 @@ export const deletePatientLocal = async (patientId) => {
     try {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Patient.delete(patientId);
-      console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
     } catch (error) {
       // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
       if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
-        console.log('ℹ️ [Sync] Patient not found on backend (was local-only or already deleted):', patientId);
         smartRefreshManager.restart();
       } else {
         console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
@@ -392,7 +374,6 @@ export const deletePatientLocal = async (patientId) => {
 export const createDeliveryLocal = async (deliveryData) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] createDeliveryLocal skipped - mutations paused');
     throw new Error('Mutations are paused during route optimization');
   }
 
@@ -401,7 +382,6 @@ export const createDeliveryLocal = async (deliveryData) => {
   smartRefreshManager.pause();
 
   try {
-    console.log('📝 [OfflineMutations] Creating delivery locally...');
 
     const sourceDelivery = deliveryData?._isBatchSave && Array.isArray(deliveryData?._stagedDeliveries)
       ? deliveryData._stagedDeliveries[0]
@@ -426,7 +406,6 @@ export const createDeliveryLocal = async (deliveryData) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localDelivery]);
 
-    console.log('✅ [OfflineMutations] Delivery created locally:', tempId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
     notifyMutation({ 
@@ -440,7 +419,6 @@ export const createDeliveryLocal = async (deliveryData) => {
     try {
       const { base44 } = await import('@/api/base44Client');
       const backendDelivery = await base44.entities.Delivery.create(normalizedDeliveryData);
-      console.log('✅ [Sync] Delivery synced to backend immediately:', tempId, '→', backendDelivery.id);
       
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -464,7 +442,6 @@ export const createDeliveryLocal = async (deliveryData) => {
         data: backendDelivery 
       });
       
-      console.log('✅ [Sync] Temp delivery replaced with backend delivery in IndexedDB');
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
@@ -516,14 +493,12 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
   }
 
   try {
-    console.log('📝 [OfflineMutations] Updating delivery:', deliveryId);
     
     // Get current delivery from IndexedDB — O(1) getById instead of O(n) getAll + find
     const existingDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
     
     // CRITICAL: If delivery not in IndexedDB, update backend FIRST, then add to IndexedDB
     if (!existingDelivery) {
-      console.log('⚠️ [OfflineMutations] Delivery not in IndexedDB - syncing to backend first:', deliveryId);
 
       try {
         const meaningfulUpdates = await sanitizeDeliveryPayload(updates);
@@ -534,7 +509,6 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const { base44 } = await import('@/api/base44Client');
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
         // NOTE: When not in IDB we don't have a full record to merge — meaningfulUpdates is the best we have.
-        console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
 
         // Broadcast to other tabs/clients
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
@@ -543,7 +517,6 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
 
         // Add to IndexedDB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
-        console.log('✅ [OfflineMutations] Added backend delivery to IndexedDB:', deliveryId);
 
         // Notify listeners for UI update
         notifyMutation({ 
@@ -620,7 +593,6 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
 
     // Save to local IndexedDB FIRST
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-    console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
 
     // CRITICAL: Notify listeners with only changed fields to avoid false downstream updates
     notifyMutation({ 
@@ -633,7 +605,6 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         _polylineStructuralChange: stopOrderChanged
       }
     });
-    console.log('🔔 [OfflineMutations] UI notified immediately after local save');
 
     // --- Fire-and-forget payroll recalculation on qualifying status changes ---
     const newStatus = meaningfulUpdates.status;
@@ -735,7 +706,6 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
 export const deleteDeliveryLocal = async (deliveryId) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] deleteDeliveryLocal skipped - mutations paused');
     throw new Error('Mutations are paused during route optimization');
   }
 
@@ -744,7 +714,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
   smartRefreshManager.pause();
 
   try {
-    console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
 
     // CRITICAL: Register this delete in window.__localDeliveryWrites so the incoming
     // WebSocket delete echo is suppressed. Without this, the WS echo goes through the
@@ -772,7 +741,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       try {
         const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
         if (!existing) {
-          console.log('ℹ️ [OfflineMutations] Delivery not found in offline DB (already deleted):', deliveryId);
           return { success: true, wasMissing: true };
         }
 
@@ -782,7 +750,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
           try {
             const { base44 } = await import('@/api/base44Client');
             await base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' });
-            console.log('💳 [OfflineMutations] Square COD catalog item deleted for delivery:', deliveryId);
           } catch (squareErr) {
             console.warn('⚠️ [OfflineMutations] Square COD delete failed (continuing):', squareErr?.message || squareErr);
           }
@@ -802,7 +769,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       } catch (error) {
         const isMissingOffline = String(error?.message || '').toLowerCase().includes('not found') || String(error?.message || '').toLowerCase().includes('no record');
         if (isMissingOffline) {
-          console.log('ℹ️ [OfflineMutations] Delivery not found in offline DB (already deleted):', deliveryId);
           return { success: true, wasMissing: true };
         }
         throw error;
@@ -817,7 +783,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       } catch (error) {
         // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
         if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
-          console.log('ℹ️ [Sync] Delivery not found on backend (was local-only or already deleted):', deliveryId);
           return { success: true, was404: true };
         }
         // CRITICAL: Return error but don't throw - we need to queue mutation
@@ -828,11 +793,9 @@ export const deleteDeliveryLocal = async (deliveryId) => {
     // Execute both operations in parallel
     const [, backendResult] = await Promise.all([offlineDeletePromise, backendDeletePromise]);
 
-    console.log('✅ [OfflineMutations] Delivery deleted from offline DB:', deliveryId);
 
     // Step 2: CRITICAL - Handle backend sync result and queue mutation if needed
     if (backendResult.success) {
-      console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
     } else {
       console.warn('⚠️ [Sync] Backend deletion failed, queuing mutation for retry:', backendResult.error?.message);
       // CRITICAL: Queue mutation so it retries later
@@ -858,7 +821,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
         deleted: true
       }
     }));
-    console.log('🔔 [OfflineMutations] Listeners notified of deletion');
 
     // CRITICAL: Restart smart refresh after all operations complete
     smartRefreshManager.restart();
@@ -873,7 +835,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
         entity: 'Delivery',
         recordId: deliveryId
       });
-      console.log('⚠️ [OfflineMutations] Queued delete mutation on error');
     } catch (queueError) {
       console.error('❌ [OfflineMutations] Failed to queue mutation:', queueError);
     }
@@ -890,7 +851,6 @@ export const deleteDeliveryLocal = async (deliveryId) => {
 export const batchCreateDeliveriesLocal = async (deliveriesData) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] batchCreateDeliveriesLocal skipped - mutations paused');
     throw new Error('Mutations are paused during route optimization');
   }
 
@@ -899,7 +859,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
   smartRefreshManager.pause();
 
   try {
-    console.log('📝 [OfflineMutations] Batch creating deliveries locally:', deliveriesData.length);
     
     const localDeliveries = deliveriesData.map(d => ({
       ...d,
@@ -912,7 +871,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     // Save all to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localDeliveries);
 
-    console.log('✅ [OfflineMutations] Batch deliveries created locally');
     
     // CRITICAL: Notify listeners for each delivery for instant UI update
     localDeliveries.forEach(delivery => {
@@ -929,7 +887,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       const { base44 } = await import('@/api/base44Client');
       const backendPayloads = await sanitizeDeliveryPayloads(deliveriesData);
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(backendPayloads);
-      console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
       
       // CRITICAL: Remove all temp records from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -958,7 +915,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
         });
       });
       
-      console.log('✅ [Sync] All temp deliveries replaced with backend deliveries in IndexedDB');
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();

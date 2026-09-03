@@ -50,14 +50,14 @@ export default defineConfig({
     include: ['dompurify'],
   },
   build: {
-    // Strip console.log/console.debug from production builds for performance.
+    // Strip console.log/console.debug/console.info from production builds for performance.
     // 1,240+ console.log statements were shipping to prod and executing on
     // every GPS tick, WebSocket message, and state update on mobile devices.
     // console.error and console.warn are preserved for debugging.
     minify: 'esbuild',
     esbuildOptions: {
       drop: ['debugger'],
-      pure: ['console.log', 'console.debug'],
+      pure: ['console.log', 'console.debug', 'console.info'],
     },
     rollupOptions: {
       onwarn(warning, warn) {
