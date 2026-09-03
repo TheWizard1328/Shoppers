@@ -43,6 +43,25 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             --image-filter: invert(1) hue-rotate(180deg);
             --menu-border: #e2e8f0;
             --safe-area-bg: #0f172a; /* dark for system bars in dark mode */
+
+            /* shadcn/Tailwind theme vars — wired to the app's navy dark palette
+               (instead of the generic near-black/white shadcn defaults) so raw
+               shadcn components (Button outline, Dialog, Select, Popover, etc.)
+               match the app's actual dark surfaces. */
+            --background: 222 47% 11%;      /* slate-900, = --bg-white dark */
+            --foreground: 210 40% 98%;      /* slate-50, = --text-slate-900 dark */
+            --card: 222 47% 11%;
+            --card-foreground: 210 40% 98%;
+            --popover: 222 47% 11%;
+            --popover-foreground: 210 40% 98%;
+            --secondary: 215 25% 27%;       /* slate-700, = --bg-slate-100 dark */
+            --secondary-foreground: 210 40% 98%;
+            --muted: 215 25% 27%;
+            --muted-foreground: 215 20% 65%; /* slate-400, = --text-slate-400 dark */
+            --accent: 215 25% 27%;
+            --accent-foreground: 210 40% 98%;
+            --border: 213 27% 84%;          /* slate-300, = --border-slate-200 dark */
+            --input: 213 27% 84%;
           }
 
           @media (prefers-color-scheme: dark) {
@@ -64,6 +83,21 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
               --image-filter: invert(1) hue-rotate(180deg);
               --menu-border: #e2e8f0;
               --safe-area-bg: #0f172a;
+
+              --background: 222 47% 11%;
+              --foreground: 210 40% 98%;
+              --card: 222 47% 11%;
+              --card-foreground: 210 40% 98%;
+              --popover: 222 47% 11%;
+              --popover-foreground: 210 40% 98%;
+              --secondary: 215 25% 27%;
+              --secondary-foreground: 210 40% 98%;
+              --muted: 215 25% 27%;
+              --muted-foreground: 215 20% 65%;
+              --accent: 215 25% 27%;
+              --accent-foreground: 210 40% 98%;
+              --border: 213 27% 84%;
+              --input: 213 27% 84%;
             }
           }
 
