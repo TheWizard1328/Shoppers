@@ -284,7 +284,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(e) => setFormData(prev => ({ ...prev, effective_date: e.target.value }))}
                 className="w-full"
               />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
+              <p className="text-[11px] text-soft mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
             </div>
           )}
 
@@ -342,7 +342,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           {/* Square Card Locations */}
           {squareLocations.length > 0 && (
             <div className="pt-2 border-t">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-soft mb-2 block flex items-center gap-1">
                 <CreditCard className="w-3 h-3" />
                 Square Card Locations
               </Label>
@@ -363,11 +363,11 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
           {/* Deductions Section */}
           <div className="pt-2 border-t">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-soft mb-2 block flex items-center gap-1">
               <DollarSign className="w-3 h-3" />
               Recurring Deductions
             </Label>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Set a Start/End date to control which pay periods each deduction applies to. Blank means no bound.</p>
+            <p className="text-[11px] text-soft mb-2">Set a Start/End date to control which pay periods each deduction applies to. Blank means no bound.</p>
 
             {/* Existing Deductions */}
             {formData.deductions.length > 0 && (
@@ -380,10 +380,10 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                     return { s, e };
                   })();
                   return (
-                    <div key={idx} className="p-2 bg-slate-50 dark:bg-slate-800 rounded text-sm">
+                    <div key={idx} className="p-2 bg-surface-2 rounded text-sm">
                       <div className="flex items-center gap-2">
-                        <span className="flex-1 font-medium text-slate-700 dark:text-slate-200 truncate">{deduction.name}</span>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">${Number(deduction.amount || 0).toFixed(2)}</span>
+                        <span className="flex-1 font-medium text-body-2 truncate">{deduction.name}</span>
+                        <span className="text-sm font-semibold text-body">${Number(deduction.amount || 0).toFixed(2)}</span>
                         <Button
                           type="button"
                           variant="ghost"
@@ -401,7 +401,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 mt-1.5">
                         <div>
-                          <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">Start</Label>
+                          <Label className="text-[10px] uppercase tracking-wider text-caption mb-1 block">Start</Label>
                           <Input
                             type="date"
                             value={normalizeDate(deduction.start_date)}
@@ -416,7 +416,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">End</Label>
+                          <Label className="text-[10px] uppercase tracking-wider text-caption mb-1 block">End</Label>
                           <Input
                             type="date"
                             value={normalizeDate(deduction.end_date)}
@@ -432,7 +432,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                         </div>
                       </div>
                       {dateRange && (
-                        <p className="text-[10px] mt-1 text-slate-400 dark:text-slate-500">
+                        <p className="text-[10px] mt-1 text-caption">
                           Active: {dateRange.s || 'open'} → {dateRange.e || 'ongoing'}
                         </p>
                       )}
@@ -492,7 +492,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 block">Start Date (optional)</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-caption mb-0.5 block">Start Date (optional)</Label>
                   <Input
                     type="date"
                     value={newDeductionStartDate}
@@ -501,7 +501,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 block">End Date (optional)</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-caption mb-0.5 block">End Date (optional)</Label>
                   <Input
                     type="date"
                     value={newDeductionEndDate}
@@ -519,7 +519,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           {/* Pay Rate History */}
           {formData.pay_rate_history && formData.pay_rate_history.length > 0 && (
             <div className="pt-2 border-t">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-soft mb-2 block flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 Rate History
               </Label>
@@ -527,9 +527,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 {formData.pay_rate_history
                   .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
                   .map((entry, idx) => (
-                    <div key={idx} className="text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded flex justify-between items-center gap-1">
+                    <div key={idx} className="text-xs p-2 bg-surface-2 rounded flex justify-between items-center gap-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                        <span className="font-medium text-body-2 whitespace-nowrap">
                           {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                         </span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
@@ -539,7 +539,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                           })()}
                         </span>
                       </div>
-                      <div className="text-slate-600 dark:text-slate-400 text-[10px]">
+                      <div className="text-label text-[10px]">
                         ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
                       </div>
                       <Button

@@ -370,10 +370,14 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
    .text-label    = color: var(--text-slate-600)
    .text-soft     = color: var(--text-slate-500)
    .bg-surface    = background: var(--bg-white)
-   .border-surface= border-color: var(--border-slate-200) */
+   .border-surface= border-color: var(--border-slate-200)
+   .text-caption  = color: var(--text-slate-400)   (dim uppercase labels)
+   .bg-surface-2  = background: var(--bg-slate-50)  (recessed sub-panel) */
 .text-body { color: var(--text-slate-900); }
 .text-body-2 { color: var(--text-slate-700); }
 .text-label { color: var(--text-slate-600); }
 .text-soft { color: var(--text-slate-500); }
+.text-caption { color: var(--text-slate-400); }
 .bg-surface { background: var(--bg-white); }
+.bg-surface-2 { background: var(--bg-slate-50); }
 .border-surface { border-color: var(--border-slate-200); }
