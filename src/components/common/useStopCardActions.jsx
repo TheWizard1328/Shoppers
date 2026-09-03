@@ -1167,6 +1167,69 @@ export default function useStopCardActions(params) {
           }, 300);
         }
 
+        // ── Skip optimization when starting the natural next stop ──────────────
+        // Starting a stop that is already isNextDelivery (or first in line by
+        // stop_order among active stops) cannot change the route order — the last
+        // optimization pass already sequenced it first and generated its legs.
+        // Skip the HERE sequencing + Google polyline calls entirely and only
+        // cascade local ETAs (pure arithmetic, zero API cost). Route-affecting
+        // changes (new stop, edit, delete, out-of-order start) each trigger their
+        // own optimization pass.
+        const _activeStartStops = routeDeliveries.filter((d) =>
+          d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+        );
+        const _minActiveStopOrder = _activeStartStops.length > 0
+          ? Math.min(..._activeStartStops.map((d) => Number(d?.stop_order) || 9999))
+          : null;
+        const _isNaturalNextStart =
+          delivery?.isNextDelivery === true ||
+          _minActiveStopOrder === null ||
+          (Number(delivery?.stop_order) || 9999) <= _minActiveStopOrder;
+
+        if (_isNaturalNextStart) {
+          console.log('[Start fast path] natural next stop — skipping HERE/Google optimization');
+          window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+          Promise.resolve().then(async () => {
+            try {
+              // Local ETA cascade — pure arithmetic (mirrors the terminal ETA
+              // cascade in executeTerminalAction step 6). No HERE/Google calls.
+              const remainingStops = routeDeliveries
+                .filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+              if (remainingStops.length > 0) {
+                const _fastNow = new Date();
+                const _fastTime = `${String(_fastNow.getHours()).padStart(2, '0')}:${String(_fastNow.getMinutes()).padStart(2, '0')}`;
+                const [_fh, _fm] = _fastTime.split(':').map(Number);
+                let etaMinutes = _fh * 60 + _fm + 5 + (delivery.estimated_duration_minutes || 5);
+                const etaUpdates = remainingStops.map((stop) => {
+                  const newEtaHours = Math.floor((etaMinutes % 1440) / 60);
+                  const newEtaMins = etaMinutes % 60;
+                  const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
+                  etaMinutes += (stop.estimated_duration_minutes || 5) + 2;
+                  return { deliveryId: stop.id, newEta };
+                });
+                window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
+                await Promise.all(etaUpdates.map((u) => Promise.all([
+                  updateDeliveryLocal(u.deliveryId, { delivery_time_eta: u.newEta }, { skipSmartRefresh: true }),
+                  base44.entities.Delivery.update(u.deliveryId, { delivery_time_eta: u.newEta }).catch(() => null),
+                ])));
+                import('../utils/realtimeSync').then(({ broadcastMutation }) => {
+                  Promise.all(etaUpdates.map((u) => broadcastMutation('Delivery', 'update', u.deliveryId, { delivery_time_eta: u.newEta }))).catch(() => {});
+                }).catch(() => {});
+              }
+            } catch (fastErr) {
+              console.warn('⚠️ [Start fast path] local ETA cascade failed:', fastErr?.message || fastErr);
+            } finally {
+              // Resume ALL managers — they were kept paused from the blocking path
+              // (same contract as the full-optimization background tail).
+              resumeOfflineSync('delivery_actions');
+              try { smartRefreshManager.restart(); } catch (_) {}
+              try { backgroundSyncManager.resume(); } catch (_) {}
+              try { resumeRealtimeSync(); } catch (_) {}
+              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', skippedNaturalNext: true, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+            }
+          });
+        } else {
         // ── Background: optimization + polyline regen via unified coordinator ──
         // KITT bar activates IMMEDIATELY on Start button click
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -1263,6 +1326,7 @@ export default function useStopCardActions(params) {
             resumeRealtimeSync();
           }
         });
+        }
 
       } catch (error) {
         toast.error(`Failed to start: ${error.message}`);
@@ -1509,7 +1573,7 @@ export default function useStopCardActions(params) {
       ...(nextStop ? [{ ...nextStop, isNextDelivery: true, ...(_changedMap.get(nextStop.id) || {}) }] : []),
       ...(incompleteDeliveries.filter((d) => d.id !== nextStop?.id).map((d) => ({ ...d, ...(_changedMap.get(d.id) || {}) }))),
     ];
-    Promise.resolve().then(() =>
+    const _terminalSideEffectsPromise = Promise.resolve().then(() =>
       params.scheduleCompletionSideEffects({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
@@ -1523,12 +1587,69 @@ export default function useStopCardActions(params) {
       }).catch(() => {})
     );
 
-    // Stop order re-sorting intentionally omitted — completing/failing/cancelling a stop
-    // does not change the route order. Stop orders remain as-is; only isNextDelivery changes.
+    // 10. Out-of-order terminal action — resequence the remaining route ─────
+    // Complete/Fail/Cancel from the stop card menu can target a stop that is NOT
+    // the next in line (e.g. stop 5 finished while stops 2-4 are still active).
+    // The existing route legs were sequenced assuming that stop sat between its
+    // neighbours — finishing it out of order leaves a geometrically wrong polyline
+    // and stale stop_order. In-order terminal actions (the common case) keep the
+    // zero-API-call path — no HERE/Google calls.
+    if (!routeIsFinished && !actedOnNextDelivery) {
+      const _actedOrder = Number(delivery?.stop_order) || 9999;
+      const _minRemainingOrder = incompleteDeliveries.length > 0
+        ? Math.min(...incompleteDeliveries.map((d) => Number(d?.stop_order) || 9999))
+        : null;
+      // Stale-flag protection: if the acted stop is actually first in line by
+      // stop_order, the route order still cannot change — treat as in-order.
+      const _wasNaturalNext = _minRemainingOrder === null || _actedOrder <= _minRemainingOrder;
+      if (!_wasNaturalNext) {
+        console.log(`[Terminal out-of-order] ${status} on non-next stop — background resequencing queued`);
+        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'terminal_out_of_order', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+        // Chain AFTER the completion side-effects queue resolves. The queue writes
+        // its authoritative stop_order + isNextDelivery batch to IDB + server
+        // first; the optimizer's bulkUpdateDeliveries must land LAST, otherwise
+        // the queue's older ordering would partially revert the resequence (the
+        // same race that motivated removing the concurrent compute repair in
+        // the Start path). No `deliveries` param — the coordinator reads the
+        // fresh post-queue IDB state as its source of truth.
+        _terminalSideEffectsPromise.then(async () => {
+          pauseOfflineMutations();
+          try {
+            const _ooCoord = await performRouteOptimization({
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              patients,
+              stores,
+              appUsers,
+              source: 'terminal_out_of_order',
+              bypassDriverStatus: true,
+            }).catch((ooErr) => {
+              console.warn('⚠️ [Terminal out-of-order] optimization failed:', ooErr?.message || ooErr);
+              return null;
+            });
+            if (Array.isArray(_ooCoord?.freshDeliveries) && _ooCoord.freshDeliveries.length > 0) {
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'terminalOutOfOrder', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: _ooCoord.freshDeliveries } }));
+            }
+            window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'terminal_out_of_order' } }));
+          } finally {
+            resumeOfflineSync('delivery_actions');
+            resumeOfflineMutations();
+            try { smartRefreshManager.restart(); } catch (_) {}
+            try { backgroundSyncManager.resume(); } catch (_) {}
+            try { resumeRealtimeSync(); } catch (_) {}
+            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'terminal_out_of_order', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+          }
+        }).catch(() => {});
+      }
+    }
+
+    // In-order terminal actions: stop order re-sorting intentionally omitted —
+    // completing/failing/cancelling the next stop in line does not change the
+    // route order. Stop orders remain as-is; only isNextDelivery changes.
 
     return { nextStop, routeIsFinished, incompleteDeliveries };
   }, [
-    FINISHED_STATUSES, allDeliveries, appUsers,
+    FINISHED_STATUSES, allDeliveries, appUsers, patients, stores,
     collapseDriverStopCards, currentDriverAppUser?.id, currentUser, delivery,
     forceRefreshDriverDeliveries, getCurrentLocalTime, localNowParts?.time,
     onDriverStatusChange, params, updateDeliveriesLocally,
