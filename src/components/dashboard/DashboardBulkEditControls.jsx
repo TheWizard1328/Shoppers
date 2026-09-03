@@ -358,7 +358,7 @@ export default function DashboardBulkEditControls({
     <>
       {!immersiveHidden && selectedCount > 0 &&
       <div
-        className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border shadow-xl px-2 py-1 gap-1 transition-colors duration-200"
+        className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border shadow-xl px-1.5 py-0.5 gap-1 transition-colors duration-200 h-10"
         style={{
           // Match the established "just above stop cards" baseline used by FABControls'
           // tempBadgeBottom / LiveTempBadge (stopCardsBaseHeight + bottomNavHeight + 10),
@@ -368,9 +368,9 @@ export default function DashboardBulkEditControls({
           // the API usage counter/checkbox row bleed through behind it.
           background: 'var(--bg-white)'
         }}>
-        
-          <span className="text-sm font-medium text-foreground px-1 whitespace-nowrap shrink-0">{totalDeleteCount} Stops</span>
-          <Button size="sm" onClick={openBulkEditPanel} className="gap-2" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
+
+          <span className="text-xs font-medium text-foreground px-1 whitespace-nowrap shrink-0">{totalDeleteCount} Stops</span>
+          <Button size="sm" onClick={openBulkEditPanel} className="gap-1 h-8 min-h-0 px-2" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
             <PencilLine className="h-4 w-4" />
             Edit
           </Button>
@@ -379,12 +379,12 @@ export default function DashboardBulkEditControls({
           variant="ghost"
           onClick={() => setShowDeleteDialog(true)}
           disabled={isDeleting}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1">
-          
+          className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 h-8 min-h-0 px-2">
+
             <Trash2 className="h-4 w-4" />
             {totalDeleteCount}
           </Button>
-          <Button size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting}>
+          <Button size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting} className="h-8 w-8 min-h-0 min-w-0">
             <X className="h-4 w-4" />
           </Button>
         </div>
