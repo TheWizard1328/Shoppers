@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, Draggable, useMouseSensor, useKeyboardSensor } from '@hello-pangea/dnd';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical } from 'lucide-react';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { isInterStoreDelivery, resolveInterStoreFromName } from '../utils/interStoreDisplayName';
+import useSloppyTouchSensor from './useSloppyTouchSensor';
 
 // Portal element mounted once at body level to avoid remounting during drag
 let portalEl = null;
@@ -47,8 +48,27 @@ export default function QuickRouteAdjustments({
     return Object.fromEntries(active.map((d) => [d.id, d.stop_order || '?']));
   });
 
+  const activeIdsKeyRef = useRef(null);
+
   useEffect(() => {
     const active = getActive();
+    const idsKey = active.map((d) => d.id).sort().join('|');
+
+    if (idsKey === activeIdsKeyRef.current) {
+      // Same SET of active stops as before — this prop change is just a WS/
+      // smart-refresh echo carrying updated fields (patient name, COD, ETA,
+      // isNextDelivery, etc.) on the SAME stops, not a real add/remove. Merge
+      // the fresh field data into the existing (possibly user-reordered)
+      // localOrder WITHOUT touching positions, so an in-progress or completed
+      // drag reorder is never silently reverted while this dialog is open.
+      const freshById = new Map(active.map((d) => [d.id, d]));
+      setLocalOrder((prev) => prev.map((d) => freshById.get(d.id) || d));
+      return;
+    }
+
+    // The active set genuinely changed (a stop completed/failed and dropped out,
+    // or a new stop became active) — this IS a legitimate reason to resync order.
+    activeIdsKeyRef.current = idsKey;
     setLocalOrder(active);
     setOriginalOrders(Object.fromEntries(active.map((d) => [d.id, d.stop_order || '?'])));
   }, [deliveries]);
@@ -130,7 +150,12 @@ export default function QuickRouteAdjustments({
 
   return (
     <div className="flex flex-col gap-3">
-      <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DragDropContext
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        sensors={[useMouseSensor, useKeyboardSensor, useSloppyTouchSensor]}
+        enableDefaultSensors={false}
+      >
 
         <Droppable droppableId="route-stops">
           {(provided) =>
