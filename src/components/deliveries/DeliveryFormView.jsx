@@ -421,14 +421,19 @@ export default function DeliveryFormView({
     const amDriverId = store[`${prefix}_am_driver_id`] || null;
     const pmDriverId = store[`${prefix}_pm_driver_id`] || null;
 
+    // The explicitly chosen slot ALWAYS wins (2:00 PM cutoff rule) — never silently
+    // rewrite a PM selection back to AM (or vice versa) just because the store has
+    // no driver scheduled for that slot. After-hours pickups are legitimate.
     if (timeSlot === 'PM') {
       if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
-      if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
+      // No PM driver — keep PM slot; suggest the AM driver as the default.
+      if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
       return { driverId: null, resolvedSlot: 'PM', hasAnyAssignedSlot: false };
     }
 
     if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
-    if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
+    // No AM driver — keep AM slot; suggest the PM driver as the default.
+    if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
     return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false };
   };
 

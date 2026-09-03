@@ -185,7 +185,7 @@ export const resolvePickupPuid = async ({
     }
   }
 
-  const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries);
+  const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries, driverId);
 
   if (!ensureMissingPickup) {
     return fallbackPuid;

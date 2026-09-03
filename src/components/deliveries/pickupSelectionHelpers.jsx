@@ -7,7 +7,7 @@ const isPickup = (delivery) => delivery && !delivery.patient_id;
 const normalizeTimeSlot = (pickup) => pickup?.ampm_deliveries || 'AM';
 const buildPickupOptionId = (pickup) => pickup?.id || pickup?.stop_id || pickup?.puid || pickup?._tempId || '';
 
-const formatPickupTime = (value) => {
+export const formatPickupTime = (value) => {
   if (!value) return '';
   if (/^\d{2}:\d{2}$/.test(value)) return value;
   const parsed = new Date(value);
@@ -48,6 +48,10 @@ export const getStorePickupOptions = ({
       isSameDate(delivery, deliveryDate) &&
       (!driverId || isSameDriver(delivery, driverId))
     )
+    // Cancelled/failed pickups are dead stops — never offer them as attach targets.
+    // Completed pickups stay (labelled with their actual delivery time) so late
+    // deliveries can still be attached to a recently-finished pickup.
+    .filter((delivery) => !['cancelled', 'failed'].includes(String(delivery?.status || '').toLowerCase()))
     .sort((a, b) => {
       const aFinished = FINISHED_PICKUP_STATUSES.includes(String(a?.status || '').toLowerCase());
       const bFinished = FINISHED_PICKUP_STATUSES.includes(String(b?.status || '').toLowerCase());
@@ -145,3 +149,39 @@ export const buildPendingNewPickup = ({ store, formData, driverName, stopId }) =
   _tempId: `pending-pickup-${stopId}`,
   _pendingCreate: true
 });
+
+/**
+ * Build attachable pickup-record options (one per existing pickup) for a set of stores.
+ * Used by the bulk edit dialog so dispatchers can attach stops to a specific pickup,
+ * not just a store/slot combination. Labels show the pickup's live time:
+ * delivery_time_eta for en_route pickups, actual_delivery_time for completed ones.
+ * Cancelled/failed pickups are excluded — dead stops are never attach targets.
+ */
+export const buildPickupRecordOptions = ({ stores = [], allDeliveries = [], deliveryDate, driverId = null }) => {
+  if (!deliveryDate) return [];
+  const storeMap = new Map((stores || []).filter(Boolean).map((s) => [s.id, s]));
+  return (allDeliveries || [])
+    .filter((d) =>
+      d &&
+      !d.patient_id &&
+      d.delivery_date === deliveryDate &&
+      storeMap.has(d.store_id) &&
+      !['cancelled', 'failed'].includes(String(d?.status || '').toLowerCase()) &&
+      (d.stop_id || d.puid) &&
+      (!driverId || String(d.driver_id) === String(driverId))
+    )
+    .map((pickup) => {
+      const store = storeMap.get(pickup.store_id);
+      const timeSlot = normalizeTimeSlot(pickup);
+      const pickupStopId = pickup.stop_id || pickup.puid || null;
+      return {
+        // Value format matches the bulk-edit storeChoice contract (storeId::slot),
+        // extended with the pickup's stop id so the selection attaches to THIS pickup.
+        value: `${store.id}::${timeSlot}::${pickupStopId}`,
+        storeId: store.id,
+        slot: timeSlot,
+        pickupStopId,
+        label: buildPickupOptionLabel(store.name, timeSlot, pickup)
+      };
+    });
+};

@@ -69,8 +69,8 @@ export function buildBulkEditBaseUpdates({ values, initialValues, currentUser, b
 
 export function getSelectedStoreOption(storeChoice) {
   if (!storeChoice || storeChoice === "unchanged") return null;
-  const [storeId, slot] = storeChoice.split("::");
-  return { storeId, slot };
+  const [storeId, slot, pickupStopId] = storeChoice.split("::");
+  return pickupStopId ? { storeId, slot, pickupStopId } : { storeId, slot };
 }
 
 export function hasBulkEditChanges({ baseUpdates, values, initialValues, currentUser, selectedStoreOption }) {
@@ -104,11 +104,14 @@ export function buildDeliveryBulkUpdates({
 
   if (selectedStoreOption) {
     const puidDate = nextUpdates.delivery_date || selectedDelivery?.delivery_date;
-    const nextPuid = getPickupStopIdForDelivery(
+    // Direct attach when a specific pickup record was chosen; otherwise resolve by
+    // store/slot scoped to the affected delivery's driver (never dead pickups).
+    const nextPuid = selectedStoreOption.pickupStopId || getPickupStopIdForDelivery(
       selectedStoreOption.storeId,
       puidDate,
       selectedStoreOption.slot,
-      allDeliveries || []
+      allDeliveries || [],
+      selectedDelivery?.driver_id
     ) || "";
 
     nextUpdates.store_id = selectedStoreOption.storeId;

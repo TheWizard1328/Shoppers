@@ -1,3 +1,5 @@
+import { getVisiblePickupSlotsForDate } from '../utils/ampmUtils';
+
 export const resolveDefaultDriverForNewDelivery = ({
   currentUser,
   stores,
@@ -87,56 +89,28 @@ export const resolveDefaultDriverForNewDelivery = ({
   return { driverId: '', driverName: '' };
 };
 
-export const expandStoresForTimeSlots = ({ stores, deliveryDate }) => {
-  const selectedDate = deliveryDate ? new Date(deliveryDate + 'T00:00:00') : new Date();
-  const dayOfWeek = selectedDate.getDay();
-  const isSaturday = dayOfWeek === 6;
-  const isSunday = dayOfWeek === 0;
+export const expandStoresForTimeSlots = ({ stores, deliveryDate, now = new Date() }) => {
+  // Slot visibility is dictated by the 2:00 PM cutoff (see getVisiblePickupSlotsForDate):
+  // today before 2 PM → both slots; today at/after 2 PM → PM only; future/past dates → both.
+  // Unlike the old behavior, BOTH slots are always offered per store even when the store has
+  // no scheduled driver for that slot — dispatchers can still create after-hours pickups
+  // (e.g. a PM pickup for an AM-only store); the form just requires manual driver selection.
+  const visibleSlots = getVisiblePickupSlotsForDate(deliveryDate, now);
 
   const processedStores = [];
 
   (stores || []).forEach((store) => {
     if (!store) return;
 
-    const amDriverId = isSaturday
-      ? store.saturday_am_driver_id
-      : isSunday
-        ? store.sunday_am_driver_id
-        : store.weekday_am_driver_id;
-
-    const pmDriverId = isSaturday
-      ? store.saturday_pm_driver_id
-      : isSunday
-        ? store.sunday_pm_driver_id
-        : store.weekday_pm_driver_id;
-
-    let addedSlot = false;
-
-    if (amDriverId) {
+    visibleSlots.forEach((slot) => {
       processedStores.push({
         ...store,
-        id: `${store.id}_AM`,
-        name: `${store.name} [AM]`,
+        id: `${store.id}_${slot}`,
+        name: `${store.name} [${slot}]`,
         _originalStoreId: store.id,
-        _timeSlot: 'AM'
+        _timeSlot: slot
       });
-      addedSlot = true;
-    }
-
-    if (pmDriverId) {
-      processedStores.push({
-        ...store,
-        id: `${store.id}_PM`,
-        name: `${store.name} [PM]`,
-        _originalStoreId: store.id,
-        _timeSlot: 'PM'
-      });
-      addedSlot = true;
-    }
-
-    if (!addedSlot) {
-      processedStores.push(store);
-    }
+    });
   });
 
   return processedStores;

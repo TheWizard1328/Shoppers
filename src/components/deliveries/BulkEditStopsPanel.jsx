@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerOverlay } from "@/components/ui/drawer";
 
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
+import { buildPickupRecordOptions } from "./pickupSelectionHelpers";
 import { userHasRole } from "@/components/utils/userRoles";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -120,8 +121,24 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
       : allowedStores;
     // Use the effective driver filter only when not scoped to specific stores from the selection
     const driverFilterId = selectedStoreIds.size > 0 ? null : effectiveDriverId;
-    return relevantStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, driverFilterId));
-  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids, selectedDeliveries]);
+    // Store/slot variants (create-new targets) PLUS existing pickup records labelled with
+    // their live times (en_route → ETA, completed → actual time) so dispatchers can attach
+    // stops to a SPECIFIC pickup. Dead (cancelled/failed) pickups are never offered.
+    const slotOptions = relevantStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, driverFilterId));
+    const pickupRecordOptions = buildPickupRecordOptions({
+      stores: relevantStores,
+      allDeliveries,
+      deliveryDate: values.delivery_date,
+      driverId: driverFilterId
+    });
+    // De-duplicate: if a pickup record exists for a store+slot, prefer the record option
+    // (it attaches to the exact pickup) and drop the generic slot variant for that combo.
+    const recordCombos = new Set(pickupRecordOptions.map((option) => `${option.storeId}::${option.slot}`));
+    return [
+      ...pickupRecordOptions,
+      ...slotOptions.filter((option) => !recordCombos.has(`${option.storeId}::${option.slot}`))
+    ];
+  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids, selectedDeliveries, allDeliveries]);
 
   useEffect(() => {
     if (hasMixedPuids || values.storeChoice === "unchanged") return;
@@ -141,17 +158,24 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
     const selectedPickupOption = pickupOptions.find((option) => option.value === values.storeChoice);
     if (!selectedPickupOption) return;
 
-    const nextPuid = getPickupStopIdForDelivery(
+    // Direct attach when a specific pickup record was chosen. Otherwise resolve by
+    // store/slot, scoped to the selected stops' common driver (null when mixed).
+    const commonDriverId = (selectedDeliveries || []).length > 0 &&
+      selectedDeliveries.every((d) => String(d?.driver_id) === String(selectedDeliveries[0]?.driver_id))
+      ? selectedDeliveries[0]?.driver_id
+      : null;
+    const nextPuid = selectedPickupOption.pickupStopId || getPickupStopIdForDelivery(
       selectedPickupOption.storeId,
       values.delivery_date,
       selectedPickupOption.slot,
-      allDeliveries || []
+      allDeliveries || [],
+      commonDriverId
     ) || "";
 
     if (values.puid !== nextPuid) {
       setValues((current) => ({ ...current, puid: nextPuid }));
     }
-  }, [allDeliveries, pickupOptions, setValues, values.delivery_date, values.puid, values.storeChoice, hasMixedPuids]);
+  }, [allDeliveries, pickupOptions, setValues, values.delivery_date, values.puid, values.storeChoice, hasMixedPuids, selectedDeliveries]);
 
   const hasChanges = useMemo(() => {
     return Object.keys(initialValues).some((key) => values[key] !== initialValues[key]);

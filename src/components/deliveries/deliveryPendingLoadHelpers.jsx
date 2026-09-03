@@ -61,7 +61,7 @@ export const mapPendingDeliveriesToStaged = ({
 
   if (!timeSlot) {
     timeSlot = getStoreAssignedTimeSlot(store, delivery.delivery_date, allDeliveries);
-    puid = getPickupStopIdForDelivery(store.id, delivery.delivery_date, timeSlot, allDeliveries);
+    puid = getPickupStopIdForDelivery(store.id, delivery.delivery_date, timeSlot, allDeliveries, delivery.driver_id);
   }
 
   return {

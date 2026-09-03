@@ -79,7 +79,10 @@ export default function DeliveryStatusAndTiming({
     const selectedStore = availableStores.find((s) => s.id === value);
     const storeId = selectedStore?._originalStoreId || value;
     const timeSlot = selectedStore?._timeSlot || null;
-    const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+    // If the clicked option IS a specific pickup record, attach to that pickup DIRECTLY —
+    // never re-look-up by store/slot, which can snap to a different (e.g. cancelled) pickup.
+    const directStopId = selectedStore?._pickupStopId || selectedStore?._pickupPuid || null;
+    const newPuid = directStopId || getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries, formData.driver_id);
     setFormData((prev) => ({
       ...prev,
       store_id: storeId,
@@ -113,6 +116,14 @@ export default function DeliveryStatusAndTiming({
   const storeSelectValue = (() => {
     if (!formData.store_id) return "";
 
+    // Priority: if the delivery is attached to a specific pickup, show THAT pickup's
+    // option (multiple pickups can share store + slot — only puid disambiguates them).
+    const matchingByPuid = availableStores.find((store) =>
+      store && formData.puid &&
+      (store._pickupStopId === formData.puid || store._pickupPuid === formData.puid)
+    );
+    if (matchingByPuid?.id) return matchingByPuid.id;
+
     const matchingPickupOption = availableStores.find((store) => {
       if (!store) return false;
       const baseStoreId = store._originalStoreId || store.id;
@@ -134,7 +145,11 @@ export default function DeliveryStatusAndTiming({
     const baseStoreId = store._originalStoreId || store.id;
     const timeSlot = store._timeSlot || null;
     const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-    const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
+    // Pickup-record options already carry the full label ("Store [AM] (09:15)") —
+    // keep it verbatim so the live pickup time stays visible in the dropdown.
+    const displayName = store._pickupId
+      ? store.name
+      : `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
     return <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>;
   });
 

@@ -589,9 +589,21 @@ export default function DeliveryForm({
       if (userHasRole(currentUser, 'admin')) { relevantStores = storesToUse; }
       else if (userHasRole(currentUser, 'dispatcher')) { const dispatcherStoreIds = currentUser.store_ids || []; relevantStores = storesToUse.filter((s) => s && dispatcherStoreIds.includes(s.id)); }
     } else if (delivery) {
+      // EDITING an existing record: build the full pickup option list (existing pickup
+      // records with their live times + create-new slot variants) instead of only slot
+      // variants — previously manually-created pickups were invisible when re-assigning
+      // an existing delivery, leaving dead/cancelled pickups as the only attach targets.
+      const editedPatient = formData.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null;
+      const scopeStoreId = formData.store_id || editedPatient?.store_id;
+      const scopeStore = scopeStoreId ? storesToUse.find((s) => s && s.id === scopeStoreId) : null;
+      const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') ? (currentUser.store_ids || []) : null;
+      if (scopeStore && (!dispatcherStoreIds || dispatcherStoreIds.includes(scopeStore.id))) {
+        const officialOptions = sortStores(expandStoresForTimeSlots({ stores: [scopeStore], deliveryDate: formData.delivery_date }));
+        return getStorePickupOptions({ store: scopeStore, allDeliveries, stagedDeliveries, driverId: formData.driver_id, deliveryDate: formData.delivery_date, officialStoreOptions: officialOptions });
+      }
       if (userHasRole(currentUser, 'admin')) { relevantStores = storesToUse; }
-      else if (formData.patient_id && patients) { const patient = patients.find((p) => p && p.id === formData.patient_id); if (patient && patient.store_id) { const patientStore = storesToUse.find((s) => s && s.id === patient.store_id); relevantStores = patientStore ? [patientStore] : storesToUse; } }
-      if (userHasRole(currentUser, 'dispatcher')) { const dispatcherStoreIds = currentUser.store_ids || []; relevantStores = relevantStores.filter((s) => s && dispatcherStoreIds.includes(s.id)); }
+      else if (editedPatient && editedPatient.store_id) { const patientStore = storesToUse.find((s) => s && s.id === editedPatient.store_id); relevantStores = patientStore ? [patientStore] : storesToUse; }
+      if (userHasRole(currentUser, 'dispatcher')) { const storeIds = currentUser.store_ids || []; relevantStores = relevantStores.filter((s) => s && storeIds.includes(s.id)); }
     }
     const expandedStores = expandStoresForTimeSlots({ stores: relevantStores, deliveryDate: formData.delivery_date });
 
@@ -1283,7 +1295,7 @@ export default function DeliveryForm({
     if (delivery && initialPuidRef.current) return;
     if (delivery && !isPickupMode && formData.store_id && formData.delivery_date && allDeliveries && stores && !initialPuidRef.current) {
       const store = stores.find((s) => s && s.id === formData.store_id);
-      if (store) { const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries); const newPuid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries); if (newPuid !== formData.puid) setFormData((prev) => ({ ...prev, puid: newPuid || '' })); }
+      if (store) { const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries); const newPuid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries, formData.driver_id); if (newPuid !== formData.puid) setFormData((prev) => ({ ...prev, puid: newPuid || '' })); }
     }
   }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
 

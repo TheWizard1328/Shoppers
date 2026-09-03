@@ -264,19 +264,45 @@ export const getStoreAssignedTimeSlotForDriver = (store, deliveryDate, driverId,
 /**
  * Get the PUID (stop_id of the pickup) for a delivery
  */
-export const getPickupStopIdForDelivery = (storeId, deliveryDate, timeSlot, allDeliveries = []) => {
+export const getPickupStopIdForDelivery = (storeId, deliveryDate, timeSlot, allDeliveries = [], driverId = null) => {
   if (!storeId || !deliveryDate || !timeSlot) return null;
   
-  const pickup = allDeliveries.find(d => 
-    d && 
-    d.store_id === storeId && 
-    d.delivery_date === deliveryDate && 
-    d.ampm_deliveries === timeSlot && 
+  const matches = (allDeliveries || []).filter(d =>
+    d &&
+    d.store_id === storeId &&
+    d.delivery_date === deliveryDate &&
+    d.ampm_deliveries === timeSlot &&
     !d.patient_id && // Is a pickup
-    d.stop_id
+    d.stop_id &&
+    (!driverId || String(d.driver_id) === String(driverId))
   );
   
-  return pickup ? pickup.stop_id : null;
+  // Preference order: en_route > other non-terminal (pending/in_transit/Staged) > completed.
+  // NEVER return cancelled/failed pickups — they are dead stops and must not receive deliveries.
+  const enRoutePickup = matches.find(d => d.status === 'en_route');
+  if (enRoutePickup) return enRoutePickup.stop_id || enRoutePickup.puid || null;
+  
+  const activePickup = matches.find(d => !['completed', 'failed', 'cancelled'].includes(d.status));
+  if (activePickup) return activePickup.stop_id || activePickup.puid || null;
+  
+  const completedPickup = matches.find(d => d.status === 'completed');
+  return completedPickup ? (completedPickup.stop_id || completedPickup.puid || null) : null;
+};
+
+/**
+ * Which new-pickup slot variants should be offered for a given delivery date.
+ * - Today BEFORE 2:00 PM (14:00): both AM and PM
+ * - Today AT/AFTER 2:00 PM: PM only (new AM pickups no longer make sense today)
+ * - Future dates: both AM and PM
+ * - Past dates (history edits): both AM and PM (no restriction)
+ * Uses the device's local clock (app operates in America/Edmonton).
+ */
+export const getVisiblePickupSlotsForDate = (deliveryDate, now = new Date()) => {
+  if (!deliveryDate) return ['AM', 'PM'];
+  const pad = (n) => String(n).padStart(2, '0');
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (deliveryDate === todayStr && now.getHours() >= 14) return ['PM'];
+  return ['AM', 'PM'];
 };
 
 /**

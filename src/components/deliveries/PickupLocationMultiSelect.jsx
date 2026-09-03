@@ -38,7 +38,7 @@ export default function PickupLocationMultiSelect({
     const requestedSlot = store._timeSlot || 'AM';
     const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
     const effectiveSlot = resolvedSlot || requestedSlot;
-    const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries);
+    const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries, formData.driver_id);
     const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
 
     setSelectedPickupOption(store.id);
