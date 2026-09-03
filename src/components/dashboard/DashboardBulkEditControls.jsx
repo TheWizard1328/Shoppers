@@ -178,6 +178,20 @@ export default function DashboardBulkEditControls({
           payload.after_hours_pickup = values.after_hours_pickup;
         }
 
+        // Arrival / Completion times — only relevant when editing finished stops.
+        // Combine the entered time (HH:MM) with each delivery's own date to form
+        // the full local datetime string the entity stores.
+        if (values.arrival_time !== initialValues.arrival_time) {
+          payload.arrival_time = values.arrival_time
+            ? `${delivery.delivery_date}T${values.arrival_time}:00`
+            : null;
+        }
+        if (values.actual_delivery_time !== initialValues.actual_delivery_time) {
+          payload.actual_delivery_time = values.actual_delivery_time
+            ? `${delivery.delivery_date}T${values.actual_delivery_time}:00`
+            : null;
+        }
+
         return { delivery, payload };
       }).filter(({ payload }) => Object.keys(payload).length > 0);
 
