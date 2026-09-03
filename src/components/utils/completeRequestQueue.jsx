@@ -261,6 +261,25 @@ const flushCompletionJob = async (entry) => {
 
     exitBatchSilentMode();
 
+    // ── Re-read affected records from IDB to capture post-cascade state ─────
+    // affectedFullRecords was snapshotted BEFORE the ETA cascade and
+    // computeNextDeliveryState ran (both fire-and-forget). Re-reading from IDB
+    // now gives us the post-cascade status, delivery_time_eta, isNextDelivery,
+    // and stop_order so the broadcast + UI event carry fresh values instead of
+    // the stale pre-cascade snapshot (which caused a ~3s status/ETA flicker on
+    // the new isNextDelivery stop).
+    let freshRecords = affectedFullRecords;
+    if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
+      try {
+        const ids = affectedFullRecords.map((r) => r?.id).filter(Boolean);
+        const refreshed = await Promise.all(
+          ids.map((id) => offlineDB.getById(offlineDB.STORES.DELIVERIES, id).catch(() => null))
+        );
+        const valid = refreshed.filter(Boolean);
+        if (valid.length > 0) freshRecords = valid;
+      } catch (_) {}
+    }
+
     // ── STEP 4: Broadcast to OTHER devices (not this one) ───────────────────
     // IDB is already pre-seeded above + smartRefreshManager registered, so
     // this device ignores incoming WS echoes. Other devices receive fresh
@@ -269,7 +288,7 @@ const flushCompletionJob = async (entry) => {
     // CRITICAL: Only broadcast if we did NOT already write via entityMutations
     // (which does its own broadcast). Since we're in batch silent mode above,
     // the entity writes above don't broadcast. So we broadcast once here.
-    if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0 && driverId && deliveryDate) {
+    if (Array.isArray(freshRecords) && freshRecords.length > 0 && driverId && deliveryDate) {
       try {
         const { broadcastMutation } = await import('./realtimeSync');
         // Broadcast FULL records (minus polyline) sorted by stop_order.
@@ -277,7 +296,7 @@ const flushCompletionJob = async (entry) => {
         // Polyline is excluded because it's sent via its own dedicated WS event
         // when route optimization completes. The IDB merge on the receiving side
         // naturally preserves the existing polyline when it's absent from the payload.
-        const sortedRecords = [...affectedFullRecords]
+        const sortedRecords = [...freshRecords]
           .filter(r => r?.id)
           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         for (const rec of sortedRecords) {
@@ -290,14 +309,14 @@ const flushCompletionJob = async (entry) => {
 
     // ── STEP 5: Single deliveriesUpdated event for UI refresh ───────────────
     // One event with all fresh data → one UI re-render, not N.
-    if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
+    if (Array.isArray(freshRecords) && freshRecords.length > 0) {
       try {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
             driverId,
             deliveryDate,
             triggeredBy: 'completionSideEffects',
-            freshDeliveries: affectedFullRecords || [],
+            freshDeliveries: freshRecords,
             preserveLocalState: true
           }
         }));
