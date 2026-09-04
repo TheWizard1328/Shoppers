@@ -1049,10 +1049,10 @@ export default function Documents() {
                         <Checkbox checked={isSelected} disabled={isDisabled} onCheckedChange={() => {}} />
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <p className="text-sm font-medium flex-1 min-w-0 truncate">{getDriverDisplayName(driver)}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400'}`}>
                             {hasLicense ? '✓ License' : '✗ License'}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium text-center flex-shrink-0 w-40 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium text-center flex-shrink-0 w-40 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400'}`}>
                             {hasBg ? '✓ Background Check' : '✗ Background Check'}
                           </span>
                         </div>

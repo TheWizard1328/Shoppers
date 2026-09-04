@@ -194,20 +194,20 @@ export default function PatientLogin() {
 
                 {/* 3) Email — replaces "Full Name"; disabled until phone valid + patient selected */}
                 <div className="space-y-2">
-                  <Label htmlFor="email" className={!emailEnabled ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : ''}>
+                  <Label htmlFor="email" className={!emailEnabled ? 'text-slate-400 dark:text-slate-400' : ''}>
                     Email Address
                     {!emailEnabled && <span className="ml-1 text-xs font-normal">(enter phone first)</span>}
                     {emailEnabled && !selectedPatient?.has_email && <span className="ml-1 text-xs font-normal text-blue-600">(you'll set this on first login)</span>}
                   </Label>
                   <div className="relative">
-                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${emailEnabled ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : 'text-slate-300'}`} />
+                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${emailEnabled ? 'text-slate-400 dark:text-slate-400' : 'text-slate-300'}`} />
                     <Input
                       id="email"
                       type="email"
                       placeholder={emailEnabled ? 'you@example.com' : 'Enter phone number first'}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`pl-10 h-12 ${!emailEnabled ? 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 cursor-not-allowed' : ''}`}
+                      className={`pl-10 h-12 ${!emailEnabled ? 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-400 cursor-not-allowed' : ''}`}
                       disabled={!emailEnabled}
                       required={emailEnabled && selectedPatient?.has_email}
                     />

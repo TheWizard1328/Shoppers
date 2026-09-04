@@ -13,7 +13,7 @@ import { format, parseISO, differenceInMinutes } from 'date-fns';
 const STATUS_COLORS = {
   on_duty: { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', label: 'On Duty' },
   on_break: { bg: 'bg-amber-400', light: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300', label: 'Break' },
-  off_duty: { bg: 'bg-slate-400', light: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400 dark:text-slate-500', border: 'border-slate-300 dark:border-slate-600', label: 'Off Duty' }
+  off_duty: { bg: 'bg-slate-400', light: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-300 dark:border-slate-600', label: 'Off Duty' }
 };
 
 const formatDuration = (minutes) => {
@@ -556,7 +556,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
           <button
             key={key}
             onClick={() => setViewMode(key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === key ? 'bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === key ? 'bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300'}`}>
               <Icon className="w-3.5 h-3.5" />
               {label}
             </button>

@@ -531,7 +531,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                   checked={formData.pays_app_fees || false}
                   onCheckedChange={(checked) => setFormData({ ...formData, pays_app_fees: checked })} />
                 
-                                <Label htmlFor="pays_app_fees" className={`text-sm font-medium ${formData.pays_app_fees ? 'text-green-600' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
+                                <Label htmlFor="pays_app_fees" className={`text-sm font-medium ${formData.pays_app_fees ? 'text-green-600' : 'text-slate-500 dark:text-slate-400'}`}>
                                     {formData.pays_app_fees ? 'Currently Paying Fees' : 'Not Paying Fees'}
                                 </Label>
                             </div>

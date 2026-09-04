@@ -60,7 +60,7 @@ const statusConfig = {
   failed: { color: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700', label: 'Failed', icon: XCircle },
   cancelled: { color: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-600', label: 'Cancelled', icon: XCircle },
   returned: { color: 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700', label: 'Returned', icon: RotateCcw },
-  projected: { color: 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-600', label: 'Projected', icon: Clock }
+  projected: { color: 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600', label: 'Projected', icon: Clock }
 };
 
 export default function StopDetailsPanel({

@@ -2482,7 +2482,7 @@ export default function DeliveriesPage() {
     if (driverStatus === 'on_break') return 'bg-orange-400 text-white border-orange-400';
     if (driverStatus === 'online') return 'bg-emerald-500 text-white border-emerald-500';
     if (driverStatus === 'off_duty') return 'bg-red-500 text-white border-red-500';
-    return 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-600';
+    return 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600';
   }, [freshAppUsers]);
 
   const handleDriverCardClick = useCallback((driver) => {

@@ -373,7 +373,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             isPollingOnly ?
             <RefreshCw className="w-3 h-3 text-blue-500" /> :
 
-            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`} />
+            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
             }
 
             {/* Show entity badge on top of spinner */}

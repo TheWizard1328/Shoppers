@@ -83,7 +83,7 @@ function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
             aria-label={option.label}
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : isGrayMixed ? 'bg-slate-200 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'}`}>
+            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : isGrayMixed ? 'bg-slate-200 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'}`}>
             
             <Icon className="w-4 h-4" />
           </button>);

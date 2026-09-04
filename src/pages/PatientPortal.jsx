@@ -147,7 +147,7 @@ function decodePolyline(encoded) {
 const STATUS_CONFIG = {
   completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 dark:bg-green-950 border-green-200',  Icon: CheckCircle },
   failed:    { label: 'Attempted',  color: 'text-red-700 bg-red-50 dark:bg-red-950 border-red-200',         Icon: X },
-  cancelled: { label: 'Cancelled',  color: 'text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700',   Icon: X },
+  cancelled: { label: 'Cancelled',  color: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700',   Icon: X },
   in_transit:{ label: 'In Transit', color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
   en_route:  { label: 'En Route',   color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
   pending:   { label: 'Scheduled',  color: 'text-amber-700 bg-amber-50 dark:bg-amber-950 border-amber-200',   Icon: Clock },
@@ -620,7 +620,7 @@ export default function PatientPortal() {
         >
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
-              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700'}`}>
+              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
                 {trackingMode ? '📍 Tracking driver' : 'Double-tap map to track driver'}
               </div>
             </div>

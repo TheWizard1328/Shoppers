@@ -179,7 +179,7 @@ export default function StopCardPOD({
                 {delivery.status === 'completed' && delivery.signature_image_url ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasSignature ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`} />
+                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasSignature ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600 dark:text-slate-400'}`} />
                 )}
               </Button>
               {!deliveryHasSignature && showSavedSignatureHint && patientSavedSignatureUrl && (
@@ -232,7 +232,7 @@ export default function StopCardPOD({
                 {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0 ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasPhotos ? 'text-emerald-700' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`} />
+                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasPhotos ? 'text-emerald-700' : 'text-slate-600 dark:text-slate-400'}`} />
                 )}
               </Button>
               {deliveryHasPhotos && delivery.status !== 'completed' && (

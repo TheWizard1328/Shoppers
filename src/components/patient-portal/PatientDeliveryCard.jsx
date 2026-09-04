@@ -5,7 +5,7 @@ import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Packa
 const STATUS_CONFIG = {
   completed: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-950', border: 'border-green-200', Icon: CheckCircle },
   failed: { label: 'Failed', color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-950', border: 'border-red-200', Icon: XCircle },
-  cancelled: { label: 'Cancelled', color: 'text-slate-500 dark:text-slate-400 dark:text-slate-500', bg: 'bg-slate-50 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700', Icon: XCircle },
+  cancelled: { label: 'Cancelled', color: 'text-slate-500 dark:text-slate-400', bg: 'bg-slate-50 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700', Icon: XCircle },
   in_transit: { label: 'In Transit', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950', border: 'border-blue-200', Icon: Truck },
   en_route: { label: 'En Route', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950', border: 'border-blue-200', Icon: Truck },
   pending: { label: 'Pending', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950', border: 'border-amber-200', Icon: Clock },
@@ -58,7 +58,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className={`text-xs font-medium truncate ${expanded ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
+            <p className={`text-xs font-medium truncate ${expanded ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
               {storeName || 'Pharmacy'}
             </p>
             <p className={`text-sm font-semibold mt-0.5 ${expanded ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>

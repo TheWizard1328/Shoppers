@@ -140,7 +140,7 @@ export default function DocAccessRequestsPanel({ currentUser }) {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors ${
-                  filter === f ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300'
+                  filter === f ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300'
                 }`}
               >
                 {f}

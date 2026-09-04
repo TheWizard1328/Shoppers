@@ -92,7 +92,7 @@ export default function CompanyDataTab() {
     { key: 'appUsers', label: 'App Users', Icon: Users, color: 'text-purple-600' },
     { key: 'deliveries', label: 'Deliveries', Icon: Package, color: 'text-orange-600' },
     { key: 'payrolls', label: 'Payrolls', Icon: DollarSign, color: 'text-yellow-600' },
-    { key: 'interStores', label: 'ISP Locations', Icon: Building2, color: 'text-slate-600 dark:text-slate-400 dark:text-slate-500' },
+    { key: 'interStores', label: 'ISP Locations', Icon: Building2, color: 'text-slate-600 dark:text-slate-400' },
   ];
 
   if (loading) {

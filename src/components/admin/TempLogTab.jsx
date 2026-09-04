@@ -897,13 +897,13 @@ export default function TempLogTab({ drivers = [], currentUser }) {
         <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
           <button
             onClick={() => setDataSource('online')}
-            className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${dataSource === 'online' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
+            className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${dataSource === 'online' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
           >
             <Wifi className="w-3.5 h-3.5" /> Online
           </button>
           <button
             onClick={() => setDataSource('offline')}
-            className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${dataSource === 'offline' ? 'bg-slate-700 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
+            className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${dataSource === 'offline' ? 'bg-slate-700 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
           >
             <WifiOff className="w-3.5 h-3.5" /> Offline
           </button>
@@ -1345,8 +1345,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                       <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">
                         {bounds ? <span title="route readings / total readings">{tempsRoute.length}/{allReadings.length}</span> : allReadings.length}
                       </td>
-                      <td className={`px-4 py-2 text-right font-mono ${min < fridgeCfg.safe_min ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>{min.toFixed(1)}°C</td>
-                      <td className={`px-4 py-2 text-right font-mono ${max > fridgeCfg.safe_max ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>{max.toFixed(1)}°C</td>
+                      <td className={`px-4 py-2 text-right font-mono ${min < fridgeCfg.safe_min ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>{min.toFixed(1)}°C</td>
+                      <td className={`px-4 py-2 text-right font-mono ${max > fridgeCfg.safe_max ? 'text-red-600 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>{max.toFixed(1)}°C</td>
                       <td className={`px-4 py-2 text-right font-mono font-semibold ${outOfRange ? 'text-red-600' : 'text-emerald-700'}`}>{avg.toFixed(1)}°C</td>
                       <td className="px-4 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{latest?.toFixed(1)}°C</td>
                       <td className="px-4 py-2 text-center">

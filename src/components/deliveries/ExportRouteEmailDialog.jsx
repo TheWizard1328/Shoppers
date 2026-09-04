@@ -343,7 +343,7 @@ export default function ExportRouteEmailDialog({
           </div>
 
           {isRange && !isExporting && (
-            <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
+            <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
               {rangeTooBig
                 ? `⚠️ ${dayCount} days selected — maximum is 31. Please shorten the range.`
                 : `Exporting ${dayCount} days — stores with deliveries in any day of this range will appear below.`}

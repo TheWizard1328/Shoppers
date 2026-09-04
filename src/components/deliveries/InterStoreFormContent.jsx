@@ -420,7 +420,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
                 type === 'pickup' ?
                 'bg-emerald-600 text-white' :
                 'bg-blue-600 text-white' :
-                'bg-white dark:bg-slate-900 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700'}`
+                'bg-white dark:bg-slate-900 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700'}`
                 }>
                 
                   {type === 'pickup' ? 'Pickup' : 'Drop Off'}
@@ -433,11 +433,11 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
       {/* Route summary */}
       {
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm border-surface" style={{ background: 'var(--bg-slate-50)' }}>
-          <span className={`font-semibold truncate max-w-[30%] ${sourceId ? 'text-emerald-700' : 'text-slate-400 dark:text-slate-500 dark:text-slate-400 italic'}`}>
+          <span className={`font-semibold truncate max-w-[30%] ${sourceId ? 'text-emerald-700' : 'text-slate-400 dark:text-slate-400 italic'}`}>
             {sourceLocation ? sourceLocation.store_name : 'Select Pickup'}
           </span>
           <ArrowRight className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-400" />
-          <span className={`font-semibold truncate max-w-[30%] ${destId ? 'text-blue-700' : 'text-slate-400 dark:text-slate-500 dark:text-slate-400 italic'}`}>
+          <span className={`font-semibold truncate max-w-[30%] ${destId ? 'text-blue-700' : 'text-slate-400 dark:text-slate-400 italic'}`}>
             {destLocation ? destLocation.store_name : 'Select Destination'}
           </span>
           <div className="ml-auto flex items-center gap-1.5 shrink-0">

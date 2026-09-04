@@ -286,7 +286,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
                       <span className="font-medium text-sm text-body">
                         {p.pattern_label}
                       </span>
-                      <Badge className={`text-xs ${i === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>
+                      <Badge className={`text-xs ${i === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                         {p.confidence}% confidence
                       </Badge>
                       {i === 0 && <Badge className="text-xs bg-blue-100 text-blue-800">Top match</Badge>}

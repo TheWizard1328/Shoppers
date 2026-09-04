@@ -77,7 +77,7 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
             className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center ${
             isActive ?
             'bg-emerald-600 border-emerald-600 text-white' :
-            'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700'}`
+            'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700'}`
             }>
             <Icon className="w-4 h-4" />
           </button>);

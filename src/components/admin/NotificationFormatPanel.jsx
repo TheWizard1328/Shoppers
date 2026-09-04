@@ -340,7 +340,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
               </Button>
               <Button size="sm" variant="outline" disabled={!!isTesting}
               onClick={() => sendTestMessage(editingEvent, editDraft?.message_template)}
-              className={`gap-1 ${testSuccess === editingEvent ? 'border-green-500 text-green-600' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>
+              className={`gap-1 ${testSuccess === editingEvent ? 'border-green-500 text-green-600' : 'text-slate-600 dark:text-slate-400'}`}>
                 {isTesting === editingEvent ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccess === editingEvent ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
                 {testSuccess === editingEvent ? 'Sent!' : 'Test'}
               </Button>

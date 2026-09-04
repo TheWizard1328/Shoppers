@@ -485,8 +485,8 @@ export default function SidebarUserFooter({
                       {!isAssigned && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 flex-shrink-0">Scheduled</span>}
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
-                      {phone && <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300 transition-colors" style={{ color: 'var(--text-slate-500 dark:text-slate-400 dark:text-slate-500)' }}><Phone className="w-2.5 h-2.5" /><span className="text-[12px]">{formatPhoneNumber(phone)}</span></a>}
-                      {distToStore && <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}><MapPin className="w-2.5 h-2.5" />{distToStore}</span>}
+                      {phone && <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300 transition-colors" style={{ color: 'var(--text-slate-500)' }}><Phone className="w-2.5 h-2.5" /><span className="text-[12px]">{formatPhoneNumber(phone)}</span></a>}
+                      {distToStore && <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><MapPin className="w-2.5 h-2.5" />{distToStore}</span>}
                     </div>
                   </div>);
 
@@ -527,19 +527,19 @@ export default function SidebarUserFooter({
                           {initial}
                         </div>
                         <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400'}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400'}`}>
                           {isOnDuty ? 'On Duty' : 'Off Duty'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
                         {phone &&
-                          <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300 transition-colors" style={{ color: 'var(--text-slate-500 dark:text-slate-400 dark:text-slate-500)' }}>
+                          <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
                             <Phone className="w-2.5 h-2.5" />
                             <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
                           </a>
                           }
                         {distToStore &&
-                          <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
+                          <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
                             <MapPin className="w-2.5 h-2.5" />
                             {distToStore}
                           </span>

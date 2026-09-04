@@ -18,7 +18,7 @@ const RESULT_TYPE_LABELS = {
 const STATUS_COLORS = {
   pending_review: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   applied: 'bg-green-100 text-green-800 border-green-200',
-  dismissed: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700'
+  dismissed: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
 };
 
 const RESULT_TYPE_COLORS = {

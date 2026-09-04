@@ -132,7 +132,7 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
               return (
                 <li
                   key={p.id}
-                  className={`grid items-center gap-x-2 text-xs rounded px-2 py-1 cursor-pointer transition-opacity ${isChecked ? (isActive ? 'bg-green-50 dark:bg-green-950 text-green-900' : 'bg-red-50 dark:bg-red-950 text-red-800') : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 opacity-60'}`}
+                  className={`grid items-center gap-x-2 text-xs rounded px-2 py-1 cursor-pointer transition-opacity ${isChecked ? (isActive ? 'bg-green-50 dark:bg-green-950 text-green-900' : 'bg-red-50 dark:bg-red-950 text-red-800') : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 opacity-60'}`}
                   style={{ gridTemplateColumns: '1rem 0.75rem 1fr 2.5rem 2.5rem 3.5rem' }}
                   onClick={() => togglePatient(p.id)}>
                       <Checkbox

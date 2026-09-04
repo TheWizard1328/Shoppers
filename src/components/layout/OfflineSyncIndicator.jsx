@@ -191,7 +191,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     if (isHistoricalSyncing) return 'text-blue-500';
     if (syncStatus.status === 'error') return 'text-red-500';
     if (syncStatus.status === 'synced' || syncStatus.status === 'complete') return 'text-green-500';
-    return 'text-slate-500 dark:text-slate-400 dark:text-slate-500';
+    return 'text-slate-500 dark:text-slate-400';
   };
 
   const getStatusTooltip = () => {

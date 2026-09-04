@@ -8,7 +8,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const getStatusColor = (status) => {
   const statusColors = {
-    pending: 'text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800',
+    pending: 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800',
     'Ready For Pickup': 'text-amber-700 bg-amber-100',
     in_transit: 'text-blue-700 bg-blue-100',
     completed: 'text-emerald-700 bg-emerald-100',
@@ -16,7 +16,7 @@ const getStatusColor = (status) => {
     cancelled: 'text-red-700 bg-red-100',
     returned: 'text-orange-700 bg-orange-100'
   };
-  return statusColors[status] || 'text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800';
+  return statusColors[status] || 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800';
 };
 
 const getTimeColor = (status) => {

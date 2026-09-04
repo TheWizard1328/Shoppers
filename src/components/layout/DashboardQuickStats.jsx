@@ -213,7 +213,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   const StatItem = ({ icon: Icon, label, value, colorClass, superscript }) =>
   <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`} />
+          <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500 dark:text-slate-400'}`} />
           <span className="font-medium text-label">{label}</span>
         </div>
         <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px] text-body-2" style={{ background: 'var(--bg-slate-100)' }}>

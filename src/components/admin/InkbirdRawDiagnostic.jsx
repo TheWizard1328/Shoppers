@@ -416,7 +416,7 @@ export default function InkbirdRawDiagnostic() {
   // ── Derived display ───────────────────────────────────────────────────────
   const isActive  = ['connecting','reading','polling'].includes(status);
   const latestTemp = temp;
-  const tempColor = latestTemp == null ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' :
+  const tempColor = latestTemp == null ? 'text-slate-400 dark:text-slate-400' :
     latestTemp < 2 || latestTemp > 8 ? 'text-red-600' : 'text-emerald-600';
 
   return (
@@ -520,7 +520,7 @@ export default function InkbirdRawDiagnostic() {
                     const isTemp = short === 'FFF2' || short === 'FFF6';
                     return (
                       <div key={cp.uuid} className="flex items-center gap-2 text-xs">
-                        <code className={`w-10 shrink-0 font-mono font-bold ${isTemp ? 'text-cyan-600' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
+                        <code className={`w-10 shrink-0 font-mono font-bold ${isTemp ? 'text-cyan-600' : 'text-slate-500 dark:text-slate-400'}`}>
                           {short}{isTemp ? ' 🌡' : ''}
                         </code>
                         <div className="flex gap-1 flex-wrap">
@@ -528,7 +528,7 @@ export default function InkbirdRawDiagnostic() {
                             <Badge key={p} variant="outline" className={`text-xs px-1 py-0 ${
                               p === 'notify' || p === 'indicate'
                                 ? 'border-cyan-400 text-cyan-700 bg-cyan-50'
-                                : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500'
+                                : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
                             }`}>{p}</Badge>
                           ))}
                         </div>
@@ -600,12 +600,12 @@ export default function InkbirdRawDiagnostic() {
                       <Badge variant="outline" className={`text-xs px-1 py-0 ${
                         pkt.type === 'notify' ? 'border-cyan-400 text-cyan-700 bg-cyan-50' :
                         pkt.type === 'poll'   ? 'border-violet-400 text-violet-700 bg-violet-50' :
-                        'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800'
+                        'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800'
                       }`}>{pkt.type?.toUpperCase()}</Badge>
                       <Badge variant="outline" className={`text-xs px-1 py-0 ${
                         pkt.uuid?.slice(4,8).toUpperCase() === 'FFF2'
                           ? 'border-cyan-400 text-cyan-700'
-                          : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500'
+                          : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
                       }`}>{pkt.uuid?.slice(4,8).toUpperCase()}</Badge>
                     </div>
                   </div>
@@ -614,7 +614,7 @@ export default function InkbirdRawDiagnostic() {
                     <Badge key={i} variant="outline" className={`text-xs px-1 py-0 mr-1 ${
                       t.val > 0 && t.val < 40
                         ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 dark:text-slate-500'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
                     }`}>{t.val}°C [{t.label}@{t.offset}]</Badge>
                   ))}
                 </div>

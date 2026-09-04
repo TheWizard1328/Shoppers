@@ -302,7 +302,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
         {slotDeliveries.filter((d) => d.status === 'completed').length}/{totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
-        <ChevronDown className={`w-3 h-3 ${canDriverEdit ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : 'invisible'}`} />
+        <ChevronDown className={`w-3 h-3 ${canDriverEdit ? 'text-slate-400 dark:text-slate-400' : 'invisible'}`} />
       </span>
     </div>;
 
