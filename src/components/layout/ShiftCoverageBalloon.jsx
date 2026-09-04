@@ -122,7 +122,7 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
   if (!visible || left == null || bottomOffset == null) return null;
 
   const n = eligible.length;
-  return (
+  return createPortal(
     <div
       role="status"
       onClick={(e) => { e.stopPropagation(); dismiss(true); }}
