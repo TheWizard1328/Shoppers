@@ -6,7 +6,7 @@
  * ACTIVE ROUTE:
  *   - Finished stops  → no polyline (suppressed — only shown when entire route is completed)
  *   - Pending stops   → no polyline (suppressed)
- *   - Current leg     → Blue (AM/PM dash pattern via getTravelModeLineStyle)
+ *   - Current leg     → Blue, ALWAYS solid (dash pattern never varies by AM/PM)
  *   - Incomplete/non-pending legs → Driver-specific color (or Green for cycling)
  *
  * COMPLETED ROUTE:
@@ -98,6 +98,9 @@ const getLegStyle = (driverId, stop, legType) => {
   return {
     ...base,
     color,
+    // The blue current leg is ALWAYS solid — it must never change line
+    // pattern based on AM/PM (Robert, Sep 4 2026).
+    dashArray: legType === "current" ? "" : base.dashArray,
     lineJoin: "round",
     lineCap: "round",
   };
@@ -391,8 +394,7 @@ function UnifiedRoutePolylines({
 
         if (coords) {
           const mode = getStopMode(currentStop, driverId, orderedIncomplete);
-          const isPM = currentStop.ampm_deliveries === "PM";
-          const style = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR, isPM);
+          const style = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR, false);
           const key = `current-${driverId}-${currentStop.id}`;
           if (!seenKeys.has(key)) {
             seenKeys.add(key);
@@ -405,7 +407,9 @@ function UnifiedRoutePolylines({
                   ...style,
                   color: CURRENT_LEG_COLOR,
                   opacity: isFallback ? 0.75 : 0.95,
-                  dashArray: isFallback ? "8,8" : style.dashArray,
+                  // Current leg is always solid (Robert, Sep 4 2026) — the
+                  // fallback estimate keeps the same solid pattern too.
+                  dashArray: "",
                   lineJoin: "round",
                   lineCap: "round",
                 }}
