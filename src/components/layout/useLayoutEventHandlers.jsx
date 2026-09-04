@@ -8,7 +8,7 @@ import { offlineDB } from '../utils/offlineDatabase';
 import { isUiLocked } from '../utils/filterChangeSync';
 import { mergePatients } from './layoutDataHelpers';
 import { performBackgroundSync, processPendingMutations } from '../utils/offlineSync';
-import { clearUserCache } from '../utils/auth';
+import { clearUserCache, patchEffectiveUserCacheFields } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 import { applyTerminalStatusGuard } from '../utils/completionLockout';
@@ -341,6 +341,13 @@ export function useLayoutEventHandlers({
       if (currentUser.id !== userId && currentUser.user_id !== userId) return;
       if (currentUser.driver_status === newStatus) return;
       setCurrentUser({ ...currentUser, driver_status: newStatus });
+      // CRITICAL: Also patch the in-memory + persisted effective-user caches.
+      // Without this, the NEXT getEffectiveUser() call (30-min TTL cache) returns
+      // the stale driver_status, and any component that setCurrentUser()s with it
+      // (DriverStatusToggle's prop-sync effect, AppSidebar, SettingsMenu) reverts
+      // the toggle UI back to the old status — the Start-button "toggles on duty
+      // then flips back off" bug.
+      patchEffectiveUserCacheFields({ driver_status: newStatus });
     };
     window.addEventListener('driverStatusChanged', handleDriverStatusChanged);
 

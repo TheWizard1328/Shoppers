@@ -127,7 +127,11 @@ export default function useStopCardActions(params) {
 
   const ensureDriverOnline = useCallback(async () => {
     if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
-    if (delivery?.delivery_date !== localDeviceTodayStr) return;
+    // NOTE: The old guard `delivery?.delivery_date !== localDeviceTodayStr` was
+    // removed (2026-09-03): starting ANY stop — including future-dated ones — must
+    // put the driver on duty per product rule. The stop's own delivery_date is
+    // passed to the backend as selectedDate so the on-duty flag restore targets
+    // the route the driver actually started, not just today's route.
 
     // NOTE: We intentionally do NOT early-return if appUsers shows 'on_duty'.
     // The appUsers array (booted from IDB) can be stale — the driver may have
@@ -138,7 +142,7 @@ export default function useStopCardActions(params) {
     // bug where the Start button silently failed to put a driver on duty.
 
     try {
-      const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({ newStatus: 'on_duty' });
+      const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({ newStatus: 'on_duty', selectedDate: delivery?.delivery_date || localDeviceTodayStr });
       const deliveryDate = delivery?.delivery_date;
 
       // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't

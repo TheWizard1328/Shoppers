@@ -73,6 +73,36 @@ const persistEffectiveUser = (user) => {
   writeStorageJson(localStorage, EFFECTIVE_USER_CACHE_KEY, payload);
 };
 
+/**
+ * Patches transient fields (e.g. driver_status) onto the in-memory effective
+ * user cache AND the persisted effective-user caches (session + local).
+ *
+ * WHY: getEffectiveUser() is backed by a 30-minute TTL cache. When a driver
+ * toggles on_duty/off_duty/on_break (via DriverStatusToggle OR the Start
+ * button's ensureDriverOnline), the IDB AppUser record and the React
+ * currentUser state are updated — but userCache.data still holds the OLD
+ * driver_status. Any consumer calling getEffectiveUser() mid-session (AppSidebar
+ * refresh, SettingsMenu, ETATracker, EOD guards) receives the stale status, and
+ * components that setCurrentUser() with it (e.g. the DriverStatusToggle's
+ * prop-sync effect) revert the toggle UI back to the stale status — the
+ * "Start toggles me on duty then flips me back off" bug.
+ *
+ * This patch is state-level only: the authoritative record (IDB AppUser + server)
+ * is written by the toggle itself. We only keep the caches coherent with it.
+ */
+export const patchEffectiveUserCacheFields = (fields) => {
+  if (!fields || typeof fields !== 'object') return;
+  if (userCache.data) {
+    userCache.data = { ...userCache.data, ...fields };
+  }
+  try {
+    const persisted = getPersistedEffectiveUser();
+    if (persisted) {
+      persistEffectiveUser({ ...persisted, ...fields });
+    }
+  } catch {}
+};
+
 const getFreshCachedAuthUser = () => {
   const cached = readStorageJson(localStorage, AUTH_BOOT_CACHE_KEY) || readStorageJson(sessionStorage, AUTH_BOOT_CACHE_KEY);
   if (!cached?.user || !cached?.timestamp) return null;
