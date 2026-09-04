@@ -175,17 +175,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const isStrippedDelivery = isStrippedForDriver || isStrippedForDispatcher;
 
-  const ensureDriverOnline = async () => {
-    if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
-    if (delivery?.delivery_date !== localDeviceTodayStr) return;
-    try {
-      const { data, appUserId } = await setDriverStatus({ newStatus: 'on_duty' });
-      try {await locationTracker.startTracking({ ...currentUser, appUserId });} catch (trackingError) {console.warn('Could not start location tracking:', trackingError.message);}
-      if (onDriverStatusChange) onDriverStatusChange('on_duty');
-    } catch (error) {
-      console.error('Failed to auto-toggle driver online:', error);
-    }
-  };
+  // NOTE: The old dead-code local ensureDriverOnline copy was removed (2026-09-03).
+  // The live implementation lives in useStopCardActions (passed in via the hook)
+  // and supports both the self-toggle and the admin→driver targetUserId toggle.
 
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
   const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;

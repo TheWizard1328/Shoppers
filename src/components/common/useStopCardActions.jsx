@@ -125,14 +125,8 @@ export default function useStopCardActions(params) {
   // Cold-chain temperature log state
   const [pendingCoolerLog, setPendingCoolerLog] = useState(null);
 
-  const ensureDriverOnline = useCallback(async () => {
-    // GUARD 1: Only the stop's own assigned driver gets toggled. Admins/dispatchers
-    // starting a stop on behalf of a driver must NOT flip THEIR OWN status.
-    if (!currentUser?.id || currentUser.id !== delivery?.driver_id) {
-      console.log('[ensureDriverOnline] Skipped — current user is not the stop\'s assigned driver');
-      return;
-    }
-    // GUARD 2 (Robert's rule, 2026-09-03): Starting a stop toggles the driver on
+  const ensureDriverOnline = useCallback(async ({ allowAdminToggleForDriver = false } = {}) => {
+    // GUARD 1 (Robert's rule, 2026-09-03): Starting a stop toggles the driver on
     // duty ONLY when the stop is for TODAY. Future-dated or past stops must NOT
     // change the duty status.
     if (delivery?.delivery_date !== localDeviceTodayStr) {
@@ -140,35 +134,61 @@ export default function useStopCardActions(params) {
       return;
     }
 
-    // NOTE: We intentionally do NOT early-return if appUsers shows 'on_duty'.
-    // The appUsers array (booted from IDB) can be stale — the driver may have
-    // toggled off_duty/on_break via the DriverStatusToggle, but the React state
-    // hasn't propagated to the StopCard closure yet. The backend setDriverStatus
-    // has its own idempotency guard (NO-OP if already on_duty with open segment).
+    // ── Resolve the TARGET driver ──────────────────────────────────────────────
+    // Self case: the acting user starting their own stop → toggle themselves.
+    // Admin case (Start/Restart only, allowAdminToggleForDriver): an admin,
+    // dispatcher, or app-owner starting or restarting a stop on a driver's behalf
+    // → toggle the STOP'S ASSIGNED DRIVER (Robert's rule, 2026-09-03: "when I
+    // restarted the stop it should have set the driver status to On Duty if was
+    // Off Duty"). The backend setDriverStatus supports targetUserId for this.
+    const isOwnStop = !!(currentUser?.id && delivery?.driver_id && currentUser.id === delivery.driver_id);
+    let targetUserId = currentUser?.id || null;
+
+    if (!isOwnStop) {
+      const canToggleOthers = allowAdminToggleForDriver &&
+        (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher'));
+      if (!canToggleOthers || !delivery?.driver_id) {
+        console.log('[ensureDriverOnline] Skipped — actor is not the stop\'s driver and lacks admin toggle permission for this action');
+        return;
+      }
+      targetUserId = delivery.driver_id;
+      const targetAppUserCheck = appUsers.find((u) => u?.user_id === delivery.driver_id) || null;
+      const targetStatusCheck = targetAppUserCheck?.driver_status || null;
+      // Only flip drivers who are off_duty or on_break (or status unknown — the
+      // backend validates and is idempotent). Never touch an on_duty driver.
+      if (targetStatusCheck === 'on_duty') {
+        console.log('[ensureDriverOnline] Skipped — target driver already on_duty');
+        return;
+      }
+      console.log(`[ensureDriverOnline] Admin toggling stop's driver (${targetUserId}) on_duty (current: ${targetStatusCheck || 'unknown'})`);
+    }
+
+    // NOTE (self case): We intentionally do NOT early-return if appUsers shows 'on_duty'.
+    // The appUsers array can be stale — the driver may have toggled off_duty/on_break
+    // via the DriverStatusToggle, but the React state hasn't propagated to the StopCard
+    // closure yet. The backend setDriverStatus has its own idempotency guard (NO-OP if
+    // already on_duty with open segment), so calling it is always safe.
 
     // ── OPTIMISTIC FLIP (immediate UI) ──────────────────────────────────────────
     // The backend setDriverStatus takes 5-15s when it runs the on-duty restore
-    // tail (setNextDeliveryFlag + refetch + regenerateType1Polyline). Waiting for
-    // it before flipping the toggle made the Start button look like it did
-    // nothing. Flip the local IDB record + UI events NOW; if the backend then
-    // fails, revert. The backend remains the authority for the server record,
-    // activity segments, and single-device enforcement.
+    // tail (setNextDeliveryFlag + refetch + regenerateType1Polyline). Flip the
+    // local IDB record + UI events NOW; if the backend then fails, revert.
     let optimisticApplied = false;
     let optimisticPrevStatus = null;
     try {
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', currentUser.id).catch(() => []);
+      const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', targetUserId).catch(() => []);
       const existingRecord = records?.[0] || null;
       optimisticPrevStatus = existingRecord?.driver_status || null;
       if (optimisticPrevStatus !== 'on_duty') {
         const nowIso = new Date().toISOString();
         const updatedRecord = {
           ...(existingRecord || {}),
-          ...currentUser,
+          ...(isOwnStop ? currentUser : {}),
           driver_status: 'on_duty',
           location_tracking_enabled: true,
           updated_date: nowIso,
-          user_id: currentUser.id,
+          user_id: targetUserId,
           ...(existingRecord?.id ? { id: existingRecord.id } : {}),
         };
         await offlineDB.save(offlineDB.STORES.APP_USERS, updatedRecord);
@@ -176,8 +196,8 @@ export default function useStopCardActions(params) {
         // Snap the DriverStatusToggle + all AppUser-consuming UI to "On" immediately.
         window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: updatedRecord } }));
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedRecord], mergeMode: 'merge' } }));
-        window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: 'on_duty' } }));
-        console.log('[ensureDriverOnline] Optimistic on_duty flip applied (was:', optimisticPrevStatus + ')');
+        window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: targetUserId, newStatus: 'on_duty' } }));
+        console.log(`[ensureDriverOnline] Optimistic on_duty flip applied for ${isOwnStop ? 'self' : 'target driver'} (was: ${optimisticPrevStatus || 'unknown'})`);
       } else {
         console.log('[ensureDriverOnline] Already on_duty locally — no optimistic flip needed');
       }
@@ -186,14 +206,16 @@ export default function useStopCardActions(params) {
     }
 
     try {
-      const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({ newStatus: 'on_duty', selectedDate: delivery?.delivery_date || localDeviceTodayStr });
-      console.log(`[ensureDriverOnline] Backend confirmed on_duty (previousStatus: ${_prevStatus})`);
+      const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({
+        newStatus: 'on_duty',
+        selectedDate: delivery?.delivery_date || localDeviceTodayStr,
+        ...(isOwnStop ? {} : { targetUserId }),
+      });
+      console.log(`[ensureDriverOnline] Backend confirmed on_duty for ${isOwnStop ? 'self' : `driver ${targetUserId}`} (previousStatus: ${_prevStatus})`);
       const deliveryDate = delivery?.delivery_date;
 
       // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't
-      // show a stale 'off_duty' status.  The backend setDriverStatus already
-      // broadcast the change via WebSocket (which updates the toggle UI), but
-      // IDB is the boot-time source of truth and must be kept in sync.
+      // show a stale status. IDB is the boot-time source of truth.
       if (appUserId) {
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
@@ -201,12 +223,13 @@ export default function useStopCardActions(params) {
           const nowIso = new Date().toISOString();
           const updatedRecord = {
             ...existingRecord,
-            ...currentUser,
+            ...(isOwnStop ? currentUser : {}),
             driver_status: 'on_duty',
             location_tracking_enabled: true,
             location_updated_at: nowIso,
             updated_date: nowIso,
             id: appUserId,
+            user_id: targetUserId,
           };
           await offlineDB.save(offlineDB.STORES.APP_USERS, updatedRecord);
 
@@ -214,7 +237,7 @@ export default function useStopCardActions(params) {
           // toggle visually snaps to "On" without requiring a WebSocket round-trip.
           window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: updatedRecord } }));
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedRecord], mergeMode: 'merge' } }));
-          window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: 'on_duty' } }));
+          window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: targetUserId, newStatus: 'on_duty' } }));
 
           // Fetch the current route deliveries (backend has set isNextDelivery) and
           // push them to IDB + UI immediately so the stop cards reflect the new flag
@@ -225,7 +248,7 @@ export default function useStopCardActions(params) {
             try {
               const { base44 } = await import('@/api/base44Client');
               const freshDeliveries = await base44.entities.Delivery.filter({
-                driver_id: currentUser.id,
+                driver_id: targetUserId,
                 delivery_date: deliveryDate,
               });
               if (freshDeliveries?.length > 0) {
@@ -234,7 +257,7 @@ export default function useStopCardActions(params) {
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                   detail: {
                     triggeredBy: 'ensureDriverOnline',
-                    driverId: currentUser.id,
+                    driverId: targetUserId,
                     deliveryDate,
                     freshDeliveries,
                     fullReplacement: false,
@@ -242,10 +265,13 @@ export default function useStopCardActions(params) {
                     trustIsNextDelivery: true,
                   }
                 }));
-                // Scroll to the next delivery card
-                const nextStop = freshDeliveries.find(d => d?.isNextDelivery === true);
-                if (nextStop) {
-                  setTimeout(() => window.dispatchEvent(new CustomEvent('centerNextDeliveryCard')), 300);
+                // Scroll to the next delivery card (self case only — the admin's
+                // device doesn't need to scroll the driver's route)
+                if (isOwnStop) {
+                  const nextStop = freshDeliveries.find(d => d?.isNextDelivery === true);
+                  if (nextStop) {
+                    setTimeout(() => window.dispatchEvent(new CustomEvent('centerNextDeliveryCard')), 300);
+                  }
                 }
               }
             } catch (fetchErr) {
@@ -257,27 +283,29 @@ export default function useStopCardActions(params) {
         }
       }
       if (_prevStatus !== 'on_duty') {
-        try { await locationTracker.startTracking({ ...currentUser, appUserId }); } catch {}
-        // Sync liveDistanceTracker internal state (NOT segment writes — those are
-        // handled by the backend setDriverStatus function which was just called).
-        try {
-          const { liveDistanceTracker } = await import('../utils/liveDistanceTracker');
-          if (liveDistanceTracker.isTracking) {
-            await liveDistanceTracker.updateDriverStatus('on_duty');
-          }
-        } catch {}
+        // Self case only: start location tracking on the ACTING user's device.
+        if (isOwnStop) {
+          try { await locationTracker.startTracking({ ...currentUser, appUserId }); } catch {}
+          // Sync liveDistanceTracker internal state (NOT segment writes — those are
+          // handled by the backend setDriverStatus function which was just called).
+          try {
+            const { liveDistanceTracker } = await import('../utils/liveDistanceTracker');
+            if (liveDistanceTracker.isTracking) {
+              await liveDistanceTracker.updateDriverStatus('on_duty');
+            }
+          } catch {}
+        }
       }
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
       console.error('[ensureDriverOnline] Backend setDriverStatus FAILED:', error?.message || error);
       // Revert the optimistic flip so the UI doesn't lie about a server state
-      // that never landed. (server record is untouched on failure — it was still
-      // off_duty/on_break).
+      // that never landed. (The server record is untouched on failure.)
       if (optimisticApplied) {
         const revertStatus = optimisticPrevStatus || 'off_duty';
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
-          const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', currentUser.id).catch(() => []);
+          const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', targetUserId).catch(() => []);
           const existingRecord = records?.[0] || null;
           if (existingRecord) {
             const nowIso = new Date().toISOString();
@@ -285,7 +313,7 @@ export default function useStopCardActions(params) {
             await offlineDB.save(offlineDB.STORES.APP_USERS, revertedRecord);
             window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: revertedRecord } }));
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [revertedRecord], mergeMode: 'merge' } }));
-            window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: revertStatus } }));
+            window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: targetUserId, newStatus: revertStatus } }));
             console.warn(`[ensureDriverOnline] Reverted optimistic flip to '${revertStatus}' after backend failure`);
           }
         } catch (revertErr) {
@@ -906,6 +934,11 @@ export default function useStopCardActions(params) {
 
           if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) syncDeliverySquareCod(delivery.id);
 
+          // Robert's rule (2026-09-03): restarting a stop must put the stop's
+          // driver On Duty if they were Off Duty / On Break — including when an
+          // admin/owner restarts the stop on the driver's behalf (targetUserId path).
+          ensureDriverOnline({ allowAdminToggleForDriver: true }).catch(() => {});
+
           let restartOptimizeData = null;
           try {
             const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: delivery.id, runOptimization: true });
@@ -1174,7 +1207,7 @@ export default function useStopCardActions(params) {
         // ── Ensure driver is on_duty (fire-and-forget — don't block optimization) ──
         // The optimistic update already set isNextDelivery + status. Driver status
         // toggle doesn't affect route optimization and can complete in the background.
-        ensureDriverOnline().catch(() => {});
+        ensureDriverOnline({ allowAdminToggleForDriver: true }).catch(() => {});
 
         // ── handleStartDelivery (fire-and-forget) ──
         // The optimistic update above already wrote isNextDelivery + status to both
@@ -1765,6 +1798,8 @@ export default function useStopCardActions(params) {
         // guard used currentUser?.driver_status which can be stale, causing a
         // redundant setDriverStatus('on_duty') call that closes and reopens the
         // DriverDailyActivity segment even when the driver was never off duty.
+        // NOTE: Accept is route prep, NOT driving — no admin→driver toggle here.
+        // Only the driver accepting their own stop toggles themselves (as before).
         ensureDriverOnline().catch(() => {});
 
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
