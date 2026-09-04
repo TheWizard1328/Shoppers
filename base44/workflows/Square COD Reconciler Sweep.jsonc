@@ -1,0 +1,47 @@
+{
+  "name": "Square COD Reconciler Sweep",
+  "description": "Self-healing sweep for Square COD catalog items: every 15 minutes during delivery hours (7am-10pm Edmonton), reconciles today's COD deliveries against the live Square catalog \u2014 creates missing items, updates changed amounts, removes items for failed/cancelled/returned/direct-payment deliveries. Cash-collected items are untouched (squareReconcile's transaction match is their sole deletion trigger).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/15 7-21 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "reconcile_sweep": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "sweep": true
+            },
+            "function_name": "squareCodReconcile"
+          },
+          "x-base44": {
+            "description": "Self-heal today's COD catalog items",
+            "title": "Square COD reconcile sweep"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "square_cod_reconcile_sweep",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}

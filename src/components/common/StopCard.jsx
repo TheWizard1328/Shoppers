@@ -16,8 +16,6 @@ import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import { calculateHaversineDistance } from "../utils/distanceCalculator";
-import { deleteCODWithTimeout } from '../utils/squareCODHandler';
-import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import { notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -43,7 +41,7 @@ import { getDeliveryTypeFlags, resolveStopLocation } from '../utils/deliveryType
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 // pendingBreadcrumbsManager removed — breadcrumbs now managed via locationBreadcrumbService / offlineDB directly
-import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
+import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { getEdmontonDate } from '@/components/utils/returnDeliveryBuilder';

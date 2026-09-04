@@ -290,6 +290,7 @@ const parseFlexibleDate = (ds) => { if (!ds) return null; let d = parseISO(ds); 
 
 import { PatientDataTable, StoreDataTable, UserDataTable, CityDataTable } from '../components/admin/AdminDataTables';
 import CompanyDataTab from '../components/admin/CompanyDataTab';import TempLogTab from '../components/admin/TempLogTab';
+import { removeDeliverySquareCod } from '../components/utils/squareCodSync';
 const DeliveryDataTable = (props) => <AdminDeliveriesTable {...props} />;
 
 // CityDataTable moved to AdminDataTables.jsx
@@ -1071,7 +1072,7 @@ export default function AdminUtilities() {
         for (const delivery of batch) {
           try {
             // Square COD cleanup: delete catalog item if this delivery has a COD amount
-            if (Number(delivery?.cod_total_amount_required || 0) > 0) { try { await base44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id, reason: 'delivery_deleted' }); } catch (_) {} }
+            if (Number(delivery?.cod_total_amount_required || 0) > 0) { try { removeDeliverySquareCod(delivery.id, 'delivery_deleted'); } catch (_) {} }
             if (dataViewMode.deliveries === 'offline' || String(delivery.id || '').startsWith('temp_')) {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));} else {await base44.entities.Delivery.delete(delivery.id);}
             successCount++;
           } catch (error) {
@@ -1169,7 +1170,7 @@ export default function AdminUtilities() {
 
           let ok = true;
           // Square COD cleanup: delete catalog item if this delivery has a COD amount
-          if (Number(delivery?.cod_total_amount_required || 0) > 0) { try { await base44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id, reason: 'delivery_deleted' }); } catch (_) {} }
+          if (Number(delivery?.cod_total_amount_required || 0) > 0) { try { removeDeliverySquareCod(delivery.id, 'delivery_deleted'); } catch (_) {} }
           if (!isOfflineMode) try { await base44.entities.Delivery.delete(delivery.id); } catch (error) { if (!(error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from online DB:`, error); } }
           try { await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (error) { if (!(String(error?.message || '').toLowerCase().includes('not found') || String(error?.message || '').toLowerCase().includes('no record'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from offline DB:`, error); } }
           if (isOfflineMode) setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));
@@ -1233,7 +1234,7 @@ export default function AdminUtilities() {
             const { offlineDB } = await import('../components/utils/offlineDatabase');
 
             // Square COD cleanup
-            if (Number(d?.cod_total_amount_required || 0) > 0) { try { await base44.functions.invoke('squareDeleteCodItem', { deliveryId: d.id, reason: 'delivery_deleted' }); } catch (_) {} }
+            if (Number(d?.cod_total_amount_required || 0) > 0) { try { removeDeliverySquareCod(d.id, 'delivery_deleted'); } catch (_) {} }
             if (isOfflineMode) {
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
               setOfflineDeliveries((prev) => prev.filter((del) => del.id !== d.id));
@@ -1600,7 +1601,7 @@ export default function AdminUtilities() {
             if (entityType === 'patients') {
               await base44.entities.Patient.delete(entity.id);
             } else if (entityType === 'deliveries') {
-              if (Number(entity?.cod_total_amount_required || 0) > 0) { try { await base44.functions.invoke('squareDeleteCodItem', { deliveryId: entity.id, reason: 'delivery_deleted' }); } catch (_) {} }await base44.entities.Delivery.delete(entity.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);} catch (_) {}
+              if (Number(entity?.cod_total_amount_required || 0) > 0) { try { removeDeliverySquareCod(entity.id, 'delivery_deleted'); } catch (_) {} }await base44.entities.Delivery.delete(entity.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);} catch (_) {}
             } else if (entityType === 'stores') {
               await base44.entities.Store.delete(entity.id);
             } else if (entityType === 'users') {
