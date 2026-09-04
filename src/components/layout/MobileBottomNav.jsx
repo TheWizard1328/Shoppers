@@ -3,6 +3,7 @@ import { useDevice } from '@/components/utils/DeviceContext';
 import { createPageUrl } from '@/utils';
 import { userHasRole } from '@/components/utils/userRoles';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
+import { useBookedOffBadge } from './useBookedOffBadge';
 
 import UpdateArrow from '../common/UpdateArrow';
 import {
@@ -19,6 +20,7 @@ import {
 
 const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
+  const bookedOffCount = useBookedOffBadge(currentUser);
   const { os, deviceType } = useDevice();
   const isIOS = os === 'iOS' && deviceType === 'Mobile';
 
@@ -34,7 +36,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
     navItems = [
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
-      { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling' },
+      { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling', badgeCount: bookedOffCount },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
       { name: 'Square COD', page: 'SquareManagement', icon: CreditCard, tabKey: 'square' },
       { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
@@ -53,7 +55,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
       { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
-      { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling' },
+      { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling', badgeCount: bookedOffCount },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
       { name: 'Square COD', page: 'SquareManagement', icon: CreditCard, tabKey: 'square' },
       { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
@@ -118,7 +120,17 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => navigateToTab(item.tabKey, createPageUrl(item.page))}
               >
-                <Icon className="w-5 h-5 mb-0.5" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }} />
+                <div className="relative">
+                  <Icon className="w-5 h-5 mb-0.5" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)' }} />
+                  {item.badgeCount > 0 &&
+                    <span
+                      className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"
+                      style={{ background: '#ea580c' }}
+                    >
+                      {item.badgeCount > 99 ? '99+' : item.badgeCount}
+                    </span>
+                  }
+                </div>
                 <span className="text-sm font-medium truncate" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}>
                   {item.name}
                 </span>
