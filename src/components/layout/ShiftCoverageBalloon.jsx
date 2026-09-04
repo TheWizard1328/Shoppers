@@ -44,19 +44,23 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
         const lastShown = parseInt(localStorage.getItem(LAST_SHOWN_KEY) || '0', 10);
         if (Date.now() - lastShown < COOLDOWN_MS) return;
 
-        // 2. Never nag mid-route — suppress if the driver has an active route today
+        // 2. Never nag mid-route. A route counts as STARTED only when the driver
+        // has at least one FINISHED stop today — merely having en_route pickups
+        // or the first stop set in_transit at route creation is NOT a started
+        // route (every driver has those immediately after Accept All).
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         let allDeliveries = [];
         try {
           allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
         } catch (_) { /* offline DB unavailable — proceed */ }
-        const hasActiveRoute = allDeliveries.some((d) =>
+        const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+        const hasFinishedStopToday = allDeliveries.some((d) =>
           d?.driver_id === currentUser.id &&
           d?.delivery_date === todayStr &&
-          (d?.status === 'in_transit' || d?.isNextDelivery === true)
+          FINISHED_STATUSES.includes(d?.status)
         );
-        if (hasActiveRoute) return;
+        if (hasFinishedStopToday) return;
 
         // 3. Anchor must be visible (Schedule tab button in the nav)
         const anchor = document.querySelector(anchorSelector);
