@@ -24,6 +24,7 @@ const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function ProximityForegroundNudge() {
   const [visible, setVisible] = useState(false);
+  const [topOffset, setTopOffset] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +72,31 @@ export default function ProximityForegroundNudge() {
     };
   }, []);
 
+  // Anchor below the real sticky header instead of a hardcoded top:0 — the
+  // card was painting over the header's own controls (back/status-toggle/
+  // battery/avatar row) and the Dashboard title row beneath it (refresh,
+  // flag, date picker, '+' add button), per Robert's screenshot 2026-09-04.
+  useEffect(() => {
+    if (!visible) return;
+    const measure = () => {
+      const header = document.querySelector('[data-mobile-header]');
+      setTopOffset(header ? Math.ceil(header.getBoundingClientRect().bottom) : 0);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    // Header height can shift briefly during boot (fonts/icons settling) — a
+    // couple of follow-up measures cheaply keep it accurate without polling.
+    const t1 = setTimeout(measure, 150);
+    const t2 = setTimeout(measure, 500);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [visible]);
+
   if (!visible) return null;
 
   const enableNow = () => {
@@ -92,7 +118,10 @@ export default function ProximityForegroundNudge() {
     // DispatcherPickupNotification 9999, RealTimeRouteOptimizer 10000,
     // ConnectionRecoveryBanner 10002, SettingsMenu submenu 10003) — this is a
     // one-time permission nudge and should never render hidden behind them.
-    <div className="fixed left-0 right-0 top-0 z-[10004] px-2 pt-2 pointer-events-none">
+    // top is measured dynamically (see effect above) so the card sits BELOW
+    // the sticky mobile header instead of overlapping its controls and the
+    // Dashboard title row beneath it.
+    <div className="fixed left-0 right-0 z-[10004] px-2 pt-2 pointer-events-none" style={{ top: `${topOffset}px` }}>
       <div className="mx-auto max-w-md rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/80 dark:border-amber-800 shadow-lg p-3 pointer-events-auto">
         <div className="flex items-start gap-2.5">
           <div className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-amber-500/15 flex items-center justify-center">
