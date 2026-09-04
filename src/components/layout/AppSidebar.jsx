@@ -127,7 +127,7 @@ export default function AppSidebar({
   }, [selectedDriverAppUser, users]);
 
   // Booked-off scheduling badge — shared hook keeps AppSidebar + MobileBottomNav in sync
-  const bookedOffCount = useBookedOffBadge(currentUser);
+  const { count: bookedOffCount } = useBookedOffBadge(currentUser);
 
   // Pending doc access requests badge
   const [pendingDocRequestCount, setPendingDocRequestCount] = useState(0);

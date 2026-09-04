@@ -40,6 +40,23 @@ export function useBookedOffBadge(currentUser) {
     return unsubscribe;
   }, [currentUser?.id]);
 
+  const eligibleRecords = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const daysLeft = new Date(year, month + 1, 0).getDate() - today.getDate();
+    const includeNext = daysLeft < 7;
+
+    return bookedOffOverrides.filter((o) => {
+      if (!o.date) return false;
+      const d = new Date(o.date + 'T00:00:00');
+      if (d < today) return false;
+      const sameMonth = d.getFullYear() === year && d.getMonth() === month;
+      const nextMonth = d.getFullYear() === (month === 11 ? year + 1 : year) && d.getMonth() === (month + 1) % 12;
+      return sameMonth || includeNext && nextMonth;
+    });
+  }, [bookedOffOverrides]);
+
   const bookedOffCount = useMemo(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -57,5 +74,5 @@ export function useBookedOffBadge(currentUser) {
     }).length;
   }, [bookedOffOverrides]);
 
-  return bookedOffCount;
+  return { count: bookedOffCount, records: eligibleRecords };
 }

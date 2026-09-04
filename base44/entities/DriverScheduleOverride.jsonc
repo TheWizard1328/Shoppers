@@ -27,6 +27,10 @@
       "type": "string",
       "description": "The AppUser user_id of the driver assigned for this date and slot"
     },
+    "booked_off_driver_id": {
+      "type": "string",
+      "description": "When this slot is booked off ('__booked_off__'): the AppUser user_id of the driver whose shift was booked off (by themselves or by an admin). Null if the slot had no assigned driver. Used to exclude that driver from shift-coverage balloon notifications."
+    },
     "driver_name": {
       "type": "string",
       "description": "Driver display name (denormalized for quick reads)"

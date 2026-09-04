@@ -657,12 +657,33 @@ export default function DriverScheduleCalendar() {
       }
 
       const driver = isBookOff ? null : appUserMap.get(newDriverId);
+      // ── booked_off_driver_id (shift-coverage balloon exclusion) ──────────
+      // Whose shift is being booked off?
+      // - Existing override that was already booked off → preserve the original owner
+      // - Existing override with a real driver → that driver
+      // - No existing override → the store's default slot driver (may be null)
+      // Captured regardless of WHO performs the booking (the driver themselves,
+      // or an admin booking off on the driver's behalf — dispatchers can't book off).
+      // Cleared to null when a real driver is (re)assigned to the slot.
+      let bookedOffDriverId = null;
+      if (isBookOff) {
+        if (existing) {
+          if (existing.driver_id === '__booked_off__') {
+            bookedOffDriverId = existing.booked_off_driver_id || null;
+          } else {
+            bookedOffDriverId = existing.driver_id;
+          }
+        } else {
+          bookedOffDriverId = defaultDriverId || null;
+        }
+      }
       const payload = {
         date: dateStr,
         store_id: store.id,
         slot_key: slotKey,
         driver_id: isBookOff ? '__booked_off__' : newDriverId,
         driver_name: isBookOff ? '(Book Off)' : driver?.user_name || '',
+        booked_off_driver_id: isBookOff ? bookedOffDriverId : null,
         overridden_by: currentUser?.id,
         overridden_by_name: currentUser?.full_name || currentUser?.email || ''
       };

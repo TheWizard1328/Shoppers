@@ -4,6 +4,7 @@ import { createPageUrl } from '@/utils';
 import { userHasRole } from '@/components/utils/userRoles';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 import { useBookedOffBadge } from './useBookedOffBadge';
+import ShiftCoverageBalloon from './ShiftCoverageBalloon';
 
 import UpdateArrow from '../common/UpdateArrow';
 import {
@@ -20,7 +21,7 @@ import {
 
 const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
-  const bookedOffCount = useBookedOffBadge(currentUser);
+  const { count: bookedOffCount, records: bookedOffRecords } = useBookedOffBadge(currentUser);
   const { os, deviceType } = useDevice();
   const isIOS = os === 'iOS' && deviceType === 'Mobile';
 
@@ -117,6 +118,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                 key={item.name}
                 type="button"
                 {...sharedProps}
+                data-nav-tab={item.tabKey}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => navigateToTab(item.tabKey, createPageUrl(item.page))}
               >
@@ -140,6 +142,16 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
           })}
         </div>
       </div>
+
+      {/* Shift-coverage balloon — pinned above the Schedule button, drivers only */}
+      {isDriver && !isAdmin && bookedOffRecords.length > 0 && (
+        <ShiftCoverageBalloon
+          currentUser={currentUser}
+          records={bookedOffRecords}
+          anchorSelector="[data-nav-tab='scheduling']"
+          onGoToSchedule={() => navigateToTab('scheduling', createPageUrl('DriverScheduleCalendar'))}
+        />
+      )}
     </nav>
   );
 });
