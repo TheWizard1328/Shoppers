@@ -15,10 +15,13 @@ const BALLOON_WIDTH = 240;
  *
  * Informs drivers (anyone with the driver role — including admins who also
  * drive) that shifts are looking for coverage (booked off by another driver,
- * or by an admin on a driver's behalf). Shows at most once every few
- * hours (localStorage cooldown), auto-hides after 10s, and never shows while
- * the driver has an active route in progress (in_transit / isNextDelivery stops
- * for today in local IDB).
+ * or by an admin on a driver's behalf). Auto-hides after 10s.
+ *
+ * Showing rules: while the driver's route is NOT started (no finished stops
+ * today) the balloon shows on every app refresh/restart. Once the route is
+ * started (>=1 finished stop today) the 3h cooldown applies — at most one
+ * mid-route nag every few hours — unless a shift was booked off within the
+ * last 15 minutes (fresh-coverage pass-through).
  *
  * Exclusion rule: records whose booked_off_driver_id matches the current driver
  * are skipped — the driver whose shift was booked off doesn't get told about
@@ -45,14 +48,10 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
 
     const maybeShow = async () => {
       try {
-        // 1. Cooldown — at most once every few hours
-        const lastShown = parseInt(localStorage.getItem(LAST_SHOWN_KEY) || '0', 10);
-        if (Date.now() - lastShown < COOLDOWN_MS) return;
-
-        // 2. Never nag mid-route. A route counts as STARTED only when the driver
-        // has at least one FINISHED stop today — merely having en_route pickups
-        // or the first stop set in_transit at route creation is NOT a started
-        // route (every driver has those immediately after Accept All).
+        // 1. Determine route state first. A route counts as STARTED only when
+        // the driver has at least one FINISHED stop today — merely having
+        // en_route pickups or the first stop set in_transit at route creation
+        // is NOT a started route (every driver has those right after Accept All).
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         let allDeliveries = [];
@@ -60,21 +59,30 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
           allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
         } catch (_) { /* offline DB unavailable — proceed */ }
         const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
-        const hasFinishedStopToday = allDeliveries.some((d) =>
+        const routeStarted = allDeliveries.some((d) =>
           d?.driver_id === currentUser.id &&
           d?.delivery_date === todayStr &&
           FINISHED_STATUSES.includes(d?.status)
         );
-        // 2b. Pass-through: a driver who JUST booked off shifts (within the
-        // last 15 minutes) makes the balloon show even for drivers whose
-        // route is in progress — fresh coverage opportunities shouldn't wait
-        // for the route to finish.
+
+        // 2. Cooldown rules (per Robert, 2026-09-04):
+        //    - Route NOT started: the balloon shows on EVERY app refresh /
+        //      restart (once per session). The 3h cooldown does NOT apply and
+        //      is NOT burned.
+        //    - Route started (>=1 finished stop): the 3h cooldown governs and
+        //      is burned on show — mid-route drivers get nagged at most once
+        //      every few hours.
+        //    - Pass-through: a book-off within the last 15 minutes bypasses
+        //      the cooldown mid-route — fresh coverage opportunities shouldn't
+        //      wait for the cooldown or the route to finish.
+        const lastShown = parseInt(localStorage.getItem(LAST_SHOWN_KEY) || '0', 10);
+        const cooldownActive = Date.now() - lastShown < COOLDOWN_MS;
         const RECENT_BOOKOFF_MS = 15 * 60 * 1000;
         const hasRecentBookOff = eligible.some((r) => {
           const t = Date.parse(r?.updated_date || r?.created_date || '') || 0;
           return t > 0 && (Date.now() - t) < RECENT_BOOKOFF_MS;
         });
-        if (hasFinishedStopToday && !hasRecentBookOff) return;
+        if (routeStarted && cooldownActive && !hasRecentBookOff) return;
 
         // 3. Anchor must be visible (Schedule tab button in the nav)
         const anchor = document.querySelector(anchorSelector);
@@ -86,8 +94,12 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
         l = Math.max(8, Math.min(l, window.innerWidth - BALLOON_WIDTH - 8));
         setBottomOffset(Math.max(window.innerHeight - aRect.top + 6, 8));
 
-        // 4. Show — burn the cooldown now so re-renders don't re-show
-        localStorage.setItem(LAST_SHOWN_KEY, String(Date.now()));
+        // 4. Show. The 3h cooldown is burned ONLY for mid-route shows —
+        // pre-route shows happen every launch by design, so they must not
+        // poison the cooldown the driver will need later in the day.
+        if (routeStarted) {
+          localStorage.setItem(LAST_SHOWN_KEY, String(Date.now()));
+        }
         shownThisSessionRef.current = true;
         setLeft(l);
         setVisible(true);
