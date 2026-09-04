@@ -9,6 +9,7 @@ import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
 import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
 import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { syncDeliveriesSquareCod } from '../utils/squareCodSync';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -491,48 +492,33 @@ export async function handleBatchSave({
 
     Promise.resolve().then(async () => {
       try {
-        const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
-          const store = stores?.find(s => s && s.id === delivery.store_id);
-          return base44.functions.invoke('squareCreateCodItem', { deliveryId: delivery.id || delivery._tempId, patientName: delivery.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id }).then(() => null).catch(() => null);
-        });
-        if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
-
-        // Handle COD payment type changes: delete for Debit/Credit, recreate for Cash/Check
-        const squarePaymentChangePromises = deliveriesToUpdate.map(updated => {
+        // ONE Square reconcile for the whole batch save: new in_transit COD deliveries
+        // (real ids only — _tempId records were never matchable and caused orphan items)
+        // plus every updated delivery with COD/payment changes. The backend derives the
+        // desired state per delivery; patches carry the just-written batch values.
+        const reconcileRecords = [];
+        for (const delivery of deliveriesReadyForDB) {
+          if (!delivery?.id) continue;
+          if (Number(delivery.cod_total_amount_required || 0) > 0 && delivery.patient_id && delivery.driver_id && delivery.status === 'in_transit') {
+            reconcileRecords.push({
+              deliveryId: delivery.id,
+              patch: { status: 'in_transit', cod_total_amount_required: delivery.cod_total_amount_required, patient_name: delivery.patient_name, delivery_date: delivery.delivery_date, store_id: delivery.store_id }
+            });
+          }
+        }
+        for (const updated of deliveriesToUpdate) {
+          if (!updated?.id) continue;
           const original = allDeliveries?.find(d => d?.id === updated?.id);
-          if (!original || !updated) return null;
-
-          const originalAmount = original.cod_total_amount_required || 0;
-          const updatedAmount = updated.cod_total_amount_required || 0;
-          const originalPayments = original.cod_payments || [];
-          const updatedPayments = updated.cod_payments || [];
-
-          const originalHasDebitCredit = originalPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
-          const updatedHasDebitCredit = updatedPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
-          const updatedHasCashCheck = updatedPayments.some(p => p.type === 'Cash' || p.type === 'Cheque');
-
-          // Delete catalog item if payment changed to Debit/Credit
-          if (!originalHasDebitCredit && updatedHasDebitCredit && updatedAmount > 0) {
-            return base44.functions.invoke('squareDeleteCodItem', { deliveryId: updated.id }).then(() => null).catch(() => null);
+          const amountChanged = (original?.cod_total_amount_required || 0) !== (updated?.cod_total_amount_required || 0);
+          const paymentsChanged = JSON.stringify(original?.cod_payments || []) !== JSON.stringify(updated?.cod_payments || []);
+          if (amountChanged || paymentsChanged) {
+            reconcileRecords.push({
+              deliveryId: updated.id,
+              patch: { status: updated.status, cod_total_amount_required: updated.cod_total_amount_required, cod_payments: updated.cod_payments, cod_payment_type: updated.cod_payment_type, patient_name: updated.patient_name, delivery_date: updated.delivery_date, store_id: updated.store_id }
+            });
           }
-
-          // Recreate catalog item if payment changed to Cash/Check and amount > 0
-          if (!updatedHasDebitCredit && updatedHasCashCheck && updatedAmount > 0) {
-            const store = stores?.find(s => s && s.id === updated.store_id);
-            return base44.functions.invoke('squareCreateCodItem', { 
-              deliveryId: updated.id, 
-              patientName: updated.patient_name, 
-              storeAbbreviation: store?.abbreviation || '', 
-              codAmount: updatedAmount, 
-              deliveryDate: updated.delivery_date, 
-              storeId: updated.store_id 
-            }).then(() => null).catch(() => null);
-          }
-
-          return null;
-        }).filter(Boolean);
-
-        if (squarePaymentChangePromises.length > 0) await Promise.allSettled(squarePaymentChangePromises);
+        }
+        if (reconcileRecords.length > 0) syncDeliveriesSquareCod(reconcileRecords);
 
         // Resume ALL syncs via the unified helper
         try {

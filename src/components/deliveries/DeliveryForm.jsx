@@ -30,7 +30,7 @@ import {
 } from '../utils/entityMutations';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
-import { triggerSquareCodCreate, triggerSquareCodDelete, triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
+import { triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffects';
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
 import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDuplicatePatientDraft, buildNewAddressPatientDraft } from './deliveryPatientSelectionHelpers';
@@ -41,7 +41,7 @@ import { buildDeliveryFormInitialState } from './deliveryFormInitialState';
 import useDeliveryCamera from './useDeliveryCamera';
 import { sortStagedDeliveries, sortProjectedDeliveries } from './deliverySortHelpers';
 import { isCareProSearch } from '../utils/careProSearchHelper';
-import { syncDeliveryCodOnUpdate, buildUpdatedDeliveryPayload } from './deliveryCodSaveHelpers';
+import { buildUpdatedDeliveryPayload } from './deliveryCodSaveHelpers';
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
@@ -62,10 +62,10 @@ import { clearRecurringSelection } from './recurringHelpers';
 import { resetDriverFilterOnClear } from './deliveryClearFormHelper';
 import { handleBatchSave as runHandleBatchSave } from './handleBatchSave';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
-import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import { createInterStoreTransfer } from './interStoreTransferHandler';
 import { setInterStoreMode } from '../dashboard/interStoreToggleStore';
 import DeliveryFormView from './DeliveryFormView';
+import { syncDeliverySquareCod } from '../utils/squareCodSync';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -1086,14 +1086,27 @@ export default function DeliveryForm({
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
       if (dateChanged) { dataToSave.status = 'in_transit'; dataToSave.time_window_start = '10:00'; }
-      if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) { const store = stores?.find(s => s && s.id === formData.store_id); triggerSquareCodCreate({ deliveryId: delivery.id, patientName: formData.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: formData.cod_total_amount_required / 100, deliveryDate: formData.delivery_date, storeId: formData.store_id }); }
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
-      if (statusChangedToCompletion) { triggerSquareCodDelete({ deliveryId: delivery?.id, nextStatus: formData.status, delivery: { ...delivery, ...dataToSave, cod_payments: formData.cod_payments, cod_payment_type: formData.cod_payment_type } }); }
+      // COD removed on an existing delivery — clear payment bookkeeping on the save
+      // (replicates the old updateSquareCODIfChanged case-2 mutation).
+      const codRemovedOnEdit = delivery?.id && Number(delivery.cod_total_amount_required || 0) > 0 && Number(formData.cod_total_amount_required || 0) <= 0;
+      if (codRemovedOnEdit) { dataToSave.cod_payments = []; dataToSave.cod_payment_type = 'No Payment'; dataToSave.cod_amount = ''; }
       if (delivery?.id) {
-        await syncDeliveryCodOnUpdate({ delivery, formData, stores, base44, dataToSave });
         // Register before the backend write so the WS echo is recognized as self-originated
         try { const { smartRefreshManager: srm } = await import('../utils/smartRefreshManager'); srm.registerPendingUpdate(delivery.id, formData.driver_id, formData.delivery_date); } catch (_) {}
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true });
+        // ONE Square reconcile for every edit path (create-on-activate, amount change,
+        // COD added/removed, terminal transition). The backend decides from the
+        // authoritative record; the patch carries the just-written form values.
+        syncDeliverySquareCod(delivery.id, {
+          status: formData.status,
+          cod_total_amount_required: Number(formData.cod_total_amount_required || 0) / 100,
+          cod_payments: formData.cod_payments,
+          cod_payment_type: formData.cod_payment_type,
+          patient_name: formData.patient_name,
+          delivery_date: formData.delivery_date,
+          store_id: formData.store_id
+        });
         const skipImmediateDeliveriesUpdatedEvent = Boolean(timeWindowChanged || travelModeOnly);
         if (['completed', 'failed', 'cancelled'].includes(formData.status)) {
           const expectedTravelDist = Number(dataToSave.travel_dist ?? formData.travel_dist ?? 0);
@@ -1102,7 +1115,6 @@ export default function DeliveryForm({
           if (shouldRefreshTravelDist) { setTimeout(() => { base44.functions.invoke('recalculateTravelDistance', { deliveryId: delivery.id, expectedTravelDist, force: false }).catch((err) => console.warn('⚠️ [DeliveryForm] Travel distance refresh failed:', err?.message || err)); }, 0); }
         }
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
-        if (formData.status === 'completed') cleanupSquareCodCatalogForDate(formData.delivery_date);
         // Only refresh stats on terminal status changes — pending/Staged edits don't affect stats
         // (pending stops are already counted, staged stops aren't on the route yet).
         if (statusChangedToCompletion) window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));

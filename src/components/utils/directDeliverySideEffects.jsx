@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { hasStopOrderChanged } from './offlineMutations';
+import { syncDeliverySquareCod } from './squareCodSync';
 
 const hasCardCodPayment = (delivery) => (
   (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.some((payment) =>
@@ -100,7 +101,17 @@ export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextS
 
   triggerPatientLastDeliverySync({ delivery: nextDelivery, previousStatus });
   triggerPickupCompletionSync({ delivery: nextDelivery, previousStatus });
-  triggerSquareCodDelete({ deliveryId: nextDelivery.id, nextStatus, delivery: nextDelivery });
+  // Square reconcile — the backend decides from the authoritative record (patched with
+  // the just-written terminal status + payments). Cash stays until squareReconcile
+  // matches the driver's deposit; debit/credit/cheque removes the item; failed/
+  // cancelled removes it. No client-side Square decisions remain.
+  if (Number(nextDelivery?.cod_total_amount_required || 0) > 0) {
+    syncDeliverySquareCod(nextDelivery.id, {
+      status: nextStatus,
+      cod_payments: nextDelivery.cod_payments,
+      cod_payment_type: nextDelivery.cod_payment_type
+    });
+  }
 
   if (!stopOrderChanged) {
     return;

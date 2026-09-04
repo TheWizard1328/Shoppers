@@ -42,6 +42,7 @@ import PickupLocationMultiSelect from './PickupLocationMultiSelect';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
 import InterStoreFormContent from './InterStoreFormContent';
 import CyclingLocationSearch from './CyclingLocationSearch';
+import { syncDeliverySquareCod } from '../utils/squareCodSync';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
 <div className="flex items-center space-x-2">
@@ -751,29 +752,18 @@ export default function DeliveryFormView({
                 smartRefreshManager.resume();
               }
 
-              // Sync Square catalog item if COD amount is set and payment type is Cash (Check is treated like a card payment and deletes the item)
+              // ONE Square reconcile from the just-saved form snapshot — the backend
+              // decides cash-stays / card-removes from the authoritative record.
               if (_formDataSnapshot.patient_id && delivery?.id) {
-                const codPayments = _formDataSnapshot.cod_payments || [];
-                const codAmount = (_formDataSnapshot.cod_total_amount_required || 0) / 100;
-                const hasCash = codPayments.some((p) => p.type === 'Cash');
-                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Cheque');
-                if (hasCash && codAmount > 0) {
-                  const { base44: b44 } = await import('@/api/base44Client');
-                  const storeRes = _formDataSnapshot.store_id ?
-                  await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => []) :
-                  [];
-                  b44.functions.invoke('squareCreateCodItem', {
-                    deliveryId: delivery.id,
-                    patientName: _formDataSnapshot.patient_name || '',
-                    storeAbbreviation: storeRes?.[0]?.abbreviation || '',
-                    codAmount,
-                    deliveryDate: _formDataSnapshot.delivery_date,
-                    storeId: _formDataSnapshot.store_id || ''
-                  }).catch(() => null);
-                } else if (hasCardOrCheck) {
-                  const { base44: b44 } = await import('@/api/base44Client');
-                  b44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id }).catch(() => null);
-                }
+                syncDeliverySquareCod(delivery.id, {
+                  status: _formDataSnapshot.status,
+                  cod_total_amount_required: Number(_formDataSnapshot.cod_total_amount_required || 0) / 100,
+                  cod_payments: _formDataSnapshot.cod_payments,
+                  cod_payment_type: _formDataSnapshot.cod_payment_type,
+                  patient_name: _formDataSnapshot.patient_name,
+                  delivery_date: _formDataSnapshot.delivery_date,
+                  store_id: _formDataSnapshot.store_id
+                });
               }
 
               const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -2144,29 +2134,18 @@ export default function DeliveryFormView({
                         smartRefreshManager.resume();
                       }
 
-                      // Sync Square catalog item if COD amount is set and payment type is Cash (Check is treated like a card payment and deletes the item)
+                      // ONE Square reconcile from the just-saved form snapshot — the backend
+                      // decides cash-stays / card-removes from the authoritative record.
                       if (_formDataSnapshot.patient_id && delivery?.id) {
-                        const codPayments = _formDataSnapshot.cod_payments || [];
-                        const codAmount = (_formDataSnapshot.cod_total_amount_required || 0) / 100;
-                        const hasCash = codPayments.some((p) => p.type === 'Cash');
-                        const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Cheque');
-                        if (hasCash && codAmount > 0) {
-                          const { base44: b44 } = await import('@/api/base44Client');
-                          const storeRes = _formDataSnapshot.store_id ?
-                          await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => []) :
-                          [];
-                          b44.functions.invoke('squareCreateCodItem', {
-                            deliveryId: delivery.id,
-                            patientName: _formDataSnapshot.patient_name || '',
-                            storeAbbreviation: storeRes?.[0]?.abbreviation || '',
-                            codAmount,
-                            deliveryDate: _formDataSnapshot.delivery_date,
-                            storeId: _formDataSnapshot.store_id || ''
-                          }).catch(() => null);
-                        } else if (hasCardOrCheck) {
-                          const { base44: b44 } = await import('@/api/base44Client');
-                          b44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id }).catch(() => null);
-                        }
+                        syncDeliverySquareCod(delivery.id, {
+                          status: _formDataSnapshot.status,
+                          cod_total_amount_required: Number(_formDataSnapshot.cod_total_amount_required || 0) / 100,
+                          cod_payments: _formDataSnapshot.cod_payments,
+                          cod_payment_type: _formDataSnapshot.cod_payment_type,
+                          patient_name: _formDataSnapshot.patient_name,
+                          delivery_date: _formDataSnapshot.delivery_date,
+                          store_id: _formDataSnapshot.store_id
+                        });
                       }
 
                       // Client-side stop_order + isNextDelivery repair (replaces backend setNextDeliveryFlag)

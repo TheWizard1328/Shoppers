@@ -12,6 +12,7 @@ import { base44 } from "@/api/base44Client";
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 import { collapseExpandedStopCardsForDriver } from './stopCardActionHelpers';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { syncDeliverySquareCod } from '../utils/squareCodSync';
 
 export default function StopCardCODCollection({
   delivery,
@@ -183,55 +184,19 @@ export default function StopCardCODCollection({
                   throw new Error('This delivery no longer exists. Please refresh the page.');
                 }
 
-                // Process Square based on current COD collection type
-                const hasCash = codPayments.some((p) => p.type === 'Cash');
-                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Cheque');
                 const totalAmount = codPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-                if (hasCash && totalAmount > 0) {
-                  // Recreate catalog item for Cash (Check is treated like a card payment and deletes the item)
-                  const store = allDeliveries?.find((d) => d?.id === delivery.id)?.store_id ?
-                  await base44.entities.Store.filter({ id: delivery.store_id }) :
-                  null;
-                  await base44.functions.invoke('squareCreateCodItem', {
-                    deliveryId: delivery.id,
-                    patientName: delivery.patient_name,
-                    storeAbbreviation: store?.[0]?.abbreviation || '',
-                    codAmount: totalAmount,
-                    deliveryDate: delivery.delivery_date,
-                    storeId: delivery.store_id
-                  }).catch(() => null);
-                } else if (hasCardOrCheck && totalAmount > 0) {
-                  // Delete catalog item for Debit/Credit/Check
-                  await base44.functions.invoke('squareDeleteCodItem', {
-                    deliveryId: delivery.id
-                  }).catch(() => null);
-                }
 
                 if (isAlreadyCompleted) {
                   // Collapse the expanded card as part of the Save action, matching the
                   // same collapse-on-action pattern used by the regular Complete/Fail/Cancel
                   // flows in useStopCardActions.jsx's executeTerminalAction.
                   await collapseExpandedStopCardsForDriver(delivery?.driver_id);
-                  // Also sync Square catalog item when editing a completed delivery's COD
-                  if (hasCash && totalAmount > 0) {
-                    const store = delivery.store_id
-                      ? await base44.entities.Store.filter({ id: delivery.store_id })
-                      : null;
-                    await base44.functions.invoke('squareCreateCodItem', {
-                      deliveryId: delivery.id,
-                      patientName: delivery.patient_name,
-                      storeAbbreviation: store?.[0]?.abbreviation || '',
-                      codAmount: totalAmount,
-                      deliveryDate: delivery.delivery_date,
-                      storeId: delivery.store_id
-                    }).catch(() => null);
-                  } else if (hasCardOrCheck && totalAmount > 0) {
-                    await base44.functions.invoke('squareDeleteCodItem', {
-                      deliveryId: delivery.id
-                    }).catch(() => null);
-                  }
+                  // Persist the edited COD payments FIRST, then reconcile Square from the
+                  // persisted state — the reconciler decides create/remove server-side
+                  // (cash stays, debit/credit/cheque removes). No client-side Square
+                  // decisions here.
                   await onCODUpdate(delivery.id, codPayments, true);
+                  if (totalAmount > 0) syncDeliverySquareCod(delivery.id, { status: 'completed', cod_payments: codPayments });
                   setShowCODCollection(false);
                   return;
                 } else {
@@ -255,6 +220,8 @@ export default function StopCardCODCollection({
                   };
 
                   await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                  // Square reconcile happens inside runTerminalDeliverySideEffects —
+                  // the reconciler decides cash-stays / card-removes server-side.
                   runTerminalDeliverySideEffects({
                     delivery,
                     previousStatus: delivery.status,

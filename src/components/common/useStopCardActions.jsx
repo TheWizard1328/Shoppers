@@ -4,8 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
-import { deleteCODWithTimeout } from '../utils/squareCODHandler';
-import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
+import { syncDeliverySquareCod, syncDeliveriesSquareCod } from '../utils/squareCodSync';
 import { createDeliveryLocal, updateDeliveryLocal } from '../utils/offlineMutations';
 import { flushQueuedDeliveryUpdates } from '../utils/updateBatcher';
 import { fabControlEvents } from '../utils/fabControlEvents';
@@ -18,7 +17,6 @@ import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocal
 const clearPendingBreadcrumbsForDelivery = async () => {};
 const getPendingBreadcrumbsForDelivery = async () => null;
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
-import { triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
@@ -422,15 +420,12 @@ export default function useStopCardActions(params) {
         }
       } catch (_) {}
 
-      // ── STEP 3b: Square COD sync (fire-and-forget, does not block optimizer) ──
+      // ── STEP 3b: Square COD reconcile (fire-and-forget, does not block optimizer) ──
+      // One backend call: the reconciler reads the authoritative DB records (already
+      // committed server-side above) and creates/updates all missing items in a SINGLE
+      // Square batch-upsert — no per-item catalog scans, no client-supplied amounts.
       if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch })
-          .then(r => {
-            const errors = (r?.results || []).filter(x => x?.status === 'error');
-            if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
-            else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
-          })
-          .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
+        syncDeliveriesSquareCod(codBatch.map((c) => c.deliveryId));
       }
 
       // Write pickup route summary note — DEFERRED to after optimization (Step 7).
@@ -721,7 +716,7 @@ export default function useStopCardActions(params) {
       Promise.resolve().then(async () => {
         try {
           const backgroundTasks = [];
-          if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(deleteCODWithTimeout(delivery.id, 'Removed after creating return delivery'));
+          if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(Promise.resolve(syncDeliverySquareCod(delivery.id, { status: 'returned' })));
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery: createdReturnDelivery || delivery, store, appUsers }));
           await Promise.allSettled(backgroundTasks);
         } catch {}
@@ -761,8 +756,10 @@ export default function useStopCardActions(params) {
             await base44.entities.Delivery.update(retryDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }).catch(() => null);
           }
           if ((delivery.cod_total_amount_required || 0) > 0) {
-            await deleteCODWithTimeout(delivery.id, 'Removed after creating retry delivery');
-            if (retryDeliveryId && !isPickup) triggerSquareCodUpsert({ deliveryId: retryDeliveryId, patientName: patient?.full_name || 'Patient', storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: retryDate, storeId: delivery.store_id });
+            // Original becomes terminal on retry — reconciler removes its item.
+            syncDeliverySquareCod(delivery.id, { status: 'failed' });
+            // Retry delivery is active with a COD — reconciler creates its item.
+            if (retryDeliveryId && !isPickup) syncDeliverySquareCod(retryDeliveryId, { status: 'in_transit', cod_total_amount_required: delivery.cod_total_amount_required, patient_name: patient?.full_name || delivery.patient_name || '', delivery_date: retryDate, store_id: delivery.store_id });
           }
           await ensureDriverOnline();
           // Run the route optimizer + polyline generator on the RETRY delivery's date (retryDate),
@@ -836,7 +833,7 @@ export default function useStopCardActions(params) {
             updateDeliveriesLocally(updatedDeliveries, true);
           }
 
-          if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) triggerSquareCodUpsert({ deliveryId: delivery.id, patientName: patient?.full_name || delivery.patient_name || 'Patient', storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id });
+          if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) syncDeliverySquareCod(delivery.id);
 
           let restartOptimizeData = null;
           try {
@@ -1802,7 +1799,10 @@ export default function useStopCardActions(params) {
         if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
           appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time }).catch(() => {});
         }
-        if (shouldDeleteSquareCodBeforeComplete) deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion').catch(() => {});
+        // Fire-and-forget: reconciler deletes the item for card/cheque collections.
+        // Patch carries the just-written cod_payments so the reconciler sees the card
+        // payment even before the DB write propagates. Cash is left untouched server-side.
+        if (shouldDeleteSquareCodBeforeComplete) syncDeliverySquareCod(delivery.id, { status: 'completed', cod_payments: completionCodPayments });
 
         // Fire-and-forget: patient side-effects are background work
         if (patient?.id) {
@@ -2103,7 +2103,7 @@ export default function useStopCardActions(params) {
         if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
           appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time }).catch(() => {});
         }
-        if (shouldDeleteSquareCodBeforeFailure) deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`).catch(() => {});
+        if (shouldDeleteSquareCodBeforeFailure) syncDeliverySquareCod(delivery.id, { status });
 
         // ── Terminal engine ──────────────────────────────────────────────────
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
@@ -2590,19 +2590,15 @@ export default function useStopCardActions(params) {
           // Non-fatal — the delivery is already in_transit locally
         }
 
-        // COD sync if needed
+        // COD reconcile if needed — patch carries the just-written local projection
         if (projectedDelivery.cod_total_amount_required && Number(projectedDelivery.cod_total_amount_required) > 0) {
-          const storeAbbr = resolvedStore?.abbreviation || '';
-          base44.functions.invoke('syncSquareCods', {
-            items: [{
-              deliveryId: targetDeliveryId,
-              patientName: projectedDelivery.patient_name || '',
-              storeAbbreviation: storeAbbr,
-              codAmount: projectedDelivery.cod_total_amount_required,
-              deliveryDate,
-              storeId,
-            }]
-          }).catch((e) => console.warn('[AcceptSingle] Square COD sync failed:', e?.message || e));
+          syncDeliverySquareCod(targetDeliveryId, {
+            status: 'in_transit',
+            cod_total_amount_required: projectedDelivery.cod_total_amount_required,
+            patient_name: projectedDelivery.patient_name || '',
+            delivery_date,
+            store_id: storeId,
+          });
         }
 
         toast.success(`Accepted delivery for ${projectedDelivery.patient_name || 'patient'}`);

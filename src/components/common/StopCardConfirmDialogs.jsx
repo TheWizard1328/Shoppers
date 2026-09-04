@@ -8,6 +8,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../utils/entityMutations';
 import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
+import { removeDeliverySquareCod } from '../utils/squareCodSync';
 
 export default function StopCardConfirmDialogs({
   // Delete dialog
@@ -134,7 +135,8 @@ export default function StopCardConfirmDialogs({
 
                     if (delivery.status === 'in_transit' && delivery.cod_total_amount_required > 0 && delivery.patient_id) {
                       try {
-                        await base44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id, reason: 'delivery_deleted' });
+                        // Delivery is being deleted — reconciler removes its catalog item by id
+                      removeDeliverySquareCod(delivery.id, 'delivery_deleted');
                       } catch (squareError) {
                         console.error('⚠️ [Delete] Failed to delete Square COD item:', squareError);
                       }

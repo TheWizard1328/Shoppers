@@ -14,6 +14,7 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeleted, filterDeleted } from './deletedDeliveryRegistry';
+import { removeDeliverySquareCod } from './squareCodSync';
 
 // ========================================
 // UTILITY: Sanitize actual_delivery_time
@@ -712,9 +713,7 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 
     // STEP 2: Square COD cleanup + backend delete — parallel independent network calls
     const squareCodPromise = (deletedDeliverySnapshot && Number(deletedDeliverySnapshot.cod_total_amount_required || 0) > 0)
-      ? base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' })
-          .then(() => console.log('💳 [EntityMutations] Square COD catalog item deleted for delivery:', deliveryId))
-          .catch((squareErr) => console.warn('⚠️ [EntityMutations] Square COD delete failed (continuing):', squareErr?.message || squareErr))
+      ? Promise.resolve(removeDeliverySquareCod(deliveryId, 'delivery_deleted'))
       : Promise.resolve();
 
     let existedOnline = false;
@@ -937,10 +936,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     const codDeliveries = offlineDeliveries.filter((d) => deliveryIds.includes(d.id) && Number(d?.cod_total_amount_required || 0) > 0);
     if (codDeliveries.length > 0) {
       console.log(`💳 [EntityMutations] Cleaning up ${codDeliveries.length} Square COD catalog items for batch delete`);
-      await Promise.all(codDeliveries.map((d) =>
-        base44.functions.invoke('squareDeleteCodItem', { deliveryId: d.id, reason: 'delivery_deleted' })
-          .catch((err) => console.warn('⚠️ [EntityMutations] Square COD delete failed for', d.id, ':', err?.message || err))
-      ));
+      await Promise.all(codDeliveries.map((d) => removeDeliverySquareCod(d.id, 'delivery_deleted')));
     }
 
     // STEP 2: Delete from backend (skip if not found)
