@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 const COOLDOWN_MS = 3 * 60 * 60 * 1000; // once every few hours
@@ -24,6 +25,7 @@ const BALLOON_WIDTH = 240;
 function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSchedule }) {
   const [visible, setVisible] = useState(false);
   const [left, setLeft] = useState(null);
+  const [bottomOffset, setBottomOffset] = useState(null);
   const shownThisSessionRef = useRef(false);
 
   // Eligible records: upcoming booked-off slots (date window already applied by
@@ -74,12 +76,12 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
         // 3. Anchor must be visible (Schedule tab button in the nav)
         const anchor = document.querySelector(anchorSelector);
         if (!anchor) return;
-        const nav = anchor.closest('nav');
-        if (!nav) return;
         const aRect = anchor.getBoundingClientRect();
-        const nRect = nav.getBoundingClientRect();
-        let l = aRect.left - nRect.left + aRect.width / 2 - BALLOON_WIDTH / 2;
-        l = Math.max(8, Math.min(l, nRect.width - BALLOON_WIDTH - 8));
+        // Viewport-fixed positioning: horizontally centered on the Schedule
+        // button, clamped to the screen edges; vertically 6px above its top.
+        let l = aRect.left + aRect.width / 2 - BALLOON_WIDTH / 2;
+        l = Math.max(8, Math.min(l, window.innerWidth - BALLOON_WIDTH - 8));
+        setBottomOffset(Math.max(window.innerHeight - aRect.top + 6, 8));
 
         // 4. Show — burn the cooldown now so re-renders don't re-show
         localStorage.setItem(LAST_SHOWN_KEY, String(Date.now()));
@@ -102,19 +104,22 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
     return () => clearTimeout(t);
   }, [visible]);
 
-  if (!visible || left == null) return null;
+  if (!visible || left == null || bottomOffset == null) return null;
 
   const n = eligible.length;
   return (
     <div
       role="status"
       onClick={(e) => { e.stopPropagation(); dismiss(true); }}
-      className="absolute z-[200] cursor-pointer animate-in fade-in slide-in-from-bottom-2 duration-300"
+      className="fixed cursor-pointer animate-in fade-in slide-in-from-bottom-2 duration-300"
       style={{
         left: `${left}px`,
-        bottom: '100%',
+        bottom: `${bottomOffset}px`,
         width: `${BALLOON_WIDTH}px`,
-        marginBottom: '6px',
+        // Portal + high z-index: the balloon renders via createPortal to
+        // document.body, OUTSIDE the nav's z-150 stacking context, so stop
+        // cards (z-10000+) can never cover it.
+        zIndex: 11000,
         background: '#1f2937',
         color: '#fff',
         borderRadius: '10px',
@@ -141,7 +146,8 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
           borderRadius: '2px',
         }}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
 
