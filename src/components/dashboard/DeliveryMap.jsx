@@ -830,21 +830,13 @@ function DeliveryMap({
     return { ...locationData, driver: currentUser, driverId: currentUser.id, driver_id: currentUser.id };
   }, [currentDriverLocation, safeUsers, currentUser, isMobile, selectedDate]);
 
-  const routeAwareCurrentDriverMarker = useMemo(() => {
-    if (!currentDriverMarker) return null;
-    const routeLocation = routeLocationSnapshot[currentDriverMarker.driverId || currentDriverMarker.driver_id];
-    if (!routeLocation) return currentDriverMarker;
-    return { ...currentDriverMarker, latitude: routeLocation.latitude, longitude: routeLocation.longitude, timestamp: routeLocation.location_updated_at || currentDriverMarker.timestamp };
-  }, [currentDriverMarker, routeLocationSnapshot]);
-
-  const routeAwareDriverLocationMarkers = useMemo(() => {
-    return (driverLocationMarkers || []).map((marker) => {
-      const routeLocation = routeLocationSnapshot[marker.driverId || marker.driver_id || marker.id];
-      return routeLocation
-        ? { ...marker, latitude: routeLocation.latitude, longitude: routeLocation.longitude, current_latitude: routeLocation.latitude, current_longitude: routeLocation.longitude, location_updated_at: routeLocation.location_updated_at || marker.location_updated_at }
-        : marker;
-    });
-  }, [driverLocationMarkers, routeLocationSnapshot]);
+  // NOTE (Robert, Sep 4 2026): the routeLocationSnapshot override on driver
+  // location markers was REMOVED. The snapshot is gated to 150m/10s (its job is
+  // to signal ROUTE RECALCS via useRouteRecalcSignal, not to position markers),
+  // and overriding live marker coords with it made the dots feel frozen behind
+  // a minimum-distance gate. Markers now always render the freshest coordinates
+  // available: live GPS (~1s) for the driver's own dot, server coords for peers.
+  const routeAwareDriverLocationMarkers = driverLocationMarkers;
 
   const [isDarkTheme, setIsDarkTheme] = useState(() =>
     document.documentElement.classList.contains("dark-theme") ||
