@@ -32,6 +32,7 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
   const [visible, setVisible] = useState(false);
   const [left, setLeft] = useState(null);
   const [bottomOffset, setBottomOffset] = useState(null);
+  const [tailLeft, setTailLeft] = useState(null);
   const shownThisSessionRef = useRef(false);
 
   // Eligible records: upcoming booked-off slots (date window already applied by
@@ -90,9 +91,19 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
         const aRect = anchor.getBoundingClientRect();
         // Viewport-fixed positioning: horizontally centered on the Schedule
         // button, clamped to the screen edges; vertically 6px above its top.
-        let l = aRect.left + aRect.width / 2 - BALLOON_WIDTH / 2;
+        const anchorCenterX = aRect.left + aRect.width / 2;
+        let l = anchorCenterX - BALLOON_WIDTH / 2;
         l = Math.max(8, Math.min(l, window.innerWidth - BALLOON_WIDTH - 8));
         setBottomOffset(Math.max(window.innerHeight - aRect.top + 6, 8));
+        // Tail: computed from the anchor's true center minus the box's actual
+        // (possibly clamped) left, then re-clamped to stay within the box —
+        // so the tail always points at the anchor instead of sitting fixed
+        // at the box's own midpoint (which drifts off-anchor once the box
+        // itself gets edge-clamped, e.g. for the rightmost Schedule tab).
+        const TAIL_HALF = 6; // half of the 12px diamond
+        let tl = anchorCenterX - l - TAIL_HALF;
+        tl = Math.max(10, Math.min(tl, BALLOON_WIDTH - 10 - TAIL_HALF * 2));
+        setTailLeft(tl);
 
         // 4. Show. The 3h cooldown is burned ONLY for mid-route shows —
         // pre-route shows happen every launch by design, so they must not
@@ -119,7 +130,7 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
     return () => clearTimeout(t);
   }, [visible]);
 
-  if (!visible || left == null || bottomOffset == null) return null;
+  if (!visible || left == null || bottomOffset == null || tailLeft == null) return null;
 
   const n = eligible.length;
   return createPortal(
@@ -153,7 +164,7 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
         className="absolute"
         style={{
           bottom: '-6px',
-          left: `${BALLOON_WIDTH / 2 - 6}px`,
+          left: `${tailLeft}px`,
           width: '12px',
           height: '12px',
           background: '#1f2937',

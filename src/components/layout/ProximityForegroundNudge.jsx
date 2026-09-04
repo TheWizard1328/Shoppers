@@ -88,7 +88,11 @@ export default function ProximityForegroundNudge() {
   };
 
   return (
-    <div className="fixed left-0 right-0 top-0 z-[9900] px-2 pt-2 pointer-events-none">
+    // z-[10004]: above the top-anchored banner stack (RouteNotification 9999,
+    // DispatcherPickupNotification 9999, RealTimeRouteOptimizer 10000,
+    // ConnectionRecoveryBanner 10002, SettingsMenu submenu 10003) — this is a
+    // one-time permission nudge and should never render hidden behind them.
+    <div className="fixed left-0 right-0 top-0 z-[10004] px-2 pt-2 pointer-events-none">
       <div className="mx-auto max-w-md rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/80 dark:border-amber-800 shadow-lg p-3 pointer-events-auto">
         <div className="flex items-start gap-2.5">
           <div className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-amber-500/15 flex items-center justify-center">
