@@ -660,7 +660,16 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
-      offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: sanitizedUpdates }).catch(() => {});
+      // _userInitiated marker (Robert, Sep 4 2026): queued mutations that change
+      // a stop's status are, by the "up-push only on direct user action" rule,
+      // user-initiated (Complete/Fail/Cancel/Restart all flow through here).
+      // The offline replay processor uses this marker to allow terminal↔non-terminal
+      // status transitions; UNMARKED replays can never flip a terminal status.
+      const _statusMutation = ('status' in sanitizedUpdates) || ('actual_delivery_time' in sanitizedUpdates);
+      offlineDB.addPendingMutation({
+        operation: 'update', entity: 'Delivery', recordId: deliveryId,
+        payload: _statusMutation ? { ...sanitizedUpdates, _userInitiated: true } : sanitizedUpdates,
+      }).catch(() => {});
       // UI already updated optimistically above — no extra notify needed on failure
     }
     

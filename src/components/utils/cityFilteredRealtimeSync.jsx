@@ -113,9 +113,20 @@ class CityFilteredRealtimeSync {
                   const _isExtended = _suppressTs > _now + 1000;
                   const _suppressed = _isExtended ? (_now < _suppressTs) : (_now - _suppressTs < 15000);
                   if (_suppressed) {
-                    const _remaining = _isExtended ? Math.round((_suppressTs - _now) / 1000) : Math.round((15000 - (_now - _suppressTs)) / 1000);
-                    console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for ${event.type}: ${event.data?.patient_name || _deliveryId} — ${_remaining}s remaining`);
-                    return;
+                    // CONTENT-AWARE ECHO CHECK (Robert, Sep 4 2026): only
+                    // suppress when the payload matches our own IDB record.
+                    // A differing payload is a genuine update from another
+                    // device and must be merged — time-based suppression alone
+                    // left this device's IDB stale and later local computes
+                    // reverted the other device's completions server-side.
+                    const { isTrueDeliveryEcho } = await import('./echoGuard');
+                    const _isEcho = await isTrueDeliveryEcho(_deliveryId, event.data);
+                    if (_isEcho) {
+                      const _remaining = _isExtended ? Math.round((_suppressTs - _now) / 1000) : Math.round((15000 - (_now - _suppressTs)) / 1000);
+                      console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for ${event.type}: ${event.data?.patient_name || _deliveryId} — ${_remaining}s remaining`);
+                      return;
+                    }
+                    console.log(`📡 [cityFilteredRealtimeSync] Suppression window active for ${event.type}: ${_deliveryId} but payload differs from local — processing as genuine remote update`);
                   }
                 }
               }

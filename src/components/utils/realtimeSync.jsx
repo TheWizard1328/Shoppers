@@ -775,12 +775,26 @@ const subscribeToEntity = (entityName) => {
         const isExtendedExpiry = ts > now + 1000;
         const isWithinWindow = isExtendedExpiry ? (now < ts) : (now - ts < 15000);
         if (isWithinWindow) {
-          const secRemaining = isExtendedExpiry ? Math.round((ts - now) / 1000) : Math.round((15000 - (now - ts)) / 1000);
-          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${type}:${id} — ${isExtendedExpiry ? 'extended suppression' : 'recent write'}, ${secRemaining}s remaining`);
-          if (!isExtendedExpiry) localWrites.delete(id); // only auto-clear legacy writes
-          return;
+          // CONTENT-AWARE ECHO CHECK (Robert, Sep 4 2026): the time window alone
+          // cannot tell this device's own write-echo apart from a GENUINE update
+          // by another device (phone + tablet same user). Only suppress if the
+          // payload matches what we already have in IDB; if ANY field differs it
+          // is newer remote state (e.g. a completion from the other device) and
+          // MUST be processed — otherwise our IDB stays stale and the next local
+          // compute/push REVERTS the other device's work on the server.
+          const { isTrueDeliveryEcho } = await import('./echoGuard');
+          const isEcho = await isTrueDeliveryEcho(id, data);
+          if (isEcho) {
+            const secRemaining = isExtendedExpiry ? Math.round((ts - now) / 1000) : Math.round((15000 - (now - ts)) / 1000);
+            console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${type}:${id} — ${isExtendedExpiry ? 'extended suppression' : 'recent write'}, ${secRemaining}s remaining`);
+            if (!isExtendedExpiry) localWrites.delete(id); // only auto-clear legacy writes
+            return;
+          }
+          console.log(`📡 [RealtimeSync] Suppression window active for Delivery ${type}:${id} but payload differs from local — processing as genuine remote update`);
+          if (!isExtendedExpiry) localWrites.delete(id);
+        } else {
+          localWrites.delete(id);
         }
-        localWrites.delete(id);
       }
     }
 

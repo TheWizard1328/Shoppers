@@ -3,6 +3,9 @@ import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntit
 import { getSyncPaused } from './offlineSyncState';
 import { isDeleted, isDeletedByContent } from './deletedDeliveryRegistry';
 
+// Terminal (finished) delivery statuses — see TERMINAL_STATUSES unification.
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
 export const processPendingMutationsInternal = async () => {
@@ -105,6 +108,7 @@ export const processPendingMutationsInternal = async () => {
           _originalDriverId,
           _driverWasChanged,
           _tempId,
+          _userInitiated,
           isNew,
           latitude,
           longitude,
@@ -175,7 +179,35 @@ export const processPendingMutationsInternal = async () => {
           successCount++;
           continue;
         }
-        await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
+
+        let finalPayload = mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload;
+
+        // ── TERMINAL-REVERT GUARD (Robert, Sep 4 2026) ─────────────────────────
+        // Rule: the online database is only pushed from DIRECT user actions.
+        // A queued replay can arrive MINUTES after capture — by then another
+        // device may have completed/failed/cancelled the stop. Only a mutation
+        // explicitly marked _userInitiated (Complete/Fail/Cancel/Restart/batch
+        // staging) may flip a terminal status. Unmarked replays are treated as
+        // indirect writes: their status/actual_delivery_time changes are
+        // stripped so a stale snapshot can never resurrect a finished stop.
+        const _mutationUserInitiated = !!(mutation._userInitiated || mutation.payload?._userInitiated);
+        if (
+          mutation.entity === 'Delivery' &&
+          typeof finalPayload?.status === 'string' &&
+          !TERMINAL_STATUSES.has(finalPayload.status) &&
+          !_mutationUserInitiated
+        ) {
+          try {
+            const serverRec = await Entity.get(mutation.recordId);
+            if (serverRec && TERMINAL_STATUSES.has(String(serverRec.status || ''))) {
+              console.log(`🛡️ [OfflineSync] Stripping status revert from queued update for ${mutation.recordId} — server is '${serverRec.status}', stale replay wanted '${finalPayload.status}'`);
+              const { status: _s, actual_delivery_time: _t, ...restPayload } = finalPayload;
+              finalPayload = restPayload;
+            }
+          } catch (_) { /* server fetch failed — proceed with the write as-is */ }
+        }
+
+        await Entity.update(mutation.recordId, finalPayload);
       }
 
       await offlineDB.removePendingMutation(mutation.mutationId);

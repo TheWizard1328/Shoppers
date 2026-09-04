@@ -903,10 +903,30 @@ export default function useStopCardActions(params) {
         await withPausedDriverLocationPoller(async () => {
           await collapseDriverStopCards();
           await new Promise((resolve) => setTimeout(resolve, 100));
+
+          // ── FRESH SERVER FETCH (Robert, Sep 4 2026) ─────────────────────────
+          // Restart is a DIRECT user action and is allowed to flip a terminal
+          // status back to in_transit/en_route — but it must start from the
+          // server's truth, not a possibly-stale IDB snapshot (another device
+          // may have completed/restarted this stop moments ago). Pull the
+          // record first; on failure fall back to the local copy (restart
+          // still proceeds — it is user-initiated).
+          let restartDelivery = delivery;
+          try {
+            const freshRec = await base44.entities.Delivery.get(delivery.id);
+            if (freshRec?.id) restartDelivery = { ...delivery, ...freshRec };
+          } catch (_) {}
+
           const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-          const isInterStoreStop = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
+          const isInterStoreStop = !!(restartDelivery._interstore_source_id || restartDelivery._interstore_dest_id);
           const newStatus = (isPickup && !isInterStoreStop) ? 'en_route' : 'in_transit';
           const restartedRouteDeliveries = reorderActiveRouteLocally(driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false } : { ...item, isNextDelivery: false }), delivery.id);
+          // Merge any fresh server fields into the restarted record before it
+          // is persisted/broadcast (patient name, windows, polylines etc).
+          if (restartDelivery !== delivery) {
+            const _idx = restartedRouteDeliveries.findIndex((r) => r?.id === delivery.id);
+            if (_idx !== -1) restartedRouteDeliveries[_idx] = { ...restartDelivery, ...restartedRouteDeliveries[_idx] };
+          }
           await Promise.all(restartedRouteDeliveries.filter((item) => item && (item.id === delivery.id || item.isNextDelivery === false)).map((item) => {
             const existingRouteItem = driverDeliveries.find((routeItem) => routeItem?.id === item.id);
             if (!existingRouteItem) return Promise.resolve(null);

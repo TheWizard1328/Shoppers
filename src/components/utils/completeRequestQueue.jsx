@@ -137,14 +137,21 @@ const flushCompletionJob = async (entry) => {
   // meaningful for a completion event.
   const statusWritePromises = [];
   if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
+    // STALE-REVERT GUARD (Robert, Sep 4 2026): status + actual_delivery_time may
+    // only be pushed for the record the user DIRECTLY acted on
+    // (lastCompletedDeliveryId). Other affected records (next stop, resequenced
+    // stops) get ordering fields only — their status in our IDB may be stale
+    // relative to a completion made on ANOTHER device, and pushing it would
+    // revert that completion server-side.
     statusWritePromises.push(
       Promise.allSettled(
         affectedFullRecords.map((rec) => {
           if (!rec?.id) return Promise.resolve(null);
+          const _isActedRecord = rec.id === lastCompletedDeliveryId;
           // Build minimal update — only fields relevant to a status change
           const update = {};
-          if (typeof rec.status === 'string') update.status = rec.status;
-          if (rec.actual_delivery_time != null) update.actual_delivery_time = rec.actual_delivery_time;
+          if (_isActedRecord && typeof rec.status === 'string') update.status = rec.status;
+          if (_isActedRecord && rec.actual_delivery_time != null) update.actual_delivery_time = rec.actual_delivery_time;
           if (rec.arrival_time != null) update.arrival_time = rec.arrival_time;
           if (rec.isNextDelivery !== undefined) update.isNextDelivery = rec.isNextDelivery;
           if (rec.stop_order != null) update.stop_order = rec.stop_order;
@@ -194,9 +201,46 @@ const flushCompletionJob = async (entry) => {
         const { computeNextDeliveryState } = await import('./clientNextDelivery');
         const { offlineDB } = await import('./offlineDatabase');
 
-        // Load all driver+date deliveries from IDB (authoritative local state)
+        // Load all driver+date deliveries from IDB (local baseline)
         const allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-        const driverDeliveries = (allDeliveries || []).filter(d => d?.driver_id === driverId);
+        let driverDeliveries = (allDeliveries || []).filter(d => d?.driver_id === driverId);
+
+        // ── FRESH SERVER PULL (Robert, Sep 4 2026) ──────────────────────────
+        // Before computing stop_order/isNextDelivery, re-pull the driver+date
+        // route from the server. This runs AFTER the status writes above have
+        // committed (awaited), so the server response includes our own
+        // completion — and any completions/stops made on OTHER devices that a
+        // suppression window may have filtered out of our IDB. Computing from
+        // a fresh base prevents this device from pushing stale statuses/flags
+        // back to the server (the multi-device revert bug).
+        // Server records win on overlapping fields; local-only fields are
+        // preserved via the merge. On fetch failure we fall back to IDB as before.
+        try {
+          const freshServer = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+          if (Array.isArray(freshServer) && freshServer.length > 0) {
+            const _localMap = new Map(driverDeliveries.map(d => [d.id, d]));
+            const merged = freshServer
+              .filter(Boolean)
+              .map((srv) => {
+                const loc = _localMap.get(srv.id) || {};
+                const out = { ...loc, ...srv };
+                // Preserve client-side polyline/leg fields when the server copy
+                // is null/absent but local has them (mid-optimization legs not
+                // yet committed) — same rule as the WS receiving-side merge.
+                if (loc.encoded_polyline && !srv.encoded_polyline) out.encoded_polyline = loc.encoded_polyline;
+                if (loc.finished_leg_encoded_polyline && !srv.finished_leg_encoded_polyline) out.finished_leg_encoded_polyline = loc.finished_leg_encoded_polyline;
+                return out;
+              })
+              .filter(Boolean);
+            if (merged.length > 0) {
+              driverDeliveries = merged;
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, merged).catch(() => null);
+              console.log(`[CompleteQueue] Fresh server pull merged into compute base (${merged.length} records)`);
+            }
+          }
+        } catch (pullErr) {
+          console.warn('⚠️ [CompleteQueue] Fresh server pull failed — computing from IDB:', pullErr?.message);
+        }
 
         // Determine driver status from AppUser
         let driverStatus = 'on_duty';
@@ -235,8 +279,14 @@ const flushCompletionJob = async (entry) => {
             if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
             if (d.first_leg_origin_lat != null) update.first_leg_origin_lat = d.first_leg_origin_lat;
             if (d.first_leg_origin_lng != null) update.first_leg_origin_lng = d.first_leg_origin_lng;
-            if (d.status) update.status = d.status;
-            if (d.actual_delivery_time != null) update.actual_delivery_time = d.actual_delivery_time;
+            // STALE-REVERT GUARD: status/actual_delivery_time only for the
+            // directly-acted record. Ordering/flag writes never carry status
+            // for other stops — a stale IDB copy of another device's completed
+            // stop must never be pushed back as in_transit.
+            if (d.id === lastCompletedDeliveryId) {
+              if (d.status) update.status = d.status;
+              if (d.actual_delivery_time != null) update.actual_delivery_time = d.actual_delivery_time;
+            }
             if (Object.keys(update).length > 0) {
               base44.entities.Delivery.update(d.id, update).catch(() => null);
             }

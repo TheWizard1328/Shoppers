@@ -127,6 +127,9 @@ const flushToOnlineDB = async (records) => {
         entity: 'Delivery',
         recordId: record.id,
         payload: record,
+        // Batch staging is a direct user action (batch save) — status changes
+        // in the replay are allowed to transition (see offlineSyncMutationProcessor).
+        _userInitiated: true,
       }).catch(() => {});
     }
   }
@@ -147,7 +150,7 @@ const flushToOnlineDB = async (records) => {
             operation: 'update',
             entity: 'Delivery',
             recordId: id,
-            payload,
+            payload, _userInitiated: true,
           }).catch(() => {});
         }
       })
