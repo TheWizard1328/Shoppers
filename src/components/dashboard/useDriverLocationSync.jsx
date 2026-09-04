@@ -113,21 +113,15 @@ export default function useDriverLocationSync({
       if (!newLocation?.latitude || !newLocation?.longitude) return;
       if (driverLocationRef) driverLocationRef.current = newLocation;
 
-      // Movement gate: only push to React state when the device actually moved
-      // (> ~13m in degree-space) or the last push is older than 60s (keeps the
-      // state's `timestamp` fresh for consumers). Stationary GPS jitter no longer
-      // re-renders the Dashboard; the ref above always carries the full-precision
-      // position for proximity snap / map triggers.
+      // TIME gate, NOT a distance gate (Robert, Sep 4 2026): the live marker must
+      // update at least once every second, even when the driver is stationary or
+      // creeping forward — a ~13m movement gate made the blue dot feel frozen.
+      // We still dedupe sub-second double-fires (GPS jitter bursts) so the
+      // Dashboard doesn't re-render more than ~1x/second.
       const lastPushed = lastStateLocationRef.current;
-      if (lastPushed) {
-        const dLat = newLocation.latitude - lastPushed.latitude;
-        const dLng = newLocation.longitude - lastPushed.longitude;
-        const movedFarEnough = (dLat * dLat + dLng * dLng) > 1.5e-8; // ~13m squared
-        const pushIsStale = Date.now() - lastPushed.pushedAt > 60_000;
-        if (!movedFarEnough && !pushIsStale) {
-          syncLocationRef.current = syncLocation;
-          return;
-        }
+      if (lastPushed && Date.now() - lastPushed.pushedAt < 1000) {
+        syncLocationRef.current = syncLocation;
+        return;
       }
       lastStateLocationRef.current = { latitude: newLocation.latitude, longitude: newLocation.longitude, pushedAt: Date.now() };
       setDriverLocation(newLocation);
