@@ -7,12 +7,28 @@ import { startAuthTokenBridge } from '@/lib/authTokenBridge'
 // ── Global chunk-load error handler ─────────────────────────────────────────
 // When Vite rebuilds after a deploy, dynamic import() calls in open tabs reference
 // old hashed chunk filenames that no longer exist on the server (404). This produces
-// "Failed to fetch dynamically imported module" errors. Intercept them and trigger
-// a silent reload so the driver gets the new build without a manual refresh.
+// "Failed to fetch dynamically imported module" errors. Trigger ONE silent reload
+// so the driver gets the new build, then stop — ChunkErrorBoundary (which also
+// purges the stale service worker + caches) handles any further failure instead of
+// looping. Without this guard, a persistently-stale SW serving an old index.html
+// keeps 404-ing the same chunk and this handler reloads every 1.5s forever, which
+// surfaces as the "dashboard refreshes every second until white screen" boot loop.
+const CHUNK_RELOAD_FLAG = 'rxdeliver_chunk_reload_attempted';
+const chunkReloadAlreadyTried = () => {
+  try { return sessionStorage.getItem(CHUNK_RELOAD_FLAG) === '1'; } catch { return false; }
+};
+const markChunkReloadTried = () => {
+  try { sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1'); } catch {}
+};
 window.addEventListener('error', (event) => {
   const msg = event?.message || '';
   if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed')) {
-    console.warn('⚠️ [ChunkLoad] Stale chunk detected — reloading for fresh build');
+    if (chunkReloadAlreadyTried()) {
+      console.warn('⚠️ [ChunkLoad] Stale chunk persists after reload — leaving recovery to ChunkErrorBoundary (no loop)');
+      return;
+    }
+    console.warn('⚠️ [ChunkLoad] Stale chunk detected — reloading once for fresh build');
+    markChunkReloadTried();
     // Small delay so any in-flight saves can complete
     setTimeout(() => window.location.reload(), 1500);
   }
@@ -20,8 +36,13 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   const msg = String(event?.reason?.message || event?.reason || '');
   if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed')) {
-    console.warn('⚠️ [ChunkLoad] Stale chunk (unhandledrejection) — reloading for fresh build');
     event.preventDefault();
+    if (chunkReloadAlreadyTried()) {
+      console.warn('⚠️ [ChunkLoad] Stale chunk (unhandledrejection) persists — leaving recovery to ChunkErrorBoundary (no loop)');
+      return;
+    }
+    console.warn('⚠️ [ChunkLoad] Stale chunk (unhandledrejection) — reloading once for fresh build');
+    markChunkReloadTried();
     setTimeout(() => window.location.reload(), 1500);
   }
 });

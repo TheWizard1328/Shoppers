@@ -2702,7 +2702,7 @@ export default function useStopCardActions(params) {
             status: 'in_transit',
             cod_total_amount_required: projectedDelivery.cod_total_amount_required,
             patient_name: projectedDelivery.patient_name || '',
-            delivery_date,
+            delivery_date: projectedDelivery.delivery_date || delivery.delivery_date,
             store_id: storeId,
           });
         }
