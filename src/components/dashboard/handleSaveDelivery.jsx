@@ -304,11 +304,18 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       for (const stop of list) {
         if (!stop || stop.patient_id === null) continue;
         const sp = patients.find((p) => p.id === stop.patient_id);
+        // Window rules (confirmed Sep 4 2026): patient window if present;
+        // otherwise the assigned pickup's start +5 min (or the pickup's
+        // estimated_arrival +5 when that's LATER); otherwise leave BLANK —
+        // Accept All stamps now+5 later. No hardcoded '10:00' fallback.
         if (!stop.delivery_time_start && sp?.time_window_start) { stop.delivery_time_start = sp.time_window_start; }
         else if (!stop.delivery_time_start) {
           const cp = list.find((s) => s && !s.patient_id && s.store_id === stop.store_id && !(s.ampm_deliveries && stop.ampm_deliveries && s.ampm_deliveries !== stop.ampm_deliveries) && !finishedStatuses.includes(s.status));
-          if (cp?.delivery_time_start) stop.delivery_time_start = addMinutes(cp.delivery_time_start, 5);
-          else stop.delivery_time_start = '10:00';
+          const p5 = cp?.delivery_time_start ? addMinutes(cp.delivery_time_start, 5) : null;
+          const eta5 = cp?.estimated_arrival ? addMinutes(cp.estimated_arrival, 5) : null;
+          if (p5 && eta5 && eta5 > p5) stop.delivery_time_start = eta5;
+          else if (p5) stop.delivery_time_start = p5;
+          else if (eta5) stop.delivery_time_start = eta5;
         }
         if (!stop.delivery_time_end && sp?.time_window_end) stop.delivery_time_end = sp.time_window_end;
       }

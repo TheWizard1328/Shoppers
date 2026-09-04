@@ -45,7 +45,6 @@ export async function runAcceptAllBatchPipeline({
 
   // Pre-compute now and now+5 in minutes for time comparisons
   const nowMinutes = _parseTimeToMinutes(currentLocalTime);
-  const nowPlus5Minutes = _parseTimeToMinutes(deliveryTimeStart); // caller already computed now+5
 
   // Build updated delivery objects
   const updatedDeliveries = scopedPendingDeliveries.map((delivery, idx) => {
@@ -60,27 +59,21 @@ export async function runAcceptAllBatchPipeline({
 
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
 
-    // ── delivery_time_start resolution (3 rules) ──────────────────────────
-    // 1) patient.time_window_start if it's later than now
-    // 2) now+5 if now+5 is beyond the current delivery_time_start
-    // 3) now+5 if delivery_time_start is blank/null
-    // Otherwise keep the existing delivery_time_start (it's already >= now+5)
+    // ── delivery_time_start resolution (Robert's rules, confirmed Sep 4 2026) ──
+    // 1) Patient has a pre-assigned time window that hasn't passed (>= now) — honor it
+    // 2) No patient window, OR the window is stale (in the past) — stamp now+5.
+    //    Windowless deliveries ALWAYS get now+5 at Accept All — any previous
+    //    start value (creation-time leftovers, staged-transition pickup+5, etc.)
+    //    is never kept.
     const patientWindowStartMin = patient?.time_window_start ? _parseTimeToMinutes(patient.time_window_start) : null;
-    const existingStartMin = delivery.delivery_time_start ? _parseTimeToMinutes(delivery.delivery_time_start) : null;
 
     let resolvedStart;
-    if (patientWindowStartMin != null && nowMinutes != null && patientWindowStartMin > nowMinutes) {
-      // Rule 1: patient window is later than now — use it
+    if (patientWindowStartMin != null && nowMinutes != null && patientWindowStartMin >= nowMinutes) {
+      // Rule 1: patient window still valid — use it
       resolvedStart = patient.time_window_start;
-    } else if (existingStartMin == null) {
-      // Rule 3: blank/null — use now+5
-      resolvedStart = deliveryTimeStart || '09:00';
-    } else if (nowPlus5Minutes != null && nowPlus5Minutes > existingStartMin) {
-      // Rule 2: now+5 is beyond existing start — use now+5
-      resolvedStart = deliveryTimeStart || '09:00';
     } else {
-      // Existing start is already >= now+5 — keep it
-      resolvedStart = delivery.delivery_time_start;
+      // Rule 2: no patient window, or stale window in the past — now+5
+      resolvedStart = deliveryTimeStart || '09:00';
     }
 
     // delivery_time_end: patient window takes priority, otherwise keep existing

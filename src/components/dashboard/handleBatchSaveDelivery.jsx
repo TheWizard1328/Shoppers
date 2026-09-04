@@ -238,12 +238,18 @@ export const handleBatchSaveDelivery = async ({
           s.ampm_deliveries === stop.ampm_deliveries;
         });
 
+        // Window rules (confirmed Sep 4 2026): patient window if present;
+        // otherwise the assigned pickup's start +5 min (or the pickup's
+        // estimated_arrival +5 when that's LATER); otherwise leave BLANK —
+        // Accept All stamps now+5 later. No hardcoded '10:00' fallback.
         if (!stop.delivery_time_start && stopPatient?.time_window_start) {
           stop.delivery_time_start = stopPatient.time_window_start;
-        } else if (!stop.delivery_time_start && correspondingPickup?.delivery_time_start) {
-          stop.delivery_time_start = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
         } else if (!stop.delivery_time_start) {
-          stop.delivery_time_start = '10:00';
+          const p5 = correspondingPickup?.delivery_time_start ? addMinutesToTime(correspondingPickup.delivery_time_start, 5) : null;
+          const eta5 = correspondingPickup?.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
+          if (p5 && eta5 && eta5 > p5) stop.delivery_time_start = eta5;
+          else if (p5) stop.delivery_time_start = p5;
+          else if (eta5) stop.delivery_time_start = eta5;
         }
 
         if (!stop.delivery_time_end && stopPatient?.time_window_end) {
@@ -260,15 +266,9 @@ export const handleBatchSaveDelivery = async ({
     for (const stop of optimizedRoute) {
       if (!stop || stop.patient_id === null) continue;
       const stopPatient = patients.find((p) => p.id === stop.patient_id);
-      const correspondingPickup = optimizedRoute.find((s) => s && s.store_id === stop.store_id && s.patient_id === null && s.ampm_deliveries === stop.ampm_deliveries);
-      if (!stop.delivery_time_start && stopPatient?.time_window_start) {
-        stop.delivery_time_start = stopPatient.time_window_start;
-      } else if (!stop.delivery_time_start && correspondingPickup?.delivery_time_start) {
-        const p5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
-        const eta5 = correspondingPickup.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
-        if (eta5 && eta5 > p5) stop.delivery_time_start = eta5;else
-        if (p5) stop.delivery_time_start = p5;
-      }
+      // Start-time assignment happens in the first pass above (patient window
+      // → pickup start+5 / ETA+5 → blank). This pass only fills a missing end
+      // from the patient window and syncs the mirror fields.
       if (!stop.delivery_time_end && stopPatient?.time_window_end) {
         stop.delivery_time_end = stopPatient.time_window_end;
       }

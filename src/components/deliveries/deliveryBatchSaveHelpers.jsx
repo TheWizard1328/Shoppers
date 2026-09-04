@@ -91,6 +91,14 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
 
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
+// Local now+5 (HH:mm) — matches the now+5 convention used by handleStatusUpdate
+// in_transit/en_route transitions and the Accept All pipeline.
+const _nowPlus5Local = () => {
+  const n = new Date();
+  const m = n.getHours() * 60 + n.getMinutes() + 5;
+  return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
 export const getStagedActivationStatus = (delivery) => {
   if (delivery.status !== 'Staged') return delivery.status;
 
@@ -111,13 +119,18 @@ export const buildExistingDeliveryBatchUpdate = (delivery) => {
   // For directly-edited deliveries (not Staged activations), preserve the status the user set.
   const isDirectEdit = delivery._wasEdited && delivery.status !== 'Staged';
   const finalStatus = isDirectEdit ? delivery.status : getStagedActivationStatus(delivery);
-  const now = new Date();
-  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // In-transit activations keep any existing start (patient windows win);
+  // blank starts get now+5 — consistent with handleStatusUpdate in_transit
+  // transitions (previously stamped plain 'now', Robert Sep 4 2026).
+  const resolvedStartTime = !isDirectEdit && finalStatus === 'in_transit' && !delivery.delivery_time_start
+    ? _nowPlus5Local()
+    : delivery.delivery_time_start;
 
   const base = {
     status: finalStatus,
     finished_leg_transport_mode: delivery.finished_leg_transport_mode || 'driving',
-    delivery_time_start: !isDirectEdit && finalStatus === 'in_transit' ? currentLocalTime : delivery.delivery_time_start,
+    delivery_time_start: resolvedStartTime,
     delivery_time_end: delivery.delivery_time_end || '',
     delivery_notes: delivery.delivery_notes || '',
     prescription_number: delivery.prescription_number || '',
@@ -148,10 +161,24 @@ export const buildExistingDeliveryBatchUpdate = (delivery) => {
 };
 
 export const getDeliveryReadyForSave = (delivery) => {
-  if (delivery.status !== 'Staged') return delivery;
+  if (delivery.status === 'Staged') {
+    const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, _wasEdited, ...deliveryPayload } = delivery;
+    const activated = { ...deliveryPayload, status: getStagedActivationStatus(delivery) };
+    // Staged → in_transit activation (ISP/ISD): blank start gets now+5
+    if (activated.status === 'in_transit' && !activated.delivery_time_start) {
+      activated.delivery_time_start = _nowPlus5Local();
+    }
+    return activated;
+  }
 
-  const { patient_name, patient_phone, unit_number, store_phone, delivery_stop_id, mailbox_ok, call_upon_arrival, ring_bell, dont_ring_bell, back_door, _wasEdited, ...deliveryPayload } = delivery;
-  return { ...deliveryPayload, status: getStagedActivationStatus(delivery) };
+  // User explicitly set in_transit before clicking Add (Robert, Sep 4 2026) —
+  // keep the status verbatim; stamp a blank start with now+5 so the new
+  // in_transit record has the same start-time semantics as every other
+  // in_transit transition.
+  if (delivery.status === 'in_transit' && !delivery.delivery_time_start) {
+    return { ...delivery, delivery_time_start: _nowPlus5Local() };
+  }
+  return delivery;
 };
 
 export const getDeliveriesReadyForDB = (newDeliveries, deliveriesWithTRs) => {

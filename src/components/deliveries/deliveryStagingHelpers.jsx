@@ -106,12 +106,14 @@ export const buildPatientStagedDelivery = ({
   cod_total_amount_required: codAmount,
   puid: puid || '',
   ampm_deliveries: timeSlot,
-  // ISP/ISD patient deliveries are always in_transit when created. Everything
-  // else stages as 'Staged'. NOTE: we deliberately do NOT preserve arbitrary
-  // formData.status values here — a draft that previously edited a pending stop
-  // carries status 'pending', and inheriting it turned new stops into phantom
-  // pending clones (dedup-deleted at Done, delete button hit the real record).
-  status: (formData._interstore_source_id || formData._interstore_dest_id)
+  // ISP/ISD patient deliveries are always in_transit when created. A user who
+  // explicitly picks in_transit in the status dropdown BEFORE clicking Add also
+  // gets in_transit preserved (Robert, Sep 4 2026). Everything else stages as
+  // 'Staged'. NOTE: only 'in_transit' is honored from formData — a draft that
+  // previously edited a pending stop carries status 'pending', and inheriting
+  // it turned new stops into phantom pending clones (dedup-deleted at Done,
+  // delete button hit the real record). That guard stays intact.
+  status: (formData._interstore_source_id || formData._interstore_dest_id || formData?.status === 'in_transit')
     ? 'in_transit'
     : 'Staged',
   _tempId: Date.now() + Math.random(),
