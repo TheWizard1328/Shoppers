@@ -60,7 +60,16 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
           d?.delivery_date === todayStr &&
           FINISHED_STATUSES.includes(d?.status)
         );
-        if (hasFinishedStopToday) return;
+        // 2b. Pass-through: a driver who JUST booked off shifts (within the
+        // last 15 minutes) makes the balloon show even for drivers whose
+        // route is in progress — fresh coverage opportunities shouldn't wait
+        // for the route to finish.
+        const RECENT_BOOKOFF_MS = 15 * 60 * 1000;
+        const hasRecentBookOff = eligible.some((r) => {
+          const t = Date.parse(r?.updated_date || r?.created_date || '') || 0;
+          return t > 0 && (Date.now() - t) < RECENT_BOOKOFF_MS;
+        });
+        if (hasFinishedStopToday && !hasRecentBookOff) return;
 
         // 3. Anchor must be visible (Schedule tab button in the nav)
         const anchor = document.querySelector(anchorSelector);
