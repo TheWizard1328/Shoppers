@@ -1,14 +1,26 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 
 // Returns the active HERE/Google API key for a given feature.
 // The feature is read from the request body (defaults to 'map_tiles' so the
 // legacy tile-seeding path keeps working unchanged). The secret name is
 // resolved via the shared per-feature resolver with a 5-min in-process cache.
+//
+// SECURITY: this endpoint returns a live API key, so it REQUIRES an
+// authenticated session. All in-app callers (hereApiKeyStore, polylineKeyStore,
+// routingKeyStore, PolylineViewer) invoke it via base44.functions.invoke with
+// the user's token, so strict auth breaks nothing. Unauthenticated calls get 401.
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+
+    // Require an authenticated user before handing out any key
+    const user = await base44.auth.me().catch(() => null);
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     let body: any = {};
     try { body = await req.json(); } catch (_) {}
     const feature = String(body?.feature || 'map_tiles');
