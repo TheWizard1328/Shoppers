@@ -126,23 +126,68 @@ export default function useStopCardActions(params) {
   const [pendingCoolerLog, setPendingCoolerLog] = useState(null);
 
   const ensureDriverOnline = useCallback(async () => {
-    if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
-    // NOTE: The old guard `delivery?.delivery_date !== localDeviceTodayStr` was
-    // removed (2026-09-03): starting ANY stop — including future-dated ones — must
-    // put the driver on duty per product rule. The stop's own delivery_date is
-    // passed to the backend as selectedDate so the on-duty flag restore targets
-    // the route the driver actually started, not just today's route.
+    // GUARD 1: Only the stop's own assigned driver gets toggled. Admins/dispatchers
+    // starting a stop on behalf of a driver must NOT flip THEIR OWN status.
+    if (!currentUser?.id || currentUser.id !== delivery?.driver_id) {
+      console.log('[ensureDriverOnline] Skipped — current user is not the stop\'s assigned driver');
+      return;
+    }
+    // GUARD 2 (Robert's rule, 2026-09-03): Starting a stop toggles the driver on
+    // duty ONLY when the stop is for TODAY. Future-dated or past stops must NOT
+    // change the duty status.
+    if (delivery?.delivery_date !== localDeviceTodayStr) {
+      console.log(`[ensureDriverOnline] Skipped — stop is for ${delivery?.delivery_date}, not today (${localDeviceTodayStr})`);
+      return;
+    }
 
     // NOTE: We intentionally do NOT early-return if appUsers shows 'on_duty'.
     // The appUsers array (booted from IDB) can be stale — the driver may have
     // toggled off_duty/on_break via the DriverStatusToggle, but the React state
     // hasn't propagated to the StopCard closure yet. The backend setDriverStatus
-    // has its own idempotency guard (NO-OP if already on_duty with open segment),
-    // so calling it here is always safe. Removing the frontend guard fixes the
-    // bug where the Start button silently failed to put a driver on duty.
+    // has its own idempotency guard (NO-OP if already on_duty with open segment).
+
+    // ── OPTIMISTIC FLIP (immediate UI) ──────────────────────────────────────────
+    // The backend setDriverStatus takes 5-15s when it runs the on-duty restore
+    // tail (setNextDeliveryFlag + refetch + regenerateType1Polyline). Waiting for
+    // it before flipping the toggle made the Start button look like it did
+    // nothing. Flip the local IDB record + UI events NOW; if the backend then
+    // fails, revert. The backend remains the authority for the server record,
+    // activity segments, and single-device enforcement.
+    let optimisticApplied = false;
+    let optimisticPrevStatus = null;
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', currentUser.id).catch(() => []);
+      const existingRecord = records?.[0] || null;
+      optimisticPrevStatus = existingRecord?.driver_status || null;
+      if (optimisticPrevStatus !== 'on_duty') {
+        const nowIso = new Date().toISOString();
+        const updatedRecord = {
+          ...(existingRecord || {}),
+          ...currentUser,
+          driver_status: 'on_duty',
+          location_tracking_enabled: true,
+          updated_date: nowIso,
+          user_id: currentUser.id,
+          ...(existingRecord?.id ? { id: existingRecord.id } : {}),
+        };
+        await offlineDB.save(offlineDB.STORES.APP_USERS, updatedRecord);
+        optimisticApplied = true;
+        // Snap the DriverStatusToggle + all AppUser-consuming UI to "On" immediately.
+        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: updatedRecord } }));
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedRecord], mergeMode: 'merge' } }));
+        window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: 'on_duty' } }));
+        console.log('[ensureDriverOnline] Optimistic on_duty flip applied (was:', optimisticPrevStatus + ')');
+      } else {
+        console.log('[ensureDriverOnline] Already on_duty locally — no optimistic flip needed');
+      }
+    } catch (idbErr) {
+      console.warn('[ensureDriverOnline] Optimistic flip failed (non-critical, backend will still run):', idbErr?.message);
+    }
 
     try {
       const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({ newStatus: 'on_duty', selectedDate: delivery?.delivery_date || localDeviceTodayStr });
+      console.log(`[ensureDriverOnline] Backend confirmed on_duty (previousStatus: ${_prevStatus})`);
       const deliveryDate = delivery?.delivery_date;
 
       // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't
@@ -224,7 +269,29 @@ export default function useStopCardActions(params) {
       }
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
-      console.error('Failed to auto-toggle driver online:', error);
+      console.error('[ensureDriverOnline] Backend setDriverStatus FAILED:', error?.message || error);
+      // Revert the optimistic flip so the UI doesn't lie about a server state
+      // that never landed. (server record is untouched on failure — it was still
+      // off_duty/on_break).
+      if (optimisticApplied) {
+        const revertStatus = optimisticPrevStatus || 'off_duty';
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', currentUser.id).catch(() => []);
+          const existingRecord = records?.[0] || null;
+          if (existingRecord) {
+            const nowIso = new Date().toISOString();
+            const revertedRecord = { ...existingRecord, driver_status: revertStatus, updated_date: nowIso };
+            await offlineDB.save(offlineDB.STORES.APP_USERS, revertedRecord);
+            window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: revertedRecord } }));
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [revertedRecord], mergeMode: 'merge' } }));
+            window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: revertStatus } }));
+            console.warn(`[ensureDriverOnline] Reverted optimistic flip to '${revertStatus}' after backend failure`);
+          }
+        } catch (revertErr) {
+          console.warn('[ensureDriverOnline] Revert after backend failure failed:', revertErr?.message);
+        }
+      }
     }
   }, [currentUser, appUsers, delivery?.driver_id, delivery?.delivery_date, localDeviceTodayStr, onDriverStatusChange, updateDeliveriesLocally]);
 
