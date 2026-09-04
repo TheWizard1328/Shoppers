@@ -4,7 +4,10 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 
 const COOLDOWN_MS = 3 * 60 * 60 * 1000; // once every few hours
 const AUTO_HIDE_MS = 10000;
-const LAST_SHOWN_KEY = 'rxdeliver_shifts_balloon_last_shown';
+// v2: key renamed 2026-09-04 — the pre-portal builds burned the cooldown while the
+// balloon rendered invisibly behind stop cards. The rename gives every device a
+// one-time fresh cooldown so the fixed balloon can be verified immediately.
+const LAST_SHOWN_KEY = 'rxdeliver_shifts_balloon_last_shown_v2';
 const BALLOON_WIDTH = 240;
 
 /**
