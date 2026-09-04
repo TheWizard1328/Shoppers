@@ -9,8 +9,9 @@ const BALLOON_WIDTH = 240;
 /**
  * Message balloon pinned above the Schedule button on the mobile bottom nav.
  *
- * Informs drivers that shifts are looking for coverage (booked off by another
- * driver, or by an admin on a driver's behalf). Shows at most once every few
+ * Informs drivers (anyone with the driver role — including admins who also
+ * drive) that shifts are looking for coverage (booked off by another driver,
+ * or by an admin on a driver's behalf). Shows at most once every few
  * hours (localStorage cooldown), auto-hides after 10s, and never shows while
  * the driver has an active route in progress (in_transit / isNextDelivery stops
  * for today in local IDB).

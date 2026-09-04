@@ -143,8 +143,11 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
         </div>
       </div>
 
-      {/* Shift-coverage balloon — pinned above the Schedule button, drivers only */}
-      {isDriver && !isAdmin && bookedOffRecords.length > 0 && (
+      {/* Shift-coverage balloon — pinned above the Schedule button.
+          Shows for ANY user with the driver role, including admins who also
+          drive (they pick up shifts too). The admin nav variant includes the
+          Schedule tab, so the anchor + navigation work there as well. */}
+      {isDriver && bookedOffRecords.length > 0 && (
         <ShiftCoverageBalloon
           currentUser={currentUser}
           records={bookedOffRecords}
