@@ -20,27 +20,38 @@ export const initializeAppLoadDataFlow = (uiStateSetters) => {
     setDataLoaded
   } = uiStateSetters;
 
+  // Wipe guard (Sep 4 2026): an empty array is a valid no-op signal (fetch failed /
+  // degraded IDB read), NOT a "clear the UI" instruction. Never replace non-empty
+  // state with an empty array — that produced phantom patient/store wipes.
+  const applyIfNonEmpty = (setter, value, label) => {
+    if (Array.isArray(value) && value.length === 0) {
+      console.warn('[AppLoad] Skipping empty ' + label + ' update — would wipe UI state');
+      return;
+    }
+    if (value) setter(value);
+  };
+
   const handleSnapshot = (event) => {
     const { deliveries, patients, appUsers, stores, cities } = event.detail || {};
-    if (deliveries) setDeliveries(deliveries);
-    if (patients) setPatients(patients);
-    if (appUsers) setAppUsers(appUsers);
-    if (stores) setStores(stores);
-    if (cities) setCities(cities);
+    applyIfNonEmpty(setDeliveries, deliveries, 'deliveries');
+    applyIfNonEmpty(setPatients, patients, 'patients');
+    applyIfNonEmpty(setAppUsers, appUsers, 'appUsers');
+    applyIfNonEmpty(setStores, stores, 'stores');
+    applyIfNonEmpty(setCities, cities, 'cities');
     console.log('📸 [AppLoad] Offline snapshot applied to UI');
   };
 
   const handleFreshData = (event) => {
     const { deliveries, patients, appUsers, stores, cities } = event.detail || {};
-    if (deliveries) setDeliveries(deliveries);
-    if (patients) setPatients(patients);
-    if (appUsers) {
+    applyIfNonEmpty(setDeliveries, deliveries, 'deliveries');
+    applyIfNonEmpty(setPatients, patients, 'patients');
+    if (Array.isArray(appUsers) && appUsers.length > 0) {
       setAppUsers(appUsers);
       // Stamp all AppUsers as "just refreshed" so the SmartRefresh poll skips them for 60s
       smartRefreshManager.stampAppUsersAsRefreshed(appUsers);
     }
-    if (stores) setStores(stores);
-    if (cities) setCities(cities);
+    applyIfNonEmpty(setStores, stores, 'stores');
+    applyIfNonEmpty(setCities, cities, 'cities');
     setDataLoaded(true);
     console.log('✅ [AppLoad] Fresh synced data applied to UI');
   };

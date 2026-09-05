@@ -583,11 +583,11 @@ export default function Layout({ children, currentPageName }) {
   const updateAppDataState = useCallback(async (updates) => {
     if (isFormOverlayOpen) return;
 
-    if (updates.deliveries && updates.deliveries.length === 0 && deliveries.length > 0) return;
-    if (updates.patients && updates.patients.length === 0 && patients.length > 0) return;
-
+    // Wipe guard (Sep 4 2026): an empty result set for ONE entity must not abort the
+    // whole update (it used to early-return and skip stores/appUsers too), and must never
+    // replace non-empty state. Empty = "no changes fetched", not "clear the UI".
     if (updates.deliveries) updateDeliveriesLocally(updates.deliveries, false); // CRITICAL: merge, never replace — prevents wiping other drivers' stops
-    if (updates.patients) setPatients(updates.patients);
+    if (Array.isArray(updates.patients) && updates.patients.length > 0) setPatients((prev) => mergePatients(prev, updates.patients));
     // CRITICAL: Merge stores — never replace. SmartRefresh may return a city-scoped
     // subset; a full replacement would wipe stores from other cities/pages.
     if (updates.stores && updates.stores.length > 0) {

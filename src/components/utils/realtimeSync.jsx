@@ -505,23 +505,53 @@ async function flushBuffered(entityName) {
   }
 
   if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
-    window.dispatchEvent(new CustomEvent('patientsUpdated', {
-      detail: {
-        patients: fullReplacementData,
-        fromRealtime: true,
-        fullReplacement: true
+    // CRITICAL (wipe fix, Sep 4 2026): offlineDB.getAll returns [] on ANY transient IDB
+    // failure (open timeout / version-block / decrypt timeout), and decrypt failures return
+    // degraded wrappers (`{id, store_id, updated_date, __decryptFailed}`) missing ALL PHI
+    // (full_name, address, phone, lat/lng). Full-replacing React state with those wipes
+    // every patient card + map marker until a refresh cycle restores them. Never dispatch a
+    // full replacement built from empty or degraded IDB reads — fall back to a targeted
+    // merge of just the buffered WS payloads (same strategy as the AppUser branch above).
+    const _degradedCount = fullReplacementData.filter((r) => r?.__decryptFailed === true).length;
+    if (fullReplacementData.length > 0 && _degradedCount === 0) {
+      window.dispatchEvent(new CustomEvent('patientsUpdated', {
+        detail: {
+          patients: fullReplacementData,
+          fromRealtime: true,
+          fullReplacement: true
+        }
+      }));
+    } else {
+      if (_degradedCount > 0) {
+        console.warn(`⚠️ [RealtimeSync] [${rsTime()}] Patient IDB read returned ${_degradedCount} undecryptable records — skipping full replacement to avoid state wipe`);
       }
-    }));
+      const _upserts = items.filter((it) => it?.data?.id && it?.eventType !== 'delete').map((it) => it.data);
+      const _deletedIds = items.filter((it) => it?.eventType === 'delete' && it?.id).map((it) => it.id);
+      if (_upserts.length > 0 || _deletedIds.length > 0) {
+        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+          detail: {
+            patients: _upserts,
+            deletedIds: _deletedIds,
+            fromRealtime: true,
+            fullReplacement: false
+          }
+        }));
+      }
+    }
   }
 
   if (typeof window !== 'undefined' && entityName === 'Payroll' && Array.isArray(fullReplacementData)) {
-    window.dispatchEvent(new CustomEvent('payrollRecordsUpdated', {
-      detail: {
-        payrollRecords: fullReplacementData,
-        fromRealtime: true,
-        fullReplacement: true
-      }
-    }));
+    // Same wipe guard as Patient: never full-replace with empty/degraded IDB reads.
+    const _payrollDegraded = fullReplacementData.filter((r) => r?.__decryptFailed === true).length;
+    if (fullReplacementData.length > 0 && _payrollDegraded === 0) {
+      window.dispatchEvent(new CustomEvent('payrollRecordsUpdated', {
+        detail: {
+          payrollRecords: fullReplacementData,
+          fromRealtime: true,
+          fullReplacement: true
+        }
+      }));
+    }
   }
 
 

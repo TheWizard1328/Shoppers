@@ -236,7 +236,22 @@ export function useLayoutEventHandlers({
       // Handle upserts / full replacement
       if (freshPatients && freshPatients.length > 0) {
         if (fullReplacement) {
-          const _nextPatients = freshPatients.filter(Boolean);
+          // CRITICAL (wipe fix, Sep 4 2026): a full replacement is a destructive state
+          // swap. Drop undecryptable IDB wrappers (`__decryptFailed` — missing ALL PHI:
+          // name/address/coords) so they can never overwrite good in-memory records.
+          const _validPatients = freshPatients.filter((p) => p && p.__decryptFailed !== true);
+          if (_validPatients.length === 0) {
+            console.warn('[Layout] Blocked patientsUpdated full replacement — all incoming records are degraded (undecryptable). Keeping existing state.');
+            return;
+          }
+          const _prevCount = (typeof window !== 'undefined' && Array.isArray(window.__appPatients)) ? window.__appPatients.length : -1;
+          if (_prevCount > 5 && _validPatients.length === 0) {
+            console.error('[WIPE-DETECT] patientsUpdated full replacement would drop state from ' + _prevCount + ' to 0 — blocked', event.detail);
+          }
+          if (_prevCount > 0 && _validPatients.length < _prevCount / 2) {
+            console.warn('[WIPE-DETECT] patientsUpdated full replacement shrinking state ' + _prevCount + ' → ' + _validPatients.length + ' (fromRealtime=' + !!event.detail?.fromRealtime + ')');
+          }
+          const _nextPatients = _validPatients;
           if (typeof window !== 'undefined') window.__appPatients = _nextPatients;
           setPatients(_nextPatients);
         } else {
@@ -403,6 +418,11 @@ export function useLayoutEventHandlers({
         try {
           invalidate('Patient');
           const freshPatients = await getData('Patient', null, null, true);
+          // Wipe guard: a failed/empty fetch must never replace existing patient state.
+          if (!Array.isArray(freshPatients) || freshPatients.length === 0) {
+            console.warn('[Layout] deliveriesImported patient sync returned empty — keeping existing patient state');
+            return;
+          }
           if (typeof window !== 'undefined') window.__appPatients = freshPatients;
           setPatients(freshPatients);
           console.log(`✅ [Layout] Patient data synced: ${freshPatients.length} patients`);

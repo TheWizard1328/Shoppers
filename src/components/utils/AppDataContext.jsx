@@ -206,7 +206,9 @@ export const AppDataProvider = ({ children, value }) => {
         const deleteSet = new Set(patientDeletes);
         const patientById = new Map(currentPatients.filter(Boolean).map((item) => [item.id, item]));
         (Array.isArray(offlinePatients) ? offlinePatients : []).forEach((item) => {
-          if (item?.id) patientById.set(item.id, item);
+          // Wipe guard (Sep 4 2026): undecryptable IDB wrappers (__decryptFailed — missing
+          // all PHI) must never overwrite good in-memory records in the merge map.
+          if (item?.id && item.__decryptFailed !== true) patientById.set(item.id, item);
         });
         patientUpserts.forEach((item) => {
           if (item?.id) patientById.set(item.id, item);
