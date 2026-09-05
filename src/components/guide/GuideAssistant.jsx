@@ -740,6 +740,13 @@ export default function GuideAssistant() {
   const SCRIPTED_FALLBACK = "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or just type a patient's name\n\nTry one of the quick actions below, or ask me about one of these topics!";
 
   const handleAiAsk = useCallback(async (text, hints = {}) => {
+    // If the AI just failed, don't make the driver wait another 30s timeout —
+    // serve scripted answers instantly for a 2-minute cooldown window.
+    if (isRxAssistLikelyUnavailable()) {
+      addBotMessage(`RxAssist is offline right now.\n\n${SCRIPTED_FALLBACK}`);
+      setShowQuickActions(true);
+      return false;
+    }
     setShowQuickActions(false);
     setIsAiThinking(true);
     let res = null;
@@ -791,7 +798,7 @@ export default function GuideAssistant() {
 
       // If it's a current-delivery query with no-answer keywords, force advice
       if (patientQuery.type === 'current' && wantsNoAnswer) {
-        setTimeout(() => {
+        setTimeout(async () => {
           // Temporarily set a flag — handlePatientQuery will include advice
           // We call it with a modified query result
           const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
@@ -807,6 +814,15 @@ export default function GuideAssistant() {
             setShowQuickActions(true);
             return;
           }
+          // RxAssist first (scenario 1): it sees this delivery + patient history
+          // (prior failed attempts, gate codes, leave-at instructions) and can
+          // suggest a resolution. Falls back to the scripted advice below.
+          const _aiOk = await handleAiAsk(text, {
+            deliveryId: result.delivery?.id,
+            patientId: result.patient?.id,
+            storeId: result.delivery?.store_id,
+          });
+          if (_aiOk) return;
           const store = appStores?.find(s => s?.id === result.delivery.store_id);
           const cityAdmins = (appDrivers || []).filter(u =>
             u && u.app_roles?.includes('admin') &&
@@ -855,16 +871,11 @@ export default function GuideAssistant() {
         setTimeout(() => handlePatientQuery({ type: 'named', patientName: text }), 300);
         return;
       }
-      // Fallback response
-      setTimeout(() => {
-        addBotMessage(
-          "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or just type a patient's name\n\nTry one of the quick actions below, or ask me about one of these topics!",
-          []
-        );
-        setShowQuickActions(true);
-      }, 300);
+      // Fallback → RxAssist (AI). Unmatched free-text goes to the LLM with the
+      // user's scoped context; on failure/cap/offline it shows scripted topics.
+      handleAiAsk(text);
     }
-  }, [inputValue, addUserMessage, addBotMessage, startFlow, handlePatientQuery, currentUser, appDeliveries, appPatients, appStores, appDrivers, getAllowedPatients]);
+  }, [inputValue, addUserMessage, addBotMessage, startFlow, handlePatientQuery, currentUser, appDeliveries, appPatients, appStores, appDrivers, getAllowedPatients, handleAiAsk]);
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
@@ -1082,6 +1093,23 @@ export default function GuideAssistant() {
                 {messages.map((msg) => (
                   <MessageBubble key={msg.id} message={msg} onAction={handleAction} />
                 ))}
+
+                {/* RxAssist typing indicator while the AI reply is pending */}
+                {isAiThinking && (
+                  <div className="flex justify-start">
+                    <div
+                      className="px-3.5 py-2.5 rounded-[18px] rounded-bl-[4px] flex items-center gap-1.5"
+                      style={{ backgroundColor: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
+                    >
+                      <span className="text-sm" style={{ color: 'var(--text-slate-900)' }}>RxAssist is thinking</span>
+                      <span className="flex gap-0.5 items-end pb-0.5">
+                        <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: 'var(--text-slate-900)', opacity: 0.5 }} />
+                        <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: 'var(--text-slate-900)', opacity: 0.5, animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: 'var(--text-slate-900)', opacity: 0.5, animationDelay: '300ms' }} />
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Quick Actions — collapsible / minimizable */}
@@ -1150,7 +1178,7 @@ export default function GuideAssistant() {
                   />
                   <button
                     onClick={handleSend}
-                    disabled={!inputValue.trim()}
+                    disabled={!inputValue.trim() || isAiThinking}
                     className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ backgroundColor: 'var(--primary-color)', color: '#fff' }}
                   >

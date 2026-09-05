@@ -1,0 +1,42 @@
+{
+  "name": "RxAssistSession",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "RxDeliver user_id (auth user id) that owns this session"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Display name of the user"
+    },
+    "conversation_id": {
+      "type": "string",
+      "description": "RxAssist (Superagent) conversation id — one per RxDeliver user, never shared"
+    },
+    "conversation_title": {
+      "type": "string",
+      "description": "Title used when creating the conversation"
+    },
+    "usage_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date (YYYY-MM-DD) the current message_count applies to"
+    },
+    "message_count": {
+      "type": "number",
+      "description": "AI messages used today (resets when usage_date rolls over)"
+    },
+    "last_message_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_error": {
+      "type": "string",
+      "description": "Last agent API error (no PHI) — for debugging relay failures"
+    }
+  },
+  "required": [
+    "user_id"
+  ]
+}

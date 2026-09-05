@@ -1,0 +1,83 @@
+{
+  "name": "SupportTicket",
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "bug",
+        "feature_request",
+        "account",
+        "question"
+      ],
+      "description": "Escalation category classified by RxAssist"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "description": "Escalation priority classified by RxAssist"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-two sentence summary, no PHI"
+    },
+    "details": {
+      "type": "string",
+      "description": "Repro steps if bug; user role and page. No PHI."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "in_progress",
+        "resolved"
+      ],
+      "description": "Triage status managed from the admin tab"
+    },
+    "requester_id": {
+      "type": "string",
+      "description": "AppUser id of the user whose chat produced the escalation"
+    },
+    "requester_name": {
+      "type": "string",
+      "description": "Display name of the requester"
+    },
+    "requester_role": {
+      "type": "string",
+      "description": "Primary role of the requester (admin/dispatcher/driver)"
+    },
+    "page": {
+      "type": "string",
+      "description": "App page the user was on when escalating"
+    },
+    "owner_reply": {
+      "type": "string",
+      "description": "Robert's reply routed back to the user's chat (Phase 2)"
+    },
+    "replied_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "escalated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the ticket was created"
+    },
+    "notified_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the owner push notification was fired"
+    }
+  },
+  "required": [
+    "category",
+    "priority",
+    "summary",
+    "status"
+  ]
+}
