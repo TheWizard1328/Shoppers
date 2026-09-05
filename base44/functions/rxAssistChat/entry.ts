@@ -293,71 +293,110 @@ async function buildContext(base44: any, body: any, platformUser: any, appUser: 
 
   // ── Driver schedule (dispatcher/admin/store_owner) — "who is my driver /
   // who is scheduled today / who is scheduled for store X" questions ──
-  // Sources, in authority order:
-  //   1. DriverScheduleOverride for the date + slot (explicit change or booked-off)
-  //   2. Store default slot drivers (weekday_am/… / saturday_… / sunday_…)
-  //   3. Drivers that actually have stops assigned for the date
+  // One entry per driver: scheduled stores (override → store default, ignoring
+  // the AM/PM slot split), booked-off stores, duty status, and the day's
+  // pickup/delivery counts broken down by status.
   if (role === 'dispatcher' || role === 'admin' || role === 'store_owner' || isOwner) {
     const schedDate = (typeof body?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)) ? body.date : edmontonTodayStr();
     const dow = new Date(`${schedDate}T12:00:00Z`).getUTCDay();
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow];
     const slotAm = dow === 6 ? 'saturday_am' : dow === 0 ? 'sunday_am' : 'weekday_am';
     const slotPm = dow === 6 ? 'saturday_pm' : dow === 0 ? 'sunday_pm' : 'weekday_pm';
     const myStoreIds = role === 'dispatcher' ? (appUser?.store_ids || []) : null;
 
-    // Name map — schedule driver ids may be either AppUser.id or AppUser.user_id
-    const nameById = new Map();
+    // AppUser maps — schedule driver ids may be either AppUser.id or AppUser.user_id
     const allUsers = await base44.entities.AppUser.list().catch(() => []);
+    const nameById = new Map();
+    const statusById = new Map();
     for (const u of (allUsers || [])) {
-      const nm = u?.user_name || u?.full_name;
-      if (!nm) continue;
-      if (u?.id) nameById.set(u.id, nm);
-      if (u?.user_id) nameById.set(u.user_id, nm);
+      if (!u) continue;
+      const nm = u.user_name || u.full_name;
+      if (u.id) { nameById.set(u.id, nm); statusById.set(u.id, u.driver_status); }
+      if (u.user_id) { nameById.set(u.user_id, nm); statusById.set(u.user_id, u.driver_status); }
     }
-    const nameOf = (id: any, fb?: any) => (id && nameById.get(id)) || fb || null;
 
-    // Drivers with assigned stops on the date (scoped to dispatcher's stores)
-    const stops = await base44.entities.Delivery.filter({ delivery_date: schedDate }).catch(() => []);
-    const byDriver = new Map();
-    for (const d of ((stops || []).filter(Boolean))) {
-      if (!d?.driver_id && !d?.driver_name) continue;
-      if (d.status === 'cancelled') continue;
-      if (myStoreIds && !myStoreIds.includes(d.store_id)) continue;
-      const key = d.driver_id || d.driver_name;
-      const e: any = byDriver.get(key) || { driver: d.driver_name || nameOf(d.driver_id), stops: 0, unfinished: 0 };
-      e.stops++;
-      if (!FINISHED_STATUSES.has(d.status)) e.unfinished++;
-      byDriver.set(key, e);
-    }
-    const onRoute: any[] = [...byDriver.values()];
-    if (onRoute.length) ctx.drivers_on_route = { date: schedDate, drivers: onRoute };
-
-    // Per-store schedule for the date: override → store default slot driver
+    // Store list + name map
     let stores: any[] = await base44.entities.Store.list().catch(() => []);
     stores = (stores || []).filter(Boolean);
+    const storeNameById = new Map(stores.map((s: any) => [s.id, s.name]));
     if (myStoreIds) stores = stores.filter((s: any) => myStoreIds.includes(s?.id));
-    if (stores.length) {
-      const overrides = await base44.entities.DriverScheduleOverride.filter({ date: schedDate }).catch(() => []);
-      const ovs = (overrides || []).filter(Boolean);
-      const slot = (store: any, key: string, dfltId: any, dfltName: any) => {
-        const ov = ovs.find((x: any) => x?.store_id === store?.id && x?.slot_key === key);
+
+    // Per-driver aggregation
+    const emptyCounts = () => ({ total: 0, completed: 0, cancelled: 0, failed: 0, returned: 0, unfinished: 0, unfinished_by_status: {} });
+    const byDriver = new Map();
+    const ensure = (key: any, name: any) => {
+      const k = key || name;
+      if (!byDriver.has(k)) byDriver.set(k, {
+        driver: name || nameById.get(k) || k,
+        duty_status: statusById.get(k) || null,
+        stores: [], booked_off_stores: [],
+        pickups: emptyCounts(), deliveries: emptyCounts(),
+      });
+      return byDriver.get(k);
+    };
+
+    // Scheduled stores per driver (override first, then store default)
+    const overrides = await base44.entities.DriverScheduleOverride.filter({ date: schedDate }).catch(() => []);
+    const ovs = (overrides || []).filter(Boolean);
+    for (const s of stores) {
+      const schedFor = (slotKey: string, dfltId: any, dfltName: any) => {
+        const ov = ovs.find((x: any) => x?.store_id === s?.id && x?.slot_key === slotKey);
         if (ov?.driver_id && ov.driver_id !== '__booked_off__') {
-          return { driver: ov.driver_name || nameOf(ov.driver_id), source: 'override' };
+          return { id: ov.driver_id, name: ov.driver_name || nameById.get(ov.driver_id) };
         }
         if (ov?.driver_id === '__booked_off__') {
-          return { driver: null, booked_off: true, was: nameOf(ov.booked_off_driver_id) || ov.driver_name || undefined };
+          return { bookedOff: ov.booked_off_driver_id || ov.driver_name, name: ov.driver_name || nameById.get(ov.booked_off_driver_id) };
         }
-        const dflt = nameOf(dfltId, dfltName);
-        return dflt ? { driver: dflt, source: 'store_default' } : { driver: null };
+        return dfltId ? { id: dfltId, name: dfltName || nameById.get(dfltId) } : null;
       };
-      ctx.store_schedules = {
-        date: schedDate,
-        slots: [slotAm, slotPm],
-        stores: stores.map((s: any) => ({
-          store: s.name,
-          am: slot(s, slotAm, s[`${slotAm}_driver_id`], s[`${slotAm}_driver`]),
-          pm: slot(s, slotPm, s[`${slotPm}_driver_id`], s[`${slotPm}_driver`]),
-        })),
-      };
+      for (const sl of [schedFor(slotAm, s[`${slotAm}_driver_id`], s[`${slotAm}_driver`]), schedFor(slotPm, s[`${slotPm}_driver_id`], s[`${slotPm}_driver`])]) {
+        if (!sl) continue;
+        if (sl.bookedOff) {
+          const e = ensure(sl.bookedOff, sl.name);
+          if (!e.booked_off_stores.includes(s.name)) e.booked_off_stores.push(s.name);
+        } else {
+          const e = ensure(sl.id, sl.name);
+          if (!e.stores.includes(s.name)) e.stores.push(s.name);
+        }
+      }
+    }
+
+    // Assigned stops for the date, split pickups (no patient) vs deliveries
+    const stops = await base44.entities.Delivery.filter({ delivery_date: schedDate }).catch(() => []);
+    for (const d of ((stops || []).filter(Boolean))) {
+      if (!d?.driver_id && !d?.driver_name) continue;
+      if (myStoreIds && !myStoreIds.includes(d.store_id)) continue;
+      const e = ensure(d.driver_id || d.driver_name, d.driver_name);
+      const cat = d.patient_id ? e.deliveries : e.pickups;
+      cat.total++;
+      if (d.status === 'completed') cat.completed++;
+      else if (d.status === 'cancelled') cat.cancelled++;
+      else if (d.status === 'failed') cat.failed++;
+      else if (d.status === 'returned') cat.returned++;
+      else {
+        cat.unfinished++;
+        cat.unfinished_by_status[d.status] = (cat.unfinished_by_status[d.status] || 0) + 1;
+      }
+      // Drivers with stops but no scheduled store — fill stores from their stops
+      if (!e.stores.includes(storeNameById.get(d.store_id)) && storeNameById.get(d.store_id)) {
+        // only add if not already scheduled elsewhere; stop stores are fallback info
+        if (!e.stop_store_names) e.stop_store_names = new Set();
+        e.stop_store_names.add(storeNameById.get(d.store_id));
+      }
+    }
+
+    const driverList = [...byDriver.values()].map((e: any) => {
+      const clean: any = { driver: e.driver, duty_status: e.duty_status || undefined };
+      if (e.stores.length) clean.stores = e.stores;
+      else if (e.stop_store_names && e.stop_store_names.size) clean.stores = [...e.stop_store_names];
+      if (e.booked_off_stores.length) clean.booked_off_stores = e.booked_off_stores;
+      if (e.pickups.total) clean.pickups = e.pickups;
+      if (e.deliveries.total) clean.deliveries = e.deliveries;
+      return clean;
+    }).sort((a: any, b: any) => String(a.driver).localeCompare(String(b.driver)));
+
+    if (driverList.length) {
+      ctx.driver_schedule = { date: schedDate, day: dayName, drivers: driverList };
     }
   }
 
