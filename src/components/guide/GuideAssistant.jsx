@@ -1017,7 +1017,7 @@ export default function GuideAssistant() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 60, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed inset-0 z-[10060] flex items-end md:items-center justify-end pointer-events-none p-0 md:pr-4 md:py-6"
+            className="fixed inset-0 z-[10060] flex items-end justify-end pointer-events-none p-0 md:pr-4 md:pb-6"
           >
             {/* FIX (Sep 5 2026): previously positioned via top-1/2 + -translate-y-1/2 + a
                 fixed h-[650px]/max-h-[80vh] pair — vh units measure the LARGEST possible
