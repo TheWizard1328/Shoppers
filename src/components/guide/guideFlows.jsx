@@ -52,7 +52,7 @@ export const FLOWS = {
       },
       {
         id: 'select_patient',
-        bot: "Great! The delivery form has a patient search field at the top. You can:\n\n• Search for an existing patient by Name, Address, Phone Number or something within the Patient Notes.\n• If now patients show up in the search list, then the '+ Add New Patient' button will appear.\n\nIf the patient is new, I can guide you through that too.",
+        bot: "Great! The delivery form has a patient search field at the top. You can:\n\n• Search for an existing patient by Name, Address, Phone Number or something within the Patient Notes.\n• If no patients show up in the search list, then the '+ Add New Patient' button will appear.\n\nIf the patient is new, I can guide you through that too.",
         actions: [
           { label: 'Create a new patient', type: 'jump', target: 'create_patient_inline' },
           { label: 'I have an existing patient', type: 'next' },
