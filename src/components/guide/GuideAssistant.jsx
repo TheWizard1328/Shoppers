@@ -739,10 +739,12 @@ export default function GuideAssistant() {
   // scripted topics when the AI is offline, timing out (30s), or capped.
   const SCRIPTED_FALLBACK = "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or just type a patient's name\n\nTry one of the quick actions below, or ask me about one of these topics!";
 
-  const handleAiAsk = useCallback(async (text, hints = {}) => {
+  const handleAiAsk = useCallback(async (text, hints = {}, opts = {}) => {
+    const quiet = !!(opts && opts.quietFallback);
     // If the AI just failed, don't make the driver wait another 30s timeout —
     // serve scripted answers instantly for a 2-minute cooldown window.
     if (isRxAssistLikelyUnavailable()) {
+      if (quiet) return false;
       addBotMessage(`RxAssist is offline right now.\n\n${SCRIPTED_FALLBACK}`);
       setShowQuickActions(true);
       return false;
@@ -772,7 +774,11 @@ export default function GuideAssistant() {
 
     // Graceful fallback: scripted guide answers
     if (res?.capped) {
+      // Cap message is actionable — always show it, then scripted topics
       addBotMessage(res.message + `\n\n${SCRIPTED_FALLBACK}`);
+    } else if (quiet) {
+      // Caller renders the scripted fallback chain itself (no duplicate message)
+      return false;
     } else {
       addBotMessage(`${res?.message || 'RxAssist is unavailable right now.'}\n\n${SCRIPTED_FALLBACK}`);
     }
@@ -849,32 +855,37 @@ export default function GuideAssistant() {
       return;
     }
 
-    // Try to match a generic intent
-    const match = matchIntent(text);
-    if (match) {
-      if (match.action?.type === 'flow') {
-        setTimeout(() => startFlow(match.action.target), 300);
-      } else {
-        setTimeout(() => {
+    // ── AI-FIRST ROUTING (Sep 5 2026): free text goes to RxAssist FIRST.
+    // The old keyword matcher (matchIntent) used loose substring matching —
+    // common words ("new", "how to", "help", "route") matched scripted topics,
+    // so nearly every typed question was answered by canned responses before
+    // the LLM was ever consulted. Scripted flows still run instantly for
+    // quick-action buttons; free-text only falls back to them when the AI is
+    // unavailable/capped/offline.
+    (async () => {
+      const aiOk = await handleAiAsk(text, {}, { quietFallback: true });
+      if (aiOk) return;
+      // Scripted fallback chain (original behavior)
+      const match = matchIntent(text);
+      if (match) {
+        if (match.action?.type === 'flow') {
+          startFlow(match.action.target);
+        } else {
           addBotMessage(match.response);
           setShowQuickActions(true);
-        }, 300);
+        }
+        return;
       }
-    } else {
-      // ── Last resort: try patient name match (scoped to allowed patients) ──
-      // handlePatientQuery does the actual scoping, so we just pass the raw name
-      // and let it filter. But we can pre-check to avoid showing a fallback when
-      // the name actually matches a scoped patient.
+      // Last resort: patient name match (scoped to allowed patients)
       const allowedPatients = getAllowedPatients();
       const patientMatches = findAllPatientsByName(text, allowedPatients);
       if (patientMatches.length > 0) {
-        setTimeout(() => handlePatientQuery({ type: 'named', patientName: text }), 300);
+        handlePatientQuery({ type: 'named', patientName: text });
         return;
       }
-      // Fallback → RxAssist (AI). Unmatched free-text goes to the LLM with the
-      // user's scoped context; on failure/cap/offline it shows scripted topics.
-      handleAiAsk(text);
-    }
+      addBotMessage(SCRIPTED_FALLBACK);
+      setShowQuickActions(true);
+    })();
   }, [inputValue, addUserMessage, addBotMessage, startFlow, handlePatientQuery, currentUser, appDeliveries, appPatients, appStores, appDrivers, getAllowedPatients, handleAiAsk]);
 
   // ── Handle quick action click ───────────────────────────────────
