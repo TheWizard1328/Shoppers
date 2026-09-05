@@ -295,8 +295,9 @@ async function buildContext(base44: any, body: any, platformUser: any, appUser: 
   // who is scheduled today / who is scheduled for store X" questions ──
   // One entry per driver: scheduled stores (override → store default, ignoring
   // the AM/PM slot split), booked-off stores, duty status, and the day's
-  // pickup/delivery counts broken down by status.
-  if (role === 'dispatcher' || role === 'admin' || role === 'store_owner' || isOwner) {
+  // pickup/delivery counts broken down by status. Drivers get ONLY their own
+  // entry (so "what's my day" works for them) — other drivers are filtered out.
+  if (role === 'dispatcher' || role === 'admin' || role === 'store_owner' || isOwner || role === 'driver') {
     const schedDate = (typeof body?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)) ? body.date : edmontonTodayStr();
     const dow = new Date(`${schedDate}T12:00:00Z`).getUTCDay();
     const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow];
@@ -385,7 +386,14 @@ async function buildContext(base44: any, body: any, platformUser: any, appUser: 
       }
     }
 
-    const driverList = [...byDriver.values()].map((e: any) => {
+    // Driver privacy scope: a driver must only ever see their OWN entry.
+    const ownKeys = new Set([appUser?.id, appUser?.user_id, appUser?.user_name, platformUser?.full_name].filter(Boolean));
+    const scopedEntries: any[] = [];
+    for (const [k, e] of byDriver) {
+      if (role === 'driver' && !ownKeys.has(k) && !ownKeys.has((e as any).driver)) continue;
+      scopedEntries.push(e);
+    }
+    const driverList = scopedEntries.map((e: any) => {
       const clean: any = { driver: e.driver, duty_status: e.duty_status || undefined };
       if (e.stores.length) clean.stores = e.stores;
       else if (e.stop_store_names && e.stop_store_names.size) clean.stores = [...e.stop_store_names];
