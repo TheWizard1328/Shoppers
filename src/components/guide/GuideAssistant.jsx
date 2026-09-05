@@ -23,6 +23,7 @@ import {
   buildPatientResponse,
 } from './patientQueryHandler';
 import { getLocalDeliveryPredictions } from '@/components/deliveries/getLocalDeliveryPredictions';
+import { askRxAssist, notifyOwnerOfEscalation, isRxAssistLikelyUnavailable } from '@/components/utils/rxAssistClient';
 
 const STORAGE_KEY = 'rxdeliver_guide_seen';
 const CONVERSATION_KEY = 'rxdeliver_guide_conversation';
@@ -79,6 +80,8 @@ export default function GuideAssistant() {
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [isQuickActionsCollapsed, setIsQuickActionsCollapsed] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  // RxAssist (AI engine) state — free-text unmatched questions route here.
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const [pageTipIndex, setPageTipIndex] = useState(0);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -730,6 +733,45 @@ export default function GuideAssistant() {
         break;
     }
   }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate, appPatients, handlePatientQuery]);
+
+  // ── RxAssist (AI) ask — context hints are ids matched locally; the backend
+  // re-validates scope server-side before fetching anything. Falls back to
+  // scripted topics when the AI is offline, timing out (30s), or capped.
+  const SCRIPTED_FALLBACK = "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or just type a patient's name\n\nTry one of the quick actions below, or ask me about one of these topics!";
+
+  const handleAiAsk = useCallback(async (text, hints = {}) => {
+    setShowQuickActions(false);
+    setIsAiThinking(true);
+    let res = null;
+    try {
+      res = await askRxAssist({
+        question: text,
+        page: pageContext?.label || currentPageName,
+        ...hints,
+      });
+    } catch { res = { unavailable: true, message: 'RxAssist is unavailable right now.' }; }
+    setIsAiThinking(false);
+
+    if (res && res.reply) {
+      let replyText = res.reply;
+      if (res.escalation) {
+        replyText += `\n\n📮 I've flagged this to Robert for you (${res.escalation.category.replace('_', ' ')}, ${res.escalation.priority} priority).`;
+        notifyOwnerOfEscalation(res.escalation, currentUser);
+      }
+      addBotMessage(replyText);
+      setShowQuickActions(true);
+      return true;
+    }
+
+    // Graceful fallback: scripted guide answers
+    if (res?.capped) {
+      addBotMessage(res.message + `\n\n${SCRIPTED_FALLBACK}`);
+    } else {
+      addBotMessage(`${res?.message || 'RxAssist is unavailable right now.'}\n\n${SCRIPTED_FALLBACK}`);
+    }
+    setShowQuickActions(true);
+    return false;
+  }, [pageContext, currentPageName, addBotMessage, setShowQuickActions, currentUser]);
 
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
