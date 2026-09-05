@@ -1086,6 +1086,14 @@ export default function DeliveryForm({
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
       if (dateChanged) { dataToSave.status = 'in_transit'; dataToSave.time_window_start = '10:00'; }
+      // Reassignment (driver or date change) resets stale attempt timestamps: the
+      // arrival/actual-delivery times belong to the previous attempt context and
+      // must not carry over to the new driver/date. Completed stops keep their
+      // times (history/payroll integrity); dateChanged already forces in_transit.
+      if (delivery?.id && (driverChanged || dateChanged) && (dataToSave.status || formData.status) !== 'completed') {
+        dataToSave.arrival_time = null;
+        dataToSave.actual_delivery_time = null;
+      }
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
       // COD removed on an existing delivery — clear payment bookkeeping on the save
       // (replicates the old updateSquareCODIfChanged case-2 mutation).

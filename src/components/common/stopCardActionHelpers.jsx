@@ -358,6 +358,7 @@ export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = 
     tracking_number: String(nextTrackingNumber),
     ...(isFreshDate ? { delivery_time_start: nowPlus5Str, delivery_time_eta: nowPlus5Str } : {}),
     delivery_notes: "[Redelivery]",
+    arrival_time: null,
     actual_delivery_time: null,
     isNextDelivery: false,
     signature_image_url: null,
