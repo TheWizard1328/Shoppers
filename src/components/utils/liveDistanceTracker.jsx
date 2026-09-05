@@ -327,7 +327,7 @@ class LiveDistanceTracker {
     try {
       if (!this.currentUser) return;
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getEdmontonDate(); // Edmonton-local date (UTC date hit the wrong day after 18:00 local)
       const todayDeliveries = await base44.entities.Delivery.filter({
         driver_id: this.currentUser.id,
         delivery_date: todayStr
@@ -428,7 +428,7 @@ class LiveDistanceTracker {
     try {
       console.log('⚡ [LiveDistanceTracker] INSTANT POLL - calculating current stats...');
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getEdmontonDate(); // Edmonton-local date (UTC date hit the wrong day after 18:00 local)
       
       // Fetch all today's deliveries for driver
       const allTodayDeliveries = await base44.entities.Delivery.filter({
