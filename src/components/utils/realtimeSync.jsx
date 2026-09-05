@@ -262,6 +262,23 @@ async function flushBuffered(entityName) {
         const existing = local.find((d) => d?.id === item.id);
         return existing?.isNextDelivery === true;
       })();
+      // CHATTY-UPDATE GUARD (Sep 4 2026): background telemetry broadcasts the full
+      // delivery record with isNextDelivery=true while the driver moves —
+      // liveDistanceTracker writes travel_dist every flush cycle and
+      // refreshDriverEtasOnLocationUpdate writes delivery_time_eta every ~2 min.
+      // Those WS echoes were re-centering the next-delivery card every 30-60s on
+      // dispatcher devices, constantly overriding a manual card selection. Skip
+      // centering when the change set is known and contains ONLY chatty background
+      // fields. Unknown change sets (changedFields empty — boot/reconnect/first
+      // event per delivery) still center, preserving OPTION A's fix below.
+      const _chattyOnly =
+        Array.isArray(item.changedFields) &&
+        item.changedFields.length > 0 &&
+        item.changedFields.every((f) =>
+          f === 'travel_dist' || f === 'delivery_time_eta' || f === 'updated_date'
+        );
+      if (_chattyOnly) return; // skip this item in the forEach
+
       // OPTION A: Center on EVERY relevant incoming isNextDelivery=true event, not only
       // on a detected false→true transition. The transition check (_wasNext) fails in the
       // same-user two-device case: the receiving device often pulls a fresh server snapshot

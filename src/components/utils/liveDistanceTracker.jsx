@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getEdmontonDate } from './returnDeliveryBuilder';
 
 /**
  * Live Distance Tracker
@@ -21,6 +22,10 @@ class LiveDistanceTracker {
     this.updateInterval = 20000; // 20 seconds (middle of 15-30 range)
     this.intervalId = null;
     this.accumulatedDistance = 0; // Distance accumulated for current next delivery
+    this.unflushedDistance = 0; // Distance accumulated locally since last server write (Sep 4 2026)
+    this.lastFlushAt = 0; // Timestamp of last travel_dist server write
+    this.FLUSH_DISTANCE_KM = 0.25; // Flush to server after this much unflushed movement
+    this.FLUSH_INTERVAL_MS = 120000; // ...or after this much time (with distance pending)
     this.dutyStartTime = null; // When driver went on_duty
     this.totalTimeOnDuty = 0; // Total minutes on duty
   }
@@ -98,7 +103,7 @@ class LiveDistanceTracker {
    * Uses activity_segments array — each segment is one continuous on-duty window.
    */
   async getOrCreateDailyActivity(driverId) {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getEdmontonDate();
 
     const existing = await base44.entities.DriverDailyActivity.filter({
       driver_id: driverId,
@@ -176,37 +181,57 @@ class LiveDistanceTracker {
       // Update last position for next iteration
       this.lastPosition = { lat: currentLat, lon: currentLon };
 
-      // STEP 3: Only update travel_dist if driver is on_duty AND has moved AND first stop is completed
+      // STEP 3: Only track travel_dist while driver is on_duty AND moving
       if (this.currentUser.driver_status !== 'on_duty') {
-        console.log(`⏭️ [LiveDistanceTracker] Driver is ${this.currentUser.driver_status}, skipping travel_dist update`);
+        this.unflushedDistance = 0; // Distance driven off-duty never counts toward mileage
         return;
       }
 
       if (distanceMoved === 0) {
-        console.log('⏭️ [LiveDistanceTracker] No movement detected, skipping update');
-        return;
+        return; // Nothing new to flush — skip server calls entirely on idle ticks
+      }
+
+      // STEP 4: Accumulate locally — NO server calls on the 20s tick itself.
+      // Sep 4 2026: this tracker previously fetched all today's deliveries and
+      // wrote travel_dist to the next delivery on EVERY 20s tick. Each write is
+      // a user-scoped entity update → WebSocket broadcast to every dispatcher/
+      // admin device, whose realtimeSync handlers then merged + re-rendered —
+      // pure churn with no visible benefit between flushes. We now write only
+      // when the unflushed distance is meaningful (≥ FLUSH_DISTANCE_KM) or the
+      // last write is ≥ FLUSH_INTERVAL_MS old. Total mileage is preserved: the
+      // pending distance is added to whichever stop is next at flush time.
+      this.accumulatedDistance += distanceMoved;
+      this.unflushedDistance += distanceMoved;
+
+      const nowMs = Date.now();
+      const flushDueByDistance = this.unflushedDistance >= this.FLUSH_DISTANCE_KM;
+      const flushDueByTime = this.unflushedDistance > 0 &&
+        (this.lastFlushAt === 0 || (nowMs - this.lastFlushAt) >= this.FLUSH_INTERVAL_MS);
+      if (!flushDueByDistance && !flushDueByTime) {
+        return; // Keep accumulating silently — no server fetch, no WS broadcast
       }
 
       // CRITICAL: Check if at least one stop has been completed before tracking distance
-      const todayStr = new Date().toISOString().split('T')[0];
+      // Edmonton-local date — the UTC date below broke evening mileage tracking:
+      // after 18:00 local (UTC date rollover), the filter targeted the wrong day,
+      // found no next delivery, and silently discarded pending distance.
+      const todayStr = getEdmontonDate();
       const allTodayDeliveries = await base44.entities.Delivery.filter({
         driver_id: this.currentUser.id,
         delivery_date: todayStr
       });
-      
+
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
-      const hasCompletedStops = allTodayDeliveries.some(d => 
+      const hasCompletedStops = allTodayDeliveries.some(d =>
         d && finishedStatuses.includes(d.status)
       );
-      
+
       if (!hasCompletedStops) {
-        console.log('⏭️ [LiveDistanceTracker] No completed stops yet - mileage tracking starts after first stop');
+        // Mileage tracking starts after the first stop — discard pre-first-stop distance
+        this.unflushedDistance = 0;
+        this.lastFlushAt = nowMs;
         return;
       }
-
-      // STEP 4: Add distance to accumulated total
-      this.accumulatedDistance += distanceMoved;
-      console.log(`📊 [LiveDistanceTracker] Accumulated distance: ${this.accumulatedDistance.toFixed(3)} km`);
 
       // STEP 5: Find the next delivery (isNextDelivery = true)
       const nextDeliveries = allTodayDeliveries.filter(d => d && d.isNextDelivery === true);
@@ -214,19 +239,28 @@ class LiveDistanceTracker {
       const nextDelivery = nextDeliveries?.[0];
 
       if (!nextDelivery || !nextDelivery.id) {
-        console.log('⏭️ [LiveDistanceTracker] No next delivery found or missing ID');
+        // No active next delivery — distance driven now can't be attributed; discard
+        this.unflushedDistance = 0;
+        this.lastFlushAt = nowMs;
         return;
       }
 
-      // STEP 6: Update the next delivery's travel_dist
+      // STEP 6: Update the next delivery's travel_dist with everything accumulated
+      // since the last flush (not just this tick's delta)
       const currentTravelDist = nextDelivery.travel_dist || 0;
-      const newTravelDist = currentTravelDist + distanceMoved;
+      const pendingDistance = this.unflushedDistance;
+      const newTravelDist = currentTravelDist + pendingDistance;
 
-      console.log(`📏 [LiveDistanceTracker] Updating ${nextDelivery.patient_name || nextDelivery.delivery_id}: ${currentTravelDist.toFixed(3)} + ${distanceMoved.toFixed(3)} = ${newTravelDist.toFixed(3)} km`);
+      console.log(`📏 [LiveDistanceTracker] Updating ${nextDelivery.patient_name || nextDelivery.delivery_id}: ${currentTravelDist.toFixed(3)} + pending = ${newTravelDist.toFixed(3)} km`);
 
       await base44.entities.Delivery.update(nextDelivery.id, {
         travel_dist: Math.round(newTravelDist * 1000) / 1000 // Round to 3 decimals
       });
+
+      // Write succeeded — clear the pending buffer only now so a failed write
+      // retries with the full pending distance on the next tick.
+      this.unflushedDistance = 0;
+      this.lastFlushAt = nowMs;
 
       // STEP 7: Calculate total accumulated distance (all completed + current in-progress)
       // Use allTodayDeliveries already fetched in STEP 3
