@@ -32,7 +32,7 @@ function invokeWithTimeout(payload) {
  * The hints are IDs matched locally (scoped) — the backend re-validates them
  * against the user's own permissions before fetching anything.
  */
-export async function askRxAssist({ question, page, patientId, patientName, deliveryId, storeId } = {}) {
+export async function askRxAssist({ question, page, patientId, patientName, deliveryId, storeId, date } = {}) {
   const trimmed = String(question || '').trim();
   if (!trimmed) return { unavailable: true, message: 'Empty question' };
 
@@ -44,6 +44,9 @@ export async function askRxAssist({ question, page, patientId, patientName, deli
   if (patientName) payload.patientName = patientName; // context label only — backend resolves by id
   if (deliveryId) payload.deliveryId = deliveryId;
   if (storeId) payload.storeId = storeId;
+  // Optional date hint (YYYY-MM-DD) — used by the backend for schedule questions
+  // ("who is scheduled today / for this date"). Defaults to today server-side.
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) payload.date = date;
 
   try {
     const res = await invokeWithTimeout(payload);

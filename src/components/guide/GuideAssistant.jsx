@@ -753,9 +753,13 @@ export default function GuideAssistant() {
     setIsAiThinking(true);
     let res = null;
     try {
+      // Date hint — lets schedule questions ("who is scheduled today?") resolve
+      // against the date the user is actually viewing on the dashboard.
+      const dashCtx = typeof window !== 'undefined' ? window.__currentDashboardContext : null;
       res = await askRxAssist({
         question: text,
         page: pageContext?.label || currentPageName,
+        date: dashCtx?.deliveryDate || undefined,
         ...hints,
       });
     } catch { res = { unavailable: true, message: 'RxAssist is unavailable right now.' }; }

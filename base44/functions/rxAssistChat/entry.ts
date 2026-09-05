@@ -291,6 +291,76 @@ async function buildContext(base44: any, body: any, platformUser: any, appUser: 
     if (unfinished.length) ctx.remaining_route = unfinished;
   }
 
+  // ── Driver schedule (dispatcher/admin/store_owner) — "who is my driver /
+  // who is scheduled today / who is scheduled for store X" questions ──
+  // Sources, in authority order:
+  //   1. DriverScheduleOverride for the date + slot (explicit change or booked-off)
+  //   2. Store default slot drivers (weekday_am/… / saturday_… / sunday_…)
+  //   3. Drivers that actually have stops assigned for the date
+  if (role === 'dispatcher' || role === 'admin' || role === 'store_owner' || isOwner) {
+    const schedDate = (typeof body?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)) ? body.date : edmontonTodayStr();
+    const dow = new Date(`${schedDate}T12:00:00Z`).getUTCDay();
+    const slotAm = dow === 6 ? 'saturday_am' : dow === 0 ? 'sunday_am' : 'weekday_am';
+    const slotPm = dow === 6 ? 'saturday_pm' : dow === 0 ? 'sunday_pm' : 'weekday_pm';
+    const myStoreIds = role === 'dispatcher' ? (appUser?.store_ids || []) : null;
+
+    // Name map — schedule driver ids may be either AppUser.id or AppUser.user_id
+    const nameById = new Map();
+    const allUsers = await base44.entities.AppUser.list().catch(() => []);
+    for (const u of (allUsers || [])) {
+      const nm = u?.user_name || u?.full_name;
+      if (!nm) continue;
+      if (u?.id) nameById.set(u.id, nm);
+      if (u?.user_id) nameById.set(u.user_id, nm);
+    }
+    const nameOf = (id: any, fb?: any) => (id && nameById.get(id)) || fb || null;
+
+    // Drivers with assigned stops on the date (scoped to dispatcher's stores)
+    const stops = await base44.entities.Delivery.filter({ delivery_date: schedDate }).catch(() => []);
+    const byDriver = new Map();
+    for (const d of ((stops || []).filter(Boolean))) {
+      if (!d?.driver_id && !d?.driver_name) continue;
+      if (d.status === 'cancelled') continue;
+      if (myStoreIds && !myStoreIds.includes(d.store_id)) continue;
+      const key = d.driver_id || d.driver_name;
+      const e: any = byDriver.get(key) || { driver: d.driver_name || nameOf(d.driver_id), stops: 0, unfinished: 0 };
+      e.stops++;
+      if (!FINISHED_STATUSES.has(d.status)) e.unfinished++;
+      byDriver.set(key, e);
+    }
+    const onRoute: any[] = [...byDriver.values()];
+    if (onRoute.length) ctx.drivers_on_route = { date: schedDate, drivers: onRoute };
+
+    // Per-store schedule for the date: override → store default slot driver
+    let stores: any[] = await base44.entities.Store.list().catch(() => []);
+    stores = (stores || []).filter(Boolean);
+    if (myStoreIds) stores = stores.filter((s: any) => myStoreIds.includes(s?.id));
+    if (stores.length) {
+      const overrides = await base44.entities.DriverScheduleOverride.filter({ date: schedDate }).catch(() => []);
+      const ovs = (overrides || []).filter(Boolean);
+      const slot = (store: any, key: string, dfltId: any, dfltName: any) => {
+        const ov = ovs.find((x: any) => x?.store_id === store?.id && x?.slot_key === key);
+        if (ov?.driver_id && ov.driver_id !== '__booked_off__') {
+          return { driver: ov.driver_name || nameOf(ov.driver_id), source: 'override' };
+        }
+        if (ov?.driver_id === '__booked_off__') {
+          return { driver: null, booked_off: true, was: nameOf(ov.booked_off_driver_id) || ov.driver_name || undefined };
+        }
+        const dflt = nameOf(dfltId, dfltName);
+        return dflt ? { driver: dflt, source: 'store_default' } : { driver: null };
+      };
+      ctx.store_schedules = {
+        date: schedDate,
+        slots: [slotAm, slotPm],
+        stores: stores.map((s: any) => ({
+          store: s.name,
+          am: slot(s, slotAm, s[`${slotAm}_driver_id`], s[`${slotAm}_driver`]),
+          pm: slot(s, slotPm, s[`${slotPm}_driver_id`], s[`${slotPm}_driver`]),
+        })),
+      };
+    }
+  }
+
   return JSON.stringify(ctx);
 }
 
