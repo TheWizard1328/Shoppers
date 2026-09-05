@@ -1017,10 +1017,19 @@ export default function GuideAssistant() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 60, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed bottom-[env(safe-area-inset-bottom,0px)] md:bottom-6 md:top-1/2 md:-translate-y-1/2 right-0 md:right-4 z-[10060] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
+            className="fixed inset-0 z-[10060] flex items-end md:items-center justify-end pointer-events-none p-0 md:pr-4 md:py-6"
           >
+            {/* FIX (Sep 5 2026): previously positioned via top-1/2 + -translate-y-1/2 + a
+                fixed h-[650px]/max-h-[80vh] pair — vh units measure the LARGEST possible
+                viewport on mobile/tablet browsers (address bar hidden), so when the
+                browser's own toolbar is visible the true visible area is shorter than
+                50vh assumes. The "centered" box then sits lower than the real visual
+                middle, pushing its bottom (the input box) off-screen and inaccessible.
+                Anchoring with fixed inset-0 + flexbox alignment centers/bottoms the
+                panel against the REAL visible viewport on every device, and max-h-full
+                guarantees it can never exceed the available space in either direction. */}
             <div
-              className="flex flex-col h-full rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden text-body" style={{ backgroundColor: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
+              className="pointer-events-auto w-full md:w-[500px] h-[70dvh] md:h-auto md:max-h-[650px] max-h-full flex flex-col rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden text-body" style={{ backgroundColor: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
             >
               {/* Header */}
               <div
