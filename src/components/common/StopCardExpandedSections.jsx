@@ -2,8 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Package, Info, Loader2, Plus } from "lucide-react";
-import TravelModeButton from "@/components/dashboard/TravelModeButton";
+import { Package, Info, Loader2, Plus, Bike, Car } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import HelpTooltip, { HELP_CONTENT } from "./HelpTooltip";
@@ -134,7 +133,43 @@ export function StopCardCodSection(props) {
 
 }
 
-export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDelivery, isPickup, isPastDate, patient, delivery, currentUser, appUsers = [], preferredTravelMode, onTravelModeChange, travelModeDisabled = false }) {
+/**
+ * Per-stop travel mode toggle (Sep 4 2026).
+ * Shows THIS delivery's leg mode (delivery.transport_mode) — not the driver's
+ * app-wide preferred_travel_mode — and toggles it between driving/cycling.
+ * Optimistic flip; the real write + leg re-optimization happen in the
+ * onStopTravelModeToggle handler (handleQuickTravelModeChange).
+ */
+function StopTravelModeToggle({ mode, onToggle, disabled = false }) {
+  const [optimisticMode, setOptimisticMode] = React.useState(null);
+  const effectiveMode = optimisticMode || mode || 'driving';
+  const isCycling = String(effectiveMode).toLowerCase() === 'cycling';
+  const Icon = isCycling ? Bike : Car;
+  const label = isCycling ? 'Cycling' : String(effectiveMode).toLowerCase() === 'pedestrian' ? 'Walking' : 'Driving';
+
+  React.useEffect(() => { setOptimisticMode(null); }, [mode]);
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        if (disabled || !onToggle) return;
+        const next = isCycling ? 'driving' : 'cycling';
+        setOptimisticMode(next);
+        onToggle(next);
+      }}
+      disabled={disabled}
+      className="h-8 w-8 p-0 flex-shrink-0 text-body bg-surface"
+      style={{ borderColor: 'var(--border-slate-300)' }}
+      title={label + (disabled ? ' (locked)' : ' — tap to switch ' + (isCycling ? 'driving' : 'cycling'))}
+    >
+      <Icon className="w-3.5 h-3.5" />
+    </Button>
+  );
+}
+
+export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDelivery, isPickup, isPastDate, patient, delivery, currentUser, appUsers = [], stopTravelMode, onStopTravelModeToggle, stopTravelModeDisabled = false }) {
   if (isStrippedForDriver || isPickup || !patient) return null;
 
   if (isFinishedDelivery && !isPastDate && patient.notes) {
@@ -158,12 +193,10 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-base font-semibold mb-0.5 text-body-2">Patient Info:</p>
-            <TravelModeButton
-              currentUser={currentUser}
-              appUsers={appUsers}
-              value={preferredTravelMode}
-              onChange={onTravelModeChange}
-              disabled={travelModeDisabled} />
+            <StopTravelModeToggle
+              mode={stopTravelMode}
+              onToggle={onStopTravelModeToggle}
+              disabled={stopTravelModeDisabled} />
             
           </div>
           {(patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&

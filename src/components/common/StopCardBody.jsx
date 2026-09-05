@@ -58,9 +58,9 @@ export default function StopCardBody({
   isAppOwnerFn,
   isPastDate,
   appUsers = [],
-  preferredTravelMode,
-  onTravelModeChange,
-  travelModeDisabled = false,
+  stopTravelMode,
+  onStopTravelModeToggle,
+  stopTravelModeDisabled = false,
   isAtStoreLocation = false,
   blockCardToggle
 }) {
@@ -175,9 +175,9 @@ export default function StopCardBody({
               delivery={delivery}
               currentUser={currentUser}
               appUsers={appUsers}
-              preferredTravelMode={preferredTravelMode}
-              onTravelModeChange={onTravelModeChange}
-              travelModeDisabled={travelModeDisabled} />
+              stopTravelMode={stopTravelMode}
+              onStopTravelModeToggle={onStopTravelModeToggle}
+              stopTravelModeDisabled={stopTravelModeDisabled} />
             
 
               <StopCardPendingPickupsSection

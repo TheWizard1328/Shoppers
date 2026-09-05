@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import useStopCardActions from "./useStopCardActions";
@@ -314,6 +315,20 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     const driverId = delivery?.driver_id || currentUser?.id;
     return appUsers.find((appUser) => appUser?.user_id === driverId) || null;
   }, [appUsers, currentUser?.id, delivery?.driver_id]);
+
+  // Per-stop travel mode toggle — writes delivery.transport_mode (the leg's
+  // actual mode, which the route engine preserves across re-optimizations)
+  // then re-optimizes the leg's polyline/ETA in place. Does NOT touch the
+  // driver's app-wide preferred_travel_mode.
+  const handleStopTravelModeToggle = useCallback(async (nextMode) => {
+    if (!delivery?.id) return;
+    try {
+      await handleQuickTravelModeChange(delivery, nextMode, currentUser);
+    } catch (err) {
+      console.warn('⚠️ [StopCard] travel mode toggle failed:', err?.message || err);
+      toast.error('Could not change travel mode');
+    }
+  }, [delivery?.id, delivery?.driver_id, delivery?.delivery_date, delivery?.transport_mode, currentUser]);
 
   const safeDriver = useMemo(() => {
     const assignedDriver = (drivers || []).find((item) => item?.id === delivery?.driver_id || item?.user_id === delivery?.driver_id);
@@ -1249,9 +1264,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             isAppOwnerFn={isAppOwner}
             isPastDate={isPastDeliveryDate}
             appUsers={appUsers}
-            preferredTravelMode={currentDriverAppUser?.preferred_travel_mode || currentUser?.preferred_travel_mode || 'driving'}
-            onTravelModeChange={null}
-            travelModeDisabled={true}
+            stopTravelMode={delivery?.transport_mode || delivery?.finished_leg_transport_mode || currentDriverAppUser?.preferred_travel_mode || 'driving'}
+            onStopTravelModeToggle={handleStopTravelModeToggle}
+            stopTravelModeDisabled={isCompleting || isFinishedDelivery}
             isAtStoreLocation={isAtPickupLocation} />
 
           }
