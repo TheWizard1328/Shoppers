@@ -9,17 +9,34 @@ import { useEffect, useRef } from 'react';
 export function useKittOptimizationMessages(setOptimizationMessage) {
   const kittTimeoutRef = useRef(null);
   useEffect(() => {
-    const handleOptStart = () => {
+    // Scope filter: optimization events carry { driverId, deliveryDate }. Only
+    // show the KITT messages when the optimized route matches the dashboard's
+    // currently viewed driver+date (via __currentDashboardContext, same source
+    // as OptimizationSpinner). Fail open when context or event ids are missing,
+    // so legacy/unscoped events keep behaving as before.
+    const isRelevantToView = (e) => {
+      const { driverId, deliveryDate } = e?.detail || {};
+      const context = window.__currentDashboardContext || null;
+      if (!context) return true;
+      if (driverId && context.driverId && driverId !== context.driverId) return false;
+      if (deliveryDate && context.deliveryDate && deliveryDate !== context.deliveryDate) return false;
+      return true;
+    };
+
+    const handleOptStart = (e) => {
+      if (!isRelevantToView(e)) return;
       if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
       setOptimizationMessage('Optimizing Route…');
     };
     const handleOptPhase = (e) => {
+      if (!isRelevantToView(e)) return;
       const { phase } = e.detail || {};
       if (phase === 'polylines') {
         setOptimizationMessage('Generating Route Lines…');
       }
     };
     const handleOptRunning = (e) => {
+      if (!isRelevantToView(e)) return;
       const { active } = e.detail || {};
       if (active) {
         if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
@@ -30,6 +47,7 @@ export function useKittOptimizationMessages(setOptimizationMessage) {
       }
     };
     const handleOptComplete = (e) => {
+      if (!isRelevantToView(e)) return;
       const { source, optimizedCount } = e.detail || {};
       if (optimizedCount != null) {
         const count = optimizedCount || 0;

@@ -341,11 +341,22 @@ export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = 
   const currentHour = now.getHours();
   const effectiveDeliveryDate = currentHour < 21 ? localTodayDate : (deliveryDate || delivery?.delivery_date || localTodayDate);
 
+  // Fresh-day redelivery gets a FRESH time window: now+5min. When the retry
+  // lands on a different date than the original (e.g. failed yesterday →
+  // retried today), the original stop's delivery_time_start (yesterday's
+  // window) is stale — carrying it forward leaves the retry showing
+  // yesterday's start time. Mirrors the Accept flows' now+5 rule.
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const nowPlus5 = new Date(now.getTime() + 5 * 60000);
+  const nowPlus5Str = `${pad2(nowPlus5.getHours())}:${pad2(nowPlus5.getMinutes())}`;
+  const isFreshDate = effectiveDeliveryDate && delivery?.delivery_date && effectiveDeliveryDate !== delivery.delivery_date;
+
   const retryDelivery = {
     ...delivery,
     delivery_date: effectiveDeliveryDate,
     status: "in_transit",
     tracking_number: String(nextTrackingNumber),
+    ...(isFreshDate ? { delivery_time_start: nowPlus5Str, delivery_time_eta: nowPlus5Str } : {}),
     delivery_notes: "[Redelivery]",
     actual_delivery_time: null,
     isNextDelivery: false,
