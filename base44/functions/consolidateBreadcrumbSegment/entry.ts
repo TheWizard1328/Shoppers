@@ -6,11 +6,14 @@ import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 // consolidateBreadcrumbSegment — Proximity-Based Breadcrumb Slicing
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// Replaces the timestamp-based slicing with a proximity-matching algorithm.
-// The master trail (stop_order = -1) is decoded into GPS points, then walked
-// sequentially. For each stop (sorted by stop_order), the closest point in the
-// trail is found — that's the slice boundary. Segments are the trail points
-// between consecutive boundaries.
+// Time-windowed proximity slicing. The master trail (stop_order = -1) is
+// decoded into GPS points. Stops are walked in COMPLETION-TIME order; for each
+// stop the boundary is the spatially closest trail point recorded between the
+// previous stop's completion and this stop's completion (+/- grace). When the
+// window has no usable point (GPS dropout) or the best match is implausibly
+// far, the boundary falls back to the last trail point at-or-before the
+// stop's completion time. Segments are the trail points between consecutive
+// boundaries.
 //
 // This approach is immune to:
 //   - Timestamp rounding (5-min first/last stop rounding no longer matters)
@@ -431,62 +434,156 @@ Deno.serve(async (req) => {
 
     console.log(`🍞 [consolidateBreadcrumbSegment] ${stopsWithCoords.length}/${stops.length} stops resolved with coords`);
 
-    // ── 5. Proximity matching — walk master trail sequentially ────────────────
-    // For each stop (in stop_order), find the closest point in the trail.
-    // The search starts from the cursor (index after the previous stop's match).
-    // This prevents matching a future stop while the trail is still near a previous one.
+    // ── 5. Time-windowed proximity matching ───────────────────────────────────
+    // Stops are walked in COMPLETION-TIME order (stop_order as tiebreak). For
+    // each stop we only consider trail points recorded between the previous
+    // stop's completion and this stop's completion (+/- grace), then pick the
+    // spatially closest point inside that window. This prevents the classic
+    // failure where a LATER drive-by pass (spatially closer to the stop's
+    // coords than the real arrival) steals the boundary — e.g. a cycling
+    // start marker matched on the drive home an hour after the actual arrival.
+    //
+    // When the window contains no usable point, or the best in-window match is
+    // still implausibly far (GPS dropout on driver phones), we fall back to a
+    // pure TIME cut: the last trail point at-or-before this stop's completion.
+    // A short but honest leg beats a wrong-but-confident spatial steal.
+    //
+    // Stops missing actual_delivery_time keep legacy behavior (absolute
+    // closest from the cursor), inserted at their stop_order position.
 
-    let cursor = 0; // search starts here for the next stop
-    const sliceBoundaries = []; // [{ stopIndex, trailIndex, distance }]
-    const PROXIMITY_THRESHOLD_M = 500; // log warning if closest point is farther than this
+    const GRACE_BEFORE_MS = 120000; // window may start before prev completion (GPS flush lag)
+    const GRACE_AFTER_MS = 120000;  // completion taps lag the GPS pass by up to ~2 min
+    const DIST_SANITY_M = 500;       // beyond this, an in-window spatial match is treated as bogus
+    const PROXIMITY_THRESHOLD_M = 500;
 
-    for (let s = 0; s < stopsWithCoords.length; s++) {
-      const { coords } = stopsWithCoords[s];
-
-      // Absolute closest: scan the ENTIRE remaining trail from cursor to end
-      // and find the single point with the minimum Haversine distance to this stop.
-      // The sequential cursor prevents a later stop from "stealing" a point that
-      // belongs to an earlier stop (since earlier stops get first dibs on the trail).
-      let useIdx = cursor;
-      let useDist = Infinity;
-
-      for (let i = cursor; i < masterPoints.length; i++) {
-        const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
-        if (dist < useDist) {
-          useDist = dist;
-          useIdx = i;
+    // Convert actual_delivery_time (naive Edmonton local, e.g. '2026-09-05T11:56:21')
+    // into epoch ms by testing the two Edmonton UTC offsets (MDT/MST) via Intl.
+    const TZ_EDMONTON = 'America/Edmonton';
+    const localNaiveToEpochMs = (naive) => {
+      if (!naive || typeof naive !== 'string') return null;
+      const m = naive.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+      if (!m) return null;
+      const asUTC = Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
+      if (!Number.isFinite(asUTC)) return null;
+      const digits = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
+      try {
+        const dtf = new Intl.DateTimeFormat('en-CA', {
+          timeZone: TZ_EDMONTON, hour12: false,
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+        for (const offMin of [360, 420]) { // MDT, MST
+          const cand = asUTC + offMin * 60000;
+          if (dtf.format(new Date(cand)).replace(/\D/g, '') === digits) return cand;
         }
-      }
+      } catch (_tzErr) { /* Intl unavailable — fall through to MDT default */ }
+      return asUTC + 6 * 3600000; // assume MDT
+    };
 
-      if (useDist > PROXIMITY_THRESHOLD_M) {
-        console.log(`⚠️ [consolidateBreadcrumbSegment] Stop #${stopsWithCoords[s].delivery.stop_order}: closest point is ${Math.round(useDist)}m away (threshold: ${PROXIMITY_THRESHOLD_M}m)`);
+    // Build the walk order: completion-time sorted; untimed stops inserted at
+    // their stop_order position with an estimated (midpoint) completion time.
+    const walkStops = stopsWithCoords.map((swc, idx) => ({
+      ...swc,
+      idx,
+      completionTs: localNaiveToEpochMs(swc.delivery.actual_delivery_time),
+      estimatedTs: false,
+    }));
+    const timedWalk = walkStops
+      .filter((w) => w.completionTs != null)
+      .sort((a, b) => (a.completionTs - b.completionTs) || (Number(a.delivery.stop_order) - Number(b.delivery.stop_order)));
+    const untimedWalk = walkStops
+      .filter((w) => w.completionTs == null)
+      .sort((a, b) => Number(a.delivery.stop_order) - Number(b.delivery.stop_order));
+    const walkOrder = [...timedWalk];
+    for (const u of untimedWalk) {
+      let pos = walkOrder.length;
+      for (let i = 0; i < walkOrder.length; i++) {
+        if (Number(walkOrder[i].delivery.stop_order) > Number(u.delivery.stop_order)) { pos = i; break; }
+      }
+      const prevTs = pos > 0 ? walkOrder[pos - 1].completionTs : null;
+      const nextTs = pos < walkOrder.length ? walkOrder[pos].completionTs : null;
+      if (prevTs != null && nextTs != null) u.completionTs = Math.round((prevTs + nextTs) / 2);
+      else if (prevTs != null) u.completionTs = prevTs;
+      else if (nextTs != null) u.completionTs = nextTs;
+      u.estimatedTs = true;
+      walkOrder.splice(pos, 0, u);
+    }
+
+    let cursor = 0;             // first unconsumed trail index
+    let prevBoundaryIdx = -1;   // index of the last boundary taken
+    let prevCompletionTs = null;
+    const sliceBoundaries = []; // [{ stopIndex, trailIndex, distance, method, stopOrder }]
+
+    for (let s = 0; s < walkOrder.length; s++) {
+      const w = walkOrder[s];
+      const { coords } = w;
+      let useIdx = null;
+      let useDist = Infinity;
+      let method = null;
+
+      if (coords && w.completionTs != null && !w.estimatedTs) {
+        const windowStart = prevCompletionTs != null ? (prevCompletionTs - GRACE_BEFORE_MS) : -Infinity;
+        const windowEnd = w.completionTs + GRACE_AFTER_MS;
+
+        // Spatial pass: closest trail point inside the time window (past the cursor).
+        // Points with ts=0 (unknown timestamp) are skipped — we cannot verify
+        // they belong to this stop's window.
+        let bestIdx = null, bestDist = Infinity;
+        for (let i = cursor; i < masterPoints.length; i++) {
+          const ts = masterPoints[i][2];
+          if (ts === 0) continue;
+          if (ts > windowEnd) continue; // trail ~chronological; out-of-window
+          if (ts < windowStart) continue;
+          const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
+          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+        }
+
+        if (bestIdx != null && bestDist <= DIST_SANITY_M) {
+          useIdx = bestIdx; useDist = bestDist; method = 'window';
+        } else {
+          // Time-cut fallback: last trail point at-or-before completion (+grace)
+          let tIdx = null;
+          for (let i = masterPoints.length - 1; i >= cursor; i--) {
+            if (masterPoints[i][2] <= windowEnd) { tIdx = i; break; }
+          }
+          if (tIdx != null) {
+            useIdx = tIdx; useDist = bestIdx != null ? bestDist : Infinity; method = 'time-cut';
+          }
+        }
+      } else if (coords) {
+        // Estimated or legacy path (no reliable completion time): absolute
+        // closest point from the cursor, like the original algorithm.
+        let bestIdx = cursor, bestDist = Infinity;
+        for (let i = cursor; i < masterPoints.length; i++) {
+          const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
+          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+        }
+        useIdx = bestIdx; useDist = bestDist; method = w.estimatedTs ? 'legacy-proximity-estimated' : 'legacy-proximity';
+      }
+      // No coords → useIdx stays null → empty segment (handled below).
+
+      if (useIdx != null && useDist > PROXIMITY_THRESHOLD_M) {
+        console.log(`⚠️ [consolidateBreadcrumbSegment] Stop #${w.delivery.stop_order}: best point is ${Math.round(useDist)}m away (method=${method}, threshold: ${PROXIMITY_THRESHOLD_M}m)`);
       }
 
       sliceBoundaries.push({
-        stopIndex: s,
-        trailIndex: useIdx,
+        stopIndex: w.idx,
+        // null trailIndex → reuse previous boundary → 0-point segment
+        trailIndex: useIdx != null ? useIdx : prevBoundaryIdx,
         distance: useDist,
-        stopOrder: stopsWithCoords[s].delivery.stop_order,
+        method,
+        stopOrder: w.delivery.stop_order,
       });
 
-      // Advance cursor past this match for the next stop search
-      cursor = useIdx + 1;
-
-      // If cursor is past the end of the trail, remaining stops get empty segments
-      if (cursor >= masterPoints.length) {
-        console.log(`🍞 [consolidateBreadcrumbSegment] Trail exhausted at stop #${stopsWithCoords[s].delivery.stop_order}. Remaining ${stopsWithCoords.length - s - 1} stops will get 0-point segments.`);
-        // Fill remaining stops with empty boundaries
-        for (let r = s + 1; r < stopsWithCoords.length; r++) {
-          sliceBoundaries.push({
-            stopIndex: r,
-            trailIndex: masterPoints.length - 1,
-            distance: Infinity,
-            stopOrder: stopsWithCoords[r].delivery.stop_order,
-          });
-        }
-        break;
+      if (useIdx != null) {
+        prevBoundaryIdx = useIdx;
+        cursor = useIdx + 1;
       }
+      if (w.completionTs != null) prevCompletionTs = w.completionTs;
     }
+
+    const methodsUsed = sliceBoundaries.map((b) => b.method || 'empty').join(',');
+    console.log(`🍞 [consolidateBreadcrumbSegment] Boundary methods: ${methodsUsed}`);
 
     // ── 6. Slice segments between consecutive boundaries ──────────────────────
     const segments = [];
