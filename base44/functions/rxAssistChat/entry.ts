@@ -148,8 +148,14 @@ function parseEscalation(reply: string): { reply: string; escalation: Escalation
   };
   const categoryRaw = (grab('category') || 'question').toLowerCase();
   const priorityRaw = (grab('priority') || 'medium').toLowerCase();
-  const summary = grab('summary') || '';
-  const details = grab('details') || undefined;
+  let summary = grab('summary') || '';
+  let details = grab('details') || undefined;
+  // LLMs sometimes run summary + details onto one line — split them back apart.
+  if (/\s*details\s*:/i.test(summary)) {
+    const parts = summary.split(/\s*details\s*:/i);
+    summary = parts[0].trim();
+    if (!details) details = parts.slice(1).join(' ').trim() || undefined;
+  }
   const valid = (v: string, list: string[], dflt: string) => list.includes(v) ? v : dflt;
   if (!summary) return { reply: reply.replace(block, '').trim(), escalation: null };
   const escalation: Escalation = {
