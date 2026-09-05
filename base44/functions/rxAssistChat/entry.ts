@@ -6,8 +6,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 // Architecture (FEATURE SPEC v1.0):
 //   RxDeliver frontend → this proxy → RxAssist Superagent API → reply.
 //   The agent API key lives ONLY in server env (RXASSIST_API_KEY) — never in
-//   the client bundle. One conversation per RxDeliver user (RxAssistSession
-//   entity maps user_id → conversation_id); context never bleeds across users.
+//   the client bundle. PLATFORM CONSTRAINT (verified by probing): the agent
+//   API keys to ONE shared conversation — POST /conversations is get-current,
+//   not create-per-user. Isolation is therefore enforced at the prompt level:
+//   every relayed message is marked STANDALONE (ignore conversation history)
+//   and carries only the requesting user's own scoped context. RxAssist's
+//   Custom Instructions must repeat the "answer only from the context block"
+//   rule (see rollout notes).
 //
 // CONTEXT PROVIDER PATTERN (key design decision):
 //   The LLM never gets raw database access. This function runs as the
@@ -343,8 +348,11 @@ Deno.serve(async (req) => {
     }
 
     // ── Send message (context block + question) and wait for the reply ──
+    // STANDALONE prefix: the underlying conversation is shared across
+    // RxDeliver users, so each relayed message must be treated as a fresh
+    // self-contained session — never reference prior conversation history.
     const messageBody =
-      `[RXDELIVER CONTEXT — user-scoped, use only this]\n${contextJson}\n[/RXDELIVER CONTEXT]\n\nUser question: ${question}`;
+      `STANDALONE REQUEST — ignore all previous messages in this conversation; treat this message as a brand-new session and answer ONLY from the context block below.\n\n[RXDELIVER CONTEXT — user-scoped, use only this]\n${contextJson}\n[/RXDELIVER CONTEXT]\n\nUser question: ${question}`;
 
     let replyRaw: string | null = null;
     try {
