@@ -22,11 +22,17 @@ export function usePullToSyncDataReadyEffect({
       try {
         if (setCurrentToNextPolyline) setCurrentToNextPolyline(null);
         if (setDriverRoutes) setDriverRoutes([]);
-        if (updateDeliveriesLocally && freshDeliveries) {
+        // WIPE FIX (Sep 4 2026): an empty/missing freshDeliveries payload must NEVER
+        // full-replace state — it wipes the entire selected-date slice (only cycling
+        // markers would survive). Match the Layout/AppDataContext handlers, which all
+        // guard with length > 0.
+        if (updateDeliveriesLocally && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
           const _sd = freshDeliveries[0]?.delivery_date, _si = new Set(freshDeliveries.map((d) => d?.id).filter(Boolean));
           updateDeliveriesLocally([...deliveries.filter((d) => d && (d.delivery_date !== _sd || !_si.has(d.id))), ...freshDeliveries], true);
+        } else if (Array.isArray(freshDeliveries) && freshDeliveries.length === 0) {
+          console.warn('[Dashboard] pullToSyncDataReady arrived with 0 deliveries — full replacement blocked');
         }
-        if (updateAppUsersLocally && freshAppUsers) { updateAppUsersLocally(freshAppUsers, true); }
+        if (updateAppUsersLocally && Array.isArray(freshAppUsers) && freshAppUsers.length > 0) { updateAppUsersLocally(freshAppUsers, true); }
 
         const validAppUsers = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
         const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : [];

@@ -147,6 +147,17 @@ export default function PullToSync({
       if (syncResult?.error) {
         throw new Error(syncResult.error);
       }
+      // WIPE FIX (Sep 4 2026): a skipped sync (already in progress / paused — e.g. the
+      // auto pull-to-sync fired 1s after Complete while the completion sync was still
+      // running) returns NO deliveries and NO stores. Proceeding would filter the IDB
+      // date-slice against an empty store list, leaving only cycling markers, and the
+      // Dashboard effect would full-replace state with that — wiping all stop cards,
+      // patient/pickup cards and markers until the next successful sync. Bail instead;
+      // the in-progress sync will dispatch its own pullToSyncDataReady when done.
+      if (syncResult?.skipped) {
+        console.log('⏭️ [PullToSync] Sync skipped (in progress/paused) — keeping current state, no UI replacement');
+        return;
+      }
 
       const freshDeliveries = Array.isArray(syncResult?.deliveries) ? syncResult.deliveries : [];
       const freshPatients = Array.isArray(syncResult?.patients) ? syncResult.patients : [];
@@ -160,7 +171,11 @@ export default function PullToSync({
             if (!delivery) return false;
             // Cycling markers have no store_id — always include them regardless of city filter
             if (delivery.is_cycling_marker) return true;
-            return !currentCityId || freshStores.some((store) => store?.id === delivery?.store_id && store?.city_id === currentCityId);
+            // WIPE FIX: if the store list came back empty, the city filter cannot
+          // match anything — keep the raw IDB date-slice rather than dropping
+          // every non-cycling delivery.
+          if (!freshStores || freshStores.length === 0) return true;
+          return !currentCityId || freshStores.some((store) => store?.id === delivery?.store_id && store?.city_id === currentCityId);
           })
         : [];
 
