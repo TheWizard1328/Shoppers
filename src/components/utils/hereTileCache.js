@@ -188,7 +188,14 @@ function _dispatchTileNetworkFetch(count = 1) {
   }, 3000);
 }
 
-function fetchAndCache(url, cacheKey, img, done) {
+function _isSwControlling() {
+  return typeof navigator !== 'undefined' &&
+    !!navigator.serviceWorker &&
+    !!navigator.serviceWorker.controller;
+}
+
+function fetchAndCache(url, cacheKey, img, done, attempt = 0) {
+  const swControlling = _isSwControlling();
   fetch(url, { mode: 'cors', credentials: 'omit' })
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -201,19 +208,19 @@ function fetchAndCache(url, cacheKey, img, done) {
       return res.blob().then((blob) => ({ blob, swCacheHit }));
     })
     .then(({ blob, swCacheHit }) => {
-      // Always store in IDB — keeps the cold-start fallback warm regardless.
-      cacheTile(cacheKey, blob).catch(() => {});
+      // IDB is only the cold-start fallback for when the SW isn't controlling
+      // yet. When it IS controlling, it caches the tile in Cache API storage —
+      // writing here too would just add readwrite-transaction contention on
+      // the IDB store, serializing every other tile's cache lookups.
+      if (!swControlling) {
+        cacheTile(cacheKey, blob).catch(() => {});
+      }
 
       if (!swCacheHit) {
         // Genuine HERE API network call. When the SW is controlling the page
         // it already broadcasts TILE_NETWORK_FETCH for this fetch — counting
         // here too would double-log every miss. Only count when the SW is NOT
         // controlling (unsupported, cold start pre-claim, or registration failure).
-        const swControlling =
-          typeof navigator !== 'undefined' &&
-          navigator.serviceWorker &&
-          !!navigator.serviceWorker.controller;
-
         if (!swControlling) {
           _dispatchTileNetworkFetch(1);
 
@@ -230,7 +237,11 @@ function fetchAndCache(url, cacheKey, img, done) {
       // SW cache hit → no API log, no discovery event (tile already known)
       const blobUrl = URL.createObjectURL(blob);
       img.onload  = () => { URL.revokeObjectURL(blobUrl); done(null, img); };
-      img.onerror = (e) => { URL.revokeObjectURL(blobUrl); fetchAndCache(url, cacheKey, img, done); };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(blobUrl);
+        if (attempt < 1) fetchAndCache(url, cacheKey, img, done, attempt + 1);
+        else { done(e, img); }
+      };
       img.src = blobUrl;
     })
     .catch(() => {
@@ -268,8 +279,15 @@ export function createCachedHereTileLayer(LInstance) {
         return img;
       }
 
-      // SW intercepts the fetch for us — but check IDB first for instant
-      // paint during cold-start before the SW has had time to activate.
+      // When the SW is controlling, skip the IDB read entirely — it serves
+      // hits from Cache API storage inside the fetch itself, and the extra
+      // IDB transaction per tile serialized tile loading on Android devices.
+      if (_isSwControlling()) {
+        fetchAndCache(url, cacheKey, img, done);
+        return img;
+      }
+
+      // Cold start (SW not yet controlling) — check IDB first for instant paint.
       getCachedTile(cacheKey).then((cachedBlobUrl) => {
         if (cachedBlobUrl) {
           // IDB hit (cold-start fast path)

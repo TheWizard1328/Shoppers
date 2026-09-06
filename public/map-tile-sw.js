@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v13';
+const SW_VERSION = 'v14';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -95,7 +95,17 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   console.log(`[TileSW ${SW_VERSION}] Activating`);
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    // Purge default caches from old SW versions — every version bump created a
+    // new one, and the miss path was scanning all of them serially.
+    try {
+      const names = await caches.keys();
+      await Promise.all(names
+        .filter((n) => n.startsWith(`${CACHE_PREFIX}-default-`) && n !== DEFAULT_CACHE)
+        .map((n) => caches.delete(n)));
+    } catch (_) {}
+    await self.clients.claim();
+  })());
 });
 
 // ─── Fetch interception ───────────────────────────────────────────────────────
@@ -149,7 +159,7 @@ async function handleTileRequest(request) {
   try {
     const allCacheNames = await caches.keys();
     const otherTileCaches = allCacheNames.filter(
-      (name) => name.startsWith(CACHE_PREFIX) && name !== getCacheName(activeCityId) && name !== DEFAULT_CACHE
+      (name) => name.startsWith(CACHE_PREFIX) && !name.includes('-default-') && name !== getCacheName(activeCityId)
     );
     for (const cacheName of otherTileCaches) {
       const cache = await caches.open(cacheName);
@@ -183,15 +193,16 @@ async function handleTileRequest(request) {
   // Broadcast cache miss so the usage tracker can log it
   broadcastToClients({ type: 'TILE_NETWORK_FETCH', count: 1 });
 
-  // Cache the response
+  // Cache the response in the BACKGROUND — return it to the page immediately
+  // so tile rendering starts the moment HERE responds, not after storage I/O.
+  // clone() must happen synchronously before the response body is consumed.
   try {
     const targetCacheName = getCacheName(activeCityId);
     const responseToCache = networkResponse.clone();
-    const cache = await caches.open(targetCacheName);
-    await cache.put(cacheRequest, responseToCache);
-  } catch (cacheError) {
-    console.warn(`[TileSW] Failed to cache tile: ${cacheError.message}`);
-  }
+    caches.open(targetCacheName)
+      .then((cache) => cache.put(cacheRequest, responseToCache))
+      .catch((cacheError) => console.warn(`[TileSW] Failed to cache tile: ${cacheError.message}`));
+  } catch (_) {}
 
   return networkResponse;
 }
