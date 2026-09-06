@@ -1,14 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, Marker, Pane, Polyline, Popup, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Pane, Polyline, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-
-const IntegerZoomTileLayer = L.TileLayer.extend({
-  _getZoomForUrl() {
-    const zoom = L.TileLayer.prototype._getZoomForUrl.call(this);
-    return Math.round(zoom);
-  }
-});
+import { CachedTileLayer } from "../utils/hereTileCache";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 
@@ -1639,12 +1633,7 @@ function DeliveryMap({
         }}
       >
         {tileLayerConfig?.base && (
-          <TileLayer
-            ref={(layer) => {
-              if (layer && !(layer instanceof IntegerZoomTileLayer)) {
-                Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
-              }
-            }}
+          <CachedTileLayer
             key={`base-${mapStyle}-${tileLayerInstanceKey}-${tileLayerConfig.base}`}
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
             url={tileLayerConfig.base}
@@ -1657,12 +1646,7 @@ function DeliveryMap({
           />
         )}
         {tileLayerConfig?.overlay && (
-          <TileLayer
-            ref={(layer) => {
-              if (layer && !(layer instanceof IntegerZoomTileLayer)) {
-                Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
-              }
-            }}
+          <CachedTileLayer
             key={`overlay-${mapStyle}-${tileLayerInstanceKey}-${tileLayerConfig.overlay}`}
             url={tileLayerConfig.overlay}
             tileSize={512}

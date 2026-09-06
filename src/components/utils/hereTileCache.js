@@ -205,17 +205,26 @@ function fetchAndCache(url, cacheKey, img, done) {
       cacheTile(cacheKey, blob).catch(() => {});
 
       if (!swCacheHit) {
-        // Genuine HERE API network call — log it to the dashboard counter
-        // and fire the tile discovery event for the collective coverage map.
-        _dispatchTileNetworkFetch(1);
+        // Genuine HERE API network call. When the SW is controlling the page
+        // it already broadcasts TILE_NETWORK_FETCH for this fetch — counting
+        // here too would double-log every miss. Only count when the SW is NOT
+        // controlling (unsupported, cold start pre-claim, or registration failure).
+        const swControlling =
+          typeof navigator !== 'undefined' &&
+          navigator.serviceWorker &&
+          !!navigator.serviceWorker.controller;
 
-        if (_coverageCityId && cacheKey) {
-          try {
-            const zoom = parseInt(cacheKey.split('|')[2]?.split('/')[0], 10) || 0;
-            window.dispatchEvent(new CustomEvent('hereTileDiscovered', {
-              detail: { tile_key: cacheKey, city_id: _coverageCityId, zoom }
-            }));
-          } catch (_) {}
+        if (!swControlling) {
+          _dispatchTileNetworkFetch(1);
+
+          if (_coverageCityId && cacheKey) {
+            try {
+              const zoom = parseInt(cacheKey.split('|')[2]?.split('/')[0], 10) || 0;
+              window.dispatchEvent(new CustomEvent('hereTileDiscovered', {
+                detail: { tile_key: cacheKey, city_id: _coverageCityId, zoom }
+              }));
+            } catch (_) {}
+          }
         }
       }
       // SW cache hit → no API log, no discovery event (tile already known)
@@ -289,6 +298,7 @@ export function CachedTileLayer({
   attribution,
   tileSize = 256,
   zoomOffset = 0,
+  maxNativeZoom,
   opacity = 1,
   // FIX: default false — prevents Leaflet from calling createTile() at every
   // intermediate float zoom level during pinch-zoom with zoomSnap=0.
@@ -315,7 +325,7 @@ export function CachedTileLayer({
           return;
         }
         const layer = new _CachedHereTileLayerClass(url, {
-          attribution, tileSize, zoomOffset, opacity,
+          attribution, tileSize, zoomOffset, maxNativeZoom, opacity,
           updateWhenZooming, keepBuffer, className, pane,
         });
         layer.addTo(map);
@@ -326,7 +336,7 @@ export function CachedTileLayer({
             if (cancelled) return;
             try {
               const layer = new _CachedHereTileLayerClass(url, {
-                attribution, tileSize, zoomOffset, opacity,
+                attribution, tileSize, zoomOffset, maxNativeZoom, opacity,
                 updateWhenZooming, keepBuffer, className, pane,
               });
               layer.addTo(map);
@@ -350,7 +360,7 @@ export function CachedTileLayer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, tileSize, zoomOffset, opacity, updateWhenZooming, keepBuffer, className, pane, attribution]);
+  }, [map, tileSize, zoomOffset, maxNativeZoom, opacity, updateWhenZooming, keepBuffer, className, pane, attribution]);
 
   useEffect(() => {
     if (layerRef.current && url) {

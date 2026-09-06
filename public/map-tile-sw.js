@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v12';
+const SW_VERSION = 'v13';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -54,6 +54,27 @@ function isTileRequest(url) {
     );
   } catch (_) {
     return false;
+  }
+}
+
+/**
+ * Tag a cached response as a cache hit so the page can distinguish
+ * SW-served tiles from genuine HERE network calls (usage counting).
+ * Access-Control-Expose-Headers is required for the page to read the
+ * custom header on a cross-origin (CORS-mode) fetch.
+ */
+function tagCacheHit(response) {
+  try {
+    const headers = new Headers(response.headers);
+    headers.set('X-Tile-Cache', 'hit');
+    headers.set('Access-Control-Expose-Headers', 'X-Tile-Cache');
+    return new Response(response, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  } catch (_) {
+    return response;
   }
 }
 
@@ -98,7 +119,7 @@ async function handleTileRequest(request) {
       const cityCache = await caches.open(getCacheName(activeCityId));
       const cityHit = await cityCache.match(cacheRequest);
       if (cityHit) {
-        return cityHit;
+        return tagCacheHit(cityHit);
       }
     } catch (_) {}
   }
@@ -120,7 +141,7 @@ async function handleTileRequest(request) {
           ).catch(() => {});
         }).catch(() => {});
       }
-      return defaultHit;
+      return tagCacheHit(defaultHit);
     }
   } catch (_) {}
 
@@ -134,7 +155,7 @@ async function handleTileRequest(request) {
       const cache = await caches.open(cacheName);
       const hit = await cache.match(cacheRequest);
       if (hit) {
-        return hit;
+        return tagCacheHit(hit);
       }
     }
   } catch (_) {}
@@ -149,7 +170,13 @@ async function handleTileRequest(request) {
     return new Response(null, { status: 503, statusText: 'Service Unavailable' });
   }
 
-  if (!networkResponse.ok) {
+  // Opaque responses (no-cors requests, e.g. plain <img src> tile loads) have
+  // status 0 / ok=false but ARE valid, renderable responses. Treat them as
+  // success — cache them and count them — instead of silently discarding,
+  // which made every no-cors tile view a permanent HERE API hit.
+  const isOpaque = networkResponse.type === 'opaque';
+
+  if (!networkResponse.ok && !isOpaque) {
     return networkResponse;
   }
 
