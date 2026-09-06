@@ -47,10 +47,10 @@ Deno.serve(async (req) => {
       const data = await res.json().catch(() => null);
       const item = Array.isArray(data?.items) ? data.items[0] : null;
       if (!res.ok || !item?.position) {
-        await logApiUsage({ base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name, provider: 'here', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: false, durationMs: Date.now() - startedAt, errorMessage: data?.title || `HTTP ${res.status}`, metadata: { address, status_code: res.status } });
+        await logApiUsage({ base44, appUserId: appUser?.user_id, appUserName: appUser?.user_name || null, provider: 'here', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: false, durationMs: Date.now() - startedAt, errorMessage: data?.title || `HTTP ${res.status}`, metadata: { address, status_code: res.status } });
         return Response.json({ error: `HERE Geocoding failed: ${data?.title || res.status}` }, { status: 400 });
       }
-      await logApiUsage({ base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name, provider: 'here', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: true, durationMs: Date.now() - startedAt, metadata: { address } });
+      await logApiUsage({ base44, appUserId: appUser?.user_id, appUserName: appUser?.user_name || null, provider: 'here', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: true, durationMs: Date.now() - startedAt, metadata: { address } });
       return Response.json({ latitude: item.position.lat, longitude: item.position.lng });
     }
 
@@ -59,11 +59,11 @@ Deno.serve(async (req) => {
     const res = await fetch(url);
     const data = await res.json();
     if (data.status !== 'OK' || !data.results?.length) {
-      await logApiUsage({ base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name, provider: 'google', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: false, durationMs: Date.now() - startedAt, errorMessage: `Geocoding failed: ${data.status}`, metadata: { address } });
+      await logApiUsage({ base44, appUserId: appUser?.user_id, appUserName: appUser?.user_name || null, provider: 'google', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: false, durationMs: Date.now() - startedAt, errorMessage: `Geocoding failed: ${data.status}`, metadata: { address } });
       return Response.json({ error: `Geocoding failed: ${data.status}` }, { status: 400 });
     }
     const location = data.results[0].geometry.location;
-    await logApiUsage({ base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name, provider: 'google', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: true, durationMs: Date.now() - startedAt, metadata: { address } });
+    await logApiUsage({ base44, appUserId: appUser?.user_id, appUserName: appUser?.user_name || null, provider: 'google', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: true, durationMs: Date.now() - startedAt, metadata: { address } });
     return Response.json({ latitude: location.lat, longitude: location.lng });
   } catch (error) {
     await logApiUsage({ base44, appUserId: appUser?.id, appUserName: appUser?.user_name || null, provider: 'unknown', apiType: 'Geocoding', purpose: 'Address geocoding', functionName: 'geocodeAddress', success: false, durationMs: Date.now() - startedAt, errorMessage: error.message });

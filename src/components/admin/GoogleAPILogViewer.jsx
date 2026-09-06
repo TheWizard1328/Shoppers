@@ -74,6 +74,7 @@ const renderUserName = (log) => {
 
 export default function GoogleAPILogViewer() {
   const [logs, setLogs] = useState([]);
+  const [isFixingNames, setIsFixingNames] = useState(false);
   const [users, setUsers] = useState([]);       // all AppUsers
   const [stores, setStores] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -450,6 +451,30 @@ export default function GoogleAPILogViewer() {
     return () => clearInterval(interval);
   }, []);
 
+  // Re-resolves every log's identity fields from AppUser (user_id/user_name),
+  // overwriting legacy auth Users.name values. Bounded to 2400 records per
+  // invocation — loops until hasMore is false.
+  const handleFixUserNames = async () => {
+    setIsFixingNames(true);
+    try {
+      let hasMore = true;
+      let guard = 0;
+      let totalUpdated = 0;
+      while (hasMore && guard < 50) {
+        const response = await base44.functions.invoke('backfillGoogleApiLogUsername', { overwrite: true });
+        hasMore = response?.has_more === true;
+        totalUpdated += response?.updated || 0;
+        guard += 1;
+      }
+      await loadLogs();
+      console.log(`[GoogleAPILogViewer] Identity fix complete — ${totalUpdated} records normalized from AppUser`);
+    } catch (e) {
+      console.warn('[GoogleAPILogViewer] Identity fix failed:', e?.response?.data?.error || e?.message || e);
+    } finally {
+      setIsFixingNames(false);
+    }
+  };
+
   const handleClearLogs = async () => {
     if (!window.confirm('Are you sure you want to clear all maps API logs? This cannot be undone.')) {
       return;
@@ -561,6 +586,14 @@ export default function GoogleAPILogViewer() {
               
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
+            </Button>
+            <Button
+              onClick={handleFixUserNames}
+              disabled={isFixingNames}
+              variant="outline"
+              className="gap-2">
+              <RefreshCw className={`w-4 h-4 ${isFixingNames ? 'animate-spin' : ''}`} />
+              {isFixingNames ? 'Fixing…' : 'Fix User Names'}
             </Button>
             <Button
               onClick={handleClearLogs}

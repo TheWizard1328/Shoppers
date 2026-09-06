@@ -1591,7 +1591,7 @@ function DeliveryMap({
 
   return (
     <div className="absolute inset-0">
-      <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} />
+      <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} currentUser={currentUser} />
       <MapContainer
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}

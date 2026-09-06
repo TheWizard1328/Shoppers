@@ -49,10 +49,11 @@ Deno.serve(async (req) => {
     try {
       const caller = await base44.auth.me();
       if (caller?.id) {
-        logUserName = caller.full_name || null;
+        // Identity fields come from AppUser only — never auth Users.full_name
+        logUserName = null;
         const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: caller.id }, '-updated_date', 1);
         if (appUsers?.[0]) {
-          logUserId = appUsers[0].id;
+          logUserId = appUsers[0].user_id || caller.id;
           if (appUsers[0].user_name) logUserName = appUsers[0].user_name;
         } else {
           logUserId = caller.id;

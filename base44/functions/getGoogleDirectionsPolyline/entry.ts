@@ -128,14 +128,21 @@ Deno.serve(async (req) => {
     }
 
     // Best-effort API usage log (matches the HERE client-path logging).
+    // Identity fields MUST come from AppUser (user_id/user_name) — never the
+    // auth Users.name/full_name field.
     try {
+      let appUser: any = null;
+      try {
+        const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
+        appUser = appUsers?.[0] || null;
+      } catch (_) {}
       await base44.asServiceRole.entities.GoogleAPILog.create({
         timestamp: new Date().toISOString(),
         api_type: 'Directions',
         purpose: `Polyline generation (Google Directions) — ${validPoints.length} points`,
         function_name: 'getGoogleDirectionsPolyline',
-        user_id: user.id || null,
-        user_name: user.full_name || user.email || null,
+        user_id: appUser?.user_id || null,
+        user_name: appUser?.user_name || null,
         metadata: { provider: 'google', source: 'backend', call_count: chunks.length },
       });
     } catch { /* non-critical */ }

@@ -29,8 +29,9 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady, currentUse
           api_type: "Map Tiles (HERE)",
           purpose: `Fetched ${count} HERE map tile${count === 1 ? "" : "s"} from network`,
           function_name: "HereTileUsageTracker",
-          user_id: user?.id || null,
-          user_name: user?.user_name || user?.full_name || null,
+          // Identity from AppUser only — never auth Users.full_name
+          user_id: user?.user_id || null,
+          user_name: user?.user_name || null,
           metadata: {
             provider: "HERE",
             source: "network_fetch",
