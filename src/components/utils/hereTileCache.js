@@ -289,6 +289,16 @@ export function createCachedHereTileLayer(LInstance) {
         img.onload  = () => done(null, img);
         img.onerror = (e) => done(e, img);
         img.src = url;
+
+        // Watchdog: if a tile hasn't loaded in 15s (hung SW response, dead
+        // connection), retry once with a cache-busting param — the SW strips
+        // 'rxr' before cache lookups, so the retry still caches normally.
+        setTimeout(() => {
+          if (img.complete || img.src !== url) return;
+          img.onload  = () => done(null, img);
+          img.onerror = (e) => done(e, img);
+          img.src = `${url}&rxr=${Date.now()}`;
+        }, 15000);
         return img;
       }
 

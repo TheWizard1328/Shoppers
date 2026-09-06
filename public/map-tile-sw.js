@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v15';
+const SW_VERSION = 'v16';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -37,6 +37,7 @@ function normalizeTileUrl(url) {
     u.searchParams.delete('apiKey');
     u.searchParams.delete('api_key');
     u.searchParams.delete('token');
+    u.searchParams.delete('rxr'); // client watchdog retry-buster — not part of cache key
     return u.toString();
   } catch (_) {
     return url;

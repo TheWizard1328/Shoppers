@@ -75,8 +75,15 @@ export async function initTileCacheManager(cityId) {
     }
 
     try {
-      // Register (or get existing) SW registration
-      _swRegistration = await navigator.serviceWorker.register('/map-tile-sw.js', { scope: '/' });
+      // Register (or get existing) SW registration.
+      // updateViaCache 'none' + the update() call below make every launch
+      // re-fetch the SW script (bypassing the browser's 24h update check),
+      // so worker fixes reach ALL devices (editor iframe, APK, PWA) instantly.
+      _swRegistration = await navigator.serviceWorker.register('/map-tile-sw.js', { scope: '/', updateViaCache: 'none' });
+
+      // Force an update check on every launch — picks up new SW versions that
+      // register() alone would cache for up to 24 hours.
+      try { _swRegistration.update().catch(() => {}); } catch (_) {}
 
       // Wait for the SW to become active
       await new Promise((resolve) => {
@@ -97,6 +104,15 @@ export async function initTileCacheManager(cityId) {
 
       _swReady = true;
       console.log('[TileCacheMgr] SW ready');
+
+      // Listen for TILE_NETWORK_FETCH messages from the SW (cache misses → real HERE API calls).
+      // Re-dispatch as 'hereTileNetworkFetch' so HereTileUsageTracker can log them.
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        if (e.data?.type === 'TILE_NETWORK_FETCH') {
+          const count = e.data.count ?? 1;
+          window.dispatchEvent(new CustomEvent('hereTileNetworkFetch', { detail: { count } }));
+        }
+      });
 
       // Request persistent storage — prevents OS from reclaiming the tile cache
       if (navigator.storage?.persist) {
