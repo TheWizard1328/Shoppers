@@ -155,9 +155,18 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const clearLogs = async () => {
     try {
-      await clearRemoteLogs({});
+      // Single call clears everything when deleteMany-empty is supported;
+      // loop drains in 500-row batches when the backend falls back to
+      // id-batch mode (bounded to 200 iterations = 100k rows per click).
+      let hasMore = true;
+      let guard = 0;
+      while (hasMore && guard < 200) {
+        const response = await clearRemoteLogs({});
+        hasMore = response?.has_more === true;
+        guard += 1;
+      }
     } catch (e) {
-      console.warn('[RemoteLogsTab] Clear failed:', e?.message || e);
+      console.warn('[RemoteLogsTab] Clear failed:', e?.response?.data?.error || e?.message || e);
     }
     await loadData();
   };
