@@ -318,6 +318,72 @@ export default function AppSidebar({
         </Link>
             }
 
+      {/* Square COD - Admins and Drivers only, clickable only if active */}
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
+            <Link
+              to={createPageUrl('SquareManagement')}
+              onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);}}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentUser?.status === 'inactive' ? 'opacity-50 pointer-events-none' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'}`
+              }
+              style={currentPageName === 'SquareManagement' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <DollarSign className="w-5 h-5" />
+            <span className="font-semibold">Square COD</span>
+            {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
+            </Link>
+            }
+
+      {/* Driver Payroll - Admins and Drivers, always clickable to see payroll */}
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
+            <Link
+              to={createPageUrl('DriverPayroll')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'DriverPayroll' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'DriverPayroll' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <DollarSign className="w-5 h-5" />
+            <span className="font-semibold">Driver Payroll</span>
+            {currentPayrollNetPay !== null && currentPayrollNetPay !== undefined &&
+              <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>
+                ${currentPayrollNetPay.toFixed(2)}
+              </Badge>
+              }
+            </Link>
+            }
+
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+            <Link
+              to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0 ${
+              currentPageName === 'DeliveryMetrics' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'DeliveryMetrics' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+          <BarChart3 className="w-5 h-5" />
+          <span className="font-semibold">Route Metrics</span>
+        </Link>
+            }
+
       <SidebarDivider />
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
@@ -451,71 +517,6 @@ export default function AppSidebar({
 
             <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
 
-      {/* Square COD - Admins and Drivers only, clickable only if active */}
-      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-            <Link
-              to={createPageUrl('SquareManagement')}
-              onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);}}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentUser?.status === 'inactive' ? 'opacity-50 pointer-events-none' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'}`
-              }
-              style={currentPageName === 'SquareManagement' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-            <DollarSign className="w-5 h-5" />
-            <span className="font-semibold">Square COD</span>
-            {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
-            </Link>
-            }
-
-      {/* Driver Payroll - Admins and Drivers, always clickable to see payroll */}
-      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-            <Link
-              to={createPageUrl('DriverPayroll')}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentPageName === 'DriverPayroll' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'DriverPayroll' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-            <DollarSign className="w-5 h-5" />
-            <span className="font-semibold">Driver Payroll</span>
-            {currentPayrollNetPay !== null && currentPayrollNetPay !== undefined &&
-              <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>
-                ${currentPayrollNetPay.toFixed(2)}
-              </Badge>
-              }
-            </Link>
-            }
-
-      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-            <Link
-              to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0 ${
-              currentPageName === 'DeliveryMetrics' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'DeliveryMetrics' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-          <BarChart3 className="w-5 h-5" />
-          <span className="font-semibold">Route Metrics</span>
-        </Link>
-            }
 
       {/* Documents — visible to all roles */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
@@ -555,8 +556,6 @@ export default function AppSidebar({
               }
         </Link>
             }
-
-      <div className="border-t mb-2 mt-1 border-surface"></div>
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
             <Link

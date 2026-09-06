@@ -38,9 +38,9 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling', badgeCount: bookedOffCount },
+      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
       { name: 'Square COD', page: 'SquareManagement', icon: CreditCard, tabKey: 'square' },
-      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
       { name: 'Settings', page: 'Settings', icon: Settings, tabKey: 'settings' },
     ];
   } else if (isDispatcher && !isAdmin) {
@@ -57,9 +57,9 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling', badgeCount: bookedOffCount },
+      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
       { name: 'Square COD', page: 'SquareManagement', icon: CreditCard, tabKey: 'square' },
-      { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
       { name: 'Settings', page: 'Settings', icon: Settings, tabKey: 'settings' },
     ];
   }
