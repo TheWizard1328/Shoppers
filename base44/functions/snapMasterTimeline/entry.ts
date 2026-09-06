@@ -22,7 +22,7 @@ import { dedupMasterBreadcrumbs } from '../../shared/masterBreadcrumbDedup.ts';
 //   default            → Snap + save + optionally re-consolidate
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GAP_THRESHOLD_M = 500;   // metres — gaps above this need fixing
+const GAP_THRESHOLD_M = 250;   // metres — gaps above this need fixing
 const MIN_DENSE_POINTS = 3;    // fewer dense points between gaps → merge into one zone
 
 // ── Geometry ─────────────────────────────────────────────────────────────────
