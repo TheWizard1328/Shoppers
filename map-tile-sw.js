@@ -1,16 +1,17 @@
 /**
  * map-tile-sw.js — RxDeliver HERE Tile Cache Service Worker
  *
- * Strategy: Cache-first, versioned city-namespaced SW Cache API buckets.
+ * Strategy: Cache-first, city-namespaced SW Cache API buckets with per-tile TTL.
  *
- * Each city gets its own named cache: 'rxdeliver-tiles-{SW_VERSION}-{cityId}'
- * Versioning the cache name guarantees a stale/incompatible tile cached by a
- * previous SW version is never served after an update — the activate handler
- * sweeps every cache that doesn't match the current version prefix, and the
- * new version repopulates from HERE as tiles are viewed.
+ * Each city gets its own named cache: 'rxdeliver-tiles-{cityId}'
  * Only the ACTIVE city's cache is served from. Other cities sit dormant
  * until a SET_ACTIVE_CITY message switches the active bucket, or a
  * CLEAR_STALE_CITIES sweep removes caches not accessed in 30 days.
+ *
+ * Per-tile TTL: cached tiles older than TILE_TTL_MS are treated as a miss
+ * and re-fetched from HERE, so stale/broken tiles refresh naturally without
+ * a global cache wipe (which would force every tile to re-fetch simultaneously
+ * and overwhelm HERE rate limits at high zoom).
  *
  * Messages handled (postMessage from client):
  *   { type: 'SET_ACTIVE_CITY',    cityId: string }
@@ -19,17 +20,11 @@
  *   { type: 'CLEAR_CITY_CACHE',   cityId: string }     // force-wipe one city
  *
  * Cache key: URL with apiKey stripped (so key is stable across key rotations)
- * Tile TTL: 30 days (enforced by CLEAR_STALE_CITIES sweep)
  */
 
-const SW_VERSION = 'v4';
-// Versioned prefix: rxdeliver-tiles-v4-{cityId}. Bumping SW_VERSION creates a fresh
-// cache namespace, so tiles cached by an older SW version (incompatible key scheme,
-// stale HERE responses, old API-key-tagged keys, etc.) are never served — they're
-// swept on activate and the new version repopulates from HERE as tiles are viewed.
-const CACHE_PREFIX = `rxdeliver-tiles-${SW_VERSION}-`;
-const LEGACY_CACHE_PREFIX = 'rxdeliver-tiles-'; // unversioned + older-version caches
-const FALLBACK_CACHE = `rxdeliver-tiles-${SW_VERSION}-default`;
+const SW_VERSION = 'v5';
+const CACHE_PREFIX = 'rxdeliver-tiles-';
+const FALLBACK_CACHE = 'rxdeliver-tiles-default';
 const HERE_HOSTNAME = 'maps.hereapi.com';
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const STALE_CITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -70,6 +65,24 @@ function isHereTileRequest(request) {
   }
 }
 
+/**
+ * Check if a cached Response is older than TILE_TTL_MS by reading its Date
+ * header. HERE always sets a Date header on tile responses, so this reliably
+ * detects stale entries. Falls back to "not stale" if no Date header is present
+ * (e.g. very old caches that predate this check) so we don't wipe good tiles.
+ */
+function isCacheEntryStale(cachedResponse) {
+  try {
+    const dateHeader = cachedResponse.headers.get('date');
+    if (!dateHeader) return false;
+    const cacheTime = new Date(dateHeader).getTime();
+    if (!cacheTime || isNaN(cacheTime)) return false;
+    return (Date.now() - cacheTime) > TILE_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Install / Activate ───────────────────────────────────────────────────────
 
 self.addEventListener('install', (event) => {
@@ -80,22 +93,18 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   console.log(`[TileSW ${SW_VERSION}] Activating — claiming clients`);
   event.waitUntil((async () => {
-    // Sweep every tile cache that doesn't belong to the current SW version:
-    //   - 'here-map-tiles-*'   → legacy IDB-era SW caches
-    //   - 'rxdeliver-tiles-*'  → unversioned + older-version caches (e.g. v3 tiles
-    //                            cached under the old key scheme). These would be
-    //                            served as cache hits but render stale/broken, so
-    //                            evict them and let the new version repopulate.
-    const currentPrefix = CACHE_PREFIX;
+    // Only delete genuinely LEGACY caches from the old IDB-era SW ('here-map-tiles-*').
+    // We do NOT sweep 'rxdeliver-tiles-*' caches — those hold the user's cached tiles
+    // at all zoom levels, and wiping them forces every tile to re-fetch from HERE
+    // simultaneously, which overwhelms rate limits at high zoom and leaves the map
+    // blank. Stale individual tiles are handled by per-tile TTL validation in the
+    // fetch handler (isCacheEntryStale) instead of a global wipe.
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter((k) =>
-          k.startsWith('here-map-tiles-') ||
-          (k.startsWith(LEGACY_CACHE_PREFIX) && !k.startsWith(currentPrefix))
-        )
+        .filter((k) => k.startsWith('here-map-tiles-'))
         .map((k) => {
-          console.log(`[TileSW ${SW_VERSION}] Deleting stale cache: ${k}`);
+          console.log(`[TileSW ${SW_VERSION}] Deleting legacy cache: ${k}`);
           return caches.delete(k);
         })
     );
@@ -117,14 +126,14 @@ self.addEventListener('fetch', (event) => {
       _cityLastAccess.set(_activeCityId, Date.now());
     }
 
-    // 1. Try active city cache
+    // 1. Try active city cache — but skip if the cached tile is stale (>30 days)
     const cache = await caches.open(targetCache);
     const cached = await cache.match(key);
-    if (cached) {
+    if (cached && !isCacheEntryStale(cached)) {
       return cached;
     }
 
-    // 2. Cache miss — fetch from HERE API
+    // 2. Cache miss or stale entry — fetch from HERE API
     try {
       const response = await fetch(event.request);
       if (response.ok) {
@@ -133,7 +142,8 @@ self.addEventListener('fetch', (event) => {
       }
       return response;
     } catch (err) {
-      // Network error — return a 503
+      // Network error — if we have a stale cached tile, serve it as a last resort
+      if (cached) return cached;
       return new Response('Tile unavailable offline', { status: 503 });
     }
   })());
