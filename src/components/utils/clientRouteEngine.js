@@ -549,6 +549,11 @@ export async function optimizeRouteClientSide({
   );
 
   // Build optimization stops
+  // Past-window clamping only applies to TODAY's route (see PAST-WINDOW CLAMP
+  // inside the map below): future dates have legitimately-ahead windows and
+  // historical routes keep their original anchors.
+  const routeIsToday = deliveryDate === getEdmontonTodayDateString();
+  let _clampedWindowCount = 0;
   const stops = optimizableDeliveries.map(delivery => {
     const coords = getDeliveryCoords(delivery, patientMap, storeMap);
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
@@ -561,6 +566,30 @@ export async function optimizeRouteClientSide({
       const deliveryStartMinutes = parseTimeToMinutes(windowStart);
       if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
         windowStart = formatMinutesToTime(pickupEndMinutes + 5);
+      }
+    }
+
+    // ── PAST-WINDOW CLAMP (optimization-time only — NO data mutation) ──────
+    // Time windows that have already passed are NOT sequencing constraints:
+    // a stale creation-time anchor (e.g. 09:00 when it's 11:10) used to sort a
+    // stop ahead of everything and seed artificial early time-buckets, fighting
+    // geographic sequencing. For today's routes, clamp a past windowStart up
+    // to "now" (in-memory) so all stale stops collapse to the same effective
+    // time and HERE sequences them purely by geography. If the windowEnd has
+    // also passed, the window is fully expired — drop the end (deliver ASAP).
+    // Runs AFTER the pickup-window inheritance above, which can push a
+    // windowStart back into the past from a stale pickup end. Skipped for
+    // future-date routes (their windows are legitimately ahead of the clock)
+    // and historical routes (keep original chronological anchors).
+    if (routeIsToday && windowStart) {
+      const _wsMin = parseTimeToMinutes(windowStart);
+      if (Number.isFinite(_wsMin) && _wsMin < currentMinutes) {
+        windowStart = formatMinutesToTime(currentMinutes);
+        _clampedWindowCount++;
+        if (windowEnd) {
+          const _weMin = parseTimeToMinutes(windowEnd);
+          if (!Number.isFinite(_weMin) || _weMin <= currentMinutes) windowEnd = null;
+        }
       }
     }
 
@@ -585,6 +614,9 @@ export async function optimizeRouteClientSide({
     dropped.forEach(d => console.warn(`  └─ dropped delivery ${d.id} store_id=${d.store_id} patient_id=${d.patient_id || 'N/A'}`));
   } else {
     console.log(`[clientRouteEngine] ${source} — ${stops.length} stops resolved with valid coords`);
+  }
+  if (_clampedWindowCount > 0) {
+    console.log(`[clientRouteEngine] ${source} — PAST-WINDOW CLAMP: ${_clampedWindowCount} stale window(s) (start <= now) clamped to now (${formatMinutesToTime(currentMinutes)}) for geographic sequencing`);
   }
 
   // ── Route date classification ────────────────────────────────────────────
