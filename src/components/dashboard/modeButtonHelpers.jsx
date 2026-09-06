@@ -1,18 +1,17 @@
 import { normalizeTravelMode } from '@/components/dashboard/travelModeHelpers';
+import { haversineKm } from '@/components/utils/geoUtils';
 
 function toRadians(value) {
   return (Number(value) * Math.PI) / 180;
 }
 
+// Consolidated into geoUtils (Sep 6 2026) — object coords, missing -> Infinity (previous semantics).
 export function calculateDistanceKm(from, to) {
   if (!from?.latitude || !from?.longitude || !to?.latitude || !to?.longitude) return Infinity;
-  const earthRadiusKm = 6371;
-  const lat1 = toRadians(from.latitude);
-  const lat2 = toRadians(to.latitude);
-  const deltaLat = toRadians(Number(to.latitude) - Number(from.latitude));
-  const deltaLon = toRadians(Number(to.longitude) - Number(from.longitude));
-  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); // straight-line haversine km
+  return haversineKm(
+    Number(from.latitude), Number(from.longitude),
+    Number(to.latitude), Number(to.longitude)
+  ); // straight-line haversine km
 }
 
 export function getCurrentDriverLocation({ currentUser, appUsers = [], driverLocation = null }) {

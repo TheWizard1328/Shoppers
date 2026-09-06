@@ -2,6 +2,7 @@
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from 'date-fns';
+import { haversineKm } from '@/components/utils/geoUtils';
 
 // StatBadge - simple component without hooks to avoid violations
 export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -44,17 +45,8 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
 };
 
 // Helper function to calculate distance between two coordinates (Haversine formula)
-export const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
+// Consolidated into geoUtils (Sep 6 2026) — km, no input guards (previous semantics).
+export const calculateDistance = (lat1, lon1, lat2, lon2) => haversineKm(lat1, lon1, lat2, lon2);
 
 // Helper function to generate unique SID (3-character alphanumeric)
 export const generateUniqueSID = (existingDeliveriesForDate) => {

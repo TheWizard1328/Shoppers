@@ -66,6 +66,7 @@ import { createInterStoreTransfer } from './interStoreTransferHandler';
 import { setInterStoreMode } from '../dashboard/interStoreToggleStore';
 import DeliveryFormView from './DeliveryFormView';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
+import { haversineKm } from '@/components/utils/geoUtils';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400 dark:text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -84,16 +85,10 @@ const sortStores = (stores) => {
   return [...stores].sort((a, b) => { const sA = a.sort_order ?? Infinity; const sB = b.sort_order ?? Infinity; return sA !== sB ? sA - sB : (a.name || '').localeCompare(b.name || ''); });
 };
 
+// Consolidated into geoUtils (Sep 6 2026) — undefined coords -> null (previous semantics).
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return haversineKm(lat1, lon1, lat2, lon2);
 };
 
 export default function DeliveryForm({
