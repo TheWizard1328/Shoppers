@@ -423,7 +423,7 @@ export default function SquareManagement() {
             .filter(Boolean)
         );
         const _hasCardPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
-          .some((p) => ['Debit', 'Credit', 'debit', 'credit', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
+          .some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
 
         const itemsToCreate = (strippedDeliveries || [])
           .filter((d) => {

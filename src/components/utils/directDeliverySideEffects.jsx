@@ -2,10 +2,13 @@ import { base44 } from '@/api/base44Client';
 import { hasStopOrderChanged } from './offlineMutations';
 import { syncDeliverySquareCod } from './squareCodSync';
 
+// Direct collections: debit/credit/cheque (cheque = money taken directly, same
+// as cards — only cash stays in the catalog until the deposit reconciler).
+const DIRECT_COD_TYPES = ['Debit', 'Credit', 'Cheque', 'Check'];
 const hasCardCodPayment = (delivery) => (
   (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.some((payment) =>
-    ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0
-  )) || ['Debit', 'Credit'].includes(delivery?.cod_payment_type)
+    DIRECT_COD_TYPES.includes(payment?.type) && Number(payment?.amount || 0) > 0
+  )) || DIRECT_COD_TYPES.includes(delivery?.cod_payment_type)
 );
 
 export const triggerPatientLastDeliverySync = ({ delivery, previousStatus }) => {

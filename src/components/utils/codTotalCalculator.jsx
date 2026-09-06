@@ -60,7 +60,7 @@ export const calculateUserCodTotal = (currentUser, catalogItems = [], locationCo
 
 /**
  * Calculate outstanding COD balance for a specific driver+date based on delivery records.
- * Outstanding = sum(cod_total_amount_required) - sum(Debit + Credit payments collected)
+ * Outstanding = sum(cod_total_amount_required) - sum(direct payments collected: Debit/Credit/Cheque)
  *
  * @param {Array} deliveries - All deliveries
  * @param {string} driverId - Selected driver ID ('all' or specific ID)
@@ -86,7 +86,7 @@ export const calculateRouteCodBalance = (deliveries = [], driverId, dateStr) => 
   relevant.forEach(d => {
     totalRequired += d.cod_total_amount_required || 0;
     (d.cod_payments || []).forEach(p => {
-      if (p.type === 'Debit' || p.type === 'Credit') {
+      if (['Debit', 'Credit', 'Cheque', 'Check'].includes(p.type)) {
         totalCollected += p.amount || 0;
       }
     });

@@ -90,7 +90,8 @@ const shouldRefreshRemainingEtas = (etaString, actualTimestamp) => {
 
 const hasDebitOrCreditCod = (deliveryRecord, paymentList = null) => {
   const payments = Array.isArray(paymentList) ? paymentList : deliveryRecord?.cod_payments;
-  return Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0);
+  // Cheque is a direct collection — same as Debit/Credit
+  return Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit', 'Cheque', 'Check'].includes(payment?.type) && Number(payment?.amount || 0) > 0);
 };
 
 const formatCoordinateValue = (value) => {

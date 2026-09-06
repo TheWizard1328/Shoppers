@@ -84,8 +84,11 @@ export const shouldRefreshRemainingEtas = (etaString, actualTimestamp) => {
 
 export const hasDebitOrCreditCod = (deliveryRecord, paymentList = null) => {
   const payments = Array.isArray(paymentList) ? paymentList : deliveryRecord?.cod_payments;
-  if (Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) return true;
-  return ['Debit', 'Credit'].includes(deliveryRecord?.cod_payment_type);
+  // Cheque is a direct collection — same as Debit/Credit (money taken directly,
+  // catalog item removed). Cash alone stays in the catalog until deposit.
+  const DIRECT_COD_TYPES = ['Debit', 'Credit', 'Cheque', 'Check'];
+  if (Array.isArray(payments) && payments.some((payment) => DIRECT_COD_TYPES.includes(payment?.type) && Number(payment?.amount || 0) > 0)) return true;
+  return DIRECT_COD_TYPES.includes(deliveryRecord?.cod_payment_type);
 };
 
 export const resolveTravelDistFallback = (deliveryRecord, retroactiveTravelDist, allRouteDeliveries = []) => {
