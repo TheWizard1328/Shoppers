@@ -476,15 +476,24 @@ class CityFilteredRealtimeSync {
       // Process the event
       try {
         if (event.type === 'create' || event.type === 'update') {
+          // CRITICAL (Sep 6 2026): bulkSave/put REPLACES the whole IDB record. A partial
+          // WS payload (e.g. a GPS update carrying only latitude/longitude/distance_from_store)
+          // must NOT wipe full_name/address/phone — that renders the patient's stop cards
+          // as 'Unknown'. Merge with the existing record first; explicitly-set fields still win.
+          let recordToSave = event.data;
+          try {
+            const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, event.data?.id || event.id);
+            if (existingPatient) recordToSave = { ...existingPatient, ...event.data };
+          } catch (_) { /* merge is best-effort — fall back to raw payload */ }
           // Save to offline DB
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]);
-          console.log(`✅ [Realtime Patient] Saved ${event.data.full_name} to offline DB`);
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [recordToSave]);
+          console.log(`✅ [Realtime Patient] Saved ${recordToSave.full_name || recordToSave.id} to offline DB`);
 
           // CRITICAL: Broadcast to all devices in city
           setTimeout(() => {
             window.dispatchEvent(new CustomEvent('patientsImported', {
               detail: { 
-                patients: [event.data],
+                patients: [recordToSave],
                 source: 'realtime'
               }
             }));

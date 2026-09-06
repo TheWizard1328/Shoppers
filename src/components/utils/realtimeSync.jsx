@@ -1167,7 +1167,14 @@ const subscribeToEntity = (entityName) => {
             // carry only the changed fields (driver_status, location, etc.) and
             // saving a partial record would wipe fields like app_roles, user_name.
             let finalDataToSave = dataToSave;
-            if ((entityName === 'AppUser' || entityName === 'Payroll') && type === 'update') {
+            // CRITICAL (Sep 6 2026): Patient updates get the SAME merge protection.
+            // IndexedDB `put` REPLACES the entire record. A partial WS payload (e.g. a
+            // GPS update that only carries latitude/longitude/distance_from_store — see
+            // patientGPSUpdater) would wipe full_name, address, phone and every other
+            // PHI field from the local record, making every stop card for that patient
+            // render 'Unknown'. Merge with the existing record so absent fields are
+            // preserved; explicitly-set fields (even null) still win.
+            if ((entityName === 'AppUser' || entityName === 'Payroll' || entityName === 'Patient') && type === 'update') {
               try {
                 const existing = await offlineDB.getById(storeName, dataToSave?.id || id);
                 if (existing) finalDataToSave = { ...existing, ...dataToSave };

@@ -282,10 +282,19 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');
         const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        // CRITICAL (Sep 6 2026): This used to dispatch a patients-only
+        // `pullToSyncDataReady` event. The Dashboard's handler treats ANY such event
+        // as a delivery refresh: it nulls the current polyline, clears driver routes,
+        // and broadcasts deliveriesUpdated — with NO delivery data in the payload.
+        // Dispatch a proper `patientsUpdated` merge event instead; the Layout handler
+        // merges upserts and drops undecryptable (__decryptFailed) wrappers.
         if (freshPatients && freshPatients.length > 0) {
-          window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
-            detail: { patients: freshPatients }
-          }));
+          const validPatients = freshPatients.filter((p) => p && p.__decryptFailed !== true);
+          if (validPatients.length > 0) {
+            window.dispatchEvent(new CustomEvent('patientsUpdated', {
+              detail: { patients: validPatients, deletedIds: [], fullReplacement: false, fromPullToSync: true }
+            }));
+          }
         }
       } catch (_) {}
 

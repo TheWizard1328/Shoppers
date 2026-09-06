@@ -18,17 +18,41 @@ export function usePullToSyncDataReadyEffect({
       const {
         deliveries: freshDeliveries,
         appUsers: freshAppUsers,
+        deliveryDate: eventDeliveryDate,
       } = event.detail || {};
+      const hasDeliveryPayload = Array.isArray(freshDeliveries);
       try {
-        if (setCurrentToNextPolyline) setCurrentToNextPolyline(null);
-        if (setDriverRoutes) setDriverRoutes([]);
+        // WIPE FIX (Sep 6 2026): graphics state (current polyline, driver routes) must
+        // only be cleared when this event actually carries a delivery refresh. A
+        // patients-only event (no `deliveries` field) used to null the polyline and
+        // clear driver routes while delivering zero data.
+        if (hasDeliveryPayload) {
+          if (setCurrentToNextPolyline) setCurrentToNextPolyline(null);
+          if (setDriverRoutes) setDriverRoutes([]);
+        }
         // WIPE FIX (Sep 4 2026): an empty/missing freshDeliveries payload must NEVER
         // full-replace state — it wipes the entire selected-date slice (only cycling
         // markers would survive). Match the Layout/AppDataContext handlers, which all
         // guard with length > 0.
         if (updateDeliveriesLocally && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-          const _sd = freshDeliveries[0]?.delivery_date, _si = new Set(freshDeliveries.map((d) => d?.id).filter(Boolean));
-          updateDeliveriesLocally([...deliveries.filter((d) => d && (d.delivery_date !== _sd || !_si.has(d.id))), ...freshDeliveries], true);
+          // WIPE FIX (Sep 6 2026): degraded IDB wrappers (undecryptable — missing ALL
+          // PHI and most render fields, marked __decryptFailed) must never replace
+          // good in-memory records. Block the full replacement entirely if any arrive;
+          // a later clean sync will apply the slice.
+          const _degraded = freshDeliveries.filter((d) => d?.__decryptFailed === true).length;
+          if (_degraded > 0) {
+            console.warn(`[Dashboard] pullToSyncDataReady carried ${_degraded} undecryptable delivery wrappers — full replacement blocked`);
+          } else {
+            // WIPE FIX (Sep 6 2026): derive the target date from the event's explicit
+            // deliveryDate (PullToSync always passes it) instead of freshDeliveries[0].
+            // If record 0 is a cycling marker or a wrapper with a missing/odd date,
+            // the old derivation purged the WRONG slice from state.
+            const _sd = eventDeliveryDate || freshDeliveries[0]?.delivery_date;
+            const _si = new Set(freshDeliveries.map((d) => d?.id).filter(Boolean));
+            if (_sd) {
+              updateDeliveriesLocally([...deliveries.filter((d) => d && (d.delivery_date !== _sd || !_si.has(d.id))), ...freshDeliveries], true);
+            }
+          }
         } else if (Array.isArray(freshDeliveries) && freshDeliveries.length === 0) {
           console.warn('[Dashboard] pullToSyncDataReady arrived with 0 deliveries — full replacement blocked');
         }
@@ -41,7 +65,9 @@ export function usePullToSyncDataReadyEffect({
           driverLocationPoller.processLocationData(currentUser, freshDeliveries || [], drivers, stores, appUsersForPoller, selectedDate, true, 'Dashboard', showAllDriverMarkers || selectedDriverId === 'all');
         }
 
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));
+        if (hasDeliveryPayload) {
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));
+        }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       } catch (error) { console.error('❌ [Dashboard] Pull to sync update failed:', error); }
     };
