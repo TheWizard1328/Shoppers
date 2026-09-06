@@ -79,6 +79,25 @@ function tagCacheHit(response) {
   }
 }
 
+/**
+ * v17: A cached tile is only usable by a crossOrigin='anonymous' <img> if it
+ * carries Access-Control-Allow-Origin. Opaque (no-cors) cached responses from
+ * older SW versions have NO exposed headers, so the browser rejects them and
+ * the tile renders blank. Detect and skip those stale entries so the network
+ * fetch path re-fetches a proper CORS response instead.
+ */
+function isUsableCachedTile(response) {
+  try {
+    if (!response) return false;
+    // Opaque responses (type 'opaque') never expose CORS headers
+    if (response.type === 'opaque') return false;
+    const acao = response.headers.get('Access-Control-Allow-Origin');
+    return !!acao;
+  } catch (_) {
+    return false;
+  }
+}
+
 /** Broadcast a message to all controlled clients */
 async function broadcastToClients(msg) {
   try {
@@ -95,15 +114,22 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log(`[TileSW ${SW_VERSION}] Activating`);
+  console.log(`[TileSW ${SW_VERSION}] Activating — purging all legacy tile caches`);
   event.waitUntil((async () => {
-    // Purge default caches from old SW versions — every version bump created a
-    // new one, and the miss path was scanning all of them serially.
+    // v17: Purge ALL here-tiles-* caches (city + default) from previous SW versions.
+    // Older versions cached opaque (no-cors) tile responses that lack
+    // Access-Control-Allow-Origin headers. When the client uses
+    // crossOrigin='anonymous' (required for canvas/Leaflet), the browser
+    // rejects those opaque cached responses → img.onerror fires → blank tiles.
+    // Wiping everything forces re-fetch with proper CORS-mode requests.
     try {
       const names = await caches.keys();
       await Promise.all(names
-        .filter((n) => n.startsWith(`${CACHE_PREFIX}-default-`) && n !== DEFAULT_CACHE)
-        .map((n) => caches.delete(n)));
+        .filter((n) => n.startsWith(CACHE_PREFIX))
+        .map((n) => {
+          console.log(`[TileSW ${SW_VERSION}] Purging cache: ${n}`);
+          return caches.delete(n);
+        }));
     } catch (_) {}
     await self.clients.claim();
   })());
@@ -129,7 +155,7 @@ async function handleTileRequest(event, request) {
     try {
       const cityCache = await caches.open(getCacheName(activeCityId));
       const cityHit = await cityCache.match(cacheRequest);
-      if (cityHit) {
+      if (cityHit && isUsableCachedTile(cityHit)) {
         return tagCacheHit(cityHit);
       }
     } catch (_) {}
@@ -139,7 +165,7 @@ async function handleTileRequest(event, request) {
   try {
     const defaultCache = await caches.open(DEFAULT_CACHE);
     const defaultHit = await defaultCache.match(cacheRequest);
-    if (defaultHit) {
+    if (defaultHit && isUsableCachedTile(defaultHit)) {
       // Promote to active city cache for future hits
       if (activeCityId) {
         defaultHit.clone().blob().then((blob) => {
@@ -165,7 +191,7 @@ async function handleTileRequest(event, request) {
     for (const cacheName of otherTileCaches) {
       const cache = await caches.open(cacheName);
       const hit = await cache.match(cacheRequest);
-      if (hit) {
+      if (hit && isUsableCachedTile(hit)) {
         return tagCacheHit(hit);
       }
     }
@@ -181,10 +207,10 @@ async function handleTileRequest(event, request) {
     return new Response(null, { status: 503, statusText: 'Service Unavailable' });
   }
 
-  // Opaque responses (no-cors requests, e.g. plain <img src> tile loads) have
-  // status 0 / ok=false but ARE valid, renderable responses. Treat them as
-  // success — cache them and count them — instead of silently discarding,
-  // which made every no-cors tile view a permanent HERE API hit.
+  // v17: Opaque (no-cors) responses have status 0 and expose NO headers, so a
+  // crossOrigin='anonymous' <img> rejects them (blank tile). Don't cache them —
+  // only proper CORS-mode responses (networkResponse.ok) are cacheable. Return
+  // the opaque response anyway as a last-resort fallback.
   const isOpaque = networkResponse.type === 'opaque';
 
   if (!networkResponse.ok && !isOpaque) {
@@ -200,15 +226,20 @@ async function handleTileRequest(event, request) {
   // CRITICAL: the put must be tracked with event.waitUntil() — an untracked
   // promise lets the SW be terminated mid-write, which cancels the teed
   // response stream the page is still reading (tiles hang forever).
-  try {
-    const targetCacheName = getCacheName(activeCityId);
-    const responseToCache = networkResponse.clone();
-    event.waitUntil(
-      caches.open(targetCacheName)
-        .then((cache) => cache.put(cacheRequest, responseToCache))
-        .catch((cacheError) => console.warn(`[TileSW] Failed to cache tile: ${cacheError.message}`))
-    );
-  } catch (_) {}
+  // v17: Only cache proper CORS responses (networkResponse.ok). Opaque responses
+  // lack Access-Control-Allow-Origin and would be rejected by crossOrigin='anonymous'
+  // <img> tags on every subsequent load — storing them guarantees permanent blank tiles.
+  if (networkResponse.ok) {
+    try {
+      const targetCacheName = getCacheName(activeCityId);
+      const responseToCache = networkResponse.clone();
+      event.waitUntil(
+        caches.open(targetCacheName)
+          .then((cache) => cache.put(cacheRequest, responseToCache))
+          .catch((cacheError) => console.warn(`[TileSW] Failed to cache tile: ${cacheError.message}`))
+      );
+    } catch (_) {}
+  }
 
   return networkResponse;
 }
