@@ -151,6 +151,62 @@ export default function useStopCardActions(params) {
     setCodPayments,
   });
 
+  const triggerCoolerLogIfNeeded = useCallback((actionLabel) => {
+    if (!delivery?.fridge_item) return;
+    if (!isAppOwner(currentUser)) return;
+    setPendingCoolerLog({ deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, actionLabel });
+  }, [delivery, currentUser]);
+
+  const clearCoolerLog = useCallback(() => setPendingCoolerLog(null), []);
+
+  const {
+    handleRetryDelivery,
+    restartCurrentDelivery,
+    handleStartAction,
+    executeTerminalAction,
+  } = useStopCardStartActions({
+    allDeliveries,
+    appUsers,
+    currentUser,
+    currentDriverAppUser,
+    delivery,
+    displayName,
+    drivers,
+    patient,
+    patients,
+    store,
+    stores,
+    isPickup,
+    userHasRole,
+    params,
+    FINISHED_STATUSES,
+    getCurrentLocalTime,
+    localNowParts,
+    shouldPreserveWindowTimesOnStart,
+    updateDeliveriesLocally,
+    forceRefreshDriverDeliveries,
+    onDriverStatusChange,
+    blockCardToggle,
+    collapseDriverStopCards,
+    ensureDriverOnline,
+    resetActionLocks,
+    triggerCoolerLogIfNeeded,
+    startTapLockRef,
+    isCompleting,
+    isCurrentCardStartLocked,
+    isFailing,
+    isGlobalStartLocked,
+    isProcessingBackground,
+    isRestarting,
+    isRetrying,
+    isStarting,
+    setIsEntityUpdating,
+    setIsProcessingBackground,
+    setIsRestarting,
+    setIsRetrying,
+    setIsStarting,
+  });
+
   const {
     executeAcceptAllStops,
     handleAcceptAllStops,
@@ -247,74 +303,6 @@ export default function useStopCardActions(params) {
     existingReturn,
     setExistingReturn,
   });
-
-  const {
-    handleRetryDelivery,
-    restartCurrentDelivery,
-    handleStartAction,
-    executeTerminalAction,
-  } = useStopCardStartActions({
-    // ── Route / context ──
-    allDeliveries,
-    appUsers,
-    currentUser,
-    currentDriverAppUser,
-    delivery,
-    displayName,
-    drivers,
-    patient,
-    patients,
-    store,
-    stores,
-    isPickup,
-    userHasRole,
-    params,
-    // ── Config / helpers ──
-    FINISHED_STATUSES,
-    getCurrentLocalTime,
-    localNowParts,
-    shouldPreserveWindowTimesOnStart,
-    updateDeliveriesLocally,
-    forceRefreshDriverDeliveries,
-    onDriverStatusChange,
-    // ── Shared hook handlers ──
-    blockCardToggle,
-    collapseDriverStopCards,
-    ensureDriverOnline,
-    resetActionLocks,
-    triggerCoolerLogIfNeeded,
-    // ── Locks / flags ──
-    startTapLockRef,
-    isCompleting,
-    isCurrentCardStartLocked,
-    isFailing,
-    isGlobalStartLocked,
-    isProcessingBackground,
-    isRestarting,
-    isRetrying,
-    isStarting,
-    setIsEntityUpdating,
-    setIsProcessingBackground,
-    setIsRestarting,
-    setIsRetrying,
-    setIsStarting,
-  });
-
-
-  // ────────────────────────────────────────────────────────────────────────────
-
-  const triggerCoolerLogIfNeeded = useCallback((actionLabel) => {
-    if (!delivery?.fridge_item) return;
-    // Cold-chain temp capture is still being validated — only the App Owner
-    // should see the cooler-temp / BLE connection popups. Gate here so the
-    // dialog state never opens for anyone else, regardless of which action
-    // (Start/Complete/Fail/Cancel) fires on a fridge-item stop.
-    if (!isAppOwner(currentUser)) return;
-    setPendingCoolerLog({ deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, actionLabel });
-  }, [delivery, currentUser]);
-
-  const clearCoolerLog = useCallback(() => setPendingCoolerLog(null), []);
-
 
   // ── Accept a SINGLE pending delivery from the pickup card "+" button ──────────
   // Creates a new pickup with a fresh PUID, transitions the selected delivery to
