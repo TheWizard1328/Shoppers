@@ -19,6 +19,23 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [logUserFilter, setLogUserFilter] = useState('all');
   const [live, setLive] = useState(false);
 
+  // Log timestamps are stored as UTC ISO strings — render in Edmonton local
+  // time/date so they match what dispatchers actually see on their clocks.
+  const formatLocalTimestamp = (iso) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const datePart = d.toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }); // yyyy-MM-dd
+    const timePart = d.toLocaleTimeString('en-US', {
+      timeZone: 'America/Edmonton',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    return `${datePart} ${timePart}`;
+  };
+
   const loadData = async () => {
     try {
       // Settings first — fast single record, needed immediately for toggle/selection state
@@ -297,7 +314,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
               <tbody>
                 {filteredLogs.map((log) =>
                 <tr key={log.id} className="border-b align-top">
-                    <td className="p-2 whitespace-nowrap">{log.timestamp?.replace('T', ' ').slice(0, 19)}</td>
+                    <td className="p-2 whitespace-nowrap">{formatLocalTimestamp(log.timestamp || log.created_date)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
                     <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
