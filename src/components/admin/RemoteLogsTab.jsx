@@ -29,7 +29,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
       setSelectedUsers(latest?.included_user_ids || []);
       // Logs — slow, non-blocking
       try {
-        const logRows = await base44.entities.RemoteLogEntry.list('-timestamp', 100);
+        // CRITICAL: sort by created_date (platform-indexed) — sorting by the
+        // custom 'timestamp' field does an unindexed collection scan over 500k+
+        // rows and times out, leaving the list silently empty.
+        const logRows = await base44.entities.RemoteLogEntry.list('-created_date', 100);
         setLogs(logRows || []);
       } catch (_) {}
     } catch (e) {
@@ -134,10 +137,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   };
 
   const clearLogs = async () => {
-    let hasMore = true;
-    while (hasMore) {
-      const response = await clearRemoteLogs({});
-      hasMore = response?.data?.has_more === true;
+    try {
+      await clearRemoteLogs({});
+    } catch (e) {
+      console.warn('[RemoteLogsTab] Clear failed:', e?.message || e);
     }
     await loadData();
   };

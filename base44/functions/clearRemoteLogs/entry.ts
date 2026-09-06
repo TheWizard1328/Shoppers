@@ -17,15 +17,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    let deleted = 0;
-    const rows = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 20);
+    // deleteMany — instant server-side bulk purge. The old per-id loop
+    // (20/call) could never keep up with the 500k+ row backlog.
+    const result = await base44.asServiceRole.entities.RemoteLogEntry.deleteMany({});
+    const deleted = result?.deleted || 0;
 
-    for (const row of rows || []) {
-      await base44.asServiceRole.entities.RemoteLogEntry.delete(row.id);
-      deleted += 1;
-    }
-
-    return Response.json({ success: true, deleted, has_more: (rows || []).length === 20 });
+    return Response.json({ success: true, deleted, has_more: false });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

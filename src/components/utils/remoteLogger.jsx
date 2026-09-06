@@ -46,6 +46,18 @@ const stringifyArg = (arg) => {
   }
 };
 
+// ── FINGERPRINT RATE LIMITER ──────────────────────────────────────────────
+// The back-to-back dedup above only catches identical lines printed
+// consecutively. Render-loop spam (e.g. AdminUtilities logging 4 lines per
+// re-render of a 20k-deliveries table) alternates between different messages,
+// so each slips through the dedup — that spam grew RemoteLogEntry to 500k+
+// rows and made sorted queries time out. Cap each unique message at 5
+// occurrences per 60s window per device.
+const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
+const FINGERPRINT_MAX_PER_WINDOW = 5;
+const FINGERPRINT_WINDOW_MS = 60000;
+const FINGERPRINT_MAP_MAX = 500;
+
 const shouldSkipDuplicateLog = (level, message) => {
   const fingerprint = `${level}:${message}`;
   const now = Date.now();
@@ -54,7 +66,15 @@ const shouldSkipDuplicateLog = (level, message) => {
   }
   lastLogFingerprint = fingerprint;
   lastLogTimestamp = now;
-  return false;
+
+  const entry = fingerprintWindow.get(fingerprint);
+  if (!entry || now - entry.windowStart >= FINGERPRINT_WINDOW_MS) {
+    if (fingerprintWindow.size >= FINGERPRINT_MAP_MAX) fingerprintWindow.clear();
+    fingerprintWindow.set(fingerprint, { windowStart: now, count: 1 });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > FINGERPRINT_MAX_PER_WINDOW;
 };
 
 // TTL for the in-memory settings cache. Without this, a device that booted
