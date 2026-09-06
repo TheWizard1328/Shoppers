@@ -218,8 +218,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   }, [logs]);
 
   return (
-    <div className="space-y-">
-      <Card>
+    <div className="h-full flex flex-col gap-4">
+      <Card className="flex-shrink-0">
         <CardHeader className="px-6 py-3 flex flex-col space-y-1.5">
           <CardTitle>Remote Logging</CardTitle>
         </CardHeader>
@@ -265,8 +265,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="px-6 py-3 flex flex-col space-y-1.5">
+      <Card className="flex-1 min-h-0 flex flex-col">
+        <CardHeader className="px-6 py-3 flex flex-col space-y-1.5 flex-shrink-0">
           <CardTitle className="flex items-center gap-2">
             Recent Remote Logs
             {live && (
@@ -277,8 +277,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-2 md:flex-row">
+        <CardContent className="space-y-4 flex-1 min-h-0 flex flex-col">
+          <div className="flex flex-col gap-2 md:flex-row flex-shrink-0">
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <div className="w-full md:w-72">
               
@@ -309,7 +309,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <Button variant="destructive" onClick={clearLogs}>Clear Logs</Button>
           </div>
 
-          <div className="max-h-[600px] overflow-auto rounded border">
+          <div className="flex-1 min-h-0 overflow-auto rounded border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white dark:bg-slate-900 border-b">
                 <tr>

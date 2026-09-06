@@ -39,7 +39,7 @@ export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [], cu
         <GoogleAPILogViewer />
       </TabsContent>
 
-      <TabsContent value="remote-logs">
+      <TabsContent value="remote-logs" className="h-full flex flex-col">
         <RemoteLogsTab appUsers={appUsers || []} />
       </TabsContent>
 
