@@ -57,17 +57,25 @@ const shouldSkipDuplicateLog = (level, message) => {
   return false;
 };
 
-const loadSettings = async () => {
+// TTL for the in-memory settings cache. Without this, a device that booted
+// while logging was disabled (or before an included-user change) keeps its
+// stale snapshot forever — the admin toggle never reaches running sessions.
+const SETTINGS_TTL_MS = 5 * 60 * 1000;
+let settingsCheckedAt = 0;
+
+const loadSettings = async (force = false) => {
   if (window.__remoteLogSettingsCache) {
     activeSettings = window.__remoteLogSettingsCache;
     window.__remoteLogSettingsCache = null;
+    settingsCheckedAt = Date.now();
   }
-  if (activeSettings) return activeSettings;
+  if (!force && activeSettings) return activeSettings;
   if (!settingsPromise) {
     settingsPromise = base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 100)
       .then((rows) => {
         const valid = (rows || []).filter((s) => s?.scope === 'global');
         activeSettings = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
+        settingsCheckedAt = Date.now();
         return activeSettings;
       })
       .finally(() => {
@@ -120,6 +128,11 @@ const flushNow = async () => {
 const scheduleFlush = (interval) => {
   if (flushTimer) clearInterval(flushTimer);
   flushTimer = setInterval(() => {
+    // Periodically re-fetch settings so admin toggles/user-list changes
+    // propagate to devices that have been running for a long time.
+    if (Date.now() - settingsCheckedAt > SETTINGS_TTL_MS) {
+      loadSettings(true).catch(() => {});
+    }
     flushNow().catch(() => {});
   }, interval);
 };

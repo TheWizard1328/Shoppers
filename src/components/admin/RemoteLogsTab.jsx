@@ -17,6 +17,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [level, setLevel] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [logUserFilter, setLogUserFilter] = useState('all');
+  const [live, setLive] = useState(false);
 
   const loadData = async () => {
     try {
@@ -39,6 +40,66 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   useEffect(() => {
     const timer = setTimeout(() => loadData(), 50);
     return () => clearTimeout(timer);
+  }, []);
+
+  // ── LIVE WS FEED ──────────────────────────────────────────────────────
+  // Subscribe to RemoteLogEntry broadcasts while the tab is open so new
+  // entries stream in live (the bulk list load only runs once on mount,
+  // which made the panel look frozen even while logs were flowing).
+  // Events are batched (bulkCreate flushes up to 20 records per burst) to
+  // avoid re-render storms.
+  useEffect(() => {
+    let unsub = null;
+    let pending = [];
+    let flushTimer = null;
+
+    const flushPending = () => {
+      flushTimer = null;
+      if (pending.length === 0) return;
+      const incoming = pending;
+      pending = [];
+      setLogs((prev) => {
+        const map = new Map((prev || []).map((l) => [l?.id, l]).filter(([id]) => !!id));
+        for (const rec of incoming) {
+          if (!rec?.id) continue;
+          if (rec.__deleted) { map.delete(rec.id); continue; }
+          map.set(rec.id, rec);
+        }
+        const merged = Array.from(map.values());
+        merged.sort((a, b) =>
+          new Date(b?.timestamp || b?.created_date || 0) - new Date(a?.timestamp || a?.created_date || 0)
+        );
+        return merged.slice(0, 200);
+      });
+    };
+
+    const scheduleFlush = () => {
+      if (!flushTimer) flushTimer = setTimeout(flushPending, 1200);
+    };
+
+    try {
+      unsub = base44.entities.RemoteLogEntry.subscribe((event) => {
+        const { type, id, data } = event || {};
+        if (type === 'create' && data) {
+          pending.push(data);
+          scheduleFlush();
+        } else if (type === 'update' && data) {
+          pending.push(data);
+          scheduleFlush();
+        } else if (type === 'delete') {
+          pending.push({ id, __deleted: true });
+          scheduleFlush();
+        }
+      });
+      if (typeof unsub === 'function') setLive(true);
+    } catch (e) {
+      setLive(false);
+    }
+
+    return () => {
+      try { if (typeof unsub === 'function') unsub(); } catch (_) {}
+      if (flushTimer) clearTimeout(flushTimer);
+    };
   }, []);
 
   const ensureSettings = async () => {
@@ -177,7 +238,15 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
       <Card>
         <CardHeader className="px-6 py-3 flex flex-col space-y-1.5">
-          <CardTitle>Recent Remote Logs</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Recent Remote Logs
+            {live && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-normal text-green-600 dark:text-green-400">
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                Live
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row">
