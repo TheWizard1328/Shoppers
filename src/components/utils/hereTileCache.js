@@ -279,11 +279,16 @@ export function createCachedHereTileLayer(LInstance) {
         return img;
       }
 
-      // When the SW is controlling, skip the IDB read entirely — it serves
-      // hits from Cache API storage inside the fetch itself, and the extra
-      // IDB transaction per tile serialized tile loading on Android devices.
+      // When the SW is controlling, load the tile NATIVELY. The SW intercepts
+      // the image request transparently: cache hits come straight from Cache
+      // API storage, misses are fetched from HERE and returned immediately
+      // (caching tracked via waitUntil in the background). This is the browser's
+      // own image pipeline — same speed as the uncached era, renders
+      // progressively, and skips the fetch→blob→objectURL round trip entirely.
       if (_isSwControlling()) {
-        fetchAndCache(url, cacheKey, img, done);
+        img.onload  = () => done(null, img);
+        img.onerror = (e) => done(e, img);
+        img.src = url;
         return img;
       }
 

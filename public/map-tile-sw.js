@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v14';
+const SW_VERSION = 'v15';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -116,10 +116,10 @@ self.addEventListener('fetch', (event) => {
   // Only intercept HERE tile requests
   if (!isTileRequest(request.url)) return;
 
-  event.respondWith(handleTileRequest(request));
+  event.respondWith(handleTileRequest(event, request));
 });
 
-async function handleTileRequest(request) {
+async function handleTileRequest(event, request) {
   const cacheKey = normalizeTileUrl(request.url);
   const cacheRequest = new Request(cacheKey);
 
@@ -196,12 +196,17 @@ async function handleTileRequest(request) {
   // Cache the response in the BACKGROUND — return it to the page immediately
   // so tile rendering starts the moment HERE responds, not after storage I/O.
   // clone() must happen synchronously before the response body is consumed.
+  // CRITICAL: the put must be tracked with event.waitUntil() — an untracked
+  // promise lets the SW be terminated mid-write, which cancels the teed
+  // response stream the page is still reading (tiles hang forever).
   try {
     const targetCacheName = getCacheName(activeCityId);
     const responseToCache = networkResponse.clone();
-    caches.open(targetCacheName)
-      .then((cache) => cache.put(cacheRequest, responseToCache))
-      .catch((cacheError) => console.warn(`[TileSW] Failed to cache tile: ${cacheError.message}`));
+    event.waitUntil(
+      caches.open(targetCacheName)
+        .then((cache) => cache.put(cacheRequest, responseToCache))
+        .catch((cacheError) => console.warn(`[TileSW] Failed to cache tile: ${cacheError.message}`))
+    );
   } catch (_) {}
 
   return networkResponse;
