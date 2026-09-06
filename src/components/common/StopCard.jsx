@@ -926,7 +926,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   {finalDisplayAddress ?
                 <>
                       <div className="flex items-start gap-2 text-lg text-body-2">
-                        <span className="text-xl font-medium truncate">{isISPorISD && interStoreLocation?.store_address ? interStoreLocation.store_address : (isPickup ? store?.address || '' : patient?.address || '')}</span>
+                        <span className="text-xl font-medium truncate">{isISPorISD && interStoreLocation?.store_address ? interStoreLocation.store_address : finalDisplayAddress}</span>
                       </div>
                       {!isStrippedDelivery && !shouldRedact &&
                   <div className="flex items-center gap-3 min-h-[26px] text-label">
