@@ -1,9 +1,13 @@
 /**
  * map-tile-sw.js — RxDeliver HERE Tile Cache Service Worker
  *
- * Strategy: Cache-first, city-namespaced SW Cache API buckets.
+ * Strategy: Cache-first, versioned city-namespaced SW Cache API buckets.
  *
- * Each city gets its own named cache: 'rxdeliver-tiles-{cityId}'
+ * Each city gets its own named cache: 'rxdeliver-tiles-{SW_VERSION}-{cityId}'
+ * Versioning the cache name guarantees a stale/incompatible tile cached by a
+ * previous SW version is never served after an update — the activate handler
+ * sweeps every cache that doesn't match the current version prefix, and the
+ * new version repopulates from HERE as tiles are viewed.
  * Only the ACTIVE city's cache is served from. Other cities sit dormant
  * until a SET_ACTIVE_CITY message switches the active bucket, or a
  * CLEAR_STALE_CITIES sweep removes caches not accessed in 30 days.
@@ -18,9 +22,14 @@
  * Tile TTL: 30 days (enforced by CLEAR_STALE_CITIES sweep)
  */
 
-const SW_VERSION = 'v3';
-const CACHE_PREFIX = 'rxdeliver-tiles-';
-const FALLBACK_CACHE = 'rxdeliver-tiles-default';
+const SW_VERSION = 'v4';
+// Versioned prefix: rxdeliver-tiles-v4-{cityId}. Bumping SW_VERSION creates a fresh
+// cache namespace, so tiles cached by an older SW version (incompatible key scheme,
+// stale HERE responses, old API-key-tagged keys, etc.) are never served — they're
+// swept on activate and the new version repopulates from HERE as tiles are viewed.
+const CACHE_PREFIX = `rxdeliver-tiles-${SW_VERSION}-`;
+const LEGACY_CACHE_PREFIX = 'rxdeliver-tiles-'; // unversioned + older-version caches
+const FALLBACK_CACHE = `rxdeliver-tiles-${SW_VERSION}-default`;
 const HERE_HOSTNAME = 'maps.hereapi.com';
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const STALE_CITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -71,13 +80,22 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   console.log(`[TileSW ${SW_VERSION}] Activating — claiming clients`);
   event.waitUntil((async () => {
-    // Delete legacy IDB-era SW caches (old naming scheme)
+    // Sweep every tile cache that doesn't belong to the current SW version:
+    //   - 'here-map-tiles-*'   → legacy IDB-era SW caches
+    //   - 'rxdeliver-tiles-*'  → unversioned + older-version caches (e.g. v3 tiles
+    //                            cached under the old key scheme). These would be
+    //                            served as cache hits but render stale/broken, so
+    //                            evict them and let the new version repopulate.
+    const currentPrefix = CACHE_PREFIX;
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter((k) => k.startsWith('here-map-tiles-'))
+        .filter((k) =>
+          k.startsWith('here-map-tiles-') ||
+          (k.startsWith(LEGACY_CACHE_PREFIX) && !k.startsWith(currentPrefix))
+        )
         .map((k) => {
-          console.log(`[TileSW] Deleting legacy cache: ${k}`);
+          console.log(`[TileSW ${SW_VERSION}] Deleting stale cache: ${k}`);
           return caches.delete(k);
         })
     );
