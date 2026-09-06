@@ -124,6 +124,24 @@ const shouldCapture = async () => {
   return true;
 };
 
+// ── 24-HOUR RETENTION TRIM ────────────────────────────────────────────────
+// Auto-purges RemoteLogEntry rows older than 24h via the clearRemoteLogs
+// backend function (trim mode). Fired at most once per hour from the flush
+// cycle of any actively-logging device, so retention is enforced without a
+// scheduler. Fire-and-forget — failures never block log flushes.
+const LOG_RETENTION_HOURS = 24;
+const TRIM_INTERVAL_MS = 60 * 60 * 1000;
+let lastTrimAt = 0;
+
+const maybeTrimOldLogs = () => {
+  const now = Date.now();
+  if (now - lastTrimAt < TRIM_INTERVAL_MS) return;
+  lastTrimAt = now;
+  try {
+    base44.functions.invoke('clearRemoteLogs', { retention_hours: LOG_RETENTION_HOURS }).catch(() => {});
+  } catch (_) {}
+};
+
 const flushNow = async () => {
   if (isFlushing) return;
   isFlushing = true;
@@ -140,6 +158,9 @@ const flushNow = async () => {
 
     await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
     writeBuffer(remaining);
+
+    // Retention: keep only the last 24h of logs (hourly fire-and-forget trim)
+    maybeTrimOldLogs();
   } finally {
     isFlushing = false;
   }
