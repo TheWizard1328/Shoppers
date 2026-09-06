@@ -12,10 +12,11 @@ export function getCodSymbolColor(delivery) {
     new Set((delivery?.cod_payments || []).map((payment) => String(payment?.type || '').toLowerCase()).filter(Boolean))
   );
 
-  // Green only if collected via Debit or Credit
-  if (paymentTypes.some((type) => type === 'debit' || type === 'credit')) return '#16a34a';
+  // Green if collected via a direct payment — Debit, Credit, or Cheque
+  // (cheque = money taken directly, same as cards; only cash awaits deposit)
+  if (paymentTypes.some((type) => type === 'debit' || type === 'credit' || type === 'cheque' || type === 'check')) return '#16a34a';
 
-  // Red if delivery is complete but not collected by Debit/Credit
+  // Red if delivery is complete but not collected by a direct payment
   if (delivery?.status === 'completed') return '#dc2626';
 
   return 'inherit';
