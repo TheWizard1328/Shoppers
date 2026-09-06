@@ -453,8 +453,8 @@ Deno.serve(async (req) => {
 
     const GRACE_BEFORE_MS = 120000; // window may start before prev completion (GPS flush lag)
     const GRACE_AFTER_MS = 120000;  // completion taps lag the GPS pass by up to ~2 min
-    const DIST_SANITY_M = 500;       // beyond this, an in-window spatial match is treated as bogus
-    const PROXIMITY_THRESHOLD_M = 500;
+    const DIST_SANITY_M = 250;       // beyond this, an in-window spatial match is treated as bogus
+    const PROXIMITY_THRESHOLD_M = 250;
 
     // Convert actual_delivery_time (naive Edmonton local, e.g. '2026-09-05T11:56:21')
     // into epoch ms by testing the two Edmonton UTC offsets (MDT/MST) via Intl.
