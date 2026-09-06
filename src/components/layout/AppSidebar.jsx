@@ -293,6 +293,27 @@ export default function AppSidebar({
         <span className="font-semibold">Dashboard</span>
       </Link>
 
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+            <Link
+              to={getRouteNavigationUrl('Deliveries')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'Deliveries' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'Deliveries' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <Package className="w-5 h-5" />
+            <span className="font-semibold">Routes</span>
+            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{totalRoutesCount}</Badge>
+            </Link>
+            }
+
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
             <Link
               to={createPageUrl('DriverScheduleCalendar')}
@@ -407,26 +428,6 @@ export default function AppSidebar({
             </Link>
             }
 
-      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-            <Link
-              to={getRouteNavigationUrl('Deliveries')}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentPageName === 'Deliveries' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'Deliveries' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-            <Package className="w-5 h-5" />
-            <span className="font-semibold">Routes</span>
-            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{totalRoutesCount}</Badge>
-            </Link>
-            }
 
             {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
             <Link
