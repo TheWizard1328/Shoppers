@@ -114,6 +114,12 @@ export default function MapController({
       window.__currentMapZoom = roundedZoom;
       window.__mapCurrentZoom = roundedZoom;
 
+      // Broadcast every zoom change — the AppOwner zoom badge on the stats
+      // card listens for this.
+      try {
+        window.dispatchEvent(new CustomEvent('mapZoomLevelChanged', { detail: { zoom: roundedZoom } }));
+      } catch (_) {}
+
       if (roundedZoom !== currentZoom) {
         // setCurrentZoom drives the DeliveryMap zoom-band memo (pickup/delivery
         // marker grouping by precision bucket). MapIcons buckets internally so

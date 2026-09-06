@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import TravelModeControl, { TravelModeDialog } from '@/components/dashboard/TravelModeControl';
 import { getNearbyModeStops, getCurrentDriverLocation } from '@/components/dashboard/modeButtonHelpers';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { format, addDays } from 'date-fns';
 import { globalFilters } from "@/components/utils/globalFilters";
@@ -316,6 +316,25 @@ export default function StatsPanel({
     }
   }, [isDateFinished, isDriver, isAllDriversMode]);
 
+  // AppOwner-only zoom badge: shows the current map zoom level for ~3s
+  // whenever it changes, in the top-right corner of the stats card.
+  const [zoomBadge, setZoomBadge] = useState(null);
+  const zoomBadgeTimer = useRef(null);
+  useEffect(() => {
+    const handleZoomChange = (e) => {
+      const z = e.detail?.zoom;
+      if (typeof z !== 'number') return;
+      setZoomBadge(Math.round(z * 10) / 10);
+      if (zoomBadgeTimer.current) clearTimeout(zoomBadgeTimer.current);
+      zoomBadgeTimer.current = setTimeout(() => setZoomBadge(null), 3000);
+    };
+    window.addEventListener('mapZoomLevelChanged', handleZoomChange);
+    return () => {
+      window.removeEventListener('mapZoomLevelChanged', handleZoomChange);
+      if (zoomBadgeTimer.current) clearTimeout(zoomBadgeTimer.current);
+    };
+  }, []);
+
   const StatsCardMinWidth = 385;
 
   // Blue calendar hint: true when the selected driver has any pending stops
@@ -341,6 +360,21 @@ export default function StatsPanel({
       style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? window.innerWidth < 625 ? `${Math.round(window.innerWidth * 0.95)}px` : '370px' : `${StatsCardMinWidth}px`, minWidth: isMobile ? undefined : `${StatsCardMinWidth}px`, maxWidth: isMobile ? undefined : `${StatsCardMinWidth}px` }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
+
+        {/* AppOwner-only: current map zoom level, shown ~3s on every change */}
+        <AnimatePresence>
+          {isAppOwner(currentUser) && zoomBadge != null && (
+            <motion.div
+              key="zoom-badge"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-1 right-1 z-50 rounded-md bg-slate-900/85 text-white text-[11px] font-mono font-semibold px-2 py-0.5 shadow-md pointer-events-none"
+            >
+              {zoomBadge.toFixed(1)}x
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <PullToSync
           key={pullToSyncKey}
