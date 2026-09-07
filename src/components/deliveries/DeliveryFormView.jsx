@@ -363,7 +363,9 @@ export default function DeliveryFormView({
   // OR when the delivery date is a stat holiday (must always pick manually).
   const requiresDriverSelection = (() => {
     if (delivery || isPickupMode || isInterStoreMode) return false; // only for new patient deliveries
-    if (statHolidayWarning && !formData?.driver_id) return true; // stat holiday — force selection
+    // On a stat holiday, only force manual driver selection once a patient (or store)
+    // is in context — never auto-open/highlight the driver on a blank form open.
+    if (statHolidayWarning && !formData?.driver_id && (selectedPatient || formData?.patient_id || formData?.store_id)) return true;
     if (formData?.driver_id) return false; // driver already chosen
     const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
     const storeId = patientToCheck?.store_id || formData?.store_id;
