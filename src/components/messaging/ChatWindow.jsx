@@ -228,7 +228,13 @@ function ChatWindow({
 
       setNewMessage('');
       removePendingImage();
-      setMessages((prev) => [...prev, createdMessage].filter(Boolean));
+      setMessages((prev) => {
+        // Dedupe: the realtime create event may have already appended this
+        // message before handleSend resumed from the await. Appending again
+        // would render a duplicate that only clears on refresh.
+        if (createdMessage?.id && prev.some(m => m.id === createdMessage.id)) return prev;
+        return [...prev, createdMessage].filter(Boolean);
+      });
       shouldRestoreFocusRef.current = true;
       restoreInputFocus(isMobileRef.current ? 60 : 0);
     } catch (error) {

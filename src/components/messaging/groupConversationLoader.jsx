@@ -7,7 +7,14 @@ import { isHiddenSystemBroadcastMessageForThisDevice } from './updateBroadcastCo
  */
 export const isGroupMember = (group, currentUser, appUsers = []) => {
   if (!group || !currentUser?.id) return false;
-  return resolveGroupMemberIds(group, appUsers).includes(currentUser.id);
+  if (resolveGroupMemberIds(group, appUsers).includes(currentUser.id)) return true;
+  // The group creator always counts as a member (so they can see their own
+  // group thread + replies), even for preset groups whose role doesn't match.
+  // created_by may be stored as either the user's ObjectId or their email
+  // (legacy), so match against both.
+  const createdById = group.created_by;
+  if (!createdById) return false;
+  return createdById === currentUser.id || createdById === currentUser.email;
 };
 
 const isReadByMe = (msg, currentUser) => {

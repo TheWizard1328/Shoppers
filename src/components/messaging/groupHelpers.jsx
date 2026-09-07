@@ -50,7 +50,14 @@ export const resolvePresetMemberIds = (appUsers = [], presetType) => {
 export const resolveGroupMemberIds = (group, appUsers = []) => {
   if (!group) return [];
   if (group.preset_type && group.preset_type !== 'custom') {
-    return resolvePresetMemberIds(appUsers, group.preset_type);
+    const roleIds = resolvePresetMemberIds(appUsers, group.preset_type);
+    // Always include the group creator so they can see (and receive replies in)
+    // their own preset group even when their role doesn't match the preset.
+    // NewGroupDialog already adds the creator to the stored member_ids snapshot;
+    // honor that here by unioning created_by with the live role resolution.
+    const creatorId = group.created_by;
+    if (creatorId && !roleIds.includes(creatorId)) return [creatorId, ...roleIds];
+    return roleIds;
   }
   return Array.isArray(group.member_ids) ? [...group.member_ids] : [];
 };
