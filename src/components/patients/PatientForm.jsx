@@ -273,8 +273,12 @@ export default function PatientForm({
         care_pros: patient.care_pros || false,
         cp_name: patient.cp_name || "",
         cp_envelopes: patient.cp_envelopes || 0,
-        last_delivery_date: "", // Always clear for duplicate/new-address so first-time delivery checkbox works
-        delivery_history: []
+        last_delivery_date: (duplicateMode === 'newAddress' || duplicateMode === 'duplicate')
+          ? "" // Clear for duplicate/new-address so first-time delivery checkbox works
+          : (patient.last_delivery_date || (Array.isArray(patient.delivery_history) && patient.delivery_history[0]?.delivery_date) || ""),
+        delivery_history: (duplicateMode === 'newAddress' || duplicateMode === 'duplicate')
+          ? []
+          : (Array.isArray(patient.delivery_history) ? patient.delivery_history : [])
       });
 
       setIsRecurring(hasRecurring);
