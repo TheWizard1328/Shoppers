@@ -133,8 +133,8 @@ export default function PatientCard({
   const [isBackfilling, setIsBackfilling] = useState(false);
 
   useEffect(() => {
-    return subscribePatientHistoryBackfill((inFlightId) => {
-      setIsBackfilling(inFlightId === patient?.id);
+    return subscribePatientHistoryBackfill((inFlightId, queuedIds) => {
+      setIsBackfilling(inFlightId === patient?.id || (Array.isArray(queuedIds) && queuedIds.includes(patient?.id)));
     });
   }, [patient?.id]);
 
