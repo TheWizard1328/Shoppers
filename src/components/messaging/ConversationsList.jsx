@@ -230,7 +230,33 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
   const handleDeleteConversation = async (e, conv) => {
     e.stopPropagation();
     if (conv.type === 'group') {
-      // For groups, leaving is handled via GroupMembersSheet; here we just remove local preview
+      const group = conv.group;
+      const isCreator = group?.created_by === currentUser?.id || group?.created_by === currentUser?.email;
+      if (isCreator) {
+        if (!window.confirm('Delete this group thread for everyone? All messages will be removed.')) return;
+        try {
+          const msgs = await base44.entities.Message.filter({ conversation_id: group.id }, '-created_date', 500);
+          await Promise.allSettled((msgs || []).map(m => base44.entities.Message.delete(m.id)));
+          await base44.entities.ConversationGroup.delete(group.id);
+          setGroupPreviews(prev => prev.filter(p => p.group?.id !== group.id));
+        } catch (error) {
+          console.error('Error deleting group:', error);
+          alert('Failed to delete the group. Please try again.');
+        }
+      } else {
+        if (!window.confirm('Leave this group? You will no longer receive messages from it.')) return;
+        try {
+          const isPreset = group?.preset_type && group.preset_type !== 'custom';
+          if (!isPreset) {
+            const next = (group.member_ids || []).filter(id => id !== currentUser.id);
+            await base44.entities.ConversationGroup.update(group.id, { member_ids: next });
+          }
+          setGroupPreviews(prev => prev.filter(p => p.group?.id !== group.id));
+        } catch (error) {
+          console.error('Error leaving group:', error);
+          alert('Failed to leave the group. Please try again.');
+        }
+      }
       return;
     }
     if (!window.confirm('Delete this conversation? All messages will be removed.')) return;
@@ -371,15 +397,13 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                       {conv.unreadCount > 0 && (
                         <Badge className="bg-emerald-500 text-white">{conv.unreadCount}</Badge>
                       )}
-                      {!isGroup && (
-                        <button
-                          onClick={(e) => handleDeleteConversation(e, conv)}
-                          className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded transition-all"
-                          title="Delete conversation"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => handleDeleteConversation(e, conv)}
+                        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded transition-all"
+                        title={isGroup ? 'Delete / leave group' : 'Delete conversation'}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </button>
                     </div>
                   </div>
                   <p className="text-sm truncate text-soft">{lastMessagePreview}</p>
