@@ -12,7 +12,7 @@
     },
     "receiver_id": {
       "type": "string",
-      "description": "The user_id of the receiver"
+      "description": "The user_id of the receiver (empty string for group messages)"
     },
     "receiver_name": {
       "type": "string",
@@ -20,21 +20,61 @@
     },
     "conversation_id": {
       "type": "string",
-      "description": "Unique ID grouping messages between two users (sorted user IDs joined)"
+      "description": "Unique ID grouping messages \u2014 for 1:1 it is sorted user IDs joined; for groups it equals the group's entity id (group_id)"
     },
     "content": {
       "type": "string",
-      "description": "The message text"
+      "description": "The message text (or image caption when message_type is image; may be empty string)"
     },
     "read": {
       "type": "boolean",
       "default": false,
-      "description": "Whether the receiver has read this message"
+      "description": "Whether the receiver has read this message (1:1 only)"
+    },
+    "message_type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "image"
+      ],
+      "default": "text",
+      "description": "Message kind \u2014 text or image attachment"
+    },
+    "attachment_url": {
+      "type": "string",
+      "description": "URL of the uploaded image file (UploadFile result) when message_type is image"
+    },
+    "is_group": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this message belongs to a group thread"
+    },
+    "group_id": {
+      "type": "string",
+      "description": "The ConversationGroup entity id this message belongs to (set when is_group is true)"
+    },
+    "group_name": {
+      "type": "string",
+      "description": "Denormalized group name at send time (for push notification titles and header display)"
+    },
+    "group_member_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Snapshot of group member user_ids at send time \u2014 used for push notification routing"
+    },
+    "read_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of user_ids who have read this group message (per-member read receipts)"
     }
   },
   "required": [
     "sender_id",
-    "receiver_id",
     "content"
-  ]
+  ],
+  "rls": {}
 }
