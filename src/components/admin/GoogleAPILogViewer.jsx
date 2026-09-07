@@ -33,15 +33,15 @@ const apiTypeIcons = {
 };
 
 const apiTypeColors = {
-  'Google Directions': 'bg-blue-100 text-blue-800',
-  'HERE Directions': 'bg-indigo-100 text-indigo-800',
-  'Google Distance Matrix': 'bg-purple-100 text-purple-800',
-  'HERE Distance Matrix': 'bg-violet-100 text-violet-800',
-  'Google Places Autocomplete': 'bg-green-100 text-green-800',
-  'Google Place Details': 'bg-yellow-100 text-yellow-800',
-  'Google Geocoding': 'bg-orange-100 text-orange-800',
-  'HERE Geocoding': 'bg-cyan-100 text-cyan-800',
-  'HERE Map Tiles': 'bg-teal-100 text-teal-800'
+  'Google Directions': 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  'HERE Directions': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'Google Distance Matrix': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+  'HERE Distance Matrix': 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300',
+  'Google Places Autocomplete': 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  'Google Place Details': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+  'Google Geocoding': 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  'HERE Geocoding': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
+  'HERE Map Tiles': 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300'
 };
 
 const renderStopOrderValue = (log) => {
@@ -617,11 +617,11 @@ export default function GoogleAPILogViewer() {
             <div
               key={idx}
               className={`flex items-center gap-3 p-3 rounded-lg ${
-              alert.severity === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-200' : 'bg-amber-50 dark:bg-amber-950 border border-amber-200'}`
+              alert.severity === 'error' ? 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800'}`
               }>
               
-                <AlertTriangle className={`w-5 h-5 ${alert.severity === 'error' ? 'text-red-600' : 'text-amber-600'}`} />
-                <span className={`text-sm font-medium ${alert.severity === 'error' ? 'text-red-800' : 'text-amber-800'}`}>
+                <AlertTriangle className={`w-5 h-5 ${alert.severity === 'error' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
+                <span className={`text-sm font-medium ${alert.severity === 'error' ? 'text-red-800 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
                   {alert.message}
                 </span>
               </div>
@@ -725,20 +725,20 @@ export default function GoogleAPILogViewer() {
             </div>
             <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.total}</div>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-sm text-blue-600 mb-1">
+          <div className="bg-blue-50 dark:bg-blue-950/40 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-300 mb-1">
               <Clock className="w-4 h-4" />
               {getDateRangeSummaryLabel(dateFilter)}
             </div>
-            <div className="text-2xl font-bold text-blue-900">{sumApiLogCalls(filteredLogs)}</div>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{sumApiLogCalls(filteredLogs)}</div>
           </div>
-          <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4">
-            <div className="text-sm text-green-600 mb-1">Filtered Calls</div>
-            <div className="text-2xl font-bold text-green-900">{sumApiLogCalls(filteredLogs)}</div>
+          <div className="bg-green-50 dark:bg-green-950/40 rounded-lg p-4">
+            <div className="text-sm text-green-600 dark:text-green-300 mb-1">Filtered Calls</div>
+            <div className="text-2xl font-bold text-green-900 dark:text-green-100">{sumApiLogCalls(filteredLogs)}</div>
           </div>
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="text-sm text-purple-600 mb-1">Unique Users</div>
-            <div className="text-2xl font-bold text-purple-900">
+          <div className="bg-purple-50 dark:bg-purple-950/40 rounded-lg p-4">
+            <div className="text-sm text-purple-600 dark:text-purple-300 mb-1">Unique Users</div>
+            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
               {new Set(filteredLogs.map(l => l.user_name).filter(Boolean)).size}
             </div>
           </div>
