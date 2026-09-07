@@ -303,6 +303,15 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, driver_id: driverId, delivery_date: deliveryDate, pickups: [], skippedInterStore: true });
     }
 
+    // CRITICAL: Skip default pickup creation on stat holidays — no scheduled
+    // runs should be auto-created on a holiday. Dispatchers can still manually
+    // add stops if needed.
+    const statHolidays = await base44.asServiceRole.entities.StatHoliday.filter({ date: deliveryDate }, '-created_date', 5);
+    if ((statHolidays || []).length > 0) {
+      console.log(`[ensureDefaultPickups] Skipped — stat holiday (${statHolidays[0]?.holiday_name || '?'}) for driver=${driverId} date=${deliveryDate}`);
+      return Response.json({ success: true, driver_id: driverId, delivery_date: deliveryDate, pickups: [], skippedStatHoliday: true });
+    }
+
     // Resolve creator: always use AppUser.id for created_by_app_user_id and dispatcher_id
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];
     const creatorAppUser = creatorAppUsers?.[0] || null;
