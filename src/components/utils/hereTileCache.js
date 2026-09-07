@@ -194,8 +194,82 @@ function _isSwControlling() {
     !!navigator.serviceWorker.controller;
 }
 
+// ─── Page-direct Cache API layer ─────────────────────────────────────────────
+// The SW cache only serves pages the SW CONTROLS. In two real environments
+// that control is unreliable: the Base44 builder preview iframe (controller
+// stays null) and the Android WebView inside the APK (control/storage flaky
+// across cold starts). The Cache API is ALSO usable directly from the page,
+// with the same persistent ~6GB quota and no SW handshake. When the SW isn't
+// controlling (or we're in the APK and don't trust it), this layer becomes
+// the primary tile cache.
+//
+// Named 'rx-tiles-*' (NOT 'here-tiles-*') so the SW's activate-time purge of
+// legacy tile caches never touches it.
+const PAGE_TILE_CACHE = 'rx-tiles-page-v1';
+
+function _isNativeApk() {
+  try {
+    return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
+  } catch (_) { return false; }
+}
+
+function _pageCacheApiAvailable() {
+  return typeof caches !== 'undefined' && typeof caches.open === 'function';
+}
+
+function _normalizeUrlForPageCache(url) {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('apiKey');
+    u.searchParams.delete('api_key');
+    u.searchParams.delete('token');
+    u.searchParams.delete('rxr');
+    return u.toString();
+  } catch (_) { return url; }
+}
+
+async function pageCacheGet(url) {
+  try {
+    if (!_pageCacheApiAvailable()) return null;
+    const cache = await caches.open(PAGE_TILE_CACHE);
+    const hit = await cache.match(_normalizeUrlForPageCache(url));
+    if (!hit || hit.type === 'opaque' || !hit.ok) return null;
+    return hit;
+  } catch (_) { return null; }
+}
+
+async function pageCachePut(url, response) {
+  try {
+    if (!_pageCacheApiAvailable()) return;
+    // Only cache proper CORS responses — opaque ones can't be re-read via blob()
+    if (!response.ok || response.type === 'opaque') return;
+    const cache = await caches.open(PAGE_TILE_CACHE);
+    await cache.put(_normalizeUrlForPageCache(url), response.clone());
+  } catch (_) {}
+}
+
 function fetchAndCache(url, cacheKey, img, done, attempt = 0) {
   const swControlling = _isSwControlling();
+
+  // Page-direct cache first — this is the persistent layer for environments
+  // where the SW can't be trusted (editor preview iframe, APK WebView).
+  // A hit here is a zero-API, zero-log load.
+  pageCacheGet(url).then((cachedRes) => {
+    if (cachedRes) {
+      return cachedRes.blob().then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        img.onload  = () => { URL.revokeObjectURL(blobUrl); done(null, img); };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); fetchAndCache(url, cacheKey, img, done, attempt + 1); };
+        img.src = blobUrl;
+      });
+    }
+    return _fetchAndCacheFromNetwork(url, cacheKey, img, done, attempt, swControlling);
+  }).catch(() => {
+    _fetchAndCacheFromNetwork(url, cacheKey, img, done, attempt, swControlling);
+  });
+}
+
+function _fetchAndCacheFromNetwork(url, cacheKey, img, done, attempt, swControlling) {
   fetch(url, { mode: 'cors', credentials: 'omit' })
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -204,6 +278,13 @@ function fetchAndCache(url, cacheKey, img, done, attempt = 0) {
       // The SW tags its responses: X-Tile-Cache: hit (cached) | miss (real HERE call).
       // If the header is absent (SW not active yet), treat as a real HERE call.
       const swCacheHit = res.headers.get('X-Tile-Cache') === 'hit';
+
+      // Persist to the page-direct cache when the SW didn't already cache it
+      // (SW-controlling hits/misses are cached inside the SW's own layer; when
+      // the SW is NOT controlling, this page cache is the only persistent copy).
+      if (!swCacheHit) {
+        pageCachePut(url, res).catch(() => {});
+      }
 
       return res.blob().then((blob) => ({ blob, swCacheHit }));
     })
@@ -285,7 +366,10 @@ export function createCachedHereTileLayer(LInstance) {
       // (caching tracked via waitUntil in the background). This is the browser's
       // own image pipeline — same speed as the uncached era, renders
       // progressively, and skips the fetch→blob→objectURL round trip entirely.
-      if (_isSwControlling()) {
+      // In the APK, the Android WebView's service-worker control has proven
+      // unreliable across cold starts (same tiles re-fetched every launch) —
+      // always use the page-direct cache + fetch→blob path there.
+      if (_isSwControlling() && !_isNativeApk()) {
         img.onload  = () => done(null, img);
         img.onerror = (e) => done(e, img);
         img.src = url;
@@ -302,8 +386,14 @@ export function createCachedHereTileLayer(LInstance) {
         return img;
       }
 
-      // Cold start (SW not yet controlling) — check IDB first for instant paint.
-      getCachedTile(cacheKey).then((cachedBlobUrl) => {
+      // Cold start / APK (SW not controlling) — check the page-direct Cache API
+      // first (persistent, no SW handshake), then the legacy IDB store.
+      pageCacheGet(url).then((cachedRes) => {
+        if (cachedRes) {
+          return cachedRes.blob().then((blob) => URL.createObjectURL(blob));
+        }
+        return getCachedTile(cacheKey);
+      }).then((cachedBlobUrl) => {
         if (cachedBlobUrl) {
           // IDB hit (cold-start fast path)
           img.onload  = () => { URL.revokeObjectURL(cachedBlobUrl); done(null, img); };
