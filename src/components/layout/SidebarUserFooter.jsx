@@ -38,6 +38,7 @@ import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { getEnvironmentLabel } from '@/components/utils/envUtils';
+import { loadStatHolidays, isStatHoliday, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
 // ── Fridge temp settings cache (loaded once from AppSettings) ─────────────
 let _fridgeCfgCache = null;
@@ -266,7 +267,27 @@ function getDefaultDriverIdForSlot(store, slotKey) {
   return map[slotKey] || null;
 }
 
-function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, deliveries, selectedDateStr) {
+// Returns the scheduled driver id for a store on the selected date, honoring
+// stat holidays: on a stat holiday a store uses stat_holiday_driver_id only
+// when stat_holiday_enabled is set — otherwise no default driver is scheduled
+// (mirrors resolvePatientDriverAssignment in deliveryPatientSelectionHelpers).
+function getScheduledDriverIdForStore(store, slotKeys, todayOverrides, todayStr, storeId, isStatHolidayDate) {
+  if (isStatHolidayDate) {
+    return (store.stat_holiday_enabled && store.stat_holiday_driver_id) ? store.stat_holiday_driver_id : null;
+  }
+  let scheduledId = null;
+  slotKeys.forEach((slotKey) => {
+    if (!store[`${slotKey}_enabled`]) return;
+    const override = todayOverrides?.find(
+      (o) => o.date === todayStr && o.slot_key === slotKey && o.store_id === storeId
+    );
+    const driverId = override ? override.driver_id : getDefaultDriverIdForSlot(store, slotKey);
+    if (driverId) scheduledId = driverId;
+  });
+  return scheduledId;
+}
+
+function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, deliveries, selectedDateStr, statHolidays) {
   if (!currentUser?.app_roles?.includes('dispatcher')) return [];
   const dispatcherStoreIds = currentUser.store_ids || [];
   if (!dispatcherStoreIds.length) return [];
@@ -277,6 +298,7 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   })();
   const slotKeys = getSlotKeysForDate(todayStr);
+  const isStatHolidayDate = isStatHoliday(todayStr, statHolidays);
   const driverMap = new Map();
 
   const assignedDriverIds = new Set(
@@ -289,14 +311,8 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
   dispatcherStoreIds.forEach((storeId) => {
     const store = stores?.find((s) => s.id === storeId);
     if (!store) return;
-    slotKeys.forEach((slotKey) => {
-      if (!store[`${slotKey}_enabled`]) return;
-      const override = todayOverrides?.find(
-        (o) => o.date === todayStr && o.slot_key === slotKey && o.store_id === storeId
-      );
-      const driverId = override ? override.driver_id : getDefaultDriverIdForSlot(store, slotKey);
-      if (driverId) scheduledDriverIds.add(driverId);
-    });
+    const driverId = getScheduledDriverIdForStore(store, slotKeys, todayOverrides, todayStr, storeId, isStatHolidayDate);
+    if (driverId) scheduledDriverIds.add(driverId);
   });
 
   const allRelevantDriverIds = new Set([...assignedDriverIds, ...scheduledDriverIds]);
@@ -313,14 +329,20 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
     dispatcherStoreIds.forEach((storeId) => {
       const store = stores?.find((s) => s.id === storeId);
       if (!store) return;
-      slotKeys.forEach((slotKey) => {
-        if (!store[`${slotKey}_enabled`]) return;
-        const override = todayOverrides?.find(
-          (o) => o.date === todayStr && o.slot_key === slotKey && o.store_id === storeId
-        );
-        const sid = override ? override.driver_id : getDefaultDriverIdForSlot(store, slotKey);
-        if (sid === driverId) slots.push({ storeName: store.name, slotKey });
-      });
+      if (isStatHolidayDate) {
+        if (store.stat_holiday_enabled && store.stat_holiday_driver_id === driverId) {
+          slots.push({ storeName: store.name, slotKey: 'stat_holiday' });
+        }
+      } else {
+        slotKeys.forEach((slotKey) => {
+          if (!store[`${slotKey}_enabled`]) return;
+          const override = todayOverrides?.find(
+            (o) => o.date === todayStr && o.slot_key === slotKey && o.store_id === storeId
+          );
+          const sid = override ? override.driver_id : getDefaultDriverIdForSlot(store, slotKey);
+          if (sid === driverId) slots.push({ storeName: store.name, slotKey });
+        });
+      }
     });
 
     const driverDeliveries = (deliveries || []).filter(
@@ -334,6 +356,7 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
 
   const slotOrder = (slots) => {
     const first = slots?.[0]?.slotKey || '';
+    if (first === 'stat_holiday') return 2;
     return first.endsWith('_am') ? 0 : first.endsWith('_pm') ? 1 : 2;
   };
   return Array.from(driverMap.values()).sort((a, b) => {
@@ -365,7 +388,10 @@ export default function SidebarUserFooter({
   })();
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
+  const [statHolidays, setStatHolidays] = useState([]);
   const [driversExpanded, setDriversExpanded] = useState(false);
+  const selectedDateHoliday = getStatHoliday(selectedDateStr, statHolidays);
+  const isSelectedDateStatHoliday = !!selectedDateHoliday;
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { logout: authLogout } = useAuth();
   const driversExpandedAtRef = useRef(null);
@@ -394,6 +420,9 @@ export default function SidebarUserFooter({
     base44.entities.DriverScheduleOverride.filter({ date: todayStr }).
     then(setTodayOverrides).
     catch(() => setTodayOverrides([]));
+    // Stat holidays are cached module-side; load once so the scheduled-driver
+    // list can suppress normal slot drivers on holidays (stat_holiday_driver_id).
+    loadStatHolidays().then(setStatHolidays).catch(() => {});
   }, [currentUser]);
 
   if (!currentUser) {
@@ -421,7 +450,7 @@ export default function SidebarUserFooter({
 
   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
-  const scheduledDrivers = buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, filteredDeliveries, selectedDateStr);
+  const scheduledDrivers = buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, filteredDeliveries, selectedDateStr, statHolidays);
 
   // All other drivers in the city not already shown in scheduledDrivers
   // Only show drivers assigned to the same city_ids as the dispatcher's stores
@@ -449,9 +478,16 @@ export default function SidebarUserFooter({
             className="flex items-center justify-between w-full group"
             onClick={() => setDriversExpanded((v) => !v)}>
             
-              <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
-                Drivers: {scheduledDrivers.length} / {scheduledDrivers.length + otherCityDrivers.length}
-              </p>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
+                  Drivers: {scheduledDrivers.length} / {scheduledDrivers.length + otherCityDrivers.length}
+                </p>
+                {isSelectedDateStatHoliday &&
+                  <span className="text-[9px] font-semibold px-1.5 py-0 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 flex-shrink-0 truncate" title={selectedDateHoliday.holiday_name}>
+                    🎓 {selectedDateHoliday.holiday_name}
+                  </span>
+                }
+              </div>
               <span className="flex items-center gap-0 text-[10px] text-slate-400 dark:text-slate-400 font-medium">
                 {driversExpanded ? 'Less' : 'More'}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${driversExpanded ? '' : '-rotate-90'}`} />
               </span>
