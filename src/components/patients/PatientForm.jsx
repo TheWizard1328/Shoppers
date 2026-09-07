@@ -1091,7 +1091,7 @@ export default function PatientForm({
                         type="button"
                         disabled={!formData.unit_number || disableOtherFieldsDuringAddressLookup}
                         onClick={handleBuzzerOpen}
-                        className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
                         + Buzzer #
                       </button>
                     </div>
