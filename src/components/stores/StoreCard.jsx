@@ -27,6 +27,7 @@ import { getStoreColor } from "../utils/colorGenerator";
 import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
 import { updateStoreLocal } from "@/components/utils/offlineMutations";
+import StoreStatHolidayRow from "./StoreStatHolidayRow";
 
 export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete }) {
   const [editingColor, setEditingColor] = useState(false);
@@ -394,6 +395,15 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 </div>);
 
             })()}
+
+            {/* Stat Holiday Default Driver - Admin only */}
+            {!isLimitedView && currentUser && userHasRole(currentUser, "admin") && (
+              <StoreStatHolidayRow
+                store={store}
+                drivers={drivers}
+                onUpdated={setEditableStore}
+              />
+            )}
 
             {/* Color Selector - Admin only */}
             {!isLimitedView && <div className="flex items-center gap-2 mb-1">

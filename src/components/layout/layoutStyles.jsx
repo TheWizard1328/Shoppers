@@ -23,6 +23,10 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             --secondary-color: ${branding.secondary_color};
             --accent-color: ${branding.accent_color};
             --safe-area-bg: #cbd5e1; /* slate-300 grey for system bars in light mode */
+            --bg-indigo-50: #eef2ff;
+            --border-indigo-200: #c7d2fe;
+            --text-indigo-700: #4338ca;
+            --text-indigo-800: #3730a3;
           }
 
           html.dark-theme,
@@ -43,6 +47,10 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             --image-filter: invert(1) hue-rotate(180deg);
             --menu-border: #e2e8f0;
             --safe-area-bg: #0f172a; /* dark for system bars in dark mode */
+            --bg-indigo-50: #1e2540;
+            --border-indigo-200: #3730a3;
+            --text-indigo-700: #c7d2fe;
+            --text-indigo-800: #e0e7ff;
 
             /* shadcn/Tailwind theme vars — wired to the app's navy dark palette
                (instead of the generic near-black/white shadcn defaults) so raw
@@ -83,6 +91,10 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
               --image-filter: invert(1) hue-rotate(180deg);
               --menu-border: #e2e8f0;
               --safe-area-bg: #0f172a;
+              --bg-indigo-50: #1e2540;
+              --border-indigo-200: #3730a3;
+              --text-indigo-700: #c7d2fe;
+              --text-indigo-800: #e0e7ff;
 
               --background: 222 47% 11%;
               --foreground: 210 40% 98%;

@@ -226,6 +226,15 @@
         "type": "string"
       },
       "description": "Email addresses available for route export communication for this store"
+    },
+    "stat_holiday_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, this store uses the stat_holiday_driver_id driver as the default for stat holidays"
+    },
+    "stat_holiday_driver_id": {
+      "type": "string",
+      "description": "AppUser ID of the driver assigned as the default for this store on stat holidays"
     }
   },
   "required": [
