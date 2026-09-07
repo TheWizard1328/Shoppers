@@ -235,8 +235,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       if (isCreator) {
         if (!window.confirm('Delete this group thread for everyone? All messages will be removed.')) return;
         try {
-          const msgs = await base44.entities.Message.filter({ conversation_id: group.id }, '-created_date', 500);
-          await Promise.allSettled((msgs || []).map(m => base44.entities.Message.delete(m.id)));
+          await base44.entities.Message.deleteMany({ conversation_id: group.id });
           await base44.entities.ConversationGroup.delete(group.id);
           setGroupPreviews(prev => prev.filter(p => p.group?.id !== group.id));
         } catch (error) {
@@ -259,12 +258,13 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       }
       return;
     }
-    if (!window.confirm('Delete this conversation? All messages will be removed.')) return;
+    if (!window.confirm('Delete this conversation? All messages will be removed for both you and the other person.')) return;
     try {
-      await Promise.allSettled(conv.messages.map(msg => base44.entities.Message.delete(msg.id)));
+      await base44.entities.Message.deleteMany({ conversation_id: conv.id });
       setMessages(prev => prev.filter(m => m.conversation_id !== conv.id));
     } catch (error) {
       console.error('Error deleting conversation:', error);
+      alert('Failed to delete the conversation. Please try again.');
     }
   };
 
