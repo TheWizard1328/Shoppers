@@ -270,7 +270,13 @@ function fetchAndCache(url, cacheKey, img, done, attempt = 0) {
 }
 
 function _fetchAndCacheFromNetwork(url, cacheKey, img, done, attempt, swControlling) {
-  fetch(url, { mode: 'cors', credentials: 'omit' })
+  // 15s watchdog — a hung SW respondWith or dead connection rejects, and the
+  // catch below falls back to a direct img.src load.
+  const fetchWithTimeout = Promise.race([
+    fetch(url, { mode: 'cors', credentials: 'omit' }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('tile fetch timeout')), 15000)),
+  ]);
+  fetchWithTimeout
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -372,26 +378,13 @@ export function createCachedHereTileLayer(LInstance) {
       // (caching tracked via waitUntil in the background). This is the browser's
       // own image pipeline — same speed as the uncached era, renders
       // progressively, and skips the fetch→blob→objectURL round trip entirely.
-      // In the APK, the Android WebView's service-worker control has proven
-      // unreliable across cold starts (same tiles re-fetched every launch) —
-      // always use the page-direct cache + fetch→blob path there.
-      if (_isSwControlling() && !_isNativeApk()) {
-        img.onload  = () => done(null, img);
-        img.onerror = (e) => done(e, img);
-        img.src = url;
-
-        // Watchdog: if a tile hasn't loaded in 15s (hung SW response, dead
-        // connection), retry once with a cache-busting param — the SW strips
-        // 'rxr' before cache lookups, so the retry still caches normally.
-        setTimeout(() => {
-          if (img.complete || img.src !== url) return;
-          img.onload  = () => done(null, img);
-          img.onerror = (e) => done(e, img);
-          img.src = `${url}&rxr=${Date.now()}`;
-        }, 15000);
-        return img;
-      }
-
+      // UNIFIED PATH (all environments): page-direct Cache API first, then the
+      // legacy IDB store, then fetch→blob. The SW (when it controls the page)
+      // still intercepts the fetch as a secondary cache layer and tags hits
+      // with X-Tile-Cache — but the page-direct cache is the authoritative
+      // persistent layer. The old "SW controlling → native img" path was a
+      // separate code path that failed silently on web/PWA (same tiles
+      // re-fetched from HERE on every refresh); this path is proven on APK.
       // Cold start / APK (SW not controlling) — check the page-direct Cache API
       // first (persistent, no SW handshake), then the legacy IDB store.
       pageCacheGet(url).then((cachedRes) => {
