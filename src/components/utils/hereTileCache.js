@@ -238,13 +238,13 @@ async function pageCacheGet(url) {
   } catch (_) { return null; }
 }
 
-async function pageCachePut(url, response) {
+async function pageCachePut(url, clonedResponse) {
   try {
     if (!_pageCacheApiAvailable()) return;
     // Only cache proper CORS responses — opaque ones can't be re-read via blob()
-    if (!response.ok || response.type === 'opaque') return;
+    if (!clonedResponse.ok || clonedResponse.type === 'opaque') return;
     const cache = await caches.open(PAGE_TILE_CACHE);
-    await cache.put(_normalizeUrlForPageCache(url), response.clone());
+    await cache.put(_normalizeUrlForPageCache(url), clonedResponse);
   } catch (_) {}
 }
 
@@ -282,8 +282,14 @@ function _fetchAndCacheFromNetwork(url, cacheKey, img, done, attempt, swControll
       // Persist to the page-direct cache when the SW didn't already cache it
       // (SW-controlling hits/misses are cached inside the SW's own layer; when
       // the SW is NOT controlling, this page cache is the only persistent copy).
+      // CRITICAL: clone() synchronously HERE, before res.blob() below disturbs
+      // the body — cloning inside pageCachePut after its first await raced with
+      // blob() and threw "body already consumed" silently, so NOTHING was ever
+      // cached (same tiles fetched from HERE on every single load).
       if (!swCacheHit) {
-        pageCachePut(url, res).catch(() => {});
+        try {
+          pageCachePut(url, res.clone()).catch(() => {});
+        } catch (_) {}
       }
 
       return res.blob().then((blob) => ({ blob, swCacheHit }));
