@@ -278,6 +278,13 @@ export default function DeliveryForm({
   const addedPickupRoutesRef = useRef([]); // each entry: { driverId, deliveryDate, pickup? }
   const addedPickupRecordsRef = useRef([]); // actual created pickup records for dedup in batch save
   const [forceOpenDriverSelectOnLoad, setForceOpenDriverSelectOnLoad] = useState(forceOpenDriverOnLoad);
+
+  // Once a driver has actually been chosen on a new delivery, clear the force-open flag
+  // so a later re-render (e.g. the pickup-resolution effect updating puid/store_id) can't
+  // re-trigger the driver-select open effect and steal focus back from the barcode field.
+  useEffect(() => {
+    if (!delivery && formData.driver_id) setForceOpenDriverSelectOnLoad(false);
+  }, [delivery, formData.driver_id]);
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null);
   const originalPidRef = useRef('');
