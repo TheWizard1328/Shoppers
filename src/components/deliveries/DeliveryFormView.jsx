@@ -1173,7 +1173,7 @@ export default function DeliveryFormView({
                         setForceOpenDriverSelect(false);
                       }} disabled={isSaving}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                        <SelectContent className="z-[999999]">
+                        <SelectContent className="z-[999999]" onCloseAutoFocus={(e) => e.preventDefault()}>
                           <SelectItem value="all">All Drivers</SelectItem>
                           {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
                         </SelectContent>
@@ -1232,7 +1232,7 @@ export default function DeliveryFormView({
                             if (newDriverId && shouldAutoFocusFields) setTimeout(() => barcodeInputRef?.current?.focus(), 80);
                           }} disabled={isSaving}>
                               <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                              <SelectContent className="z-[999999]">
+                              <SelectContent className="z-[999999]" onCloseAutoFocus={(e) => e.preventDefault()}>
                                 {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
                                 {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
                               </SelectContent>
@@ -1283,7 +1283,7 @@ export default function DeliveryFormView({
                           if (newDriverId && shouldAutoFocusFields) setTimeout(() => barcodeInputRef?.current?.focus(), 80);
                         }} disabled={isSaving}>
                             <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                            <SelectContent className="z-[999999]">
+                            <SelectContent className="z-[999999]" onCloseAutoFocus={(e) => e.preventDefault()}>
                               {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
                               {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
                             </SelectContent>
