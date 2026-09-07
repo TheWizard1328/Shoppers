@@ -303,15 +303,6 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, driver_id: driverId, delivery_date: deliveryDate, pickups: [], skippedInterStore: true });
     }
 
-    // CRITICAL: Skip default pickup creation on stat holidays — no scheduled
-    // runs should be auto-created on a holiday. Dispatchers can still manually
-    // add stops if needed.
-    const statHolidays = await base44.asServiceRole.entities.StatHoliday.filter({ date: deliveryDate }, '-created_date', 5);
-    if ((statHolidays || []).length > 0) {
-      console.log(`[ensureDefaultPickups] Skipped — stat holiday (${statHolidays[0]?.holiday_name || '?'}) for driver=${driverId} date=${deliveryDate}`);
-      return Response.json({ success: true, driver_id: driverId, delivery_date: deliveryDate, pickups: [], skippedStatHoliday: true });
-    }
-
     // Resolve creator: always use AppUser.id for created_by_app_user_id and dispatcher_id
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];
     const creatorAppUser = creatorAppUsers?.[0] || null;
@@ -324,20 +315,50 @@ Deno.serve(async (req) => {
     }
     const driverAppUser = driverAppUsers?.[0] || null;
     const driverUserId = driverAppUser?.user_id || null;
-    const [assignedStores, dateOverrides] = await Promise.all([
-      loadAssignedStores(base44, deliveryDate, driverId, driverUserId),
-      base44.asServiceRole.entities.DriverScheduleOverride.filter({ date: deliveryDate }),
-    ]);
-
-    const filteredStores = assignedStores || [];
-
     const driverName = driverAppUser?.user_name || driverAppUser?.full_name || '';
     console.log(`[ensureDefaultPickups] driverId=${driverId} driverAppUser=${JSON.stringify(driverAppUser)} driverName="${driverName}"`);
+
+    // STAT HOLIDAY: instead of skipping, create stat-holiday pickups for every store
+    // where this driver is the designated stat_holiday_driver_id (stat_holiday_enabled === true).
+    // Stores that are not "Stat true" get no default pickup here — their pickups are created
+    // on demand by ensurePickupForDelivery, which sets after_hours_pickup = true on a holiday.
+    const statHolidays = await base44.asServiceRole.entities.StatHoliday.filter({ date: deliveryDate }, '-created_date', 5);
+    const isStatHoliday = (statHolidays || []).length > 0;
+
+    let filteredStores = [];
+    let dateOverrides = [];
+
+    if (isStatHoliday) {
+      console.log(`[ensureDefaultPickups] Stat holiday (${statHolidays[0]?.holiday_name || '?'}) — creating stat holiday pickups for driver=${driverId} date=${deliveryDate}`);
+      const driverIdsToMatch = [driverId, driverUserId].filter(Boolean);
+      const allStores = await base44.asServiceRole.entities.Store.list('-created_date', 200);
+      filteredStores = (allStores || [])
+        .filter((store) =>
+          store?.id &&
+          store?.stat_holiday_enabled === true &&
+          store?.stat_holiday_driver_id &&
+          store?.stat_holiday_driver_id !== '__booked_off__' &&
+          driverIdsToMatch.includes(store.stat_holiday_driver_id)
+        )
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    } else {
+      const [assignedStores, overrides] = await Promise.all([
+        loadAssignedStores(base44, deliveryDate, driverId, driverUserId),
+        base44.asServiceRole.entities.DriverScheduleOverride.filter({ date: deliveryDate }),
+      ]);
+      filteredStores = assignedStores || [];
+      dateOverrides = overrides || [];
+    }
+
     const ensuredPickups = [];
 
     for (const store of filteredStores) {
       if (!store) continue;
-      const slots = await getAssignedSlotsForStoreWithOverrides(base44, store, deliveryDate, driverId, driverUserId, dateOverrides || []);
+      // On a stat holiday, create one AM pickup per stat-holiday-enabled store;
+      // otherwise resolve AM/PM slots using overrides + store defaults.
+      const slots = isStatHoliday
+        ? ['AM']
+        : await getAssignedSlotsForStoreWithOverrides(base44, store, deliveryDate, driverId, driverUserId, dateOverrides || []);
 
       for (const slot of slots) {
         const pickup = await ensurePickup(base44, {

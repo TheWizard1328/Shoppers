@@ -382,6 +382,12 @@ Deno.serve(async (req) => {
     // Rule 2: Driver IS the scheduled driver BUT has already completed/started a pickup for this
     //         same store + slot earlier today → the new pickup is a second run → after_hours.
     // Rule 3: Driver IS the scheduled driver and no prior activity exists for this store + slot → NOT after_hours.
+    // STAT HOLIDAY: on a holiday the only "scheduled" driver is the store's stat_holiday_driver_id,
+    // and only when the store has stat_holiday_enabled === true ("Stat true"). Stores that are not
+    // "Stat true" have no scheduled driver on a holiday, so any pickup created there is after_hours.
+    const statHolidays = await base44.asServiceRole.entities.StatHoliday.filter({ date: deliveryDate }, '-created_date', 5);
+    const isStatHoliday = (statHolidays || []).length > 0;
+
     const getEffectiveScheduledDriverId = (slot) => {
       const override = (dateOverrides || []).find((o) => o.store_id === storeId && o.slot_key === `${dow === 6 ? 'saturday' : dow === 0 ? 'sunday' : 'weekday'}_${slot === 'PM' ? 'pm' : 'am'}`);
       if (override) return override.driver_id;
@@ -390,7 +396,9 @@ Deno.serve(async (req) => {
         : (isWeekday ? 'weekday_pm_driver_id' : dow === 6 ? 'saturday_pm_driver_id' : 'sunday_pm_driver_id');
       return store?.[fieldKey] || null;
     };
-    const scheduledDriverId = getEffectiveScheduledDriverId(chosenSlot);
+    const scheduledDriverId = isStatHoliday
+      ? (store?.stat_holiday_enabled === true ? (store?.stat_holiday_driver_id || null) : null)
+      : getEffectiveScheduledDriverId(chosenSlot);
     const driverNotScheduled = !scheduledDriverId || scheduledDriverId === '__booked_off__' || String(scheduledDriverId) !== String(driverId);
     // Check if there is already any pickup activity for this driver at this store in this slot
     const hasExistingSlotActivity = (allPickups || []).some(d =>
