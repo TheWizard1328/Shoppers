@@ -57,14 +57,19 @@ export const purgeStaleServiceWorkerAndCaches = async () => {
     }
   } catch (_) {}
 
-  // 2. Wipe all Cache Storage entries (chunks, HTML, JS, CSS from old build)
+  // 2. Wipe all Cache Storage entries (chunks, HTML, JS, CSS from old build) —
+  // EXCEPT the HERE tile caches. A stale-chunk error is about JS/HTML assets,
+  // never about map tiles; nuking 'rx-tiles-*'/'here-tiles-*' here forced a
+  // full tile re-fetch from HERE on every recovery reload for no reason.
   try {
     if ('caches' in window) {
       const keys = await caches.keys();
       await Promise.all(
-        (keys || []).map(async (k) => {
-          try { await caches.delete(k); } catch (_) {}
-        })
+        (keys || [])
+          .filter((k) => !k.startsWith('rx-tiles-') && !k.startsWith('here-tiles-'))
+          .map(async (k) => {
+            try { await caches.delete(k); } catch (_) {}
+          })
       );
     }
   } catch (_) {}
