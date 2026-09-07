@@ -649,40 +649,33 @@ export default function PatientForm({
         }
       }
 
-      // STEP 2: Broadcast change to other devices (non-blocking)
+      // STEP 2 (removed): the manual broadcastEntityChange call was deleted —
+      // that backend function doesn't exist (returned 404 on every save) and
+      // its awaited failure + retry backoff blocked the UI. The platform already
+      // broadcasts Patient changes via the realtime WebSocket + EntityMutations
+      // pipeline, so this was redundant dead code.
+
+      // STEP 3 + STEP 4 moved off the critical path: the post-save re-fetch /
+      // offline-DB refresh / cache invalidate are redundant with the mutation
+      // pipeline (EntityMutations already saves the full record to the offline
+      // DB and realtimeSync already broadcasts). Awaiting them before closing
+      // the form caused a ~60s UI freeze. Fire them in the background instead.
       if (patient) {
-        try {
-          const { base44 } = await import('@/api/base44Client');
-          await base44.functions.invoke('broadcastEntityChange', {
-            entity_name: 'Patient',
-            operation: 'update',
-            metadata: { id: savedPatientId }
-          });
-          console.log('  📡 Broadcasted to other devices');
-        } catch (broadcastError) {
-          console.warn('  ⚠️ Broadcast failed (non-critical):', broadcastError.message);
-        }
+        (async () => {
+          try {
+            const { base44 } = await import('@/api/base44Client');
+            const freshPatient = await base44.entities.Patient.get(savedPatientId);
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [freshPatient]);
+          } catch (_) { /* non-critical background refresh */ }
+          try {
+            const { invalidate } = await import('../utils/dataManager');
+            invalidate('Patient');
+          } catch (_) {}
+        })();
       }
 
-      // STEP 3: Fetch latest data if updating (for updates, refetch to ensure offline DB is fresh)
-      if (patient) {
-        const { base44 } = await import('@/api/base44Client');
-        console.log('  🔄 Fetching latest patient data...');
-        const freshPatient = await base44.entities.Patient.get(savedPatientId);
-        console.log('  ✅ Fresh patient data fetched');
-
-        // Update offline database with fresh data
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [freshPatient]);
-        console.log('  ✅ Offline DB updated with fresh data');
-      }
-
-      // STEP 4: Invalidate cache and trigger UI update
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Patient');
-      console.log('  ✅ Cache invalidated');
-
-      // STEP 5: Close form and pass patient data to parent
+      // STEP 5: Close form and pass patient data to parent (now immediate)
       if (returnPatientOnSave) {
         const completePatient = {
           ...dataToSave,
