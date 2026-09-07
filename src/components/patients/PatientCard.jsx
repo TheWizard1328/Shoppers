@@ -374,6 +374,26 @@ export default function PatientCard({
             </div>
           </div>
         }
+
+        {/* Last Delivered Date — bottom-left badge */}
+        {(() => {
+          const ldDate = patient.delivery_history?.[0]?.delivery_date || patient.last_delivery_date;
+          if (!ldDate) return null;
+          let label;
+          try {
+            label = format(new Date(ldDate + 'T00:00:00'), 'MMM d, yyyy');
+          } catch {
+            label = String(ldDate);
+          }
+          return (
+            <div className="mt-3 pt-3 flex justify-start" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
+              <Badge variant="outline" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+                <Calendar className="w-3.5 h-3 mr-1" />
+                LD: {label}
+              </Badge>
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>);
 
