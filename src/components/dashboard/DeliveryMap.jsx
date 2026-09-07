@@ -1596,6 +1596,11 @@ function DeliveryMap({
         // snap boundary (which made zoom feel like it only changed at whole numbers).
         zoomSnap={0}
         zoomDelta={0.5}
+        // ~0.5 zoom per mouse-wheel notch instead of the default ~1.0.
+        // wheelPxPerZoomLevel scales scroll-pixels → zoom-level delta; 2× the
+        // default (60) gives a half-zoom step per notch. zoomSnap stays 0 so
+        // Phase 2/3 GPS-follow incremental zoom is unaffected.
+        wheelPxPerZoomLevel={120}
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
         doubleClickZoom={false}
