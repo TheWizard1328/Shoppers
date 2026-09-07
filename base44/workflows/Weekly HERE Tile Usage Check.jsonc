@@ -1,6 +1,6 @@
 {
   "name": "Weekly HERE Tile Usage Check",
-  "description": "One-time Friday Sep 11, 9am Edmonton \u2014 checks the week's HERE map tile usage from GoogleAPILog and reports to the owner whether the tile cache fix has reduced daily API calls vs the ~2,900/day baseline.",
+  "description": "One-time Friday Sep 11, 9pm Edmonton \u2014 checks the full week's HERE map tile usage from GoogleAPILog (Mon-Fri, with Monday footnoted as a testing day) and reports to the owner whether the tile cache fix has reduced daily API calls vs the ~2,900/day baseline.",
   "trigger": {
     "condition": null,
     "config": {
@@ -8,7 +8,7 @@
       "events": [],
       "schedule_mode": "one_time",
       "cron_expression": null,
-      "one_time_date": "2026-09-11T15:00:00Z",
+      "one_time_date": "2026-09-12T03:00:00Z",
       "timezone": "UTC",
       "interval_value": null,
       "interval_unit": null,
@@ -25,7 +25,7 @@
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "End-of-week HERE tile usage check (agreed with owner Sep 7, 2026).\n\n1. Read the RxDeliver app (id 68570f3cd01bfa2d2408a9d6) GoogleAPILog entity records for api_type 'Map Tiles (HERE)' covering Mon Sep 7 through Fri Sep 11, 2026. Paginate with read_entities (limit 500, skip) until done; sum metadata.call_count per day and total.\n2. Compare with the pre-fix baseline (~2,900 tiles/day in Aug, e.g. 82,489 for the month).\n3. If daily counts are dropping substantially below baseline (cache working as expected), send the owner a short WhatsApp summary (brief \u2014 owner uses text-to-speech) saying the week's total, the average/day, and the % drop vs baseline.\n4. If counts are NOT dropping (still near baseline every day), investigate before messaging: check whether the counts are genuinely new tiles (new areas/zoom levels) or a cache regression (same tiles repeatedly), then report findings either way.\nNote: fresh log rows with real counts are often NEW tiles at unviewed zoom/location \u2014 check zoom levels/patterns before diagnosing a cache bug. Day boundaries: the app logs in UTC but the owner is in America/Edmonton \u2014 note that HERE's UTC-midnight reset can shift a few tiles across day boundaries."
+            "message": "End-of-week HERE tile usage check (agreed with owner Sep 7, 2026).\n\n1. Read the RxDeliver app (id 68570f3cd01bfa2d2408a9d6) GoogleAPILog entity records for api_type 'Map Tiles (HERE)' covering Mon Sep 7 through Fri Sep 11, 2026 (full days). Paginate with read_entities (limit 500, skip) until done; sum metadata.call_count per day and total.\n2. Monday Sep 7 was a heavy testing day (cache debugging) \u2014 exclude or footnote it when evaluating the trend; Tue-Fri are the clean signal.\n3. Compare with the pre-fix baseline (~2,900 tiles/day in Aug, e.g. 82,489 for the month).\n4. If daily counts are dropping substantially below baseline (cache working as expected), send the owner a short WhatsApp summary (brief \u2014 owner uses text-to-speech) saying the week's total, the average/day for Tue-Fri, and the % drop vs baseline.\n5. If counts are NOT dropping (still near baseline every day), investigate before messaging: check whether the counts are genuinely new tiles (new areas/zoom levels) or a cache regression (same tiles repeatedly), then report findings either way.\nNote: fresh log rows with real counts are often NEW tiles at unviewed zoom/location \u2014 check zoom levels/patterns before diagnosing a cache bug. Day boundaries: the app logs in UTC but the owner is in America/Edmonton \u2014 note that HERE's UTC-midnight reset can shift a few tiles across day boundaries."
           }
         }
       }
@@ -34,7 +34,7 @@
       "dsl": "1.0.0",
       "name": "here_tile_usage_weekly_check",
       "namespace": "base44",
-      "version": "1.0"
+      "version": "1.1"
     }
   }
 }
