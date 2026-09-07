@@ -107,7 +107,7 @@ export default function MobileHeader({
       className="mobile-header border-b sticky top-0 z-50 overflow-visible border-surface bg-surface">
       <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">
         {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex-1 min-w-0 flex items-center justify-start gap-1">
           <button
             type="button"
             onClick={handleBackButtonClick}
@@ -119,7 +119,7 @@ export default function MobileHeader({
 
           {/* Logo with message badge */}
           <div
-            className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
+            className="flex items-center gap-2 min-w-0 shrink relative cursor-pointer"
             onClick={() => {
               if (unreadMessageCount > 0) {
                 onMessagingClick?.();
@@ -129,7 +129,7 @@ export default function MobileHeader({
             <img
               src={logo}
               alt="RxDeliver"
-              className="rounded object-contain h-14 w-14"
+              className="rounded object-contain h-14 w-auto max-w-full"
               style={{ filter: 'var(--image-filter, none)' }}
               onError={() => setLogoFailed(true)} /> :
 
@@ -170,7 +170,7 @@ export default function MobileHeader({
 
         {/* Centered Controls - drivers and admins only */}
         {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-        <div className="flex-1 flex items-center justify-center gap-2">
+        <div className="flex-none flex items-center justify-center gap-1.5">
             {/* Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -215,7 +215,7 @@ export default function MobileHeader({
 
         {/* RIGHT: Battery + Avatar (+ QR for dispatchers) */}
         {currentUser &&
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
             {/* QR Code for dispatchers — far right next to battery */}
             {!sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
           <button
