@@ -1130,10 +1130,15 @@ export default function Patients() {
   }, [editingPatient, selectedPatient, patientFormCallback]);
 
   const handleEditPatient = useCallback((patient) => {
-    setSelectedPatient(patient);
+    // On mobile, don't auto-open the details sheet when the user taps Edit on a
+    // card — opening the form is enough. Selecting the patient here would slide
+    // the MobilePatientDetailsSheet up behind the form, so it reappears every
+    // time the user saves ("Update Patient") with no way to close it. Desktop
+    // keeps the right-panel selection behaviour.
+    if (!isMobile) setSelectedPatient(patient);
     setEditingPatient(patient);
     setShowPatientForm(true);
-  }, []);
+  }, [isMobile]);
 
   const handleDeletePatient = useCallback(async (patient) => {
     // Allow admins to delete patients
