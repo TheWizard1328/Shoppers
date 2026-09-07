@@ -1,4 +1,5 @@
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
+import { getStatHoliday } from '../utils/statHolidayResolver';
 
 const isSoleDriverUser = (currentUser) => {
   const roles = Array.isArray(currentUser?.app_roles) ? currentUser.app_roles : [];
@@ -13,7 +14,8 @@ export const resolvePatientDriverAssignment = ({
   allDeliveries,
   getDriverNameForStorage,
   currentUser,
-  scheduledDriverMap = {}
+  scheduledDriverMap = {},
+  statHolidays = null
 }) => {
   if (!patientStore || !deliveryDate || !drivers) {
     return { autoSelectedDriverId: '', autoSelectedDriverName: '', deliveryAMPM: determineDeliveryAMPM(patient) };
@@ -50,9 +52,20 @@ export const resolvePatientDriverAssignment = ({
     scheduledDriverMap[patientStore.id] ||
     null;
 
+  // Stat holiday: drivers always auto-select themselves; otherwise the store's
+  // stat-holiday override driver is used when the Stats flag is set, and when it
+  // is NOT set the driver is left blank so the user is prompted to pick one.
+  const isStatHolidayDate = !!(statHolidays && getStatHoliday(deliveryDate, statHolidays));
+
   let driverId;
   if (isSoleDriverUser(currentUser)) {
     driverId = currentUser.id || currentUser.user_id || '';
+  } else if (isStatHolidayDate) {
+    if (patientStore.stat_holiday_enabled && patientStore.stat_holiday_driver_id) {
+      driverId = patientStore.stat_holiday_driver_id;
+    } else {
+      driverId = ''; // no Stats flag — prompt user to select a driver
+    }
   } else if (existingPickupDriverId) {
     driverId = existingPickupDriverId;
   } else if (overrideDriverId) {
@@ -133,7 +146,8 @@ export const buildDuplicatePatientDraft = ({
   drivers,
   allDeliveries,
   getDriverNameForStorage,
-  formData
+  formData,
+  statHolidays = null
 }) => {
   const fullPatient = patients.find((item) => item && item.id === patient.id) || patient;
   const patientStore = stores.find((store) => store && store.id === fullPatient.store_id);
@@ -157,7 +171,8 @@ export const buildDuplicatePatientDraft = ({
     allDeliveries,
     getDriverNameForStorage,
     currentUser: formData._currentUser || null,
-    scheduledDriverMap: formData._scheduledDriverMap || {}
+    scheduledDriverMap: formData._scheduledDriverMap || {},
+    statHolidays: statHolidays || formData._statHolidays || null
   });
 
   return {
@@ -207,7 +222,8 @@ export const buildNewAddressPatientDraft = ({
   allDeliveries,
   getDriverNameForStorage,
   formData,
-  shouldAutoFocusFields
+  shouldAutoFocusFields,
+  statHolidays = null
 }) => {
   const fullPatient = patients.find((item) => item && item.id === patient.id) || patient;
   const patientStore = stores.find((store) => store && store.id === fullPatient.store_id);
@@ -220,7 +236,8 @@ export const buildNewAddressPatientDraft = ({
     allDeliveries,
     getDriverNameForStorage,
     currentUser: formData._currentUser || null,
-    scheduledDriverMap: formData._scheduledDriverMap || {}
+    scheduledDriverMap: formData._scheduledDriverMap || {},
+    statHolidays: statHolidays || formData._statHolidays || null
   });
 
   return {

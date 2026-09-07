@@ -699,7 +699,7 @@ export default function DeliveryForm({
     const isFirstDelivery = !hasCompletedDelivery;
     setSelectedPatient(patient);
     const patientStore = (freshStores || stores).find((s) => s && s.id === patient.store_id);
-    const { autoSelectedDriverId: resolvedDriverId, autoSelectedDriverName: resolvedDriverName, deliveryAMPM } = resolvePatientDriverAssignment({ patient, patientStore, deliveryDate: formData.delivery_date, drivers, allDeliveries, getDriverNameForStorage, currentUser, scheduledDriverMap: scheduledDriverMapRef.current });
+    const { autoSelectedDriverId: resolvedDriverId, autoSelectedDriverName: resolvedDriverName, deliveryAMPM } = resolvePatientDriverAssignment({ patient, patientStore, deliveryDate: formData.delivery_date, drivers, allDeliveries, getDriverNameForStorage, currentUser, scheduledDriverMap: scheduledDriverMapRef.current, statHolidays: statHolidaysRef.current });
 
     // If the dispatcher/admin manually chose a driver, keep it — don't override with the scheduled driver
     const autoSelectedDriverId = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_id : resolvedDriverId;
@@ -760,7 +760,7 @@ export default function DeliveryForm({
 
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient || !onCreatePatient) return;
-    const { patientWithEmpty, nextFormData, duplicateSelectedPatient } = buildDuplicatePatientDraft({ patient, patients, deliveryDate: formData.delivery_date, stores, drivers, allDeliveries, getDriverNameForStorage, formData });
+    const { patientWithEmpty, nextFormData, duplicateSelectedPatient } = buildDuplicatePatientDraft({ patient, patients, deliveryDate: formData.delivery_date, stores, drivers, allDeliveries, getDriverNameForStorage, formData, statHolidays: statHolidaysRef.current });
     setIsPatientFormOpen(true);
     onCreatePatient((createdPatient) => { setIsPatientFormOpen(false); handlePatientSelect(createdPatient, false); }, patientWithEmpty, 'duplicate');
     setPatientSearch(''); setHighlightedPatientIndex(-1); setFormData(nextFormData); setSelectedPatient(duplicateSelectedPatient);
@@ -769,7 +769,7 @@ export default function DeliveryForm({
 
   const handleNewAddressPatient = useCallback((patient) => {
     if (!patient || !onCreatePatient) return;
-    const { nextFormData, patientWithoutAddress } = buildNewAddressPatientDraft({ patient, patients, deliveryDate: formData.delivery_date, stores, drivers, allDeliveries, getDriverNameForStorage, formData, shouldAutoFocusFields });
+    const { nextFormData, patientWithoutAddress } = buildNewAddressPatientDraft({ patient, patients, deliveryDate: formData.delivery_date, stores, drivers, allDeliveries, getDriverNameForStorage, formData, shouldAutoFocusFields, statHolidays: statHolidaysRef.current });
     setNewPatientMode('new_address'); setSelectedPatient(null); setPatientSearch(''); setHighlightedPatientIndex(-1); setFormData(nextFormData); setSelectedPatient(patientWithoutAddress);
     setIsPatientFormOpen(true);
     onCreatePatient((createdPatient) => { setIsPatientFormOpen(false); setNewPatientMode(null); handlePatientSelect(createdPatient, false); }, patientWithoutAddress, 'newAddress');
@@ -1338,8 +1338,10 @@ export default function DeliveryForm({
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, patients, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap, calculateDistance }), [projectedDeliveries, allDeliveries, stores, patients, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
   const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
 
-  // Stat holiday enforcement — for dispatchers, only force manual selection if no driver
-  // is scheduled and no other driver has a pickup for their store on that date.
+  // Stat holiday enforcement — on a stat holiday the driver is NOT pre-selected at
+  // form-open for dispatchers/admins; it is resolved only after a patient is selected
+  // (see resolvePatientDriverAssignment), based on that patient's store's Stats flag.
+  // Sole drivers always auto-select themselves on any date, so they are skipped here.
   useEffect(() => {
     if (delivery) return; // only for new deliveries
     if (!formData.delivery_date) { setStatHolidayWarning(null); return; }
@@ -1353,51 +1355,20 @@ export default function DeliveryForm({
           setStatHolidayWarning(holiday.holiday_name);
           if (driverManuallyChangedRef.current) return; // user already picked — respect their choice
 
-          const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-          if (isDispatcherOnly) {
-            // For dispatchers: check if a scheduled driver exists for their store
-            const dispatcherStoreId = (currentUser.store_ids || [])[0];
-            const scheduledMap = scheduledDriverMapRef.current;
-            const scheduledDriverId = scheduledMap[dispatcherStoreId] || scheduledMap[`${dispatcherStoreId}_AM`] || scheduledMap[`${dispatcherStoreId}_PM`] || null;
+          // Sole drivers always auto-select themselves — don't clear their driver.
+          const isSoleDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+          if (isSoleDriver) return;
 
-            if (scheduledDriverId) {
-              // A scheduled driver exists — auto-select them (don't force manual)
-              const driver = allDrivers.find((d) => d && (d.id === scheduledDriverId || d.user_id === scheduledDriverId));
-              if (driver) {
-                setFormData((prev) => ({ ...prev, driver_id: driver.id, driver_name: getDriverNameForStorage(driver) }));
-              }
-              return;
-            }
-
-            // No scheduled driver — check if any driver has a pickup for this store on this date
-            const pickupDriver = dispatcherStoreId && allDeliveries
-              ? allDeliveries.find((d) => d && !d.patient_id && d.store_id === dispatcherStoreId && d.delivery_date === formData.delivery_date && ['en_route', 'in_transit', 'pending'].includes(d.status))
-              : null;
-
-            if (pickupDriver?.driver_id) {
-              // Auto-select the driver who already has a pickup for this store
-              const driver = allDrivers.find((d) => d && (d.id === pickupDriver.driver_id || d.user_id === pickupDriver.driver_id));
-              if (driver) {
-                setFormData((prev) => ({ ...prev, driver_id: driver.id, driver_name: getDriverNameForStorage(driver) }));
-              }
-              return;
-            }
-
-            // No scheduled driver and no pickup driver — force manual selection
-            setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
-            setTimeout(() => setForceOpenDriverSelectOnLoad(true), 100);
-          } else {
-            // Non-dispatcher (admin) — existing behavior: clear and force manual
-            setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
-            setTimeout(() => setForceOpenDriverSelectOnLoad(true), 100);
-          }
+          // Dispatchers + admins on a stat holiday: leave the driver blank and do NOT
+          // auto-open the dropdown. The driver is resolved after a patient is selected.
+          setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
         } else {
           setStatHolidayWarning(null);
         }
       } catch { /* non-critical */ }
     })();
     return () => { cancelled = true; };
-  }, [delivery, formData.delivery_date, allDeliveries, allDrivers]);
+  }, [delivery, formData.delivery_date, currentUser, allDeliveries, allDrivers]);
 
   // Reset manual-change flag whenever the delivery date changes (so auto-select re-runs)
   const prevDeliveryDateRef = useRef(formData.delivery_date);
