@@ -87,6 +87,7 @@ import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
+import { useSystemUpdatesReadSync } from './components/messaging/useSystemUpdatesReadSync';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -991,12 +992,16 @@ export default function Layout({ children, currentPageName }) {
 
   useDispatcherMessageAutoOpen({
     currentUser,
+    appUsers,
     isFormOverlayOpen,
     showMessaging,
     setShowMessaging,
     setInitialConversation,
     setPendingBlinkConversationId,
   });
+
+  // After a restart/refresh, clear unread state in the System Updates thread
+  useSystemUpdatesReadSync(currentUser);
 
   const filteredDeliveries = useMemo(() => {
     if (!deliveries.length || !currentUser) return [];

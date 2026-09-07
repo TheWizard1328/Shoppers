@@ -6,6 +6,7 @@ import {
   isAppUpdateBroadcast,
   isHiddenSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
+import { loadGroupsWithPreview } from './groupConversationLoader';
 
 /**
  * useDispatcherMessageAutoOpen
@@ -30,6 +31,7 @@ import {
  */
 export function useDispatcherMessageAutoOpen({
   currentUser,
+  appUsers,
   isFormOverlayOpen,
   showMessaging,
   setShowMessaging,
@@ -137,4 +139,37 @@ export function useDispatcherMessageAutoOpen({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFormOverlayOpen, showMessaging]);
+
+  // ── Boot auto-open: open the messages panel on load/refresh if unread exist ─
+  const appUsersRef = useRef(appUsers);
+  useEffect(() => { appUsersRef.current = appUsers; }, [appUsers]);
+  const bootCheckDoneRef = useRef(false);
+  useEffect(() => {
+    if (bootCheckDoneRef.current) return;
+    if (!currentUser?.id) return;
+    if (!userHasRole(currentUser, 'dispatcher')) { bootCheckDoneRef.current = true; return; }
+    bootCheckDoneRef.current = true;
+    (async () => {
+      try {
+        const received = await base44.entities.Message.filter(
+          { receiver_id: currentUser.id, read: false }, '-created_date', 50
+        );
+        const directUnread = (received || []).filter(
+          (m) => m.sender_id !== SYSTEM_UPDATES_SENDER_ID
+        ).length;
+        let groupUnread = 0;
+        const au = appUsersRef.current || [];
+        if (au.length > 0) {
+          try {
+            const previews = await loadGroupsWithPreview(currentUser, au);
+            groupUnread = previews.reduce((s, p) => s + (p?.unreadCount || 0), 0);
+          } catch (_) {}
+        }
+        if ((directUnread + groupUnread) > 0 && !showMessagingRef.current && !isFormOverlayOpenRef.current) {
+          setShowMessaging(true);
+        }
+      } catch (e) { /* non-critical */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 }
