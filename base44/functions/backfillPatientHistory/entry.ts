@@ -8,7 +8,64 @@ Deno.serve(async (req) => {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
   if (user.role !== 'admin') return Response.json({ error: 'Admin only' }, { status: 403 });
 
-  const { store_ids, skip_delivery_corrections } = await req.json();
+  const { store_ids, skip_delivery_corrections, patient_id } = await req.json();
+
+  // ── Single-patient mode (invoked from PatientForm after an edit) ──────────
+  // Rebuild only the edited patient's delivery_history + last_delivery_date
+  // from their terminal deliveries + any "Return" runs that name them.
+  if (patient_id) {
+    const db = base44.asServiceRole;
+    const patient = await db.entities.Patient.get(patient_id).catch(() => null);
+    if (!patient) return Response.json({ error: 'Patient not found', patient_id }, { status: 404 });
+
+    const direct = await db.entities.Delivery.filter(
+      { patient_id, status: { $in: ['completed', 'failed'] } },
+      '-delivery_date', 5000
+    ).catch(() => []);
+
+    let returnEntries = [];
+    if (patient.store_id && patient.full_name) {
+      const returns = await db.entities.Delivery.filter(
+        { store_id: patient.store_id, patient_name: { $regex: 'Return', $options: 'i' } },
+        'created_date', 5000
+      ).catch(() => []);
+      const targetName = patient.full_name.toLowerCase().trim();
+      for (const d of returns) {
+        if (!d.delivery_notes) continue;
+        const forMatch = d.delivery_notes.match(/For:\s*(.+)/i);
+        if (!forMatch) continue;
+        let namesText = d.delivery_notes.substring(d.delivery_notes.indexOf('For:') + 4);
+        const rtnIdx = namesText.indexOf('(RTN)');
+        if (rtnIdx !== -1) namesText = namesText.substring(0, rtnIdx);
+        const names = namesText.split(/\s+And\s+/i).flatMap(s => s.split(',')).map(s => s.trim()).filter(s => s.length > 0 && !s.match(/^(RTN|From:)/i));
+        if (names.some(n => n.toLowerCase().trim() === targetName)) returnEntries.push(d);
+      }
+    }
+
+    const byId = new Map();
+    for (const d of direct) {
+      byId.set(d.id, { id: d.id, delivery_date: d.delivery_date || null, actual_delivery_time: d.actual_delivery_time || null, status: d.status });
+    }
+    for (const d of returnEntries) {
+      byId.set(d.id, { id: d.id, delivery_date: d.delivery_date || null, actual_delivery_time: d.actual_delivery_time || null, status: 'returned' });
+    }
+    const history = Array.from(byId.values()).sort((a, b) => {
+      const aDate = a.delivery_date || '';
+      const bDate = b.delivery_date || '';
+      if (aDate !== bDate) return bDate.localeCompare(aDate);
+      return (b.actual_delivery_time || '').localeCompare(a.actual_delivery_time || '');
+    });
+
+    const lastDeliveryDate = history.length > 0 ? history[0].delivery_date : null;
+    await db.entities.Patient.update(patient_id, { delivery_history: history, last_delivery_date: lastDeliveryDate })
+      .catch(() => {});
+
+    return Response.json({
+      mode: 'single-patient', patient_id,
+      history_entries: history.length, last_delivery_date: lastDeliveryDate
+    });
+  }
+
   if (!Array.isArray(store_ids) || store_ids.length === 0) {
     return Response.json({ error: 'store_ids array required' }, { status: 400 });
   }

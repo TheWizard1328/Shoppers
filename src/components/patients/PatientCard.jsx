@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +22,14 @@ import {
   Mailbox,
   Globe,
   LogIn,
-  Hash } from
+  Hash,
+  Loader2 } from
 "lucide-react";
 import { formatPhoneNumber } from "../utils/formatters";
 import { formatAddressWithUnit } from '../utils/formatters';
 import { format } from "date-fns";
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
+import { subscribePatientHistoryBackfill } from '../utils/patientHistoryBackfill';
 
 import {
   DropdownMenu,
@@ -128,8 +130,17 @@ export default function PatientCard({
   currentUser
 }) {
 
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  useEffect(() => {
+    return subscribePatientHistoryBackfill((inFlightId) => {
+      setIsBackfilling(inFlightId === patient?.id);
+    });
+  }, [patient?.id]);
+
   const handleEdit = (e) => {
     e.stopPropagation();
+    if (isBackfilling) return;
     onEdit?.(patient);
   };
 
@@ -260,9 +271,10 @@ export default function PatientCard({
               className="h-8 w-8 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300"
               style={{ color: 'var(--text-slate-400)' }}
               onClick={handleEdit}
-              title="Edit Patient">
+              disabled={isBackfilling}
+              title={isBackfilling ? 'Updating delivery history…' : 'Edit Patient'}>
 
-              <Edit className="w-4 h-4" />
+              {isBackfilling ? <Loader2 className="w-4 h-4 animate-spin text-label" /> : <Edit className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"

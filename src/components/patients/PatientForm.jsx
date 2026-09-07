@@ -24,6 +24,7 @@ import { offlineDB } from '../utils/offlineDatabase';
 import { canAutoFocusFormFields } from '@/components/utils/deviceUtils';
 import { globalFilters } from '@/components/utils/globalFilters';
 import { abbreviateAddressDirections, normalizeStreetTypes } from '@/components/utils/addressCleaner';
+import { startPatientHistoryBackfill, finishPatientHistoryBackfill } from '../utils/patientHistoryBackfill';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -661,6 +662,8 @@ export default function PatientForm({
       // DB and realtimeSync already broadcasts). Awaiting them before closing
       // the form caused a ~60s UI freeze. Fire them in the background instead.
       if (patient) {
+        // Signal the per-card spinner for this patient immediately (before form close)
+        startPatientHistoryBackfill(savedPatientId);
         (async () => {
           try {
             const { base44 } = await import('@/api/base44Client');
@@ -672,6 +675,19 @@ export default function PatientForm({
             const { invalidate } = await import('../utils/dataManager');
             invalidate('Patient');
           } catch (_) {}
+        })();
+        // Background history backfill (non-blocking) — scoped to this patient only.
+        // Runs backfillPatientHistory then syncPatientLastDeliveryDate; clears the
+        // per-card spinner in finally regardless of success/failure.
+        (async () => {
+          try {
+            await base44.functions.invoke('backfillPatientHistory', { patient_id: savedPatientId });
+            await base44.functions.invoke('syncPatientLastDeliveryDate', { patient_id: savedPatientId });
+          } catch (err) {
+            console.warn('⚠️ [PatientForm] History backfill failed:', err?.message || err);
+          } finally {
+            finishPatientHistoryBackfill(savedPatientId);
+          }
         })();
       }
 
