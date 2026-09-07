@@ -93,6 +93,12 @@ export default function WebSocketDiagnosticsCard() {
 
       // Handle Delivery updates
       if (entityName === 'Delivery') {
+        // The name pill should show the DRIVER whose stop changed (denormalized
+        // driver_name on the delivery record), not the WS sender. The entity
+        // payload carries no sender field, so updatedBy falls back to the local
+        // session user and would mislabel other drivers' stops as your own.
+        displayInfo.updatedBy = data?.driver_name || updatedBy || 'System';
+
         const meaningfulFields = (changedFields || []).filter((field) => ![
           'proof_photo_urls',
           'cod_payments',
