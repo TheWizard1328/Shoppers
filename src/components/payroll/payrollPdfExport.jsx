@@ -2,9 +2,40 @@ import { jsPDF } from 'jspdf';
 import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
 
 /**
+ * Save a jsPDF document, preferring the native Share Sheet on mobile/APK.
+ *
+ * Why: jsPDF's doc.save() triggers an <a download> click on a blob: URL.
+ * That works fine in a desktop browser, but Android's WebView download
+ * listener (used by the APK) only accepts http/https URIs and rejects
+ * blob: URIs outright — the driver sees "Download failed to start: Can
+ * only download HTTP/HTTPS URIs: blob:...". navigator.share() with a
+ * File object bypasses the download listener entirely (it's a share
+ * intent, not a browser download), so it works reliably in the APK
+ * WebView and in mobile browsers. Desktop/browsers without file-share
+ * support keep using the normal blob download.
+ */
+async function savePdfCrossPlatform(doc, filename) {
+  try {
+    if (navigator.share && navigator.canShare) {
+      const blob = doc.output('blob');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+        return;
+      }
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return; // user dismissed the share sheet — not a failure
+    console.warn('[payrollPdfExport] navigator.share failed, falling back to direct download:', err);
+  }
+  // Desktop browsers (or share unsupported) — blob download works fine here
+  doc.save(filename);
+}
+
+/**
  * Export payroll data to PDF
  */
-export function exportPayrollPdf({
+export async function exportPayrollPdf({
   currentPeriod, selectedDriverId, selectedCityId, payPeriod, payrollData,
   deliveries, patients, stores, cities, currentUser,
   grandTotalAllDrivers, grandTotalTax, grandTotalDeductions, grandTotalGross,
@@ -418,7 +449,7 @@ export function exportPayrollPdf({
     doc.setDrawColor(100, 100, 100);
     doc.rect(rightColStart - 1, failedReturnsStartY, rightMargin - rightColStart + 2, y - failedReturnsStartY);
 
-    doc.save(filename);
+    await savePdfCrossPlatform(doc, filename);
     return;
   }
 
@@ -500,5 +531,5 @@ export function exportPayrollPdf({
     doc.text(`Net: $${driversWithDeliveries.reduce((sum, d) => sum + getDriverPeriodValues(d).netPay, 0).toFixed(2)}`, rightCol, y, { align: 'right' });
   }
 
-  doc.save(filename);
+  await savePdfCrossPlatform(doc, filename);
 }

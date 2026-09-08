@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { toast } from 'sonner';
 import ScreenshotShareModal from '../common/ScreenshotShareModal';
 import {
   Dialog,
@@ -111,6 +112,7 @@ export default function PayrollSummaryCard({
   const [deductionOverlayDriverId, setDeductionOverlayDriverId] = useState(null);
   const [bonusOverlayDriverId, setBonusOverlayDriverId] = useState(null);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
@@ -822,15 +824,25 @@ export default function PayrollSummaryCard({
     {setIsCapturingScreenshot(false);}
   };
 
-  // Export to PDF (extracted to payrollPdfExport.js)
-  const handleExport = (storesList = []) => {
-    exportPayrollPdf({
-      currentPeriod, selectedDriverId, selectedCityId, payPeriod, payrollData,
-      deliveries, patients, stores: storesList, cities, currentUser,
-      grandTotalAllDrivers, grandTotalTax, grandTotalDeductions, grandTotalGross,
-      driverEdits, calculateAppFeeAmount, extraAppFeePercent, otherAppFeePercent, isPeriodEndOfMonth,
-      driversWithDeliveries, appFeesPerDelivery
-    });
+  // Export to PDF (extracted to payrollPdfExport.js). Async because it may
+  // hand the PDF to the native Share Sheet (see payrollPdfExport.jsx for why).
+  const handleExport = async (storesList = []) => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      await exportPayrollPdf({
+        currentPeriod, selectedDriverId, selectedCityId, payPeriod, payrollData,
+        deliveries, patients, stores: storesList, cities, currentUser,
+        grandTotalAllDrivers, grandTotalTax, grandTotalDeductions, grandTotalGross,
+        driverEdits, calculateAppFeeAmount, extraAppFeePercent, otherAppFeePercent, isPeriodEndOfMonth,
+        driversWithDeliveries, appFeesPerDelivery
+      });
+    } catch (error) {
+      console.error('Failed to export payroll PDF:', error);
+      toast.error('Could not create the payroll PDF. Please try again.');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
@@ -1120,9 +1132,9 @@ export default function PayrollSummaryCard({
                   </Button>
                 }
 
-              <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
-                <Download className="w-4 h-4" />
-                PDF
+              <Button size="sm" variant="outline" disabled={isExportingPdf} onClick={() => handleExport(stores || [])} className="gap-2 h-8 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+                {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isExportingPdf ? 'Preparing...' : 'PDF'}
               </Button>
             </div>
           </div>
@@ -1151,9 +1163,9 @@ export default function PayrollSummaryCard({
             Payroll Summary
           </CardTitle>
           <div className="flex gap-2 items-center" id="payroll-controls">
-            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
-              <Download className="w-4 h-4" />
-              PDF
+            <Button size="sm" variant="outline" disabled={isExportingPdf} onClick={() => handleExport(stores || [])} className="gap-2 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+              {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isExportingPdf ? 'Preparing...' : 'PDF'}
             </Button>
             
             {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
