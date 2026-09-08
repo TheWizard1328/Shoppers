@@ -548,18 +548,36 @@ export async function optimizeRouteClientSide({
   // historical routes keep their original anchors.
   const routeIsToday = deliveryDate === getEdmontonTodayDateString();
   let _clampedWindowCount = 0;
+let _inheritedWindowCount = 0;
   const stops = optimizableDeliveries.map(delivery => {
     const coords = getDeliveryCoords(delivery, patientMap, storeMap);
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
     let windowStart = getEffectiveWindowStart(delivery, patient);
     let windowEnd = getEffectiveWindowEnd(delivery, patient);
 
+    // ── PICKUP-WINDOW INHERITANCE (today/shared path) ─────────────────────
+    // Applies ONLY to deliveries with NO window of their own (no patient window,
+    // no delivery_time_start). Deliveries WITH a window keep it untouched:
+    //   - Patient windows are authoritative (they express when the patient
+    //     can actually receive).
+    //   - Accept All stamps now+5 on windowless deliveries (confirmed Sep 4
+    //     2026) — the engine must NOT override that with pickup-slot times.
+    // The old behavior pushed every delivery whose window was before the
+    // pickup slot END to slotEnd+5 (e.g. 21:05), which nuked valid patient
+    // windows and forced whole newly-accepted batches to the tail of the
+    // route (end-of-route polyline bug, Sep 8 2026). Fallback anchor for
+    // truly windowless deliveries = pickup slot START + 5, matching the
+    // future-route normalizer below; the past-window clamp after this block
+    // handles stale anchors.
     if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
-      const pickupWindow = pickupWindowByStopId.get(delivery.puid);
-      const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
-      const deliveryStartMinutes = parseTimeToMinutes(windowStart);
-      if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
-        windowStart = formatMinutesToTime(pickupEndMinutes + 5);
+      const _ownStartMin = parseTimeToMinutes(windowStart);
+      if (!Number.isFinite(_ownStartMin)) {
+        const pickupWindow = pickupWindowByStopId.get(delivery.puid);
+        const pickupStartMinutes = parseTimeToMinutes(pickupWindow?.start || pickupWindow?.end);
+        if (Number.isFinite(pickupStartMinutes)) {
+          windowStart = formatMinutesToTime(pickupStartMinutes + 5);
+          _inheritedWindowCount++;
+        }
       }
     }
 
@@ -611,6 +629,9 @@ export async function optimizeRouteClientSide({
   }
   if (_clampedWindowCount > 0) {
     console.log(`[clientRouteEngine] ${source} — PAST-WINDOW CLAMP: ${_clampedWindowCount} stale window(s) (start <= now) clamped to now (${formatMinutesToTime(currentMinutes)}) for geographic sequencing`);
+  }
+  if (_inheritedWindowCount > 0) {
+    console.log(`[clientRouteEngine] ${source} — PICKUP-WINDOW INHERITANCE: ${_inheritedWindowCount} windowless delivery(ies) inherited pickup start+5`);
   }
 
   // ── Route date classification ────────────────────────────────────────────
