@@ -36,6 +36,7 @@ import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerform
 import { calculateDistance, populateTemporaryStartTimes, buildMapPadding } from "@/components/dashboard/DashboardHelpers";
 import { getFabTargetDriverMapLocation, isDriverOffDuty } from "@/components/dashboard/mapViewPhaseHelpers";
 import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
+import { getDeliveryTypeFlags } from "@/components/utils/deliveryTypeUtils";
 import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
@@ -1263,9 +1264,31 @@ function Dashboard() {
           });
         }
 
-        // 4. STORE (PICKUP ORIGIN) LOCATIONS: include stores that have deliveries in the current view
+        // 4. STORE (PICKUP ORIGIN) LOCATIONS: include stores that have an ACTUAL
+        // store-pickup stop in the current view — i.e. deliveries with NO patient_id
+        // that aren't an ISP/ISD interstore leg (getDeliveryTypeFlags().isStorePickup).
+        //
+        // BUG FIX (Sep 8 2026, Erin's Phase 1 bounds): previously this unioned
+        // store_id from EVERY delivery in view, including normal patient deliveries
+        // and ISP/ISD interstore legs that merely CARRY a store_id for backend
+        // routing/billing (e.g. an ISP pickup's store_id is its destination store,
+        // not a location the driver visits on this leg — the actual visible stop is
+        // the ISP's own virtual-patient coordinates, added via appendStopCoordinates/
+        // getVisibleHomeMarkersForBounds elsewhere). That destination store can be
+        // anywhere in the city, so its coordinates silently entered the fitBounds
+        // calculation with no corresponding rendered marker — the bounds box would
+        // stretch toward it, pushing the driver's real, visible stop cluster off to
+        // one side of the viewport with empty space (and the fixed map-center
+        // crosshair) on the other. Only true store-pickup deliveries (no patient_id,
+        // not ISP/ISD) actually place a rendered pickup pin at their store_id's
+        // location, so only those should contribute a store coordinate to bounds.
         if (hasStopMarkers) {
-          const storeIdsInView = new Set((deliveriesToMap || []).map((d) => d?.store_id).filter(Boolean));
+          const storeIdsInView = new Set(
+            (deliveriesToMap || [])
+              .filter((d) => d && getDeliveryTypeFlags(d).isStorePickup)
+              .map((d) => d?.store_id)
+              .filter(Boolean)
+          );
           storeIdsInView.forEach((storeId) => {
             const store = storesRef.current?.find((s) => s?.id === storeId);
             if (store?.latitude && store?.longitude) {
