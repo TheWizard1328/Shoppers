@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Polyline } from 'react-leaflet';
+import L from 'leaflet';
 
 const HISTORICAL_COLOR = '#f97316';
 const LIVE_COLOR = '#2563eb';
@@ -69,6 +70,18 @@ class BreadcrumbErrorBoundary extends React.Component {
 }
 
 function MapBreadcrumbsInner({ breadcrumbsData }) {
+  // CANVAS RENDERER: breadcrumb trails are the longest polylines in the app
+  // (hundreds→thousands of points) and the live trail updates on every GPS tick.
+  // On the default SVG renderer each tick re-lays-out and repaints every trail as
+  // DOM vector nodes — a major CPU/battery/heat cost on driver phones. A shared
+  // canvas renderer paints them in a single draw call per frame instead.
+  // Same pattern/params as UnifiedRoutePolylines and the DeliveryMap fan lines.
+  const canvasRendererRef = useRef(null);
+  if (!canvasRendererRef.current) {
+    canvasRendererRef.current = L.canvas({ padding: 0.5, tolerance: 5 });
+  }
+  const breadcrumbRenderer = canvasRendererRef.current;
+
   // Memoize the polyline rendering to avoid re-decoding on every render
   const lines = useMemo(() => {
     const result = [];
@@ -95,6 +108,7 @@ function MapBreadcrumbsInner({ breadcrumbsData }) {
           <Polyline
             key={`historical-bc-${trail.id || trail.stop_order}`}
             positions={coords}
+            renderer={breadcrumbRenderer}
             pathOptions={{
               color: HISTORICAL_COLOR,
               weight: 3,
@@ -119,6 +133,7 @@ function MapBreadcrumbsInner({ breadcrumbsData }) {
           <Polyline
             key="live-bc"
             positions={coords}
+            renderer={breadcrumbRenderer}
             pathOptions={{
               color: LIVE_COLOR,
               weight: 3,
