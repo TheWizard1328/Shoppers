@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { haversineMeters } from './geoUtils';
 import { getLocalDateString } from './localTimeHelper';
 import { acquireBreadcrumbSyncLock } from './breadcrumbSyncLock';
 
@@ -214,11 +215,8 @@ export const collectBreadcrumbForTracker = async ({
     const timeSinceLast = timestamp - (lastPoint[2] || 0);
 
     if (timeSinceLast < MAX_BREADCRUMB_STALENESS_MS) {
-      const R = 6371000;
-      const dLat = (latitude - lastPoint[0]) * Math.PI / 180;
-      const dLon = (longitude - lastPoint[1]) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lastPoint[0] * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      // Consolidated into geoUtils — identical math, single source of truth.
+      const distanceM = haversineMeters(lastPoint[0], lastPoint[1], latitude, longitude);
 
       // ── Stationary dedup ───────────────────────────────────────────────────
       // Skip storing when the new fix is within the dedup radius of the last

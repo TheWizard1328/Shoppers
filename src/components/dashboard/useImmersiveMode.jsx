@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { haversineMeters } from '@/components/utils/geoUtils';
 // ─── Tuning constants ────────────────────────────────────────────────────────
 // How far the driver must travel within MOTION_WINDOW_MS to be "moving"
 const MOTION_DISTANCE_METERS = 50;   // was 120 — lowered; 50m in 30s ≈ 6 km/h
@@ -23,7 +24,6 @@ const POST_STOP_COOLDOWN_MS = 45000;
 const LOCATION_ACCURACY_BUFFER_METERS = 15;  // was 35 — too aggressive; phone GPS ~10-20m
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const toRad = (v) => (v * Math.PI) / 180;
 
 const getDistanceMeters = (from, to) => {
   const lat1 = Number(from?.latitude ?? from?.lat);
@@ -31,13 +31,8 @@ const getDistanceMeters = (from, to) => {
   const lat2 = Number(to?.latitude ?? to?.lat);
   const lon2 = Number(to?.longitude ?? to?.lon);
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return 0;
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // Consolidated into geoUtils — identical math, single source of truth.
+  return haversineMeters(lat1, lon1, lat2, lon2);
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

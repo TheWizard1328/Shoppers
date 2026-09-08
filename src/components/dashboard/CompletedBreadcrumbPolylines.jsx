@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { haversineMeters } from '@/components/utils/geoUtils';
 import { Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
@@ -89,7 +90,6 @@ const getPointKey = (point) => {
 const getDistanceMeters = (from, to) => {
   if (!from || !to) return 0;
 
-  const toRadians = (value) => (value * Math.PI) / 180;
   const lat1 = Number(from.latitude);
   const lon1 = Number(from.longitude);
   const lat2 = Number(to.latitude);
@@ -97,15 +97,8 @@ const getDistanceMeters = (from, to) => {
 
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return 0;
 
-  const earthRadius = 6371000;
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // Consolidated into geoUtils — identical math, single source of truth.
+  return haversineMeters(lat1, lon1, lat2, lon2);
 };
 
 const getCachedPolyline = (key, cache) => {

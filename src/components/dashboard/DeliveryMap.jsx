@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { haversineMeters } from '@/components/utils/geoUtils';
 import { MapContainer, Marker, Pane, Polyline, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -48,14 +49,8 @@ const ZOOM_LEVELS = { HIDE_ROUTES: 8, SIMPLIFY_ROUTES: 12, HIDE_NUMBERS: 11, HID
 const getDistanceMeters = (previousLocation, nextLocation) => {
   if (!previousLocation?.latitude || !previousLocation?.longitude) return Infinity;
   if (!nextLocation?.latitude || !nextLocation?.longitude) return 0;
-  const toRadians = (value) => value * Math.PI / 180;
-  const earthRadiusMeters = 6371000;
-  const lat1 = toRadians(previousLocation.latitude);
-  const lat2 = toRadians(nextLocation.latitude);
-  const deltaLat = toRadians(nextLocation.latitude - previousLocation.latitude);
-  const deltaLon = toRadians(nextLocation.longitude - previousLocation.longitude);
-  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // Consolidated into geoUtils — identical math, single source of truth.
+  return haversineMeters(previousLocation.latitude, previousLocation.longitude, nextLocation.latitude, nextLocation.longitude);
 };
 
 const hasDriverMovedEnoughForPhase2 = (previousLocation, nextLocation, minimumMeters = 50) => {

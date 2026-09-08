@@ -2,14 +2,11 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useDevice } from '@/components/utils/DeviceContext';
 
 const MIN_DRIVER_MOVE_METERS = 0; // 50
-const toRadians = (value) => (value * Math.PI) / 180;
+// Consolidated into geoUtils — identical math, single source of truth.
+import { haversineMeters } from '@/components/utils/geoUtils';
 const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
-  const earthRadiusMeters = 6371000;
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return haversineMeters(lat1, lon1, lat2, lon2);
 };
 import L from 'leaflet';
 import { Circle, Marker, Popup } from 'react-leaflet';

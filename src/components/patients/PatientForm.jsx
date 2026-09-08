@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useDevice } from '@/components/utils/DeviceContext';
-import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
+import { haversineKm as geoHaversineKm, haversineMeters as geoHaversineMeters } from '@/components/utils/geoUtils';
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -525,11 +525,8 @@ export default function PatientForm({
         const newLat = Number(dataToSave.latitude);
         const newLng = Number(dataToSave.longitude);
         if (!Number.isFinite(oldLat) || !Number.isFinite(oldLng) || !Number.isFinite(newLat) || !Number.isFinite(newLng)) return false;
-        const R = 6371000; // metres
-        const dLat = (newLat - oldLat) * Math.PI / 180;
-        const dLng = (newLng - oldLng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(oldLat * Math.PI / 180) * Math.cos(newLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-        const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        // Consolidated into geoUtils — identical math, single source of truth.
+        const distMetres = geoHaversineMeters(oldLat, oldLng, newLat, newLng);
         console.log(`📍 [PatientForm] Location change: ${distMetres.toFixed(1)}m`);
         return distMetres > 100;
       })();

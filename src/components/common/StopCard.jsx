@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
@@ -594,7 +595,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     const ACTIVE = new Set(['in_transit', 'en_route', 'pending']);
     const FINISHED = new Set(FINISHED_STATUSES);
     const origin = { lat: Number(patient.latitude), lon: Number(patient.longitude) };
-    const R = 6371;
     let count = 0;
     for (const d of allDeliveries) {
       if (!d || d.id === delivery.id || !d.patient_id) continue;
@@ -602,10 +602,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       if (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) continue;
       const p = patients.find((x) => x?.id === d.patient_id);
       if (!p?.latitude || !p?.longitude) continue;
-      const dLat = (Number(p.latitude) - origin.lat) * Math.PI / 180;
-      const dLon = (Number(p.longitude) - origin.lon) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(origin.lat * Math.PI / 180) * Math.cos(Number(p.latitude) * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      if (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= 0.025) count++;
+      // Consolidated into geoUtils — identical math, single source of truth.
+      if (haversineKm(origin.lat, origin.lon, Number(p.latitude), Number(p.longitude)) <= 0.025) count++;
     }
     return count;
   }, [delivery?.id, delivery?.patient_id, delivery?.driver_id, delivery?.delivery_date, patient, allDeliveries, patients]);
@@ -617,7 +615,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const clusterKey = useMemo(() => {
     if (!delivery?.patient_id || coLocatedCount === 0) return null;
     const GPS_THRESH = 0.025;
-    const R = 6371;
     const origin = patient ? { lat: Number(patient.latitude), lon: Number(patient.longitude) } : null;
     if (!origin) return null;
     const clusterIds = [delivery.id];
@@ -626,10 +623,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       if (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) continue;
       const p = patients.find((x) => x?.id === d.patient_id);
       if (!p?.latitude || !p?.longitude) continue;
-      const dLat = (Number(p.latitude) - origin.lat) * Math.PI / 180;
-      const dLon = (Number(p.longitude) - origin.lon) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(origin.lat * Math.PI / 180) * Math.cos(Number(p.latitude) * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      if (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= GPS_THRESH) clusterIds.push(d.id);
+      // Consolidated into geoUtils — identical math, single source of truth.
+      if (haversineKm(origin.lat, origin.lon, Number(p.latitude), Number(p.longitude)) <= GPS_THRESH) clusterIds.push(d.id);
     }
     return getClusterKey(delivery.driver_id, delivery.delivery_date, clusterIds.slice().sort());
   }, [delivery?.id, delivery?.patient_id, delivery?.driver_id, delivery?.delivery_date, coLocatedCount, patient, allDeliveries, patients]);
@@ -641,7 +636,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!delivery?.patient_id || coLocatedCount === 0) return false;
     if (delivery.isNextDelivery) return true;
     const GPS_THRESH = 0.025;
-    const R = 6371;
     const origin = patient ? { lat: Number(patient.latitude), lon: Number(patient.longitude) } : null;
     if (!origin) return false;
     for (const d of allDeliveries) {
@@ -649,10 +643,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       if (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) continue;
       const p = patients.find((x) => x?.id === d.patient_id);
       if (!p?.latitude || !p?.longitude) continue;
-      const dLat = (Number(p.latitude) - origin.lat) * Math.PI / 180;
-      const dLon = (Number(p.longitude) - origin.lon) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(origin.lat * Math.PI / 180) * Math.cos(Number(p.latitude) * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      if (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= GPS_THRESH && d.isNextDelivery) return true;
+      // Consolidated into geoUtils — identical math, single source of truth.
+      if (haversineKm(origin.lat, origin.lon, Number(p.latitude), Number(p.longitude)) <= GPS_THRESH && d.isNextDelivery) return true;
     }
     return false;
   }, [delivery?.id, delivery?.patient_id, delivery?.driver_id, delivery?.delivery_date, coLocatedCount, patient, allDeliveries, patients]);

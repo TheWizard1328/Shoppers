@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { haversineKm } from '@/components/utils/geoUtils';
 import { format } from 'date-fns';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
@@ -13,15 +14,9 @@ const addMinutesToTime = (timeString, minutesToAdd) => {
 
 const estimateDriveTimeMinutes = (lat1, lng1, lat2, lng2) => {
   if (!lat1 || !lng1 || !lat2 || !lng2) return 10;
-  const toRad = (v) => v * Math.PI / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.max(5, Math.min(Math.round(R * c / 30 * 60), 60));
+  // Consolidated into geoUtils — identical math, single source of truth.
+  const km = haversineKm(lat1, lng1, lat2, lng2);
+  return Math.max(5, Math.min(Math.round(km / 30 * 60), 60));
 };
 
 const EXCLUSION_REGEX = new RegExp(['\\(Old', '\\(Wrong', '\\(Deceased', 'DMR', 'RFD', 'RTN', 'Return', '\\(ISP\\)', '\\(ISD\\)', 'InterStore'].join('|'), 'i');

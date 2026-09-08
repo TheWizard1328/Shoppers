@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
+import { haversineKm } from '@/components/utils/geoUtils';
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -332,15 +333,8 @@ function DashboardView({
     const stopLon = Number(immersiveIsInterStore ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude);
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) return null;
 
-    const toRad = (value) => (value * Math.PI) / 180;
-    const earthRadiusKm = 6371;
-    const dLat = toRad(stopLat - driverLat);
-    const dLon = toRad(stopLon - driverLon);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(driverLat)) * Math.cos(toRad(stopLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return earthRadiusKm * c;
+    // Consolidated into geoUtils — identical math, single source of truth.
+    return haversineKm(driverLat, driverLon, stopLat, stopLon);
   }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveIsInterStore, immersiveInterStoreLocation, immersiveLiveDriverLocation, allDriverLocations, driverLocation, selectedDriverId, currentUser?.id]);
 
   return (

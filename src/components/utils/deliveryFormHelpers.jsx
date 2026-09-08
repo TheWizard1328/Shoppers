@@ -1,3 +1,4 @@
+import { haversineKm } from './geoUtils';
 export const getClearedDeliveryFormFields = (prev) => ({
   ...prev,
   patient_id: '',
@@ -52,14 +53,8 @@ export const getDistanceFromStoreValue = (patient, store) => {
     return existingDistance;
   }
 
-  const R = 6371;
-  const dLat = (store.latitude - patient.latitude) * Math.PI / 180;
-  const dLon = (store.longitude - patient.longitude) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(patient.latitude * Math.PI / 180) * Math.cos(store.latitude * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  // Consolidated into geoUtils — identical math, single source of truth.
+  return haversineKm(patient.latitude, patient.longitude, store.latitude, store.longitude);
 };
 
 export const resumeDeliveryFormManagers = async () => {
