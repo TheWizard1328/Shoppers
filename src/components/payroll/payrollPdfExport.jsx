@@ -23,16 +23,34 @@ async function savePdfCrossPlatform(doc, filename) {
   // error drivers saw. The APK exposes window.AndroidNative.saveBase64File
   // (MainActivity.java), which writes the file straight into the device's
   // Downloads folder via MediaStore — no download listener involved.
-  try {
-    if (typeof window !== 'undefined' && window.AndroidNative) {
-      // Old APK (pre-320) has the AndroidNative bridge but no saveBase64File.
-      // Blob download is guaranteed broken in the APK, so say so instead of
-      // failing silently with the confusing DownloadManager error.
-      if (typeof window.AndroidNative.saveBase64File !== 'function') {
-        toast.error('Please update the RxDeliver app — this version cannot save PDFs.');
-        return;
-      }
+  if (typeof window !== 'undefined' && window.AndroidNative) {
+    // Old APK (pre-320) has the AndroidNative bridge but no saveBase64File.
+    // Blob download is guaranteed broken in the APK, so say so instead of
+    // failing silently with the confusing DownloadManager error.
+    if (typeof window.AndroidNative.saveBase64File !== 'function') {
+      toast.error('Please update the RxDeliver app — this version cannot save PDFs.');
+      return;
+    }
+
+    // ── DIAGNOSTIC: differential probe ────────────────────────────────────
+    // Push a tiny file through the SAME native method first. Combined with
+    // the real PDF call right after, this splits the failure modes:
+    //   probe throws + PDF throws  → bridge invocation itself is broken
+    //   probe ok + PDF throws      → payload-size limit in the WebView JS→Java bridge
+    //   probe ok + PDF ok          → fixed (probe file can be deleted)
+    // All logs use console.error with flat strings — Error objects serialize
+    // to {} in the console capture, swallowing the real message.
+    try {
+      const probeReturn = window.AndroidNative.saveBase64File(
+        'UnhEZWxpdmVyIGJyaWRnZSBkaWFnbm9zdGljIC0gaWYgeW91IGNhbiByZWFkIHRoaXMgZmlsZSBpbiB5b3VyIERvd25sb2FkcyBmb2xkZXIsIHRoZSBuYXRpdmUgZmlsZS1zYXZlIGJyaWRnZSB3b3Jrcy4gU2FmZSB0byBkZWxldGUu', 'RxDeliver_diagnostic.txt', 'text/plain');
+      console.error('[payrollPdfExport] DIAG1 probe result:', String(probeReturn));
+    } catch (probeErr) {
+      console.error('[payrollPdfExport] DIAG1 probe THREW:', probeErr?.name, probeErr?.message);
+    }
+
+    try {
       const blob = doc.output('blob');
+      console.error('[payrollPdfExport] DIAG2 pdf blob size:', blob?.size);
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -42,18 +60,30 @@ async function savePdfCrossPlatform(doc, filename) {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
-      const result = JSON.parse(window.AndroidNative.saveBase64File(base64, filename, 'application/pdf') || '{}');
+      console.error('[payrollPdfExport] DIAG3 base64 length:', base64?.length);
+
+      let raw;
+      try {
+        raw = window.AndroidNative.saveBase64File(base64, filename, 'application/pdf');
+      } catch (callErr) {
+        console.error('[payrollPdfExport] DIAG4 native PDF call THREW:',
+          callErr?.name, callErr?.message, String(callErr?.stack || '').slice(0, 300));
+        toast.error(`PDF save failed: ${callErr?.message || 'native bridge error'}`);
+        return;
+      }
+      console.error('[payrollPdfExport] DIAG4 native return (first 200):', String(raw).slice(0, 200));
+
+      const result = JSON.parse(raw || '{}');
       if (result.success) return; // native toast confirms "Saved to Downloads"
-      // Surface the real native error — do NOT fall back to doc.save() here:
-      // the blob: download is guaranteed to fail in the APK WebView.
       console.error('[payrollPdfExport] native APK save failed:', result.error);
       toast.error(`PDF save failed: ${result.error || 'unknown native error'}`);
       return;
+    } catch (apkErr) {
+      console.error('[payrollPdfExport] DIAG5 APK save path failed:',
+        apkErr?.name, apkErr?.message, String(apkErr?.stack || '').slice(0, 300));
+      toast.error(`PDF save failed: ${apkErr?.message || 'native bridge error'}`);
+      return;
     }
-  } catch (apkErr) {
-    console.error('[payrollPdfExport] AndroidNative save path failed:', apkErr);
-    toast.error(`PDF save failed: ${apkErr?.message || 'native bridge error'}`);
-    return;
   }
 
   // ── Mobile browser / PWA path (native Share Sheet) ──────────────────────
