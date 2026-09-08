@@ -349,13 +349,22 @@ public class MainActivity extends BridgeActivity {
                 // Defensive: strip any path separators from the filename
                 String safeName = (fileName == null || fileName.isEmpty())
                     ? "document.pdf" : fileName;
-                safeName = safeName.replaceAll("[/\\]", "_");
+                safeName = // Defensive: strip path separators using LITERAL replacement —
+                // a character-class regex here previously threw
+                // PatternSyntaxException ("Missing closing bracket") because
+                // the backslash escaped the closing bracket, breaking EVERY
+                // saveBase64File call with a JSON.parse SyntaxError on the
+                // JS side (the exception message contains raw newlines,
+                // which made the returned JSON string invalid).
+                String safeName = (fileName == null || fileName.isEmpty())
+                    ? "document.pdf" : fileName;
+                safeName = safeName.replace("/", "_").replace("\\", "_");
                 String safeMime = (mimeType == null || mimeType.isEmpty())
                     ? "application/octet-stream" : mimeType;
 
                 byte[] data = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
                 if (data == null || data.length == 0) {
-                    return "{\"success\":false,\"error\":\"empty payload\"}";
+                    return new org.json.JSONObject().put("success", false).put("error", "empty payload").toString();
                 }
 
                 Uri savedUri;
@@ -369,11 +378,11 @@ public class MainActivity extends BridgeActivity {
                     Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                     Uri itemUri = getContentResolver().insert(collection, values);
                     if (itemUri == null) {
-                        return "{\"success\":false,\"error\":\"MediaStore insert failed\"}";
+                        return new org.json.JSONObject().put("success", false).put("error", "MediaStore insert failed").toString();
                     }
                     try (OutputStream os = getContentResolver().openOutputStream(itemUri)) {
                         if (os == null) {
-                            return "{\"success\":false,\"error\":\"openOutputStream failed\"}";
+                            return new org.json.JSONObject().put("success", false).put("error", "openOutputStream failed").toString();
                         }
                         os.write(data);
                         os.flush();
@@ -395,10 +404,10 @@ public class MainActivity extends BridgeActivity {
 
                 final String toastMsg = "Saved to Downloads: " + safeName;
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, toastMsg, Toast.LENGTH_LONG).show());
-                return "{\"success\":true,\"uri\":\"" + savedUri.toString() + "\"}";
+                return new org.json.JSONObject().put("success", true).put("uri", savedUri.toString()).toString();
             } catch (Exception e) {
                 android.util.Log.e("RxDeliver", "saveBase64File failed: " + e.getMessage());
-                return "{\"success\":false,\"error\":\"" + e.getMessage() + "\"}";
+                return new org.json.JSONObject().put("success", false).put("error", String.valueOf(e.getMessage())).toString();
             }
         }
     }
