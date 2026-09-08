@@ -346,16 +346,10 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public String saveBase64File(String base64Data, String fileName, String mimeType) {
             try {
-                // Defensive: strip any path separators from the filename
-                String safeName = (fileName == null || fileName.isEmpty())
-                    ? "document.pdf" : fileName;
-                safeName = // Defensive: strip path separators using LITERAL replacement —
-                // a character-class regex here previously threw
-                // PatternSyntaxException ("Missing closing bracket") because
-                // the backslash escaped the closing bracket, breaking EVERY
-                // saveBase64File call with a JSON.parse SyntaxError on the
-                // JS side (the exception message contains raw newlines,
-                // which made the returned JSON string invalid).
+                // Defensive: strip path separators using LITERAL replacement.
+                // The old character-class regex threw PatternSyntaxException
+                // ("Missing closing bracket") because the backslash escaped
+                // the closing bracket — breaking EVERY saveBase64File call.
                 String safeName = (fileName == null || fileName.isEmpty())
                     ? "document.pdf" : fileName;
                 safeName = safeName.replace("/", "_").replace("\\", "_");
@@ -407,7 +401,20 @@ public class MainActivity extends BridgeActivity {
                 return new org.json.JSONObject().put("success", true).put("uri", savedUri.toString()).toString();
             } catch (Exception e) {
                 android.util.Log.e("RxDeliver", "saveBase64File failed: " + e.getMessage());
-                return new org.json.JSONObject().put("success", false).put("error", String.valueOf(e.getMessage())).toString();
+                return safeJsonError(String.valueOf(e.getMessage()));
+            }
+        }
+
+        // org.json's put() throws checked JSONException, which the catch block
+        // above cannot cover for its own body — build all error responses here.
+        private static String safeJsonError(String message) {
+            try {
+                return new org.json.JSONObject()
+                    .put("success", false)
+                    .put("error", (message == null || message.isEmpty()) ? "unknown error" : message)
+                    .toString();
+            } catch (Exception ignored) {
+                return "{\"success\":false,\"error\":\"unknown error\"}";
             }
         }
     }
