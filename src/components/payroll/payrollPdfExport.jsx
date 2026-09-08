@@ -32,25 +32,8 @@ async function savePdfCrossPlatform(doc, filename) {
       return;
     }
 
-    // ── DIAGNOSTIC: differential probe ────────────────────────────────────
-    // Push a tiny file through the SAME native method first. Combined with
-    // the real PDF call right after, this splits the failure modes:
-    //   probe throws + PDF throws  → bridge invocation itself is broken
-    //   probe ok + PDF throws      → payload-size limit in the WebView JS→Java bridge
-    //   probe ok + PDF ok          → fixed (probe file can be deleted)
-    // All logs use console.error with flat strings — Error objects serialize
-    // to {} in the console capture, swallowing the real message.
-    try {
-      const probeReturn = window.AndroidNative.saveBase64File(
-        'UnhEZWxpdmVyIGJyaWRnZSBkaWFnbm9zdGljIC0gaWYgeW91IGNhbiByZWFkIHRoaXMgZmlsZSBpbiB5b3VyIERvd25sb2FkcyBmb2xkZXIsIHRoZSBuYXRpdmUgZmlsZS1zYXZlIGJyaWRnZSB3b3Jrcy4gU2FmZSB0byBkZWxldGUu', 'RxDeliver_diagnostic.txt', 'text/plain');
-      console.error('[payrollPdfExport] DIAG1 probe result:', String(probeReturn));
-    } catch (probeErr) {
-      console.error('[payrollPdfExport] DIAG1 probe THREW:', probeErr?.name, probeErr?.message);
-    }
-
     try {
       const blob = doc.output('blob');
-      console.error('[payrollPdfExport] DIAG2 pdf blob size:', blob?.size);
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -60,27 +43,41 @@ async function savePdfCrossPlatform(doc, filename) {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
-      console.error('[payrollPdfExport] DIAG3 base64 length:', base64?.length);
 
-      let raw;
-      try {
-        raw = window.AndroidNative.saveBase64File(base64, filename, 'application/pdf');
-      } catch (callErr) {
-        console.error('[payrollPdfExport] DIAG4 native PDF call THREW:',
-          callErr?.name, callErr?.message, String(callErr?.stack || '').slice(0, 300));
-        toast.error(`PDF save failed: ${callErr?.message || 'native bridge error'}`);
+      const raw = window.AndroidNative.saveBase64File(base64, filename, 'application/pdf');
+      const result = JSON.parse(raw || '{}');
+      if (result.success) {
+        // Native save confirmed — offer to open the PDF right away.
+        // The native bridge returns the saved MediaStore URI, and
+        // openSavedFile launches ACTION_VIEW on it with a read grant.
+        const savedUri = result.uri || '';
+        if (savedUri && typeof window.AndroidNative.openSavedFile === 'function') {
+          toast('Saved to Downloads', {
+            duration: 12000,
+            action: {
+              label: 'Open PDF',
+              onClick: () => {
+                try {
+                  const openRaw = window.AndroidNative.openSavedFile(savedUri, 'application/pdf');
+                  const openRes = JSON.parse(openRaw || '{}');
+                  if (!openRes?.success) {
+                    toast.error(openRes?.error || 'Could not open PDF');
+                  }
+                } catch (_) {
+                  toast.error('Could not open PDF');
+                }
+              },
+            },
+          });
+        } else {
+          toast.success('Saved to Downloads');
+        }
         return;
       }
-      console.error('[payrollPdfExport] DIAG4 native return (first 200):', String(raw).slice(0, 200));
-
-      const result = JSON.parse(raw || '{}');
-      if (result.success) return; // native toast confirms "Saved to Downloads"
-      console.error('[payrollPdfExport] native APK save failed:', result.error);
       toast.error(`PDF save failed: ${result.error || 'unknown native error'}`);
       return;
     } catch (apkErr) {
-      console.error('[payrollPdfExport] DIAG5 APK save path failed:',
-        apkErr?.name, apkErr?.message, String(apkErr?.stack || '').slice(0, 300));
+      console.error('[payrollPdfExport] APK save path failed:', apkErr?.message);
       toast.error(`PDF save failed: ${apkErr?.message || 'native bridge error'}`);
       return;
     }

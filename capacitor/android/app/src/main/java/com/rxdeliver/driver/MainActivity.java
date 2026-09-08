@@ -405,6 +405,32 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+        // Open a previously-saved file (e.g. a payroll PDF from MediaStore
+        // Downloads) in the user's default viewer app via ACTION_VIEW.
+        // Returns {"success":true} or {"success":false,"error":"..."} so the
+        // JS side can surface a friendly message (e.g. no PDF viewer installed).
+        @JavascriptInterface
+        public String openSavedFile(String uriString, String mimeType) {
+            try {
+                if (uriString == null || uriString.isEmpty()) {
+                    return safeJsonError("missing file uri");
+                }
+                Uri uri = Uri.parse(uriString);
+                String type = (mimeType == null || mimeType.isEmpty()) ? "application/pdf" : mimeType;
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(uri, type);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try {
+                    startActivity(intent);
+                    return new org.json.JSONObject().put("success", true).toString();
+                } catch (android.content.ActivityNotFoundException e) {
+                    return safeJsonError("no app can open this file type");
+                }
+            } catch (Exception e) {
+                return safeJsonError(String.valueOf(e.getMessage()));
+            }
+        }
+
         // org.json's put() throws checked JSONException, which the catch block
         // above cannot cover for its own body — build all error responses here.
         private static String safeJsonError(String message) {
