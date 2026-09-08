@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,14 +35,8 @@ L.Icon.Default.mergeOptions({
 });
 
 // ── Haversine distance calculator ────────────────────────────────────────────
-const haversineKm = (lat1, lon1, lat2, lon2) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+// Consolidated into geoUtils — identical math, single source of truth.
+const haversineKm = (lat1, lon1, lat2, lon2) => geoHaversineKm(lat1, lon1, lat2, lon2);
 
 const calcPolylineDistanceKm = (points) => {
   if (!points || points.length < 2) return 0;

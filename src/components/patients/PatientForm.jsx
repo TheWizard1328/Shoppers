@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useDevice } from '@/components/utils/DeviceContext';
+import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -73,16 +74,9 @@ const calculateDistanceKm = (from, to) => {
     return null;
   }
 
-  const toRadians = (value) => value * Math.PI / 180;
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(toLat - fromLat);
-  const dLon = toRadians(toLon - fromLon);
-  const a =
-  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-  Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) *
-  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  return parseFloat((earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
+  // Consolidated into geoUtils — same math; toFixed(2) rounding preserved
+  // from the original local implementation.
+  return parseFloat(geoHaversineKm(fromLat, fromLon, toLat, toLon).toFixed(2));
 };
 
 export default function PatientForm({

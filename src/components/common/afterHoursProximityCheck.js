@@ -18,16 +18,8 @@ const GEOFENCE_RADIUS_M = 100; // matches arrivalTimeDetector.geofenceRadius
 
 const toRad = (value) => (value * Math.PI) / 180;
 
-const haversineMeters = (lat1, lon1, lat2, lon2) => {
-  const R = 6371000; // Earth's radius in meters
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+// Consolidated into geoUtils — identical math, single source of truth.
+import { haversineMeters } from '@/components/utils/geoUtils';
 
 /**
  * Returns true when the driver's current GPS coordinates are within geofence
