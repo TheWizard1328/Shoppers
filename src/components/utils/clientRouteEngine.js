@@ -870,7 +870,13 @@ let _inheritedWindowCount = 0;
     const endMarker = orderedOptimizationStops.find(s =>
       s.delivery.is_cycling_marker && (s.delivery.delivery_notes || '').toLowerCase().includes('end')
     ) || null;
-    const hasCyclingSegment = !!(startMarker && endMarker);
+    // The split requires the END marker (cycling loop exit + driving-leg origin).
+    // A COMPLETED start marker does NOT disable the split: the driver is already
+    // mid-loop, so the cycling leg simply originates from the locked-next stop
+    // (current cycling stop) or the last finished stop — see cyclingLegOrigin.
+    // Only a missing/incomplete-absent END marker falls back to single-pool
+    // driving optimization (Robert's rule, Sep 8 2026).
+    const hasCyclingSegment = !!endMarker;
 
     if (hasCyclingSegment) {
       // Split stopsToSequence into two pools (markers are NOT waypoints):
@@ -923,7 +929,7 @@ let _inheritedWindowCount = 0;
         routeOriginStop.delivery.id === startMarker.delivery.id;
       const stitchedStops = [
         ...(routeOriginStop ? [routeOriginStop] : []),
-        ...(isRouteOriginStart ? [] : [startMarker]),
+        ...(startMarker && !isRouteOriginStart ? [startMarker] : []),
         ...orderedCycling,
         endMarker,
         ...orderedDriving,
