@@ -325,6 +325,7 @@ class BackgroundSyncManager {
     }
 
     let syncedCount = 0;
+    let skippedDates = 0; // aggregate — per-date 'already synced' logs were flooding RemoteLogEntry (~200k rows/day)
     let cursor = new Date(this.historicalSyncDateCursor);
     cursor.setHours(0, 0, 0, 0);
 
@@ -350,7 +351,10 @@ class BackgroundSyncManager {
             syncedCount++;
             this.lastSyncTimes.deliveries = new Date().toISOString();
           } else {
-            console.log(`✅ [BackgroundSync] ${dateStr} already synced (${result.offlineCount} records match) — skipping`);
+            // No per-date log — the 365-day backfill re-walks the whole year on
+            // every device after the cursor resets, and one line per date
+            // flooded RemoteLogEntry. One summary line per cycle instead.
+            skippedDates++;
           }
 
           // Advance cursor + persist so restarts resume here
@@ -373,6 +377,9 @@ class BackgroundSyncManager {
     } finally {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('historicalDeliverySyncProgress', { detail: { active: false, count: syncedCount } }));
+      }
+      if (skippedDates > 0) {
+        console.log(`✅ [BackgroundSync] Backfill check: ${syncedCount} synced, ${skippedDates} already up to date`);
       }
     }
 
@@ -443,7 +450,7 @@ class BackgroundSyncManager {
       this.currentCycleAPICalls++;
 
       if (onlineCount === offlineCount && offlineCount > 0) {
-        console.log(`✅ [BackgroundSync] Store ${store.name} already synced (${offlineCount}) — skipping save`);
+        // silent skip — per-store 'already synced' lines are remote-log spam
       } else {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, onlinePatients || []);
         console.log(`🔄 [BackgroundSync] Synced ${onlineCount} patients for store ${store.name} (was ${offlineCount})`);

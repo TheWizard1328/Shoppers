@@ -223,7 +223,7 @@ export const createOfflineSyncHistoricalHelpers = ({
 
           // If counts match, this date is fully synced — skip it
           if (onlineCount === offlineCount && offlineCount > 0) {
-            console.log(`✅ [HistoricalSync] ${dateStr} already synced (${offlineCount} records match) — skipping`);
+            // Silent skip — one line per date per walk flooded RemoteLogEntry.
             await updateHistoricalSyncMeta({ delivery_last_synced_date: dateStr });
             continue;
           }

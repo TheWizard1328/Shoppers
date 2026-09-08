@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,66 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     return `${datePart} ${timePart}`;
   };
 
+  // 500-row pages — with multiple store PCs logging, the newest 100 rows
+  // covered only ~30 seconds of activity, so admins could never page back
+  // to anything meaningful. 500 gets ~10+ minutes per page; "Load older"
+  // pages further back on demand.
+  const LOG_FETCH_LIMIT = 500;
+  const [logsRefreshKey, setLogsRefreshKey] = useState(0);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsHasMore, setLogsHasMore] = useState(false);
+  const logFetchStateRef = useRef({ running: false, chained: 0 });
+
+  const fetchLogPage = async ({ skip = 0, replace = false } = {}) => {
+    setLogsLoading(true);
+    try {
+      // CRITICAL: sort by created_date (platform-indexed) — sorting by the
+      // custom 'timestamp' field does an unindexed collection scan over 500k+
+      // rows and times out, leaving the list silently empty.
+      // User/level filters are applied SERVER-SIDE here — the previous
+      // client-only filtering meant "refresh" fetched the newest 500 (all
+      // store-PC traffic) and the active user filter matched none of it,
+      // so the table appeared to clear itself.
+      const query = {};
+      if (logUserFilter !== 'all') query.user_id = logUserFilter;
+      if (level !== 'all') query.level = level;
+      const logRows = Object.keys(query).length > 0
+        ? await base44.entities.RemoteLogEntry.filter(query, '-created_date', LOG_FETCH_LIMIT, skip)
+        : await base44.entities.RemoteLogEntry.list('-created_date', LOG_FETCH_LIMIT, skip);
+      const rows = logRows || [];
+      setLogs((prev) => {
+        if (replace) return rows;
+        const map = new Map((prev || []).map((l) => [l?.id, l]));
+        for (const r of rows) if (r?.id) map.set(r.id, r);
+        return Array.from(map.values());
+      });
+      setLogsHasMore(rows.length >= LOG_FETCH_LIMIT);
+    } catch (_) {
+      // keep whatever is displayed — a failed page fetch must never blank the table
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const loadOlderLogs = () => {
+    // Chain safely: if a page fetch is already in flight, queue exactly one more
+    const st = logFetchStateRef.current;
+    if (st.running) { st.chained += 1; return; }
+    st.running = true;
+    (async () => {
+      try {
+        await fetchLogPage({ skip: logs.length, replace: false });
+        while (logFetchStateRef.current.chained > 0) {
+          logFetchStateRef.current.chained -= 1;
+          const skip = (await new Promise((res) => { setLogs((prev) => { res(prev.length); return prev; }); })) || 0;
+          await fetchLogPage({ skip, replace: false });
+        }
+      } finally {
+        logFetchStateRef.current.running = false;
+      }
+    })();
+  };
+
   const loadData = async () => {
     try {
       // Settings first — fast single record, needed immediately for toggle/selection state
@@ -44,23 +104,24 @@ export default function RemoteLogsTab({ appUsers = [] }) {
       const latest = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
       setSettings(latest);
       setSelectedUsers(latest?.included_user_ids || []);
-      // Logs — slow, non-blocking
-      try {
-        // CRITICAL: sort by created_date (platform-indexed) — sorting by the
-        // custom 'timestamp' field does an unindexed collection scan over 500k+
-        // rows and times out, leaving the list silently empty.
-        const logRows = await base44.entities.RemoteLogEntry.list('-created_date', 100);
-        setLogs(logRows || []);
-      } catch (_) {}
     } catch (e) {
       // Non-critical admin panel — empty state is fine
     }
+    setLogsRefreshKey((k) => k + 1);
   };
 
   useEffect(() => {
     const timer = setTimeout(() => loadData(), 50);
     return () => clearTimeout(timer);
   }, []);
+
+  // Log pages — refetch whenever the user/level filter or the refresh button
+  // changes the key. Server-side filters mean the list actually reflects the
+  // selection instead of showing only the newest ~30s of unfiltered traffic.
+  useEffect(() => {
+    fetchLogPage({ skip: 0, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logUserFilter, level, logsRefreshKey]);
 
   // ── LIVE WS FEED ──────────────────────────────────────────────────────
   // Subscribe to RemoteLogEntry broadcasts while the tab is open so new
@@ -89,7 +150,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         merged.sort((a, b) =>
           new Date(b?.timestamp || b?.created_date || 0) - new Date(a?.timestamp || a?.created_date || 0)
         );
-        return merged.slice(0, 200);
+        return merged.slice(0, 600);
       });
     };
 
@@ -174,12 +235,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const filteredLogs = useMemo(() => {
     return (logs || []).filter((log) => {
-      if (level !== 'all' && log.level !== level) return false;
       if (search && !`${log.message} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
-      if (logUserFilter !== 'all' && log.user_id !== logUserFilter) return false;
       return true;
     });
-  }, [logs, search, level, logUserFilter]);
+  }, [logs, search]);
 
   const driverUsers = useMemo(() => {
     return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
@@ -212,10 +271,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   }, [selectedUsers, storeOptions]);
 
   const logFilterOptions = useMemo(() => {
-    return Array.from(new Map((logs || []).
-    filter((row) => row?.user_id).
-    map((row) => [row.user_id, { value: row.user_id, label: row.user_name || row.user_id }])).values());
-  }, [logs]);
+    // Built from the full app user roster — deriving from loaded log rows
+    // only listed users lucky enough to appear in the newest page.
+    return sortUsers((appUsers || []).filter((u) => u?.status === 'active'))
+      .map((u) => ({ value: u.user_id || u.id, label: u.user_name || u.full_name || u.id }));
+  }, [appUsers]);
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -269,6 +329,9 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardHeader className="px-6 py-3 flex flex-col space-y-1.5 flex-shrink-0">
           <CardTitle className="flex items-center gap-2">
             Recent Remote Logs
+            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+              {logsLoading ? 'loading…' : `${(filteredLogs || []).length} shown`}
+            </span>
             {live && (
               <span className="inline-flex items-center gap-1.5 text-xs font-normal text-green-600 dark:text-green-400">
                 <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -305,7 +368,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 <SelectItem value="debug">debug</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={loadData}>Refresh</Button>
+            <Button variant="outline" onClick={loadData} disabled={logsLoading}>Refresh</Button>
+            <Button variant="outline" onClick={loadOlderLogs} disabled={logsLoading || !logsHasMore}>Load older</Button>
             <Button variant="destructive" onClick={clearLogs}>Clear Logs</Button>
           </div>
 

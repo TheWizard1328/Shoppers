@@ -53,6 +53,11 @@ const stringifyArg = (arg) => {
 // so each slips through the dedup — that spam grew RemoteLogEntry to 500k+
 // rows and made sorted queries time out. Cap each unique message at 5
 // occurrences per 60s window per device.
+const REMOTE_LOG_CAPTURE_BLACKLIST = [
+  /\[BackgroundSync\] .+ already synced/,   // 365-day backfill: 1 line/date/device
+  /\[HistoricalSync\] .+ already synced/,  // same walk, different manager
+];
+
 const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
 const FINGERPRINT_MAX_PER_WINDOW = 5;
 const FINGERPRINT_WINDOW_MS = 60000;
@@ -186,6 +191,13 @@ const enqueue = async (level, args) => {
   if (!levels.includes(level)) return;
 
   const message = args.map(stringifyArg).join(' ').slice(0, 5000);
+  // Capture blacklist — repetitive walk/scan messages that vary per iteration
+  // (dates, stores) defeat fingerprint dedup and previously grew RemoteLogEntry
+  // to 200k+ rows/day. Source-side aggregation is the primary fix; this stops
+  // any stragglers from legacy cached bundles still emitting them.
+  for (const rx of REMOTE_LOG_CAPTURE_BLACKLIST) {
+    if (rx.test(message)) return;
+  }
   if (shouldSkipDuplicateLog(level, message)) return;
 
   const me = await getMe();
