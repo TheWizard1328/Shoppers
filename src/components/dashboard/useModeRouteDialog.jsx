@@ -6,6 +6,7 @@ import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelp
 import { useAppData } from '@/components/utils/AppDataContext';
 import { base44 } from '@/api/base44Client';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
+import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
 import { format } from 'date-fns';
 
 // ── Haversine crow-flies distance (km) ────────────────────────────────────────
