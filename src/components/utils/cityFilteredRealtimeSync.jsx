@@ -2,7 +2,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
-import { applyTerminalStatusGuard } from './completionLockout';
+import { applyTerminalStatusGuard, applyRealtimeMergeWithLockout } from './completionLockout';
 import { isDeleted, isDeletedByContent, filterDeleted } from "./deletedDeliveryRegistry";
 
 class CityFilteredRealtimeSync {
@@ -165,6 +165,16 @@ class CityFilteredRealtimeSync {
                 // can momentarily resurrect the just-completed stop as in_transit +
                 // isNextDelivery=true (the "completion bounce" seen on tablets).
                 mergedDelivery = applyTerminalStatusGuard(mergedDelivery, existing);
+                // PER-DELIVERY LOCKOUT (Accept All / optimization protection): the main
+                // realtimeSync path applies applyRealtimeMergeWithLockout so stale WS
+                // payloads carrying status='pending' for just-accepted stops are
+                // rejected (the per-delivery lock arms on the acting device with an
+                // expected in_transit value). This city-filtered subscription was only
+                // applying the terminal guard — pending→in_transit reverts sailed
+                // straight through, causing the pickup card's pending-stop badge to
+                // flicker back 3-4 times after Accept All while the map stayed correct.
+                // Same merge protection as realtimeSync.jsx line 349.
+                mergedDelivery = applyRealtimeMergeWithLockout(mergedDelivery.id, mergedDelivery, existing);
               } catch (mergeErr) {
                 console.warn('⚠️ [cityFilteredRealtimeSync] IDB merge failed, using raw payload:', mergeErr?.message);
               }
