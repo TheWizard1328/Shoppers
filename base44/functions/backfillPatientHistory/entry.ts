@@ -49,12 +49,27 @@ Deno.serve(async (req) => {
     for (const d of returnEntries) {
       byId.set(d.id, { id: d.id, delivery_date: d.delivery_date || null, actual_delivery_time: d.actual_delivery_time || null, status: 'returned' });
     }
-    const history = Array.from(byId.values()).sort((a, b) => {
+    const sorted = Array.from(byId.values()).sort((a, b) => {
       const aDate = a.delivery_date || '';
       const bDate = b.delivery_date || '';
       if (aDate !== bDate) return bDate.localeCompare(aDate);
       return (b.actual_delivery_time || '').localeCompare(a.actual_delivery_time || '');
     });
+
+    // Collapse to one entry per delivery_date. A return run (mapped to 'returned')
+    // is dated the same day as the original delivery, so without this the history
+    // gets two entries for a single calendar day — the original delivery plus the
+    // return. After the sort above (date desc, time desc) the first entry per date
+    // is the latest event that day, so we keep it and drop any later same-date rows.
+    // Entries with no delivery_date are all kept (rare, and not date-collapsible).
+    const history = [];
+    const seenDates = new Set();
+    for (const entry of sorted) {
+      const d = entry.delivery_date || null;
+      if (d && seenDates.has(d)) continue;
+      if (d) seenDates.add(d);
+      history.push(entry);
+    }
 
     const lastDeliveryDate = history.length > 0 ? history[0].delivery_date : null;
     await db.entities.Patient.update(patient_id, { delivery_history: history, last_delivery_date: lastDeliveryDate })
@@ -177,13 +192,39 @@ Deno.serve(async (req) => {
   const patientUpdates = [];
   const deliveryCorrections = [];
   for (const [patientId, entries] of deliveryHistoryMap) {
-    entries.sort((a, b) => {
+    // Dedup by delivery id first: a return run that is ALSO a terminal delivery
+    // (patient_id set + status completed/failed + patient_name~Return + notes name
+    // the patient) is pushed in BOTH Step 2 (terminal) and Step 3 (return), and a
+    // return run whose "For:" list names the same patient twice is pushed twice in
+    // Step 3. Prefer the 'returned' status when both a terminal and a return entry
+    // exist for the same id (return runs should display as 'returned').
+    const byId = new Map();
+    for (const e of entries) {
+      const existing = byId.get(e.id);
+      if (!existing || (e.status === 'returned' && existing.status !== 'returned')) {
+        byId.set(e.id, e);
+      }
+    }
+    const deduped = Array.from(byId.values());
+    deduped.sort((a, b) => {
       const aDate = a.delivery_date || '';
       const bDate = b.delivery_date || '';
       if (aDate !== bDate) return bDate.localeCompare(aDate);
       return (b.actual_delivery_time || '').localeCompare(a.actual_delivery_time || '');
     });
-    const cleanHistory = entries.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status }));
+
+    // Collapse to one entry per delivery_date (see single-patient mode comment) —
+    // a return run dated the same day as the original delivery must not produce a
+    // second history row for that calendar day. Keep the latest-time event per date.
+    const seenDates = new Set();
+    const cleanEntries = [];
+    for (const entry of deduped) {
+      const d = entry.delivery_date || null;
+      if (d && seenDates.has(d)) continue;
+      if (d) seenDates.add(d);
+      cleanEntries.push(entry);
+    }
+    const cleanHistory = cleanEntries.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status }));
     const lastDeliveryDate = cleanHistory.length > 0 ? cleanHistory[0].delivery_date : null;
 
     // DIFF: skip patient if delivery_history already matches
@@ -200,17 +241,18 @@ Deno.serve(async (req) => {
       patientsSkipped++;
     }
 
-    // DIFF: only correct first_delivery where it's WRONG
-    const oldest = entries[entries.length - 1];
+    // DIFF: only correct first_delivery where it's WRONG — operate on ALL id-deduped
+    // deliveries (not the date-collapsed set) so every real delivery record is flagged.
+    const oldest = deduped[deduped.length - 1];
     if (oldest && !oldest._currentFirstDelivery) {
       deliveryCorrections.push({ id: oldest.id, first_delivery: true });
       deliveryCorrectionsNeeded++;
     } else {
       deliveryCorrectionsSkipped++;
     }
-    for (let i = 0; i < entries.length - 1; i++) {
-      if (entries[i]._currentFirstDelivery) {
-        deliveryCorrections.push({ id: entries[i].id, first_delivery: false });
+    for (let i = 0; i < deduped.length - 1; i++) {
+      if (deduped[i]._currentFirstDelivery) {
+        deliveryCorrections.push({ id: deduped[i].id, first_delivery: false });
         deliveryCorrectionsNeeded++;
       } else {
         deliveryCorrectionsSkipped++;
