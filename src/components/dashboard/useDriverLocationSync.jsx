@@ -1,6 +1,15 @@
 import { useEffect, useRef } from "react";
 import { locationTracker } from "@/components/utils/locationTracker";
 
+// ── Battery/CPU tuning (Sep 8 2026) ─────────────────────────────────────────
+// Hybrid gate for pushing the live driver position into React state:
+//  - Moving: state updates when the driver crosses 5m (≈1x/sec at bike/drive
+//    speeds — same feel as the old 1s time gate).
+//  - Stationary/creeping: updates at most every 4s (the "dot is alive" floor;
+//    a stationary dot looks identical at any cadence).
+const DRIVER_LOC_MIN_MOVE_M = 5;    // metres of movement that forces a push
+const DRIVER_LOC_MAX_IDLE_MS = 4000; // liveness floor between pushes
+
 /**
  * useDriverLocationSync
  *
@@ -113,17 +122,43 @@ export default function useDriverLocationSync({
       if (!newLocation?.latitude || !newLocation?.longitude) return;
       if (driverLocationRef) driverLocationRef.current = newLocation;
 
-      // TIME gate, NOT a distance gate (Robert, Sep 4 2026): the live marker must
-      // update at least once every second, even when the driver is stationary or
-      // creeping forward — a ~13m movement gate made the blue dot feel frozen.
-      // We still dedupe sub-second double-fires (GPS jitter bursts) so the
-      // Dashboard doesn't re-render more than ~1x/second.
+      // HYBRID GATE (Sep 8 2026 battery/heat work): push to React state when the
+      // driver moved >= DRIVER_LOC_MIN_MOVE_M, OR at least once every
+      // DRIVER_LOC_MAX_IDLE_MS as a liveness floor.
+      //
+      // Background: every push re-renders the Dashboard (~1Hz under the old pure
+      // time gate). While actively moving (bike/drive speeds), the distance gate
+      // fires ~1x/second anyway — identical feel to the Sep 4 rule. While
+      // stationary (at a door, red light, docked on the mount), GPS jitter is
+      // sub-2m so pushes drop to the 4s liveness floor — ~5x fewer Dashboard
+      // re-renders with zero visible difference (the dot doesn't move either way).
+      //
+      // The Sep 4 rule rejected a ~13m gate because a creeping dot looked frozen
+      // (13s between updates). The 5m gate caps that at ~4-5s while creeping and
+      // still guarantees the dot feels alive; accuracy and server uploads are
+      // unaffected — driverLocationRef above always holds the freshest fix.
       const lastPushed = lastStateLocationRef.current;
-      if (lastPushed && Date.now() - lastPushed.pushedAt < 1000) {
-        syncLocationRef.current = syncLocation;
-        return;
+      const now = Date.now();
+      if (lastPushed) {
+        const msSincePush = now - lastPushed.pushedAt;
+        if (msSincePush < 1000) {
+          // Dedupe sub-second GPS jitter bursts (multiple hardware locks/sec).
+          syncLocationRef.current = syncLocation;
+          return;
+        }
+        if (msSincePush < DRIVER_LOC_MAX_IDLE_MS) {
+          const distM = calculateDistanceRef.current?.(
+            lastPushed.latitude, lastPushed.longitude,
+            newLocation.latitude, newLocation.longitude
+          );
+          if (distM == null || distM < DRIVER_LOC_MIN_MOVE_M) {
+            // Sub-threshold jitter or stationary — hold state; ref stays fresh.
+            syncLocationRef.current = syncLocation;
+            return;
+          }
+        }
       }
-      lastStateLocationRef.current = { latitude: newLocation.latitude, longitude: newLocation.longitude, pushedAt: Date.now() };
+      lastStateLocationRef.current = { latitude: newLocation.latitude, longitude: newLocation.longitude, pushedAt: now };
       setDriverLocation(newLocation);
       syncLocationRef.current = syncLocation;
     };
