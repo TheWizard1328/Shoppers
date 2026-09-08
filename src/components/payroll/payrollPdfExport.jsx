@@ -15,6 +15,34 @@ import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalcula
  * support keep using the normal blob download.
  */
 async function savePdfCrossPlatform(doc, filename) {
+  // ── APK path (native Android shell) ─────────────────────────────────────
+  // Capacitor's WebView has NO navigator.share (so the Web Share fallback
+  // below never runs there) and its DownloadManager rejects blob: URIs —
+  // which is exactly the "Can only download HTTP/HTTPS URIs: blob:..."
+  // error drivers saw. The APK exposes window.AndroidNative.saveBase64File
+  // (MainActivity.java), which writes the file straight into the device's
+  // Downloads folder via MediaStore — no download listener involved.
+  try {
+    if (typeof window !== 'undefined' && window.AndroidNative && typeof window.AndroidNative.saveBase64File === 'function') {
+      const blob = doc.output('blob');
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          try { resolve(String(reader.result).split(',')[1] || ''); }
+          catch (e) { reject(e); }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const result = JSON.parse(window.AndroidNative.saveBase64File(base64, filename, 'application/pdf') || '{}');
+      if (result.success) return; // native toast confirms "Saved to Downloads"
+      console.warn('[payrollPdfExport] native APK save failed:', result.error);
+    }
+  } catch (apkErr) {
+    console.warn('[payrollPdfExport] AndroidNative save path failed, continuing to fallbacks:', apkErr);
+  }
+
+  // ── Mobile browser / PWA path (native Share Sheet) ──────────────────────
   try {
     if (navigator.share && navigator.canShare) {
       const blob = doc.output('blob');

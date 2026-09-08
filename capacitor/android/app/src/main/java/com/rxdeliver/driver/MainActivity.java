@@ -14,9 +14,11 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.content.ContentValues;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.RenderProcessGoneDetail;
@@ -33,6 +35,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
 import com.getcapacitor.WebViewListener;
 import java.io.File;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -322,6 +325,81 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isAppInForeground() {
             return activityResumed;
+        }
+
+        // ── Generic file saver for web-generated documents ──────────────
+        // jsPDF's doc.save() triggers a synthetic <a download> click on a
+        // blob: URL. Android's WebView hands blob: URLs to the DownloadListener,
+        // and DownloadManager.Request() throws IllegalArgumentException
+        // ("Can only download HTTP/HTTPS URIs: blob:...") for non-http(s)
+        // schemes — that was the root cause of the Driver Payroll PDF
+        // "Download failed to start" error. Capacitor's WebView also has no
+        // navigator.share, so the Web Share fallback used on mobile browsers
+        // is unavailable here. This method receives the file as base64
+        // (payroll PDFs are a few hundred KB — well within bridge limits)
+        // and writes it directly into the public Downloads folder via
+        // MediaStore, no download listener involved.
+        //
+        // Returns JSON for JS: {"success":true,"uri":"..."} or
+        // {"success":false,"error":"..."}. Runs on the JS bridge thread,
+        // which makes the synchronous return value reliable.
+        @JavascriptInterface
+        public String saveBase64File(String base64Data, String fileName, String mimeType) {
+            try {
+                // Defensive: strip any path separators from the filename
+                String safeName = (fileName == null || fileName.isEmpty())
+                    ? "document.pdf" : fileName;
+                safeName = safeName.replaceAll("[/\\]", "_");
+                String safeMime = (mimeType == null || mimeType.isEmpty())
+                    ? "application/octet-stream" : mimeType;
+
+                byte[] data = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
+                if (data == null || data.length == 0) {
+                    return "{\"success\":false,\"error\":\"empty payload\"}";
+                }
+
+                Uri savedUri;
+                if (Build.VERSION.SDK_INT >= 29) {
+                    // Scoped storage: write through MediaStore Downloads
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Downloads.DISPLAY_NAME, safeName);
+                    values.put(MediaStore.Downloads.MIME_TYPE, safeMime);
+                    values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                    Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                    Uri itemUri = getContentResolver().insert(collection, values);
+                    if (itemUri == null) {
+                        return "{\"success\":false,\"error\":\"MediaStore insert failed\"}";
+                    }
+                    try (OutputStream os = getContentResolver().openOutputStream(itemUri)) {
+                        if (os == null) {
+                            return "{\"success\":false,\"error\":\"openOutputStream failed\"}";
+                        }
+                        os.write(data);
+                        os.flush();
+                    }
+                    // Publish: make the file visible to the user and other apps
+                    ContentValues doneValues = new ContentValues();
+                    doneValues.put(MediaStore.Downloads.IS_PENDING, 0);
+                    getContentResolver().update(itemUri, doneValues, null, null);
+                    savedUri = itemUri;
+                } else {
+                    // Legacy (API < 29): write straight to the public Downloads dir
+                    File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs();
+                    File outFile = new File(downloadsDir, safeName);
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile);
+                    try { fos.write(data); fos.flush(); } finally { fos.close(); }
+                    savedUri = Uri.fromFile(outFile);
+                }
+
+                final String toastMsg = "Saved to Downloads: " + safeName;
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, toastMsg, Toast.LENGTH_LONG).show());
+                return "{\"success\":true,\"uri\":\"" + savedUri.toString() + "\"}";
+            } catch (Exception e) {
+                android.util.Log.e("RxDeliver", "saveBase64File failed: " + e.getMessage());
+                return "{\"success\":false,\"error\":\"" + e.getMessage() + "\"}";
+            }
         }
     }
 
