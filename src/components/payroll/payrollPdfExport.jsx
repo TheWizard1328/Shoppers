@@ -3,7 +3,9 @@ import { toast } from 'sonner';
 import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
 
 /**
- * Save a jsPDF document, preferring the native Share Sheet on mobile/APK.
+ * Save a jsPDF document and OPEN it: APK → save to Downloads + launch the
+ * device viewer; mobile browser/PWA → open in the browser's PDF viewer;
+ * desktop → standard save-to-file window.
  *
  * Why: jsPDF's doc.save() triggers an <a download> click on a blob: URL.
  * That works fine in a desktop browser, but Android's WebView download
@@ -47,34 +49,27 @@ async function savePdfCrossPlatform(doc, filename) {
       const raw = window.AndroidNative.saveBase64File(base64, filename, 'application/pdf');
       const result = JSON.parse(raw || '{}');
       if (result.success) {
-        // Native save confirmed — offer to open the PDF right away.
-        // The native bridge returns the saved MediaStore URI, and
-        // openSavedFile launches ACTION_VIEW on it with a read grant.
+        // Save confirmed — open the PDF straight away in the device's
+        // viewer app (ACTION_VIEW on the saved MediaStore URI, with a
+        // read grant). No share sheet, no extra button.
         const savedUri = result.uri || '';
         if (savedUri && typeof window.AndroidNative.openSavedFile === 'function') {
-          toast('Saved to Downloads', {
-            duration: 12000,
-            action: {
-              label: 'Open PDF',
-              onClick: () => {
-                try {
-                  const openRaw = window.AndroidNative.openSavedFile(savedUri, 'application/pdf');
-                  const openRes = JSON.parse(openRaw || '{}');
-                  if (!openRes?.success) {
-                    toast.error(openRes?.error || 'Could not open PDF');
-                  }
-                } catch (_) {
-                  toast.error('Could not open PDF');
-                }
-              },
-            },
-          });
+          try {
+            const openRaw = window.AndroidNative.openSavedFile(savedUri, 'application/pdf');
+            const openRes = JSON.parse(openRaw || '{}');
+            if (!openRes?.success) {
+              // Saved fine — the viewer launch just failed (e.g. no PDF app).
+              toast.error(`Saved to Downloads, but: ${openRes?.error || 'could not open the PDF'}`);
+            }
+          } catch (_) {
+            toast.error('Saved to Downloads, but could not open the PDF');
+          }
         } else {
           // APK predates the openSavedFile bridge — the PDF is safe in
-          // Downloads; guide the user to the update that adds Open PDF.
+          // Downloads; guide the user to the update that adds auto-open.
           toast('Saved to Downloads', {
             duration: 12000,
-            description: 'Update the app (blue arrow in settings) to get the Open PDF option',
+            description: 'Update the app (blue arrow in settings) to auto-open PDFs',
           });
         }
         return;
@@ -88,21 +83,35 @@ async function savePdfCrossPlatform(doc, filename) {
     }
   }
 
-  // ── Mobile browser / PWA path (native Share Sheet) ──────────────────────
+  // ── Mobile browser / PWA path — open the PDF in the browser's built-in
+  // viewer (no share sheet). The viewer itself offers save/share options.
+  // UA-gated to phone/tablet browsers so Windows laptops and Surface-style
+  // touch PCs keep the desktop save-window behavior.
   try {
-    if (navigator.share && navigator.canShare) {
+    const isMobileUA = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobileUA) {
       const blob = doc.output('blob');
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: filename });
-        return;
+      const url = URL.createObjectURL(blob);
+      const opened = window.open(url, '_blank');
+      if (!opened) {
+        // Popup blocked — anchor click fallback (usually allowed for
+        // recently-activated tabs).
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       }
+      // Give the viewer time to load the blob before freeing it.
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
     }
   } catch (err) {
-    if (err?.name === 'AbortError') return; // user dismissed the share sheet — not a failure
-    console.warn('[payrollPdfExport] navigator.share failed, falling back to direct download:', err);
+    console.warn('[payrollPdfExport] open-in-viewer failed, falling back to direct download:', err);
   }
-  // Desktop browsers (or share unsupported) — blob download works fine here
+  // Desktop browsers — save-to-file window
   doc.save(filename);
 }
 
