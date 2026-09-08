@@ -60,6 +60,25 @@ export const buildDeviceUpdatedMessage = (currentUser) => {
   return `Device updated: ${currentUser?.user_name || currentUser?.full_name || 'Unknown User'}${storeSuffix}`;
 };
 
+/**
+ * Mark every unread message in the current user's "System Updates" thread as
+ * read. Called once on app boot/refresh so the thread shows fully read after
+ * the restart/refresh that applied the update.
+ */
+export const markAllSystemUpdatesRead = async (currentUser) => {
+  if (!currentUser?.id) return;
+  try {
+    const { base44 } = await import('@/api/base44Client');
+    const conversationId = [SYSTEM_UPDATES_SENDER_ID, currentUser.id].sort().join('_');
+    await base44.entities.Message.updateMany(
+      { conversation_id: conversationId, read: false },
+      { $set: { read: true } }
+    );
+  } catch (e) {
+    // Non-critical — failing to mark read just leaves the badge; ignore.
+  }
+};
+
 export const sendSystemBroadcastAckIfNeeded = async ({ currentUser, messageId, conversationId }) => {
   if (!currentUser?.id || !messageId || !conversationId) return false;
   if (hasSystemBroadcastBeenAckedForThisDevice(messageId)) return false;

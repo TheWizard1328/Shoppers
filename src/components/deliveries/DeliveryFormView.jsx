@@ -1489,7 +1489,8 @@ export default function DeliveryFormView({
                                     type="button"
                                     disabled={!formData.unit_number || isSaving}
                                     onClick={handleBuzzerOpen}
-                                    className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                    style={{ minHeight: 0 }}
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
                                       + Buzzer #
                                     </button>
                                   </div>
@@ -1709,10 +1710,11 @@ export default function DeliveryFormView({
                                  <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
                                    <Label className="text-sm font-semibold text-body">Unit #</Label>
                                    <button
-                                  type="button"
-                                  disabled={!formData.unit_number || isSaving}
-                                  onClick={handleBuzzerOpen}
-                                  className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                   type="button"
+                                   disabled={!formData.unit_number || isSaving}
+                                   onClick={handleBuzzerOpen}
+                                   style={{ minHeight: 0 }}
+                                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
                                      Buzzer #
                                    </button>
                                  </div>

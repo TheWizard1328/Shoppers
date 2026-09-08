@@ -6,6 +6,7 @@ import {
   isAppUpdateBroadcast,
   isHiddenSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
+import { loadGroupsWithPreview } from './groupConversationLoader';
 
 /**
  * useDispatcherMessageAutoOpen
@@ -30,6 +31,7 @@ import {
  */
 export function useDispatcherMessageAutoOpen({
   currentUser,
+  appUsers,
   isFormOverlayOpen,
   showMessaging,
   setShowMessaging,
@@ -67,18 +69,31 @@ export function useDispatcherMessageAutoOpen({
         seenIdsRef.current = new Set(Array.from(seenIdsRef.current).slice(-100));
       }
 
-      // Must be a direct user message TO this dispatcher
-      if (msg.receiver_id !== currentUser.id) return;
+      // Must be a direct user message TO this dispatcher, OR a group message
+      // in a thread this dispatcher belongs to (and not sent by themselves).
+      const isDirectToMe = msg.receiver_id === currentUser.id;
+      const isGroupToMe =
+        msg.is_group &&
+        msg.sender_id !== currentUser.id &&
+        Array.isArray(msg.group_member_ids) &&
+        msg.group_member_ids.includes(currentUser.id);
+      if (!isDirectToMe && !isGroupToMe) return;
       if (msg.sender_id === currentUser.id) return;
       if (msg.sender_id === SYSTEM_UPDATES_SENDER_ID) return;
       if (isAppUpdateBroadcast(msg.content)) return;
       if (isHiddenSystemBroadcastMessageForThisDevice(msg.id)) return;
 
-      const conversation = {
-        conversationId: msg.conversation_id,
-        otherUserId: msg.sender_id,
-        otherUserName: msg.sender_name,
-      };
+      const conversation = isGroupToMe
+        ? {
+            conversationId: msg.group_id || msg.conversation_id,
+            otherUserId: null,
+            otherUserName: msg.group_name || 'Group',
+          }
+        : {
+            conversationId: msg.conversation_id,
+            otherUserId: msg.sender_id,
+            otherUserName: msg.sender_name,
+          };
 
       // Add to Route form open → queue latest qualifying message, open when form closes
       if (isFormOverlayOpenRef.current) {
@@ -124,4 +139,37 @@ export function useDispatcherMessageAutoOpen({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFormOverlayOpen, showMessaging]);
+
+  // ── Boot auto-open: open the messages panel on load/refresh if unread exist ─
+  const appUsersRef = useRef(appUsers);
+  useEffect(() => { appUsersRef.current = appUsers; }, [appUsers]);
+  const bootCheckDoneRef = useRef(false);
+  useEffect(() => {
+    if (bootCheckDoneRef.current) return;
+    if (!currentUser?.id) return;
+    if (!userHasRole(currentUser, 'dispatcher')) { bootCheckDoneRef.current = true; return; }
+    bootCheckDoneRef.current = true;
+    (async () => {
+      try {
+        const received = await base44.entities.Message.filter(
+          { receiver_id: currentUser.id, read: false }, '-created_date', 50
+        );
+        const directUnread = (received || []).filter(
+          (m) => m.sender_id !== SYSTEM_UPDATES_SENDER_ID
+        ).length;
+        let groupUnread = 0;
+        const au = appUsersRef.current || [];
+        if (au.length > 0) {
+          try {
+            const previews = await loadGroupsWithPreview(currentUser, au);
+            groupUnread = previews.reduce((s, p) => s + (p?.unreadCount || 0), 0);
+          } catch (_) {}
+        }
+        if ((directUnread + groupUnread) > 0 && !showMessagingRef.current && !isFormOverlayOpenRef.current) {
+          setShowMessaging(true);
+        }
+      } catch (e) { /* non-critical */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 }

@@ -25,8 +25,8 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
     }
   }, [onUnreadCountChange]);
 
-  const handleSelectConversation = useCallback((conversationId, otherUserId, otherUserName) => {
-    setSelectedConversation({ conversationId, otherUserId, otherUserName });
+  const handleSelectConversation = useCallback((conversationId, otherUserId, otherUserName, group) => {
+    setSelectedConversation({ conversationId, otherUserId, otherUserName, group });
     // Stop the blink the moment the dispatcher opens the blinking conversation
     if (onClearBlink && conversationId === pendingBlinkConversationId) {
       onClearBlink(null);
@@ -149,6 +149,8 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
                 conversationId={selectedConversation.conversationId}
                 otherUserId={selectedConversation.otherUserId}
                 otherUserName={selectedConversation.otherUserName}
+                group={selectedConversation.group}
+                users={users}
                 onBack={handleBack}
                 onMessagesRead={handleMessagesRead}
                 autoFocus={!!(initialConversation && initialConversation.conversationId === selectedConversation.conversationId)}

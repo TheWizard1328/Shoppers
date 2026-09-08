@@ -38,23 +38,21 @@ const MATCH_INACTIVE_ICON = createCircleIcon('#dc2626', 14);
 
 function FitBoundsEffect({ points }) {
   const map = useMap();
-  const fittedRef = useRef(false);
-
+  // Fit bounds exactly ONCE per mount. PatientGPSMap is keyed by selectedLog.id,
+  // so switching logs remounts this component and re-fits naturally. Accepting a
+  // log updates matching-patient coordinates in place — we must NOT re-fit then,
+  // or the user's manual zoom snaps back out.
   useEffect(() => {
-    if (!points || points.length === 0) return;
-    fittedRef.current = false;
-  }, [points]);
-
-  useEffect(() => {
-    if (!points || points.length === 0 || fittedRef.current) return;
+    const pts = (points || []).filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+    if (pts.length === 0) return;
     try {
-      const bounds = L.latLngBounds(points.filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng)));
+      const bounds = L.latLngBounds(pts);
       if (bounds.isValid()) {
         map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
-        fittedRef.current = true;
       }
     } catch {}
-  }, [map, points]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
 
   return null;
 }

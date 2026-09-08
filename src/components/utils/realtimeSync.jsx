@@ -901,18 +901,23 @@ const subscribeToEntity = (entityName) => {
     }
 
       // Get current user name for "updatedBy"
-      let updatedBy = 'System';
+      // CRITICAL: prefer the ACTUAL sender's name from the WS payload (data.updated_by_name /
+      // updatedBy) so the realtime toast shows who made the change — not the local session
+      // user. Falls back to the local session user only when the sender is unknown (older
+      // payloads / system events). currentUserName is still kept for the isRemoteUpdate
+      // comparison below.
       let currentUserName = 'System';
       try {
         const userCache = sessionStorage.getItem('effectiveUserCache');
         if (userCache) {
           const parsed = JSON.parse(userCache);
           currentUserName = parsed?.user?.user_name || parsed?.user?.full_name || 'System';
-          updatedBy = currentUserName;
         }
       } catch (e) {
         // Ignore
       }
+      const _senderName = data?.updated_by_name || data?.updatedBy;
+      const updatedBy = (_senderName && _senderName !== 'System') ? _senderName : currentUserName;
 
       // Detect changed fields for updates
       let changedFields = [];

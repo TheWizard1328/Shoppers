@@ -175,6 +175,24 @@ Deno.serve(async (req) => {
       return await runBackfill(base44, Number(payload.backfillDays));
     }
 
+    // ── Single-patient mode (invoked from PatientForm after an edit) ──────────
+    // Recompute last_delivery_date from the patient's delivery_history[0].
+    if (payload?.patient_id) {
+      const patient = await getPatientById(base44, payload.patient_id);
+      if (!patient) return Response.json({ error: 'Patient not found' }, { status: 404 });
+      const history = Array.isArray(patient.delivery_history) ? [...patient.delivery_history] : [];
+      history.sort((a, b) => {
+        const aDate = a.delivery_date || '';
+        const bDate = b.delivery_date || '';
+        if (aDate !== bDate) return bDate.localeCompare(aDate);
+        return (b.actual_delivery_time || '').localeCompare(a.actual_delivery_time || '');
+      });
+      const lastDate = history.length > 0 ? normalizeDateString(history[0].delivery_date) : null;
+      await base44.asServiceRole.entities.Patient.update(payload.patient_id, { last_delivery_date: lastDate })
+        .catch((error) => { if (isNotFoundError(error)) return null; throw error; });
+      return Response.json({ success: true, mode: 'patient_sync', patient_id: payload.patient_id, last_delivery_date: lastDate });
+    }
+
     const delivery = payload?.data;
     const oldDelivery = payload?.old_data;
     const eventType = payload?.event?.type;

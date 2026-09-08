@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +22,14 @@ import {
   Mailbox,
   Globe,
   LogIn,
-  Hash } from
+  Hash,
+  Loader2 } from
 "lucide-react";
 import { formatPhoneNumber } from "../utils/formatters";
 import { formatAddressWithUnit } from '../utils/formatters';
 import { format } from "date-fns";
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
+import { subscribePatientHistoryBackfill } from '../utils/patientHistoryBackfill';
 
 import {
   DropdownMenu,
@@ -128,8 +130,17 @@ export default function PatientCard({
   currentUser
 }) {
 
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  useEffect(() => {
+    return subscribePatientHistoryBackfill((inFlightId, queuedIds) => {
+      setIsBackfilling(inFlightId === patient?.id || (Array.isArray(queuedIds) && queuedIds.includes(patient?.id)));
+    });
+  }, [patient?.id]);
+
   const handleEdit = (e) => {
     e.stopPropagation();
+    if (isBackfilling) return;
     onEdit?.(patient);
   };
 
@@ -185,7 +196,7 @@ export default function PatientCard({
 
   return (
     <Card
-      className={`overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer ${
+      className={`overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer h-full flex flex-col ${
       patient.status === 'inactive' ?
       'border-2 border-red-500 hover:border-red-600' :
       showStoreBadge && store?.color ?
@@ -195,7 +206,7 @@ export default function PatientCard({
       style={{ borderColor: patient.status !== 'inactive' && showStoreBadge && store?.color ? store.color : 'var(--border-slate-200)' }}
       onClick={() => onSelect?.(patient)}>
 
-      <CardContent className="py-3 px-3">
+      <CardContent className="py-3 px-3 flex flex-col flex-1">
         <div className="flex justify-between items-start mb-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 min-w-0">
@@ -260,9 +271,10 @@ export default function PatientCard({
               className="h-8 w-8 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300"
               style={{ color: 'var(--text-slate-400)' }}
               onClick={handleEdit}
-              title="Edit Patient">
+              disabled={isBackfilling}
+              title={isBackfilling ? 'Updating delivery history…' : 'Edit Patient'}>
 
-              <Edit className="w-4 h-4" />
+              {isBackfilling ? <Loader2 className="w-4 h-4 animate-spin text-label" /> : <Edit className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"
@@ -360,9 +372,10 @@ export default function PatientCard({
           }
         </div>
 
-        {/* Patient Notes */}
-        {patient.notes &&
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
+        {/* Patient Notes + Last Delivered — anchored to the bottom of the card */}
+        <div className="mt-auto">
+          {patient.notes &&
+          <div className="pt-3" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             <div className="text-xs font-semibold mb-1 flex items-center gap-1 text-soft">
               <StickyNote className="w-3 h-3" />
               Notes:
@@ -373,7 +386,28 @@ export default function PatientCard({
             )}
             </div>
           </div>
-        }
+          }
+
+          {/* Last Delivered Date — bottom-left badge */}
+          {(() => {
+            const ldDate = patient.delivery_history?.[0]?.delivery_date || patient.last_delivery_date;
+            if (!ldDate) return null;
+            let label;
+            try {
+              label = format(new Date(ldDate + 'T00:00:00'), 'MMM d, yyyy');
+            } catch {
+              label = String(ldDate);
+            }
+            return (
+              <div className="pt-3 flex justify-start" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
+                <Badge variant="outline" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+                  <Calendar className="w-3.5 h-3 mr-1" />
+                  LD: {label}
+                </Badge>
+              </div>
+            );
+          })()}
+        </div>
       </CardContent>
     </Card>);
 

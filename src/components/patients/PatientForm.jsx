@@ -24,6 +24,7 @@ import { offlineDB } from '../utils/offlineDatabase';
 import { canAutoFocusFormFields } from '@/components/utils/deviceUtils';
 import { globalFilters } from '@/components/utils/globalFilters';
 import { abbreviateAddressDirections, normalizeStreetTypes } from '@/components/utils/addressCleaner';
+import { enqueuePatientHistoryBackfill } from '../utils/patientHistoryBackfill';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -272,8 +273,12 @@ export default function PatientForm({
         care_pros: patient.care_pros || false,
         cp_name: patient.cp_name || "",
         cp_envelopes: patient.cp_envelopes || 0,
-        last_delivery_date: "", // Always clear for duplicate/new-address so first-time delivery checkbox works
-        delivery_history: []
+        last_delivery_date: (duplicateMode === 'newAddress' || duplicateMode === 'duplicate')
+          ? "" // Clear for duplicate/new-address so first-time delivery checkbox works
+          : (patient.last_delivery_date || (Array.isArray(patient.delivery_history) && patient.delivery_history[0]?.delivery_date) || ""),
+        delivery_history: (duplicateMode === 'newAddress' || duplicateMode === 'duplicate')
+          ? []
+          : (Array.isArray(patient.delivery_history) ? patient.delivery_history : [])
       });
 
       setIsRecurring(hasRecurring);
@@ -649,40 +654,33 @@ export default function PatientForm({
         }
       }
 
-      // STEP 2: Broadcast change to other devices (non-blocking)
+      // STEP 2 (removed): the manual broadcastEntityChange call was deleted —
+      // that backend function doesn't exist (returned 404 on every save) and
+      // its awaited failure + retry backoff blocked the UI. The platform already
+      // broadcasts Patient changes via the realtime WebSocket + EntityMutations
+      // pipeline, so this was redundant dead code.
+
+      // STEP 3 + STEP 4 moved off the critical path: the post-save re-fetch /
+      // offline-DB refresh / cache invalidate are redundant with the mutation
+      // pipeline (EntityMutations already saves the full record to the offline
+      // DB and realtimeSync already broadcasts). Awaiting them before closing
+      // the form caused a ~60s UI freeze. Fire them in the background instead.
       if (patient) {
-        try {
-          const { base44 } = await import('@/api/base44Client');
-          await base44.functions.invoke('broadcastEntityChange', {
-            entity_name: 'Patient',
-            operation: 'update',
-            metadata: { id: savedPatientId }
-          });
-          console.log('  📡 Broadcasted to other devices');
-        } catch (broadcastError) {
-          console.warn('  ⚠️ Broadcast failed (non-critical):', broadcastError.message);
-        }
+        (async () => {
+          try {
+            const { base44 } = await import('@/api/base44Client');
+            const freshPatient = await base44.entities.Patient.get(savedPatientId);
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [freshPatient]);
+          } catch (_) { /* non-critical background refresh */ }
+          try {
+            const { invalidate } = await import('../utils/dataManager');
+            invalidate('Patient');
+          } catch (_) {}
+        })();
       }
 
-      // STEP 3: Fetch latest data if updating (for updates, refetch to ensure offline DB is fresh)
-      if (patient) {
-        const { base44 } = await import('@/api/base44Client');
-        console.log('  🔄 Fetching latest patient data...');
-        const freshPatient = await base44.entities.Patient.get(savedPatientId);
-        console.log('  ✅ Fresh patient data fetched');
-
-        // Update offline database with fresh data
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [freshPatient]);
-        console.log('  ✅ Offline DB updated with fresh data');
-      }
-
-      // STEP 4: Invalidate cache and trigger UI update
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Patient');
-      console.log('  ✅ Cache invalidated');
-
-      // STEP 5: Close form and pass patient data to parent
+      // STEP 5: Close form and pass patient data to parent (now immediate)
       if (returnPatientOnSave) {
         const completePatient = {
           ...dataToSave,
@@ -700,6 +698,13 @@ export default function PatientForm({
           };
           await onSave(completePatient);
         }
+      }
+
+      // STEP 6: Queue the per-patient history backfill AFTER the form has closed.
+      // Serialized via a queue so back-to-back edits don't overlap; the edited
+      // patient's card shows a spinner on its Edit button while its slot runs.
+      if (patient) {
+        enqueuePatientHistoryBackfill(savedPatientId);
       }
     } catch (error) {
       console.error('❌ [PatientForm] Save error:', error);
@@ -1086,7 +1091,8 @@ export default function PatientForm({
                         type="button"
                         disabled={!formData.unit_number || disableOtherFieldsDuringAddressLookup}
                         onClick={handleBuzzerOpen}
-                        className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                        style={{ minHeight: 0 }}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
                         + Buzzer #
                       </button>
                     </div>

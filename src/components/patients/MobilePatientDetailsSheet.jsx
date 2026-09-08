@@ -58,10 +58,14 @@ export default function MobilePatientDetailsSheet({
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
             style={{
-              maxHeight: "95dvh",
+              // Respect the APK's hidden top (status bar) and bottom (home gesture +
+              // in-app bottom nav) padding so the sheet isn't clipped and the
+              // header / drag-handle stay reachable. --actual-bottom-nav-height is
+              // published by Layout; --native-safe-* are set by the native shell.
+              maxHeight: "calc(100dvh - var(--native-safe-top, env(safe-area-inset-top, 0px)))",
               background: "var(--bg-slate-100)",
               boxShadow: "0 -4px 32px rgba(0,0,0,0.18)",
-              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+              paddingBottom: "calc(var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) + var(--actual-bottom-nav-height, 0px))",
               y: dragY,
             }}
             className="fixed left-0 right-0 bottom-0 z-[810] rounded-t-2xl overflow-hidden flex flex-col lg:hidden"

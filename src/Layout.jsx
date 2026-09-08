@@ -87,6 +87,7 @@ import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
+import { useSystemUpdatesReadSync } from './components/messaging/useSystemUpdatesReadSync';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -279,11 +280,17 @@ export default function Layout({ children, currentPageName }) {
       const openChatUserId = params.get('openChat');
       if (!openChatUserId) return;
       const openChatName = params.get('openChatName') || 'User';
-      const conversationId = [currentUser.id, openChatUserId].sort().join('_');
-      setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      const openChatType = params.get('openChatType');
+      if (openChatType === 'group') {
+        setInitialConversation({ conversationId: openChatUserId, otherUserId: null, otherUserName: decodeURIComponent(openChatName) });
+      } else {
+        const conversationId = [currentUser.id, openChatUserId].sort().join('_');
+        setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      }
       setShowMessaging(true);
       params.delete('openChat');
       params.delete('openChatName');
+      params.delete('openChatType');
       const newSearch = params.toString();
       window.history.replaceState({}, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`);
     } catch (_) {}
@@ -939,11 +946,17 @@ export default function Layout({ children, currentPageName }) {
       const openChatUserId = params.get('openChat');
       if (!openChatUserId) return;
       const openChatName = params.get('openChatName') || 'User';
-      const conversationId = [currentUser.id, openChatUserId].sort().join('_');
-      setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      const openChatType = params.get('openChatType');
+      if (openChatType === 'group') {
+        setInitialConversation({ conversationId: openChatUserId, otherUserId: null, otherUserName: decodeURIComponent(openChatName) });
+      } else {
+        const conversationId = [currentUser.id, openChatUserId].sort().join('_');
+        setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      }
       setShowMessaging(true);
       params.delete('openChat');
       params.delete('openChatName');
+      params.delete('openChatType');
       const newSearch = params.toString();
       const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
       window.history.replaceState({}, '', newUrl);
@@ -979,12 +992,16 @@ export default function Layout({ children, currentPageName }) {
 
   useDispatcherMessageAutoOpen({
     currentUser,
+    appUsers,
     isFormOverlayOpen,
     showMessaging,
     setShowMessaging,
     setInitialConversation,
     setPendingBlinkConversationId,
   });
+
+  // After a restart/refresh, clear unread state in the System Updates thread
+  useSystemUpdatesReadSync(currentUser);
 
   const filteredDeliveries = useMemo(() => {
     if (!deliveries.length || !currentUser) return [];

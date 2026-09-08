@@ -1,0 +1,43 @@
+{
+  "name": "ConversationGroup",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Display name of the group thread"
+    },
+    "member_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Snapshot of member user_ids. For preset groups this is recomputed live from AppUser roles at read/send time, so role changes auto-sync."
+    },
+    "preset_type": {
+      "type": "string",
+      "enum": [
+        "custom",
+        "all_drivers",
+        "all_dispatchers",
+        "all_admins"
+      ],
+      "default": "custom",
+      "description": "custom = ad-hoc member selection; all_drivers/all_dispatchers/all_admins = role-based preset whose membership is resolved live from AppUser.app_roles"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "The user_id of the group creator"
+    },
+    "created_by_name": {
+      "type": "string",
+      "description": "Display name of the group creator (denormalized)"
+    }
+  },
+  "required": [
+    "name",
+    "member_ids",
+    "preset_type",
+    "created_by"
+  ],
+  "rls": {}
+}
