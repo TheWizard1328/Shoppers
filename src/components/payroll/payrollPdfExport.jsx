@@ -70,7 +70,12 @@ async function savePdfCrossPlatform(doc, filename) {
             },
           });
         } else {
-          toast.success('Saved to Downloads');
+          // APK predates the openSavedFile bridge — the PDF is safe in
+          // Downloads; guide the user to the update that adds Open PDF.
+          toast('Saved to Downloads', {
+            duration: 12000,
+            description: 'Update the app (blue arrow in settings) to get the Open PDF option',
+          });
         }
         return;
       }

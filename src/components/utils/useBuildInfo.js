@@ -32,7 +32,13 @@ function loadCachedBuildInfo() {
     // Cache expires after 1 hour — stale build info is better than none, but
     // we don't want to show an outdated "New" badge forever.
     if (Date.now() - (parsed.cachedAt || 0) > 60 * 60 * 1000) return null;
-    return { dateStr: parsed.dateStr || '', buildNumber: parsed.buildNumber || null, apkUrl: parsed.apkUrl || null };
+    return {
+      dateStr: parsed.dateStr || '',
+      buildNumber: parsed.buildNumber || null,
+      apkUrl: parsed.apkUrl || null,
+      etagRelease: parsed.etagRelease || null,
+      etagRuns: parsed.etagRuns || null,
+    };
   } catch { return null; }
 }
 
@@ -40,6 +46,31 @@ function saveCachedBuildInfo(info) {
   try {
     localStorage.setItem(BUILD_CACHE_KEY, JSON.stringify({ ...info, cachedAt: Date.now() }));
   } catch {}
+}
+
+// Conditional request helper using GitHub's ETag support. 304 responses do
+// NOT count against GitHub's rate limit (verified against api.github.com),
+// so unchanged polls become free — critical because all devices behind the
+// pharmacy's shared WiFi IP were exhausting the 60/hr anonymous limit, so
+// driver phones never learned a new build existed and the update arrow
+// never appeared.
+async function fetchGithubCached(url, etag, { minRemaining = 5 } = {}) {
+  try {
+    const headers = {};
+    if (etag) headers['If-None-Match'] = etag;
+    const r = await fetch(url, { headers });
+    if (r.status === 304) return { notModified: true };
+    if (!r.ok) return null;
+    const remaining = parseInt(r.headers.get('X-RateLimit-Remaining') || '999', 10);
+    if (remaining <= minRemaining) {
+      console.warn(`⚠️ [BuildInfo] GitHub API rate limit low (${remaining} remaining) — skipping this poll`);
+      return null;
+    }
+    const json = await r.json();
+    return { notModified: false, json, etag: r.headers.get('ETag') || null };
+  } catch {
+    return null;
+  }
 }
 
 export function useLatestApkBuildInfo() {
@@ -53,32 +84,39 @@ export function useLatestApkBuildInfo() {
     let timer = null;
 
     const fetchData = async () => {
-      const [releaseData, runsData] = await Promise.all([
-        fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest')
-          .then((r) => {
-            if (!r.ok) return null;
-            // Check rate limit headers — if we're close to the limit, back off
-            const remaining = parseInt(r.headers.get('X-RateLimit-Remaining') || '999', 10);
-            if (remaining <= 5) {
-              console.warn(`⚠️ [BuildInfo] GitHub API rate limit low (${remaining} remaining) — skipping this poll`);
-              return null;
-            }
-            return r.json();
-          }).catch(() => null),
-        fetch('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1')
-          .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      const cached = loadCachedBuildInfo();
+      const [releaseRes, runsRes] = await Promise.all([
+        fetchGithubCached('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest', cached?.etagRelease),
+        fetchGithubCached('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1', cached?.etagRuns),
       ]);
       if (cancelled) return;
-      const rawDate = releaseData?.published_at || releaseData?.created_at || null;
-      const dateStr = rawDate
-        ? new Date(rawDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : '';
-      const buildNumber = runsData?.workflow_runs?.[0]?.run_number || null;
-      const apkUrl = (releaseData?.assets || []).find((a) => a.name && a.name.endsWith('.apk'))?.browser_download_url || null;
+
+      // 304 (not modified) → keep the cached value for that endpoint; 200 →
+      // take the fresh value. null (rate-limited/error) → also keep cached.
+      let dateStr = cached?.dateStr || '';
+      let buildNumber = cached?.buildNumber || null;
+      let apkUrl = cached?.apkUrl || null;
+      let etagRelease = cached?.etagRelease || null;
+      let etagRuns = cached?.etagRuns || null;
+
+      const releaseData = releaseRes?.notModified ? null : releaseRes?.json || null;
+      if (releaseData) {
+        const rawDate = releaseData.published_at || releaseData.created_at || null;
+        dateStr = rawDate
+          ? new Date(rawDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '';
+        apkUrl = (releaseData.assets || []).find((a) => a.name && a.name.endsWith('.apk'))?.browser_download_url || null;
+        etagRelease = releaseRes.etag || etagRelease;
+      }
+      const runsData = runsRes?.notModified ? null : runsRes?.json || null;
+      if (runsData) {
+        buildNumber = runsData.workflow_runs?.[0]?.run_number || buildNumber;
+        etagRuns = runsRes.etag || etagRuns;
+      }
 
       // If we got valid data, update cache and state
       if (buildNumber != null || apkUrl != null) {
-        const newInfo = { dateStr, buildNumber, apkUrl };
+        const newInfo = { dateStr, buildNumber, apkUrl, etagRelease, etagRuns };
         saveCachedBuildInfo(newInfo);
         if (!cancelled) {
           setBuildInfo((prev) => {
