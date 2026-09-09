@@ -1,6 +1,6 @@
 {
   "name": "Driver COD Briefing",
-  "description": "Every morning at 9am Edmonton: sends each driver with outstanding uncollected CODs a push notification listing all their CODs (amount, date, store, patient), then composes and sends the app owner a full briefing broken down by driver. Data comes from SquareCatalogItems (pruned to mirror the live Square catalog by the 8:30am prune workflow).",
+  "description": "Every morning at 9am Edmonton: sends each driver with outstanding uncollected CODs a push notification listing all their CODs (aligned money column), then composes and sends the app owner a full briefing broken down by driver. Data comes from SquareCatalogItems (pruned to mirror the live Square catalog by the 8:30am prune workflow).",
   "trigger": {
     "condition": null,
     "config": {
@@ -23,7 +23,7 @@
       "dsl": "1.0.0",
       "name": "driver_cod_briefing",
       "namespace": "base44",
-      "version": "1.0"
+      "version": "1.0.1"
     },
     "do": [
       {
@@ -45,7 +45,7 @@
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "The 9am driver COD briefing just ran. The backend function driverCodBriefing already sent push notifications to every driver that has outstanding uncollected CODs. The JSON below is the full grouped result.\n\nCompose a compact app-owner briefing in PLAIN TEXT (WhatsApp, no markdown, keep it reasonably short) broken down BY DRIVER: for each driver with outstanding CODs show their name, COD count, total amount, and each item (date, store, patient name, amount). End with the overall total across drivers. If there are no outstanding CODs, just say the COD slate is clean.\n\nBroadcast it to the owner via broadcast_message, then stop. Briefing result JSON:\n${ .run_briefing }"
+            "message": "The 9am driver COD briefing just ran. The backend function driverCodBriefing already sent push notifications to every driver that has outstanding uncollected CODs. The JSON below is the full grouped result.\n\nCompose a compact app-owner briefing in PLAIN TEXT (WhatsApp, no markdown) broken down BY DRIVER. For each driver show a header line like: ROBERT T \u2014 2 CODs, $236.46. Under it, list each item with the format:\n09/01 HS \u00b7 $ 36.44 \u00b7 Melinda Martin\nLAYOUT RULE: within each driver block, right-align the money column \u2014 pad all amounts (including the header total) to the same width so every $ sign and decimal lines up vertically, like:\nROBERT T \u2014 2 CODs, $236.46\n09/01 HS \u00b7 $ 36.44 \u00b7 Melinda Martin\n09/03 HS \u00b7 $200.02 \u00b7 Glenn Bursey\nEnd with the overall total across drivers. If there are no outstanding CODs, just say the COD slate is clean.\n\nBroadcast it to the owner via broadcast_message, then stop. Briefing result JSON:\n${ .run_briefing }"
           }
         }
       }
