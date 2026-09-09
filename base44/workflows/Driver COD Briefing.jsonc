@@ -1,0 +1,54 @@
+{
+  "name": "Driver COD Briefing",
+  "description": "Every morning at 9am Edmonton: sends each driver with outstanding uncollected CODs a push notification listing all their CODs (amount, date, store, patient), then composes and sends the app owner a full briefing broken down by driver. Data comes from SquareCatalogItems (pruned to mirror the live Square catalog by the 8:30am prune workflow).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "driver_cod_briefing",
+      "namespace": "base44",
+      "version": "1.0"
+    },
+    "do": [
+      {
+        "run_briefing": {
+          "call": "invoke_backend_function",
+          "then": "send_owner_briefing",
+          "with": {
+            "args": {},
+            "function_name": "driverCodBriefing"
+          },
+          "x-base44": {
+            "description": "Push driver briefings + return grouped data",
+            "title": "Run driver COD briefing"
+          }
+        }
+      },
+      {
+        "send_owner_briefing": {
+          "call": "invoke_superagent_step",
+          "then": "end",
+          "with": {
+            "message": "The 9am driver COD briefing just ran. The backend function driverCodBriefing already sent push notifications to every driver that has outstanding uncollected CODs. The JSON below is the full grouped result.\n\nCompose a compact app-owner briefing in PLAIN TEXT (WhatsApp, no markdown, keep it reasonably short) broken down BY DRIVER: for each driver with outstanding CODs show their name, COD count, total amount, and each item (date, store, patient name, amount). End with the overall total across drivers. If there are no outstanding CODs, just say the COD slate is clean.\n\nBroadcast it to the owner via broadcast_message, then stop. Briefing result JSON:\n${ .run_briefing }"
+          }
+        }
+      }
+    ]
+  }
+}
