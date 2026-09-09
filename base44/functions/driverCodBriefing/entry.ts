@@ -127,7 +127,7 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
           if (errStatus === 'NOT_FOUND' || errStatus === 'UNREGISTERED') {
             await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
             removed++;
-          } else errors.push({ error: `FCM HTTP ${fcmResponse.status}` });
+          } else errors.push({ error: `FCM HTTP ${fcmResponse.status}: ${JSON.stringify(errBody).slice(0, 300)}` });
         }
       } catch (err) { errors.push({ error: err.message || String(err) }); }
     } else {
