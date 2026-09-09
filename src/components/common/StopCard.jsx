@@ -515,11 +515,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   }, [currentUser, delivery]);
 
   const canAccessAcceptButtons = useMemo(() => {
-    // Accept/Assign All is driver-only now — the dispatcher/admin "Assign All on
-    // behalf of driver" path has been removed. Only the assigned driver can accept
-    // their own pending stops.
     if (!currentUser || !delivery) return false;
-    return userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+    // The assigned driver can always accept their own pending stops.
+    if (userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id) return true;
+    // Admins and the App Owner can accept on behalf of any driver (restored
+    // behavior — the button was previously locked to the assigned driver only).
+    // The pipeline is driver-scoped (delivery.driver_id) throughout, so an admin
+    // click only changes WHO pressed the button, not which route is affected.
+    return isAppOwner(currentUser) || userHasRole(currentUser, 'admin');
   }, [currentUser, delivery]);
 
   const acceptButtonText = 'Accept All';

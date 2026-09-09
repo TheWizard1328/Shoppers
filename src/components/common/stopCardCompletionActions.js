@@ -244,10 +244,12 @@ export function useStopCardCompletionActions({
       try {
         const notifyDeliveries = stagedChangedDeliveries.filter(d => transitionedIds.has(d?.id));
         if (notifyDeliveries.length > 0) {
-          // Accept All is driver-only now — the dispatcher/admin "Assign All on
-          // behalf of driver" path has been removed (button hidden, code path retired).
+          // Credit the ASSIGNED driver in the notification — when an admin accepts
+          // on behalf of a driver, the message must say the DRIVER accepted the
+          // stops, not the admin who clicked the button.
+          const assignedDriverUser = appUsers.find(u => u?.user_id === delivery.driver_id) || driverAppUser || currentUser;
           notifyDriverAccepted({
-            driver: currentUser,
+            driver: assignedDriverUser,
             store,
             appUsers,
             pendingCount: notifyDeliveries.length,
