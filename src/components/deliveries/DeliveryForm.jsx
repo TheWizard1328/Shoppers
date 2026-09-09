@@ -227,6 +227,10 @@ export default function DeliveryForm({
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [scheduledDriverMap, setScheduledDriverMap] = useState({}); // storeId -> driverId
   const scheduledDriverMapRef = useRef({}); // always-current ref for handlePatientSelect closure
+  // Slot-specific set of `${storeId}_AM`/`${storeId}_PM` keys that have a genuine
+  // scheduled driver for that exact slot (per-slot override or enabled store default).
+  // Used ONLY for the "Default" badge — NOT driver auto-select (which stays slot-agnostic).
+  const [defaultSlotKeys, setDefaultSlotKeys] = useState(new Set());
   const {
     projectedDeliveries,
     setProjectedDeliveries,
@@ -967,6 +971,7 @@ export default function DeliveryForm({
     if (!formData.delivery_date || !stores || stores.length === 0 || allDrivers.length === 0) {
       scheduledDriverMapRef.current = {};
       setScheduledDriverMap({});
+      setDefaultSlotKeys(new Set());
       return;
     }
     let cancelled = false;
@@ -978,6 +983,7 @@ export default function DeliveryForm({
         const dow = dateObj.getDay();
         const prefix = dow === 0 ? 'sunday' : dow === 6 ? 'saturday' : 'weekday';
         const map = {};
+        const defaultSlotSet = new Set();
         // For dispatchers: only map their single store; for admins/others: map all stores
         const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
         const storesToMap = isDispatcherOnly
@@ -1002,6 +1008,27 @@ export default function DeliveryForm({
             const driver = allDrivers.find((d) => d && (d.id === pmDriverId || d.user_id === pmDriverId));
             if (driver) map[`${store.id}_PM`] = driver.id;
           }
+          // Slot-specific "default" detection for the badge: a slot is a default time
+          // slot only when THAT slot has a scheduled driver — a per-slot override (with a
+          // real driver, not '__booked_off__') OR the store's enabled day-of-week default
+          // for that slot. A slot-agnostic override must NOT spread the badge to the
+          // other slot (e.g. an AM-only reschedule must not flag PM).
+          const amSlotOverride = overrides.find((o) => o.store_id === store.id && o.slot_key === `${prefix}_am`);
+          const amOverrideDriver = amSlotOverride && amSlotOverride.driver_id && amSlotOverride.driver_id !== '__booked_off__' ? amSlotOverride.driver_id : null;
+          const amStoreDriver = store[`${prefix}_am_enabled`] === true ? (store[`${prefix}_am_driver_id`] || null) : null;
+          const amDefaultDriverId = amOverrideDriver || amStoreDriver;
+          if (amDefaultDriverId) {
+            const driver = allDrivers.find((d) => d && (d.id === amDefaultDriverId || d.user_id === amDefaultDriverId));
+            if (driver) defaultSlotSet.add(`${store.id}_AM`);
+          }
+          const pmSlotOverride = overrides.find((o) => o.store_id === store.id && o.slot_key === `${prefix}_pm`);
+          const pmOverrideDriver = pmSlotOverride && pmSlotOverride.driver_id && pmSlotOverride.driver_id !== '__booked_off__' ? pmSlotOverride.driver_id : null;
+          const pmStoreDriver = store[`${prefix}_pm_enabled`] === true ? (store[`${prefix}_pm_driver_id`] || null) : null;
+          const pmDefaultDriverId = pmOverrideDriver || pmStoreDriver;
+          if (pmDefaultDriverId) {
+            const driver = allDrivers.find((d) => d && (d.id === pmDefaultDriverId || d.user_id === pmDefaultDriverId));
+            if (driver) defaultSlotSet.add(`${store.id}_PM`);
+          }
           // Base store key = override driver (preferred) or AM default for backwards compat
           const primaryDriverId = overrideDriverId || store[`${prefix}_am_driver_id`] || store[`${prefix}_pm_driver_id`];
           if (primaryDriverId) {
@@ -1012,6 +1039,7 @@ export default function DeliveryForm({
         if (!cancelled) {
           scheduledDriverMapRef.current = map;
           setScheduledDriverMap(map);
+          setDefaultSlotKeys(defaultSlotSet);
         }
       } catch { /* silent */ }
     })();
@@ -1493,6 +1521,7 @@ export default function DeliveryForm({
       forceOpenDriverOnLoad={forceOpenDriverSelectOnLoad}
       applyDeliveryChangesLocally={applyDeliveryChangesLocally}
       scheduledDriverMap={scheduledDriverMap}
+      defaultSlotKeys={defaultSlotKeys}
       statHolidayWarning={statHolidayWarning}
       autoCommitProgress={autoCommitProgress}
     />

@@ -19,6 +19,7 @@ export default function PickupLocationMultiSelect({
   getDriverNameForStorage,
   setForceOpenDriverSelect,
   scheduledDriverMap = {},
+  defaultSlotKeys = null,
   isSaving,
 }) {
   const [open, setOpen] = useState(false);
@@ -170,13 +171,14 @@ export default function PickupLocationMultiSelect({
                 const isChecked = selectedPickupStoreIds.has(store.id) || (!selectedPickupStoreIds.size && selectedPickupOption === store.id);
                 const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
                 const label = `${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
-                // A store+slot is a "default pickup for the selected date" when ANY driver is
-                // scheduled for that store+slot on this date (override or store day-of-week
-                // default) — scoped to the selected city via the stores shown in this list.
-                // Not tied to the selected driver: all drivers for the city are considered.
+                // A store+slot is a "default time slot" for the selected date only when THAT
+                // specific slot has a scheduled driver — a per-slot override (real driver) or
+                // the store's enabled day-of-week default for that slot. A reschedule for one
+                // slot does NOT flag the other slot. Scoped to the selected city via the
+                // stores shown in this list; not tied to the selected driver.
                 const defaultKey = store._originalStoreId && store._timeSlot ? `${store._originalStoreId}_${store._timeSlot}` : null;
-                const scheduledDriver = defaultKey ? scheduledDriverMap[defaultKey] : null;
-                const isDefaultForDate = !!scheduledDriver;
+                const defaultSet = defaultSlotKeys instanceof Set ? defaultSlotKeys : (Array.isArray(defaultSlotKeys) ? new Set(defaultSlotKeys) : new Set());
+                const isDefaultForDate = defaultKey ? defaultSet.has(defaultKey) : false;
                 return (
                   <button
                     key={store.id}
