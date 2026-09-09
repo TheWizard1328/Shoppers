@@ -267,8 +267,31 @@ async function handleBriefing(base44, params = {}) {
         'Collect at your earliest convenience.',
       ].join('\n');
       const title = `${testDriverId ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`;
-      const result = await sendPushToUser(base44, g.driver_id, title, body, '/', `cod-briefing-${today}`);
-      pushes.push({ driver_id: g.driver_id, driver_name: g.driver_name, ...result });
+      // In-app message: create a Message record from the system 'COD Briefing'
+      // sender so the driver also gets the briefing inside the app's messaging
+      // section. The push's deep link opens that exact thread on tap.
+      // Thread shape mirrors the existing system_updates pattern:
+      // conversation_id = sorted([senderId, driverId]).join('_'), display name
+      // comes from the denormalized sender_name (no user record needed).
+      let inAppMessageId = null;
+      try {
+        const created = await base44.asServiceRole.entities.Message.create({
+          sender_id: 'cod_briefing',
+          sender_name: 'COD Briefing',
+          receiver_id: g.driver_id,
+          receiver_name: g.driver_name,
+          conversation_id: ['cod_briefing', g.driver_id].sort().join('_'),
+          content: body,
+          read: false,
+          message_type: 'text',
+        });
+        inAppMessageId = created?.id || null;
+      } catch (err) {
+        console.log('[briefing] Message.create failed:', err?.message || String(err));
+      }
+      const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
+      const result = await sendPushToUser(base44, g.driver_id, title, body, chatUrl, `cod-briefing-${today}`);
+      pushes.push({ driver_id: g.driver_id, driver_name: g.driver_name, in_app_message_id: inAppMessageId, ...result });
       console.log('[briefing] push result:', JSON.stringify({ driver: g.driver_name, ...result }));
       await sleep(150);
     }
