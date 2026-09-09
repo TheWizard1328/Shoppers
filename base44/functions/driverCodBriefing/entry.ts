@@ -109,12 +109,17 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
       if (!fcmToken) { skipped++; return; }
       if (!fcmAccessToken || !fcmProjectId) { errors.push({ error: 'FCM not configured or token exchange failed' }); return; }
       try {
+        // FCM v1 field placement: icon/color are ANDROID-only fields — they
+        // must live in android.notification, NOT the generic notification
+        // object. Putting them in the top-level notification causes
+        // 400 INVALID_ARGUMENT ("Unknown name 'icon'/'color': Cannot find field")
+        // which silently rejected every non-interactive push to the APKs.
         const fcmMessage = {
           token: fcmToken,
           data: { url: url || '/' },
-          android: { priority: 'high', notification: { tag: tag || undefined, channel_id: 'default' } },
+          android: { priority: 'high', notification: { tag: tag || undefined, channel_id: 'default', icon: 'ic_stat_notify', color: '#22c55e' } },
         };
-        fcmMessage.notification = { title, body, icon: 'ic_stat_notify', color: '#22c55e' };
+        fcmMessage.notification = { title, body };
         const fcmResponse = await fetch(`https://fcm.googleapis.com/v1/projects/${fcmProjectId}/messages:send`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${fcmAccessToken}`, 'Content-Type': 'application/json' },

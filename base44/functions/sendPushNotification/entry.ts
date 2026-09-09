@@ -223,6 +223,8 @@ Deno.serve(async (req) => {
                 notification: {
                   tag: tag || undefined,
                   channel_id: 'default',
+                  icon: 'ic_stat_notify',
+                  color: '#22c55e',
                   // Pass URL via data only — click_action expects an Android
                   // intent action name, not a URL. Capacitor's tap handler
                   // reads the URL from notification.data.url instead.
@@ -236,7 +238,7 @@ Deno.serve(async (req) => {
             // name must exist in the APK's res/drawable-* folders.
             // color: tint for the small icon in the expanded shade — matches
             // the app's brand green (Rx planet mark), not pure white.
-            fcmMessage.notification = { title, body, icon: 'ic_stat_notify', color: '#22c55e' };
+            fcmMessage.notification = { title, body };
           }
 
           const fcmPayload = { message: fcmMessage };
