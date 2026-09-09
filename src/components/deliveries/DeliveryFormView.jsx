@@ -148,6 +148,7 @@ export default function DeliveryFormView({
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false, pickupsAddedCount = 0,
   applyDeliveryChangesLocally, onDriverManuallyChanged,
   scheduledDriverMap = {},
+  overrideStoreIds = null,
   statHolidayWarning = null,
   autoCommitProgress = 1
 }) {
@@ -1155,6 +1156,7 @@ export default function DeliveryFormView({
                     getDriverNameForStorage={getDriverNameForStorage}
                     setForceOpenDriverSelect={setForceOpenDriverSelect}
                     scheduledDriverMap={scheduledDriverMap}
+                    overrideStoreIds={overrideStoreIds}
                     isSaving={isSaving} />
                   
                   {/* Row 2: Date + Driver */}
