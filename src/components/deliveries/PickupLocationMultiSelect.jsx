@@ -19,7 +19,7 @@ export default function PickupLocationMultiSelect({
   getDriverNameForStorage,
   setForceOpenDriverSelect,
   scheduledDriverMap = {},
-  defaultSlotKeys = null,
+  defaultSlotDrivers = null,
   isSaving,
 }) {
   const [open, setOpen] = useState(false);
@@ -177,8 +177,9 @@ export default function PickupLocationMultiSelect({
                 // slot does NOT flag the other slot. Scoped to the selected city via the
                 // stores shown in this list; not tied to the selected driver.
                 const defaultKey = store._originalStoreId && store._timeSlot ? `${store._originalStoreId}_${store._timeSlot}` : null;
-                const defaultSet = defaultSlotKeys instanceof Set ? defaultSlotKeys : (Array.isArray(defaultSlotKeys) ? new Set(defaultSlotKeys) : new Set());
-                const isDefaultForDate = defaultKey ? defaultSet.has(defaultKey) : false;
+                const defaultDriverMap = defaultSlotDrivers instanceof Map ? defaultSlotDrivers : (defaultSlotDrivers && typeof defaultSlotDrivers.entries === 'function' ? new Map(defaultSlotDrivers) : new Map());
+                const defaultDriverName = defaultKey ? defaultDriverMap.get(defaultKey) : null;
+                const isDefaultForDate = !!defaultDriverName;
                 return (
                   <button
                     key={store.id}
@@ -193,11 +194,11 @@ export default function PickupLocationMultiSelect({
                     <span className="flex-1">{label}</span>
                     {isDefaultForDate && (
                       <span
-                        className="ml-auto flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                        className="ml-auto flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none whitespace-nowrap"
                         style={{ background: 'var(--accent-amber, #f59e0b)', color: '#1a1410' }}
-                        title="Scheduled default pickup for this date"
+                        title={`Scheduled default driver: ${defaultDriverName}`}
                       >
-                        Default
+                        {defaultDriverName}
                       </span>
                     )}
                   </button>

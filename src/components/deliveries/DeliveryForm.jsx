@@ -227,10 +227,11 @@ export default function DeliveryForm({
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [scheduledDriverMap, setScheduledDriverMap] = useState({}); // storeId -> driverId
   const scheduledDriverMapRef = useRef({}); // always-current ref for handlePatientSelect closure
-  // Slot-specific set of `${storeId}_AM`/`${storeId}_PM` keys that have a genuine
-  // scheduled driver for that exact slot (per-slot override or enabled store default).
-  // Used ONLY for the "Default" badge — NOT driver auto-select (which stays slot-agnostic).
-  const [defaultSlotKeys, setDefaultSlotKeys] = useState(new Set());
+  // Slot-specific map of `${storeId}_AM`/`${storeId}_PM` -> scheduled driver display name
+  // for slots that have a genuine scheduled driver for that exact slot (per-slot override
+  // or enabled store default). Used ONLY for the pickup "Default" badge — NOT driver
+  // auto-select (which stays slot-agnostic).
+  const [defaultSlotDrivers, setDefaultSlotDrivers] = useState(new Map());
   const {
     projectedDeliveries,
     setProjectedDeliveries,
@@ -971,7 +972,7 @@ export default function DeliveryForm({
     if (!formData.delivery_date || !stores || stores.length === 0 || allDrivers.length === 0) {
       scheduledDriverMapRef.current = {};
       setScheduledDriverMap({});
-      setDefaultSlotKeys(new Set());
+      setDefaultSlotDrivers(new Map());
       return;
     }
     let cancelled = false;
@@ -983,7 +984,7 @@ export default function DeliveryForm({
         const dow = dateObj.getDay();
         const prefix = dow === 0 ? 'sunday' : dow === 6 ? 'saturday' : 'weekday';
         const map = {};
-        const defaultSlotSet = new Set();
+        const defaultSlotMap = new Map();
         // For dispatchers: only map their single store; for admins/others: map all stores
         const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
         const storesToMap = isDispatcherOnly
@@ -1019,7 +1020,7 @@ export default function DeliveryForm({
           const amDefaultDriverId = amOverrideDriver || amStoreDriver;
           if (amDefaultDriverId) {
             const driver = allDrivers.find((d) => d && (d.id === amDefaultDriverId || d.user_id === amDefaultDriverId));
-            if (driver) defaultSlotSet.add(`${store.id}_AM`);
+            if (driver) defaultSlotMap.set(`${store.id}_AM`, driver.user_name || driver.full_name || 'Driver');
           }
           const pmSlotOverride = overrides.find((o) => o.store_id === store.id && o.slot_key === `${prefix}_pm`);
           const pmOverrideDriver = pmSlotOverride && pmSlotOverride.driver_id && pmSlotOverride.driver_id !== '__booked_off__' ? pmSlotOverride.driver_id : null;
@@ -1027,7 +1028,7 @@ export default function DeliveryForm({
           const pmDefaultDriverId = pmOverrideDriver || pmStoreDriver;
           if (pmDefaultDriverId) {
             const driver = allDrivers.find((d) => d && (d.id === pmDefaultDriverId || d.user_id === pmDefaultDriverId));
-            if (driver) defaultSlotSet.add(`${store.id}_PM`);
+            if (driver) defaultSlotMap.set(`${store.id}_PM`, driver.user_name || driver.full_name || 'Driver');
           }
           // Base store key = override driver (preferred) or AM default for backwards compat
           const primaryDriverId = overrideDriverId || store[`${prefix}_am_driver_id`] || store[`${prefix}_pm_driver_id`];
@@ -1039,7 +1040,7 @@ export default function DeliveryForm({
         if (!cancelled) {
           scheduledDriverMapRef.current = map;
           setScheduledDriverMap(map);
-          setDefaultSlotKeys(defaultSlotSet);
+          setDefaultSlotDrivers(defaultSlotMap);
         }
       } catch { /* silent */ }
     })();
@@ -1521,7 +1522,7 @@ export default function DeliveryForm({
       forceOpenDriverOnLoad={forceOpenDriverSelectOnLoad}
       applyDeliveryChangesLocally={applyDeliveryChangesLocally}
       scheduledDriverMap={scheduledDriverMap}
-      defaultSlotKeys={defaultSlotKeys}
+      defaultSlotDrivers={defaultSlotDrivers}
       statHolidayWarning={statHolidayWarning}
       autoCommitProgress={autoCommitProgress}
     />
