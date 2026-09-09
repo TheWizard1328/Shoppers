@@ -84,10 +84,13 @@ export const addPickupToRoute = async ({
     ],
   });
 
+  // Always use the store's configured time windows (not the "past closing time" override)
+  // so schedule-override pickups get the correct store default AM/PM times.
   const pickupTimes = resolvePickupTimeWindow({
     store,
     deliveryDate: formData.delivery_date,
     timeSlot,
+    useStoreDefaults: true,
   });
 
   // Build list of all pickups (existing + newly created in this batch) to avoid tracking number collisions
@@ -134,6 +137,7 @@ export const addPickupToRoute = async ({
     status: 'en_route',
     tracking_number: trackingNumber,
     stop_order: basicStopOrder,
+    isNextDelivery: false, // Only the batch optimizer (on "Done") assigns the single next-delivery flag
     delivery_time_start: resolvedTimeStart,
     delivery_time_end: resolvedTimeEnd,
     delivery_time_eta: resolvedTimeStart,

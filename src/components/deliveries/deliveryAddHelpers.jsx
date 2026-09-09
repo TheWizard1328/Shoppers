@@ -24,25 +24,29 @@ const getStoreSlotWindow = (store, deliveryDate, timeSlot) => {
   return { start: store?.weekday_am_start || '', end: store?.weekday_am_end || '' };
 };
 
-export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date() }) => {
+export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date(), useStoreDefaults = false }) => {
   const slotWindow = getStoreSlotWindow(store, deliveryDate, timeSlot);
 
   if (slotWindow.start) {
     // Only apply the late-window override when the pickup is being added on TODAY's route.
     // If the delivery is for a future date we always use the store's configured window.
-    const todayStr = format(now, 'yyyy-MM-dd');
-    const isToday = deliveryDate === todayStr;
+    // useStoreDefaults=true skips this override entirely (e.g. for batch pickup adds
+    // where the store's configured window should always be used regardless of current time).
+    if (!useStoreDefaults) {
+      const todayStr = format(now, 'yyyy-MM-dd');
+      const isToday = deliveryDate === todayStr;
 
-    if (isToday) {
-      const windowEndMinutes = toMinutes(slotWindow.end);
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      const isPastWindow = windowEndMinutes !== null && nowMinutes > windowEndMinutes;
+      if (isToday) {
+        const windowEndMinutes = toMinutes(slotWindow.end);
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const isPastWindow = windowEndMinutes !== null && nowMinutes > windowEndMinutes;
 
-      if (isPastWindow) {
-        return {
-          delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
-          delivery_time_end: format(addMinutes(now, 90), 'HH:mm'),
-        };
+        if (isPastWindow) {
+          return {
+            delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
+            delivery_time_end: format(addMinutes(now, 90), 'HH:mm'),
+          };
+        }
       }
     }
 
