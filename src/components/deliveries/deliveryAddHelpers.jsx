@@ -26,17 +26,23 @@ const getStoreSlotWindow = (store, deliveryDate, timeSlot) => {
 
 export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date() }) => {
   const slotWindow = getStoreSlotWindow(store, deliveryDate, timeSlot);
+  const todayStr = format(now, 'yyyy-MM-dd');
+  const isToday = deliveryDate === todayStr;
 
+  // No configured window for this slot — use a sensible fallback.
   if (!slotWindow.start) {
-    // No configured window — use current time + buffer as fallback
+    // Future date — use a standard slot default (not now-based).
+    if (!isToday) {
+      return timeSlot === 'PM'
+        ? { delivery_time_start: '13:00', delivery_time_end: '17:00' }
+        : { delivery_time_start: '09:00', delivery_time_end: '12:00' };
+    }
+    // Today — use current time + buffer as fallback.
     return {
       delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
       delivery_time_end: format(addMinutes(now, 60), 'HH:mm')
     };
   }
-
-  const todayStr = format(now, 'yyyy-MM-dd');
-  const isToday = deliveryDate === todayStr;
 
   // Future date — always use the store's configured window.
   if (!isToday) {
