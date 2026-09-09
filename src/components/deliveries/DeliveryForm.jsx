@@ -916,9 +916,12 @@ export default function DeliveryForm({
       addedPickupRecordsRef.current = [];
       flushPendingInterStoreOptimizations();
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel?.(); });
+      // Use the SAME deferred-optimization path as deliveries (handleBatchSave →
+      // requestDeferredOptimization) so pickups get the identical debounce, KITT
+      // bar / orange overlay UI, and HERE routing behaviour as delivery Done.
+      const { requestDeferredOptimization } = await import('../utils/optimizationDebouncer');
       for (const { driverId, deliveryDate } of uniqueRoutes) {
-        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
-        await performRouteOptimization({ driverId, deliveryDate, bypassDriverStatus: true, source: 'batch_save_pickup' }).catch(() => null);
+        requestDeferredOptimization(driverId, deliveryDate, true);
       }
       return;
     }
