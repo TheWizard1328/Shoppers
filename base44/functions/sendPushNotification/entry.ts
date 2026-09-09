@@ -259,12 +259,17 @@ Deno.serve(async (req) => {
           } else {
             const errBody = await fcmResponse.json().catch(() => ({}));
             const errStatus = errBody?.error?.status;
-            if (errStatus === 'NOT_FOUND' || errStatus === 'INVALID_ARGUMENT' || fcmResponse.status === 404) {
-              // Stale/invalid token — remove subscription
+            console.log('[sendPush] FCM FAILED:', fcmResponse.status, '| status:', errStatus, '| code:', errBody?.error?.code, '| detail:', String(errBody?.error?.message || JSON.stringify(errBody?.error?.details || '')).slice(0, 300), '| token:', fcmToken?.substring(0, 25));
+            // Only delete when FCM confirms the TOKEN itself is dead
+            // (NOT_FOUND / UNREGISTERED). INVALID_ARGUMENT (400) is usually a
+            // payload problem on our side — deleting the sub silently destroys
+            // perfectly good fresh device registrations (phone/tablet APKs were
+            // losing their native subs this way).
+            if (errStatus === 'NOT_FOUND' || errStatus === 'UNREGISTERED') {
               await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
               removed++;
             } else {
-              errors.push({ endpoint: sub.endpoint, error: `FCM v1 HTTP ${fcmResponse.status}: ${JSON.stringify(errBody)}` });
+              errors.push({ endpoint: sub.endpoint, error: `FCM v1 HTTP ${fcmResponse.status}: ${JSON.stringify(errBody).slice(0, 300)}` });
             }
           }
         } catch (err) {

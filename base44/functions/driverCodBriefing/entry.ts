@@ -124,7 +124,7 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
         else {
           const errBody = await fcmResponse.json().catch(() => ({}));
           const errStatus = errBody?.error?.status;
-          if (errStatus === 'NOT_FOUND' || errStatus === 'INVALID_ARGUMENT' || fcmResponse.status === 404) {
+          if (errStatus === 'NOT_FOUND' || errStatus === 'UNREGISTERED') {
             await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
             removed++;
           } else errors.push({ error: `FCM HTTP ${fcmResponse.status}` });
