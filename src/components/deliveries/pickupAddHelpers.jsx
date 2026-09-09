@@ -121,11 +121,19 @@ export const addPickupToRoute = async ({
 
   const afterHours = await shouldBeAfterHours(formData, store, allDeliveries, scheduledDriverMap);
 
+  // Assign a basic stop_order so the pickup appears at the end of the route
+  // until the batch optimizer reorders everything on "Done".
+  const existingStopOrders = routeDeliveriesForDriver
+    .map((d) => d?.stop_order)
+    .filter((n) => typeof n === 'number' && !isNaN(n));
+  const basicStopOrder = existingStopOrders.length > 0 ? Math.max(...existingStopOrders) + 1 : 1;
+
   const pickupPayload = {
     ...pickupToCreate,
     patient_id: null,
     status: 'en_route',
     tracking_number: trackingNumber,
+    stop_order: basicStopOrder,
     delivery_time_start: resolvedTimeStart,
     delivery_time_end: resolvedTimeEnd,
     delivery_time_eta: resolvedTimeStart,
@@ -146,13 +154,11 @@ export const addPickupToRoute = async ({
       createdPickup = localRecord;
       return { records: [localRecord], driverId: formData.driver_id, deliveryDate: formData.delivery_date };
     },
-    runOptimizer: true,
-    optimizerContext: {
-      deliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
-      patients: [],
-      stores: store ? [store] : [],
-      appUsers: [],
-    },
+    // Skip per-pickup optimization — the batch optimizer runs ONCE when the user
+    // clicks "Done" (handleBatchSave → performRouteOptimization). This drops the
+    // per-pickup time from ~20-30s (HERE API polyline + stop ordering) to ~1-2s
+    // (single backend create). Multiple pickups can be added rapidly in succession.
+    runOptimizer: false,
     applyLocalUI: null, // pickup is reflected via the deliveriesUpdated broadcast in the wrapper
   });
 
