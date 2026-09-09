@@ -227,7 +227,6 @@ export default function DeliveryForm({
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [scheduledDriverMap, setScheduledDriverMap] = useState({}); // storeId -> driverId
   const scheduledDriverMapRef = useRef({}); // always-current ref for handlePatientSelect closure
-  const [overrideStoreIds, setOverrideStoreIds] = useState(new Set()); // store IDs with an explicit DriverScheduleOverride for the selected date
   const {
     projectedDeliveries,
     setProjectedDeliveries,
@@ -1013,7 +1012,6 @@ export default function DeliveryForm({
         if (!cancelled) {
           scheduledDriverMapRef.current = map;
           setScheduledDriverMap(map);
-          setOverrideStoreIds(new Set(overrides.filter((o) => o.store_id).map((o) => o.store_id)));
         }
       } catch { /* silent */ }
     })();
@@ -1495,7 +1493,6 @@ export default function DeliveryForm({
       forceOpenDriverOnLoad={forceOpenDriverSelectOnLoad}
       applyDeliveryChangesLocally={applyDeliveryChangesLocally}
       scheduledDriverMap={scheduledDriverMap}
-      overrideStoreIds={overrideStoreIds}
       statHolidayWarning={statHolidayWarning}
       autoCommitProgress={autoCommitProgress}
     />

@@ -19,7 +19,6 @@ export default function PickupLocationMultiSelect({
   getDriverNameForStorage,
   setForceOpenDriverSelect,
   scheduledDriverMap = {},
-  overrideStoreIds = null,
   isSaving,
 }) {
   const [open, setOpen] = useState(false);
@@ -171,11 +170,14 @@ export default function PickupLocationMultiSelect({
                 const isChecked = selectedPickupStoreIds.has(store.id) || (!selectedPickupStoreIds.size && selectedPickupOption === store.id);
                 const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
                 const label = `${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
-                // A store+slot is a "default pickup for the selected date" only when an explicit
-                // DriverScheduleOverride exists for that store on this date — NOT the recurring
-                // weekly store defaults (those apply every week and would flag almost every store).
-                const overrideSet = overrideStoreIds instanceof Set ? overrideStoreIds : (Array.isArray(overrideStoreIds) ? new Set(overrideStoreIds) : new Set());
-                const isDefaultForDate = store._originalStoreId ? overrideSet.has(store._originalStoreId) : false;
+                // A store+slot is a "default pickup for the selected date" only for the driver
+                // actually selected in the form — i.e. the scheduled driver (override or store
+                // day-of-week default) for that slot equals the selected driver. When no driver
+                // is selected, nothing is flagged (per the no-auto-highlight decision).
+                const selectedDriverId = formData?.driver_id || '';
+                const defaultKey = store._originalStoreId && store._timeSlot ? `${store._originalStoreId}_${store._timeSlot}` : null;
+                const scheduledDriver = defaultKey ? scheduledDriverMap[defaultKey] : null;
+                const isDefaultForDate = !!(selectedDriverId && scheduledDriver && scheduledDriver === selectedDriverId);
                 return (
                   <button
                     key={store.id}
