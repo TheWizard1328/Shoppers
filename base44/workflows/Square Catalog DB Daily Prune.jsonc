@@ -1,0 +1,45 @@
+{
+  "name": "Square Catalog DB Daily Prune",
+  "description": "Every morning at 8:30am Edmonton, prunes the SquareCatalogItems DB to exactly mirror the live Square API catalog \u2014 deletes DB records whose Square catalog item no longer exists (collected, reconciled, or manually deleted). Keeps the DB as the authoritative list of current active uncollected CODs per driver, and feeds the future 9am driver COD briefing with clean data.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "30 8 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "square_catalog_db_daily_prune",
+      "namespace": "base44",
+      "version": "1.0"
+    },
+    "do": [
+      {
+        "prune_catalog_db": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {},
+            "function_name": "squarePruneCatalogDb"
+          },
+          "x-base44": {
+            "description": "Remove records not in live Square catalog",
+            "title": "Prune SquareCatalogItems DB"
+          }
+        }
+      }
+    ]
+  }
+}
