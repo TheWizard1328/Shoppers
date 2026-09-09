@@ -118,7 +118,10 @@ function ChatWindow({
             ? (Array.isArray(m.read_by) && m.read_by.includes(currentUser?.id))
             : m.read) &&
             (m.is_group ? true : m.receiver_id === currentUser?.id) &&
-            m.sender_id !== currentUser?.id
+            // Own outgoing messages are skipped — EXCEPT self-messages
+            // (notes-to-self, sender==receiver), which must be marked read
+            // when the thread is opened.
+            (m.sender_id !== currentUser?.id || m.receiver_id === currentUser?.id)
         );
         if (unreadMessages.length > 0) {
           await Promise.allSettled(unreadMessages.map(msg => markMessageRead(msg)));
