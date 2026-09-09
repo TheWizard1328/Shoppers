@@ -81,12 +81,8 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
   let fcmProjectId = null;
   try { fcmProjectId = fcmServiceAccountJson ? JSON.parse(fcmServiceAccountJson).project_id : null; } catch { fcmProjectId = null; }
 
-  const deviceProfiles = {};
-  let hasAnyExplicitFalse = false;
   const userSettingsRecords = await base44.asServiceRole.entities.UserSettings.filter({ user_id: userId }).catch(() => []);
-  const profiles = userSettingsRecords?.[0]?.device_settings_profiles || {};
-  Object.assign(deviceProfiles, profiles);
-  hasAnyExplicitFalse = Object.values(profiles).some((p) => p?.notifications_enabled === false);
+  const deviceProfiles = userSettingsRecords?.[0]?.device_settings_profiles || {};
 
   const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id: userId }).catch(() => []);
   console.log('[briefing] push target:', userId, '| subs:', subscriptions?.length || 0, '| fcm:', subscriptions?.filter((s) => s.endpoint?.startsWith('fcm://')).length || 0);
@@ -105,10 +101,8 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
     const isFCM = sub.endpoint?.startsWith('fcm://');
     // FCM (APK) subs always receive pushes; web subs honor device profiles.
     if (!isFCM) {
-      let deviceEnabled = true;
-      if (sub.device_identifier && deviceProfiles[sub.device_identifier]) deviceEnabled = deviceProfiles[sub.device_identifier].notifications_enabled ?? true;
-      else if (hasAnyExplicitFalse) deviceEnabled = false;
-      if (!deviceEnabled) { skipped++; return; }
+      const profile = sub.device_identifier ? deviceProfiles[sub.device_identifier] : null;
+      if (profile && profile.notifications_enabled === false) { skipped++; return; }
     }
     if (isFCM) {
       const fcmToken = sub.endpoint.replace('fcm://', '');
