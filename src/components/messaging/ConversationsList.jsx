@@ -150,7 +150,10 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
           (!conv.otherUserName || conv.otherUserName === 'Unknown User' || conv.otherUserName === currentUser?.user_name)) {
         conv.otherUserName = otherUserName;
       }
-      if (!msg.read && msg.receiver_id === currentUser?.id) conv.unreadCount++;
+      // Self-messages (notes-to-self) never count as unread — the
+      // self-chat thread can't be opened from the list, so a self-message
+      // with read:false would leave a permanent ghost badge.
+      if (!msg.read && msg.receiver_id === currentUser?.id && msg.sender_id !== currentUser?.id) conv.unreadCount++;
     });
 
     convMap.forEach((conv, convId) => {

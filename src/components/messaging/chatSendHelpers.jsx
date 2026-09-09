@@ -98,7 +98,9 @@ export const sendChatMessage = async ({
       receiver_name: otherUserName,
       conversation_id: conversationId,
       content,
-      read: false,
+      // Self-messages (notes-to-self) are born read — they'd otherwise be
+      // unopenable unread ghosts that never clear the badge.
+      read: otherUserId === currentUser.id,
       message_type: isImage ? 'image' : 'text',
       attachment_url: attachmentUrl,
       is_group: false,

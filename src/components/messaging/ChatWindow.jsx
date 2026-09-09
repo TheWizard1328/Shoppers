@@ -83,7 +83,9 @@ function ChatWindow({
   // Mark a single message as read by the current user (group → append read_by; 1:1 → read=true)
   const markMessageRead = useCallback(async (msg) => {
     if (!msg?.id || !currentUser?.id) return;
-    if (msg.sender_id === currentUser.id) return; // don't mark own messages
+    // Don't mark own outgoing messages — EXCEPT self-messages (notes-to-self,
+    // sender==receiver), which otherwise can never be cleared as read.
+    if (msg.sender_id === currentUser.id && msg.receiver_id !== currentUser.id) return;
     try {
       if (msg.is_group) {
         const alreadyRead = Array.isArray(msg.read_by) && msg.read_by.includes(currentUser.id);

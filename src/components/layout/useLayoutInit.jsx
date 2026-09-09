@@ -396,7 +396,8 @@ export function useLayoutInit({
         setTimeout(async () => {
           try {
             if (!fetchedUser?.id) return;
-            const unreadMessages = await base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false });
+            const unreadMessages = (await base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false }) || [])
+              .filter((m) => m.sender_id !== fetchedUser.id); // self-messages never count as unread
             if (unreadMessages?.length > 0 && setInitialGlobalFiltersSet) {
               // Reuse the setUnreadMessageCount via a custom event so we don't need to thread the setter
               window.dispatchEvent(new CustomEvent('unreadMessageCountLoaded', { detail: { count: unreadMessages.length } }));
