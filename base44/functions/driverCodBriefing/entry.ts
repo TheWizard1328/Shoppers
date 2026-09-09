@@ -170,8 +170,12 @@ const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})
 
 async function listAll(base44, entityName, sortField, limit = 2000) {
   const out = [];
-  const res = await base44.asServiceRole.entities[entityName].list(sortField, limit).catch(() => []);
-  (Array.isArray(res) ? res : []).forEach((r) => { const u = unwrapEntityRecord(r); if (u) out.push(u); });
+  const res = await base44.asServiceRole.entities[entityName].list(sortField, limit).catch((e) => {
+    console.log('[briefing] listAll ERROR:', entityName, '|', e?.message || String(e));
+    return [];
+  });
+  const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+  rows.forEach((r) => { const u = unwrapEntityRecord(r); if (u) out.push(u); });
   return out;
 }
 async function fetchByIds(base44, entityName, ids) {
