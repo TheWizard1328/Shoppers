@@ -37,6 +37,9 @@ export default function PickupLocationMultiSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
+  // Exclude inactive stores from the pickup list entirely.
+  const activeStores = availableStores.filter((s) => s && s.status !== 'inactive');
+
   const toggleStore = (store) => {
     const storeId = store._originalStoreId || store.id;
     const requestedSlot = store._timeSlot || 'AM';
@@ -90,9 +93,9 @@ export default function PickupLocationMultiSelect({
   };
 
   const selectAll = () => {
-    const allIds = new Set(availableStores.map((s) => s.id));
+    const allIds = new Set(activeStores.map((s) => s.id));
     setSelectedPickupStoreIds(allIds);
-    const first = availableStores[0];
+    const first = activeStores[0];
     if (first) {
       const baseId = first._originalStoreId || first.id;
       const slot = first._timeSlot || 'AM';
@@ -113,7 +116,7 @@ export default function PickupLocationMultiSelect({
   const getLabel = () => {
     if (selectedCount === 0) return 'Select store(s)';
     const selectedIds = selectedPickupStoreIds.size > 0 ? selectedPickupStoreIds : new Set([selectedPickupOption]);
-    const names = availableStores
+    const names = activeStores
       .filter((s) => selectedIds.has(s.id))
       .map((s) => {
         const baseName = s._originalStoreId ? s.name.replace(/ \[AM\]| \[PM\]/, '') : s.name;
@@ -164,10 +167,10 @@ export default function PickupLocationMultiSelect({
 
             {/* Options */}
             <div className="max-h-48 overflow-y-auto py-1">
-              {availableStores.length === 0 && (
+              {activeStores.length === 0 && (
                 <div className="px-3 py-2 text-sm" style={{ color: 'var(--text-slate-400)' }}>No stores available</div>
               )}
-              {availableStores.map((store) => {
+              {activeStores.map((store) => {
                 const isChecked = selectedPickupStoreIds.has(store.id) || (!selectedPickupStoreIds.size && selectedPickupOption === store.id);
                 const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
                 const label = `${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
