@@ -1,6 +1,6 @@
 {
   "name": "Square Catalog DB Daily Prune",
-  "description": "Every morning at 8:30am Edmonton, prunes the SquareCatalogItems DB to exactly mirror the live Square API catalog \u2014 deletes DB records whose Square catalog item no longer exists (collected, reconciled, or manually deleted). Keeps the DB as the authoritative list of current active uncollected CODs per driver, and feeds the future 9am driver COD briefing with clean data.",
+  "description": "Every morning at 8:30am Edmonton: calls the RxDeliver squarePruneCatalogDb function via REST to prune SquareCatalogItems DB to mirror the live Square catalog, keeping the DB clean before the 9am COD briefing. Silent on success, alerts the owner only on failure.",
   "trigger": {
     "condition": null,
     "config": {
@@ -23,20 +23,15 @@
       "dsl": "1.0.0",
       "name": "square_catalog_db_daily_prune",
       "namespace": "base44",
-      "version": "1.0"
+      "version": "1.0.1"
     },
     "do": [
       {
-        "prune_catalog_db": {
-          "call": "invoke_backend_function",
+        "run_and_report": {
+          "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "args": {},
-            "function_name": "squarePruneCatalogDb"
-          },
-          "x-base44": {
-            "description": "Remove records not in live Square catalog",
-            "title": "Prune SquareCatalogItems DB"
+            "message": "It is 8:30am \u2014 the daily Square catalog DB prune is running now. Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver prune function, which removes SquareCatalogItems records no longer present in the live Square catalog):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/squarePruneCatalogDb' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. Check the JSON result. If success is true, do NOT message the owner \u2014 a clean prune needs no attention. Log nothing further and stop.\n3. If it failed (success false, HTTP error, or an error field), send the owner ONE short WhatsApp message via broadcast_message describing what failed, then stop."
           }
         }
       }
