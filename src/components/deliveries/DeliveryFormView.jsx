@@ -1154,6 +1154,7 @@ export default function DeliveryFormView({
                     getDefaultDriverForStoreSlot={getDefaultDriverForStoreSlot}
                     getDriverNameForStorage={getDriverNameForStorage}
                     setForceOpenDriverSelect={setForceOpenDriverSelect}
+                    scheduledDriverMap={scheduledDriverMap}
                     isSaving={isSaving} />
                   
                   {/* Row 2: Date + Driver */}

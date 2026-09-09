@@ -18,6 +18,7 @@ export default function PickupLocationMultiSelect({
   getDefaultDriverForStoreSlot,
   getDriverNameForStorage,
   setForceOpenDriverSelect,
+  scheduledDriverMap = {},
   isSaving,
 }) {
   const [open, setOpen] = useState(false);
@@ -169,17 +170,31 @@ export default function PickupLocationMultiSelect({
                 const isChecked = selectedPickupStoreIds.has(store.id) || (!selectedPickupStoreIds.size && selectedPickupOption === store.id);
                 const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
                 const label = `${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
+                // A store+slot is a "default pickup for the selected date" when a driver is
+                // scheduled for it (DriverScheduleOverride or store day-of-week default).
+                const defaultKey = store._originalStoreId && store._timeSlot ? `${store._originalStoreId}_${store._timeSlot}` : null;
+                const isDefaultForDate = defaultKey ? !!scheduledDriverMap[defaultKey] : false;
                 return (
                   <button
                     key={store.id}
                     type="button"
                     onClick={() => toggleStore(store)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors text-left text-body"
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors text-left text-body ${isDefaultForDate ? 'bg-blue-50 dark:bg-blue-950/40' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
+                    style={isDefaultForDate ? { background: 'var(--bg-slate-50)' } : undefined}
                   >
                     <div className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${isChecked ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'}`}>
                       {isChecked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
                     </div>
-                    <span>{label}</span>
+                    <span className="flex-1">{label}</span>
+                    {isDefaultForDate && (
+                      <span
+                        className="ml-auto flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                        style={{ background: 'var(--accent-amber, #f59e0b)', color: '#1a1410' }}
+                        title="Scheduled default pickup for this date"
+                      >
+                        Default
+                      </span>
+                    )}
                   </button>
                 );
               })}
