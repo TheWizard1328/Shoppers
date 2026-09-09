@@ -13,11 +13,15 @@ import { offlineDB } from '../utils/offlineDatabase';
 /**
  * Returns true if the pickup should be flagged as after_hours:
  * - The delivery date is a stat holiday, OR
- * - The driver is not the scheduled driver for that store/day/slot
- *   (checks DriverScheduleOverride first, then falls back to Store defaults), OR
+ * - The driver is not the scheduled driver for that store/date
+ *   (DriverScheduleOverride is slot-agnostic — a single override for a store/date
+ *   means that driver covers ALL slots; falls back to slot-specific store defaults
+ *   when no override exists), OR
  * - The driver's route for that date is already in-progress or completed
+ *
+ * Uses the pre-built scheduledDriverMap (no per-pickup live query).
  */
-const shouldBeAfterHours = async (formData, store, allDeliveries = []) => {
+const shouldBeAfterHours = async (formData, store, allDeliveries = [], scheduledDriverMap = {}) => {
   const { delivery_date, driver_id, ampm_deliveries } = formData;
   if (!delivery_date || !store) return false;
 
@@ -25,44 +29,17 @@ const shouldBeAfterHours = async (formData, store, allDeliveries = []) => {
   const holidays = await loadStatHolidays();
   if (isStatHoliday(delivery_date, holidays)) return true;
 
-  const dayOfWeek = new Date(`${delivery_date}T00:00:00`).getDay();
-  const isSaturday = dayOfWeek === 6;
-  const isSunday = dayOfWeek === 0;
   const slot = ampm_deliveries || 'AM';
 
-  // 2. Determine the slot key for DriverScheduleOverride lookup
-  const prefix = isSaturday ? 'saturday' : isSunday ? 'sunday' : 'weekday';
-  const slotKey = `${prefix}_${slot === 'PM' ? 'pm' : 'am'}`;
+  // 2. Look up the scheduled driver from the pre-built map.
+  // scheduledDriverMap already resolves: override (slot-agnostic) → store default (slot-specific).
+  const slotKey = `${store.id}_${slot}`;
+  const scheduledDriverId = scheduledDriverMap[slotKey] || scheduledDriverMap[store.id] || null;
 
-  // 3. Check DriverScheduleOverride first
-  let scheduledDriverId = null;
-  try {
-    const { base44 } = await import('@/api/base44Client');
-    const overrides = await base44.entities.DriverScheduleOverride.filter({
-      date: delivery_date,
-      store_id: store.id,
-      slot_key: slotKey,
-    });
-    if (overrides?.length > 0) {
-      scheduledDriverId = overrides[0].driver_id;
-    }
-  } catch (_) {}
-
-  // 4. Fall back to Store's default scheduled driver
-  if (!scheduledDriverId) {
-    if (isSaturday) {
-      scheduledDriverId = slot === 'PM' ? store.saturday_pm_driver_id : store.saturday_am_driver_id;
-    } else if (isSunday) {
-      scheduledDriverId = slot === 'PM' ? store.sunday_pm_driver_id : store.sunday_am_driver_id;
-    } else {
-      scheduledDriverId = slot === 'PM' ? store.weekday_pm_driver_id : store.weekday_am_driver_id;
-    }
-  }
-
-  // 5. If no driver scheduled or driver doesn't match → after hours
+  // 3. If no driver scheduled or driver doesn't match → after hours
   if (!scheduledDriverId || scheduledDriverId === '__booked_off__' || String(scheduledDriverId) !== String(driver_id)) return true;
 
-  // 6. Check if this driver's route is already in-progress or completed for that store/date/slot
+  // 4. Check if this driver's route is already in-progress or completed for that store/date/slot
   const routeDeliveries = (allDeliveries || []).filter(
     (d) => d && d.driver_id === driver_id && d.delivery_date === delivery_date && d.store_id === store.id
   );
@@ -88,6 +65,7 @@ export const addPickupToRoute = async ({
   addedPickupRoutesRef,
   setError,
   handleClearForm,
+  scheduledDriverMap = {},
 }) => {
   const codAmount = formData.cod_total_amount_required > 0
     ? formData.cod_total_amount_required / 100
@@ -141,7 +119,7 @@ export const addPickupToRoute = async ({
   const resolvedTimeStart = pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '';
   const resolvedTimeEnd = pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '';
 
-  const afterHours = await shouldBeAfterHours(formData, store, allDeliveries);
+  const afterHours = await shouldBeAfterHours(formData, store, allDeliveries, scheduledDriverMap);
 
   const pickupPayload = {
     ...pickupToCreate,

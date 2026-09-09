@@ -43,13 +43,12 @@ export const resolvePatientDriverAssignment = ({
     return pickup?.driver_id || null;
   })();
 
-  // Priority 2: DriverScheduleOverride — slot-aware lookup (storeId_PM or storeId_AM), then base storeId
+  // Priority 2: DriverScheduleOverride (slot-agnostic — a single override covers all slots)
+  // via the pre-built scheduledDriverMap. Falls back to slot-specific key then base storeId.
   const slotKey = `${patientStore.id}_${deliveryAMPM}`;
-  const fallbackSlotKey = `${patientStore.id}_${deliveryAMPM === 'PM' ? 'AM' : 'PM'}`;
   const overrideDriverId =
-    scheduledDriverMap[slotKey] ||
-    scheduledDriverMap[fallbackSlotKey] ||
     scheduledDriverMap[patientStore.id] ||
+    scheduledDriverMap[slotKey] ||
     null;
 
   // Stat holiday: drivers always auto-select themselves; otherwise the store's

@@ -32,16 +32,12 @@ export const resolveDefaultDriverForNewDelivery = ({
     }
   }
 
-  // Admins: always start with no driver selected ("All Drivers")
-  if (isAdmin) {
-    return { driverId: '', driverName: '' };
-  }
-
-  // Dispatchers: resolve with 3-tier priority:
-  //   1. Driver who already has a store pickup for the dispatcher's store on this date
-  //   2. DriverScheduleOverride (via scheduledDriverMap, keyed by store_id)
+  // Admins & dispatchers: resolve with 3-tier priority:
+  //   1. Driver who already has a store pickup for the store on this date
+  //   2. DriverScheduleOverride (via scheduledDriverMap, keyed by store_id — slot-agnostic)
   //   3. Store's default driver for the date's day-of-week slot
-  if (isDispatcher && !isDriver) {
+  // Admins without store_ids fall through to empty (resolved when a patient is selected).
+  if ((isDispatcher || isAdmin) && !isDriver) {
     const relevantStoreIds = (currentUser.store_ids || []);
     if (relevantStoreIds.length === 0) return { driverId: '', driverName: '' };
 

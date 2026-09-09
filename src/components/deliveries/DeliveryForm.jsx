@@ -336,68 +336,11 @@ export default function DeliveryForm({
     }
   }, [delivery, currentUser, freshStores, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id, scheduledDriverMap]);
 
-  // For admins and dispatchers: resolve the scheduled driver from DriverScheduleOverrides
-  // and fall back to the store's default driver for the selected date/slot.
-  // Runs when the form opens (new delivery only) and when delivery_date changes.
-  useEffect(() => {
-    if (delivery) return; // editing existing delivery — don't override
-    const isDispatcher = userHasRole(currentUser, 'dispatcher');
-    const isDriver = userHasRole(currentUser, 'driver');
-    const isAdmin = userHasRole(currentUser, 'admin');
-    if (isAdmin) return; // admins always show "All Drivers" on load
-    if (!isDispatcher) return; // drivers handled by their own effect
-    if (isDriver) return;
-
-    const deliveryDate = formData.delivery_date;
-    if (!deliveryDate || allDrivers.length === 0) return;
-
-    const storesToUse = freshStores || stores;
-    if (!storesToUse || storesToUse.length === 0) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        // Fetch overrides for this specific date
-        const overrides = await base44.entities.DriverScheduleOverride.filter({ date: deliveryDate });
-
-        if (cancelled) return;
-
-        // Dispatchers only reach here — use their single assigned store (store_ids[0])
-        const storeId = (currentUser.store_ids || [])[0];
-        if (!storeId) return;
-
-        const store = storesToUse.find((s) => s && s.id === storeId);
-        if (!store) return;
-
-        const dateObj = new Date(deliveryDate + 'T00:00:00');
-        const dow = dateObj.getDay(); // 0=Sun, 6=Sat
-        const prefix = dow === 0 ? 'sunday' : dow === 6 ? 'saturday' : 'weekday';
-
-        // Check override first, fall back to store default
-        const overrideAM = overrides.find((o) => o.store_id === storeId && o.slot_key === `${prefix}_am`);
-        const overridePM = overrides.find((o) => o.store_id === storeId && o.slot_key === `${prefix}_pm`);
-
-        const driverId =
-          (overrideAM ? overrideAM.driver_id : store[`${prefix}_am_driver_id`]) ||
-          (overridePM ? overridePM.driver_id : store[`${prefix}_pm_driver_id`]) ||
-          null;
-
-        if (!driverId) return;
-
-        const driver = allDrivers.find((d) => d && (d.id === driverId || d.user_id === driverId));
-        if (!driver) return;
-
-        setFormData((prev) => {
-          if (driverManuallyChangedRef.current) return prev; // user manually chose a driver — never override
-          return { ...prev, driver_id: driver.id, driver_name: getDriverNameForStorage(driver) };
-        });
-      } catch {
-        // silent — non-critical
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [delivery, currentUser, formData.delivery_date, freshStores, stores, allDrivers]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Driver auto-resolution from DriverScheduleOverride for admins & dispatchers is now
+  // handled by the initial driver auto-select effect above (line ~318), which calls
+  // resolveDefaultDriverForNewDelivery using the pre-built scheduledDriverMap.
+  // The old dispatcher-only effect that did its own live query has been removed to
+  // avoid redundant API calls and ensure admins with overrides get auto-selected too.
 
   const isLoadingExistingDelivery = useRef(false);
   const loadedDeliveryIdRef = useRef(null);
@@ -900,7 +843,7 @@ export default function DeliveryForm({
     const timeSlot = resolvedFormData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, resolvedFormData.delivery_date, resolvedFormData.driver_id, allDeliveries) || 'AM';
     let newStagedDelivery;
     if (isPickupMode) {
-      const createdPickup = await addPickupToRoute({ formData: resolvedFormData, store, allDeliveries, stagedDeliveries, extraPickups, setHasChanges, setPickupsAddedCount, addedPickupRoutesRef, setError, handleClearForm });
+      const createdPickup = await addPickupToRoute({ formData: resolvedFormData, store, allDeliveries, stagedDeliveries, extraPickups, setHasChanges, setPickupsAddedCount, addedPickupRoutesRef, setError, handleClearForm, scheduledDriverMap: scheduledDriverMapRef.current });
       if (createdPickup) addedPickupRecordsRef.current.push(createdPickup);
       return createdPickup;
     }
@@ -1042,11 +985,15 @@ export default function DeliveryForm({
           : stores;
         for (const store of storesToMap) {
           if (!store) continue;
-          const overrideAM = overrides.find((o) => o.store_id === store.id && o.slot_key === `${prefix}_am`);
-          const overridePM = overrides.find((o) => o.store_id === store.id && o.slot_key === `${prefix}_pm`);
-          // Store AM and PM separately so slot-aware lookup works correctly
-          const amDriverId = overrideAM ? overrideAM.driver_id : store[`${prefix}_am_driver_id`] || null;
-          const pmDriverId = overridePM ? overridePM.driver_id : store[`${prefix}_pm_driver_id`] || null;
+          // Slot-agnostic override: ANY DriverScheduleOverride for this store/date
+          // means that driver covers ALL slots (AM & PM) per user requirement.
+          const anyOverride = overrides.find((o) => o.store_id === store.id);
+          const overrideDriverId = anyOverride ? anyOverride.driver_id : null;
+
+          // When no override, use slot-specific store defaults; when override exists,
+          // the override driver covers both slots.
+          const amDriverId = overrideDriverId || store[`${prefix}_am_driver_id`] || null;
+          const pmDriverId = overrideDriverId || store[`${prefix}_pm_driver_id`] || null;
           if (amDriverId) {
             const driver = allDrivers.find((d) => d && (d.id === amDriverId || d.user_id === amDriverId));
             if (driver) map[`${store.id}_AM`] = driver.id;
@@ -1055,8 +1002,8 @@ export default function DeliveryForm({
             const driver = allDrivers.find((d) => d && (d.id === pmDriverId || d.user_id === pmDriverId));
             if (driver) map[`${store.id}_PM`] = driver.id;
           }
-          // Also set base store key = AM slot for backwards compat (non-PM lookups)
-          const primaryDriverId = amDriverId || pmDriverId;
+          // Base store key = override driver (preferred) or AM default for backwards compat
+          const primaryDriverId = overrideDriverId || store[`${prefix}_am_driver_id`] || store[`${prefix}_pm_driver_id`];
           if (primaryDriverId) {
             const driver = allDrivers.find((d) => d && (d.id === primaryDriverId || d.user_id === primaryDriverId));
             if (driver) map[store.id] = driver.id;
