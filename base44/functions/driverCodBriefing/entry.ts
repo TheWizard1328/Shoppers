@@ -89,6 +89,7 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
   hasAnyExplicitFalse = Object.values(profiles).some((p) => p?.notifications_enabled === false);
 
   const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id: userId }).catch(() => []);
+  console.log('[briefing] push target:', userId, '| subs:', subscriptions?.length || 0, '| fcm:', subscriptions?.filter((s) => s.endpoint?.startsWith('fcm://')).length || 0);
   if (!subscriptions || subscriptions.length === 0) return { sent: 0, skipped: 0, removed: 0, errors: [] };
 
   const notifData = { title, body, url: url || '/', tag: tag || undefined };
@@ -99,6 +100,7 @@ async function sendPushToUser(base44, userId, title, body, url, tag) {
 
   let sent = 0, removed = 0, skipped = 0;
   const errors = [];
+  if (hasFcmSub) console.log('[briefing] FCM token acquired:', !!fcmAccessToken, '| vapid keys:', !!vapidPublicKey, !!vapidPrivateKey, !!vapidSubject);
   await Promise.all(subscriptions.map(async (sub) => {
     const isFCM = sub.endpoint?.startsWith('fcm://');
     // FCM (APK) subs always receive pushes; web subs honor device profiles.
@@ -191,7 +193,9 @@ async function handleBriefing(base44, params = {}) {
   const startedAt = Date.now();
 
   // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
+  console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none');
   const catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
+  console.log('[briefing] catalog items:', catalogItems.length);
   if (!catalogItems.length) {
     return { success: true, dry_run: dryRun, drivers: [], totals: { drivers: 0, items: 0, amount: 0 }, pushes: [], message: 'No outstanding CODs.', duration_ms: Date.now() - startedAt };
   }
@@ -262,6 +266,7 @@ async function handleBriefing(base44, params = {}) {
       const title = `${testDriverId ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`;
       const result = await sendPushToUser(base44, g.driver_id, title, body, '/', `cod-briefing-${today}`);
       pushes.push({ driver_id: g.driver_id, driver_name: g.driver_name, ...result });
+      console.log('[briefing] push result:', JSON.stringify({ driver: g.driver_name, ...result }));
       await sleep(150);
     }
   }
