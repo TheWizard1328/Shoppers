@@ -186,6 +186,8 @@ async function fetchByIds(base44, entityName, ids) {
 
 async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
+  // Optional: send a TEST push to a single driver only (targets a real driver's real data)
+  const testDriverId = params?.test_driver_id || null;
   const startedAt = Date.now();
 
   // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
@@ -243,6 +245,7 @@ async function handleBriefing(base44, params = {}) {
   if (!dryRun) {
     const today = new Date().toISOString().slice(0, 10);
     for (const g of driverBriefings) {
+      if (testDriverId && g.driver_id !== testDriverId) continue;
       // Money column alignment: pad every amount (incl. the total) to the same
       // width so the $ signs and decimals line up down the list.
       const moneyStrs = g.items.map((it) => (Number(it.amount) || 0).toFixed(2));
@@ -256,7 +259,8 @@ async function handleBriefing(base44, params = {}) {
         '',
         'Collect at your earliest convenience.',
       ].join('\n');
-      const result = await sendPushToUser(base44, g.driver_id, `COD Briefing — ${shortDate(today)}`, body, '/', `cod-briefing-${today}`);
+      const title = `${testDriverId ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`;
+      const result = await sendPushToUser(base44, g.driver_id, title, body, '/', `cod-briefing-${today}`);
       pushes.push({ driver_id: g.driver_id, driver_name: g.driver_name, ...result });
       await sleep(150);
     }
