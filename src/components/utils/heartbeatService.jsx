@@ -68,24 +68,36 @@ const sendHeartbeat = async () => {
         update.driver_status = 'online';
         console.log(`🟢 [HeartbeatService] Dispatcher ${currentAppUserId} restored to online`);
       }
-      // CRITICAL: Use syncUpdatedAppUser instead of direct base44.entities.AppUser.update()
-      // to ensure: (1) window.__localAppUserWrites is set for WS echo suppression,
-      // (2) local IDB is updated immediately, (3) appUserUpdated event fires for
-      // instant UI update on this device. Without this, the dispatcher's own device
-      // doesn't show "online" until the WS echo arrives (~1s delay), and the
-      // unsuppressed echo causes unnecessary reprocessing.
+      // CRITICAL: write to the SERVER first. syncUpdatedAppUser alone is NOT enough —
+      // it only updates local IDB + local events and broadcasts to other devices on
+      // THIS device; it never persists to the backend. The Sep 2 refactor that replaced
+      // the direct base44.entities.AppUser.update() call with syncUpdatedAppUser silently
+      // stopped ALL server-side heartbeat writes — every viewer (sidebar dots, Stores
+      // page) read stale location_updated_at from the server and dispatchers showed
+      // orange/offline despite being active. Server write here + syncUpdatedAppUser after
+      // for: (1) window.__localAppUserWrites echo suppression (set before the WS echo
+      // arrives), (2) instant local IDB save, (3) appUserUpdated UI event.
+      try { await base44.entities.AppUser.update(currentAppUserId, update); }
+      catch (serverErr) {
+        console.warn('⚠️ [HeartbeatService] Server heartbeat write failed, continuing with local sync:', serverErr?.message);
+      }
       await syncUpdatedAppUser({ updatedAppUser: update, currentUser: { id: currentUserId } });
       console.log(`💓 [HeartbeatService] Dispatcher heartbeat sent [${now.toLocaleTimeString('en-CA', { hour12: false })}]`);
       remoteLogger.info('[HEARTBEAT] DISPATCHER | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=' + isPrimaryDevice + ' | ts=' + nowIso);
     } else {
-      // Non-dispatcher (driver) — just update timestamp, location tracker owns status
-      // Use syncUpdatedAppUser for local IDB save + echo suppression + UI event.
+      // Non-dispatcher (driver) — just update timestamp, location tracker owns status.
+      // Server write first (same fix as dispatcher branch), then syncUpdatedAppUser for
+      // local IDB save + WS echo suppression + UI event.
       let existingDriver = null;
       try {
         const driverResults = await base44.entities.AppUser.filter({ id: currentAppUserId });
         existingDriver = driverResults?.[0] || null;
       } catch (_) { /* non-critical */ }
       const driverUpdate = { ...(existingDriver || {}), location_updated_at: nowIso };
+      try { await base44.entities.AppUser.update(currentAppUserId, driverUpdate); }
+      catch (serverErr) {
+        console.warn('⚠️ [HeartbeatService] Driver server heartbeat write failed:', serverErr?.message);
+      }
       await syncUpdatedAppUser({ updatedAppUser: driverUpdate, currentUser: { id: currentUserId } });
       remoteLogger.info('[HEARTBEAT] DRIVER | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=' + isPrimaryDevice + ' | ts=' + nowIso);
     }
