@@ -299,6 +299,12 @@ Deno.serve(async (req) => {
     await requireAdminIfAuthenticated(base44);
     let params = {};
     try { params = await req.json(); } catch { params = {}; }
+    if (params?.diagnostic_fcm_project) {
+      const fcmServiceAccountJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
+      let projectId = null, clientEmail = null;
+      try { const c = JSON.parse(fcmServiceAccountJson || '{}'); projectId = c.project_id; clientEmail = c.client_email; } catch {}
+      return Response.json({ fcm_service_account_configured: !!fcmServiceAccountJson, project_id: projectId, client_email: clientEmail });
+    }
     return Response.json(await handleBriefing(base44, params));
   } catch (error) {
     const status = error?.status || 500;
