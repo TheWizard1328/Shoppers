@@ -84,13 +84,10 @@ export const addPickupToRoute = async ({
     ],
   });
 
-  // Always use the store's configured time windows (not the "past closing time" override)
-  // so schedule-override pickups get the correct store default AM/PM times.
   const pickupTimes = resolvePickupTimeWindow({
     store,
     deliveryDate: formData.delivery_date,
     timeSlot,
-    useStoreDefaults: true,
   });
 
   // Build list of all pickups (existing + newly created in this batch) to avoid tracking number collisions

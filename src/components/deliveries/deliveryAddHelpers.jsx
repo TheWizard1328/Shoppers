@@ -24,42 +24,53 @@ const getStoreSlotWindow = (store, deliveryDate, timeSlot) => {
   return { start: store?.weekday_am_start || '', end: store?.weekday_am_end || '' };
 };
 
-export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date(), useStoreDefaults = false }) => {
+export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date() }) => {
   const slotWindow = getStoreSlotWindow(store, deliveryDate, timeSlot);
 
-  if (slotWindow.start) {
-    // Only apply the late-window override when the pickup is being added on TODAY's route.
-    // If the delivery is for a future date we always use the store's configured window.
-    // useStoreDefaults=true skips this override entirely (e.g. for batch pickup adds
-    // where the store's configured window should always be used regardless of current time).
-    if (!useStoreDefaults) {
-      const todayStr = format(now, 'yyyy-MM-dd');
-      const isToday = deliveryDate === todayStr;
+  if (!slotWindow.start) {
+    // No configured window — use current time + buffer as fallback
+    return {
+      delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
+      delivery_time_end: format(addMinutes(now, 60), 'HH:mm')
+    };
+  }
 
-      if (isToday) {
-        const windowEndMinutes = toMinutes(slotWindow.end);
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const isPastWindow = windowEndMinutes !== null && nowMinutes > windowEndMinutes;
+  const todayStr = format(now, 'yyyy-MM-dd');
+  const isToday = deliveryDate === todayStr;
 
-        if (isPastWindow) {
-          return {
-            delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
-            delivery_time_end: format(addMinutes(now, 90), 'HH:mm'),
-          };
-        }
-      }
-    }
-
+  // Future date — always use the store's configured window.
+  if (!isToday) {
     return {
       delivery_time_start: slotWindow.start,
       delivery_time_end: slotWindow.end || ''
     };
   }
 
-  // No configured window — use current time + buffer as fallback
+  // Today — compare current time against the store's configured window.
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const windowStartMinutes = toMinutes(slotWindow.start);
+  const windowEndMinutes = toMinutes(slotWindow.end);
+
+  // Before the store's window opens — use store defaults.
+  if (windowStartMinutes !== null && nowMinutes < windowStartMinutes) {
+    return {
+      delivery_time_start: slotWindow.start,
+      delivery_time_end: slotWindow.end || ''
+    };
+  }
+
+  // After the store's window has closed — now+30 → now+60.
+  if (windowEndMinutes !== null && nowMinutes > windowEndMinutes) {
+    return {
+      delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
+      delivery_time_end: format(addMinutes(now, 60), 'HH:mm'),
+    };
+  }
+
+  // During the store's open window — now → now+60.
   return {
-    delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
-    delivery_time_end: format(addMinutes(now, 60), 'HH:mm')
+    delivery_time_start: format(now, 'HH:mm'),
+    delivery_time_end: format(addMinutes(now, 60), 'HH:mm'),
   };
 };
 
