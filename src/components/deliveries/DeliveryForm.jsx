@@ -47,6 +47,7 @@ import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } 
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 import { closeDeliveryFormAfterSave, flushPendingInterStoreOptimizations } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
+import { resolveInterStoreDriver } from './interStoreDriverResolver';
 import { loadStatHolidays, getStatHoliday } from '../utils/statHolidayResolver';
 import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
@@ -340,6 +341,32 @@ export default function DeliveryForm({
       setFormData((prev) => ({ ...prev, driver_id: driverIdToSet, driver_name: driverNameToSet }));
     }
   }, [delivery, currentUser, freshStores, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id, scheduledDriverMap]);
+
+  // ── InterStore driver auto-resolution — checks DriverScheduleOverride (via
+  // scheduledDriverMap) for the From/To stores so selecting two stores auto-fills
+  // the driver instead of forcing manual selection. Prefers the From store's
+  // scheduled driver (the pickup origin). Only runs when no driver is set yet and
+  // the user hasn't manually changed it, so it never overrides an explicit choice.
+  useEffect(() => {
+    if (delivery) return;
+    if (!isInterStoreMode) return;
+    if (formData.driver_id || driverManuallyChangedRef.current) return;
+    if (!formData._interstore_source_id || !formData._interstore_dest_id) return;
+    const storesToUse = freshStores || stores;
+    if (!storesToUse || allDrivers.length === 0) return;
+    const { driverId, driverName } = resolveInterStoreDriver({
+      formData,
+      stores: storesToUse,
+      allDrivers,
+      scheduledDriverMap: scheduledDriverMapRef.current,
+      currentUser,
+      getDriverNameForStorage,
+      userHasRole,
+    });
+    if (driverId) {
+      setFormData((prev) => (prev.driver_id === driverId ? prev : { ...prev, driver_id: driverId, driver_name: driverName }));
+    }
+  }, [isInterStoreMode, formData._interstore_source_id, formData._interstore_dest_id, formData.driver_id, formData.delivery_date, freshStores, stores, allDrivers, scheduledDriverMap]);
 
   // Driver auto-resolution from DriverScheduleOverride for admins & dispatchers is now
   // handled by the initial driver auto-select effect above (line ~318), which calls
