@@ -243,9 +243,14 @@ async function handleBriefing(base44, params = {}) {
   if (!dryRun) {
     const today = new Date().toISOString().slice(0, 10);
     for (const g of driverBriefings) {
-      const lines = g.items.map((it) => `${shortDate(it.delivery_date)} ${it.store_abbreviation || (it.store_name || '').slice(0, 12)} — ${it.patient_name} — ${money(it.amount)}`);
+      // Money column alignment: pad every amount (incl. the total) to the same
+      // width so the $ signs and decimals line up down the list.
+      const moneyStrs = g.items.map((it) => (Number(it.amount) || 0).toFixed(2));
+      const totalStr = (Math.round(g.total * 100) / 100).toFixed(2);
+      const moneyWidth = Math.max(totalStr.length, ...moneyStrs.map((m) => m.length));
+      const lines = g.items.map((it, idx) => `${shortDate(it.delivery_date)} ${it.store_abbreviation || (it.store_name || '').slice(0, 12)} · $${moneyStrs[idx].padStart(moneyWidth)} · ${it.patient_name}`);
       const body = [
-        `${g.count} uncollected COD${g.count === 1 ? '' : 's'} totaling ${money(g.total)}.`,
+        `${g.count} uncollected COD${g.count === 1 ? '' : 's'} totaling $${totalStr}.`,
         '',
         ...lines,
         '',
