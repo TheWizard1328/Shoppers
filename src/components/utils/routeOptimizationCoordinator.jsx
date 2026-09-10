@@ -21,6 +21,7 @@ import { getOrFetchRoutingKey } from '@/components/utils/routingKeyStore';
 import { getOrFetchPolylineConfig } from '@/components/utils/polylineKeyStore';
 import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
 import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateTrackingNumbersLocal';
+import { getAllLocations, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 /**
  * Core route optimization engine (client-side).
@@ -223,6 +224,21 @@ export async function performRouteOptimization({
         }
       } catch (e) { console.warn(`[RouteOptimization] ${source} — patient gap-fill failed:`, e?.message); }
     }
+  }
+
+  // ── Warm the InterStoreLocation cache ───────────────────────────────────
+  // ISP/ISD stops resolve their coordinates via getInterStoreLocationSync, a SYNC
+  // lookup into the module-level locationCache (keyed by phone digits). If that
+  // cache isn't warm when the engine runs, getDeliveryCoords returns null → the
+  // stops are DROPPED from routeStops → HERE sequencing falls back to start-time
+  // ordering AND the polyline block is skipped entirely (no polylines). Warming
+  // the cache here covers every caller (Done flush, marker-prefill, manual FAB,
+  // status updates) so InterStore coords always resolve.
+  if (Array.isArray(resolvedDeliveries) && resolvedDeliveries.some((d) => isInterStoreDelivery(d?.delivery_id))) {
+    try {
+      await getAllLocations();
+      console.log(`[RouteOptimization] ${source} — InterStoreLocation cache warmed for coord resolution`);
+    } catch (e) { console.warn(`[RouteOptimization] ${source} — InterStoreLocation cache warm failed:`, e?.message); }
   }
 
   // ── Second active-stops check: after backend fetch (for callers that passed deliveries=null).
