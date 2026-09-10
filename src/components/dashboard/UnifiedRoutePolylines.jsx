@@ -427,16 +427,61 @@ function UnifiedRoutePolylines({
       }
     }
 
-    // Remaining incomplete legs (non-pending, after current stop) → driver color or cycling green
-    const orderedIncomplete = [...stops.incomplete]
+    // Remaining legs (after current stop) → driver color or cycling green.
+    // PENDING stops are merged into the ordered chain so a future-date route
+    // (all stops pending until accepted) renders its planned polylines once the
+    // manual FAB optimizer generates them. Pending legs are drawn DASHED in the
+    // driver color, and only when a REAL encoded_polyline exists — pending stops
+    // never get fallback straight-line legs.
+    const orderedIncomplete = [...stops.incomplete, ...stops.pending]
       .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-    const currentIdx = orderedIncomplete.findIndex((s) => s?.isNextDelivery === true);
-    const startFrom = currentIdx >= 0 ? currentIdx + 1 : (orderedIncomplete.length > 0 ? 1 : 0);
+    const currentIdx = orderedIncomplete.findIndex(
+      (s) => s?.isNextDelivery === true && stops.incomplete.some((x) => x.id === s.id)
+    );
+    const startFrom = stops.incomplete.length > 0
+      ? (currentIdx >= 0 ? currentIdx + 1 : 1)
+      : 0; // not-started route: draw ALL pending legs (first = home→first-stop)
 
     for (let i = startFrom; i < orderedIncomplete.length; i++) {
       const stop = orderedIncomplete[i];
       const prev = orderedIncomplete[i - 1] || orderedIncomplete[0];
       if (!stop || !prev) continue;
+
+      // ── Planned (pending) leg ────────────────────────────────────────────
+      if (stops.pending.some((p) => p.id === stop.id)) {
+        const plannedCoords = cachedDecodePolyline(stop.encoded_polyline);
+        if (!plannedCoords) continue; // not FAB-optimized yet — no fallback legs for pending
+        const plannedMode = getStopMode(stop, driverId, orderedIncomplete);
+        const isCyclingP = plannedMode === "cycling";
+        const plannedColor = isCyclingP ? CYCLING_COLOR : getDriverColor(driverId);
+        const plannedStyle = getTravelModeLineStyle(plannedMode, plannedColor, stop.ampm_deliveries === "PM");
+        const plannedKey = `planned-${driverId}-${stop.id}`;
+        if (seenKeys.has(plannedKey)) continue;
+        seenKeys.add(plannedKey);
+
+        lines.push(
+          <Polyline
+            key={`unified-planned-line-${driverId}-${stop.id}`}
+            positions={plannedCoords}
+            renderer={renderer}
+            pathOptions={{
+              ...plannedStyle,
+              color: plannedColor,
+              dashArray: "6 8",
+              opacity: 0.65,
+              lineJoin: "round",
+              lineCap: "round",
+            }}
+            pane="routeBasePane"
+          />,
+          <RouteDirectionDecorator
+            key={`unified-planned-arrow-${driverId}-${stop.id}`}
+            positions={plannedCoords}
+            color={plannedColor}
+          />
+        );
+        continue;
+      }
 
       const mode = getStopMode(stop, driverId, orderedIncomplete);
       const isCycling = mode === "cycling";

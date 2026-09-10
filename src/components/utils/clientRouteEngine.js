@@ -424,6 +424,7 @@ export async function optimizeRouteClientSide({
   polylineProvider = 'here',
   polylineApiKey = null,
   clearNextDeliveryLock = false,
+  includePendingPolylines = false,
 }) {
   if (!driverId || !deliveryDate) {
     return { success: false, error: 'Missing driverId or deliveryDate' };
@@ -669,6 +670,7 @@ let _inheritedWindowCount = 0;
       driverHomeLocation,
       driverId,
       userName: _driverUserName,
+      includePendingPolylines,
     });
   }
 
@@ -1536,7 +1538,7 @@ let _inheritedWindowCount = 0;
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, polylineProvider = 'here', polylineApiKey = null, driverHomeLocation = null, driverId = null, userName = null }) {
+async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, polylineProvider = 'here', polylineApiKey = null, driverHomeLocation = null, driverId = null, userName = null, includePendingPolylines = false }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1668,9 +1670,13 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     return 'driving';
   };
   const stopPoints = [];
-  // ONLY generate polylines for active stops (in_transit / en_route).
-  // Pending stops on a future route stay polyline-free until the driver starts them.
-  const FUTURE_ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
+  // Only generate polylines for started stops (in_transit / en_route). Pending
+  // stops on a future route stay polyline-free until the driver starts them —
+  // EXCEPT when the caller explicitly requests pending legs (manual FAB: the
+  // dispatcher wants to see the full planned path for the future date).
+  const FUTURE_ACTIVE_STATUSES = includePendingPolylines
+    ? new Set(['in_transit', 'en_route', 'pending', 'staged'])
+    : new Set(['in_transit', 'en_route']);
   for (const { delivery } of orderedStops) {
     if (!FUTURE_ACTIVE_STATUSES.has(String(delivery.status || ''))) continue;
     const c = getDeliveryCoords(delivery, patientMap, storeMap);

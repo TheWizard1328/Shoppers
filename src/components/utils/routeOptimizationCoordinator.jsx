@@ -76,6 +76,10 @@ export async function performRouteOptimization({
   startingStopOrder = null,
   recalcTrackingNumbers = false,
   recalcTrackingStoreId = null,
+  // Future routes: also generate planned polylines for PENDING stops (they are
+  // normally polyline-free until accepted). Manual FAB passes true so the whole
+  // future route path is visible before the driver starts the day.
+  includePendingPolylines = false,
   forceRegenerate = false,
   clearNextDeliveryLock = false,
   skipServerWrite = false,
@@ -226,6 +230,7 @@ export async function performRouteOptimization({
         drivingOrigin,
         excludeStopIds,
         startingStopOrder,
+        includePendingPolylines,
       }).catch((err) => {
         console.error(`[RouteOptimization] ${source} — client engine error:`, err);
         return null;

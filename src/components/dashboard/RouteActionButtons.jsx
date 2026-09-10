@@ -43,6 +43,9 @@ async function runClientSideOptimize({
     source,
     bypassDriverStatus: true,
     preserveExistingOrder: false,
+    // Future-date routes: pending stops also get planned polylines so the FAB
+    // shows the full path for tomorrow's route (not just in_transit stops).
+    includePendingPolylines: true,
   });
 }
 
