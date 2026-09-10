@@ -327,6 +327,30 @@ async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driver
   return { sections: builtSections, usedFallbackPolyline: anySegmentFellBack };
 }
 
+// Crow-flies straight-line sections — used when the HERE Router v8 fetch THROWS
+// (AbortSignal timeout, network/DNS error). getMultiStopRouteHere already builds
+// these for the "responded but empty sections" case (lines 313-317); this mirrors
+// that behavior for the throw case so a degraded/unreachable HERE endpoint
+// degrades to straight lines instead of producing NO polylines — which left
+// future-route FAB stops (home→pickup→pickup legs) entirely line-less while the
+// engine still reported "Route optimized!".
+// Returns one section per leg (points.length - 1), matching the HERE shape.
+function crowFliesSections(points, transportMode) {
+  const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
+  if (validPoints.length < 2) return [];
+  const mode = transportMode || 'driving';
+  return validPoints.slice(0, -1).map((from, i) => {
+    const to = validPoints[i + 1];
+    const km = haversineKm(from.lat, from.lon, to.lat, to.lon);
+    return {
+      encoded_polyline: encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
+      estimated_distance_km: Number(km.toFixed(3)),
+      estimated_duration_minutes: Math.ceil((km / 40) * 60),
+      transport_mode: mode,
+    };
+  });
+}
+
 // ─── Google Directions API: multi-stop route (polyline provider = google) ────
 // Implemented in src/components/utils/clientRouteGoogle.js (imported at top of file).
 
@@ -1216,12 +1240,12 @@ let _inheritedWindowCount = 0;
         const useGooglePoly = polylineProvider === 'google' && polylineApiKey;
         const result = useGooglePoly
           ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName: _driverUserName }).catch((err) => {
-              console.error(`[clientRouteEngine] ${source} — Google Directions THREW (mode=${group.mode}):`, err?.message || err);
-              return { sections: [], usedFallbackPolyline: true };
+              console.error(`[clientRouteEngine] ${source} — Google Directions THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
+              return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
             })
           : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName: _driverUserName }).catch((err) => {
-              console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW (mode=${group.mode}):`, err?.message || err);
-              return { sections: [], usedFallbackPolyline: true };
+              console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
+              return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
             });
         console.log(`[clientRouteEngine] ${source} — HERE ${group.mode} returned ${result.sections.length} sections for ${points.length} points`);
         return { group, sections: result.sections };
@@ -1707,8 +1731,14 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       const herePoints = [group.origin, ...group.points.map(p => ({ lat: p.lat, lon: p.lon }))];
       const useGooglePolyF = polylineProvider === 'google' && polylineApiKey;
       const result = useGooglePolyF
-        ? await getMultiStopRouteGoogle(herePoints, group.mode, polylineApiKey, { driverId, userName }).catch(() => ({ sections: [] }))
-        : await getMultiStopRouteHere(herePoints, group.mode, hereApiKey, { driverId, userName }).catch(() => ({ sections: [] }));
+        ? await getMultiStopRouteGoogle(herePoints, group.mode, polylineApiKey, { driverId, userName }).catch((err) => {
+            console.error(`[clientRouteEngine] ${source} — Google Directions THREW on future route (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
+            return { sections: crowFliesSections(herePoints, group.mode), usedFallbackPolyline: true };
+          })
+        : await getMultiStopRouteHere(herePoints, group.mode, hereApiKey, { driverId, userName }).catch((err) => {
+            console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW on future route (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
+            return { sections: crowFliesSections(herePoints, group.mode), usedFallbackPolyline: true };
+          });
       return { group, sections: result.sections || [] };
     }));
     for (const { group, sections } of groupResults) {
