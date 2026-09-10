@@ -187,6 +187,44 @@ export async function performRouteOptimization({
     resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
   }
 
+  // ── GAP-FILL stores/patients ──────────────────────────────────────────────
+  // The caller may pass PARTIAL arrays (e.g. a city-scoped stores list that
+  // omits the pickup stores for a future route). The engine builds storeMap/
+  // patientMap from these arrays; if a delivery's store_id/patient_id isn't in
+  // them, getDeliveryCoords returns null, stopPoints comes up empty, and the
+  // polyline block is silently SKIPPED — which is why future-route FAB clicks
+  // produced stop_order but NO encoded_polyline (GoogleAPILog showed zero
+  // 'Routes (HERE)' entries). Fetch any referenced store_ids/patient_ids
+  // missing from the provided arrays so coords always resolve.
+  if (Array.isArray(resolvedDeliveries) && resolvedDeliveries.length > 0) {
+    const haveStoreIds = new Set((resolvedStores || []).map(s => s?.id).filter(Boolean));
+    const missingStoreIds = [...new Set(
+      resolvedDeliveries.map(d => d?.store_id).filter(Boolean).filter(id => !haveStoreIds.has(id))
+    )];
+    if (missingStoreIds.length > 0) {
+      try {
+        const fetchedStores = await base44.entities.Store.filter({ id: { $in: missingStoreIds } }).catch(() => []);
+        if (Array.isArray(fetchedStores) && fetchedStores.length > 0) {
+          resolvedStores = [...(resolvedStores || []), ...fetchedStores];
+          console.log(`[RouteOptimization] ${source} — gap-filled ${fetchedStores.length} missing store(s) for coord resolution`);
+        }
+      } catch (e) { console.warn(`[RouteOptimization] ${source} — store gap-fill failed:`, e?.message); }
+    }
+    const havePatientIds = new Set((resolvedPatients || []).map(p => p?.id).filter(Boolean));
+    const missingPatientIds = [...new Set(
+      resolvedDeliveries.map(d => d?.patient_id).filter(Boolean).filter(id => !havePatientIds.has(id))
+    )];
+    if (missingPatientIds.length > 0) {
+      try {
+        const fetchedPatients = await base44.entities.Patient.filter({ id: { $in: missingPatientIds } }).catch(() => []);
+        if (Array.isArray(fetchedPatients) && fetchedPatients.length > 0) {
+          resolvedPatients = [...(resolvedPatients || []), ...fetchedPatients];
+          console.log(`[RouteOptimization] ${source} — gap-filled ${fetchedPatients.length} missing patient(s) for coord resolution`);
+        }
+      } catch (e) { console.warn(`[RouteOptimization] ${source} — patient gap-fill failed:`, e?.message); }
+    }
+  }
+
   // ── Second active-stops check: after backend fetch (for callers that passed deliveries=null).
   // If the fetched data shows no active stops, bail before wasting HERE API calls.
   // EXCEPTION: forceRegenerate=true bypasses this gate.
