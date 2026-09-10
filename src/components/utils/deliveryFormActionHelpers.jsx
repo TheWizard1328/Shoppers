@@ -140,6 +140,38 @@ export const flushPendingInterStoreOptimizations = async () => {
   }
 };
 
+/**
+ * Runs any pending InterStore (ISP/ISD) optimizations through the SAME deferred
+ * optimization path (requestDeferredOptimization → debouncer → performRouteOptimization)
+ * that the regular Done / handleBatchSave path uses for newly-created stops.
+ *
+ * InterStore stops are persisted directly by createInterStoreTransfer (never staged),
+ * so handleBatchSave's staged-route requestDeferredOptimization call does not cover
+ * them. Routing their flush through the debouncer guarantees the identical debounce,
+ * KITT bar / orange overlay UI, and HERE routing behaviour as a regular delivery Done.
+ */
+export const flushPendingInterStoreOptimizationsDeferred = async () => {
+  if (typeof window === 'undefined' || !window.__pendingInterStoreOptimizations) return;
+  const pending = window.__pendingInterStoreOptimizations;
+  window.__pendingInterStoreOptimizations = null;
+  if (!pending || pending.length === 0) return;
+
+  try {
+    const { requestDeferredOptimization } = await import('@/components/utils/optimizationDebouncer');
+    for (const { driverId, deliveryDate } of pending) {
+      if (!driverId || !deliveryDate) continue;
+      try {
+        requestDeferredOptimization(driverId, deliveryDate, true);
+        console.log(`[InterStoreDeferred] Queued deferred optimization (regular Done path) for driver ${driverId} on ${deliveryDate}`);
+      } catch (err) {
+        console.warn(`[InterStoreDeferred] Failed to queue optimization for driver ${driverId}:`, err?.message || err);
+      }
+    }
+  } catch (err) {
+    console.warn('[InterStoreDeferred] Failed to load optimizationDebouncer:', err?.message || err);
+  }
+};
+
 export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser, skipStatsRefresh = false }) => {
   if (!driverId || !deliveryDate || travelModeOnly) return;
 

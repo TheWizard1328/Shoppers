@@ -7,6 +7,7 @@ import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
 import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
+import { flushPendingInterStoreOptimizationsDeferred } from '../utils/deliveryFormActionHelpers';
 import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { syncDeliveriesSquareCod } from '../utils/squareCodSync';
@@ -48,6 +49,10 @@ export async function handleBatchSave({
   if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
     hasLoadedPending.current = false;
     unblockPredictions();
+    // InterStore (ISP/ISD) stops created this session were persisted directly (never
+    // staged); flush their deferred optimization through the same regular Done path
+    // (requestDeferredOptimization → debouncer) so they get the KITT bar / overlay UI.
+    flushPendingInterStoreOptimizationsDeferred();
     import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
     return;
   }
@@ -568,6 +573,13 @@ export async function handleBatchSave({
             requestDeferredOptimization(refreshDriverId, refreshDeliveryDate, true);
           }
         }
+
+        // InterStore (ISP/ISD) stops created this session were persisted directly
+        // (never staged) by createInterStoreTransfer, so the staged-route
+        // requestDeferredOptimization call above does not cover them. Flush their
+        // deferred optimization through the SAME regular Done path so they receive
+        // the identical debounce, KITT bar / orange overlay, and HERE routing.
+        flushPendingInterStoreOptimizationsDeferred();
 
         // Stats refresh already fired by handleBatchSaveDelivery (line 572) — removed duplicate.
       } catch (bgError) {
