@@ -43,7 +43,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png"
 });
 
-const DRIVER_COLORS = ["", "#1E90FF", "#8A2BE2", "#00CED1", "#FF69B4", "#4B0082", "#A0522D"];
+const DRIVER_COLORS = ["", "#1E90FF", "#FF69B4", "#8A2BE2", "#00CED1", "#4B0082", "#A0522D"];
 const FINISHED_STATUSES = ["completed", "failed", "cancelled"];
 const ZOOM_LEVELS = { HIDE_ROUTES: 8, SIMPLIFY_ROUTES: 12, HIDE_NUMBERS: 11, HIDE_CIRCLES: 11, FULL_DETAIL: 13 };
 const getDistanceMeters = (previousLocation, nextLocation) => {
