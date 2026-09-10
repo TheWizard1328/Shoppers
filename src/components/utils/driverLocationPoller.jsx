@@ -1,5 +1,6 @@
 import { userHasRole, isAppOwner } from './userRoles';
 import { locationTracker } from './locationTracker';
+import { isUIHidden, deferOrRunUI } from './uiGate';
 
 class DriverLocationPoller {
   constructor() {
@@ -309,6 +310,13 @@ class DriverLocationPoller {
     }
 
   notifySubscribers(activeDriversWithLocation, forceNotify = false) {
+    // UI GATE: while backgrounded/screen-off, defer the subscriber broadcast —
+    // the LATEST locations replay on resume. Server/IDB reads that produced this
+    // payload have already happened; only the React state application waits.
+    if (isUIHidden()) {
+      deferOrRunUI('pollerNotify', () => this.notifySubscribers(activeDriversWithLocation, forceNotify));
+      return;
+    }
     // Throttle notifications to max ~4fps to reduce re-render churn
     const now = Date.now();
     if (!forceNotify && now - this._lastNotifyTs < 250) {
