@@ -353,6 +353,15 @@ export default function DeliveryFormView({
       return;
     }
 
+    // Update/Clear/Done/Add are deliberate terminal actions — blur any focused
+    // field and force-close the keyboard-reserved space immediately. Without
+    // this, a field left focused (or a field removed from the DOM mid-clear/
+    // update) can leave isKeyboardLikelyOpen stuck true, collapsing the
+    // safe-area/nav-bar bottom padding to 0px and hiding the form footer
+    // behind the phone's navigation bar.
+    try { document.activeElement?.blur?.(); } catch (_) {}
+    setIsKeyboardLikelyOpen(false);
+
     try {
       return await action();
     } finally {
@@ -1833,6 +1842,10 @@ export default function DeliveryFormView({
               </div>
               <div className="flex gap-2 ml-auto">
                 <Button type="button" variant="outline" size="sm" onClick={() => {
+                  // Same defensive keyboard-space reset as runLockedAction — Clear/Cancel
+                  // isn't routed through that wrapper, so it needs its own blur + reset.
+                  try { document.activeElement?.blur?.(); } catch (_) {}
+                  setIsKeyboardLikelyOpen(false);
                   const shouldClear = cancelButtonState === 'clear' || !!editingStagedId;
                   if (delivery) {handleCancelClick();return;}
                   if (isInterStoreMode) {
