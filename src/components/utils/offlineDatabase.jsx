@@ -541,7 +541,7 @@ const getByIndex = async (storeName, indexName, value) => {
       request.onsuccess = async () => {
         const results = request.result;
         if (isPHIStore(storeName)) {
-          resolve(await decryptRecords(results));
+          resolve(await withTimeout(decryptRecords(results), GETALL_TIMEOUT_MS, `decryptRecords(${storeName})`));
         } else {
           resolve(results);
         }
@@ -568,7 +568,7 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
       request.onsuccess = async () => {
         const results = request.result;
         if (isPHIStore(storeName)) {
-          resolve(await decryptRecords(results));
+          resolve(await withTimeout(decryptRecords(results), GETALL_TIMEOUT_MS, `decryptRecords(${storeName})`));
         } else {
           resolve(results);
         }
