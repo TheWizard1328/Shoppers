@@ -26,6 +26,24 @@ export const createOfflineSyncPriorityHelpers = ({
     invalidateEntityCache
   });
 
+  // ── EMPTY-FETCH SAFETY (Sep 10, 2026) ──────────────────────────────────────
+  // The prune steps below treat "server returned 0 deliveries for the selected
+  // date" as "everything was deleted". A TRANSIENT empty response (RLS hiccup,
+  // brief 200-with-empty, partial backend response) also returns 0 — and pruning
+  // on it wiped entire routes off the dashboard shortly after boot ("data loads
+  // then gets cleared"). Before pruning on empty, re-verify once: a genuine mass
+  // deletion persists on the retry; a transient empty does not.
+  const _reverifyDateFetch = async (selectedDateStr, deliveryFilter, cityStoreIds) => {
+    try {
+      const retry = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter).catch(() => []);
+      if (cityStoreIds && cityStoreIds.length > 0) {
+        const cyc = await Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }).catch(() => []);
+        return [...(retry || []), ...(cyc || [])];
+      }
+      return retry || [];
+    } catch (_) { return []; }
+  };
+
   const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null, fetchAllDriversDeliveries = false) => {
     try {
       const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
@@ -136,6 +154,19 @@ export const createOfflineSyncPriorityHelpers = ({
 
       // Always upsert + prune (even if server returns 0 — that means all were deleted)
       {
+        // EMPTY-FETCH SAFETY: no incoming records for the selected date while IDB
+        // still holds records for it → re-verify before the prune can wipe them.
+        const _existingCount = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr).length;
+        if (!(deliveries || []).some(d => d?.delivery_date === selectedDateStr) && _existingCount > 0) {
+          const retry = await _reverifyDateFetch(selectedDateStr, deliveryFilter, cityStoreIds);
+          if (retry.some(d => d?.delivery_date === selectedDateStr)) {
+            console.warn(`⚠️ [PrioritySyncBeforeRefresh] First fetch returned 0 for ${selectedDateStr} but re-verify found ${retry.length} — transient empty response, keeping local data`);
+            const merged = new Map([...(deliveries || []), ...retry].filter(d => d?.id).map(d => [d.id, d]));
+            deliveries = Array.from(merged.values());
+          } else {
+            console.warn(`⚠️ [PrioritySyncBeforeRefresh] Server CONFIRMED 0 deliveries for ${selectedDateStr} (re-verified once) — proceeding with prune of ${_existingCount} local record(s)`);
+          }
+        }
         const incomingIds = new Set((deliveries || []).filter(d => d?.delivery_date === selectedDateStr).map(d => d?.id).filter(Boolean));
         const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
         const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
@@ -308,6 +339,19 @@ export const createOfflineSyncPriorityHelpers = ({
       }
       // Upsert + prune deleted — never wipe the date's data before writing
       {
+        // EMPTY-FETCH SAFETY (same guard as PrioritySyncBeforeRefresh): a
+        // transient empty server response must not prune the date's local data.
+        const _existingCount2 = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr).length;
+        if (!(deliveries || []).some(d => d?.delivery_date === selectedDateStr) && _existingCount2 > 0) {
+          const retry2 = await _reverifyDateFetch(selectedDateStr, cityStoreIds ? { store_id: { $in: cityStoreIds } } : {}, cityStoreIds);
+          if (retry2.some(d => d?.delivery_date === selectedDateStr)) {
+            console.warn(`⚠️ [LoadPriorityData] First fetch returned 0 for ${selectedDateStr} but re-verify found ${retry2.length} — transient empty response, keeping local data`);
+            const merged2 = new Map([...(deliveries || []), ...retry2].filter(d => d?.id).map(d => [d.id, d]));
+            deliveries = Array.from(merged2.values());
+          } else {
+            console.warn(`⚠️ [LoadPriorityData] Server CONFIRMED 0 deliveries for ${selectedDateStr} (re-verified once) — proceeding with prune of ${_existingCount2} local record(s)`);
+          }
+        }
         const incomingIds2 = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
         const existingForDate2 = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
         const toDelete2 = existingForDate2.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds2.has(d.id));
