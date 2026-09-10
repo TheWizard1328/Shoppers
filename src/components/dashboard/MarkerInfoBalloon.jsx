@@ -3,6 +3,7 @@ import { Clock, Home, MapPin, Truck } from 'lucide-react';
 import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
 import { useUser } from '../utils/UserContext';
 import { shouldRedactDeliveryInfo, redactPatientName } from '../common/deliveryRedaction';
+import { cleanBuzzerFromAddress } from '../utils/addressCleaner';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -74,6 +75,24 @@ export default function MarkerInfoBalloon({
   const shouldRedact = shouldRedactDeliveryInfo({ delivery, patient, currentUser });
   const displayPatientLabel = shouldRedact ? redactPatientName(patient) : patientLabel;
 
+  // ── Row 4: location address ──
+  // Full address while the stop is pending/active (drivers need it to navigate).
+  // Finished patient stops on driver devices follow the EXACT stop-card
+  // redaction rule: house number only ("6101 *****"). Store/ISP/ISD/return
+  // addresses are never redacted (shouldRedact is already false for them).
+  // ISP/ISD addresses are already shown in Row 2b — no duplicate row 4.
+  let rawAddress = '';
+  if (isPickup) {
+    rawAddress = cleanBuzzerFromAddress(store?.address || '');
+  } else if (!isISPOrISD) {
+    rawAddress = patient?.address || '';
+  }
+  const displayAddressLine = !rawAddress
+    ? ''
+    : shouldRedact
+      ? `${rawAddress.split(' ')[0] || ''} *****`
+      : rawAddress;
+
   // For ISP: show the source store name; for ISD: show the destination store name from ispLoc
   const displayStoreName = isISD
     ? (ispLoc?.store_name || 'Inter-Store')
@@ -127,6 +146,14 @@ export default function MarkerInfoBalloon({
           <span>{timeLabel || ''}</span>
         </div>
       </div>
+
+      {/* Row 4: Location address — full while pending/active, stop-card redaction once finished */}
+      {displayAddressLine ? (
+        <div className="flex items-center gap-1.5 text-[11px] text-soft">
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0 opacity-0" />
+          <span className="truncate">{displayAddressLine}</span>
+        </div>
+      ) : null}
 
       {extraContent ? (
         <div className="border-t pt-1.5 mt-1.5 border-surface">
