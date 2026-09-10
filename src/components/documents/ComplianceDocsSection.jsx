@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isAppOwner } from '@/components/utils/userRoles';
+import ComplianceSignDialog from '@/components/documents/ComplianceSignDialog';
+import { PenLine } from 'lucide-react';
 
 const DOC_META = {
   legal_cover_sheet: {
@@ -48,6 +50,7 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
   const [refreshing, setRefreshing] = useState(false);
   const fileInputRef = useRef(null);
   const [pendingUpload, setPendingUpload] = useState(null);
+  const [signingDoc, setSigningDoc] = useState(null); // template being signed electronically
 
   const canAccess = isAppOwner(currentUser) || currentUser?.app_roles?.includes('store_owner') || currentUser?.is_store_owner === true;
   const isOwner = isAppOwner(currentUser);
@@ -278,8 +281,18 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
                         <Printer className="w-3 h-3 mr-1" /> Print
                       </Button>
                       {meta.requiresSignature && !isOwner && (
+                        <>
                         <Button
                           variant={needsSign || needsReSign ? 'default' : 'outline'}
+                          size="sm"
+                          className="text-xs h-7 px-2 bg-emerald-600 hover:bg-emerald-700"
+                          onClick={() => setSigningDoc(doc)}
+                          disabled={uploadingFor === doc.document_type}
+                        >
+                          <PenLine className="w-3 h-3 mr-1" /> Sign Electronically
+                        </Button>
+                        <Button
+                          variant="outline"
                           size="sm"
                           className="text-xs h-7 px-2"
                           onClick={() => handleUploadSigned(doc.document_type, doc.title, doc.version)}
@@ -291,6 +304,7 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
                             <><Upload className="w-3 h-3 mr-1" /> Upload Signed Copy</>
                           )}
                         </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -347,6 +361,16 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
                           Template version: {doc.signed_from_version}
                         </p>
                       )}
+                      {doc.signature_image_uri && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge className="text-xs px-1.5 py-0 h-5 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                            <PenLine className="w-3 h-3 mr-0.5" /> Electronically signed
+                          </Badge>
+                          <a href={doc.signature_image_uri} target="_blank" rel="noreferrer" className="text-xs underline text-blue-600 dark:text-blue-400">
+                            View signature
+                          </a>
+                        </div>
+                      )}
                       <div className="flex gap-2 mt-2">
                         <Button variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => handlePrint(doc)}>
                           <Eye className="w-3 h-3 mr-1" /> View Signed Copy
@@ -365,15 +389,25 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
           <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 border border-border">
             <p className="font-semibold mb-1">How to complete compliance documents:</p>
             <ol className="list-decimal list-inside space-y-0.5">
-              <li>Click <strong>Print</strong> on the IMA and NDA templates</li>
-              <li>Print and physically sign the paper copies</li>
-              <li>Keep your signed paper copies for your records</li>
-              <li>Scan or photograph the signed copies</li>
-              <li>Click <strong>Upload Signed Copy</strong> and select the file</li>
+              <li>Click <strong>Open PDF</strong> on the IMA/NDA template and review it</li>
+              <li>Click <strong>Sign Electronically</strong> and draw your signature in the app, or</li>
+              <li>Print, physically sign, then scan/photograph and use <strong>Upload Signed Copy</strong></li>
             </ol>
           </div>
         )}
       </CardContent>
+
+      {/* Electronic signature dialog */}
+      {signingDoc && DOC_META[signingDoc.document_type] && (
+        <ComplianceSignDialog
+          open={true}
+          doc={signingDoc}
+          docMeta={DOC_META[signingDoc.document_type]}
+          currentUser={currentUser}
+          onClose={() => setSigningDoc(null)}
+          onSigned={loadData}
+        />
+      )}
     </Card>
   );
 }
