@@ -1,6 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
-import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
+import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
 /**
  * clientRouteEngine.js
  *
@@ -54,89 +54,11 @@ async function logHereApiCall({ apiType, purpose, source, driverId, userName, ca
   } catch { /* best-effort */ }
 }
 
-// ─── HERE Flexible Polyline decode ───────────────────────────────────────────
-
-const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
-  acc[char] = index;
-  return acc;
-}, {});
-
-function decodeHereFlexiblePolyline(encoded) {
-  if (!encoded || typeof encoded !== 'string') return [];
-  const values = [];
-  let current = 0;
-  let shift = 0;
-  for (const char of encoded) {
-    const value = HERE_POLYLINE_DECODER[char];
-    if (value == null) return [];
-    current |= (value & 0x1f) << shift;
-    if (value & 0x20) { shift += 5; continue; }
-    values.push(current);
-    current = 0;
-    shift = 0;
-  }
-  if (shift > 0 || values.length < 2) return [];
-  if (values[0] !== 1) return [];
-  const header = values[1];
-  const precision = header & 15;
-  const thirdDimension = (header >> 4) & 7;
-  const factor = 10 ** precision;
-  const dimension = thirdDimension ? 3 : 2;
-  const toSigned = (value) => ((value & 1) ? ~(value >> 1) : (value >> 1));
-  let latitude = 0, longitude = 0, third = 0;
-  const coordinates = [];
-  for (let i = 2; i < values.length; i += dimension) {
-    latitude += toSigned(values[i]);
-    longitude += toSigned(values[i + 1]);
-    if (thirdDimension) third += toSigned(values[i + 2]);
-    coordinates.push([latitude / factor, longitude / factor]);
-  }
-  return coordinates;
-}
-
-// ─── Google Polyline encode/decode ───────────────────────────────────────────
-
-function encodeSigned(value) {
-  let signed = value << 1;
-  if (value < 0) signed = ~signed;
-  let encoded = '';
-  while (signed >= 0x20) {
-    encoded += String.fromCharCode((0x20 | (signed & 0x1f)) + 63);
-    signed >>= 5;
-  }
-  encoded += String.fromCharCode(signed + 63);
-  return encoded;
-}
-
-function encodeGooglePolyline(points) {
-  let lastLat = 0, lastLng = 0, encoded = '';
-  for (const [lat, lng] of points) {
-    const latE5 = Math.round(lat * 1e5);
-    const lngE5 = Math.round(lng * 1e5);
-    encoded += encodeSigned(latE5 - lastLat);
-    encoded += encodeSigned(lngE5 - lastLng);
-    lastLat = latE5;
-    lastLng = lngE5;
-  }
-  return encoded;
-}
-
-function decodeGooglePolyline(encoded) {
-  if (!encoded || typeof encoded !== 'string') return [];
-  let index = 0, lat = 0, lon = 0;
-  const coordinates = [];
-  while (index < encoded.length) {
-    let result = 0, shift = 0, byte;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    result = 0; shift = 0;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
-    lon += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coordinates.push([lat / 1e5, lon / 1e5]);
-  }
-  return coordinates;
-}
+// ─── Polyline codecs + multi-stop router ─────────────────────────────────────
+// The HERE/Google polyline codecs, getMultiStopRouteHere, crowFliesSections,
+// and the shared generateRoutePolylines helper now live in
+// src/components/utils/routePolylineGenerator.js (imported at top of file).
+// logHereApiCall stays here for the findsequence2 optimizer (callHereSequence).
 
 // ─── Utility functions ───────────────────────────────────────────────────────
 
@@ -267,68 +189,10 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   return null;
 };
 
-// ─── HERE API: multi-stop route (replaces getHereDirections) ──────────────────
-
-async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
-  const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
-  if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
-
-  const hereTransportMode = transportMode === 'cycling' ? 'bicycle' : transportMode === 'pedestrian' ? 'pedestrian' : 'car';
-
-  const params = new URLSearchParams();
-  params.set('apiKey', hereApiKey);
-  params.set('transportMode', hereTransportMode);
-  params.set('origin', `${validPoints[0].lat},${validPoints[0].lon}`);
-  params.set('destination', `${validPoints[validPoints.length - 1].lat},${validPoints[validPoints.length - 1].lon}`);
-  params.set('return', 'polyline,summary');
-
-  const viaPoints = validPoints.slice(1, -1);
-  viaPoints.forEach((p) => params.append('via', `${p.lat},${p.lon}`));
-
-  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
-    signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
-  });
-  logHereApiCall({ apiType: 'Routes (HERE)', purpose: `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
-  const routeData = await routeResp.json().catch(() => null);
-  const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
-
-  if (!routeResp.ok || routeSections.length === 0) {
-    console.warn('[clientRouteEngine] HERE Router returned no sections', {
-      httpStatus: routeResp.status, sectionsCount: routeSections.length,
-      notice: routeData?.notices ?? routeData?.title ?? null
-    });
-  }
-
-  let anySegmentFellBack = false;
-  const builtSections = validPoints.slice(0, -1).map((fromPoint, index) => {
-    const section = routeSections[index] || {};
-    let polyline = null;
-    if (typeof section?.polyline === 'string' && section.polyline) {
-      const coords = decodeHereFlexiblePolyline(section.polyline);
-      if (coords.length > 1) polyline = encodeGooglePolyline(coords);
-    }
-    if (!polyline && typeof section?.encoded_polyline === 'string' && section.encoded_polyline) {
-      polyline = section.encoded_polyline;
-    }
-    if (!polyline) {
-      const toPoint = validPoints[index + 1];
-      polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
-      anySegmentFellBack = true;
-    }
-    const summary = section?.summary || {};
-    return {
-      encoded_polyline: polyline,
-      estimated_distance_km: summary.length ? Number((Number(summary.length) / 1000).toFixed(3)) : null,
-      estimated_duration_minutes: summary.duration ? Math.ceil(Number(summary.duration) / 60) : null,
-      transport_mode: transportMode || 'driving'
-    };
-  });
-
-  return { sections: builtSections, usedFallbackPolyline: anySegmentFellBack };
-}
-
-// ─── Google Directions API: multi-stop route (polyline provider = google) ────
-// Implemented in src/components/utils/clientRouteGoogle.js (imported at top of file).
+// ─── Polyline generation is handled by the shared generateRoutePolylines helper ──
+// (src/components/utils/routePolylineGenerator.js). The main route path and
+// _handleFutureRoute both call it so current/future polyline generation is
+// identical — only ordering + leg origin differ between the paths.
 
 // ─── HERE API: findsequence2 (waypoint sequencing) ────────────────────────────
 
@@ -670,7 +534,7 @@ let _inheritedWindowCount = 0;
       driverHomeLocation,
       driverId,
       userName: _driverUserName,
-      includePendingPolylines,
+      effectiveTravelMode,
     });
   }
 
@@ -1146,118 +1010,40 @@ let _inheritedWindowCount = 0;
     window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { phase: 'polylines', source, driverId, deliveryDate } }));
   }
 
-  // ── Generate polylines via HERE Router v8 ──────────────────────────────────
-  const segmentPolylineByDeliveryId = new Map();
-
-  // Build the list of points for multi-stop routing: origin → each stop in order
-  // ONLY generate polylines for active stops (en_route, in_transit) and cycling markers —
-  // pending stops haven't been picked up yet so there's no driving path to them.
+  // ── Generate polylines via the shared helper ──────────────────────────────
+  // Polyline generation is identical for current and future routes (shared
+  // generateRoutePolylines helper). Only the ordering (HERE sequencing here vs
+  // puid-chain in _handleFutureRoute) and the leg origin differ between paths.
+  let segmentPolylineByDeliveryId = new Map();
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
-    // Polyline origin must NEVER be a pending stop's coords OR the driver's live GPS.
-    // For a new route (no completed stops) the origin is ALWAYS the driver's HOME,
-    // so the planned polyline starts at home — not where the driver happens to be.
-    // Priority: last finished stop → driver home → first active stop coords (fallback).
-    const firstActiveStopCoords = activeRouteStops.length > 0
-      ? { lat: activeRouteStops[0].lat, lon: activeRouteStops[0].lng }
-      : null;
+    // Polyline origin: last finished stop → driver home → first active stop →
+    // current position (fallback). NEVER the driver's live GPS for a new route —
+    // the planned polyline must start at home so it doesn't jump with every ping.
     const polylineOrigin = (() => {
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
-      if (firstActiveStopCoords) return firstActiveStopCoords;
+      const firstActive = activeRouteStops[0];
+      if (firstActive) return { lat: firstActive.lat, lon: firstActive.lng };
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
     const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
-
-    // ── Mixed-mode polyline generation ──────────────────────────────────────
-    // A cycling route has legs with different transport modes (car vs bicycle).
-    // HERE's router only accepts one mode per API call, so we split activeRouteStops
-    // into consecutive MODE GROUPS and make a separate call per group.
-    // The leg into stop[i] uses the transport mode of stop[i].
-    // The leg into stop[0] (from polylineOrigin) uses its own transport_mode.
-
-    // Resolve each stop's effective transport mode
-    const resolveStopMode = (stop) => {
-      const raw = String(stop.delivery.transport_mode || effectiveTravelMode).toLowerCase();
-      if (raw === 'cycling') return 'cycling';
-      if (raw === 'pedestrian') return 'pedestrian';
-      return 'driving';
-    };
-
-    // Build mode-grouped segments: [{mode, stops: [{stopIndex, stop}], fromPoint}]
-    // Each group is a consecutive run of stops sharing the same transport mode.
-    // fromPoint for group[0] = polylineOrigin; for group[i>0] = last stop of group[i-1].
-    const modeGroups = [];
-    for (let i = 0; i < activeRouteStops.length; i++) {
-      const stop = activeRouteStops[i];
-      const mode = resolveStopMode(stop);
-      const last = modeGroups[modeGroups.length - 1];
-      if (last && last.mode === mode) {
-        last.stops.push({ stopIndex: i, stop });
-      } else {
-        const fromPoint = last
-          ? { lat: last.stops[last.stops.length - 1].stop.lat, lon: last.stops[last.stops.length - 1].stop.lng }
-          : polylineOrigin;
-        modeGroups.push({ mode, fromPoint, stops: [{ stopIndex: i, stop }] });
-      }
-    }
-
-    console.log(`[clientRouteEngine] ${source} — polyline mode groups: ${modeGroups.map(g => `${g.mode}×${g.stops.length}`).join(', ')}`);
-
-    // Fire all group HERE calls in parallel
-    const groupResults = await Promise.all(
-      modeGroups.map(async (group) => {
-        const points = [
-          group.fromPoint,
-          ...group.stops.map(({ stop }) => ({ lat: stop.lat, lon: stop.lng }))
-        ];
-        const useGooglePoly = polylineProvider === 'google' && polylineApiKey;
-        const result = useGooglePoly
-          ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName: _driverUserName }).catch((err) => {
-              console.error(`[clientRouteEngine] ${source} — Google Directions THREW (mode=${group.mode}):`, err?.message || err);
-              return { sections: [], usedFallbackPolyline: true };
-            })
-          : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName: _driverUserName }).catch((err) => {
-              console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW (mode=${group.mode}):`, err?.message || err);
-              return { sections: [], usedFallbackPolyline: true };
-            });
-        console.log(`[clientRouteEngine] ${source} — HERE ${group.mode} returned ${result.sections.length} sections for ${points.length} points`);
-        return { group, sections: result.sections };
-      })
-    );
-
-    // Map sections back to each stop
-    // Use routeStops index (not activeRouteStops index) for directionsLegs so pending
-    // stops interleaved in the full route don't cause off-by-one leg assignments.
-    for (const { group, sections } of groupResults) {
-      group.stops.forEach(({ stop }, groupLocalIndex) => {
-        const section = sections[groupLocalIndex] || null;
-        segmentPolylineByDeliveryId.set(stop.delivery.id, {
-          deliveryId: stop.delivery.id,
-          encodedPolyline: section?.encoded_polyline || null,
-          estimatedDistanceKm: section?.estimated_distance_km ?? null,
-          estimatedDurationMinutes: section?.estimated_duration_minutes ?? null
-        });
-        // Re-sync directionsLegs using the stop's position in routeStops (full list)
-        if (section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
-          const routeStopIdx = routeStops.findIndex(s => s.delivery.id === stop.delivery.id);
-          if (routeStopIdx !== -1) {
-            directionsLegs[routeStopIdx] = {
-              ...directionsLegs[routeStopIdx],
-              duration: Number(section.estimated_duration_minutes) * 60,
-              distance: section.estimated_distance_km
-                ? Number(section.estimated_distance_km) * 1000
-                : directionsLegs[routeStopIdx]?.distance
-            };
-          }
-        }
-      });
-    }
-
-    const _polylineCount = [...segmentPolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
-    console.log(`[clientRouteEngine] ${source} — polylines generated: ${_polylineCount}/${activeRouteStops.length} stops have encoded_polyline`);
+    segmentPolylineByDeliveryId = await generateRoutePolylines({
+      stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
+      originPoint: polylineOrigin,
+      cyclingSegmentOnly,
+      hereApiKey,
+      polylineProvider,
+      polylineApiKey,
+      driverId,
+      userName: _driverUserName,
+      source,
+      fallbackTravelMode: effectiveTravelMode,
+      directionsLegs,
+      routeStops,
+    });
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
@@ -1538,7 +1324,7 @@ let _inheritedWindowCount = 0;
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, polylineProvider = 'here', polylineApiKey = null, driverHomeLocation = null, driverId = null, userName = null, includePendingPolylines = false }) {
+async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, polylineProvider = 'here', polylineApiKey = null, driverHomeLocation = null, driverId = null, userName = null, effectiveTravelMode = 'driving' }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1653,80 +1439,25 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     return { id: delivery.id, data: updateData };
   });
 
-  // ── Generate planned polylines for future route order ─────────────────────
-  // The HERE sequence optimizer (findsequence2) is skipped for future routes —
-  // stops are sorted by delivery_time_start only. But the planned polylines are
-  // still generated via a single consolidated HERE Router v8 call per transport-mode
-  // group so the driver sees the full planned path before start.
-  // ORIGIN = the selected driver's HOME location. The route begins at home, so
-  // every stop — including the first pickup — receives an inbound polyline leg
-  // FROM home. Falls back to first-pickup-as-origin (no inbound leg into it) only
-  // when the driver has no home coordinates.
-  const futurePolylineByDeliveryId = new Map();
-  const resolveFutureMode = (delivery) => {
-    const raw = String(delivery.transport_mode || 'driving').toLowerCase();
-    if (raw === 'cycling') return 'cycling';
-    if (raw === 'pedestrian') return 'pedestrian';
-    return 'driving';
-  };
-  const stopPoints = [];
-  // Only generate polylines for started stops (in_transit / en_route). Pending
-  // stops on a future route stay polyline-free until the driver starts them —
-  // EXCEPT when the caller explicitly requests pending legs (manual FAB: the
-  // dispatcher wants to see the full planned path for the future date).
-  const FUTURE_ACTIVE_STATUSES = includePendingPolylines
-    ? new Set(['in_transit', 'en_route', 'pending', 'staged'])
-    : new Set(['in_transit', 'en_route']);
-  for (const { delivery } of orderedStops) {
-    if (!FUTURE_ACTIVE_STATUSES.has(String(delivery.status || ''))) continue;
-    const c = getDeliveryCoords(delivery, patientMap, storeMap);
-    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) continue;
-    stopPoints.push({ id: delivery.id, lat: c.lat, lon: c.lon, mode: resolveFutureMode(delivery) });
-  }
-  const hasHomeOrigin = driverHomeLocation
-    && Number.isFinite(driverHomeLocation.lat) && Number.isFinite(driverHomeLocation.lon);
-  const originPoint = hasHomeOrigin ? { lat: driverHomeLocation.lat, lon: driverHomeLocation.lon } : null;
-  // stopsToPolyline = every stop when home-origin exists (each gets a home→stop or stop→stop leg);
-  // otherwise the first stop is the origin (no inbound leg into it) — legacy fallback.
-  const stopsToPolyline = originPoint ? stopPoints : stopPoints.slice(1);
-  if (stopsToPolyline.length >= 1 && hereApiKey) {
-    const modeGroups = [];
-    for (let i = 0; i < stopsToPolyline.length; i++) {
-      const p = stopsToPolyline[i];
-      const prev = (i === 0)
-        ? (originPoint ? { lat: originPoint.lat, lon: originPoint.lon } : stopPoints[0])
-        : stopsToPolyline[i - 1];
-      const last = modeGroups[modeGroups.length - 1];
-      if (last && last.mode === p.mode) {
-        last.points.push(p);
-      } else {
-        modeGroups.push({ mode: p.mode, origin: { lat: prev.lat, lon: prev.lon }, points: [p] });
-      }
-    }
-    const groupResults = await Promise.all(modeGroups.map(async (group) => {
-      const herePoints = [group.origin, ...group.points.map(p => ({ lat: p.lat, lon: p.lon }))];
-      const useGooglePolyF = polylineProvider === 'google' && polylineApiKey;
-      const result = useGooglePolyF
-        ? await getMultiStopRouteGoogle(herePoints, group.mode, polylineApiKey, { driverId, userName }).catch(() => ({ sections: [] }))
-        : await getMultiStopRouteHere(herePoints, group.mode, hereApiKey, { driverId, userName }).catch(() => ({ sections: [] }));
-      return { group, sections: result.sections || [] };
-    }));
-    for (const { group, sections } of groupResults) {
-      group.points.forEach((p, idx) => {
-        const section = sections[idx] || null;
-        futurePolylineByDeliveryId.set(p.id, {
-          encodedPolyline: section?.encoded_polyline || null,
-          estimatedDistanceKm: section?.estimated_distance_km ?? null,
-          estimatedDurationMinutes: section?.estimated_duration_minutes ?? null,
-          transportMode: group.mode,
-        });
-      });
-    }
-    const _polyCount = [...futurePolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
-    console.log(`[clientRouteEngine] ${source} — future route polylines: ${_polyCount}/${stopsToPolyline.length} legs (${modeGroups.length} mode group(s), origin=${originPoint ? 'driver_home' : 'first_pickup'})`);
-  } else if (stopsToPolyline.length < 1) {
-    console.log(`[clientRouteEngine] ${source} — future route: no coord-resolvable inbound legs, skipping polylines`);
-  }
+  // ── Generate planned polylines for future route order (shared helper) ─────
+  // Same generateRoutePolylines helper as the current-route path — only the
+  // origin differs (driver home for future routes; last finished stop / GPS for
+  // current routes). Pending stops receive NO polylines on either path.
+  const futurePolylineByDeliveryId = await generateRoutePolylines({
+    stops: orderedStops.map(({ delivery }) => {
+      const c = getDeliveryCoords(delivery, patientMap, storeMap);
+      return { delivery, lat: c?.lat, lng: c?.lng };
+    }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng)),
+    originPoint: driverHomeLocation,
+    cyclingSegmentOnly: false,
+    hereApiKey,
+    polylineProvider,
+    polylineApiKey,
+    driverId,
+    userName,
+    source,
+    fallbackTravelMode: effectiveTravelMode,
+  });
 
   // ── Augment writeBatch with planned polyline fields ───────────────────────
   for (const w of writeBatch) {
