@@ -157,18 +157,37 @@ export const flushPendingInterStoreOptimizationsDeferred = async () => {
   if (!pending || pending.length === 0) return;
 
   try {
-    const { requestDeferredOptimization } = await import('@/components/utils/optimizationDebouncer');
-    for (const { driverId, deliveryDate } of pending) {
+    const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+    for (const { driverId, deliveryDate, stores, appUsers } of pending) {
       if (!driverId || !deliveryDate) continue;
       try {
-        requestDeferredOptimization(driverId, deliveryDate, true);
-        console.log(`[InterStoreDeferred] Queued deferred optimization (regular Done path) for driver ${driverId} on ${deliveryDate}`);
+        // Surface the same KITT bar / orange overlay UI the regular Done path uses
+        // (handleBatchSave → routeOptimizationStarted/optimizationRunning) so the
+        // dispatcher sees the optimization running, not a silent no-op.
+        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'interstore_done', driverId, deliveryDate, showUI: true } }));
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
+        console.log(`[InterStoreDeferred] Running optimization (regular Done path) for driver ${driverId} on ${deliveryDate}`);
+        await performRouteOptimization({
+          driverId,
+          deliveryDate,
+          deliveries: null, // coordinator fetches fresh from backend (incl. the just-created ISP/ISD stop)
+          patients: null,
+          stores: stores || null,   // gap-fill context for stop coordinates
+          appUsers: appUsers || null,
+          source: 'interstore_done',
+          skipPolyline: false,
+        });
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'interstore_done_optimization', fullReplacement: false } }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        console.log(`[InterStoreDeferred] Optimization complete for driver ${driverId}`);
       } catch (err) {
-        console.warn(`[InterStoreDeferred] Failed to queue optimization for driver ${driverId}:`, err?.message || err);
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+        console.warn(`[InterStoreDeferred] Optimization failed for driver ${driverId}:`, err?.message || err);
       }
     }
   } catch (err) {
-    console.warn('[InterStoreDeferred] Failed to load optimizationDebouncer:', err?.message || err);
+    console.warn('[InterStoreDeferred] Failed to load routeOptimizationCoordinator:', err?.message || err);
   }
 };
 
