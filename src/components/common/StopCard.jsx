@@ -110,7 +110,36 @@ const buildGoogleMapsCoordinateUrl = (latitude, longitude) => {
 // Module-level cache — shared across all StopCard instances
 // Exported so StopCardActionButtons can read the same value without a separate fetch
 export let _cachedSquareAppId = null;
-let _squareAppIdFetching = false;
+let _squareAppIdPromise = null;
+
+// Fetch the Square App ID from AppSettings with retry + backoff.
+// The old one-shot fetch silently broke every Square launch whenever the single
+// AppSettings request failed (seen live: 429 rate-limit storms during busy
+// evenings) — the module cache stayed null for the whole session and the
+// stop-card Square button only said "App ID missing" while Square never opened.
+// Retries: immediate, then 3s / 8s / 20s backoff. On total failure the promise
+// is cleared so the next tap/mount can start a fresh attempt.
+export function fetchSquareAppId() {
+  if (_cachedSquareAppId) return Promise.resolve(_cachedSquareAppId);
+  if (_squareAppIdPromise) return _squareAppIdPromise;
+  _squareAppIdPromise = (async () => {
+    const delays = [0, 3000, 8000, 20000];
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]));
+      try {
+        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+        const appId = settings?.[0]?.setting_value?.square_app_id || null;
+        if (appId) {
+          _cachedSquareAppId = appId;
+          return appId;
+        }
+      } catch (_) { /* retry */ }
+    }
+    _squareAppIdPromise = null; // allow a future retry (next mount/tap)
+    return null;
+  })();
+  return _squareAppIdPromise;
+}
 
 // Cluster deduplication — tracks which cluster keys already have the dialog open
 // so only the first arriving StopCard in the cluster shows it (not every card).
@@ -195,15 +224,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   useEffect(() => {
     // If already cached, sync to state immediately
     if (_cachedSquareAppId) { setSquareAppId(_cachedSquareAppId); return; }
-    // Only one fetch in flight at a time
-    if (_squareAppIdFetching) return;
-    _squareAppIdFetching = true;
-    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).then((settings) => {
-      const appId = settings?.[0]?.setting_value?.square_app_id || null;
-      _cachedSquareAppId = appId;
-      _squareAppIdFetching = false;
-      setSquareAppId(appId);
-    }).catch(() => { _squareAppIdFetching = false; });
+    // Shared retry-capable fetch (see fetchSquareAppId above)
+    let cancelled = false;
+    fetchSquareAppId().then((appId) => { if (!cancelled) setSquareAppId(appId); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {if (!showCODCollection) setCodPayments(delivery?.cod_payments || []);}, [delivery?.cod_payments, showCODCollection]);
