@@ -813,14 +813,13 @@ export default function DeliveryForm({
       // driver dropdown doesn't auto-open on the blank form that follows.
       setForceOpenDriverSelectOnLoad(false);
 
-      // Auto-close the form once the InterStore stop has been added.
-      // The new marker-prefill flow (openMode === 'interstore_add') always closes
-      // so the dispatcher returns to the map. The legacy Add-to-Route flow only
-      // closes when there are no other staged edits/changes pending.
+      // Marker-prefill flow (openMode === 'interstore_add') always closes so the
+      // dispatcher returns to the map; flush the deferred optimization now.
+      // Add-to-Route does NOT auto-close or flush here — the form stays open (button
+      // toggles to "Done") and the deferred-optimization queue stays intact so the
+      // dispatcher can click Done to trigger the optimization via handleBatchSave.
       const isMarkerPrefillFlow = !delivery && openMode === 'interstore_add';
-      const noOtherEdits = !delivery && openMode === 'add_to_route' &&
-        (stagedDeliveries?.length || 0) === 0 && !hasChanges && !hasPendingDeletes;
-      if (isMarkerPrefillFlow || noOtherEdits) {
+      if (isMarkerPrefillFlow) {
         flushPendingInterStoreOptimizations();
         closeDeliveryFormAfterSave({ handleClearForm, onCancel });
       }

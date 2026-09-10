@@ -252,11 +252,17 @@ export default function DeliveryFormView({
     // No scheduled driver found — prompt manual selection
     setForceOpenInterStoreDriverSelect(true);
   }, [isInterStoreMode, interStoreReady, formData.driver_id]);
-  // In interstore mode, keep the 'add' button visible — never auto-switch to 'done'
-  // In pickup mode with stores checked, keep 'add' active so user can add more pickups
-  const effectiveButtonState = isInterStoreMode && !delivery ? 'add' :
-  isPickupMode && !delivery && selectedPickupStoreIds.size > 0 ? 'add' :
-  buttonState;
+  // In interstore mode the action button toggles with the form: when a From/To
+  // store or a driver is selected it's '+ InterStore' (add another stop); once
+  // the form is cleared (after a stop is created, or on open with nothing picked)
+  // it becomes 'Done' so the user can close/commit. Editing an existing interstore
+  // delivery keeps the default buttonState. In pickup mode with stores checked,
+  // keep 'add' active so user can add more pickups.
+  const hasInterStoreFormInput = !!(formData._interstore_source_id || formData._interstore_dest_id || formData.driver_id);
+  const effectiveButtonState = isInterStoreMode && !delivery
+    ? (hasInterStoreFormInput ? 'add' : 'done')
+    : isPickupMode && !delivery && selectedPickupStoreIds.size > 0 ? 'add'
+    : buttonState;
 
   // Clear selectedPickupStoreIds when form is cleared (selectedPickupOption reset to '')
   React.useEffect(() => {
