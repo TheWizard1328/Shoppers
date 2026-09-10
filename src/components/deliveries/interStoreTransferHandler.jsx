@@ -201,16 +201,47 @@ export async function createInterStoreTransfer({
   const stop_order = existingStopOrders.length > 0 ? Math.max(...existingStopOrders) + 1 : 1;
 
   // ── delivery_time_start ───────────────────────────────────────────────
-  // Priority: user-set form value → now + 5 minutes (always)
+  // InterStore PICKUP (ISP): when the "To" store still has an ACTIVE stop
+  // (pending / in_transit / en_route) on the driver's route, schedule the
+  // pickup BEFORE that To store's delivery start time so the optimizer
+  // sequences the pickup ahead of the To store delivery. If the To store's
+  // stop is already finished (or there is no To store stop), fall back to
+  // now + 5 min. ISD (dropoff) always uses now + 5 min. A user-set form
+  // value always wins.
   // ── delivery_time_end ─────────────────────────────────────────────────
   // Priority: user-set form value → blank (always)
   // Store business hours are NOT used — interstore times are independent of store hours.
 
-  // delivery_time_start: user override → now + 5 min
+  const formatHHMM = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const parseHHMM = (t) => {
+    const [h, m] = String(t || '').split(':').map((n) => parseInt(n, 10));
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    const d = new Date(now);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+
   let delivery_time_start = formData.delivery_time_start || '';
   if (!delivery_time_start) {
-    const startTime = new Date(now.getTime() + 5 * 60 * 1000);
-    delivery_time_start = `${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
+    let computed = '';
+    if (!isDropOff && matchedDestStore?.id) {
+      // The To store's stop on the driver's route — prefer the store pickup
+      // (no patient_id), then any stop at that store.
+      const toStoreStops = routeDeliveriesAll.filter((d) => d && d.store_id === matchedDestStore.id);
+      const toStoreStop = toStoreStops.find((d) => !d.patient_id) || toStoreStops[0] || null;
+      const isActive = toStoreStop && ['pending', 'in_transit', 'en_route'].includes(toStoreStop.status);
+      if (toStoreStop && isActive && toStoreStop.delivery_time_start) {
+        const toStart = parseHHMM(toStoreStop.delivery_time_start);
+        if (toStart) {
+          // 10-minute lead so the pickup is scheduled before the To store delivery
+          computed = formatHHMM(new Date(toStart.getTime() - 10 * 60 * 1000));
+        }
+      }
+    }
+    if (!computed) {
+      computed = formatHHMM(new Date(now.getTime() + 5 * 60 * 1000));
+    }
+    delivery_time_start = computed;
   }
 
   // delivery_time_end: user override → blank
