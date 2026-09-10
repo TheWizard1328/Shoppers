@@ -85,6 +85,11 @@ export default function useModeRouteDialog({
   const deliveriesRef = useRef(deliveriesWithStopOrder);
   useEffect(() => { deliveriesRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
 
+  // Same for nearbyModeStops (carries distanceKm) — the open handler below is registered
+  // once ([] deps) so it must read distances via ref, not a stale closure.
+  const nearbyModeStopsRef = useRef(nearbyModeStops);
+  useEffect(() => { nearbyModeStopsRef.current = nearbyModeStops; }, [nearbyModeStops]);
+
   // Re-open dialog after Accept All (or any openCyclingModeDialog event) when cycling mode is active.
   // Pre-seed selectedModeStopIds with stops that are already set to transport_mode='cycling'
   // so the driver sees their current cycling stops already checked.
@@ -103,7 +108,14 @@ export default function useModeRouteDialog({
       const alreadyCycling = (deliveriesRef.current || [])
         .filter((d) => d && !d.is_cycling_marker && d.transport_mode === 'cycling')
         .map((d) => d.id);
-      setSelectedModeStopIds(alreadyCycling);
+      // Auto-check stops 3km or less from the cycling start marker (crow-flies —
+      // the same distanceKm shown in the dialog rows), unioned with stops already
+      // in cycling mode from a prior pass.
+      const nearStopIds = (nearbyModeStopsRef.current || [])
+        .filter((s) => s.distanceKm != null && s.distanceKm <= 3)
+        .map((s) => s.id);
+      const preSelected = Array.from(new Set([...alreadyCycling, ...nearStopIds]));
+      setSelectedModeStopIds(preSelected);
       setModeDialogOpen(true);
     };
     window.addEventListener('openCyclingModeDialog', handler);
