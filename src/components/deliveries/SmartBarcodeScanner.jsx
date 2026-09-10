@@ -666,7 +666,8 @@ export default function SmartBarcodeScanner({
           className="h-9 px-3 flex-shrink-0 bg-white dark:bg-slate-900 text-slate-900 border-slate-300 hover:bg-slate-100 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
           onClick={() => setShowCamera(true)}
           disabled={disabled}
-          title="Scan with camera">
+          title="Scan with camera"
+          aria-label="Scan with camera">
           
           <Camera className="w-4 h-4" />
         </Button>
@@ -814,6 +815,7 @@ export default function SmartBarcodeScanner({
                 className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-16 h-16 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
                 title="Switch camera lens"
+                aria-label="Switch camera lens"
               >
                 {isStartingCamera
                   ? <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
@@ -830,6 +832,7 @@ export default function SmartBarcodeScanner({
               className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 touch-manipulation"
               style={{ WebkitTapHighlightColor: 'transparent' }}
               title="Zoom out"
+              aria-label="Zoom out"
             >
               <Minus className="w-7 h-7" />
             </button>
@@ -843,6 +846,7 @@ export default function SmartBarcodeScanner({
               className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 touch-manipulation"
               style={{ WebkitTapHighlightColor: 'transparent' }}
               title="Zoom in"
+              aria-label="Zoom in"
             >
               <ZoomIn className="w-7 h-7" />
             </button>
@@ -856,6 +860,7 @@ export default function SmartBarcodeScanner({
               className={`flex items-center justify-center rounded-full w-16 h-16 transition active:scale-95 touch-manipulation ${torchOn ? 'bg-emerald-600 text-white' : 'bg-white/20 backdrop-blur-sm text-white'}`}
               style={{ WebkitTapHighlightColor: 'transparent' }}
               title="Toggle torch"
+              aria-label="Toggle torch"
             >
               <Sun className="w-7 h-7" />
             </button>
@@ -868,6 +873,7 @@ export default function SmartBarcodeScanner({
             className={`flex items-center justify-center rounded-full w-16 h-16 text-white transition active:scale-95 touch-manipulation ${allValues.length > 0 ? 'bg-emerald-600' : 'bg-white/20 backdrop-blur-sm'}`}
             style={{ WebkitTapHighlightColor: 'transparent' }}
             title={allValues.length > 0 ? 'Done' : 'Close camera'}
+            aria-label={allValues.length > 0 ? 'Done — finish scanning' : 'Close camera'}
           >
             {allValues.length > 0 ? <Check className="w-7 h-7" /> : <X className="w-7 h-7" />}
           </button>

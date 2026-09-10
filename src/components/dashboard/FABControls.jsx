@@ -127,6 +127,7 @@ export default function FABControls({
             type="button"
             onClick={handleImmersiveCall}
             title="Call patient"
+            aria-label="Call patient"
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
             style={{ touchAction: 'manipulation' }}
           >
@@ -148,6 +149,7 @@ export default function FABControls({
             type="button"
             onClick={handleImmersiveNavigate}
             title="Open in Google Maps"
+            aria-label="Open in Google Maps"
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 transition-colors hover:bg-blue-200"
             style={{ touchAction: 'manipulation' }}
           >
