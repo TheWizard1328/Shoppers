@@ -99,6 +99,12 @@ const _nowPlus5Local = () => {
   return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
 
+// A regular patient delivery (delivery_id DID-…) whose patient name, address,
+// or notes reference interstore — containing "(ISD)", "(ISP)", or "InterStore"
+// (case-insensitive) — activates directly to in_transit instead of pending, so
+// interstore-related patient deliveries go straight onto the active route.
+const INTERSTORE_REFERENCE_RX = /\(ISD\)|\(ISP\)|INTERSTORE/i;
+
 export const getStagedActivationStatus = (delivery) => {
   if (delivery.status !== 'Staged') return delivery.status;
 
@@ -109,7 +115,11 @@ export const getStagedActivationStatus = (delivery) => {
   } else if (!delivery.patient_id) {
     newStatus = 'en_route';
   } else {
-    newStatus = 'pending';
+    const referencesInterStore = INTERSTORE_REFERENCE_RX.test(
+      [delivery.patient_name, delivery.delivery_address, delivery.delivery_instructions, delivery.delivery_notes]
+        .filter(Boolean).join(' ')
+    );
+    newStatus = referencesInterStore ? 'in_transit' : 'pending';
   }
 
   return newStatus;
