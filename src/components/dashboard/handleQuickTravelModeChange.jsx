@@ -1,4 +1,5 @@
 import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
  * Quick per-stop travel mode toggle (Sep 4 2026).
@@ -24,6 +25,17 @@ import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
  *     reshuffling stop order. performRouteOptimization writes stop_order
  *     atomically as part of its own writeBatch (same pattern as
  *     handleQuickReorder), satisfying the repair-after-stop-edit rule.
+ *
+ * FIX (Sep 11 2026): updateDeliveryLocal's server sync is fire-and-forget —
+ * it returns as soon as the IDB write lands, while the backend write for
+ * transport_mode is still in flight. The optimizer call below used to omit
+ * `deliveries`, so performRouteOptimization fell back to fetching straight
+ * from the backend (base44.entities.Delivery.filter) — a race that often
+ * read the OLD transport_mode (server hadn't caught up yet) and wrote it
+ * right back into stop_order/transport_mode, silently reverting the toggle.
+ * Fix: read the driver+date set from local IDB (already fresh — it was just
+ * written above) and pass it explicitly as `deliveries`, so the engine never
+ * has to race the backend for this leg's mode.
  */
 export async function handleQuickTravelModeChange(delivery, newMode, currentUser) {
   if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return null;
@@ -36,9 +48,28 @@ export async function handleQuickTravelModeChange(delivery, newMode, currentUser
 
   try {
     const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+
+    // Pull the fresh driver+date set from local IDB — updateDeliveryLocal has
+    // already written the new transport_mode there, so this is guaranteed to
+    // reflect the just-made change (no race with the in-flight server sync).
+    const allLocal = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    let localDeliveries = (allLocal || []).filter(
+      (d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+    );
+    // Defensive: ensure the target stop's transport_mode is definitely the new
+    // value in the array we hand to the engine, even if the IDB read raced
+    // updateDeliveryLocal's own write somehow.
+    localDeliveries = localDeliveries.map((d) =>
+      d.id === delivery.id ? { ...d, ...(updated || {}), transport_mode: newMode, finished_leg_transport_mode: newMode } : d
+    );
+    if (!localDeliveries.some((d) => d.id === delivery.id) && updated) {
+      localDeliveries.push({ ...updated, transport_mode: newMode, finished_leg_transport_mode: newMode });
+    }
+
     await performRouteOptimization({
       driverId: delivery.driver_id,
       deliveryDate: delivery.delivery_date,
+      deliveries: localDeliveries,
       preserveExistingOrder: true,
       bypassDriverStatus: true,
       source: 'travel_mode_toggle',
