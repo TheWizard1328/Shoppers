@@ -109,14 +109,21 @@ export function useWakeLockAndVisibility({
             detail: { hiddenDurationMs: hiddenDuration }
           }));
 
-          if (hiddenDuration >= SMART_REFRESH_CYCLE && initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-            smartRefreshManager.lastRefreshTimes = { driverLocation: 0, activeDeliveries: 0, todayDeliveries: 0, appUsers: 0, patients: 0, stores: 0 };
-            // Priority sync runs on ANY page when the app returns from background /
-            // minimized / screen-on — bypasses the 5-min freshness guard so the
-            // dashboard always reflects the latest server data on resume.
+          // Resume priority sync: fires on ANY page whenever the app resumes from
+          // background / minimize / screen-on. Only gate kept is the 15s
+          // hidden-duration gate (sub-15s background blips — notifications shade,
+          // quick app switches — don't need a re-sync). The form-overlay gate was
+          // removed per owner: the sync must ALWAYS run on resume, even with a
+          // dialog open — the priority sync is merge-only, so it can't corrupt
+          // form state.
+          // ONE burst per resume: the SmartRefresh zeroing that used to run here
+          // was removed — it forced every SmartRefresh entity to re-fetch on top
+          // of the priority sync (double burst → 429s). SmartRefresh keeps its
+          // own normal cadence; the forced priority sync is the single resume sync.
+          if (hiddenDuration >= SMART_REFRESH_CYCLE && currentUser && dataLoaded) {
             const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
             const selectedCityId = globalFilters.getSelectedCityId();
-            const cityIdForSync = selectedCityId && selectedCityId !== 'all' ? selectedCityId : null;
+            const cityIdForSync = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
             import('../utils/offlineSync').then(({ loadPriorityDataForced }) => {
               loadPriorityDataForced(selectedDateStr, cityIdForSync).catch(() => {});
             }).catch(() => {});
@@ -135,5 +142,5 @@ export function useWakeLockAndVisibility({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };
-  }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen, stores, currentPageName]);
+  }, [currentUser, dataLoaded]); // resume-sync effect: only these are read inside
 }
