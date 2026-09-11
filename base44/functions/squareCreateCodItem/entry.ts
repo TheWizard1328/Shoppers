@@ -154,7 +154,9 @@ async function handleCreateCodItem(base44, payload) {
   const existingTx=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId,status:'pending'}).catch(()=>[]);
   const txPayload={square_catalog_object_id:catalogObjectId,square_catalog_version:catalogVersion,item_name:itemName,amount:Number(codAmount),amount_cents:amountCents,patient_id:resolvedPatientId,store_id:effectiveStoreId,location_id:locationId};
   const transaction=existingTx.length>0?await base44.asServiceRole.entities.SquareTransaction.update(existingTx[0].id,txPayload):await base44.asServiceRole.entities.SquareTransaction.create({...txPayload,type:'collection',status:'pending',delivery_id:deliveryId});
-  const existingCatalogItems=await base44.asServiceRole.entities.SquareCatalogItems.filter({delivery_id:deliveryId}).catch(()=>[]);
+  let existingCatalogItems;
+  try { existingCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }); }
+  catch (e) { console.log('[squareCreateCodItem] bookkeeping lookup FAILED — skipping DB write to avoid duplicate row for', deliveryId); return { success: true, catalogObjectId, catalogVersion, itemName, transactionId: transaction?.id || existingTx[0]?.id }; }
   const catalogPayload={square_catalog_object_id:catalogObjectId,square_catalog_version:catalogVersion,item_name:itemName,description:'',amount:Number(codAmount||0),amount_cents:amountCents,delivery_id:deliveryId,delivery_date:resolvedDeliveryDate||null,patient_id:resolvedPatientId,store_id:effectiveStoreId||null,location_id:locationId,status:'active'};
   if(existingCatalogItems.length>0)await base44.asServiceRole.entities.SquareCatalogItems.update(existingCatalogItems[0].id,catalogPayload);
   else await base44.asServiceRole.entities.SquareCatalogItems.create(catalogPayload);

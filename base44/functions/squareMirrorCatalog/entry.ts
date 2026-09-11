@@ -118,7 +118,10 @@ async function handleMirrorCatalogFromSquare(base44) {
   }, []);
 
   // Get all existing DB records
-  const existingDbRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
+  // If this listing fails, ABORT the mirror — a failed read here would make
+  // every live item look 'new' and re-create duplicates of every DB row.
+  const existingDbRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => null);
+  if (existingDbRecords === null) return { success: false, error: 'existing-records listing failed — mirror aborted to prevent duplicate rows' };
   const liveObjectIds = new Set(liveRecords.map((r) => r.square_catalog_object_id));
 
   // Purge DB records not in live Square catalog

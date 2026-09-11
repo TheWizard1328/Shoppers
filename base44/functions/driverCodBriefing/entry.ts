@@ -200,8 +200,21 @@ async function handleBriefing(base44, params = {}) {
   // the owner workflow sends via WhatsApp (owner requested all channels).
   // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
   console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none');
-  const catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
-  console.log('[briefing] catalog items:', catalogItems.length);
+  let catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
+  console.log('[briefing] catalog items (raw):', catalogItems.length);
+  // Dedupe: the reconciler sweep's bookkeeping upsert can create duplicate rows
+  // for the same COD when its existence-check filter fails under platform strain
+  // (429/500 storms) — Sep 10 2026 every outstanding COD had 3-5 rows, which made
+  // every driver briefing (and the owner copy) list each COD 3-5 times. One row
+  // per delivery_id; rows without a delivery_id dedupe on name+amount+store.
+  const seenCodKeys = new Set();
+  catalogItems = catalogItems.filter((x) => {
+    const key = x.delivery_id || `nodel:${x.item_name}|${x.amount}|${x.store_id}`;
+    if (seenCodKeys.has(key)) return false;
+    seenCodKeys.add(key);
+    return true;
+  });
+  console.log('[briefing] catalog items (deduped):', catalogItems.length);
   if (!catalogItems.length) {
     return { success: true, dry_run: dryRun, drivers: [], totals: { drivers: 0, items: 0, amount: 0 }, pushes: [], message: 'No outstanding CODs.', duration_ms: Date.now() - startedAt };
   }

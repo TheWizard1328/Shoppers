@@ -182,11 +182,22 @@ async function upsertBookkeeping(b44, { delivery, catalogId, catalogVersion, ite
     amount: amountCents / 100, amount_cents: amountCents, patient_id: delivery?.patient_id || null,
     store_id: delivery?.store_id || null, location_id: locationId || null
   };
+  // CRITICAL (Sep 11 2026): the existence checks below MUST NOT swallow errors.
+  // The old `.catch(() => [])` turned any failed filter (429/500 storms) into
+  // "record doesn't exist" → unconditional CREATE → duplicate bookkeeping rows
+  // multiplying on every 15-min sweep (28 rows for 8 real CODs). If the lookup
+  // itself fails, skip the bookkeeping entirely — a missing update is harmless,
+  // a duplicate row poisons every downstream consumer (briefings, prune, mirror).
+  const mustFind = async (filterArgs) => {
+    const rows = await b44.asServiceRole.entities.SquareCatalogItems.filter(filterArgs).catch(() => null);
+    return rows; // null = lookup FAILED (distinct from [] = genuinely absent)
+  };
   const exTx = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: delivery.id, status: 'pending' }).catch(() => []);
   const tx = exTx.length > 0
     ? await b44.asServiceRole.entities.SquareTransaction.update(exTx[0].id, tp).catch(() => null)
     : await b44.asServiceRole.entities.SquareTransaction.create({ ...tp, type: 'collection', status: 'pending', delivery_id: delivery.id }).catch(() => null);
-  const exCat = await b44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: delivery.id }).catch(() => []);
+  const exCat = await mustFind({ delivery_id: delivery.id });
+  if (exCat === null) { console.log('[squareCodReconcile] bookkeeping lookup FAILED — skipping upsert to avoid duplicate row for', delivery.id); return tx?.id || exTx[0]?.id || null; }
   const cp = {
     square_catalog_object_id: catalogId, square_catalog_version: catalogVersion, item_name: itemName,
     description: '', amount: amountCents / 100, amount_cents: amountCents, delivery_id: delivery.id,

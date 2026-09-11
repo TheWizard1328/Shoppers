@@ -172,7 +172,10 @@ async function handleCreateCodItem(b44, payload) {
   const exTx = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
   const tp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, amount: Number(codAmount), amount_cents: ac, patient_id: rpid, store_id: effStoreId, location_id: locationId };
   const tx = exTx.length > 0 ? await b44.asServiceRole.entities.SquareTransaction.update(exTx[0].id, tp) : await b44.asServiceRole.entities.SquareTransaction.create({ ...tp, type: 'collection', status: 'pending', delivery_id: deliveryId });
-  const exCat = await b44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }).catch(() => []);
+  let exCat;
+  try { exCat = await b44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }); }
+  catch (e) { console.log('[syncSquareCods] bookkeeping lookup FAILED — skipping DB write to avoid duplicate row for', deliveryId); return null; }
+
   const cp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, description: '', amount: Number(codAmount || 0), amount_cents: ac, delivery_id: deliveryId, delivery_date: rdd || null, patient_id: rpid, store_id: effStoreId || null, location_id: locationId, status: 'active' };
   if (exCat.length > 0) await b44.asServiceRole.entities.SquareCatalogItems.update(exCat[0].id, cp);
   else await b44.asServiceRole.entities.SquareCatalogItems.create(cp);
