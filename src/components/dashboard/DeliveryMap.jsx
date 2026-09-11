@@ -935,8 +935,24 @@ function DeliveryMap({
       const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
       const isSelectedDriver = !!(selectedDriverId && selectedDriverId !== "all" && driverKey === selectedDriverId);
       const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
+      const isAppOwnerViewer = isAppOwner(currentUser);
       if (isCurrentDriverUser) {
         return true;
+      }
+      // ── ADMIN/APP-OWNER HOME MARKER RULE (Sep 11 2026): Home markers for ALL active
+      // drivers regardless of duty status (on_duty/off_duty/on_break) and regardless of
+      // view mode (individual driver selected, show-all, all-drivers). 'Active' =
+      // has the driver role + status not 'inactive'. Admins are scoped to their city
+      // (same convention as location markers: users without a city_id pass); the App
+      // Owner sees all cities, matching the location-marker owner convention.
+      const userIsDriverRole = Array.isArray(user?.app_roles) && user.app_roles.includes('driver');
+      const userIsActive = user?.status !== 'inactive';
+      if (isAdminViewer) {
+        const viewerCityId = currentUser?.city_id;
+        const cityOk = !viewerCityId || !user?.city_id || user.city_id === viewerCityId;
+        if (userIsDriverRole && userIsActive && cityOk) return true;
+      } else if (isAppOwnerViewer) {
+        if (userIsDriverRole && userIsActive) return true;
       }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
       if (isAdminViewer && isSelectedDriver) return true;
