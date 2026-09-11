@@ -1743,7 +1743,7 @@ function DeliveryMap({
         )}
 
         {mapReady && (
-          <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} />
+          <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} currentUser={currentUser} />
         )}
 
         {mapReady && (
