@@ -195,13 +195,9 @@ async function handleBriefing(base44, params = {}) {
   const testDriverId = params?.test_driver_id || null;
   const startedAt = Date.now();
 
-  // App Owner (Robert T): receives the FULL multi-driver briefing via the owner
-  // workflow (WhatsApp) instead of a personal driver briefing — his own CODs are
-  // included there, so a separate driver push + in-app message would be a
-  // duplicate. test_driver_id overrides this so delivery can still be tested
-  // against the owner's devices.
-  const OWNER_USER_ID = '68570f3cd01bfa2d2408a9d7';
-
+  // App Owner (Robert T): now receives the SAME treatment as drivers — in-app
+  // message + push notification — in addition to the full multi-driver briefing
+  // the owner workflow sends via WhatsApp (owner requested all channels).
   // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
   console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none');
   const catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
@@ -260,10 +256,6 @@ async function handleBriefing(base44, params = {}) {
     const today = new Date().toISOString().slice(0, 10);
     for (const g of driverBriefings) {
       if (testDriverId && g.driver_id !== testDriverId) continue;
-      if (!testDriverId && g.driver_id === OWNER_USER_ID) {
-        pushes.push({ driver_id: g.driver_id, driver_name: g.driver_name, owner_skipped: true, note: 'app owner gets the full briefing via the owner workflow instead' });
-        continue;
-      }
       // Money column alignment: pad every amount (incl. the total) to the same
       // width so the $ signs and decimals line up down the list.
       const moneyStrs = g.items.map((it) => (Number(it.amount) || 0).toFixed(2));

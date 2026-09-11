@@ -836,17 +836,24 @@ let _inheritedWindowCount = 0;
       routeStops = stitchedStops;
       directionsLegs = stitchedLegs;
     } else {
-      // Pure driving (or no cycling segment) — HERE sequencing with time-window grouping.
+      // Pure driving (or no cycling segment) — SINGLE HERE call + local window enforcement.
       //
-      // HERE findsequence2's `acc` constraints allow arriving BEFORE the time window
-      // and waiting, so it optimizes for driving time — NOT time-window compliance.
-      // This results in afternoon-window stops being scheduled for morning arrival
-      // (with multi-hour waits), which doesn't match the user's delivery windows.
+      // HERE findsequence2's `acc` constraints are SOFT: they allow arriving BEFORE a
+      // time window opens and waiting, so HERE optimizes driving time — NOT window
+      // compliance. Afternoon-window stops can come back sequenced for the morning.
       //
-      // Fix: sort stops by their time window start, group into 2-hour buckets, and
-      // sequence each bucket with HERE independently. This gives HERE's driving
-      // optimization WITHIN each time group while preserving chronological order
-      // across groups (morning → afternoon → evening → late).
+      // Fix (Sep 10, 2026): ONE findsequence2 call for the whole pool (HERE re-sequences
+      // all waypoints regardless of request order — presorting the request is ignored
+      // by the API), then enforce chronology LOCALLY: stable-sort HERE's sequence by
+      // 2-hour window band, preserving HERE's order WITHIN each band (its drive-time
+      // optimization stays intact inside a band). Windowless stops sort last.
+      // Replaces the Sep 1 per-bucket approach that cost one HERE call per window
+      // band (4+ calls per optimization as window groups accumulate through the day).
+      //
+      // Legs for transitions that moved in the sort get crow-flies placeholders
+      // (same formula as the old bucket connectors); preserved transitions keep
+      // HERE's real leg data. The polyline pass that follows rebuilds ETAs/distances
+      // from real road geometry, so placeholders never surface to drivers.
       const seqOrigin = routeOriginStop ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng } : currentPosition;
       const hereMode = cyclingSegmentOnly ? cyclingHereMode : hereTransportMode;
 
@@ -854,97 +861,61 @@ let _inheritedWindowCount = 0;
         s.windowStart && parseTimeToMinutes(s.windowStart) > 0
       );
 
-      if (hasTimeWindows) {
-        // ── Time-bucket grouping ───────────────────────────────────────────
-        const TIME_BUCKET_MINUTES = 120; // 2-hour buckets
+      const { orderedStops, legs } = await runHereSequence({
+        sequenceStart: seqOrigin,
+        stops: stopsToSequence,
+        origin: seqOrigin,
+        hereMode,
+        withHome: true
+      });
 
-        // Sort all stops by their time window start (chronological order)
-        const sortedByWindow = [...stopsToSequence].sort((a, b) => {
-          const aMin = parseTimeToMinutes(a.windowStart || a.delivery.delivery_time_start || '99:99');
-          const bMin = parseTimeToMinutes(b.windowStart || b.delivery.delivery_time_start || '99:99');
-          return aMin - bMin;
+      let finalStops = orderedStops;
+      let finalLegs = legs;
+
+      if (hasTimeWindows && orderedStops.length > 1) {
+        const TIME_BAND_MINUTES = 120; // 2-hour bands — same span as the old buckets
+
+        const bandOf = (stop) => {
+          const m = parseTimeToMinutes(stop?.windowStart || stop?.delivery?.delivery_time_start || '');
+          if (!Number.isFinite(m) || m <= 0) return Number.POSITIVE_INFINITY; // no window → sorts last
+          return Math.floor(m / TIME_BAND_MINUTES);
+        };
+
+        // Stable sort: window band first (chronological), HERE order within a band.
+        const hereOrder = new Map(orderedStops.map((stop, i) => [stop, i]));
+        finalStops = [...orderedStops].sort((a, b) => {
+          const bandDiff = bandOf(a) - bandOf(b);
+          if (bandDiff !== 0) return bandDiff;
+          return (hereOrder.get(a) ?? 0) - (hereOrder.get(b) ?? 0);
         });
 
-        // Group into buckets: stops whose windowStart is within TIME_BUCKET_MINUTES
-        // of the bucket's first stop belong to the same group.
-        const buckets = [];
-        for (const stop of sortedByWindow) {
-          const stopMin = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || '99:99');
-          const lastBucket = buckets[buckets.length - 1];
-          if (lastBucket && lastBucket.length > 0) {
-            const bucketStartMin = parseTimeToMinutes(
-              lastBucket[0].windowStart || lastBucket[0].delivery.delivery_time_start || '99:99'
-            );
-            if (stopMin - bucketStartMin <= TIME_BUCKET_MINUTES) {
-              lastBucket.push(stop);
-              continue;
-            }
+        const reordered = finalStops.some((stop, i) => finalStops[i] !== orderedStops[i]);
+        console.log(`[clientRouteEngine] ${source} — window-band enforcement: ${reordered ? 'reordered HERE sequence' : 'HERE order already window-compliant'} (${finalStops.length} stops, ${new Set(finalStops.map(bandOf)).size} band(s))`);
+
+        // Rebuild legs: a transition keeps HERE's leg only when both stops were
+        // consecutive in HERE's own sequence; everything else is a placeholder.
+        finalLegs = finalStops.map((stop, j) => {
+          const hereIdx = hereOrder.get(stop);
+          const prevStop = j > 0 ? finalStops[j - 1] : null;
+          const prevHereIdx = prevStop ? hereOrder.get(prevStop) : null;
+          if (j === 0 && hereIdx === 0 && legs[0]) return legs[0];
+          if (j > 0 && hereIdx !== undefined && prevHereIdx === hereIdx - 1 && legs[hereIdx]) {
+            return legs[hereIdx]; // preserved transition — real HERE leg data
           }
-          buckets.push([stop]);
-        }
-
-        console.log(`[clientRouteEngine] ${source} — TIME-WINDOW grouping: ${buckets.length} buckets for ${stopsToSequence.length} stops: ${buckets.map(b => {
-          const s = parseTimeToMinutes(b[0].windowStart || b[0].delivery.delivery_time_start || '99:99');
-          return `${formatMinutesToTime(s)}(${b.length})`;
-        }).join(' → ')}`);
-
-        // Sequence each bucket with HERE, concatenate in chronological order
-        let allOrderedStops = [];
-        let allLegs = [];
-        let groupOrigin = seqOrigin;
-
-        for (const bucket of buckets) {
-          if (bucket.length === 0) continue;
-          const { orderedStops: bucketStops, legs: bucketLegs } = await runHereSequence({
-            sequenceStart: groupOrigin,
-            stops: bucket,
-            origin: groupOrigin,
-            hereMode,
-            withHome: buckets.indexOf(bucket) === buckets.length - 1 // only anchor last bucket to home
-          });
-
-          // If this isn't the first group, add a connector leg from the previous
-          // group's last stop to this group's first stop (crow-flies estimate).
-          if (allOrderedStops.length > 0 && bucketStops.length > 0) {
-            const lastPrev = allOrderedStops[allOrderedStops.length - 1];
-            const firstNext = bucketStops[0];
-            const d = calculateCrowFliesDistance(lastPrev.lat, lastPrev.lng, firstNext.lat, firstNext.lng);
-            allLegs.push({ duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 });
-          }
-
-          allOrderedStops.push(...bucketStops);
-          allLegs.push(...bucketLegs);
-
-          // Next group's origin = this group's last stop
-          if (bucketStops.length > 0) {
-            groupOrigin = { lat: bucketStops[bucketStops.length - 1].lat, lng: bucketStops[bucketStops.length - 1].lng };
-          }
-        }
-
-        routeStops = [...routeStops, ...allOrderedStops];
-        directionsLegs = routeOriginStop
-          ? [
-              (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
-              ...allLegs
-            ]
-          : allLegs;
-      } else {
-        // No time windows — single HERE call as before (HERE optimizes for driving time)
-        const { orderedStops, legs } = await runHereSequence({
-          sequenceStart: seqOrigin,
-          stops: stopsToSequence,
-          origin: seqOrigin,
-          hereMode,
-          withHome: true
+          const fromLat = prevStop ? prevStop.lat : seqOrigin.lat;
+          const fromLng = prevStop ? prevStop.lng : seqOrigin.lng;
+          const d = calculateCrowFliesDistance(fromLat, fromLng, stop.lat, stop.lng);
+          return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 };
         });
-        routeStops = [...routeStops, ...orderedStops];
-        directionsLegs = routeOriginStop
-          ? [
-              (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
-              ...legs
-            ]
-          : legs;
       }
+
+      routeStops = [...routeStops, ...finalStops];
+      directionsLegs = routeOriginStop
+        ? [
+            (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
+            ...finalLegs
+          ]
+        : finalLegs;
     }
   }
 

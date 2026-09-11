@@ -1,8 +1,9 @@
 import React from 'react';
-import { Clock, Home, MapPin, Truck } from 'lucide-react';
+import { Building2, Clock, MapPin, Truck, User } from 'lucide-react';
 import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
 import { useUser } from '../utils/UserContext';
 import { shouldRedactDeliveryInfo, redactPatientName } from '../common/deliveryRedaction';
+import { cleanBuzzerFromAddress } from '../utils/addressCleaner';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -74,6 +75,24 @@ export default function MarkerInfoBalloon({
   const shouldRedact = shouldRedactDeliveryInfo({ delivery, patient, currentUser });
   const displayPatientLabel = shouldRedact ? redactPatientName(patient) : patientLabel;
 
+  // ── Row 4: location address ──
+  // Full address while the stop is pending/active (drivers need it to navigate).
+  // Finished patient stops on driver devices follow the EXACT stop-card
+  // redaction rule: house number only ("6101 *****"). Store/ISP/ISD/return
+  // addresses are never redacted (shouldRedact is already false for them).
+  // ISP/ISD addresses are already shown in Row 2b — no duplicate row 4.
+  let rawAddress = '';
+  if (isPickup) {
+    rawAddress = cleanBuzzerFromAddress(store?.address || '');
+  } else if (!isISPOrISD) {
+    rawAddress = patient?.address || '';
+  }
+  const displayAddressLine = !rawAddress
+    ? ''
+    : shouldRedact
+      ? `${rawAddress.split(' ')[0] || ''} *****`
+      : rawAddress;
+
   // For ISP: show the source store name; for ISD: show the destination store name from ispLoc
   const displayStoreName = isISD
     ? (ispLoc?.store_name || 'Inter-Store')
@@ -93,15 +112,15 @@ export default function MarkerInfoBalloon({
         <span className="truncate">{driver?.user_name || driver?.full_name || delivery?.driver_name || 'Unknown Driver'}</span>
       </div>
 
-      {/* Row 2: Store / location name */}
+      {/* Row 2: Store / location name — building icon for stores & interstores */}
       <div className="flex items-center gap-1.5 text-[11px] text-label">
-        <Home className="w-3.5 h-3.5 flex-shrink-0" />
+        <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
         <span className="truncate">{displayStoreName}</span>
       </div>
       {/* Row 2b: ISP/ISD address */}
       {isISPOrISD && ispLoc?.store_address && (
         <div className="flex items-center gap-1.5 text-[11px] text-soft">
-          <MapPin className="w-3.5 h-3.5 flex-shrink-0 opacity-0" />
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="truncate">{ispLoc.store_address}</span>
         </div>
       )}
@@ -109,7 +128,11 @@ export default function MarkerInfoBalloon({
       {/* Row 3: Name, Stop#, Time */}
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <div className="flex min-w-0 items-center gap-1.5 text-body">
-          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+          {isPickup || isISPOrISD ? (
+            <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : (
+            <User className="w-3.5 h-3.5 flex-shrink-0" />
+          )}
           <span className="shrink-0 font-medium text-soft" style={{ fontFamily: 'Courier New, monospace' }}>#{stopNumber}</span>
           {onPatientClick && !isPickup ? (
             <button
@@ -127,6 +150,14 @@ export default function MarkerInfoBalloon({
           <span>{timeLabel || ''}</span>
         </div>
       </div>
+
+      {/* Row 4: Location address — the pin sits beside the address line; full while pending/active, stop-card redaction once finished */}
+      {displayAddressLine ? (
+        <div className="flex items-center gap-1.5 text-[11px] text-soft">
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">{displayAddressLine}</span>
+        </div>
+      ) : null}
 
       {extraContent ? (
         <div className="border-t pt-1.5 mt-1.5 border-surface">

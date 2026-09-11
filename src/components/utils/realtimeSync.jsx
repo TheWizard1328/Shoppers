@@ -24,6 +24,8 @@ const listeners = new Set();
 // Pause flag — when true, flushBuffered skips UI dispatches (but still saves to offline DB)
 let _realtimePaused = false;
 
+import { emitGatedEvent } from './uiGate';
+
 export const pauseRealtimeSync = () => {
   _realtimePaused = true;
   console.log(`⏸️ [RealtimeSync] [${rsTime()}] UI broadcasts paused`);
@@ -163,7 +165,7 @@ async function flushBuffered(entityName) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
-        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
+        emitGatedEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }), `wsAppUser:${data?.id || 'unknown'}`);
         if (data.preferred_travel_mode && data.user_id) {
           window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
             detail: { driverId: data.user_id, travelMode: data.preferred_travel_mode, fromRealtime: true }
@@ -437,7 +439,10 @@ async function flushBuffered(entityName) {
 
       // Full-record IDB merge model: trustIsNextDelivery is always true now.
       // The IDB snapshot is authoritative — no stale-true preservation needed.
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      // UI GATE: deferred while the app is backgrounded/screen-off — the payload
+      // is the full IDB snapshot, so last-wins replay on resume is always the
+      // freshest state. IDB writes above are untouched.
+      emitGatedEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveries: allDateDeliveries,
           freshDeliveries: allDateDeliveries,
@@ -455,7 +460,7 @@ async function flushBuffered(entityName) {
           forcePolylineUpdate: hasPolylineUpdates,
           trustIsNextDelivery: true,
         }
-      }));
+      }, 'wsDeliveriesUpdated'));
     }
   }
 
@@ -491,9 +496,9 @@ async function flushBuffered(entityName) {
       return cached ? { ...cached, ...i.data } : i.data;
     }).filter(Boolean);
     incomingUsers.forEach((itemData) => {
-      window.dispatchEvent(new CustomEvent('appUserUpdated', {
+      emitGatedEvent(new CustomEvent('appUserUpdated', {
         detail: { appUser: itemData, fromRealtime: true }
-      }));
+      }), `wsAppUser:${itemData?.id || 'unknown'}`);
     });
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
       detail: {

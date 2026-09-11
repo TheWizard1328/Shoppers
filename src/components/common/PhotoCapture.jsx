@@ -195,7 +195,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
       <div className="rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col overflow-hidden bg-surface">
         <div className="border-b p-4 flex items-center justify-between border-surface">
           <h3 className="text-lg font-semibold text-body">Proof of Delivery Photos</h3>
-          <Button variant="ghost" size="icon" onClick={handleCancel} disabled={isCapturing}>
+          <Button variant="ghost" size="icon" aria-label="Close photo capture" onClick={handleCancel} disabled={isCapturing}>
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -220,6 +220,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
             
             <Button
               onClick={capturePhoto}
+              aria-label="Capture photo"
               disabled={capturedPhotos.length >= maxPhotos || isCapturing}
               className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-emerald-600 hover:bg-emerald-700 rounded-full w-16 h-16"
             >
@@ -270,6 +271,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
                         size="icon"
                         className="absolute top-2 right-2 w-7 h-7 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => removePhoto(index)}
+                        aria-label={`Remove photo ${index + 1}`}
                         disabled={isCapturing}
                       >
                         <Trash2 className="w-4 h-4" />

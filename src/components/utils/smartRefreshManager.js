@@ -3,6 +3,7 @@
 // This manager handles: initial loads, offline sync, cache reconciliation, and non-real-time entities
 
 import { base44 } from "@/api/base44Client";
+import { emitGatedEvent } from './uiGate';
 import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp } from "./dataDiffer";
 import { format } from "date-fns";
 import { queueEntityRequest, requestQueue } from "./requestQueue";
@@ -444,9 +445,10 @@ class LightweightRefreshManager {
               await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
               
               // Broadcast the freshness-guarded updates
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              // UI GATE: deferred while backgrounded — markers re-render on resume.
+              emitGatedEvent(new CustomEvent('driverLocationsUpdated', {
                 detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
-              }));
+              }), 'refreshDriverLocations');
             } else {
               if (this._paused) {
                 console.log('⏸️ [LightweightRefresh] Skipping AppUsers bulkSave (no-diff) — paused during action');
