@@ -1180,7 +1180,7 @@ function DeliveryMap({
           }
         } catch {}
         // ── EDGE BUFFER (Sep 11 2026) ─────────────────────────────────────────
-        // Phase 2/3 fits pass edgeBufferZoom (e.g. 0.01): after the final target
+        // Phase 2/3 fits pass edgeBufferZoom (e.g. 0.05): after the final target
         // zoom is computed, zoom OUT by that fraction so markers get a little
         // extra breathing room around the padded edges instead of sitting
         // exactly on the padding line. Subtracted AFTER the maxZoom clamp so the

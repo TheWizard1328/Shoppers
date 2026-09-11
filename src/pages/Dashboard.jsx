@@ -1475,7 +1475,7 @@ function Dashboard() {
           });
           if (phase2DispatcherCoords.length > 0) {
             const padding = getMapPadding(immersiveHiddenRef.current);
-            setShouldFitBounds({ bounds: phase2DispatcherCoords, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.01 }, cancelInFlight: _cancelInFlight });
+            setShouldFitBounds({ bounds: phase2DispatcherCoords, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.05 }, cancelInFlight: _cancelInFlight });
             setMapCenter(null);
             setMapZoom(null);
           }
@@ -1489,7 +1489,7 @@ function Dashboard() {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null); const _selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd'); const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.delivery_date === _selectedDateStr2 && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
           const _nc = _ns?.patient_id ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })() : _ns && isInterStoreDelivery(_ns.delivery_id) ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : _ns?.store_id ? (() => { const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : (selectedDriverId === currentUser?.id || !_p2TgtId2 ? nextStopCoordinatesRef.current : null);
           const bounds = [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude], ...(_nc?.lat && _nc?.lon ? [[_nc.lat, _nc.lon]] : [])];
-          setShouldFitBounds({ bounds, options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.01 }, cancelInFlight: _cancelInFlight });
+          setShouldFitBounds({ bounds, options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.05 }, cancelInFlight: _cancelInFlight });
           setMapCenter(null); setMapZoom(null);
         } } // end if (!_phase2Handled)
         break; } // end case 2
@@ -1597,7 +1597,7 @@ function Dashboard() {
               animate: true,
               duration: 0.5,
               easeLinearity: 0.15,
-              edgeBufferZoom: 0.01
+              edgeBufferZoom: 0.05
             }
           });
           setMapCenter(null);
