@@ -115,12 +115,57 @@ export const getRoutePickupsForStore = ({ allDeliveries = [], stagedDeliveries =
     });
 };
 
-export const choosePickupForNewDelivery = ({ pickups = [], fallbackPickup }) => {
-  const firstEnRoutePickup = pickups.find((pickup) => String(pickup?.status || '').toLowerCase() === 'en_route');
-  if (firstEnRoutePickup) return firstEnRoutePickup;
+// Convert an "HH:mm" or ISO time value to minutes-of-day for comparison.
+const toMinutesOfDay = (value) => {
+  if (!value) return null;
+  const s = String(value);
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
+  return null;
+};
 
-  const activePickup = pickups.find((pickup) => !FINISHED_PICKUP_STATUSES.includes(String(pickup?.status || '').toLowerCase()));
-  return activePickup || fallbackPickup || null;
+/**
+ * Choose which existing route pickup a newly-selected patient should attach to.
+ *
+ * Rule:
+ *  1. Consider only pickups that are not completed (cancelled/failed are already
+ *     filtered upstream). These are the "available" attach targets.
+ *  2. Sort them by delivery_time_start ascending (earliest first).
+ *  3. If the patient has a time-window start, attach to the latest pickup whose
+ *     start is at or before that window — so the delivery lands inside the window.
+ *     e.g. patient time start 13:00 + pickups at 09:05 / 12:08 / 16:30 → 12:08.
+ *  4. Otherwise (no patient window, or no pickup falls before it) attach to the
+ *     earliest available pickup.
+ */
+export const choosePickupForNewDelivery = ({ pickups = [], fallbackPickup, patientTimeStart = null } = {}) => {
+  const available = (pickups || []).filter(
+    (pickup) => !FINISHED_PICKUP_STATUSES.includes(String(pickup?.status || '').toLowerCase())
+  );
+  if (available.length === 0) return fallbackPickup || null;
+
+  const sorted = [...available].sort((a, b) => {
+    const am = toMinutesOfDay(a?.delivery_time_start);
+    const bm = toMinutesOfDay(b?.delivery_time_start);
+    if (am === null && bm === null) return 0;
+    if (am === null) return 1;  // pickups without a start sort last (stable)
+    if (bm === null) return -1;
+    return am - bm;
+  });
+
+  if (patientTimeStart) {
+    const patientMin = toMinutesOfDay(patientTimeStart);
+    if (patientMin !== null) {
+      const inWindow = sorted.filter((pickup) => {
+        const pm = toMinutesOfDay(pickup?.delivery_time_start);
+        return pm !== null && pm <= patientMin;
+      });
+      if (inWindow.length > 0) return inWindow[inWindow.length - 1];
+    }
+  }
+
+  return sorted[0];
 };
 
 export const buildPickupSelectValue = (pickup) => {

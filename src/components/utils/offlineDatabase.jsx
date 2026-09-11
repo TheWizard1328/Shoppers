@@ -48,6 +48,36 @@ const PHI_STORES = new Set([
 
 const isPHIStore = (storeName) => PHI_STORES.has(storeName);
 
+// ─── Write-read coordination ────────────────────────────────────────────
+// IndexedDB serializes ALL transactions on the same database — a readwrite
+// transaction (bulkSave, clearStore) holds the lock until it commits, blocking
+// every readonly getAll. During boot/pull-to-sync, a burst of readwrite
+// transactions (encrypting + writing hundreds of PHI records) can hold the
+// lock for 10–20s, causing every concurrent getAll to hit its 6s timeout
+// simultaneously. The counter below lets getAll WAIT for writes to drain
+// instead of false-failing.
+let _activeWrites = 0;
+const _writeDrainResolvers = [];
+
+const _beginWrite = () => { _activeWrites++; };
+const _endWrite = () => {
+  _activeWrites = Math.max(0, _activeWrites - 1);
+  if (_activeWrites === 0) {
+    _writeDrainResolvers.splice(0).forEach((resolve) => resolve());
+  }
+};
+
+/**
+ * Wait for all in-flight write transactions to complete (up to timeoutMs).
+ * Returns true if writes drained, false if timed out.
+ */
+const waitForWritesToDrain = (timeoutMs = 30000) => {
+  if (_activeWrites <= 0) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    _writeDrainResolvers.push(() => { clearTimeout(timer); resolve(true); });
+  });
+};
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
@@ -462,6 +492,7 @@ const bulkSave = async (storeName, records) => {
     console.warn(`[OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
   }
 
+  _beginWrite();
   try {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
@@ -483,6 +514,8 @@ const bulkSave = async (storeName, records) => {
     return { success: true, count: successCount };
   } catch (error) {
     return { success: false, error: error.message };
+  } finally {
+    _endWrite();
   }
 };
 
@@ -501,6 +534,13 @@ const withTimeout = (promise, ms, label = 'operation') =>
 
 const getAll = async (storeName) => {
   try {
+    // If write transactions are in progress (boot sync, pull-to-sync), wait
+    // for them to drain before reading — a readwrite transaction holds the
+    // IDB lock and blocks ALL reads, so the 6s getAll timeout would fire
+    // simultaneously across every store during a write burst.
+    if (_activeWrites > 0) {
+      await waitForWritesToDrain(30000);
+    }
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
@@ -625,6 +665,7 @@ const getDeliveriesSortedByDate = async (limit = null) => {
  * Clear all data from a store
  */
 const clearStore = async (storeName) => {
+  _beginWrite();
   try {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
@@ -635,7 +676,9 @@ const clearStore = async (storeName) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-  } catch (error) {}
+  } catch (error) {} finally {
+    _endWrite();
+  }
 };
 
 const replaceAllRecords = async (storeName, records = []) => {
@@ -1436,6 +1479,7 @@ export const offlineDB = {
   save,
   bulkSave,
   getAll,
+  waitForWritesToDrain,
   getById,
   getByIndex,
   getByDate,

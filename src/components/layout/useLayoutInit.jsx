@@ -43,6 +43,10 @@ export function useLayoutInit({
 }) {
   const initAutoRefreshTimerRef = useRef(null);
   const initRetryHintTimerRef   = useRef(null);
+  // True once the 5-min historical-sync delay timer has been armed for the
+  // first Dashboard view this boot — subsequent returns to Dashboard start the
+  // background sync manager immediately (the one-shot delay already served).
+  const historicalSyncStartedRef = useRef(false);
   // True once the boot pauses because the current device has no UserDevice record.
   // Disarms the 60s auto-reload so the DeviceRegistration modal can be reached
   // instead of looping the page reload every minute (boot-loop root cause).
@@ -432,6 +436,22 @@ export function useLayoutInit({
             },
           });
         }, 3000); // 3s delay — let the UI settle first
+
+        // ── STEP 2: Priority sync — 6s after full load ──
+        // Runs once after the UI renders from the offline snapshot. Skipped
+        // automatically if a priority sync for the selected date completed within
+        // the last 5 minutes (freshness guard in loadPriorityData). Merge-only:
+        // existing offline records are upserted, never cleared.
+        setTimeout(() => {
+          const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+          const selectedCityId = globalFilters.getSelectedCityId();
+          const cityIdForSync = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
+          import('../utils/offlineSync').then(({ loadPriorityData }) => {
+            loadPriorityData(selectedDateStr, cityIdForSync).catch((e) => {
+              console.warn('⚠️ [Init] Boot priority sync failed:', e?.message || e);
+            });
+          }).catch(() => {});
+        }, 6000); // 6s — after UI settle, before the 5-min historical sync
       } catch (error) {
         const isAuth = error.response?.status === 401 || error.response?.status === 403 || error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
         if (isAuth) {setHasAccess(false);} else {console.warn('⚠️ Init error:', error.message);setHasAccess(true);}
@@ -482,7 +502,11 @@ export function useLayoutInit({
     };
   }, [isLoadingLayout]);
 
-  // Initialize background sync manager
+  // Initialize background sync manager — the historical delivery check & sync.
+  // The first Dashboard view this boot waits 5 minutes before starting (lets the
+  // UI and priority sync settle); subsequent returns to Dashboard start
+  // immediately since the one-shot delay already served its purpose. Role-aware
+  // idle/duty gating is enforced inside backgroundSyncManager.runSyncCycle.
   useEffect(() => {
     if (!currentUser || !dataLoaded || currentPageName !== 'Dashboard') return backgroundSyncManager.stop();
     const startBackgroundSync = async () => {
@@ -494,7 +518,9 @@ export function useLayoutInit({
         console.warn('⚠️ [Layout] Failed to start background sync:', error);
       }
     };
-    const timer = setTimeout(startBackgroundSync, 120000);
+    const delay = historicalSyncStartedRef.current ? 0 : 300000; // 5 min on first view, 0 thereafter
+    historicalSyncStartedRef.current = true;
+    const timer = setTimeout(startBackgroundSync, delay);
     return () => { clearTimeout(timer); backgroundSyncManager.stop(); };
   }, [currentUser, dataLoaded, currentPageName]);
 }

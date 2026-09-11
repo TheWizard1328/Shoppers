@@ -23,7 +23,7 @@ import { optimizeRoute } from '@/components/utils/routeOptimizer';
 import { determinePolylineSegment, fetchPolylineForSegment } from "@/components/utils/dynamicPolylineManager";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 
-import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
+import { smartRefreshManager } from "@/components/utils/smartRefreshManager"; import { queueEntityRequest } from "@/components/utils/requestQueue";
 import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
 import { loadUserSettings, saveSetting } from "@/components/utils/userSettingsManager";
 import useLiveBreadcrumbsSync from '@/components/dashboard/useLiveBreadcrumbsSync';
@@ -703,16 +703,14 @@ function Dashboard() {
       }
     };
     const initialDelay = setTimeout(() => {if (format(_intervalSelectedDateRef.current, 'yyyy-MM-dd') !== getEdmDate()) return;runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
+    // 60s SmartRefresh heartbeat — the lightweight delta-poll that keeps the
+    // dashboard fresh between WebSocket events. The heavy PullToSync
+    // auto-dispatch was removed to stop redundant 7-call bursts that bypassed
+    // the freshness guard and triggered 429 cascades. Manual pull-to-sync
+    // remains available to the user via the pull gesture.
     const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
-      const { showDeliveryForm: _sdf2, showPatientForm: _spf2, showOptimizationSettings: _sos2, showAIAssistant: _sai2 } = _intervalShowFormsRef.current;
-      if (_sdf2 || _spf2 || _sos2 || _sai2) return;
-      const ds = format(_intervalSelectedDateRef.current, 'yyyy-MM-dd');
-      if (ds !== getEdmDate()) return;
-      const m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
-      const active = _intervalDeliveriesRef.current.some((d) => d && d.delivery_date === ds && !['completed', 'failed', 'cancelled'].includes(d.status));
-      if (!t || Date.now() - t >= (active ? 60000 : 300000)) window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'today_active_routes' : 'today_completed_routes' } }));
     }, 60000);
     return () => {clearTimeout(initialDelay);clearInterval(interval);};
   }, [isDataLoaded, currentUser?.id, isFiltersReady]);
@@ -2417,7 +2415,7 @@ function Dashboard() {
         }
         const cache = await offlineDB.getCacheValidation('AppUser', { scopeKey: 'global', maxAgeMs: 10 * 60 * 1000, minRecordCount: 1 });
         if (cache.isValid) return;
-        const freshAppUsers = await base44.entities.AppUser.list(null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date');
+        const freshAppUsers = await queueEntityRequest(() => base44.entities.AppUser.list(null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date'), 'Dashboard STEP 0 AppUser list');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
         await offlineDB.updateCacheSnapshot('AppUser', freshAppUsers || [], { scopeKey: 'global', syncType: 'startup_full' });
       } catch (error) {console.error('❌ [STEP 0] Pre-render sync failed:', error);}
@@ -2471,7 +2469,7 @@ function Dashboard() {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
         const isTodaySelected = selectedDateStr === getEdmDate(),m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
         const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled'].includes(d.status));
-        if (isTodaySelected && (!t || Date.now() - t >= (active ? 60000 : 300000))) setTimeout(() => window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'initial_load_today_active_routes' : 'initial_load_today_completed_routes' } })), 2000);
+        if (isTodaySelected && (!t || Date.now() - t >= (active ? 180000 : 600000))) setTimeout(() => window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'initial_load_today_active_routes' : 'initial_load_today_completed_routes' } })), 2000);
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) return;
         console.warn('⚠️ [Dashboard Mount - STEP 2] Background sync failed:', error.message);

@@ -223,6 +223,18 @@ export const invalidatePrioritySyncCache = () => {
   try { localStorage.removeItem(PRIORITY_SYNC_KEY); } catch (_) {}
 };
 
+/**
+ * Forced priority sync — bypasses the 5-min freshness guard.
+ * Used when the app returns from background / minimized / screen-on so the
+ * dashboard always reflects the latest server data on resume, regardless of
+ * how recently the last priority sync ran. Write semantics are merge-only
+ * (same as loadPriorityData — existing offline records are upserted, never cleared).
+ */
+export const loadPriorityDataForced = async (selectedDateStr, cityId = null, filters = {}) => {
+  invalidatePrioritySyncCache();
+  return loadPriorityData(selectedDateStr, cityId, filters);
+};
+
 export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
 
@@ -236,11 +248,13 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
   notifySyncStatus({ status: 'syncing', entity: 'Starting priority load...', progress: 5 });
   
   try {
-    // Step 1: Sync Cities (lightweight)
+    // Step 1: Sync Cities (lightweight) — merge-only (never clear existing offline records)
     const cities = await City.list();
-    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
+    if (cities && cities.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    }
     invalidateEntityCache('City');
-    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 10, count: cities.length });
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 10, count: cities?.length || 0 });
     
     // Step 2: Sync ALL AppUsers (entire entity)
     const appUsersRaw = await fetchAppUsersDedup();
@@ -257,7 +271,10 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+    // Merge-only: bulkSave upserts by id and never clears existing offline AppUsers
+    if (appUsers && appUsers.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    }
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 25, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -755,14 +772,12 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null,
     // Cities / Companies sync so the manual refresh stays fast and scoped.
     if (priorityOnly) {
       const syncTime = new Date().toISOString();
-      const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.PATIENTS),
-        offlineDB.getAll(offlineDB.STORES.DELIVERIES)
-      ]);
+      // Use in-memory counts — avoids two getAll calls that queue behind the
+      // bulkSaves this function just issued (the root cause of IDB read timeouts).
       await Promise.all([
         offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
-        offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),
-        offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: syncTime })
+        offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: syncTime }),
+        offlineDB.updateSyncStatus('Patient', { recordCount: freshPatients.length, status: 'synced', lastSync: syncTime })
       ]);
       markPrioritySyncComplete(selectedDateStr);
       notifySyncStatus({ status: 'complete', progress: 100 });
@@ -832,16 +847,13 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null,
       await offlineDB.replaceAllRecords(offlineDB.STORES.INTER_STORE_LOCATIONS, interStoreLocations);
     }
 
-    // Update sync status records
+    // Update sync status records — use in-memory counts (no IDB re-read that
+    // would queue behind the bulkSaves just issued, causing read timeouts).
     const syncTime = new Date().toISOString();
-    const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
-      offlineDB.getAll(offlineDB.STORES.PATIENTS),
-      offlineDB.getAll(offlineDB.STORES.DELIVERIES)
-    ]);
     await Promise.all([
       offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),
-      offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: freshPatients.length, status: 'synced', lastSync: syncTime }),
       offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('Company', { recordCount: companies.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime })

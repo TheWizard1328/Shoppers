@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { globalFilters } from '../utils/globalFilters';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
-import { performBackgroundSync } from '../utils/offlineSync';
 import { locationTracker } from '../utils/locationTracker';
 
 /**
@@ -110,11 +109,17 @@ export function useWakeLockAndVisibility({
             detail: { hiddenDurationMs: hiddenDuration }
           }));
 
-          if (hiddenDuration >= SMART_REFRESH_CYCLE && currentPageName === 'Dashboard' && initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+          if (hiddenDuration >= SMART_REFRESH_CYCLE && initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
             smartRefreshManager.lastRefreshTimes = { driverLocation: 0, activeDeliveries: 0, todayDeliveries: 0, appUsers: 0, patients: 0, stores: 0 };
+            // Priority sync runs on ANY page when the app returns from background /
+            // minimized / screen-on — bypasses the 5-min freshness guard so the
+            // dashboard always reflects the latest server data on resume.
             const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-            const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
-            performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
+            const selectedCityId = globalFilters.getSelectedCityId();
+            const cityIdForSync = selectedCityId && selectedCityId !== 'all' ? selectedCityId : null;
+            import('../utils/offlineSync').then(({ loadPriorityDataForced }) => {
+              loadPriorityDataForced(selectedDateStr, cityIdForSync).catch(() => {});
+            }).catch(() => {});
           }
         }
       } else {

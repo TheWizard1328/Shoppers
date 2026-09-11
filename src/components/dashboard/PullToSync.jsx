@@ -258,13 +258,13 @@ export default function PullToSync({
       }
 
     } catch (error) {
-      console.error('❌ [Pull to Sync] Sync failed:', error);
+      console.error('❌ [Pull to Sync] Sync failed:', error?.message || error?.response?.status || error);
       try {
         window.__dashboardSyncing = false;
         window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { syncRunId, failed: true, completedAt: Date.now() } }));
       } catch (e) {}
       if (!silent) {
-        toast.error('Sync failed', { description: error.message });
+        toast.error('Sync failed', { description: error?.message || 'Unknown error' });
       }
     } finally {
       setTimeout(() => {

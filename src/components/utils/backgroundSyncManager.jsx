@@ -176,13 +176,37 @@ class BackgroundSyncManager {
       return;
     }
 
-    // Gate on user activity — don't run background sync while user is actively
-    // interacting with the app. This prevents IDB contention and UI jank.
-    // The 2-minute idle threshold matches userActivityMonitor.isBackgroundSyncIdle().
+    // Role-aware idle/duty gate — historical sync must not run while a driver is
+    // actively on a route or a dispatcher is actively interacting with the app.
+    //   • Drivers: must be off_duty or on_break (no active route in progress)
+    //   • Dispatchers: no user interaction for at least 5 minutes
+    //   • Admins: generally idle (2-min background-sync idle threshold)
     try {
       const { userActivityMonitor } = await import('./userActivityMonitor');
-      if (!userActivityMonitor.isBackgroundSyncIdle()) {
-        console.log('⏭️ [BackgroundSync] Skipping cycle - user is active (not idle for 2 min)');
+      const roles = this.currentUser?.app_roles || [];
+      const isDriver = Array.isArray(roles) && roles.includes('driver');
+      const isDispatcher = Array.isArray(roles) && roles.includes('dispatcher');
+      const isAdmin = Array.isArray(roles) && roles.includes('admin');
+      let allowed = true;
+      if (isAdmin) {
+        allowed = userActivityMonitor.isBackgroundSyncIdle();
+      } else if (isDispatcher) {
+        allowed = userActivityMonitor.getIdleDuration() >= (5 * 60 * 1000);
+      } else if (isDriver) {
+        // driver_status lives on the AppUser record — resolve from offline DB if missing
+        let driverStatus = this.currentUser?.driver_status || null;
+        if (!driverStatus && this.currentUser?.id) {
+          try {
+            const appUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', this.currentUser.id);
+            driverStatus = appUsers?.[0]?.driver_status;
+          } catch (_) {}
+        }
+        allowed = driverStatus === 'off_duty' || driverStatus === 'on_break';
+      } else {
+        allowed = userActivityMonitor.isBackgroundSyncIdle();
+      }
+      if (!allowed) {
+        console.log('⏭️ [BackgroundSync] Skipping cycle - role/idle gate not satisfied');
         this.scheduleNextSync();
         return;
       }
