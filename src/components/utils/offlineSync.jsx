@@ -755,14 +755,12 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null,
     // Cities / Companies sync so the manual refresh stays fast and scoped.
     if (priorityOnly) {
       const syncTime = new Date().toISOString();
-      const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.PATIENTS),
-        offlineDB.getAll(offlineDB.STORES.DELIVERIES)
-      ]);
+      // Use in-memory counts — avoids two getAll calls that queue behind the
+      // bulkSaves this function just issued (the root cause of IDB read timeouts).
       await Promise.all([
         offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
-        offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),
-        offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: syncTime })
+        offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: syncTime }),
+        offlineDB.updateSyncStatus('Patient', { recordCount: freshPatients.length, status: 'synced', lastSync: syncTime })
       ]);
       markPrioritySyncComplete(selectedDateStr);
       notifySyncStatus({ status: 'complete', progress: 100 });
@@ -832,16 +830,13 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null,
       await offlineDB.replaceAllRecords(offlineDB.STORES.INTER_STORE_LOCATIONS, interStoreLocations);
     }
 
-    // Update sync status records
+    // Update sync status records — use in-memory counts (no IDB re-read that
+    // would queue behind the bulkSaves just issued, causing read timeouts).
     const syncTime = new Date().toISOString();
-    const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
-      offlineDB.getAll(offlineDB.STORES.PATIENTS),
-      offlineDB.getAll(offlineDB.STORES.DELIVERIES)
-    ]);
     await Promise.all([
       offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),
-      offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: freshPatients.length, status: 'synced', lastSync: syncTime }),
       offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('Company', { recordCount: companies.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime })
