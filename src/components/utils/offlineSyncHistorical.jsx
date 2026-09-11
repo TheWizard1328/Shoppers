@@ -40,14 +40,46 @@ export const createOfflineSyncHistoricalHelpers = ({
   getHistoricalSyncMeta
 }) => {
   const shouldRunMobileHistoricalSync = async (isDriverWithNoActiveStops = false) => {
-    // Historical delivery sync (date-by-date) is allowed any time — it's incremental and low-cost.
-    // Patient sync (store-by-store) is still restricted to off-peak or idle drivers.
-    // GATE 1: Device must be idle OR driver has no active stops to avoid impacting performance
-    if (!isDriverWithNoActiveStops && !userActivityMonitor.isBackgroundSyncIdle()) return false;
-    // GATE 2: Minimum interval between full cycles (prevents hammering API)
+    // GATE 1: 4-hour minimum interval between full historical cycles
     const metadata = await getHistoricalSyncMeta();
     const lastCompletedAt = metadata?.last_completed_at ? new Date(metadata.last_completed_at).getTime() : 0;
-    return !lastCompletedAt || (Date.now() - lastCompletedAt) >= HISTORICAL_SYNC_INTERVAL_MS;
+    if (lastCompletedAt && (Date.now() - lastCompletedAt) < HISTORICAL_SYNC_INTERVAL_MS) return false;
+
+    // GATE 2: Role-aware idle/duty conditions
+    //   • Drivers: must be off_duty or on_break (no active route in progress)
+    //   • Dispatchers: no user interaction for at least 5 minutes
+    //   • Admins: generally idle (2-min background-sync idle threshold)
+    let roles = [];
+    let userId = null;
+    try {
+      const cache = sessionStorage.getItem('effectiveUserCache');
+      if (cache) {
+        const parsed = JSON.parse(cache);
+        roles = parsed?.appUser?.app_roles || parsed?.user?.app_roles || [];
+        userId = parsed?.user?.id || parsed?.user?.user_id || null;
+      }
+    } catch (_) {}
+
+    const isDriver = Array.isArray(roles) && roles.includes('driver');
+    const isDispatcher = Array.isArray(roles) && roles.includes('dispatcher');
+    const isAdmin = Array.isArray(roles) && roles.includes('admin');
+
+    if (isAdmin) return userActivityMonitor.isBackgroundSyncIdle();
+    if (isDispatcher) return userActivityMonitor.getIdleDuration() >= (5 * 60 * 1000);
+    if (isDriver) {
+      // driver_status lives on the AppUser record, not the auth User — resolve it
+      try {
+        let driverStatus = null;
+        if (userId) {
+          const appUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', userId);
+          driverStatus = appUsers?.[0]?.driver_status;
+        }
+        return driverStatus === 'off_duty' || driverStatus === 'on_break';
+      } catch (_) {
+        return isDriverWithNoActiveStops; // fallback to the legacy no-active-stops signal
+      }
+    }
+    return userActivityMonitor.isBackgroundSyncIdle();
   };
 
   const getHistoricalDeliveryIndex = async () => {
