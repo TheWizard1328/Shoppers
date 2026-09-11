@@ -34,6 +34,12 @@ function formatCountdown(ms) {
 }
 
 export default function DriverAvailabilityPanel({ currentUser, stores, appUsers, deliveries }) {
+  // `deliveries` gets a new array identity on EVERY WebSocket event — reading it
+  // through a ref keeps callback identities stable so this panel doesn't re-fire
+  // backend calls on every GPS tick (Sep 10 2026 amplifier fix).
+  const deliveriesRef = useRef(deliveries);
+  useEffect(() => { deliveriesRef.current = deliveries; }, [deliveries]);
+
   // Only dispatchers see this panel
   const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -91,7 +97,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
       // Check locally first — faster than backend call
       const today = new Date().toISOString().split('T')[0];
       const TERMINAL = ['completed', 'failed', 'cancelled'];
-      const todayDeliveries = (deliveries || []).filter(d =>
+      const todayDeliveries = (deliveriesRef.current || []).filter(d =>
         d?.delivery_date === today &&
         dispatcherStoreIds.includes(d?.store_id)
       );
@@ -118,11 +124,17 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
     } finally {
       setGuardLoading(false);
     }
-  }, [canUse, dispatcherStoreIds, deliveries]);
+  }, [canUse, dispatcherStoreIds]);
 
   // ── Check for active request on mount ──
+  const lastActiveCheckRef = useRef(0);
   const checkActiveRequest = useCallback(async () => {
     if (!canUse || !currentUser) return;
+    // Throttle: this fires from the mount effect, whose deps used to change on
+    // every WS event — one get_active per 30s max (request state transitions are
+    // handled by the dedicated polling effects below, not this check).
+    if (Date.now() - lastActiveCheckRef.current < 30000) return;
+    lastActiveCheckRef.current = Date.now();
     try {
       const result = await base44.functions.invoke('driverAvailabilityManager', {
         action: 'get_active',
@@ -178,6 +190,20 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
     checkGuard();
     checkActiveRequest();
   }, [canUse, checkGuard, checkActiveRequest]);
+
+  // WS-tick guard refresh: pure local recompute, ZERO backend calls. Only blocks
+  // (conservative) — re-enabling the button is owned by the full backend check.
+  useEffect(() => {
+    if (!canUse || dispatcherStoreIds.length === 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    const TERMINAL = ['completed', 'failed', 'cancelled'];
+    const blocking = (deliveries || []).filter(d =>
+      d?.delivery_date === today &&
+      dispatcherStoreIds.includes(d?.store_id) &&
+      d?.isNextDelivery === true && !TERMINAL.includes(d?.status)
+    );
+    if (blocking.length > 0) setGuardPassed(false);
+  }, [deliveries, canUse, dispatcherStoreIds]);
 
   // ── Poll for timeout/status when in waiting phase ──
   useEffect(() => {
