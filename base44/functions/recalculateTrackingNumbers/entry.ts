@@ -94,6 +94,12 @@ Deno.serve(async (req) => {
     const pickups = deliveries
       .filter((delivery) => delivery && !delivery.patient_id && delivery.stop_id)
       .sort((a, b) => {
+        // Store sort order first — groups stops by store in the configured order
+        const storeA = storeMap.get(a.store_id);
+        const storeB = storeMap.get(b.store_id);
+        const sortA = storeA?.sort_order ?? Infinity;
+        const sortB = storeB?.sort_order ?? Infinity;
+        if (sortA !== sortB) return sortA - sortB;
         const stopDelta = (a.stop_order || 999999) - (b.stop_order || 999999);
         if (stopDelta !== 0) return stopDelta;
         const timeA = String(a.delivery_time_start || '99:99');
@@ -143,15 +149,29 @@ Deno.serve(async (req) => {
           if (aPending && !bPending) return 1;
           if (!aPending && bPending) return -1;
 
-          // For pending stops: sort by distance from store (closest first)
-          if (aPending && bPending && hasStoreCoords) {
-            const coordsA = resolveDeliveryCoords(a, patientMap);
-            const coordsB = resolveDeliveryCoords(b, patientMap);
-            if (coordsA && coordsB) {
-              const distA = haversineKm(storeLat, storeLon, coordsA.lat, coordsA.lon);
-              const distB = haversineKm(storeLat, storeLon, coordsB.lat, coordsB.lon);
-              if (Math.abs(distA - distB) > 0.01) return distA - distB;
+          if (aPending && bPending) {
+            // 1. Distance from store (closest first)
+            if (hasStoreCoords) {
+              const coordsA = resolveDeliveryCoords(a, patientMap);
+              const coordsB = resolveDeliveryCoords(b, patientMap);
+              if (coordsA && coordsB) {
+                const distA = haversineKm(storeLat, storeLon, coordsA.lat, coordsA.lon);
+                const distB = haversineKm(storeLat, storeLon, coordsB.lat, coordsB.lon);
+                if (Math.abs(distA - distB) > 0.01) return distA - distB;
+              }
             }
+            // 2. Address (alphabetical) — Delivery schema lacks address, join Patient
+            const patA = a.patient_id ? patientMap.get(a.patient_id) : null;
+            const patB = b.patient_id ? patientMap.get(b.patient_id) : null;
+            const addrA = String(a.delivery_address || patA?.address || '');
+            const addrB = String(b.delivery_address || patB?.address || '');
+            if (addrA && addrB && addrA !== addrB) return addrA.localeCompare(addrB);
+            if (addrA && !addrB) return -1;
+            if (!addrA && addrB) return 1;
+            // 3. Unit number (ascending, natural numeric order)
+            const unitA = String(a.unit_number || patA?.unit_number || '');
+            const unitB = String(b.unit_number || patB?.unit_number || '');
+            if (unitA !== unitB) return unitA.localeCompare(unitB, undefined, { numeric: true, sensitivity: 'base' });
           }
 
           // Fall back to stop_order (set by optimizer for in_transit stops)

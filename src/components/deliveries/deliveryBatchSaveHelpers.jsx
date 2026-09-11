@@ -51,19 +51,44 @@ export const calculateSequentialTRAssignments = ({ newItems, existingItems, stor
       let pickupTR = store?.base_tracking_number || 0;
       const parsedTR = parseInt(pickup?.tracking_number, 10);
       if (!Number.isNaN(parsedTR)) pickupTR = parsedTR;
-      groups[groupKey] = { pickupTR, deliveries: [] };
+      groups[groupKey] = { pickupTR, storeSortOrder: store?.sort_order ?? Infinity, deliveries: [] };
     }
 
     groups[groupKey].deliveries.push(delivery);
   });
 
-  Object.values(groups).forEach((group) => {
-    [...group.deliveries]
-      .sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''))
-      .forEach((delivery, index) => {
-        assignments.set(delivery.id || delivery._tempId, String(group.pickupTR + index + 1));
-      });
-  });
+  // Process store groups in store sort order (each store has its own TR base, so
+  // this only affects the order groups are processed — TR# are independent per store).
+  Object.values(groups)
+    .sort((a, b) => (a.storeSortOrder ?? Infinity) - (b.storeSortOrder ?? Infinity))
+    .forEach((group) => {
+      [...group.deliveries]
+        .sort((a, b) => {
+          // 1. Distance from store (closest first)
+          const distA = Number(a.distanceFromStore ?? a.distance_from_store);
+          const distB = Number(b.distanceFromStore ?? b.distance_from_store);
+          const aHasDist = Number.isFinite(distA);
+          const bHasDist = Number.isFinite(distB);
+          if (aHasDist && bHasDist && Math.abs(distA - distB) > 0.01) return distA - distB;
+          if (aHasDist && !bHasDist) return -1;
+          if (!aHasDist && bHasDist) return 1;
+          // 2. Address (alphabetical)
+          const addrA = String(a.delivery_address || a.address || '');
+          const addrB = String(b.delivery_address || b.address || '');
+          if (addrA && addrB && addrA !== addrB) return addrA.localeCompare(addrB);
+          if (addrA && !addrB) return -1;
+          if (!addrA && addrB) return 1;
+          // 3. Unit number (ascending, natural numeric order)
+          const unitA = String(a.unit_number || '');
+          const unitB = String(b.unit_number || '');
+          if (unitA !== unitB) return unitA.localeCompare(unitB, undefined, { numeric: true, sensitivity: 'base' });
+          // 4. Final tiebreaker: patient name
+          return String(a.patient_name || '').localeCompare(String(b.patient_name || ''));
+        })
+        .forEach((delivery, index) => {
+          assignments.set(delivery.id || delivery._tempId, String(group.pickupTR + index + 1));
+        });
+    });
 
   return assignments;
 };
