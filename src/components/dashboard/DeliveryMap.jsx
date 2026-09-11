@@ -1179,6 +1179,16 @@ function DeliveryMap({
             targetZoomForBounds = Math.min(fractionalZoom, requestedMaxZoom);
           }
         } catch {}
+        // ── EDGE BUFFER (Sep 11 2026) ─────────────────────────────────────────
+        // Phase 2/3 fits pass edgeBufferZoom (e.g. 0.01): after the final target
+        // zoom is computed, zoom OUT by that fraction so markers get a little
+        // extra breathing room around the padded edges instead of sitting
+        // exactly on the padding line. Subtracted AFTER the maxZoom clamp so the
+        // buffer applies even on capped tight views, and applied identically on
+        // every fit so GPS-tick re-fits never oscillate around it.
+        if (typeof opts.edgeBufferZoom === 'number' && opts.edgeBufferZoom > 0) {
+          targetZoomForBounds = Math.max(1, targetZoomForBounds - opts.edgeBufferZoom);
+        }
 
         // ── UNIFIED PHASE 2/3 PAN RULE ──────────────────────────────────────────
         // ONE rule: if the map is already at or above the zoom the bounds need,
