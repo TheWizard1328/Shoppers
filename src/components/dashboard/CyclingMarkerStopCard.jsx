@@ -13,6 +13,29 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
+// Module-level cache for CyclingLocation.list() — previously every legacy cycling
+// card (missing cycling_location_name) fired its own unfiltered list() call, which
+// fetched the ENTIRE entity collection per card. With several cards mounted that
+// was a major contributor to the post-load 429 storm. Cached for 5 minutes and
+// shared across all card instances.
+let _cyclingLocationCache = null;
+let _cyclingLocationCacheAt = 0;
+const _CYCLING_LOCATION_TTL_MS = 5 * 60 * 1000;
+const _getCyclingLocations = async () => {
+  if (_cyclingLocationCache && Date.now() - _cyclingLocationCacheAt < _CYCLING_LOCATION_TTL_MS) {
+    return _cyclingLocationCache;
+  }
+  try {
+    const { base44 } = await import('@/api/base44Client');
+    const results = await base44.entities.CyclingLocation.list();
+    _cyclingLocationCache = results || [];
+    _cyclingLocationCacheAt = Date.now();
+    return _cyclingLocationCache;
+  } catch (_) {
+    return [];
+  }
+};
+
 export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery, currentUser, bulkSelectionEnabled = false, isBulkSelected = false, onBulkSelectionChange }) {
   const isDispatcher = Array.isArray(currentUser?.app_roles)
     ? currentUser.app_roles.includes('dispatcher') && !currentUser.app_roles.includes('admin')
@@ -36,18 +59,14 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     const lat = delivery?.cycling_latitude;
     const lng = delivery?.cycling_longitude;
     if (lat == null || lng == null) {setLocationName(null);return;}
-    // Legacy fallback: look up by GPS coords
-    import('@/api/base44Client').then(({ base44 }) =>
-    base44.entities.CyclingLocation.list().
-    then((results) => {
+    // Legacy fallback: look up by GPS coords (shared module cache)
+    _getCyclingLocations().then((results) => {
       const THRESH = 0.0005; // ~50m in degrees
       const match = (results || []).find((loc) =>
       Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
       );
       setLocationName(match?.name || null);
-    }).
-    catch(() => null)
-    );
+    });
   }, [delivery?.cycling_latitude, delivery?.cycling_longitude, delivery?.cycling_location_name]);
 
   const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];

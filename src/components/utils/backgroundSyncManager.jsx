@@ -264,11 +264,136 @@ class BackgroundSyncManager {
   }
 
   /**
+   * Sync future-dated deliveries (+1 to +7 days, city-scoped) on the background
+   * cycle — works backwards from +7 toward +1 so that if +7 is empty the loop
+   * stops early (future dates further out are less likely to have stops).
+   * Cycling markers are never created on future dates, so they are not fetched.
+   * Gated by the same idle/duty + rate-limit checks as the rest of the cycle.
+   *
+   * Persisted cursor (`futureSyncDateCursor`) resumes across restarts; a fresh
+   * completeness pass resets to +7 once the loop reaches +1.
+   */
+  async syncFutureDeliveries() {
+    if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
+    if (!this.currentUser) return;
+
+    const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
+    if (!stores || stores.length === 0) return;
+
+    const cityStoreIds = (this.currentUser?.city_id)
+      ? (stores || []).filter((s) => s?.city_id === this.currentUser.city_id).map((s) => s.id).filter(Boolean)
+      : [];
+    const deliveryFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
+
+    const isOffPeak = this.isOffPeakNow();
+    const throttleMs = isOffPeak
+      ? (this.config.throttleBetweenCallsMsOffpeak || 500)
+      : (this.config.throttleBetweenCallsMsDaytime || 2000);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Cursor: persisted as an ISO date string. Starts at +7, decrements to +1, then resets.
+    const FUTURE_CURSOR_KEY = 'rxdeliver_future_sync_cursor';
+    let cursorDate;
+    try {
+      const persisted = localStorage.getItem(FUTURE_CURSOR_KEY);
+      if (persisted) {
+        cursorDate = new Date(persisted + 'T00:00:00');
+        // Validate it's within +1..+7 of today; otherwise reset to +7
+        const offset = Math.round((cursorDate - today) / 86400000);
+        if (offset < 1 || offset > 7) cursorDate = null;
+      }
+    } catch (_) { cursorDate = null; }
+    if (!cursorDate) {
+      cursorDate = new Date(today);
+      cursorDate.setDate(cursorDate.getDate() + 7);
+    }
+
+    let syncedCount = 0;
+    const maxDatesPerCycle = isOffPeak
+      ? (this.config.historicalMaxDatesPerCycleOffpeak || 60)
+      : (this.config.historicalMaxDatesPerCycleDaytime || 1);
+
+    try {
+      while (syncedCount < maxDatesPerCycle) {
+        if (this.isPaused || !this.isRunning) break;
+        if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
+
+        const offset = Math.round((cursorDate - today) / 86400000);
+        if (offset < 1) break; // reached +1 — pass complete
+
+        const dateStr = format(cursorDate, 'yyyy-MM-dd');
+
+        try {
+          const futureDeliveries = await base44.entities.Delivery.filter(
+            { delivery_date: dateStr, ...deliveryFilter },
+            '-updated_date',
+            5000
+          ).catch(() => []);
+          this.currentCycleAPICalls++;
+
+          if (futureDeliveries && futureDeliveries.length > 0) {
+            // Filter out any locally-deleted delivery IDs before writing to IDB
+            let toSave = futureDeliveries;
+            try {
+              const storedDeleted = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+              if (storedDeleted.length > 0) {
+                const deletedSet = new Set(storedDeleted);
+                toSave = futureDeliveries.filter((d) => d?.id && !deletedSet.has(d.id));
+              }
+            } catch (_) {}
+            if (toSave.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toSave).catch(() => {});
+            }
+            // Prune offline records for this date that the server no longer returns
+            const incomingIds = new Set((futureDeliveries || []).map((d) => d?.id).filter(Boolean));
+            const offlineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr).catch(() => []);
+            const toDelete = (offlineForDate || []).filter((d) => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
+            if (toDelete.length > 0) {
+              await Promise.all(toDelete.map((d) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+            }
+            syncedCount++;
+            this.lastSyncTimes.deliveries = new Date().toISOString();
+            console.log(`📅 [BackgroundSync] Future sync: ${futureDeliveries.length} deliveries for ${dateStr}`);
+          }
+
+          // Advance cursor toward +1
+          cursorDate.setDate(cursorDate.getDate() - 1);
+          try { localStorage.setItem(FUTURE_CURSOR_KEY, format(cursorDate, 'yyyy-MM-dd')); } catch (_) {}
+
+          if (throttleMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, throttleMs));
+          }
+        } catch (error) {
+          if (error?.response?.status === 429 || error?.message?.includes('429')) {
+            console.log('⏰ [BackgroundSync] Rate limited - stopping future-date sync');
+            break;
+          }
+          console.warn(`⚠️ [BackgroundSync] Future sync failed for ${dateStr}:`, error?.message);
+          break;
+        }
+      }
+    } finally {
+      // If we reached +1, reset cursor to +7 for the next pass
+      const offset = Math.round((cursorDate - today) / 86400000);
+      if (offset < 1) {
+        const reset = new Date(today);
+        reset.setDate(reset.getDate() + 7);
+        try { localStorage.setItem(FUTURE_CURSOR_KEY, format(reset, 'yyyy-MM-dd')); } catch (_) {}
+      }
+    }
+
+    this.notifySubscribers({ type: 'future_deliveries_synced', count: syncedCount });
+  }
+
+  /**
    * Execute sync tasks in priority order
    */
   async executeSyncTasks() {
     const tasks = [
       { name: 'deliveries', priority: this.config.priorities.deliveries, fn: () => this.syncHistoricalDeliveries() },
+      { name: 'futureDeliveries', priority: this.config.priorities.deliveries + 0.5, fn: () => this.syncFutureDeliveries() },
       { name: 'patients', priority: this.config.priorities.patients, fn: () => this.syncPatients() },
       { name: 'appUsers', priority: this.config.priorities.appUsers, fn: () => this.syncAppUsers() },
       { name: 'cities', priority: this.config.priorities.cities, fn: () => this.syncCities() }

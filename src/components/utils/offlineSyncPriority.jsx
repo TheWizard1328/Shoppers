@@ -93,46 +93,14 @@ export const createOfflineSyncPriorityHelpers = ({
         }
       }
 
-      // Fetch up to 7 future dates that have deliveries (check each day, stop early if none found)
-      const futureDatesToSync = [];
-      for (let offset = 1; offset <= 7; offset++) {
-        const futureDate = new Date(selectedDateStr + 'T00:00:00');
-        futureDate.setDate(futureDate.getDate() + offset);
-        const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-        futureDatesToSync.push(futureDateStr);
-      }
-      for (const futureDateStr of futureDatesToSync) {
-        try {
-          const futureDeliveries = await fetchDeliveriesDedup(futureDateStr, deliveryFilter).catch(() => []);
-          if (!futureDeliveries || futureDeliveries.length === 0) continue;
-          // Also fetch cycling markers for future date
-          if (cityStoreIds.length > 0) {
-            const futureCycling = await fetchDeliveriesDedup(futureDateStr, { is_cycling_marker: true }).catch(() => []);
-            if (futureCycling && futureCycling.length > 0) {
-              const mergedFuture = new Map(futureDeliveries.filter(d => d?.id).map(d => [d.id, d]));
-              futureCycling.forEach(d => { if (d?.id) mergedFuture.set(d.id, d); });
-              futureDeliveries.splice(0, futureDeliveries.length, ...Array.from(mergedFuture.values()));
-            }
-          }
-          // Upsert + prune for this future date
-          const futureIncomingIds = new Set(futureDeliveries.map(d => d?.id).filter(Boolean));
-          const existingFutureForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === futureDateStr);
-          const toDeleteFuture = existingFutureForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !futureIncomingIds.has(d.id));
-          if (getSyncPaused()) {
-            console.log('⏸️ [PrioritySyncBeforeRefresh] Skipping future-date bulkSave — paused during action');
-            break;
-          }
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, futureDeliveries);
-          if (toDeleteFuture.length > 0) {
-            await Promise.all(toDeleteFuture.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
-          }
-          // Merge future deliveries into the main list for patient syncing below
-          const allMerged = new Map(deliveries.filter(d => d?.id).map(d => [d.id, d]));
-          futureDeliveries.forEach(d => { if (d?.id) allMerged.set(d.id, d); });
-          deliveries = Array.from(allMerged.values());
-          console.log(`📅 [PrioritySyncBeforeRefresh] Synced ${futureDeliveries.length} future deliveries for ${futureDateStr}`);
-        } catch (_) { /* non-critical — skip individual future date failures */ }
-      }
+      // NOTE: Future-date delivery sync (+1..+7 days) has been moved to the
+      // backgroundSyncManager (syncFutureDeliveries task). It runs on the same
+      // idle/duty-gated 3-minute cycle as the historical backfill, starting at
+      // +7 days and working backwards toward +1. Previously this loop fired
+      // up to 14 Delivery.filter calls here on every Dashboard smart-refresh
+      // pass (~10s after load), which was the primary cause of the 429 storm.
+      // Cycling markers are never present on future dates, so those fetches
+      // were always empty and are not performed by the background task.
 
       // Always upsert + prune (even if server returns 0 — that means all were deleted)
       {
