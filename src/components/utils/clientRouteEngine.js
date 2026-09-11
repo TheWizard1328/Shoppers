@@ -1001,6 +1001,29 @@ let _inheritedWindowCount = 0;
     })();
     const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
+
+    // ── Live-GPS via point (Sep 11 2026) ─────────────────────────────────────
+    // When the driver is ON DUTY with at least one in-flight (en_route/in_transit)
+    // stop, inject their live GPS as a via waypoint right after the polyline origin
+    // (last finished stop, or home when none finished). The current-leg polyline then
+    // bends through the driver's actual position (covering detours that leave the
+    // planned leg), and the next stop's ETA/distance use the GPS→stop portion only.
+    // Gates: skipped for explicit segment-only regens (cycling/driving overrides
+    // carry hand-picked origins), and when the GPS sits within 100m of the origin
+    // (driver hasn't left the anchor — normal generation is already correct).
+    const driverOnDuty = ['on_duty', 'online'].includes(String(_driverAppUser?.driver_status || '').toLowerCase());
+    const driverGpsCoords = (_driverAppUser?.current_latitude != null && _driverAppUser?.current_longitude != null)
+      ? { lat: Number(_driverAppUser.current_latitude), lon: Number(_driverAppUser.current_longitude) }
+      : null;
+    const hasInFlightStop = activeRouteStops.some(s => ['en_route', 'in_transit'].includes(String(s.delivery?.status || '')));
+    const viaPointAfterOrigin = (driverOnDuty && hasInFlightStop && driverGpsCoords
+      && Number.isFinite(driverGpsCoords.lat) && Number.isFinite(driverGpsCoords.lon)
+      && !cyclingSegmentOnly && !drivingSegmentOnly
+      && calculateCrowFliesDistance(polylineOrigin.lat, polylineOrigin.lon, driverGpsCoords.lat, driverGpsCoords.lon) > 0.1)
+      ? driverGpsCoords
+      : null;
+    console.log(`[clientRouteEngine] ${source} — live-GPS via point: ${viaPointAfterOrigin ? `(${viaPointAfterOrigin.lat.toFixed(4)}, ${viaPointAfterOrigin.lon.toFixed(4)})` : 'off (gates: onDuty=' + driverOnDuty + ', inFlight=' + hasInFlightStop + ', gps=' + (driverGpsCoords ? 'yes' : 'no') + ')'}`);
+
     segmentPolylineByDeliveryId = await generateRoutePolylines({
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
       originPoint: polylineOrigin,
@@ -1014,6 +1037,7 @@ let _inheritedWindowCount = 0;
       fallbackTravelMode: effectiveTravelMode,
       directionsLegs,
       routeStops,
+      viaPointAfterOrigin,
     });
   }
 

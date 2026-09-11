@@ -107,6 +107,45 @@ function encodeGooglePolyline(points) {
   return encoded;
 }
 
+// Google 1e5 polyline decode — arithmetic (no bitwise), matching the standard
+// decoder in breadcrumbsManager.jsx. Used to merge consecutive legs when a live-GPS
+// via point splits the current leg into origin→GPS + GPS→firstStop sections.
+function decodeGooglePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  while (index < encoded.length) {
+    let result = 0, multiplier = 1, byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
+    } while (byte >= 0x20);
+    lat += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    result = 0; multiplier = 1;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
+    } while (byte >= 0x20);
+    lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+  return coordinates;
+}
+
+// Merge two CONSECUTIVE legs' polylines into one continuous polyline
+// (drops the duplicated junction coordinate). Returns null if both inputs are null.
+function mergeGooglePolylines(first, second) {
+  if (!first) return second || null;
+  if (!second) return first || null;
+  const a = decodeGooglePolyline(first);
+  const b = decodeGooglePolyline(second);
+  if (a.length === 0) return second;
+  if (b.length === 0) return first;
+  return encodeGooglePolyline([...a, ...b.slice(1)]);
+}
+
 // ─── HERE API: multi-stop route ──────────────────────────────────────────────
 
 export async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
@@ -218,6 +257,10 @@ export async function generateRoutePolylines({
   fallbackTravelMode = 'driving',
   directionsLegs = null, // optional: array to sync durations into (main path only)
   routeStops = null,     // optional: full routeStops for directionsLegs index lookup (main path only)
+  viaPointAfterOrigin = null, // { lat, lon } live driver GPS — inserted as a via waypoint
+                              // right after the origin (first mode group only). Current-leg
+                              // polyline bends through the driver's position; the first
+                              // stop's ETA/distance metrics use the GPS→stop leg only.
 }) {
   const polylineByDeliveryId = new Map();
   if (!hereApiKey) return polylineByDeliveryId;
@@ -252,6 +295,8 @@ export async function generateRoutePolylines({
     ? { lat: originPoint.lat, lon: originPoint.lon }
     : { lat: firstEligible.lat, lon: firstEligible.lng };
   const stopsToPolyline = hasOrigin ? eligibleStops : eligibleStops.slice(1);
+  const viaValid = !!(viaPointAfterOrigin && hasOrigin
+    && Number.isFinite(Number(viaPointAfterOrigin.lat)) && Number.isFinite(Number(viaPointAfterOrigin.lon)));
 
   if (stopsToPolyline.length === 0) {
     console.log(`[routePolylineGenerator] ${source} — no coord-resolvable inbound legs, skipping polylines`);
@@ -280,8 +325,10 @@ export async function generateRoutePolylines({
 
   const useGooglePoly = polylineProvider === 'google' && polylineApiKey;
 
-  const groupResults = await Promise.all(modeGroups.map(async (group) => {
-    const points = [group.fromPoint, ...group.stops.map(s => ({ lat: s.lat, lon: s.lng }))];
+  const groupResults = await Promise.all(modeGroups.map(async (group, groupIdx) => {
+    const useVia = groupIdx === 0 && viaValid;
+    const viaPoint = useVia ? [{ lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) }] : [];
+    const points = [group.fromPoint, ...viaPoint, ...group.stops.map(s => ({ lat: s.lat, lon: s.lng }))];
     const result = useGooglePoly
       ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — Google Directions THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
@@ -291,13 +338,31 @@ export async function generateRoutePolylines({
           console.error(`[routePolylineGenerator] ${source} — HERE Router v8 THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         });
-    console.log(`[routePolylineGenerator] ${source} — ${useGooglePoly ? 'Google' : 'HERE'} ${group.mode} returned ${result.sections.length} sections for ${points.length} points`);
-    return { group, sections: result.sections || [] };
+    console.log(`[routePolylineGenerator] ${source} — ${useGooglePoly ? 'Google' : 'HERE'} ${group.mode} returned ${result.sections.length} sections for ${points.length} points${useVia ? ' (incl. live-GPS via)' : ''}`);
+    return { group, sections: result.sections || [], useVia };
   }));
 
-  for (const { group, sections } of groupResults) {
+  for (const { group, sections, useVia } of groupResults) {
     group.stops.forEach((stop, groupLocalIndex) => {
-      const section = sections[groupLocalIndex] || null;
+      let section = null;
+      if (useVia) {
+        if (groupLocalIndex === 0) {
+          // Via split the current leg into origin→GPS (pre) + GPS→firstStop (live).
+          // Rendered polyline = both legs stitched (bends through the driver's actual
+          // position); ETA/distance metrics use ONLY the GPS→firstStop leg so the
+          // next stop's ETA reflects where the driver is right now.
+          const preLeg = sections[0] || null;
+          const liveLeg = sections[1] || null;
+          section = {
+            ...liveLeg,
+            encoded_polyline: mergeGooglePolylines(preLeg?.encoded_polyline, liveLeg?.encoded_polyline),
+          };
+        } else {
+          section = sections[groupLocalIndex + 1] || null;
+        }
+      } else {
+        section = sections[groupLocalIndex] || null;
+      }
       polylineByDeliveryId.set(stop.delivery.id, {
         encodedPolyline: section?.encoded_polyline || null,
         estimatedDistanceKm: section?.estimated_distance_km ?? null,
