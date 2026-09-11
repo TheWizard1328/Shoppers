@@ -4,6 +4,33 @@ import App from '@/App.jsx'
 import '@/index.css'
 import { startAuthTokenBridge } from '@/lib/authTokenBridge'
 
+// ── Global rate-limit flag broadcaster ──────────────────────────────────────
+// The Base44 SDK logs "[Base44 SDK Error] ... Rate limit exceeded" via
+// console.error on EVERY 429 it hits, from any code path (entity fetch,
+// backend function invoke, etc.). ErrorFlagIndicator (the stats-card flag) and
+// ConnectionRecoveryBanner both already listen for a 'rateLimitDetected' /
+// 'connectionError' window event to turn red for 5s — but nothing in the app
+// ever dispatched those events, so the flag has never actually gone red despite
+// real rate-limit storms (confirmed Sep 10 2026). Sniffing console.error for the
+// SDK's own uniform error signature is a single choke point that catches every
+// 429 app-wide without touching dozens of individual catch blocks.
+(function installRateLimitSniffer() {
+  const origError = console.error;
+  console.error = function (...args) {
+    try {
+      const text = args.map((a) => {
+        if (typeof a === 'string') return a;
+        try { return JSON.stringify(a); } catch { return String(a); }
+      }).join(' ');
+      if (/rate limit/i.test(text) || /\b429\b/.test(text)) {
+        window.dispatchEvent(new CustomEvent('rateLimitDetected', { detail: { hasError: true, source: 'console' } }));
+      }
+    } catch (_) { /* never let the sniffer break logging */ }
+    return origError.apply(console, args);
+  };
+})();
+// ────────────────────────────────────────────────────────────────────────────
+
 // ── Global chunk-load error handler ─────────────────────────────────────────
 // When Vite rebuilds after a deploy, dynamic import() calls in open tabs reference
 // old hashed chunk filenames that no longer exist on the server (404). This produces
