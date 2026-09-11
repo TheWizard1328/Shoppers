@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -473,6 +474,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
   const handleSave = async (updates) => {
     if (editingRecord?.id) {
       const updated = await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
+      invalidateDriverDailyActivityCache(editingRecord.driver_id, editingRecord.activity_date);
       // Persist to offline DB
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');
@@ -523,6 +525,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
         activity_date: selectedDate,
         activity_segments: built
       });
+      invalidateDriverDailyActivityCache(created.driver_id, created.activity_date);
       // Persist to offline DB
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');

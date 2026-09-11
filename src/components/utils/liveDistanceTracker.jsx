@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { invalidateDriverDailyActivityCache } from './driverDailyActivityCache';
 import { haversineKm } from './geoUtils';
 import { getEdmontonDate } from './returnDeliveryBuilder';
 
@@ -113,6 +114,10 @@ class LiveDistanceTracker {
 
     console.log('📅 [LiveDistanceTracker] Created new DriverDailyActivity for', todayStr);
     return newRecord;
+
+    // Drop any cached "no record yet" result for this driver+date (another
+    // device's dashboard may hold it for up to the TTL).
+    try { invalidateDriverDailyActivityCache(driverId, todayStr); } catch (_) {}
   }
 
   /**

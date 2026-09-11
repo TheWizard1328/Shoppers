@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { haversineKm } from '@/components/utils/geoUtils';
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
+import { fetchDriverDailyActivityCached } from '@/components/utils/driverDailyActivityCache';
 import { isAppOwner } from '@/components/utils/userRoles';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
@@ -237,8 +238,8 @@ export default function DashboardView({
 
     (async () => {
       try {
-        const recs = await base44.entities.DriverDailyActivity.filter({ driver_id: currentUser.id, activity_date: selectedDateStr });
-        const segments = recs?.[0]?.activity_segments;
+        const dailyRec = await fetchDriverDailyActivityCached(currentUser.id, selectedDateStr);
+        const segments = dailyRec?.activity_segments;
         let total = baseMinutes; // fallback: span of first→last stop
         if (Array.isArray(segments) && segments.length > 0) {
           // Authoritative: sum all closed segment tots

@@ -43,12 +43,24 @@ export function hasDeliveryDataForSelection({ deliveries, selectedDateStr, selec
  * selected date. If not, fetch them from the server and persist to IDB so the
  * LiveTempBadge and sidebar dispatcher badges have data to display.
  */
+// Dates the server CONFIRMED have zero RxTempLogs this session. Without this,
+// "no logs in IDB" is indistinguishable from "never fetched", so the dashboard
+// re-fired this server fetch on every effect run — for every quiet date, all
+// day long (429 storm amplifier, Sep 10 2026). New logs for a verified-empty
+// date still arrive via WebSocket → IDB → rxTempLogsUpdated; a reload re-verifies
+// each date once. Failed fetches are NOT marked (retry next run).
+const _tempLogDatesVerifiedEmpty = new Set();
+
 export async function ensureTempLogsForDate({ selectedDateStr, currentUser }) {
   if (!selectedDateStr || !currentUser?.id) return;
   try {
     const all = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
     const existing = (all || []).filter((l) => l?.delivery_date === selectedDateStr);
-    if (existing.length > 0) return; // already have data — nothing to do
+    if (existing.length > 0) {
+      _tempLogDatesVerifiedEmpty.delete(selectedDateStr); // logs exist again
+      return; // already have data — nothing to do
+    }
+    if (_tempLogDatesVerifiedEmpty.has(selectedDateStr)) return; // server already confirmed empty
 
     // No data in IDB for this date — pull from server
     const { base44 } = await import('@/api/base44Client');
@@ -57,6 +69,9 @@ export async function ensureTempLogsForDate({ selectedDateStr, currentUser }) {
       await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, logs);
       // Notify LiveTempBadge and sidebar badges to re-read
       window.dispatchEvent(new CustomEvent('rxTempLogsUpdated', { detail: { delivery_date: selectedDateStr } }));
+    } else {
+      // Server confirms zero logs for this date — stop refetching until reload
+      _tempLogDatesVerifiedEmpty.add(selectedDateStr);
     }
-  } catch (_) { /* non-critical */ }
+  } catch (_) { /* non-critical — not marked verified, retries next run */ }
 }

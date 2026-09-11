@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { base44 } from '@/api/base44Client';
 import { calculateDeliveryPay } from '@/components/utils/payCalculator';
+import { fetchDriverDailyActivityCached, invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
+
+// Last-seen driver_status per driver — duty toggles (on_duty/off_duty/on_break)
+// always accompany DriverDailyActivity segment changes, so a status flip is the
+// signal to drop that driver's cached segments instead of waiting out the TTL.
+const _lastSeenDriverStatus = new Map();
 
 /**
  * Computes performance stats (pay, km, extra km, duty time) for the currently
@@ -262,11 +268,18 @@ export function useLocalPerformanceStats({
 
       (async () => {
         try {
-          const recs = await base44.entities.DriverDailyActivity.filter({
-            driver_id: segDriverId,
-            activity_date: segDate
-          });
-          const segments = recs?.[0]?.activity_segments;
+          // Duty-toggle invalidation: driver_status change ⇒ segments changed.
+          // (Was a raw server fetch on EVERY WS event — see driverDailyActivityCache.js)
+          const segAppUser = (appUsers || []).find(au => au?.user_id === segDriverId)
+            || (freshAppUserMap && freshAppUserMap[segDriverId]);
+          const segStatus = segAppUser?.driver_status || null;
+          const prevStatus = _lastSeenDriverStatus.get(segDriverId);
+          if (prevStatus !== undefined && prevStatus !== segStatus) {
+            invalidateDriverDailyActivityCache(segDriverId, segDate);
+          }
+          _lastSeenDriverStatus.set(segDriverId, segStatus);
+          const dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate);
+          const segments = dailyRec?.activity_segments;
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
             const ranges = segments
