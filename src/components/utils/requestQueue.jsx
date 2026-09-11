@@ -17,6 +17,11 @@ class RequestQueue {
     this.queue = [];
     this.processing = false;
     this.pendingRequests = new Map(); // Key: request hash, Value: { promise, timestamp }
+    // Global 429 backoff — when ANY queued request returns 429, pause the entire
+    // queue so every caller backs off together instead of each device continuing
+    // to hammer the server at 600ms intervals (the root cause of the 429 storm).
+    this.rateLimitUntil = 0;
+    this.rateLimitBackoffMs = 30000; // 30s initial, escalates to 60s on repeat 429s
   }
 
   /**
@@ -89,6 +94,17 @@ class RequestQueue {
 
     while (this.queue.length > 0) {
       const { requestFn, requestName, resolve, reject } = this.queue.shift();
+
+      // GLOBAL 429 BACKOFF: if a recent request was rate-limited, wait until the
+      // backoff window expires before firing the next one. This pauses ALL queued
+      // callers together so the whole device backs off, not just the one request
+      // that got 429'd — preventing the storm where every device keeps hammering
+      // at 600ms intervals after the server says "stop".
+      const rateWait = this.rateLimitUntil - Date.now();
+      if (rateWait > 0) {
+        console.warn(`⏰ [RequestQueue] Rate-limited — pausing ${Math.round(rateWait / 1000)}s before "${requestName}"`);
+        await new Promise(r => setTimeout(r, rateWait));
+      }
       
       // Calculate wait time to maintain spacing
       const now = Date.now();
@@ -102,13 +118,15 @@ class RequestQueue {
 
       this.lastRequestTime = Date.now();
 
+      // Declare outside try so the catch block can clear the timeout if the
+      // request rejects (otherwise the pending timeout fires as a no-op later).
+      let timeoutId;
       try {
         console.log(`📤 [RequestQueue] Executing request: "${requestName}"`);
         // TIMEOUT RACE: never let a hung fetch stall the queue. If the underlying
         // request exceeds REQUEST_TIMEOUT_MS, reject it and move on — the next
         // refresh cycle retries. The abandoned request's late resolve() is a no-op
         // on an already-settled promise.
-        let timeoutId;
         const timeoutPromise = new Promise((_, timeoutReject) => {
           timeoutId = setTimeout(
             () => timeoutReject(new Error(`Request "${requestName}" timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)),
@@ -117,14 +135,39 @@ class RequestQueue {
         });
         const result = await Promise.race([requestFn(), timeoutPromise]);
         clearTimeout(timeoutId);
+        // Success — reset backoff escalation to the floor
+        this.rateLimitBackoffMs = 30000;
         resolve(result);
       } catch (error) {
-        console.warn(`❌ [RequestQueue] Request failed: "${requestName}" -`, error.message);
+        clearTimeout(timeoutId);
+        // 429 detection: detect rate-limit responses from any error shape the SDK
+        // throws (response.status, message containing "429"/"Rate limit", or a
+        // numeric code). On 429, arm the global backoff window and reject this
+        // request — the next iteration of this loop waits for the window to clear.
+        const is429 = error?.response?.status === 429 ||
+          error?.status === 429 ||
+          error?.code === 429 ||
+          (error?.message && (/429/.test(error.message) || /rate limit/i.test(error.message)));
+        if (is429) {
+          this.rateLimitUntil = Date.now() + this.rateLimitBackoffMs;
+          // Escalate: 30s → 60s on consecutive 429s
+          this.rateLimitBackoffMs = this.rateLimitBackoffMs === 30000 ? 60000 : this.rateLimitBackoffMs;
+          console.warn(`⏰ [RequestQueue] 429 on "${requestName}" — backing off ${Math.round(this.rateLimitBackoffMs / 1000)}s (all queued callers paused)`);
+        } else {
+          console.warn(`❌ [RequestQueue] Request failed: "${requestName}" -`, error?.message || error);
+        }
         reject(error);
       }
     }
 
     this.processing = false;
+  }
+
+  /**
+   * Check if the queue is currently in a rate-limit backoff window
+   */
+  isRateLimited() {
+    return Date.now() < this.rateLimitUntil;
   }
 
   /**

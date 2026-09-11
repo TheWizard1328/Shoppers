@@ -36,6 +36,10 @@ export default function useLiveBreadcrumbsSync({
   const refreshBusyRef = useRef(false);
   const debounceTimerRef = useRef(null);
   const pendingEventRef = useRef(null);
+  // Buffer for live trail points received while the UI is backgrounded —
+  // flushed on resume. Must live at hook top level (not inside useEffect)
+  // because useRef is a hook and cannot be called inside a callback.
+  const pendingHiddenPointsRef = useRef([]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -104,8 +108,6 @@ export default function useLiveBreadcrumbsSync({
         }
       }, 500);
     };
-
-    const pendingHiddenPointsRef = useRef([]);
 
     const append = (event) => {
       const { point, ...detail } = event?.detail || {};

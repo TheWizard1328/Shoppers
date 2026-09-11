@@ -540,7 +540,7 @@ class LightweightRefreshManager {
       console.log('📍 [SmartRefresh] Refreshing driver locations...');
       await this.waitForRateLimit();
       
-      const freshAppUsers = await base44.entities.AppUser.list();
+      const freshAppUsers = await queueEntityRequest(() => base44.entities.AppUser.list(), 'SmartRefresh driver locations');
       
       this.recordSuccess();
       
