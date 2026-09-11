@@ -52,7 +52,6 @@ export default function FABControls({
   immersiveOverlayStore,
   immersiveIsInterStore,
   immersiveInterStoreLocation,
-  immersiveIsCyclingMarker,
 }) {
   const { isMobile } = useDevice();
   const hasVisibleCards = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB;
@@ -89,23 +88,15 @@ export default function FABControls({
       ? (immersiveOverlayStore?.phone || null)
       : (immersiveOverlayPatient?.phone || immersiveOverlayPatient?.phone_secondary || null);
 
-  // Cycling markers (Cycling Start/End) have no patient/store — use the
-  // marker's own cycling_latitude/cycling_longitude for the Navigate FAB.
-  const immersiveNavLat = immersiveIsCyclingMarker
-    ? immersiveOverlayDelivery?.cycling_latitude
-    : immersiveIsInterStore
-      ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude)
-      : immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude;
-  const immersiveNavLon = immersiveIsCyclingMarker
-    ? immersiveOverlayDelivery?.cycling_longitude
-    : immersiveIsInterStore
-      ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude)
-      : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude;
-  const immersiveNavAddress = immersiveIsCyclingMarker
-    ? null
-    : immersiveIsInterStore
-      ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address)
-      : immersiveOverlayIsPickup ? immersiveOverlayStore?.address : immersiveOverlayPatient?.address;
+  const immersiveNavLat = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude)
+    : immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude;
+  const immersiveNavLon = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude)
+    : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude;
+  const immersiveNavAddress = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address)
+    : immersiveOverlayIsPickup ? immersiveOverlayStore?.address : immersiveOverlayPatient?.address;
 
   const handleImmersiveCall = () => {
     if (!immersivePatientPhone) return;
@@ -136,7 +127,6 @@ export default function FABControls({
             type="button"
             onClick={handleImmersiveCall}
             title="Call patient"
-            aria-label="Call patient"
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
             style={{ touchAction: 'manipulation' }}
           >
@@ -158,7 +148,6 @@ export default function FABControls({
             type="button"
             onClick={handleImmersiveNavigate}
             title="Open in Google Maps"
-            aria-label="Open in Google Maps"
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 transition-colors hover:bg-blue-200"
             style={{ touchAction: 'manipulation' }}
           >

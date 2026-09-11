@@ -12,7 +12,6 @@ import { clearUserCache, patchEffectiveUserCacheFields } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 import { applyTerminalStatusGuard } from '../utils/completionLockout';
-import { isUIHidden, deferOrRunUI } from '../utils/uiGate';
 
 /**
  * useLayoutEventHandlers
@@ -467,13 +466,6 @@ export function useLayoutEventHandlers({
         console.log('🔒 [Layout] deliveriesUpdated ignored — UI locked during filter-change sync');
         return;
       }
-      // UI GATE: while backgrounded/screen-off, defer the state application —
-      // last event per key wins (WS payloads are full-date IDB snapshots).
-      // Replayed on resume; the handler then applies the freshest snapshot.
-      if (isUIHidden()) {
-        deferOrRunUI('layoutDeliveries', () => handleDeliveriesUpdated(event));
-        return;
-      }
       const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement, trustIsNextDelivery } = event.detail || {};
       const { forcePolylineUpdate } = event.detail || {};
 
@@ -546,12 +538,6 @@ export function useLayoutEventHandlers({
     const handleAppUserUpdated = (event) => {
       const { appUser, fromLocationTracker } = event.detail || {};
       if (!appUser?.id) return;
-      // UI GATE: defer while backgrounded — heartbeat/GPS echoes arrive every
-      // 15s per driver; one replay per user on resume covers them all.
-      if (isUIHidden()) {
-        deferOrRunUI(`layoutAppUser:${appUser.id}`, () => handleAppUserUpdated(event));
-        return;
-      }
       setAppUsers((prev) => {
         const m = new Map(prev.map((u) => [u.id, u]));
         const existing = m.get(appUser.id);
@@ -598,10 +584,6 @@ export function useLayoutEventHandlers({
     const handlePullToSyncDataReady = (event) => {
       if (isUiLocked()) {
         console.log('🔒 [Layout] pullToSyncDataReady ignored — UI locked during filter-change sync');
-        return;
-      }
-      if (isUIHidden()) {
-        deferOrRunUI('layoutPullToSync', () => handlePullToSyncDataReady(event));
         return;
       }
       const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers, deliveries: freshDeliveries } = event.detail || {};

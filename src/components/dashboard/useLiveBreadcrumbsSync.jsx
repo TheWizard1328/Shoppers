@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { loadBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
-import { isUIHidden, deferOrRunUI, onUIResume } from '@/components/utils/uiGate';
 
 /**
  * PERF FIX: The `refresh` function calls `loadBreadcrumbsForDriver` which reads
@@ -67,13 +66,6 @@ export default function useLiveBreadcrumbsSync({
       // it replaces the pending one and resets the timer. This collapses bursts
       // of 5-10 `deliveriesUpdated` events from a single delivery action into
       // one `loadBreadcrumbsForDriver` call.
-      // UI GATE: while backgrounded, defer the latest refresh — the IDB read +
-      // polyline decode + setState replay once on resume. Breadcrumb WRITES
-      // (collectBreadcrumb in locationTracker) are untouched.
-      if (isUIHidden()) {
-        deferOrRunUI('breadcrumbRefresh', () => refresh(event));
-        return;
-      }
       pendingEventRef.current = event;
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
@@ -105,20 +97,10 @@ export default function useLiveBreadcrumbsSync({
       }, 500);
     };
 
-    const pendingHiddenPointsRef = useRef([]);
-
     const append = (event) => {
       const { point, ...detail } = event?.detail || {};
       if (!point || !matches(detail)) return;
       if (!isMountedRef.current) return;
-
-      // UI GATE: while backgrounded, queue live trail points; flush on resume.
-      // Unlike the gates above this is a QUEUE (not last-wins) — every point of
-      // the day's trajectory matters for the trail rendering.
-      if (isUIHidden()) {
-        pendingHiddenPointsRef.current.push(point);
-        return;
-      }
       setBreadcrumbsData((prev) => {
         if (!prev) return prev;
         if (prev?.current?.some((p) => Number(p?.timestamp) === Number(point.timestamp))) return prev;
@@ -151,23 +133,7 @@ export default function useLiveBreadcrumbsSync({
     window.addEventListener('routeReordered', refresh);
     window.addEventListener('breadcrumbCollected', append);
     window.addEventListener('driverResumedAfterAbsence', handleResumeAfterAbsence);
-
-    // UI GATE: flush queued background trail points on resume.
-    const unsubscribeUiResume = onUIResume(() => {
-      if (!isMountedRef.current) return;
-      const pending = pendingHiddenPointsRef.current;
-      pendingHiddenPointsRef.current = [];
-      if (pending.length === 0) return;
-      setBreadcrumbsData((prev) => {
-        if (!prev) return prev;
-        const existing = new Set((prev?.current || []).map((p) => Number(p?.timestamp)));
-        const toAdd = pending.filter((p) => !existing.has(Number(p?.timestamp)));
-        if (toAdd.length === 0) return prev;
-        return { historical: prev?.historical || [], current: [...(prev?.current || []), ...toAdd] };
-      });
-    });
     return () => {
-      unsubscribeUiResume();
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;

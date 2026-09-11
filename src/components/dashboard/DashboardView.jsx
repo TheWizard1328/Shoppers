@@ -561,7 +561,6 @@ function DashboardView({
           immersiveOverlayStore={immersiveOverlayStore}
           immersiveIsInterStore={immersiveIsInterStore}
           immersiveInterStoreLocation={immersiveInterStoreLocation}
-          immersiveIsCyclingMarker={immersiveIsCyclingMarker}
         />
       }
 

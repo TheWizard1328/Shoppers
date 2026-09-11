@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { locationTracker } from "@/components/utils/locationTracker";
-import { isUIHidden, deferOrRunUI } from "@/components/utils/uiGate";
 
 // ── Battery/CPU tuning (Sep 8 2026) ─────────────────────────────────────────
 // Hybrid gate for pushing the live driver position into React state:
@@ -203,18 +202,6 @@ export default function useDriverLocationSync({
       if (userId && userId !== currentUser.id) return;
       if (!latitude || !longitude) return;
 
-      // UI GATE: while backgrounded/screen-off, defer ALL downstream UI work —
-      // the blue-dot marker, proximity snap, and Phase 2/3 auto-pan re-render the
-      // map for nobody. GPS itself is native (@capgo foreground service) and
-      // keeps writing to the server; the LATEST position replays on resume, so
-      // the dot lands exactly where the driver is the moment they look.
-      // Proximity wake while screen-off is handled natively by the APK's
-      // full-screen-intent proximity trigger, not by this JS pan logic.
-      if (isUIHidden()) {
-        deferOrRunUI('driverPositionTick', () => handleTrackerPosition(event));
-        return;
-      }
-
       const newLocation = { latitude, longitude, timestamp, accuracy, source: source || 'tracker' };
 
       // Always update the driver location state — this is what moves the blue dot.
@@ -328,13 +315,6 @@ export default function useDriverLocationSync({
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const handleSharedLocationUpdate = (event) => {
-      // UI GATE: map auto-pan triggers are meaningless while backgrounded —
-      // defer the latest WS location batch; replay re-fires the trigger on resume.
-      if (isUIHidden()) {
-        deferOrRunUI('sharedLocationUpdate', () => handleSharedLocationUpdate(event));
-        return;
-      }
-
       const now = Date.now();
 
       // Only act when the map is locked in Phase 2 or 3.
