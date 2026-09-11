@@ -791,7 +791,9 @@ export default function PolylineViewer({ users = [] }) {
       if (res?.data?.success) {
         const travelDistKm = res.data.travelDistKm;
         const deliveryId = res.data.deliveryId;
-        toast.success(`Stop #${pending.item.stop_order} auto-saved.`);
+        toast.success(res.data.deliveryMissing
+          ? `Stop #${pending.item.stop_order} auto-saved to breadcrumb only — matching delivery no longer exists.`
+          : `Stop #${pending.item.stop_order} auto-saved.`);
         setBreadcrumbs(prev => prev.map(b =>
           b.id === pending.item.id ? { ...b, encoded_polyline: newPoly, point_count: points.length } : b
         ));
@@ -985,7 +987,13 @@ export default function PolylineViewer({ users = [] }) {
       if (res?.data?.success) {
         const travelDistKm = res.data.travelDistKm;
         const deliveryId = res.data.deliveryId;
-        toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
+        if (res.data.deliveryMissing) {
+          // Delivery was deleted/renumbered after the crumb leg was recorded —
+          // the cleaned polyline is persisted on the breadcrumb record only.
+          toast.success(`Stop #${item.stop_order} saved to breadcrumb only — matching delivery no longer exists (stop deleted/renumbered).`);
+        } else {
+          toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
+        }
         pendingCleanRef.current = null;
         const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true, imported_from_delivery: false };
         setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
@@ -1047,13 +1055,20 @@ export default function PolylineViewer({ users = [] }) {
 
   // ── Import delivery polyline → breadcrumb ────────────────────────────────
   const handleImportDeliveryToCrumb = async (item) => {
-    const matchingDelivery = deliveries.find(d =>
+    const candidates = deliveries.filter(d =>
       d.driver_id === item.driver_id &&
       d.delivery_date === item.delivery_date &&
       d.stop_order === item.stop_order
     );
-    if (!matchingDelivery?.encoded_polyline) {
-      toast.error('No polyline found on the matching Delivery record.');
+    // Mirror the backend's preference: a real stop beats a cycling marker when
+    // both share the stop_order (legacy cycling-marker stop_order bug).
+    const matchingDelivery = candidates.find(d => !d.is_cycling_marker) || candidates[0];
+    if (!matchingDelivery) {
+      toast.error(`Stop #${item.stop_order}: no matching Delivery record (stop was deleted or renumbered) — nothing to import.`);
+      return;
+    }
+    if (!matchingDelivery.encoded_polyline) {
+      toast.error(`Stop #${item.stop_order}: the Delivery has no planned polyline to import (polyline was never generated for this stop).`);
       return;
     }
     setIsImportingCrumb(true);

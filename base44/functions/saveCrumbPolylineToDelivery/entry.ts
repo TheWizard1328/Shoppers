@@ -56,16 +56,18 @@ Deno.serve(async (req) => {
       stop_order: stopOrder,
     });
 
-    if (!deliveries || deliveries.length === 0) {
-      return Response.json({ error: `No delivery found for driver ${driverId}, date ${deliveryDate}, stop ${stopOrder}` }, { status: 404 });
-    }
-
     // If multiple deliveries share the same stop_order (e.g., from a previous
     // cycling marker stop_order bug), prefer the non-cycling-marker delivery —
     // cycling markers are waypoints, not stops that need polyline updates.
-    const delivery = deliveries.length === 1
-      ? deliveries[0]
-      : deliveries.find(d => !d.is_cycling_marker) || deliveries[0];
+    // The delivery may also legitimately be GONE (stop deleted / renumbered
+    // after the crumb leg was recorded). Previously that 404'd and the user's
+    // cleaned polyline was lost entirely; now we persist the breadcrumb record
+    // and report deliveryMissing so the client can say so (Sep 10 2026).
+    const delivery = !deliveries || deliveries.length === 0
+      ? null
+      : (deliveries.length === 1
+          ? deliveries[0]
+          : deliveries.find(d => !d.is_cycling_marker) || deliveries[0]);
 
     // 2. Decode polyline at breadcrumb precision (1e5) and calculate Haversine distance
     const haversineKm = (lat1, lon1, lat2, lon2) => {
@@ -87,11 +89,14 @@ Deno.serve(async (req) => {
     const deliveryEncodedPolyline = encodePolylineAt(points, DELIVERY_PRECISION);
 
     // Update Delivery with re-encoded polyline + travel distance + timestamp in ONE write.
-    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+    // (Skipped when the delivery was deleted — breadcrumb-only save.)
+    if (delivery) {
+      await base44.asServiceRole.entities.Delivery.update(delivery.id, {
       encoded_polyline: deliveryEncodedPolyline,
       travel_dist: travelDist,
       polyline_saved_at: new Date().toISOString(),
     });
+    }
 
     // 4. Update DeliveryBreadcrumbs record — save cleaned polyline at breadcrumb precision (1e5)
     const crumbs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
@@ -111,11 +116,14 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
-      deliveryId: delivery.id,
+      deliveryId: delivery ? delivery.id : null,
       breadcrumbId,
       travelDistKm: travelDist,
       deliveryEncodedPolyline,
-      message: `Delivery stop #${stopOrder} polyline updated, travel_dist ${travelDist} km saved.`,
+      deliveryMissing: !delivery,
+      message: delivery
+        ? `Delivery stop #${stopOrder} polyline updated, travel_dist ${travelDist} km saved.`
+        : `Stop #${stopOrder}: no matching delivery (deleted/renumbered) — breadcrumb saved only.`,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
