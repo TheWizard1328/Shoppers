@@ -99,21 +99,7 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     const offlineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
     // Only purge records that belong to city stores AND are absent from the fresh server response
     const freshIds = new Set((freshDeliveries || []).map(d => d?.id).filter(Boolean));
-    const cityScopedExisting = (offlineForDate || []).filter(d =>
-      d?.id && !(selectedCityId && cityStoreIds.length > 0 && !cityStoreIds.includes(d?.store_id) && !d?.is_cycling_marker)
-    );
-    // EMPTY-RESPONSE GUARD (Sep 10, 2026): a completely empty freshDeliveries fetch
-    // used to be treated as "the server confirms zero deliveries for this scope" and
-    // every city-scoped IDB record got purged as "stale" — then STEP 4 re-read the
-    // now-empty IDB and did a full-replacement, wiping the whole dashboard a split
-    // second after boot's offline-snapshot render (before any movement/WS event).
-    // A transient empty response (network race, city filter not fully resolved yet,
-    // RLS/index propagation lag) is indistinguishable from a real "all deleted" state
-    // without re-verifying — so if we have existing city-scoped records and the fresh
-    // fetch came back with nothing, skip the purge entirely and let the (already
-    // re-verify-guarded) priority sync / WS paths reconcile deletions instead.
-    const suspiciousEmptyResponse = freshDeliveries.length === 0 && cityScopedExisting.length > 0;
-    const staleIds = suspiciousEmptyResponse ? [] : (offlineForDate || [])
+    const staleIds = (offlineForDate || [])
       .filter(d => {
         if (!d?.id) return false;
         if (freshIds.has(d.id)) return false; // still present on server — keep
@@ -121,9 +107,6 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
         return true; // city-scoped AND gone from server — safe to purge
       })
       .map(d => d?.id).filter(Boolean);
-    if (suspiciousEmptyResponse) {
-      console.warn(`⚠️ [FilterSync] Suspicious empty delivery fetch for ${selectedDateStr} with ${cityScopedExisting.length} existing city-scoped records — skipping purge to avoid dashboard wipe`);
-    }
     if (staleIds.length > 0) {
       await Promise.all(staleIds.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})));
     }

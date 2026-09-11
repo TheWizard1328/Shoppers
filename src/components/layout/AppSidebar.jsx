@@ -170,7 +170,7 @@ export default function AppSidebar({
 <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200] bg-surface border-surface`}>
   <div className="border-b p-4 flex-shrink-0 border-surface">
     <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex items-center gap-3">
         {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
         {sidebarOpen &&
               <button
@@ -199,19 +199,19 @@ export default function AppSidebar({
           </div>
               }
 
-        <div className="min-w-0 overflow-hidden">
-          <h2 className="font-bold text-lg text-body truncate">
+        <div>
+          <h2 className="font-bold text-lg text-body">
             {'RxDeliver'}
           </h2>
-          <p className="text-xs text-soft truncate">Pharmacy Logistics</p>
-          <div className="flex items-center gap-1 min-w-0">
-            <p className="text-xs text-soft whitespace-nowrap">{appVersion}</p>
-            {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <div className="flex-shrink-0"><BatteryIndicator /></div>}
+          <p className="text-xs text-soft">Pharmacy Logistics</p>
+          <div className="flex items-center gap-1">
+            <p className="text-xs text-soft">{appVersion}</p>
+            {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2">
         {/* Show controls in navigation panel when tablet landscape OR landscape mobile */}
         {deviceType === 'Tablet' && !isTabletPortrait || !isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0 ?
               <>

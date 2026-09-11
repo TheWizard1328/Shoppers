@@ -952,29 +952,11 @@ export default function DriverPayroll() {
       if (!isAutoRefresh) setIsLoadingPayroll(true);
       try {
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
-        // Retry on 429 rate-limit errors (seen live: busy-evening API storms made
-        // the single invoke 429 and left the page blank). Backoff: 3s, 8s, 15s.
-        const payload = {
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId,
           payrollPaginationMode: 'full_year'
-        };
-        const retryDelays = [3000, 8000, 15000];
-        let response;
-        for (let attempt = 0; ; attempt++) {
-          try {
-            response = await base44.functions.invoke('getAdminMetricsAndPayrollData', payload);
-            break;
-          } catch (invokeError) {
-            const status = invokeError?.response?.status || invokeError?.status;
-            const isRateLimit = status === 429 || /rate limit/i.test(invokeError?.message || '') || /rate limit/i.test(invokeError?.data?.message || '');
-            if (!isRateLimit || attempt >= retryDelays.length) throw invokeError;
-            const waitMs = retryDelays[attempt];
-            console.warn(`⚠️ [DriverPayroll] Rate limited (429) — retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${retryDelays.length})`);
-            toast.info(`Server busy — retrying payroll load (${attempt + 1}/${retryDelays.length})…`);
-            await new Promise((r) => setTimeout(r, waitMs));
-          }
-        }
+        });
         const rawData = response?.data?.payrollData || response?.payrollData;
         const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
 
@@ -993,12 +975,7 @@ export default function DriverPayroll() {
         return data;
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
-        const status = error?.response?.status || error?.status;
-        if (status === 429 || /rate limit/i.test(error?.message || '')) {
-          toast.error('Server rate limit hit — wait ~30s and pull to refresh.');
-        } else {
-          toast.error(error?.response?.data?.error || error?.message || 'Failed to refresh payroll data');
-        }
+        toast.error(error?.response?.data?.error || error?.message || 'Failed to refresh payroll data');
         throw error;
       } finally {
         fetchPayrollInFlightRef.current = null;

@@ -702,12 +702,6 @@ function DeliveryMap({
       if (!user.current_latitude || !user.current_longitude) return null;
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
 
-      // ── SELF-EXCLUSION for drivers on mobile (Sep 10 2026) ──
-      // The live GPS dot (currentDriverMarker) already renders the driver's own
-      // position. A shared-server self marker here trails behind it (duplicate
-      // marker bug). Drop self from the shared-markers memo entirely.
-      if (isSelf && isDriver && isMobile) return null;
-
       // ── GLOBAL HEARTBEAT CHECK — non-self markers require location update within 5 min ──
       if (!isSelf) {
         const locUpdatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;

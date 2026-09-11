@@ -157,20 +157,10 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
       console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
       
-      // Get detailed place information (retry once on transient failure — a
-      // single hiccup silently saved addresses with NULL GPS coords, which broke
-      // route polylines for that stop; Sep 10, 2026)
-      const invokePlaceDetails = () => base44.functions.invoke('googlePlaceDetails', {
+      // Get detailed place information
+      const response = await base44.functions.invoke('googlePlaceDetails', {
         place_id: prediction.place_id
       });
-      let response;
-      try {
-        response = await invokePlaceDetails();
-      } catch (firstErr) {
-        console.warn('[GoogleAddressAutocomplete] Place details failed once, retrying:', firstErr?.message || firstErr);
-        await new Promise((r) => setTimeout(r, 800));
-        response = await invokePlaceDetails();
-      }
 
       console.log('[GoogleAddressAutocomplete] Place details response:', response);
 
