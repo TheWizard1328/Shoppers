@@ -26,6 +26,15 @@ export const createOfflineSyncPriorityHelpers = ({
     invalidateEntityCache
   });
 
+  // ── FUTURE-DATE SESSION GUARD (Sep 10, 2026) ────────────────────────────────
+  // Each future date is fetched at most ONCE per app session. After the initial
+  // pass, WebSocket deliveriesUpdated events keep future dates current (the same
+  // channel that keeps today's data live) — re-fetching all 7 future dates on
+  // every priority sync was ~14 unthrottled API calls per cycle (429 fodder).
+  // A date is only marked after a SUCCESSFUL fetch; errors (e.g. 429s) leave it
+  // unmarked so the next sync retries it.
+  const _futureDatesSyncedThisSession = new Set();
+
   // ── EMPTY-FETCH SAFETY (Sep 10, 2026) ──────────────────────────────────────
   // The prune steps below treat "server returned 0 deliveries for the selected
   // date" as "everything was deleted". A TRANSIENT empty response (RLS hiccup,
@@ -111,44 +120,73 @@ export const createOfflineSyncPriorityHelpers = ({
         }
       }
 
-      // Fetch up to 7 future dates that have deliveries (check each day, stop early if none found)
+      // ── FUTURE-DATE SYNC — once per date per session (Sep 10, 2026) ─────────
+      // This loop used to run on EVERY priority sync (the dashboard fires one
+      // whenever its date-cache is >60s stale): 7 delivery fetches + up to 7
+      // cycling-marker fetches per cycle. Future-date data only needs to exist
+      // once for future-route optimization; WebSockets keep it current after.
+      // Cycling-marker fetches for future dates are REMOVED entirely — cycling
+      // markers are only ever created for same-day routes (verified 2026-09-10:
+      // 256 markers in DB, zero with a future delivery_date).
       const futureDatesToSync = [];
       for (let offset = 1; offset <= 7; offset++) {
         const futureDate = new Date(selectedDateStr + 'T00:00:00');
         futureDate.setDate(futureDate.getDate() + offset);
         const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-        futureDatesToSync.push(futureDateStr);
+        if (!_futureDatesSyncedThisSession.has(futureDateStr)) {
+          futureDatesToSync.push(futureDateStr);
+        }
+      }
+      if (futureDatesToSync.length > 0) {
+        console.log(`📅 [PrioritySyncBeforeRefresh] Future-date pass: ${futureDatesToSync.length} date(s) to check (${7 - futureDatesToSync.length} already synced this session)`);
       }
       for (const futureDateStr of futureDatesToSync) {
         try {
-          const futureDeliveries = await fetchDeliveriesDedup(futureDateStr, deliveryFilter).catch(() => []);
-          if (!futureDeliveries || futureDeliveries.length === 0) continue;
-          // Also fetch cycling markers for future date
-          if (cityStoreIds.length > 0) {
-            const futureCycling = await fetchDeliveriesDedup(futureDateStr, { is_cycling_marker: true }).catch(() => []);
-            if (futureCycling && futureCycling.length > 0) {
-              const mergedFuture = new Map(futureDeliveries.filter(d => d?.id).map(d => [d.id, d]));
-              futureCycling.forEach(d => { if (d?.id) mergedFuture.set(d.id, d); });
-              futureDeliveries.splice(0, futureDeliveries.length, ...Array.from(mergedFuture.values()));
+          let futureDeliveries = null;
+          try {
+            futureDeliveries = await fetchDeliveriesDedup(futureDateStr, deliveryFilter);
+          } catch (fetchErr) {
+            // Rate-limit/transient error — do NOT mark this date synced; the
+            // next priority sync will retry it.
+            console.warn(`⚠️ [PrioritySyncBeforeRefresh] Future-date fetch failed for ${futureDateStr} (${fetchErr?.message || 'error'}) — will retry next sync`);
+            continue;
+          }
+          _futureDatesSyncedThisSession.add(futureDateStr);
+          let futureIncoming = futureDeliveries || [];
+          const existingFutureForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === futureDateStr);
+          if (futureIncoming.length === 0 && existingFutureForDate.length > 0) {
+            // Empty-fetch safety: server says 0 but IDB holds records for this
+            // future date — re-verify once (direct call, bypassing the 20s dedup
+            // cache) before pruning, same guard philosophy as the selected date.
+            let retry = [];
+            try {
+              retry = await Delivery.filter({ delivery_date: futureDateStr, ...deliveryFilter });
+            } catch (_) { /* keep empty */ }
+            if (retry && retry.length > 0) {
+              console.warn(`⚠️ [PrioritySyncBeforeRefresh] Transient empty for future ${futureDateStr} — re-verify found ${retry.length}`);
+              futureIncoming = retry;
+            } else {
+              console.warn(`⚠️ [PrioritySyncBeforeRefresh] Server CONFIRMED 0 for future ${futureDateStr} — pruning ${existingFutureForDate.length} local record(s)`);
             }
           }
+          if (futureIncoming.length === 0) continue;
           // Upsert + prune for this future date
-          const futureIncomingIds = new Set(futureDeliveries.map(d => d?.id).filter(Boolean));
-          const existingFutureForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === futureDateStr);
+          const futureIncomingIds = new Set(futureIncoming.map(d => d?.id).filter(Boolean));
           const toDeleteFuture = existingFutureForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !futureIncomingIds.has(d.id));
           if (getSyncPaused()) {
             console.log('⏸️ [PrioritySyncBeforeRefresh] Skipping future-date bulkSave — paused during action');
+            _futureDatesSyncedThisSession.delete(futureDateStr); // not saved — retry next sync
             break;
           }
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, futureDeliveries);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, futureIncoming);
           if (toDeleteFuture.length > 0) {
             await Promise.all(toDeleteFuture.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
           }
           // Merge future deliveries into the main list for patient syncing below
           const allMerged = new Map(deliveries.filter(d => d?.id).map(d => [d.id, d]));
-          futureDeliveries.forEach(d => { if (d?.id) allMerged.set(d.id, d); });
+          futureIncoming.forEach(d => { if (d?.id) allMerged.set(d.id, d); });
           deliveries = Array.from(allMerged.values());
-          console.log(`📅 [PrioritySyncBeforeRefresh] Synced ${futureDeliveries.length} future deliveries for ${futureDateStr}`);
+          console.log(`📅 [PrioritySyncBeforeRefresh] Synced ${futureIncoming.length} future deliveries for ${futureDateStr}`);
         } catch (_) { /* non-critical — skip individual future date failures */ }
       }
 
