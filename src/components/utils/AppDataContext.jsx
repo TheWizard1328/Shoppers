@@ -328,25 +328,10 @@ export const AppDataProvider = ({ children, value }) => {
 
     if (deliveryChanged) {
       const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
-      // DELTA GUARD (Sep 10, 2026): when the base snapshot (window.__appDeliveries /
-      // deliveriesRef) was EMPTY at flush time — WS event buffered during boot, before
-      // hydration populated the sync mirror — nextDeliveries contains ONLY the delta
-      // upserts, not the full route. Full-replacing state with that delta wiped the
-      // entire dashboard down to just the WS-touched stop (driver GPS ticks updating
-      // the next stop's travel distance right after a refresh → route "cleared", then
-      // only the next stop showed until smart refresh re-fetched everything). Merge
-      // instead: React state (prev) still holds the full hydrated route, and the merge
-      // branch unions the delta into it. Same result as before when state was genuinely empty.
-      // Read the sync mirror fresh at APPLY time — by now hydration may have
-      // populated it (the merge above ran against a pre-hydration snapshot).
-      const baseSnapshot = (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries) && window.__appDeliveries.length > 0)
-        ? window.__appDeliveries
-        : (deliveriesRef.current || []);
-      const baseWasEmpty = baseSnapshot.length === 0;
       if (applyDeliveryChangesLocallyRef.current) {
         applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: deliveryDeletes });
       } else if (updateDeliveriesLocallyRef.current) {
-        updateDeliveriesLocallyRef.current(dedupedDeliveries, !baseWasEmpty);
+        updateDeliveriesLocallyRef.current(dedupedDeliveries, true);
       }
 
       if (typeof window !== 'undefined') {

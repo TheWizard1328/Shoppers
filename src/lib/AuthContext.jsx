@@ -230,22 +230,17 @@ export const AuthProvider = ({ children }) => {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await _withTimeout(base44.auth.me(), 10000, 'auth.me');
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
 
-      // Initialize IDB encryption BEFORE releasing auth (BEFORE the dashboard can
-      // mount) — the offline DB read path decrypts PHI records, and racing this
-      // against the dashboard's first IDB read caused an empty dashboard on
-      // restart ("no data until driver switch" bug, Sep 10 2026). PBKDF2 is a
-      // one-time ~50-300ms cost on boot.
+      // Initialize IDB encryption — bypass for App Owner (Preview environment IDB conflicts)
       const token = appParams.token || localStorage.getItem('base44_access_token');
       if (token) {
         if (isAppOwner(currentUser)) {
           setEncryptionBypass(true);
         } else {
-          try {
-            await initEncryption(token);
-          } catch (e) {
-            console.error('[Auth] IDB encryption init failed:', e);
-          }
+          initEncryption(token).catch((e) => console.error('[Auth] IDB encryption init failed:', e));
         }
         // Refresh native GPS POST headers on app startup in case the token
         // was refreshed while the app was killed (START_STICKY restart uses
@@ -256,10 +251,6 @@ export const AuthProvider = ({ children }) => {
           }).catch(() => {});
         }
       }
-
-      setUser(currentUser);
-      setIsAuthenticated(true);
-      setIsLoadingAuth(false);
     } catch (error) {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);

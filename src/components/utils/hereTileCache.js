@@ -176,15 +176,6 @@ let _tileFlushTimer = null;
 let _coverageCityId = null;
 export function setTileCoverageCity(cityId) { _coverageCityId = cityId; }
 
-function _dispatchTileLoadFailed(url = '') {
-  // Diagnostic (Sep 10, 2026): tile requests that fail AFTER the network fetch
-  // succeeded (or never made it out) were invisible — the map just showed gray
-  // tiles with no server-side evidence. Batch-failures get logged by
-  // HereTileUsageTracker to GoogleAPILog so "tiles won't load" incidents can be
-  // triaged remotely (request failed vs never requested vs render-side loss).
-  try { window.dispatchEvent(new CustomEvent('hereTileLoadFailed', { detail: { url } })); } catch (_) {}
-}
-
 function _dispatchTileNetworkFetch(count = 1) {
   _pendingNetworkTileCount += count;
   if (_tileFlushTimer) return;
@@ -342,14 +333,14 @@ function _fetchAndCacheFromNetwork(url, cacheKey, img, done, attempt, swControll
       img.onerror = (e) => {
         URL.revokeObjectURL(blobUrl);
         if (attempt < 1) fetchAndCache(url, cacheKey, img, done, attempt + 1);
-        else { _dispatchTileLoadFailed(url); done(e, img); }
+        else { done(e, img); }
       };
       img.src = blobUrl;
     })
     .catch(() => {
       // Final fallback — let the browser try directly
       img.onload  = () => done(null, img);
-      img.onerror = (e) => { _dispatchTileLoadFailed(url); done(e, img); };
+      img.onerror = (e) => done(e, img);
       img.src = url;
     });
 }

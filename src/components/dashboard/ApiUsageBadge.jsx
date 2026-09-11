@@ -43,43 +43,25 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     return { startISO, endISO };
   };
 
-  // Track last successful fetch for throttling visibility-triggered refetches
-  const lastFetchAtRef = useRef(0);
-
-  const fetchCounts = async (attempt = 0) => {
+  const fetchCounts = async () => {
     try {
       const { startISO, endISO } = getDayBoundsISO();
 
-      // allSettled: an AppSettings failure must not kill the counts fetch
-      // (and vice versa) — the old Promise.all made the whole badge show "..."
-      // whenever either call failed during the cold boot burst.
-      const [apiLogsRes, appSettingsRes] = await Promise.allSettled([
-        base44.entities.GoogleAPILog.filter({
-          timestamp: { $gte: startISO, $lte: endISO }
-        }),
-        base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })]
+      const [apiLogs, appSettings] = await Promise.all([
+      base44.entities.GoogleAPILog.filter({
+        timestamp: { $gte: startISO, $lte: endISO }
+      }),
+      base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })]
       );
-
-      const apiLogs = apiLogsRes.status === 'fulfilled' ? apiLogsRes.value : null;
-      const appSettings = appSettingsRes.status === 'fulfilled' ? appSettingsRes.value : null;
-      if (!apiLogs) throw new Error('GoogleAPILog fetch rejected');
 
       const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
       setSelectedApiKey(activeKey);
       setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'google'));
       setHereRoutingCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing'));
       setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));
-      lastFetchAtRef.current = Date.now();
     } catch (err) {
       // Non-critical; keep previous values
       console.warn("[ApiUsageBadge] Failed to fetch counts:", err?.message || err);
-      // BOOT RESILIENCE (Sep 10, 2026): the old code fetched exactly ONCE on
-      // mount — a transient failure during the cold-boot request burst (token
-      // refresh, 429, network not ready) left the badge stuck on "..." all day.
-      // Retry a few times with backoff.
-      if (attempt < 3) {
-        setTimeout(() => { fetchCounts(attempt + 1).catch(() => {}); }, 1500 * (attempt + 1));
-      }
     }
   };
 
@@ -88,15 +70,6 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
     // One initial fetch on load
     fetchCounts();
-
-    // Refetch when the app becomes visible again (badge may have been stuck
-    // from a failed boot fetch, or the day may have rolled over). Throttled.
-    const handleVisibility = () => {
-      if (document.hidden) return;
-      if (Date.now() - lastFetchAtRef.current < 30000) return;
-      fetchCounts().catch(() => {});
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
 
     // WebSocket-driven incremental update — just increment the HERE routing count
     // without making another API call
@@ -114,7 +87,6 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
     return () => {
       window.removeEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
-      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [currentUser, isOwner]);
 

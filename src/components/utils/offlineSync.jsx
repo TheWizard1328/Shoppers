@@ -446,23 +446,7 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   if (getSyncPaused()) return [];
   
   try {
-    let deliveries = await Delivery.filter({ delivery_date: dateStr });
-    // WIPE FIX (Sep 10, 2026): a transiently empty server response must never be
-    // treated as "everything for this date was deleted". If the fetch comes back
-    // empty while we still hold local records for the date, re-verify once —
-    // only a confirmed-empty retry may prune. This function runs on driver
-    // resume-after-absence, so a transient empty here wiped the IDB slice for
-    // the date and the next boot had nothing to render.
-    const existingForDatePre = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
-    if ((deliveries || []).length === 0 && existingForDatePre.length > 0) {
-      const retry = await Delivery.filter({ delivery_date: dateStr });
-      if ((retry || []).length > 0) {
-        console.warn(`⚠️ [LoadAndCacheDeliveries] First fetch returned 0 for ${dateStr} but re-verify found ${retry.length} — transient empty response, keeping local data`);
-        deliveries = retry;
-      } else {
-        console.warn(`⚠️ [LoadAndCacheDeliveries] Server CONFIRMED 0 deliveries for ${dateStr} (re-verified once) — proceeding with prune of ${existingForDatePre.length} local record(s)`);
-      }
-    }
+    const deliveries = await Delivery.filter({ delivery_date: dateStr });
     // Upsert fresh records, then prune any offline records that no longer exist on the server
     const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
     const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
@@ -665,21 +649,7 @@ export const forceSyncAll = async () => {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
-    let deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-    // WIPE FIX (Sep 10, 2026): same transient-empty guard as the priority-sync paths —
-    // never prune the date's local records off a single empty fetch; re-verify once.
-    if ((deliveries || []).length === 0) {
-      const fsExistingPre = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
-      if (fsExistingPre.length > 0) {
-        const fsRetry = await Delivery.filter({ delivery_date: selectedDateStr });
-        if ((fsRetry || []).length > 0) {
-          console.warn(`⚠️ [ForceSyncAll] First fetch returned 0 for ${selectedDateStr} but re-verify found ${fsRetry.length} — transient empty response, keeping local data`);
-          deliveries = fsRetry;
-        } else {
-          console.warn(`⚠️ [ForceSyncAll] Server CONFIRMED 0 deliveries for ${selectedDateStr} (re-verified once) — proceeding with prune of ${fsExistingPre.length} local record(s)`);
-        }
-      }
-    }
+    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
     // Upsert + prune deleted — never clear the date's data before writing
     {
       const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));

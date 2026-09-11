@@ -5,7 +5,7 @@ import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import StopCardPOD from "./StopCardPOD";
 import StopCardFooterMenu from "./StopCardFooterMenu";
-import { _cachedSquareAppId as _sharedSquareAppIdCache, fetchSquareAppId } from "./StopCard";
+import { _cachedSquareAppId as _sharedSquareAppIdCache } from "./StopCard";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
@@ -230,14 +230,7 @@ export default function StopCardActionButtons(props) {
       squareLocationStatus, isFirstCodOfDay,
     }));
     if (!effectiveAppId) {
-      // App ID fetch failed earlier (e.g. 429 rate limit). Kick off a fresh
-      // retry-capable fetch NOW and ask the driver to tap again once it lands.
-      // We can't launch Square after an await — gesture trust would break —
-      // so the re-tap (a fresh user gesture) is the correct relaunch path.
-      toast.error('Square config still loading — fetching it now. Tap Square again in a few seconds.');
-      fetchSquareAppId().then((appId) => {
-        if (appId) toast.success('Square is ready — tap the Square button again.');
-      });
+      toast.error('Square not ready yet — App ID missing.');
       return;
     }
 
