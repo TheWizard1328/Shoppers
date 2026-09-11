@@ -21,6 +21,15 @@ const { syncPatientsByIds } = patientService;
 // UI lock flag — while true, Layout ignores intermediate sync events
 let _uiLocked = false;
 
+// Re-entrancy guard — prevents concurrent filter-sync cycles. Without this, the
+// boot sequence fires syncOnFilterChange twice in ~2s (once from triggerFullDataLoad,
+// once from the globalFilters driver change from 'all' → actual driver), and BOTH
+// run concurrently making duplicate Delivery.filter + Patient.filter API calls that
+// trigger 429s. The second call now no-ops if one is already in-flight or just finished.
+let _syncInFlight = false;
+let _lastSyncFinishedAt = 0;
+const SYNC_COOLDOWN_MS = 5000; // skip re-entry within 5s of last completion
+
 export const isUiLocked = () => _uiLocked;
 
 /**
@@ -32,6 +41,21 @@ export const isUiLocked = () => _uiLocked;
  * @param {function} applyFresh     - same signature — called after sync completes
  */
 export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applySnapshot, applyFresh) => {
+  // Re-entrancy / cooldown guard — the boot sequence triggers this twice in ~2s
+  // (triggerFullDataLoad + the globalFilters driver change). Without this guard
+  // both cycles run concurrently and the duplicate Delivery.filter + Patient.filter
+  // calls are the #1 cause of the post-load 429 storm.
+  if (_syncInFlight) {
+    console.log('⏭️ [FilterSync] Skipping — sync already in flight');
+    return;
+  }
+  if (Date.now() - _lastSyncFinishedAt < SYNC_COOLDOWN_MS) {
+    console.log(`⏭️ [FilterSync] Skipping — within ${SYNC_COOLDOWN_MS}ms cooldown of last sync`);
+    return;
+  }
+  _syncInFlight = true;
+  const _resetGuard = () => { _syncInFlight = false; _lastSyncFinishedAt = Date.now(); };
+
   // ── STEP 1: Read current offline DB and push to UI immediately ─────────────
   console.log(`🔄 [FilterSync] Step 1 — snapshot offline DB for ${selectedDateStr}`);
   try {
@@ -148,6 +172,18 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     _uiLocked = false;
     console.log('🔓 [FilterSync] Step 4 — UI unlocked, applying fresh data');
 
+    // CRITICAL: Update the cache snapshot so Dashboard's getCacheValidation check
+    // (which gates performPrioritySyncBeforeRefresh) sees fresh data and SKIPS the
+    // redundant priority sync. Without this, FilterSync syncs the deliveries but
+    // doesn't stamp the cache, so Dashboard immediately fires PrioritySyncBeforeRefresh
+    // for the same date — a duplicate sync cycle that causes 429s.
+    try {
+      await offlineDB.updateCacheSnapshot('Delivery', allDeliveriesForDate || [], {
+        scopeKey: `date:${selectedDateStr}`,
+        syncType: 'filter_change',
+      });
+    } catch (_) { /* non-critical — Dashboard will just run its own sync */ }
+
     applyFresh({
       deliveries: allDeliveriesForDate,
       patients: allPatients,
@@ -176,4 +212,5 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     ]);
     applyFresh({ deliveries: offlineDeliveries, patients: offlinePatients, appUsers: offlineAppUsers, stores: offlineStores, cities: offlineCities });
   }
+  _resetGuard();
 };
