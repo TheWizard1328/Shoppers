@@ -337,7 +337,10 @@ class DriverLocationPoller {
 
       return {
         id: user.id,
-        user_id: user.id,
+        // Preserve the real User-table foreign key (user.user_id) — overwriting it
+        // with the AppUser record id broke self-marker exclusion downstream
+        // (drivers saw their own shared marker trailing their live GPS dot).
+        user_id: user.user_id || user.id,
         driver_id: user.id,
         user_name: user.user_name || user.full_name,
         latitude: user.current_latitude,

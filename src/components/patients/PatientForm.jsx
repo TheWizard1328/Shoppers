@@ -139,6 +139,9 @@ export default function PatientForm({
   const [weeklyDays, setWeeklyDays] = useState([]);
   const [showWeeklyDays, setShowWeeklyDays] = useState(false);
   const [isAddressLookupActive, setIsAddressLookupActive] = useState(false);
+  // True when the last selected address resolved WITHOUT GPS coordinates —
+  // the stop would silently break route polylines (Sep 10, 2026 incident).
+  const [addressCoordsWarning, setAddressCoordsWarning] = useState(false);
   const isInitialLoad = useRef(true);
   const allPatientsRef = useRef(allPatients);
 
@@ -323,6 +326,14 @@ export default function PatientForm({
 
     const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(10)) : null;
     const roundedLongitude = longitude !== null ? parseFloat(longitude.toFixed(10)) : null;
+
+    // Surface missing coords IMMEDIATELY instead of silently saving a stop the
+    // router can't place (straight-line polyline fallback incident, Sep 10 2026).
+    const hasCoords = Boolean(roundedLatitude && roundedLongitude);
+    setAddressCoordsWarning(!hasCoords);
+    if (!hasCoords) {
+      console.error('[PatientForm] Address selected WITHOUT GPS coordinates — place details failed. Re-select the address to get coords.');
+    }
 
     // Set address immediately (no haversine placeholder — we wait for Google Distance Matrix)
     setFormData((prev) => ({
@@ -1100,6 +1111,11 @@ export default function PatientForm({
                       placeholder="Start typing address..."
                       className="h-10 md:h-9 text-sm"
                       disabled={isAddressLocked} />
+                    {addressCoordsWarning && (
+                      <div role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                        ⚠ No GPS coordinates for this address — tap the address field and re-select it from the dropdown, or the stop can't be routed.
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-4">
                     <Input

@@ -45,6 +45,7 @@ const KEY_VERSION_KEY = 'rxdeliver_idb_key_v';
 let _cryptoKey = null;        // CryptoKey in memory — gone on page unload
 let _isInitialized = false;
 let _isEncrypting = false;    // Flag: is encryption active?
+let _initPromise = null;      // Pending/completed initEncryption promise (restart-race guard)
 let _encryptionBypassed = false; // Flag: encryption completely bypassed (e.g. App Owner)
 
 // ─── Salt Management ─────────────────────────────────────────────────────
@@ -139,6 +140,22 @@ const deriveKey = async () => {
  */
 export const initEncryption = async (authToken) => {
   if (_encryptionBypassed) return false;
+  if (_initPromise) return _initPromise; // dedupe concurrent/repeat inits
+  _initPromise = _initEncryptionInternal(authToken);
+  return _initPromise;
+};
+
+/**
+ * Wait (bounded) for initEncryption to settle. Used by decryptRecords when it
+ * sees encrypted wrappers while the key is still deriving (restart race).
+ */
+export const waitForCryptoInit = (timeoutMs = 3000) =>
+  Promise.race([
+    _initPromise || Promise.resolve(),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]).catch(() => {});
+
+const _initEncryptionInternal = async (authToken) => {
   try {
     // Derive the AES key from STABLE material (not the rotating auth token).
     // authToken is accepted for backward-compatible callers but ignored.
@@ -178,6 +195,7 @@ export const initEncryption = async (authToken) => {
  */
 export const destroyKey = () => {
   _cryptoKey = null;
+  _initPromise = null; // allow re-init on next login
   _isEncrypting = false;
   _isInitialized = false;
   _encryptionBypassed = false;
@@ -346,7 +364,20 @@ export const decryptRecord = async (record) => {
  */
 export const decryptRecords = async (records) => {
   if (!records || !Array.isArray(records) || records.length === 0) return records;
-  if (!_isEncrypting) return records;
+  if (!_isEncrypting) {
+    // ── RESTART RACE GUARD (Sep 10, 2026) ──────────────────────────────────
+    // On app restart, checkUserAuth fires initEncryption without awaiting and
+    // the dashboard's first IDB read can land while PBKDF2 key derivation is
+    // still in flight. Returning raw __encrypted wrappers here pushed records
+    // with no renderable fields into React state — the "dashboard loads no data
+    // until driver switch" bug. If we see encrypted wrappers and an init is
+    // pending, wait (bounded) for it and re-check before giving up.
+    const hasEncrypted = records.some((r) => r && typeof r === 'object' && r.__encrypted === true);
+    if (hasEncrypted && _initPromise) {
+      await waitForCryptoInit();
+    }
+    if (!_isEncrypting) return records;
+  }
 
   const results = await Promise.all(records.map(r => decryptRecord(r)));
   // Keep all records — degraded ones still have index fields for queries.

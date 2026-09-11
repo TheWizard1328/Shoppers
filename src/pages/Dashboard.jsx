@@ -2467,7 +2467,18 @@ function Dashboard() {
         const today = selectedDateStr === getEdmDate();
         if ((await offlineDB.getCacheValidation('Delivery', { scopeKey: `date:${selectedDateStr}`, maxAgeMs: today ? 60 * 1000 : 10 * 60 * 1000, allowEmpty: true })).isValid) return;
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally) {updateDeliveriesLocally(mergeDeliveriesForDate({ deliveries, selectedDateStr, freshDeliveries }), true);}
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        // EMPTY-READ GUARD (Sep 10, 2026): never clobber the UI with an empty date
+        // read while the current state still holds records for the date — that's
+        // the "data loads on boot then gets cleared" wipe. The IDB prune paths
+        // now re-verify empty fetches, so a legitimately empty date will arrive
+        // via the normal sync/WS path instead.
+        const currentHasDateData = (deliveries || []).some((d) => d && d.delivery_date === selectedDateStr);
+        if ((!freshDeliveries || freshDeliveries.length === 0) && currentHasDateData) {
+          console.warn('⚠️ [Dashboard STEP 2] Empty IDB read for date with existing state data — skipping UI replacement to avoid dashboard wipe');
+        } else {
+          await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally) {updateDeliveriesLocally(mergeDeliveriesForDate({ deliveries, selectedDateStr, freshDeliveries }), true);}
+        }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
         const isTodaySelected = selectedDateStr === getEdmDate(),m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
         const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled'].includes(d.status));

@@ -286,7 +286,14 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // Self-marker: drivers should ALWAYS see their own location, even when off duty.
     if (isSelf && isDriver) {
       if (!user.current_latitude || !user.current_longitude) return false;
-      if (isPrimaryDeviceRef.current) return false;
+      // Primary device: the live GPS dot (currentDriverMarker in DeliveryMap)
+      // already renders self — NEVER draw the shared-server self marker.
+      // Default to primary when the flag hasn't resolved yet (safe default that
+      // matches Dashboard treating unregistered devices as primary).
+      const effectivelyPrimary = isPrimaryDeviceRef.current === true ||
+        window.__isPrimaryDevice === true ||
+        window.__isPrimaryDevice === undefined;
+      if (effectivelyPrimary) return false;
       return true;
     }
 
@@ -410,7 +417,14 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     const checkPrimary = async () => {
       const device = await getCurrentDevice(currentUser.id);
-      const isPrimary = device !== null && device?.status !== 'inactive' && device?.is_primary_tracker === true;
+      // Match Dashboard.jsx primary semantics EXACTLY (Sep 10 2026 fix):
+      // null (no UserDevice record) = unregistered primary phone -> primary.
+      // The old check (device !== null && is_primary_tracker === true) evaluated
+      // unregistered primary phones as NON-primary, so the self-exclusion below
+      // failed and drivers saw their own shared marker trailing their live dot.
+      const isPrimary = window.__isPrimaryDevice === true ||
+        device === null ||
+        (device?.status !== 'inactive' && device?.is_primary_tracker !== false);
       isPrimaryDeviceRef.current = isPrimary;
       setIsPrimaryDevice(isPrimary);
     };
@@ -730,6 +744,17 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const lat = Number(user?.current_latitude);
         const lng = Number(user?.current_longitude);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        // HARD render-time self-exclusion (Sep 10 2026): a driver on their
+        // primary device must never render a shared-server self marker —
+        // the live GPS dot already shows their position. This runs regardless
+        // of which event populated visibleDrivers or in what order.
+        if (isDriver) {
+          const _uid = String(user.id || user.user_id || '');
+          const _selfIds = new Set([String(currentUser?.id || ''), String(currentUser?.user_id || ''), String(currentUser?.appUserId || '')].filter(Boolean));
+          const _isSelfRender = user.isSelf === true || user._isSelf === true || _selfIds.has(_uid) || _selfIds.has(String(user.user_id || ''));
+          const _isPrimaryRender = isPrimaryDeviceRef.current === true || window.__isPrimaryDevice === true || window.__isPrimaryDevice === undefined;
+          if (_isSelfRender && _isPrimaryRender) return null;
+        }
         const isActive = activeDriver?.id === user.id;
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];

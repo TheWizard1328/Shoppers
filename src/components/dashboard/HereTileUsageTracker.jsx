@@ -10,6 +10,10 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady, currentUse
   // the most up-to-date user even if it arrives after the effect ran
   const currentUserRef = useRef(currentUser);
   useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+  // Tile-load failure diagnostics (Sep 10, 2026) — refs live at top level,
+  // never inside the effect (invalid hook call)
+  const pendingFailCountRef = useRef(0);
+  const failFlushTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!apiKeyReady) return;
@@ -58,10 +62,36 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady, currentUse
       scheduleFlush();
     };
 
+    // Diagnostic (Sep 10, 2026): tiles that failed to load after retries —
+    // logged separately so gray-map incidents leave server-side evidence.
+    const handleTileLoadFailed = () => {
+      pendingFailCountRef.current += 1;
+      if (failFlushTimeoutRef.current) return;
+      failFlushTimeoutRef.current = window.setTimeout(async () => {
+        failFlushTimeoutRef.current = null;
+        const count = pendingFailCountRef.current;
+        pendingFailCountRef.current = 0;
+        if (!count) return;
+        try {
+          await base44.entities.GoogleAPILog.create({
+            timestamp: getTodayTimestamp(),
+            api_type: 'Map Tiles (HERE)',
+            purpose: `${count} HERE tile(s) FAILED to load (fetch/decode error after retries)`,
+            function_name: 'HereTileUsageTracker',
+            user_id: currentUserRef.current?.user_id || null,
+            user_name: currentUserRef.current?.user_name || null,
+            metadata: { provider: 'HERE', source: 'load_failed', map_style: mapStyle || 'explore', call_count: count }
+          });
+        } catch (_) {}
+      }, 10000); // longer batch window — failures are rare, don't spam
+    };
+    window.addEventListener('hereTileLoadFailed', handleTileLoadFailed);
+
     window.addEventListener('hereTileNetworkFetch', handleNetworkFetch);
 
     return () => {
       window.removeEventListener('hereTileNetworkFetch', handleNetworkFetch);
+      window.removeEventListener('hereTileLoadFailed', handleTileLoadFailed);
       if (flushTimeoutRef.current) {
         window.clearTimeout(flushTimeoutRef.current);
         flushTimeoutRef.current = null;

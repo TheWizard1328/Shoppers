@@ -165,7 +165,7 @@ async function flushBuffered(entityName) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
-        emitGatedEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }), `wsAppUser:${data?.id || 'unknown'}`);
+        emitGatedEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }), `wsAppUser:${data?.id || 'unknown'}`, { critical: true });
         if (data.preferred_travel_mode && data.user_id) {
           window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
             detail: { driverId: data.user_id, travelMode: data.preferred_travel_mode, fromRealtime: true }
@@ -460,7 +460,7 @@ async function flushBuffered(entityName) {
           forcePolylineUpdate: hasPolylineUpdates,
           trustIsNextDelivery: true,
         }
-      }, 'wsDeliveriesUpdated'));
+      }, 'wsDeliveriesUpdated', { critical: true }));
     }
   }
 
@@ -498,7 +498,7 @@ async function flushBuffered(entityName) {
     incomingUsers.forEach((itemData) => {
       emitGatedEvent(new CustomEvent('appUserUpdated', {
         detail: { appUser: itemData, fromRealtime: true }
-      }), `wsAppUser:${itemData?.id || 'unknown'}`);
+      }), `wsAppUser:${itemData?.id || 'unknown'}`, { critical: true });
     });
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
       detail: {
