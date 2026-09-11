@@ -121,12 +121,13 @@ export async function handleBatchSave({
     return;
   }
 
-  const { deliveriesWithTRs, existingDeliveriesWithTRs } = attachTrackingNumbers({
+  const { deliveriesWithTRs, existingDeliveriesWithTRs, routePendingUpdates } = attachTrackingNumbers({
     newDeliveries,
     existingDeliveries,
     stores,
     allDeliveries,
-    deliveryDate: formData.delivery_date
+    deliveryDate: formData.delivery_date,
+    patients
   });
 
   setIsSaving(true);
@@ -556,6 +557,20 @@ export async function handleBatchSave({
           // Only run the full refresh for non-pending structural changes.
           // Pending-only / Staged→Pending transitions are already dispatched by handleBatchSaveDelivery.
           await runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
+        }
+
+        // Persist re-sequenced TR# for existing route pending stops that moved in the
+        // new sort (distance/address/unit). These were already on the route — without
+        // this, only the newly Staged→Pending stops get re-TR'd and existing pending
+        // stops keep their old positions. updateDeliveryLocal writes DB + local state
+        // so the UI reflects the re-sort immediately; the backend recalc below confirms.
+        if (routePendingUpdates.length > 0) {
+          await Promise.allSettled(routePendingUpdates.map((u) =>
+            updateDeliveryLocal(u.id, { tracking_number: u.tracking_number }, { isBatchOperation: true, skipSmartRefresh: true }).catch(() => null)
+          ));
+          window.dispatchEvent(new CustomEvent('deliveriesAffected', {
+            detail: { ids: routePendingUpdates.map((u) => u.id), action: 'trResequence', driverId: routeDriverId, deliveryDate: routeDeliveryDate }
+          }));
         }
 
         if (refreshDriverId && refreshDeliveryDate) {

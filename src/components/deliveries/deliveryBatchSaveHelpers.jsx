@@ -37,14 +37,26 @@ export const applyParentPickupStoreToNewDeliveries = (newDeliveries, allDeliveri
   });
 };
 
-export const calculateSequentialTRAssignments = ({ newItems, existingItems, stores, allDeliveries, deliveryDate }) => {
+export const calculateSequentialTRAssignments = ({ newItems, existingItems, stores, allDeliveries, deliveryDate, patients }) => {
   const groups = {};
   const assignments = new Map();
+  const routePendingUpdates = [];
+  const patientMap = new Map((patients || []).filter(Boolean).map((p) => [p.id, p]));
 
-  [...newItems, ...existingItems].forEach((delivery) => {
+  // Delivery records lack address/unit/distance — join Patient for sort fields
+  const resolveSortFields = (delivery) => {
+    const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+    return {
+      distance: Number(delivery.distanceFromStore ?? delivery.distance_from_store ?? patient?.distance_from_store),
+      address: String(delivery.delivery_address || delivery.address || patient?.address || ''),
+      unit: String(delivery.unit_number || patient?.unit_number || ''),
+      patient_name: String(delivery.patient_name || patient?.full_name || ''),
+    };
+  };
+
+  const addToGroup = (delivery) => {
     if (!delivery?.patient_id) return;
     const groupKey = `${delivery.store_id}_${delivery.driver_id}_${delivery.ampm_deliveries || 'AM'}`;
-
     if (!groups[groupKey]) {
       const store = stores?.find((item) => item && item.id === delivery.store_id);
       const pickup = allDeliveries?.find((item) => item && !item.patient_id && item.store_id === delivery.store_id && item.delivery_date === deliveryDate && item.driver_id === delivery.driver_id && (item.ampm_deliveries || 'AM') === (delivery.ampm_deliveries || 'AM'));
@@ -53,8 +65,25 @@ export const calculateSequentialTRAssignments = ({ newItems, existingItems, stor
       if (!Number.isNaN(parsedTR)) pickupTR = parsedTR;
       groups[groupKey] = { pickupTR, storeSortOrder: store?.sort_order ?? Infinity, deliveries: [] };
     }
-
     groups[groupKey].deliveries.push(delivery);
+  };
+
+  // 1. New + staged-panel existing items
+  [...newItems, ...existingItems].forEach(addToGroup);
+
+  // Track which stops are already represented (by id or tempId) to avoid double-counting
+  const representedIds = new Set();
+  [...newItems, ...existingItems].forEach((d) => { if (d?.id) representedIds.add(d.id); });
+
+  // 2. Existing PENDING stops already on the route for the same store/driver/ampm/date.
+  //    Re-sort ALL pending together (existing + newly transitioned), not just the
+  //    newly Staged→Pending ones, so the whole store re-sequences into one clean order.
+  (allDeliveries || []).forEach((delivery) => {
+    if (!delivery?.patient_id) return;
+    if (delivery.delivery_date !== deliveryDate) return;
+    if (delivery.status !== 'pending') return;
+    if (delivery.id && representedIds.has(delivery.id)) return; // already in staged panel
+    addToGroup(delivery);
   });
 
   // Process store groups in store sort order (each store has its own TR base, so
@@ -64,43 +93,46 @@ export const calculateSequentialTRAssignments = ({ newItems, existingItems, stor
     .forEach((group) => {
       [...group.deliveries]
         .sort((a, b) => {
+          const fa = resolveSortFields(a);
+          const fb = resolveSortFields(b);
           // 1. Distance from store (closest first)
-          const distA = Number(a.distanceFromStore ?? a.distance_from_store);
-          const distB = Number(b.distanceFromStore ?? b.distance_from_store);
-          const aHasDist = Number.isFinite(distA);
-          const bHasDist = Number.isFinite(distB);
-          if (aHasDist && bHasDist && Math.abs(distA - distB) > 0.01) return distA - distB;
+          const aHasDist = Number.isFinite(fa.distance);
+          const bHasDist = Number.isFinite(fb.distance);
+          if (aHasDist && bHasDist && Math.abs(fa.distance - fb.distance) > 0.01) return fa.distance - fb.distance;
           if (aHasDist && !bHasDist) return -1;
           if (!aHasDist && bHasDist) return 1;
           // 2. Address (alphabetical)
-          const addrA = String(a.delivery_address || a.address || '');
-          const addrB = String(b.delivery_address || b.address || '');
-          if (addrA && addrB && addrA !== addrB) return addrA.localeCompare(addrB);
-          if (addrA && !addrB) return -1;
-          if (!addrA && addrB) return 1;
+          if (fa.address && fb.address && fa.address !== fb.address) return fa.address.localeCompare(fb.address);
+          if (fa.address && !fb.address) return -1;
+          if (!fa.address && fb.address) return 1;
           // 3. Unit number (ascending, natural numeric order)
-          const unitA = String(a.unit_number || '');
-          const unitB = String(b.unit_number || '');
-          if (unitA !== unitB) return unitA.localeCompare(unitB, undefined, { numeric: true, sensitivity: 'base' });
+          if (fa.unit !== fb.unit) return fa.unit.localeCompare(fb.unit, undefined, { numeric: true, sensitivity: 'base' });
           // 4. Final tiebreaker: patient name
-          return String(a.patient_name || '').localeCompare(String(b.patient_name || ''));
+          return fa.patient_name.localeCompare(fb.patient_name);
         })
         .forEach((delivery, index) => {
-          assignments.set(delivery.id || delivery._tempId, String(group.pickupTR + index + 1));
+          const newTR = String(group.pickupTR + index + 1);
+          assignments.set(delivery.id || delivery._tempId, newTR);
+          // Route pending stops (already on the route, not in the staged panel) whose
+          // TR# changed in the new sort — collect so the caller persists them.
+          if (delivery.id && !representedIds.has(delivery.id) && String(delivery.tracking_number || '') !== newTR) {
+            routePendingUpdates.push({ id: delivery.id, tracking_number: newTR.padStart(2, '0') });
+          }
         });
     });
 
-  return assignments;
+  return { assignments, routePendingUpdates };
 };
 
-export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, stores, allDeliveries, deliveryDate }) => {
+export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, stores, allDeliveries, deliveryDate, patients }) => {
   const deliveriesWithCorrectStores = applyParentPickupStoreToNewDeliveries(newDeliveries, allDeliveries);
-  const trAssignments = calculateSequentialTRAssignments({
+  const { assignments: trAssignments, routePendingUpdates } = calculateSequentialTRAssignments({
     newItems: deliveriesWithCorrectStores,
     existingItems: existingDeliveries.filter((delivery) => delivery?.status === 'Staged'),
     stores,
     allDeliveries,
-    deliveryDate
+    deliveryDate,
+    patients
   });
 
   return {
@@ -110,7 +142,8 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
     })),
     existingDeliveriesWithTRs: existingDeliveries.map((delivery) => delivery?.status === 'Staged'
       ? { ...delivery, tracking_number: trAssignments.get(delivery.id || delivery._tempId) ?? delivery.tracking_number }
-      : delivery)
+      : delivery),
+    routePendingUpdates
   };
 };
 
