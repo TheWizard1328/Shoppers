@@ -691,7 +691,7 @@ export default function DeliveryForm({
     const isDMR = (patient.full_name || '').toUpperCase().includes('DMR');
     const routePickups = getRoutePickupsForStore({ allDeliveries, stagedDeliveries, storeId: patient.store_id, driverId: autoSelectedDriverId, deliveryDate: formData.delivery_date });
     const fallbackPickup = isDMR ? null : buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
-    const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
+    const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup, patientTimeStart: patient.time_window_start });
     setSelectedRoutePickup(chosenPickup);
     setPendingRoutePickup(chosenPickup?._pendingCreate ? chosenPickup : null);
     setSelectedPickupOption(buildPickupSelectValue(chosenPickup));
@@ -897,7 +897,7 @@ export default function DeliveryForm({
     if (!patientStore) return;
     const routePickups = getRoutePickupsForStore({ allDeliveries, stagedDeliveries, storeId: selectedPatient.store_id, driverId: formData.driver_id, deliveryDate: formData.delivery_date });
     const fallbackPickup = buildPendingNewPickup({ store: patientStore, formData: { ...formData, store_id: selectedPatient.store_id }, driverName: formData.driver_name, stopId: generateStopId() });
-    const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
+    const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup, patientTimeStart: selectedPatient.time_window_start });
     const nextPuid = chosenPickup?.stop_id || chosenPickup?.puid || '';
     setSelectedRoutePickup(chosenPickup); setPendingRoutePickup(chosenPickup?._pendingCreate ? chosenPickup : null); setSelectedPickupOption(buildPickupSelectValue(chosenPickup));
     setFormData((prev) => prev.puid === nextPuid && prev.store_id === selectedPatient.store_id ? prev : { ...prev, store_id: selectedPatient.store_id, puid: nextPuid });
