@@ -101,7 +101,10 @@ export async function handleBatchSave({
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   // Include Staged-status deliveries (activating to route) AND any existing delivery that was
   // directly edited by the user (status/time fields changed while viewing in the staged list).
-  const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged' || d._wasEdited);
+  // Pre-TR: Staged deliveries being activated + directly-edited existing deliveries.
+  // TR#s are merged in AFTER attachTrackingNumbers runs (below) — without that merge,
+  // these items carry their OLD tracking_number and the renumber is lost.
+  const deliveriesToUpdatePreTR = existingDeliveries.filter(d => d.status === 'Staged' || d._wasEdited);
 
   console.log('[AddToRoute] handleBatchSave:split', {
     newCount: newDeliveries.length,
@@ -111,7 +114,7 @@ export async function handleBatchSave({
     existingStatuses: existingDeliveries.map((delivery) => delivery?.status || null)
   });
 
-  if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
+  if (newDeliveries.length === 0 && deliveriesToUpdatePreTR.length === 0) {
     setStagedDeliveries([]);
     setProjectedDeliveries([]);
     hasLoadedPending.current = false;
@@ -128,6 +131,20 @@ export async function handleBatchSave({
     allDeliveries,
     deliveryDate: formData.delivery_date,
     patients
+  });
+
+  // CRITICAL: Merge renumbered TR#s from existingDeliveriesWithTRs into the update set.
+  // deliveriesToUpdatePreTR was derived BEFORE attachTrackingNumbers ran, so its items
+  // carry the OLD tracking_number. Without this merge, Staged→Pending activations write
+  // stale TR#s to the DB and the renumber silently fails.
+  const _renumberedTRById = new Map(
+    existingDeliveriesWithTRs
+      .filter((d) => d?.id && d?.status === 'Staged')
+      .map((d) => [d.id, d.tracking_number])
+  );
+  const deliveriesToUpdate = deliveriesToUpdatePreTR.map((d) => {
+    const newTR = _renumberedTRById.get(d.id);
+    return newTR ? { ...d, tracking_number: newTR } : d;
   });
 
   setIsSaving(true);
@@ -578,6 +595,18 @@ export async function handleBatchSave({
             driverId: refreshDriverId,
             deliveryDate: refreshDeliveryDate
           }).catch(() => null);
+
+          // Pull the backend-renumbered TR#s into the UI. recalculateTrackingNumbers
+          // writes correct sequential TR#s to the DB, but without this refresh the UI
+          // keeps showing the pre-recalc values from the earlier runCreateBatchRefresh.
+          try {
+            const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+            invalidate('Delivery');
+            invalidateDeliveriesForDate(refreshDeliveryDate);
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { deliveryDate: refreshDeliveryDate, driverId: refreshDriverId, triggeredBy: 'trRecalc', immediate: true }
+            }));
+          } catch { /* non-fatal */ }
 
           // CRITICAL: Only queue optimization for structural route changes.
           // Pure staged→pending transitions (deliveriesToUpdate > 0, newDeliveries === 0)
