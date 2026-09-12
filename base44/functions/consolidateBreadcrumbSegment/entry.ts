@@ -598,9 +598,13 @@ Deno.serve(async (req) => {
         ? masterPoints.slice(segStart, segEnd + 1)
         : [];
 
+      // Use the tracked stopIndex (maps walk-order back to stop_order order)
+      // instead of the raw walk-order index `s` — otherwise stops completed
+      // out of stop_order sequence get each other's trail legs swapped.
+      const stopRef = stopsWithCoords[sliceBoundaries[s].stopIndex];
       segments.push({
-        delivery: stopsWithCoords[s].delivery,
-        stopOrder: stopsWithCoords[s].delivery.stop_order,
+        delivery: stopRef.delivery,
+        stopOrder: stopRef.delivery.stop_order,
         points: segPoints,
         pointCount: segPoints.length,
         matchDistance: sliceBoundaries[s].distance,
