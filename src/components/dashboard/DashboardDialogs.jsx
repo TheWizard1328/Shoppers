@@ -205,15 +205,33 @@ export default function DashboardDialogs({
                   ...pendingDeliveries.map(d => d.id)
                 ];
 
+                // ── isNextDelivery reassignment ──────────────────────────────
+                // When a stop is dragged to BEFORE the current isNextDelivery stop,
+                // the "next" stop changes. Clear all isNextDelivery flags for the
+                // driver and mark the new first active stop as next.
+                const originalNextDelivery = allRouteDeliveries.find(d => d.isNextDelivery === true);
+                const newFirstActiveId = orderedDeliveryIds[0];
+                const needsNextDeliveryReset = originalNextDelivery
+                  ? originalNextDelivery.id !== newFirstActiveId
+                  : !!newFirstActiveId;
+
                 await Promise.all(
-                  fullOrderedIds.map((id, index) =>
-                    base44.entities.Delivery.update(id, { stop_order: index + 1 })
-                  )
+                  fullOrderedIds.map((id, index) => {
+                    const update = { stop_order: index + 1 };
+                    if (needsNextDeliveryReset) {
+                      update.isNextDelivery = (id === newFirstActiveId);
+                    }
+                    return base44.entities.Delivery.update(id, update);
+                  })
                 );
 
                 const optimisticDeliveries = allRouteDeliveries.map(d => {
                   const newOrder = fullOrderedIds.indexOf(d.id);
-                  return newOrder >= 0 ? { ...d, stop_order: newOrder + 1 } : d;
+                  const updated = newOrder >= 0 ? { ...d, stop_order: newOrder + 1 } : d;
+                  if (needsNextDeliveryReset) {
+                    updated.isNextDelivery = (d.id === newFirstActiveId);
+                  }
+                  return updated;
                 });
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                   detail: { triggeredBy: 'quickReorder', freshDeliveries: optimisticDeliveries, fullReplacement: false }
