@@ -1,3 +1,5 @@
+import { queueEntityRequest } from '../utils/requestQueue';
+
 export const createOfflineSyncPatientService = ({ offlineDB, Patient, invalidateEntityCache }) => {
   const syncPatientsByIds = async (patientIds = [], batchSize = 50) => {
     const uniquePatientIds = Array.from(new Set((patientIds || []).filter(Boolean)));
@@ -6,7 +8,7 @@ export const createOfflineSyncPatientService = ({ offlineDB, Patient, invalidate
 
     for (let i = 0; i < uniquePatientIds.length; i += batchSize) {
       const batchIds = uniquePatientIds.slice(i, i + batchSize);
-      const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+      const batchPatients = await queueEntityRequest(() => Patient.filter({ id: { $in: batchIds } }), 'Patient.filter:byIds');
 
       if (batchPatients && batchPatients.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);

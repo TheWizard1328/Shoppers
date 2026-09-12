@@ -447,11 +447,15 @@ export function useLayoutInit({
         // the last 5 minutes (freshness guard in loadPriorityData). Merge-only:
         // existing offline records are upserted, never cleared.
         setTimeout(() => {
-          const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+          // PRIORITY SYNC ALWAYS USES TODAY — past dates are covered by historical sync
+          // (background backfill) and on-demand filterChangeSync (when the user navigates
+          // to a past date). Using the saved/selected date here made priority sync waste
+          // its one fast-path call on yesterday when a stale date was saved in localStorage.
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
           const selectedCityId = globalFilters.getSelectedCityId();
           const cityIdForSync = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
           import('../utils/offlineSync').then(({ loadPriorityData }) => {
-            loadPriorityData(selectedDateStr, cityIdForSync).catch((e) => {
+            loadPriorityData(todayStr, cityIdForSync).catch((e) => {
               console.warn('⚠️ [Init] Boot priority sync failed:', e?.message || e);
             });
           }).catch(() => {});
