@@ -1,0 +1,44 @@
+{
+  "name": "Weekly HERE Tile Usage Check",
+  "description": "Every Friday at 7pm Edmonton: pull HERE raster tile usage from GoogleAPILog for the past week, compare vs the ~2,900/day August baseline, and send the owner a short summary.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 19 * * 5",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "weekly_here_tile_check",
+      "namespace": "base44",
+      "version": "1.0"
+    },
+    "do": [
+      {
+        "weekly_tile_check": {
+          "call": "invoke_superagent_step",
+          "then": "end",
+          "with": {
+            "message": "Weekly HERE tile usage report (Friday evening check, agreed with owner Sep 11, 2026).\n\n1. Read the RxDeliver app (id 68570f3cd01bfa2d2408a9d6) GoogleAPILog entity records for api_type 'Map Tiles (HERE)' covering the last 7 full days (Saturday through Friday).\n2. Sum metadata.call_count per day and compute the weekly total and the daily average.\n3. Compare against the ~2,900/day August pre-cache baseline and the ~950-1,050/day post-cache norm from the Sep 7-11 week.\n4. Flag any single-day spikes or unusually large fetch bursts (check whether they look like legit new-tile fetches from panning/zoom vs a cache regression).\n5. Report the results to the owner with broadcast_message. Keep the WhatsApp reply SHORT (owner uses text-to-speech; long replies get truncated): weekly total, daily average, % vs baseline, one line on anything unusual."
+          },
+          "x-base44": {
+            "description": "Pull Map Tiles logs, compare vs baseline, brief the owner",
+            "title": "Weekly HERE tile usage check"
+          }
+        }
+      }
+    ]
+  }
+}
