@@ -542,9 +542,18 @@ export default function PolylineViewer({ users = [] }) {
     );
   }, [breadcrumbs, driverFilter, dateFrom, dateTo, users]);
 
+  // Breadcrumbs-mode list also includes 0-crumb records (empty polyline) so they
+  // can be seen and imported from. Map rendering filters empty coords separately.
+  const filteredBreadcrumbsAll = useMemo(() => {
+    return sortItems(breadcrumbs
+      .filter(b => driverFilter === 'all' || b.driver_id === driverFilter)
+      .filter(b => !b.delivery_date || matchesDateRange(b.delivery_date))
+    );
+  }, [breadcrumbs, driverFilter, dateFrom, dateTo, users]);
+
   // For combined view, use both
   const activeItems = viewMode === 'polylines' ? filteredPolylines
-    : viewMode === 'breadcrumbs' ? filteredBreadcrumbs
+    : viewMode === 'breadcrumbs' ? filteredBreadcrumbsAll
     : sortItems([...filteredPolylines, ...filteredBreadcrumbs]);
 
   // ── Combined view: group delivery + breadcrumb into single "stop" cards ────
@@ -1097,6 +1106,66 @@ export default function PolylineViewer({ users = [] }) {
       // Combined Overlay: refresh the focused group so the map re-renders the imported polyline
       setFocusedGroup(prev => prev ? { ...prev, breadcrumb: updatedItem } : prev);
       toast.success(`Stop #${item.stop_order} — Delivery polyline imported (${pts.length} pts).`);
+    } catch (e) {
+      toast.error(`Import failed: ${e.message}`);
+    } finally {
+      setIsImportingCrumb(false);
+      setPendingImportItem(null);
+    }
+  };
+
+  // ── Import delivery polyline → new (or existing 0-crumb) breadcrumb ──────
+  // Used from Combined Overlay when a stop has a Delivery polyline but no
+  // breadcrumb record attached. Creates a breadcrumb, or fills in an existing
+  // 0-crumb breadcrumb record for the same driver/date/stop if one exists.
+  const handleImportDeliveryToNewCrumb = async (group) => {
+    const { delivery, driver_id, delivery_date, stop_order } = group;
+    if (!delivery?.encoded_polyline) {
+      toast.error(`Stop #${stop_order}: the Delivery has no planned polyline to import.`);
+      return;
+    }
+    setIsImportingCrumb(true);
+    const newPoly = delivery.encoded_polyline;
+    const pts = decodePolyline(newPoly);
+    try {
+      const existing = breadcrumbs.find(b =>
+        b.driver_id === driver_id && b.delivery_date === delivery_date && b.stop_order === stop_order
+      );
+      const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
+      if (existing) {
+        await base44.entities.DeliveryBreadcrumbs.update(existing.id, {
+          encoded_polyline: newPoly,
+          point_count: pts.length,
+          saved_to_route: false,
+          imported_from_delivery: true,
+          transport_mode: delivery.transport_mode || existing.transport_mode || 'driving',
+        });
+        if (offlineDB) {
+          const rec = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, existing.id).catch(() => null);
+          if (rec) await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...rec, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: false, imported_from_delivery: true }).catch(() => {});
+        }
+        const updated = { ...existing, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: false, imported_from_delivery: true };
+        setBreadcrumbs(prev => prev.map(b => b.id === existing.id ? updated : b));
+        setFocusedGroup(prev => prev ? { ...prev, breadcrumb: updated } : prev);
+        toast.success(`Stop #${stop_order} — Delivery polyline imported (${pts.length} pts).`);
+      } else {
+        const created = await base44.entities.DeliveryBreadcrumbs.create({
+          driver_id,
+          delivery_date,
+          stop_order: stop_order ?? 0,
+          encoded_polyline: newPoly,
+          point_count: pts.length,
+          transport_mode: delivery.transport_mode || 'driving',
+          saved_to_route: false,
+          imported_from_delivery: true,
+        });
+        if (offlineDB && created) {
+          await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...created, saved_to_route: false, imported_from_delivery: true }).catch(() => {});
+        }
+        setBreadcrumbs(prev => [...prev, created]);
+        setFocusedGroup(prev => prev ? { ...prev, breadcrumb: created } : prev);
+        toast.success(`Stop #${stop_order} — Delivery polyline imported to new breadcrumb (${pts.length} pts).`);
+      }
     } catch (e) {
       toast.error(`Import failed: ${e.message}`);
     } finally {
@@ -1666,6 +1735,31 @@ export default function PolylineViewer({ users = [] }) {
                   </button>
                 </>
               )
+            )}
+          </div>
+        )}
+
+        {/* Import button — Combined Overlay: stop has a Delivery polyline but no
+            breadcrumb record. Creates a breadcrumb (or fills an existing 0-crumb one). */}
+        {isFocused && !crumb && hasPoly && (
+          <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
+            {pendingImportItem?.id === delivery?.id ? (
+              <ImportConfirmInline
+                show
+                stopOrder={stop_order}
+                onConfirm={() => { handleImportDeliveryToNewCrumb(group); }}
+                onCancel={() => setPendingImportItem(null)}
+                isImporting={isImportingCrumb}
+              />
+            ) : (
+              <button
+                title="Import Delivery polyline → Breadcrumb"
+                onClick={e => { e.stopPropagation(); setPendingImportItem(delivery); }}
+                disabled={isImportingCrumb}
+                className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900 text-purple-700 dark:text-purple-300 disabled:opacity-50 transition-colors"
+              >
+                {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              </button>
             )}
           </div>
         )}
