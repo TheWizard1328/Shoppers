@@ -2,7 +2,12 @@ import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { format } from 'date-fns';
 import { isMobileDevice as checkIsMobileDevice, getUserAgentInfo } from './deviceUtils';
-import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
+// NOTE: getRouteOptimizationSettings is imported lazily inside loadSettings() to
+// avoid a circular dependency — RouteOptimizationSettings.jsx imports the
+// `locationTracker` singleton from THIS module. A static import here caused
+// Rollup to bundle both modules into one chunk where the evaluation order
+// triggered a TDZ ("Cannot access 'locationTracker' before initialization"),
+// breaking the entire app bundle.
 import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 import { arrivalTimeDetector } from './arrivalTimeDetector';
