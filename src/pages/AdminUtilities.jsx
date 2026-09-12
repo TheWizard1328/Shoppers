@@ -32,7 +32,7 @@ import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
-import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';import DriverActivityTab from '../components/admin/DriverActivityTab';
+import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
 import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
 import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
@@ -313,7 +313,7 @@ export default function AdminUtilities() {
   const [hasAccess, setHasAccess] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  const [activeDataTab, setActiveDataTab] = useState('driver-activity');
+  const [activeDataTab, setActiveDataTab] = useState('deliveries');
   const [activeUtilityTab, setActiveUtilityTab] = useState('data');
   const [dataViewMode, setDataViewMode] = useState({ deliveries: 'offline' }); // default deliveries to offline DB
 
@@ -1717,9 +1717,8 @@ export default function AdminUtilities() {
 
             <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full flex flex-col">
-                   <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(9,minmax(max-content,1fr))' }}>
-                       <TabsTrigger value="driver-activity" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Driver Activity</TabsTrigger>
-                       <TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>
+                   <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(8,minmax(max-content,1fr))' }}>
+                        <TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>
                        <TabsTrigger value="companies" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Companies</TabsTrigger>
                        <TabsTrigger value="cities" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Cities</TabsTrigger>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
@@ -1875,7 +1874,7 @@ export default function AdminUtilities() {
                     
                     </SimpleDataViewTab>
                   </TabsContent>
-                  <TabsContent value="driver-activity" className="mt-4"><DriverActivityTab appUsers={appUsers || []} cities={cities || []} stores={stores || []} /></TabsContent><TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
+                  <TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
                   <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
               </div>

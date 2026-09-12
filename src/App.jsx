@@ -25,6 +25,7 @@ const SquareSyncAudit = lazyReact(() => import('@/pages/SquareSyncAudit'));
 const StatHolidays = lazyReact(() => import('@/pages/StatHolidays'));
 const SecureDocViewer = lazyReact(() => import('@/pages/SecureDocViewer'));
 const Companies = lazyReact(() => import('@/pages/Companies'));
+const DriverActivity = lazyReact(() => import('@/pages/DriverActivity'));
 const DriverScheduleCalendar = lazyReact(() => import('@/pages/DriverScheduleCalendar'));
 const PatientLogin = lazyReact(() => import('@/pages/PatientLogin'));
 const PatientPortal = lazyReact(() => import('@/pages/PatientPortal'));
@@ -142,6 +143,14 @@ const AuthenticatedApp = () => {
           element={
             <LayoutWrapper currentPageName="SquareSyncAudit">
               <LazyPageWrapper><SquareSyncAudit /></LazyPageWrapper>
+            </LayoutWrapper>
+          }
+        />
+        <Route
+          path="/DriverActivity"
+          element={
+            <LayoutWrapper currentPageName="DriverActivity">
+              <LazyPageWrapper><DriverActivity /></LazyPageWrapper>
             </LayoutWrapper>
           }
         />
