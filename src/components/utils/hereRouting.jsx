@@ -18,8 +18,6 @@ const backoffCache = new Map();
 const backoffNoticeCache = new Map();
 const failureCache = new Map();
 
-const USE_CROSS_DEVICE_LOCK = false;
-
 function clearLegacyHereLocalStorageCache() {
   try {
     const keysToRemove = [];
@@ -364,11 +362,6 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
       }
     } catch (_) {}
 
-    let __lockId = null;
-    if (USE_CROSS_DEVICE_LOCK) {
-      // Client-side entity locks removed to avoid extra Base44 traffic; fetchingKeys already dedupes in-flight requests in this session.
-    }
-
     try {
       console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
       const res = await base44.functions.invoke('getHereDirections', {
@@ -409,10 +402,8 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
       }
     } catch (err) {
       console.warn('[HERE][client] HERE fetch failed', { cacheKey, err: err?.message || err });
-    } finally {
-      try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
     }
-    
+
     try {
       backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 300000);
       backoffNoticeCache.set(cacheKey, Date.now());
