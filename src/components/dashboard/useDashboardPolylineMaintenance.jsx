@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
-import { offlineDB } from "@/components/utils/offlineDatabase";
-import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
-import { globalFilters } from "@/components/utils/globalFilters";
 import { isAppOwner } from "@/components/utils/userRoles";
-import { sumApiLogCalls } from "@/components/utils/apiUsageLog";
 
 export function useDashboardPolylineMaintenance({
   currentUser,
@@ -36,14 +31,10 @@ export function useDashboardPolylineMaintenance({
     if (!currentUser || !isAppOwner(currentUser)) return;
 
     try {
-      const now = new Date();
-      const todayStr = format(now, 'yyyy-MM-dd');
-      const todayStart = new Date(todayStr + 'T00:00:00').toISOString();
-      const todayEnd = new Date(todayStr + 'T23:59:59').toISOString();
-      const apiLogs = await base44.entities.GoogleAPILog.filter({
-        timestamp: { $gte: todayStart, $lte: todayEnd }
-      });
-      setDailyPolylineCount(sumApiLogCalls(apiLogs));
+      // Use the backend function that returns only the count — avoids pulling
+      // full GoogleAPILog rows client-side for a growing log table.
+      const result = await base44.functions.invoke('getDailyApiLogCount', {});
+      setDailyPolylineCount(result?.total ?? 0);
     } catch (error) {
       if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
         return;

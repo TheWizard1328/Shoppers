@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MobileSelect } from '@/components/ui/mobile-select';
+import { getDemoSettings } from '@/components/utils/configCache';
 
 import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache, getEffectiveUser } from '../utils/auth';
@@ -79,8 +80,8 @@ export default function SettingsMenu({
 
       demoStateLoadingRef.current = true;
       try {
-        const rows = await base44.entities.DemoSettings.filter({ user_id: currentUser.id });
-        setIsDemoActive(rows?.[0]?.is_demo_mode_active === true);
+        const row = await getDemoSettings(currentUser.id);
+        setIsDemoActive(row?.is_demo_mode_active === true);
         demoStateLoadedRef.current = true;
       } catch (error) {
         if (error?.message?.includes('Rate limit exceeded')) return;

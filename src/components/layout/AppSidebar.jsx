@@ -38,6 +38,7 @@ import QuickStats from './DashboardQuickStats';
 import BatteryIndicator from './BatteryIndicator';
 import { base44 } from '@/api/base44Client';
 import { getEffectiveUser, clearUserCache } from '../utils/auth';
+import { getAppSettings, invalidateConfigCache } from '@/components/utils/configCache';
 import { calculateRouteCodBalance } from '../utils/codTotalCalculator';
 import { createPageUrl } from '../../utils';
 import { useSidebarEntitySubscriptions } from './useSidebarEntitySubscriptions';
@@ -234,14 +235,15 @@ export default function AppSidebar({
                         onAdminImportToggle={async (checked) => {
                           setAdminImportEnabled(checked);
                           try {
-                            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                            if (settings && settings.length > 0) {
-                              await base44.entities.AppSettings.update(settings[0].id, {
+                            const settings = await getAppSettings(true);
+                            if (settings) {
+                              await base44.entities.AppSettings.update(settings.id, {
                                 setting_value: {
-                                  ...settings[0].setting_value,
+                                  ...settings.setting_value,
                                   adminImportEnabled: checked
                                 }
                               });
+                              invalidateConfigCache('AppSettings', { setting_key: 'refresh_intervals' });
                             }
                           } catch (error) {
                             console.error('Failed to save admin import setting:', error);

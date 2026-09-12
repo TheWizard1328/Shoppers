@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { userHasRole } from '@/components/utils/userRoles';
+import { getBookedOffOverrides } from '@/components/utils/configCache';
 
 /**
  * Hook that resolves the "booked off" scheduling badge count — the number of
@@ -15,7 +16,7 @@ export function useBookedOffBadge(currentUser) {
 
   useEffect(() => {
     if (!userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver')) return;
-    base44.entities.DriverScheduleOverride.filter({ driver_id: '__booked_off__' }).
+    getBookedOffOverrides().
     then(setBookedOffOverrides).
     catch(() => {});
 

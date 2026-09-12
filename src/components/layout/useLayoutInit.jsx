@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { format } from '../utils/dataManager';
 import { globalFilters } from '../utils/globalFilters';
 import { requestThrottler } from '../utils/requestThrottler';
+import { queueEntityRequest } from '../utils/requestQueue';
 import { getEffectiveUser, clearUserCache } from '../utils/auth';
 import { destroyKey } from '../utils/idbCrypto';
 import { clearAllBreadcrumbCaches } from '../utils/locationBreadcrumbService';
@@ -400,7 +401,10 @@ export function useLayoutInit({
         setTimeout(async () => {
           try {
             if (!fetchedUser?.id) return;
-            const unreadMessages = (await base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false }) || [])
+            const unreadMessages = (await queueEntityRequest(
+              () => base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false }),
+              'Message.unread'
+            ) || [])
               .filter((m) => m.sender_id !== fetchedUser.id); // self-messages never count as unread
             if (unreadMessages?.length > 0 && setInitialGlobalFiltersSet) {
               // Reuse the setUnreadMessageCount via a custom event so we don't need to thread the setter
