@@ -1,26 +1,27 @@
 /* global Deno */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
-import { sliceSegmentsByFirstLocalMinimum } from '../../shared/spatialSlicer.ts';
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// consolidateBreadcrumbSegment — Proximity-Based Breadcrumb Slicing
+// consolidateBreadcrumbSegment — First-Local-Minimum Spatial Breadcrumb Slicing
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// Time-windowed proximity slicing. The master trail (stop_order = -1) is
-// decoded into GPS points. Stops are walked in COMPLETION-TIME order; for each
-// stop the boundary is the spatially closest trail point recorded between the
-// previous stop's completion and this stop's completion (+/- grace). When the
-// window has no usable point (GPS dropout) or the best match is implausibly
-// far, the boundary falls back to the last trail point at-or-before the
-// stop's completion time. Segments are the trail points between consecutive
-// boundaries.
+// Timestamp-free spatial slicing. The master trail (stop_order = -1) is decoded
+// into GPS points. Stops are walked strictly in stop_order; for each stop the
+// algorithm scans forward from the cursor, tracks the running minimum-distance
+// trail point, and accepts it as the boundary only once the trail has genuinely
+// DEPARTED (moved DEPARTURE_THRESHOLD_M past the minimum) — locking onto the
+// real arrive-then-leave cluster instead of a later drive-by pass. The minimum
+// must be within SANITY_MAX_M of the stop; otherwise the trail never truly
+// reached it and a 2-point synthetic leg is emitted instead.
 //
-// This approach is immune to:
-//   - Timestamp rounding (5-min first/last stop rounding no longer matters)
-//   - Stop re-sequencing (we match by physical location, not time)
-//   - Master trail edits (removing bad points doesn't shift time windows)
-//   - Missing actual_delivery_time (we don't use it at all)
+// Timestamps are ignored entirely by the matching logic, so this works on
+// hand-edited / road-snapped trails whose injected points carry no timestamp.
+//
+// When a stop has no trail coverage (never reached, GPS dropout, completed
+// before tracking), a 2-point synthetic leg connects the previous boundary
+// (or the route origin) to the stop's coordinates.
 //
 // All stop types are handled identically:
 //   - Patient deliveries → patient.lat/lng
@@ -87,6 +88,17 @@ function decodePolyline(encoded) {
 // Detect corrupted points from the old bitwise-overflow encoder.
 function isCorruptedPoint(lat, lng) {
   return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
+}
+
+// ── Haversine distance (meters) ─────────────────────────────────────────────
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 
@@ -440,16 +452,53 @@ Deno.serve(async (req) => {
       originCoords = { lat: masterPoints[0][0], lng: masterPoints[0][1] };
     }
 
-    // ── 6. First-local-minimum spatial slicing ───────────────────────────────
-    // Walk stops strictly in stop_order. For each stop, from the current cursor
-    // forward, track the running minimum-distance trail point; accept it once
-    // the trail genuinely departs (moves DEPARTURE_THRESHOLD_M past the minimum).
-    // Timestamps are ignored entirely — this works on hand-edited / snapped
-    // trails whose injected points carry no timestamp. When a stop has no trail
-    // coverage (never reached, GPS dropout, completed before tracking), a
-    // 2-point synthetic leg connects the previous boundary (or the route
-    // origin) to the stop's coordinates.
-    const segments = sliceSegmentsByFirstLocalMinimum(masterPoints, stopsWithCoords, originCoords);
+    // ── 6. First-local-minimum spatial slicing (inlined) ───────────────────────
+    const DEPARTURE_THRESHOLD_M = 60;
+    const SANITY_MAX_M = 1000;
+    const segments = [];
+    {
+      let cursor = 0;
+      let lastRealTrailIdx = -1;
+      let lastRealCoords = originCoords ? [originCoords.lat, originCoords.lng] : null;
+
+      for (let s = 0; s < stopsWithCoords.length; s++) {
+        const swc = stopsWithCoords[s];
+        const stopLat = swc.coords.lat;
+        const stopLng = swc.coords.lng;
+        const stopOrder = Number(swc.delivery.stop_order);
+
+        let bestIdx = null;
+        let bestDist = Infinity;
+        let accepted = false;
+
+        for (let i = cursor; i < masterPoints.length; i++) {
+          const mp = masterPoints[i];
+          const dist = haversineMeters(stopLat, stopLng, mp[0], mp[1]);
+          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+          // Only accept the departure when the minimum is actually within a sane
+          // distance of the stop — otherwise the trail is just starting far away
+          // and moving off, not genuinely arriving. This keeps scanning until the
+          // trail truly approaches the stop.
+          if (bestIdx !== null && bestDist <= SANITY_MAX_M && dist > bestDist + DEPARTURE_THRESHOLD_M) { accepted = true; break; }
+        }
+        // If the trail ended within the stop's vicinity without a clear departure
+        // (e.g. the last stop on the route), accept the closest point found.
+        if (!accepted && bestDist <= SANITY_MAX_M) { accepted = true; }
+
+        const hasCoverage = accepted && bestDist <= SANITY_MAX_M;
+        if (hasCoverage && bestIdx !== null) {
+          const startIdx = lastRealTrailIdx + 1;
+          const pts = masterPoints.slice(startIdx, bestIdx + 1);
+          segments.push({ delivery: swc.delivery, stopOrder, points: pts, pointCount: pts.length, matchDistance: bestDist, method: 'first-local-min', synthetic: false });
+          lastRealTrailIdx = bestIdx;
+          lastRealCoords = [masterPoints[bestIdx][0], masterPoints[bestIdx][1]];
+          cursor = bestIdx + 1;
+        } else {
+          const org = lastRealCoords || (masterPoints.length > 0 ? [masterPoints[0][0], masterPoints[0][1]] : [stopLat, stopLng]);
+          segments.push({ delivery: swc.delivery, stopOrder, points: [[org[0], org[1], 0], [stopLat, stopLng, 0]], pointCount: 2, matchDistance: bestIdx !== null ? bestDist : Infinity, method: 'no-coverage', synthetic: true });
+        }
+      }
+    }
 
     const syntheticCount = segments.filter(s => s.synthetic).length;
     console.log(`🍞 [consolidateBreadcrumbSegment] Sliced ${segments.length} segments (${syntheticCount} synthetic): ${segments.map(s => `#${s.stopOrder}:${s.pointCount}pts${s.synthetic ? '(synth)' : ''}`).join(', ')}`);
