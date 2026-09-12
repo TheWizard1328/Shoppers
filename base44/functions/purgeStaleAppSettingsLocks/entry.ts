@@ -47,7 +47,7 @@ export default async function(req: Request): Promise<Response> {
         errors.push({ id: record.id, key: record.setting_key, error: err?.message || String(err) });
       }
       // Throttle deletes to avoid Base44 API rate limits (429s) on bulk operations
-      await sleep(120);
+      await sleep(300);
     }
 
     return Response.json({
