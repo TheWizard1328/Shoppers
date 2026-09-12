@@ -541,10 +541,17 @@ Deno.serve(async (req) => {
         if (bestIdx != null && bestDist <= DIST_SANITY_M) {
           useIdx = bestIdx; useDist = bestDist; method = 'window';
         } else {
-          // Time-cut fallback: last trail point at-or-before completion (+grace)
+          // Time-cut fallback: last trail point at-or-before completion (+grace).
+          // Skip points with ts=0 (unknown timestamp — common at the tail of a
+          // snapped master whose polyline has more points than the timestamp
+          // array). Without this skip, the backward scan lands on the final
+          // ts=0 point (0 <= windowEnd is always true) and assigns the ENTIRE
+          // trail to the first stop, starving every subsequent stop to 0 pts.
           let tIdx = null;
           for (let i = masterPoints.length - 1; i >= cursor; i--) {
-            if (masterPoints[i][2] <= windowEnd) { tIdx = i; break; }
+            const ts = masterPoints[i][2];
+            if (ts === 0) continue;
+            if (ts <= windowEnd) { tIdx = i; break; }
           }
           if (tIdx != null) {
             useIdx = tIdx; useDist = bestIdx != null ? bestDist : Infinity; method = 'time-cut';
