@@ -1,13 +1,13 @@
 {
   "name": "Weekly HERE Tile Usage Check",
-  "description": "Every Friday at 7pm Edmonton: pull HERE raster tile usage from GoogleAPILog for the past week, compare vs the ~2,900/day August baseline, and send the owner a short summary.",
+  "description": "Every Friday at 9pm Edmonton: pull HERE raster tile usage from GoogleAPILog for the past week, compare vs the ~2,900/day August baseline, and send the owner a short summary.",
   "trigger": {
     "condition": null,
     "config": {
       "trigger_type": "scheduled",
       "events": [],
       "schedule_mode": "recurring",
-      "cron_expression": "0 19 * * 5",
+      "cron_expression": "0 21 * * 5",
       "one_time_date": null,
       "timezone": "America/Edmonton",
       "interval_value": null,
@@ -31,7 +31,7 @@
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "Weekly HERE tile usage report (Friday evening check, agreed with owner Sep 11, 2026).\n\n1. Read the RxDeliver app (id 68570f3cd01bfa2d2408a9d6) GoogleAPILog entity records for api_type 'Map Tiles (HERE)' covering the last 7 full days (Saturday through Friday).\n2. Sum metadata.call_count per day and compute the weekly total and the daily average.\n3. Compare against the ~2,900/day August pre-cache baseline and the ~950-1,050/day post-cache norm from the Sep 7-11 week.\n4. Flag any single-day spikes or unusually large fetch bursts (check whether they look like legit new-tile fetches from panning/zoom vs a cache regression).\n5. Report the results to the owner with broadcast_message. Keep the WhatsApp reply SHORT (owner uses text-to-speech; long replies get truncated): weekly total, daily average, % vs baseline, one line on anything unusual."
+            "message": "Weekly HERE tile usage report (Friday 9pm check, agreed with owner Sep 11-12, 2026).\n\n1. Read the RxDeliver app (id 68570f3cd01bfa2d2408a9d6) GoogleAPILog entity records for api_type 'Map Tiles (HERE)' covering the last 7 full days (Saturday through Friday).\n2. Sum metadata.call_count per day and compute the weekly total and the daily average.\n3. Compare against the ~2,900/day August pre-cache baseline and the ~950-1,050/day post-cache norm from the Sep 7-11 week.\n4. Flag any single-day spikes or unusually large fetch bursts (check whether they look like legit new-tile fetches from panning/zoom vs a cache regression).\n5. Report the results to the owner with broadcast_message. Keep the WhatsApp reply SHORT (owner uses text-to-speech; long replies get truncated): weekly total, daily average, % vs baseline, one line on anything unusual."
           },
           "x-base44": {
             "description": "Pull Map Tiles logs, compare vs baseline, brief the owner",
