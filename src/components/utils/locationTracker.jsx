@@ -95,7 +95,12 @@ class LocationTracker {
    */
   loadSettings() {
     try {
-      getRouteOptimizationSettings();
+      // Lazy import breaks the circular dependency with RouteOptimizationSettings
+      // (which imports the `locationTracker` singleton). Return value is unused —
+      // the defaults below are what actually get applied.
+      import('../dashboard/RouteOptimizationSettings')
+        .then(({ getRouteOptimizationSettings }) => getRouteOptimizationSettings())
+        .catch(() => {});
       this.updateInterval = 15000; // 15s GPS polling — drivers only
       this.minDistanceChange = 100;
       this.breadcrumbSaveInterval = 5000; // 5s — offline DB write frequency, on_duty drivers only
