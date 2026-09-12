@@ -109,7 +109,7 @@ export async function handleBatchSave({
   console.log('[AddToRoute] handleBatchSave:split', {
     newCount: newDeliveries.length,
     existingCount: existingDeliveries.length,
-    updateCount: deliveriesToUpdate.length,
+    updateCount: deliveriesToUpdatePreTR.length,
     newStatuses: newDeliveries.map((delivery) => delivery?.status || null),
     existingStatuses: existingDeliveries.map((delivery) => delivery?.status || null)
   });
