@@ -1,6 +1,11 @@
 import { base44 } from "@/api/base44Client";
 import { haversineMeters } from './geoUtils';
-import { locationTracker } from "./locationTracker";
+// NOTE: locationTracker is imported LAZILY at the two call sites below to avoid a
+// circular dependency — locationTracker.jsx imports the `arrivalTimeDetector`
+// singleton from THIS module. A static import here caused Rollup to bundle both
+// modules into one chunk where the evaluation order triggered a TDZ
+// ("Cannot access 'locationTracker' before initialization"), breaking the
+// Add-to-Route submit path.
 
 /**
  * Detects when driver arrives at delivery/pickup locations (geofence detection)
@@ -331,7 +336,8 @@ class ArrivalTimeDetector {
                   this._lastCacheTime = 0;
 
                   // Slow breadcrumbs to 60s — driver is at the stop
-                  locationTracker.slowBreadcrumbsForStop();
+                  // Lazy import breaks the locationTracker ↔ arrivalTimeDetector cycle.
+                  try { const { locationTracker } = await import('./locationTracker'); locationTracker.slowBreadcrumbsForStop(); } catch (_) {}
 
                   this.stationaryStartTime = Date.now();
                   console.log(`💾 [ARRIVAL] Saved arrival_time for ${nextDelivery.id}${coLocatedStops.length > 0 ? ` + ${coLocatedStops.length} co-located stops` : ''}`);
@@ -459,7 +465,8 @@ class ArrivalTimeDetector {
         this._lastCacheTime = 0;
 
         // Slow breadcrumbs to 60s — driver is at the stop
-        locationTracker.slowBreadcrumbsForStop();
+        // Lazy import breaks the locationTracker ↔ arrivalTimeDetector cycle.
+        try { const { locationTracker } = await import('./locationTracker'); locationTracker.slowBreadcrumbsForStop(); } catch (_) {}
 
         console.log(`💾 [ARRIVAL immediate] Saved arrival_time for ${nextStop.id}${coLocatedImmediate.length > 0 ? ` + ${coLocatedImmediate.length} co-located stops` : ''}`);
       } catch (error) {
