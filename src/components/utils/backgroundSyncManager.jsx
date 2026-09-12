@@ -2,6 +2,44 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { format } from 'date-fns';
 import { syncHistoricalDateCityScoped, loadHistoricalCursor, saveHistoricalCursor, getCityIdsHash } from './historicalDeliverySync';
+import { queueEntityRequest, requestQueue } from './requestQueue';
+
+// ── Future-date TTL cache ───────────────────────────────────────────────
+// Per-date cache so a future date that returned 0 deliveries is skipped for
+// 6 hours instead of being re-fetched every cycle. Dates with >0 deliveries
+// are re-checked every cycle so newly-added stops appear promptly.
+const FUTURE_CACHE_PREFIX = 'rxdeliver_future_sync_cache_';
+const FUTURE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+const readFutureCache = (dateStr) => {
+  try {
+    const raw = localStorage.getItem(FUTURE_CACHE_PREFIX + dateStr);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.checkedAt !== 'string') return null;
+    return parsed;
+  } catch (_) { return null; }
+};
+
+const writeFutureCache = (dateStr, count) => {
+  try {
+    localStorage.setItem(FUTURE_CACHE_PREFIX + dateStr, JSON.stringify({ count, checkedAt: new Date().toISOString() }));
+  } catch (_) {}
+};
+
+// Returns true if this date should be SKIPPED (cached as 0 within the TTL window)
+const isFutureDateCachedEmpty = (dateStr) => {
+  const cached = readFutureCache(dateStr);
+  if (!cached) return false;
+  if (cached.count > 0) return false; // active date — always re-check
+  const age = Date.now() - new Date(cached.checkedAt).getTime();
+  return age < FUTURE_TTL_MS; // 0 deliveries and within 6h → skip
+};
+
+// ── Post-load deferral ──────────────────────────────────────────────────
+// Future sync waits 5 minutes after app start so it never competes with
+// boot-time priority syncs.
+const FUTURE_DEFERRAL_MS = 5 * 60 * 1000;
 
 /**
  * Background Sync Manager
@@ -35,11 +73,11 @@ class BackgroundSyncManager {
     // Default configuration
     this.config = {
       enabled: true,
-      syncInterval: 3 * 60 * 1000, // 3 minutes — daytime trickle backfill (1 date/cycle)
+      syncInterval: 5 * 60 * 1000, // 5 minutes — gentle cycle so the server has breathing room
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
-      maxAPICallsPerCycle: 70, // Allow up to 70 API calls per cycle (off-peak historical backfill)
-      // Historical sync: daytime trickle (1 date/cycle) + fast off-peak batch (60 dates/cycle)
+      maxAPICallsPerCycle: 15, // Hard cap per cycle — keeps well under rate limits
+      // Historical sync: daytime trickle (1 date/cycle) + fast off-peak batch (20 dates/cycle)
       deferHistoricalOnLoad: true,
       historicalDeferMinutes: 15,
       offPeakWindows: [
@@ -47,7 +85,7 @@ class BackgroundSyncManager {
         { start: '22:00', end: '08:00' }
       ],
       historicalMaxDatesPerCycleDaytime: 1,   // 1 date per cycle during daytime (gentle trickle)
-      historicalMaxDatesPerCycleOffpeak: 60,  // 60 dates per cycle off-peak (fast overnight backfill)
+      historicalMaxDatesPerCycleOffpeak: 20,  // 20 dates per cycle off-peak (capped to respect rate limits)
       throttleBetweenCallsMsDaytime: 2000,
       throttleBetweenCallsMsOffpeak: 500,
       priorities: {
@@ -214,6 +252,17 @@ class BackgroundSyncManager {
       // userActivityMonitor not available — proceed without idle check
     }
 
+    // GLOBAL RATE-LIMIT GATE: if the shared requestQueue is in a 429 backoff
+    // window, skip this entire cycle. Without this, the per-date loops below
+    // would each hit the queue, get paused, and stack up a burst of deferred
+    // requests that all fire at once the moment the window clears.
+    if (requestQueue.isRateLimited()) {
+      const wait = Math.ceil((requestQueue.rateLimitUntil - Date.now()) / 1000);
+      console.log(`⏰ [BackgroundSync] Skipping cycle — global rate-limit backoff active (${wait}s remaining)`);
+      this.scheduleNextSync();
+      return;
+    }
+
     console.log('🔄 [BackgroundSync] Starting sync cycle...');
     this.currentCycleAPICalls = 0;
     
@@ -277,6 +326,14 @@ class BackgroundSyncManager {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
     if (!this.currentUser) return;
 
+    // POST-LOAD DEFERRAL: don't run future sync within 5 minutes of app start so
+    // it never competes with boot-time priority syncs.
+    const minutesSinceStartVal = Date.now() - (this.appStartTime || Date.now());
+    if (minutesSinceStartVal < FUTURE_DEFERRAL_MS) {
+      console.log('⏳ [BackgroundSync] Future sync deferred — within 5-min post-load window');
+      return;
+    }
+
     const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
     if (!stores || stores.length === 0) return;
 
@@ -285,22 +342,19 @@ class BackgroundSyncManager {
       : [];
     const deliveryFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
 
-    const isOffPeak = this.isOffPeakNow();
-    const throttleMs = isOffPeak
-      ? (this.config.throttleBetweenCallsMsOffpeak || 500)
-      : (this.config.throttleBetweenCallsMsDaytime || 2000);
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Cursor: persisted as an ISO date string. Starts at +7, decrements to +1, then resets.
+    // Cursor walks +7 → +1 (decrementing), then resets to +7. Persisted across
+    // restarts so a partial pass resumes. We do NOT cap future dates per cycle —
+    // the TTL cache skips empty dates in O(1) so a full +1..+7 pass is cheap
+    // (only dates with >0 deliveries, or expired TTL entries, cost an API call).
     const FUTURE_CURSOR_KEY = 'rxdeliver_future_sync_cursor';
     let cursorDate;
     try {
       const persisted = localStorage.getItem(FUTURE_CURSOR_KEY);
       if (persisted) {
         cursorDate = new Date(persisted + 'T00:00:00');
-        // Validate it's within +1..+7 of today; otherwise reset to +7
         const offset = Math.round((cursorDate - today) / 86400000);
         if (offset < 1 || offset > 7) cursorDate = null;
       }
@@ -310,30 +364,54 @@ class BackgroundSyncManager {
       cursorDate.setDate(cursorDate.getDate() + 7);
     }
 
-    let syncedCount = 0;
-    const maxDatesPerCycle = isOffPeak
-      ? (this.config.historicalMaxDatesPerCycleOffpeak || 60)
-      : (this.config.historicalMaxDatesPerCycleDaytime || 1);
+    let fetchedCount = 0;
+    let skippedByTtl = 0;
 
     try {
-      while (syncedCount < maxDatesPerCycle) {
+      while (true) {
         if (this.isPaused || !this.isRunning) break;
         if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
+
+        // GLOBAL RATE-LIMIT GATE inside the loop — break immediately if the
+        // shared queue armed a backoff window mid-pass.
+        if (requestQueue.isRateLimited()) {
+          console.log('⏰ [BackgroundSync] Future sync paused — global rate-limit backoff');
+          break;
+        }
 
         const offset = Math.round((cursorDate - today) / 86400000);
         if (offset < 1) break; // reached +1 — pass complete
 
         const dateStr = format(cursorDate, 'yyyy-MM-dd');
 
+        // TTL CACHE: skip this date entirely (no API call) if it was checked
+        // within 6h and returned 0 deliveries.
+        if (isFutureDateCachedEmpty(dateStr)) {
+          skippedByTtl++;
+          cursorDate.setDate(cursorDate.getDate() - 1);
+          try { localStorage.setItem(FUTURE_CURSOR_KEY, format(cursorDate, 'yyyy-MM-dd')); } catch (_) {}
+          continue;
+        }
+
         try {
-          const futureDeliveries = await base44.entities.Delivery.filter(
-            { delivery_date: dateStr, ...deliveryFilter },
-            '-updated_date',
-            5000
+          const futureDeliveries = await queueEntityRequest(
+            () => base44.entities.Delivery.filter(
+              { delivery_date: dateStr, ...deliveryFilter },
+              '-updated_date',
+              5000
+            ),
+            `FutureDelivery.filter(${dateStr})`
           ).catch(() => []);
           this.currentCycleAPICalls++;
+          fetchedCount++;
 
-          if (futureDeliveries && futureDeliveries.length > 0) {
+          const count = futureDeliveries?.length || 0;
+          // Cache the result. Only write on a successful fetch — a 429 or error
+          // above falls through to the catch WITHOUT writing, so the next cycle
+          // retries instead of skipping the date for 6h.
+          writeFutureCache(dateStr, count);
+
+          if (count > 0) {
             // Filter out any locally-deleted delivery IDs before writing to IDB
             let toSave = futureDeliveries;
             try {
@@ -353,24 +431,19 @@ class BackgroundSyncManager {
             if (toDelete.length > 0) {
               await Promise.all(toDelete.map((d) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
             }
-            syncedCount++;
             this.lastSyncTimes.deliveries = new Date().toISOString();
-            console.log(`📅 [BackgroundSync] Future sync: ${futureDeliveries.length} deliveries for ${dateStr}`);
+            console.log(`📅 [BackgroundSync] Future sync: ${count} deliveries for ${dateStr}`);
           }
 
           // Advance cursor toward +1
           cursorDate.setDate(cursorDate.getDate() - 1);
           try { localStorage.setItem(FUTURE_CURSOR_KEY, format(cursorDate, 'yyyy-MM-dd')); } catch (_) {}
-
-          if (throttleMs > 0) {
-            await new Promise((resolve) => setTimeout(resolve, throttleMs));
-          }
         } catch (error) {
           if (error?.response?.status === 429 || error?.message?.includes('429')) {
             console.log('⏰ [BackgroundSync] Rate limited - stopping future-date sync');
-            break;
+          } else {
+            console.warn(`⚠️ [BackgroundSync] Future sync failed for ${dateStr}:`, error?.message);
           }
-          console.warn(`⚠️ [BackgroundSync] Future sync failed for ${dateStr}:`, error?.message);
           break;
         }
       }
@@ -384,7 +457,10 @@ class BackgroundSyncManager {
       }
     }
 
-    this.notifySubscribers({ type: 'future_deliveries_synced', count: syncedCount });
+    if (fetchedCount > 0 || skippedByTtl > 0) {
+      console.log(`✅ [BackgroundSync] Future sync pass: ${fetchedCount} fetched, ${skippedByTtl} skipped by TTL`);
+    }
+    this.notifySubscribers({ type: 'future_deliveries_synced', count: fetchedCount });
   }
 
   /**
@@ -492,7 +568,16 @@ class BackgroundSyncManager {
         const dateStr = format(cursor, 'yyyy-MM-dd');
 
         try {
-          const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
+          // GLOBAL RATE-LIMIT GATE inside the loop — break immediately if the shared
+      // queue armed a backoff window mid-pass. This complements the per-request
+      // 429 catch below and stops the cursor from queuing a burst of deferred
+      // requests that all fire when the window clears.
+      if (requestQueue.isRateLimited()) {
+        console.log('⏰ [BackgroundSync] Historical sync paused — global rate-limit backoff');
+        break;
+      }
+
+      const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
           this.currentCycleAPICalls++;
 
           if (result.synced) {
@@ -642,7 +727,10 @@ class BackgroundSyncManager {
     }
 
     try {
-      const cities = await base44.entities.City.list();
+      const cities = await queueEntityRequest(
+        () => base44.entities.City.list(),
+        'City.list(background)'
+      );
       
       if (cities && cities.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
