@@ -40,8 +40,11 @@ export const resolveAfterHoursCheckboxState = (selectedDeliveries = [], allDeliv
   if (!selectedDeliveries || selectedDeliveries.length === 0) {
     return { enabled: false, checked: false };
   }
-  const anyEligible = selectedDeliveries.some((d) => isStopAfterHoursEligible(d, allDeliveries));
-  if (!anyEligible) return { enabled: false, checked: false };
+  // Enable only when EVERY selected stop has its pickup set as after hours.
+  // A stop whose pickup is not after hours disables the checkbox for the whole
+  // selection (per the requirement).
+  const allEligible = selectedDeliveries.every((d) => isStopAfterHoursEligible(d, allDeliveries));
+  if (!allEligible) return { enabled: false, checked: false };
 
   const allTrue = selectedDeliveries.every((d) => d && d.after_hours_pickup === true);
   if (allTrue) return { enabled: true, checked: true };
