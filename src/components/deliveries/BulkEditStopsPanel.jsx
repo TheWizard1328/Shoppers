@@ -9,8 +9,9 @@ import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { buildPickupRecordOptions } from "./pickupSelectionHelpers";
 import { userHasRole } from "@/components/utils/userRoles";
 import { useAppData } from "@/components/utils/AppDataContext";
-import { Checkbox } from "@/components/ui/checkbox";
-import { X, Car, Bike } from "lucide-react";
+import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+import { X, Car, Bike, Check, Minus } from "lucide-react";
+import { resolveAfterHoursCheckboxState } from "./bulkEditAfterHoursHelpers";
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -96,9 +97,14 @@ function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
 function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, patients, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues, hasMixedPuids, selectedDeliveries }) {
   const isAdmin = userHasRole(currentUser, "admin");
   const isDriver = userHasRole(currentUser, "driver");
-  // Only show After Hours when ALL selected stops are pickups (no patient_id)
-  const allPickups = selectedDeliveries.length > 0 && selectedDeliveries.every(d => !d?.patient_id);
   const isMixedTravelMode = initialValues.travelModeChoice === "mixed" && values.travelModeChoice === "mixed";
+  // After Hours checkbox is enabled only when every selected stop is linked to a pickup
+  // marked as after hours. The checked state (true | false | "indeterminate") is seeded
+  // from initialValues and toggled by the user.
+  const afterHoursEnabled = useMemo(
+    () => resolveAfterHoursCheckboxState(selectedDeliveries, allDeliveries).enabled,
+    [selectedDeliveries, allDeliveries]
+  );
   const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
   const changedFieldStyle = { background: '#fef3c7', borderColor: '#f59e0b' };
   const getFieldStyle = (fieldName) => values[fieldName] !== initialValues[fieldName] ? changedFieldStyle : undefined;
@@ -449,24 +455,28 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
       <div className="border-t px-4 py-2 border-surface">
         <div className="flex items-center gap-3">
-          {allPickups && (
-            <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
-              <Checkbox
-                checked={values.after_hours_pickup === true}
-                onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
-                disabled={isSaving}
-                className="mt-0.5 shrink-0" />
-              <span className="text-xs font-medium leading-tight text-body-2">
-                After Hours
-              </span>
-            </label>
-          )}
+          <label className={`flex items-start gap-2 flex-1 min-w-0 ${afterHoursEnabled && !isSaving ? "cursor-pointer" : "cursor-not-allowed"}`}>
+            <CheckboxPrimitive.Root
+              checked={values.after_hours_pickup}
+              disabled={!afterHoursEnabled || isSaving}
+              onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
+              className="peer h-4 w-4 min-h-4 min-w-4 shrink-0 mt-0.5 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary data-[state=indeterminate]:bg-slate-400 data-[state=indeterminate]:border-slate-400 data-[state=indeterminate]:text-white dark:data-[state=indeterminate]:bg-slate-500 dark:data-[state=indeterminate]:border-slate-500">
+              <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
+                {values.after_hours_pickup === "indeterminate"
+                  ? <Minus className="h-3 w-3" />
+                  : <Check className="h-4 w-4" />}
+              </CheckboxPrimitive.Indicator>
+            </CheckboxPrimitive.Root>
+            <span className="text-xs font-medium leading-tight text-body-2">
+              After Hours
+            </span>
+          </label>
           <div className="flex gap-2 ml-auto shrink-0">
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
               Cancel
             </Button>
             <Button type="submit" disabled={!hasChanges || isSaving}>
-              {isSaving ? "Updating..." : "Apply to Selected Stops"}
+              {isSaving ? "Updating..." : "Apply"}
             </Button>
           </div>
         </div>
@@ -536,10 +546,8 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     storeChoice: "unchanged",
     ampmChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.ampm_deliveries, "unchanged"),
     puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, ""),
-    after_hours_pickup: selectedDeliveries.every(d => !d?.patient_id)
-      ? (selectedDeliveries.every(d => d?.after_hours_pickup === true) ? true : false)
-      : undefined,
-  }), [selectedDeliveries, hasMixedPuids, hasTerminalStatus, allSameStore]);
+    after_hours_pickup: resolveAfterHoursCheckboxState(selectedDeliveries, allDeliveries).checked,
+  }), [selectedDeliveries, hasMixedPuids, hasTerminalStatus, allSameStore, allDeliveries]);
 
   const [values, setValues] = useState(initialValues);
 

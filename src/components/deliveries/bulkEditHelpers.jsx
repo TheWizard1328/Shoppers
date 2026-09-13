@@ -59,11 +59,6 @@ export function buildBulkEditBaseUpdates({ values, initialValues, currentUser, b
     baseUpdates.finished_leg_transport_mode = values.travelModeChoice;
   }
 
-  // Only apply after_hours_pickup if it was defined (i.e. all-pickup selection) and changed
-  if (values.after_hours_pickup !== undefined && values.after_hours_pickup !== initialValues?.after_hours_pickup) {
-    baseUpdates.after_hours_pickup = values.after_hours_pickup;
-  }
-
   return baseUpdates;
 }
 
@@ -87,6 +82,7 @@ export function hasBulkEditChanges({ baseUpdates, values, initialValues, current
 
 export function buildDeliveryBulkUpdates({
   values,
+  initialValues,
   currentUser,
   selectedDelivery,
   baseUpdates,
@@ -124,6 +120,13 @@ export function buildDeliveryBulkUpdates({
     if (isAdmin && !!values.puid) {
       nextUpdates.puid = values.puid;
     }
+  }
+
+  // After hours pickup — only for pickup stops (no patient_id), only if changed.
+  // Applied per-delivery (not via shared baseUpdates) so patient deliveries never
+  // receive the pickup-only after_hours_pickup flag.
+  if (values.after_hours_pickup !== undefined && values.after_hours_pickup !== initialValues?.after_hours_pickup && !selectedDelivery?.patient_id) {
+    nextUpdates.after_hours_pickup = values.after_hours_pickup;
   }
 
   return nextUpdates;
@@ -256,6 +259,7 @@ export async function applyBulkEditStops({
         ? { ...baseUpdates }
         : buildDeliveryBulkUpdates({
             values,
+            initialValues,
             currentUser,
             selectedDelivery,
             baseUpdates,
@@ -282,6 +286,7 @@ export async function applyBulkEditStops({
           ...delivery,
           ...buildDeliveryBulkUpdates({
             values,
+            initialValues,
             currentUser,
             selectedDelivery: delivery,
             baseUpdates,
