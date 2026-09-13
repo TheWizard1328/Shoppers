@@ -237,14 +237,13 @@ async function routeOneSegment(
   transportMode: 'car' | 'bicycle',
   contextBefore: [number, number][] = [],
   contextAfter: [number, number][] = [],
+  zoneWaypoints: [number, number][] = [],
 ): Promise<[number, number][]> {
   const mode = transportMode === 'bicycle' ? 'bicycle' : 'car';
   const fmt = (v: number) => v.toFixed(7);
 
   // Use the closest pre-gap point as origin (it's ON the road the driver was on)
   // and the closest post-gap point as destination (it's ON the road they resumed on).
-  // The raw gap boundary points are just used for passThrough vias to keep HERE
-  // from detouring through a completely different road.
   const originPt = contextBefore.length > 0 ? contextBefore[contextBefore.length - 1] : [fromLat, fromLon];
   const destPt   = contextAfter.length > 0  ? contextAfter[0]                          : [toLat, toLon];
 
@@ -255,11 +254,17 @@ async function routeOneSegment(
   params.set('destination', `${fmt(destPt[0])},${fmt(destPt[1])}`);
   params.set('return', 'polyline,summary');
 
-  // Add the gap boundary points as passThrough vias so HERE must cross them.
-  // passThrough=true means no stop-over — it just constrains the route to pass
-  // through that map location, keeping the route on the correct road.
-  params.append('via', `${fmt(fromLat)},${fmt(fromLon)}!passThrough=true`);
-  params.append('via', `${fmt(toLat)},${fmt(toLon)}!passThrough=true`);
+  // Pass EVERY raw GPS point inside the gap zone as a passThrough via — not just
+  // the two boundary points. Intermediate points (present when adjacent gaps were
+  // consolidated into one zone, or when a sparse trail carries real breadcrumbs
+  // inside the span) anchor the route to the actual roads the driver used.
+  // Without them HERE is free to shortcut between the zone boundaries, ignoring
+  // real waypoints the driver passed through. passThrough=true = no stop-over,
+  // just constrains the route to cross that map location in order.
+  const viaPoints = zoneWaypoints.length > 0 ? zoneWaypoints : [[fromLat, fromLon], [toLat, toLon]];
+  for (const pt of viaPoints) {
+    params.append('via', `${fmt(pt[0])},${fmt(pt[1])}!passThrough=true`);
+  }
 
   try {
     const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
@@ -306,6 +311,7 @@ async function getRoutedSegments(
     toLat: number; toLon: number;
     contextBefore?: [number, number][];
     contextAfter?: [number, number][];
+    zoneWaypoints?: [number, number][];
   }>,
   transportMode: 'car' | 'bicycle',
 ): Promise<Array<[number, number][]>> {
@@ -318,7 +324,7 @@ async function getRoutedSegments(
   return Promise.all(
     segments.map(s => routeOneSegment(
       hereApiKey, s.fromLat, s.fromLon, s.toLat, s.toLon, transportMode,
-      s.contextBefore ?? [], s.contextAfter ?? [],
+      s.contextBefore ?? [], s.contextAfter ?? [], s.zoneWaypoints ?? [],
     ))
   );
 }
@@ -650,6 +656,7 @@ Deno.serve(async (req) => {
       travelMode: 'car' | 'bicycle';
       contextBefore: [number, number][];
       contextAfter: [number, number][];
+      zoneWaypoints: [number, number][];
     }
 
     // How many dense real GPS points to use as road-context anchors on each side of a gap.
@@ -659,6 +666,15 @@ Deno.serve(async (req) => {
       const startPt = masterPoints[zone.startIdx];
       const endPt = masterPoints[zone.endIdx];
       const travelMode = isZoneCycling(startPt[2], endPt[2]) ? 'bicycle' : 'car';
+
+      // ALL raw GPS points spanning the zone (startIdx → endIdx inclusive). When
+      // adjacent gaps were consolidated into one zone, this includes the real
+      // intermediate breadcrumbs between the gaps — these MUST be passed as vias
+      // so HERE anchors the snapped route to every road the driver actually used,
+      // instead of shortcutting across the zone boundaries.
+      const zoneWaypoints: [number, number][] = masterPoints
+        .slice(zone.startIdx, zone.endIdx + 1)
+        .map(p => [p[0], p[1]]);
 
       // Points immediately BEFORE the gap — these are real GPS points on the road
       // the driver was on. Use up to CONTEXT_PTS of them, closest to gap last.
@@ -682,6 +698,7 @@ Deno.serve(async (req) => {
         travelMode,
         contextBefore,
         contextAfter,
+        zoneWaypoints,
       };
     });
 
@@ -698,6 +715,7 @@ Deno.serve(async (req) => {
         toLat: seg.toLat, toLon: seg.toLon,
         contextBefore: seg.contextBefore,
         contextAfter: seg.contextAfter,
+        zoneWaypoints: seg.zoneWaypoints,
       }], seg.travelMode);
       totalApiCalls += 1;
       routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[0]);
