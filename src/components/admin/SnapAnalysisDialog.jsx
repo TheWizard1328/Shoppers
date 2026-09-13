@@ -1,16 +1,16 @@
 import React from 'react';
-import { Loader2, Magnet, AlertTriangle, CheckCircle, Zap, MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Magnet, AlertTriangle, CheckCircle, Zap, MapPin, X, Check } from 'lucide-react';
 
 // ─── SnapAnalysisDialog ───────────────────────────────────────────────────────
-// Shows the gap analysis before committing any HERE API calls.
+// Non-blocking floating panel showing the gap analysis BEFORE any HERE API calls.
+// Confirm/cancel live on the card's inline ✓ / ✗ buttons (magnet + scissors
+// transform), so this panel stays informational and must not cover those buttons.
 // Props:
 //   analysis  — object returned by snapMasterTimeline with analyze_only=true
-//   onConfirm — user accepted, proceed to snap
-//   onCancel  — user dismissed
-//   isSnapping — snap is in progress after confirm
+//   onCancel  — user dismissed (inline ✗ or this panel's close button)
+//   isSnapping — snap is in progress after confirm (disables close)
 // ─────────────────────────────────────────────────────────────────────────────
-export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSnapping }) {
+export default function SnapAnalysisDialog({ analysis, onCancel, isSnapping }) {
   if (!analysis) return null;
 
   const {
@@ -25,20 +25,28 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
   const hasGaps = snap_zones > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-40 w-full max-w-sm pointer-events-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b bg-slate-50 dark:bg-slate-800">
           <Magnet className="w-5 h-5 text-cyan-600 flex-shrink-0" />
-          <div>
+          <div className="flex-1 min-w-0">
             <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-base">Route Gap Analysis</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Gaps &gt; {gap_threshold_m}m flagged for surgical snapping</p>
           </div>
+          <button
+            title="Close"
+            onClick={onCancel}
+            disabled={isSnapping}
+            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Summary stats */}
-        <div className="grid grid-cols-3 gap-px bg-slate-200 border-b">
+        <div className="grid grid-cols-3 gap-px bg-slate-200 border-b dark:bg-slate-700">
           <Stat label="Total Points" value={total_points.toLocaleString()} />
           <Stat label="Gaps Found" value={raw_gaps_found} accent={raw_gaps_found > 0 ? 'amber' : 'green'} />
           <Stat label="API Calls" value={estimated_api_calls} accent={estimated_api_calls > 0 ? 'cyan' : 'green'} />
@@ -47,7 +55,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
         {/* Body */}
         <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-2">
           {!hasGaps ? (
-            <div className="flex items-center gap-2 text-green-700 bg-green-50 dark:bg-green-950 rounded-lg p-3 text-sm">
+            <div className="flex items-center gap-2 text-green-700 bg-green-50 dark:bg-green-950 dark:text-green-300 rounded-lg p-3 text-sm">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
               No gaps found — the master timeline is already clean!
             </div>
@@ -58,14 +66,14 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
                 Dense sections between zones are preserved untouched.
               </p>
               {zone_details.map((z) => (
-                <div key={z.zone_index} className="flex items-start gap-2.5 p-2.5 bg-amber-50 dark:bg-amber-950 border border-amber-100 rounded-lg text-xs">
+                <div key={z.zone_index} className="flex items-start gap-2.5 p-2.5 bg-amber-50 dark:bg-amber-950 border border-amber-100 dark:border-amber-900 rounded-lg text-xs">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-slate-800 dark:text-slate-200">
                       Zone {z.zone_index} — {z.gaps_in_zone} gap{z.gaps_in_zone !== 1 ? 's' : ''}
                     </div>
                     {(z.stop_before != null || z.stop_after != null) && (
-                      <div className="text-cyan-700 font-medium mt-0.5 flex items-center gap-1">
+                      <div className="text-cyan-700 dark:text-cyan-400 font-medium mt-0.5 flex items-center gap-1">
                         <MapPin className="w-3 h-3 flex-shrink-0" />
                         Stop #{z.stop_before ?? '?'} → Stop #{z.stop_after ?? '?'}
                       </div>
@@ -76,7 +84,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
                       <span>Total missing: {(z.total_gap_distance_m / 1000).toFixed(2)}km</span>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 flex items-center gap-1 text-cyan-700 font-semibold">
+                  <div className="flex-shrink-0 flex items-center gap-1 text-cyan-700 dark:text-cyan-400 font-semibold">
                     <Zap className="w-3 h-3" />
                     1 call
                   </div>
@@ -86,30 +94,17 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2 px-5 py-4 border-t bg-slate-50 dark:bg-slate-800">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={onCancel}
-            disabled={isSnapping}
-          >
-            Cancel
-          </Button>
-          {hasGaps && (
-            <Button
-              size="sm"
-              className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white gap-2"
-              onClick={onConfirm}
-              disabled={isSnapping}
-            >
-              {isSnapping
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Snapping…</>
-                : <><Magnet className="w-4 h-4" /> Snap {estimated_api_calls} Zone{estimated_api_calls !== 1 ? 's' : ''}</>
-              }
-            </Button>
-          )}
+        {/* Hint footer — confirm/cancel live on the card's inline ✓ / ✗ buttons */}
+        <div className="px-5 py-3 border-t bg-slate-50 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+          <span>Use</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+            <Check className="w-3 h-3" />
+          </span>
+          <span>on the card to regenerate segments, or</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300">
+            <X className="w-3 h-3" />
+          </span>
+          <span>to cancel.</span>
         </div>
       </div>
     </div>

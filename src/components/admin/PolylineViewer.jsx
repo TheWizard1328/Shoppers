@@ -1559,6 +1559,26 @@ export default function PolylineViewer({ users = [] }) {
                                   <X className="w-3.5 h-3.5" />
                                 </button>
                               </>
+                            ) : snapAnalysis?.item?.id === item.id ? (
+                              // Analysis shown — confirm regeneration (✓) or cancel (✗) BEFORE any API calls
+                              <>
+                                <button
+                                  title="Confirm — regenerate missing segments via HERE API"
+                                  onClick={e => { e.stopPropagation(); handleSnapConfirmed(); }}
+                                  disabled={isSnappingMaster}
+                                  className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:hover:bg-green-800 dark:text-green-300 disabled:opacity-50 transition-colors ml-auto"
+                                >
+                                  {isSnappingMaster ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  title="Cancel — discard analysis"
+                                  onClick={e => { e.stopPropagation(); setSnapAnalysis(null); }}
+                                  disabled={isSnappingMaster}
+                                  className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:hover:bg-red-800 dark:text-red-300 disabled:opacity-50 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             ) : (
                               // Normal — magnet + scissors, master timeline only
                               <>
@@ -1725,6 +1745,15 @@ export default function PolylineViewer({ users = [] }) {
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </>
+              ) : snapAnalysis?.item?.id === crumb.id ? (
+                <>
+                  <button title="Confirm — regenerate missing segments via HERE API" onClick={e => { e.stopPropagation(); handleSnapConfirmed(); }} disabled={isSnappingMaster} className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:hover:bg-green-800 dark:text-green-300 disabled:opacity-50 transition-colors ml-auto">
+                    {isSnappingMaster ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  <button title="Cancel — discard analysis" onClick={e => { e.stopPropagation(); setSnapAnalysis(null); }} disabled={isSnappingMaster} className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:hover:bg-red-800 dark:text-red-300 disabled:opacity-50 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </>
               ) : (
                 <>
                   <button title="Analyze gaps & snap master timeline" onClick={e => { e.stopPropagation(); handleSnapAnalyze(crumb); }} disabled={isAnalyzing || isSnappingMaster || !!snapPreview || !!snapAnalysis} className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto">
@@ -1843,7 +1872,6 @@ export default function PolylineViewer({ users = [] }) {
           <SnapAnalysisDialog
             analysis={snapAnalysis}
             isSnapping={isSnappingMaster}
-            onConfirm={handleSnapConfirmed}
             onCancel={() => setSnapAnalysis(null)}
           />
         )}
