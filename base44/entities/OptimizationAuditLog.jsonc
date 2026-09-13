@@ -1,0 +1,70 @@
+{
+  "name": "OptimizationAuditLog",
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the optimization was triggered"
+    },
+    "trigger_source": {
+      "type": "string",
+      "description": "Button/flow that triggered the optimization (accept_all, start_button, retry, accept_single, reoptimize_fab, travel_mode_toggle, quick_reorder, driver_changed_old/new, delivery_form_*, cancel_pickup, terminal_out_of_order, isp_dropoff_confirm, next_delivery_sync, layout_refresh, silent_reoptimize, reset_polylines, coordinator fallback)"
+    },
+    "acting_user_id": {
+      "type": "string",
+      "description": "Base44 auth id of the user who pressed the trigger (the device's logged-in user)"
+    },
+    "acting_user_name": {
+      "type": "string",
+      "description": "Display name or email of the acting user"
+    },
+    "acting_user_role": {
+      "type": "string",
+      "description": "Role of the acting user (driver/admin/dispatcher/app_owner)"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "Driver whose route was optimized"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Driver whose route was optimized"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Delivery date of the optimized route (YYYY-MM-DD)"
+    },
+    "stop_count": {
+      "type": "integer",
+      "description": "Number of stops passed to the optimizer"
+    },
+    "success": {
+      "type": "boolean",
+      "description": "Whether the optimization completed successfully"
+    },
+    "skipped": {
+      "type": "boolean",
+      "description": "True if the optimizer skipped (e.g. no active stops)"
+    },
+    "skip_reason": {
+      "type": "string",
+      "description": "Reason the optimization was skipped, if applicable"
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if the optimization failed"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "description": "Wall-clock duration of the optimization run"
+    }
+  },
+  "required": [
+    "timestamp",
+    "trigger_source",
+    "driver_id",
+    "delivery_date"
+  ]
+}

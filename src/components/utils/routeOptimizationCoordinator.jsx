@@ -53,7 +53,7 @@ import { getAllLocations, isInterStoreDelivery } from '@/components/utils/interS
  * @param {string}  [params.recalcTrackingStoreId=null] — When set, only write TR#s for deliveries matching this store_id (prevents overwriting other stores' TR#s). All deliveries are still passed to the calculator for collision detection.
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
-export async function performRouteOptimization({
+async function _performRouteOptimizationInner({
   driverId,
   deliveryDate,
   currentLocation = null,
@@ -461,4 +461,76 @@ export async function performRouteOptimization({
     }
     return { success: false, error: error.message };
   }
+}
+// ── Optimization Audit Log (Sep 2026) ───────────────────────────────────────
+// Attribution layer: records WHO triggered each optimization (the acting user
+// on this device, since buttons like Accept All / Start / Retry / manual FAB
+// are driver/admin-only) and WHICH flow did it (the `source` label), alongside
+// the driver whose route was optimized. Lets reports distinguish driver
+// self-serve vs admin remote re-optimization and the dispatcher corner cases
+// (stops added directly as In Transit, dispatcher-added InterStore stops).
+// Best-effort fire-and-forget — must NEVER block or break optimization.
+async function _writeOptimizationAuditLog({ params, result, durationMs }) {
+  try {
+    const { driverId, deliveryDate, deliveries, source = 'coordinator' } = params || {};
+    if (!driverId || !deliveryDate) return;
+
+    // Acting user = whoever is logged in on the device that pressed the trigger
+    let actingUser = null;
+    try { actingUser = await base44.auth.me(); } catch { /* best-effort */ }
+
+    // Driver display name: prefer delivery records, then AppUser lookup
+    let driverName = null;
+    const sample = Array.isArray(deliveries) ? deliveries.find((d) => d && d.driver_name) : null;
+    if (sample?.driver_name) {
+      driverName = sample.driver_name;
+    } else if (Array.isArray(result?.freshDeliveries)) {
+      driverName = result.freshDeliveries.find((d) => d?.driver_name)?.driver_name || null;
+    }
+    if (!driverName) {
+      try {
+        const au = await base44.entities.AppUser.filter({ user_id: driverId });
+        driverName = au?.[0]?.full_name || au?.[0]?.name || null;
+      } catch { /* best-effort */ }
+    }
+
+    const TERMINAL = ['completed', 'failed', 'cancelled'];
+    const stopCount = Array.isArray(deliveries)
+      ? deliveries.filter((d) => d && !TERMINAL.includes(String(d.status || ''))).length
+      : (result?.optimizeData?.writeBatch?.length ?? result?.freshDeliveries?.length ?? 0);
+
+    await base44.entities.OptimizationAuditLog.create({
+      timestamp: new Date().toISOString(),
+      trigger_source: source,
+      acting_user_id: actingUser?.id || null,
+      acting_user_name: actingUser?.full_name || actingUser?.email || null,
+      acting_user_role: actingUser?.role || null,
+      driver_id: driverId,
+      driver_name: driverName,
+      delivery_date: deliveryDate,
+      stop_count: stopCount,
+      success: result?.success === true,
+      skipped: result?.skipped === true,
+      skip_reason: result?.reason || null,
+      error: result?.error || null,
+      duration_ms: durationMs,
+    });
+  } catch { /* best-effort — audit must never break optimization */ }
+}
+
+// Public entry point: wraps the inner coordinator so EVERY optimization path
+// (all 31 call sites across the app already pass a `source` label) is audited
+// with outcome + duration, without touching any caller.
+export async function performRouteOptimization(params) {
+  const _t0 = Date.now();
+  let result;
+  try {
+    result = await _performRouteOptimizationInner(params);
+  } catch (e) {
+    result = { success: false, error: e?.message || String(e) };
+  }
+  if (typeof window !== 'undefined' && window.__optimizationAuditDisabled !== true) {
+    _writeOptimizationAuditLog({ params, result, durationMs: Date.now() - _t0 }).catch(() => {});
+  }
+  return result;
 }
