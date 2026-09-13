@@ -416,6 +416,13 @@ Deno.serve(async (req) => {
         gaps_in_zone: z.gaps.length,
         max_gap_m: Math.round(Math.max(...z.gaps.map(g => g.distanceM))),
         total_gap_distance_m: Math.round(z.gaps.reduce((s, g) => s + g.distanceM, 0)),
+        // Per-gap straight-line segments (from→to raw GPS coords) so the map can
+        // draw exactly where each gap sits before any HERE API calls are made.
+        gap_segments: z.gaps.map(g => ({
+          from: [masterPoints[g.startIdx][0], masterPoints[g.startIdx][1]] as [number, number],
+          to: [masterPoints[g.endIdx][0], masterPoints[g.endIdx][1]] as [number, number],
+          distance_m: Math.round(g.distanceM),
+        })),
       })),
     };
 

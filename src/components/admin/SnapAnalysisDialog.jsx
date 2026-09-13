@@ -1,16 +1,18 @@
 import React from 'react';
-import { Magnet, AlertTriangle, CheckCircle, Zap, MapPin, X, Check } from 'lucide-react';
+import { Magnet, AlertTriangle, CheckCircle, Zap, MapPin, X, Check, RefreshCw } from 'lucide-react';
 
 // ─── SnapAnalysisDialog ───────────────────────────────────────────────────────
 // Non-blocking floating panel showing the gap analysis BEFORE any HERE API calls.
 // Confirm/cancel live on the card's inline ✓ / ✗ buttons (magnet + scissors
 // transform), so this panel stays informational and must not cover those buttons.
 // Props:
-//   analysis  — object returned by snapMasterTimeline with analyze_only=true
-//   onCancel  — user dismissed (inline ✗ or this panel's close button)
-//   isSnapping — snap is in progress after confirm (disables close)
+//   analysis   — object returned by snapMasterTimeline with analyze_only=true
+//   onCancel   — user dismissed (inline ✗ or this panel's close button)
+//   isSnapping — snap is in progress after confirm (disables buttons)
+//   isAnalyzing— analyze_only call in flight (spins the refresh button)
+//   onRefresh  — re-run analyze_only (after the user edits short gaps on the map)
 // ─────────────────────────────────────────────────────────────────────────────
-export default function SnapAnalysisDialog({ analysis, onCancel, isSnapping }) {
+export default function SnapAnalysisDialog({ analysis, onCancel, isSnapping, isAnalyzing, onRefresh }) {
   if (!analysis) return null;
 
   const {
@@ -35,6 +37,14 @@ export default function SnapAnalysisDialog({ analysis, onCancel, isSnapping }) {
             <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-base">Route Gap Analysis</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Gaps &gt; {gap_threshold_m}m flagged for surgical snapping</p>
           </div>
+          <button
+            title="Re-run analysis after editing gaps"
+            onClick={onRefresh}
+            disabled={isAnalyzing || isSnapping || !onRefresh}
+            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-cyan-600 dark:text-cyan-400 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+          </button>
           <button
             title="Close"
             onClick={onCancel}

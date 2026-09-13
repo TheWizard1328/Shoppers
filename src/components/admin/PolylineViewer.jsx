@@ -1872,7 +1872,9 @@ export default function PolylineViewer({ users = [] }) {
           <SnapAnalysisDialog
             analysis={snapAnalysis}
             isSnapping={isSnappingMaster}
+            isAnalyzing={isAnalyzing}
             onCancel={() => setSnapAnalysis(null)}
+            onRefresh={() => handleSnapAnalyze(snapAnalysis.item)}
           />
         )}
 
@@ -2166,6 +2168,22 @@ export default function PolylineViewer({ users = [] }) {
                         opacity={0.9}
                       />
                     ))}
+
+                    {/* Snap analysis — dashed blue straight lines marking each detected gap
+                        so the user can see where the gaps are and edit the short ones before
+                        committing to HERE API calls. */}
+                    {snapAnalysis && (snapAnalysis.zone_details || []).flatMap((z, zi) =>
+                      (z.gap_segments || []).map((g, gi) => (
+                        <Polyline
+                          key={`snap-gap-${zi}-${gi}`}
+                          positions={[g.from, g.to]}
+                          color="#3b82f6"
+                          weight={4}
+                          opacity={0.95}
+                          dashArray="6,8"
+                        />
+                      ))
+                    )}
 
                     <MapClickHandler
                       isActive={isCleaningMode && !isBrushPickMode}
