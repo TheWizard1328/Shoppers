@@ -1152,6 +1152,7 @@ export default function DriverPayroll() {
     if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
 
     // Initial determination only — pick the most common effective cycle among drivers
+    let newCycle = null;
     if (!isDriver && selectedDriverId === 'all') {
       const cycleCounts = {};
       payrollData.appUsers.forEach((au) => {
@@ -1160,26 +1161,47 @@ export default function DriverPayroll() {
           if (effective) cycleCounts[effective] = (cycleCounts[effective] || 0) + 1;
         }
       });
-      let bestCycle = null;
       let maxCount = 0;
       for (const [cycle, count] of Object.entries(cycleCounts)) {
-        if (count > maxCount) { maxCount = count; bestCycle = cycle; }
-      }
-      if (bestCycle && bestCycle !== payPeriod) {
-        setPayPeriod(bestCycle);
-        periodSelectionDoneWithRecordsRef.current = false;
+        if (count > maxCount) { maxCount = count; newCycle = cycle; }
       }
     } else if (isDriver && selectedDriverId !== 'all') {
       const driverAppUser = payrollData.appUsers.find((au) => au.user_id === selectedDriverId);
-      const effective = getDriverCycleForDate(driverAppUser, currentPeriod?.start);
-      if (effective && effective !== payPeriod) {
-        setPayPeriod(effective);
-        periodSelectionDoneWithRecordsRef.current = false;
-      }
+      newCycle = getDriverCycleForDate(driverAppUser, currentPeriod?.start);
+    }
+
+    if (newCycle && newCycle !== payPeriod) {
+      // CRITICAL: Recompute the period index for the NEW cycle's period array.
+      // The init effect computed selectedPeriodIndex for the cycle guessed from
+      // offline AppUsers. When live data reveals the real most-common cycle
+      // differs, the old index is meaningless against the new cycle's periods
+      // (e.g. monthly index 8 → weekly index 8 = late Feb). Without this
+      // recompute the page opened to an early-year period and the live-records
+      // effect (which locks periodSelectionDoneWithRecordsRef using the stale
+      // old-cycle index) prevented it from ever correcting.
+      const shouldClassify = newCycle === 'weekly' || newCycle === 'biweekly';
+      const effectiveYear = shouldClassify ? getClassificationYearForDate(new Date(), newCycle) : selectedYear;
+      const nextPeriods = calculateAllPeriods(effectiveYear, newCycle);
+      const nextIdx = determinePreferredPayrollPeriodIndex({
+        periods: nextPeriods,
+        payrollRecords: payrollData?.payrollRecords || [],
+        selectedCityId,
+        selectedDriverId: 'all',
+        payPeriodType: newCycle,
+        today: new Date()
+      });
+      setPayPeriod(newCycle);
+      if (shouldClassify && effectiveYear !== selectedYear) setSelectedYear(effectiveYear);
+      setSelectedPeriodIndex(nextIdx);
+      // Lock the selection so the live-records effect doesn't override with a
+      // stale index computed for the previous cycle, and suppress the
+      // auto-go-back-one effect from shifting the freshly-computed index.
+      periodSelectionDoneWithRecordsRef.current = true;
+      triedPreviousPeriodRef.current = true;
     }
 
     hasLoadedInitialDataRef.current = true;
-  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod, currentPeriod]);
+  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod, currentPeriod, selectedCityId, selectedYear]);
 
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);

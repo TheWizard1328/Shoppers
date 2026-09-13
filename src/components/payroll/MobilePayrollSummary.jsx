@@ -11,11 +11,11 @@ export default function MobilePayrollSummary({ periodLabel, totalNetPay, totalDe
     <div className="bg-white/95 mb-3 px-3 py-1 rounded-xl lg:hidden sticky top-16 z-10 dark:bg-slate-900/85 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Button size="icon" variant="outline" onClick={onPrev} className="h-8 w-8">
+          <Button size="icon" variant="outline" onClick={onPrev} className="h-8 w-8 pointer-events-auto">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="text-sm font-medium truncate" title={periodLabel}>{periodLabel || 'Current Period'}</div>
-          <Button size="icon" variant="outline" onClick={onNext} className="h-8 w-8">
+          <Button size="icon" variant="outline" onClick={onNext} className="h-8 w-8 pointer-events-auto">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
