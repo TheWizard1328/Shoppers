@@ -521,6 +521,28 @@ export default function AppSidebar({
             <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
 
 
+      {/* Driver Activity — admins only */}
+      {userHasRole(currentUser, 'admin') &&
+            <Link
+              to={createPageUrl('DriverActivity')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'DriverActivity' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'DriverActivity' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+          <Activity className="w-5 h-5" />
+          <span className="font-semibold">Driver Activity</span>
+        </Link>
+            }
+
+
       {/* Documents — visible to all roles */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
             <Link
@@ -578,27 +600,6 @@ export default function AppSidebar({
           <Settings className="w-5 h-5" />
           <span className="font-semibold">User Settings</span>
           {nativeAppUpdateAvailable && <NativeUpdateBadge className="ml-auto" />}
-        </Link>
-            }
-
-      {/* Driver Activity — admins only */}
-      {userHasRole(currentUser, 'admin') &&
-            <Link
-              to={createPageUrl('DriverActivity')}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentPageName === 'DriverActivity' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'DriverActivity' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-          <Activity className="w-5 h-5" />
-          <span className="font-semibold">Driver Activity</span>
         </Link>
             }
 
