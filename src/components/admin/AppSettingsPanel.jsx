@@ -373,7 +373,7 @@ export default function AppSettingsPanel() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="winter_eta_factor" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
-                      ETA Factor (e.g. 1.25)
+                      ETA Factor (e.g. 1.25) <span className="text-[10px] text-blue-300/80">· Current: {savedWinterMode?.eta_factor ?? '—'}</span>
                     </Label>
                     <Input
                       id="winter_eta_factor"
@@ -389,7 +389,7 @@ export default function AppSettingsPanel() {
                   </div>
                   <div>
                     <Label htmlFor="winter_arrival_radius" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
-                      Arrival Radius (m)
+                      Arrival Radius (m) <span className="text-[10px] text-blue-300/80">· Current: {savedWinterMode?.arrival_radius_m ?? '—'}</span>
                     </Label>
                     <Input
                       id="winter_arrival_radius"
@@ -405,7 +405,7 @@ export default function AppSettingsPanel() {
                   </div>
                   <div>
                     <Label htmlFor="winter_snap_radius" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
-                      Proximity Snap (km)
+                      Proximity Snap (km) <span className="text-[10px] text-blue-300/80">· Current: {savedWinterMode?.gps_snap_km ?? '—'}</span>
                     </Label>
                     <Input
                       id="winter_snap_radius"
@@ -421,7 +421,7 @@ export default function AppSettingsPanel() {
                   </div>
                   <div>
                     <Label htmlFor="winter_cold_threshold" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
-                      Cold Warning Threshold (°C)
+                      Cold Warning Threshold (°C) <span className="text-[10px] text-blue-300/80">· Current: {savedWinterMode?.cold_threshold_c ?? '—'}</span>
                     </Label>
                     <Input
                       id="winter_cold_threshold"
