@@ -13,6 +13,7 @@ import {
   Search, RefreshCw, Trash2, Eye, Building2 } from
 'lucide-react';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
+import { formatShortDateTime } from '@/components/utils/formatters';
 import { sortUsers } from '../components/utils/sorting';
 import { DocViewerModal, DocCropModal } from '@/components/documents/DocModals';
 import ComplianceDocsSection from '@/components/documents/ComplianceDocsSection';
@@ -28,12 +29,8 @@ const REQUESTABLE_DOC_TYPES = [
 { key: 'background_check', label: 'Background Check' }];
 
 
-function formatDateTime(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-  });
-}
+// Delegate to the shared formatter (was a byte-identical local copy).
+const formatDateTime = (iso) => formatShortDateTime(iso);
 
 function isAccessActive(req) {
   if (req.status !== 'approved') return false;

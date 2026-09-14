@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Shield, CheckCircle, XCircle, Clock, RefreshCw, FileText, User } from 'lucide-react';
+import { formatShortDateTime } from '@/components/utils/formatters';
 
 export default function DocAccessRequestsPanel({ currentUser }) {
   const [requests, setRequests] = useState([]);
@@ -103,14 +104,8 @@ export default function DocAccessRequestsPanel({ currentUser }) {
     }
   };
 
-  const formatTime = (iso) => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return d.toLocaleString('en-US', {
-      month: 'short', day: 'numeric',
-      hour: 'numeric', minute: '2-digit'
-    });
-  };
+  // Delegate to the shared formatter (was a byte-identical local copy).
+  const formatTime = (iso) => formatShortDateTime(iso);
 
   const isAccessActive = (req) => {
     if (req.status !== 'approved') return false;

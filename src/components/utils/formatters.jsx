@@ -51,3 +51,17 @@ export const formatDate = (dateString, formatString = 'MMM d, yyyy') => {
     return dateString;
   }
 };
+/**
+ * Short date-time for lists/audit rows: "Sep 14, 3:05 PM".
+ * Single implementation — Documents.jsx and DocAccessRequestsPanel.jsx
+ * previously carried byte-identical copies (code-scan finding #6, Sep 14).
+ */
+export const formatShortDateTime = (iso, { placeholder = '—' } = {}) => {
+  if (!iso) return placeholder;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return placeholder;
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  });
+};
