@@ -60,14 +60,14 @@ export default function HomeMarkers({ driverHomeMarkers, map, isMobile, onMarker
               <div className="flex gap-1.5 mt-3">
                 <button
                   onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${home.latitude},${home.longitude}`, '_blank')}
-                  className="flex-1 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded flex items-center justify-center gap-1.5 transition-colors"
+                  className="flex-1 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white driver-popup-action text-xs rounded flex items-center justify-center gap-1.5 transition-colors"
                   title={`Navigate to ${home.driverName}'s home`}
                 >
                   <Navigation className="w-3.5 h-3.5" />Goto
                 </button>
                 {!!driverPhone && (
                   <a href={`tel:${String(driverPhone).replace(/\D/g, '')}`}
-                    className="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded flex items-center justify-center gap-1.5 transition-colors"
+                    className="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white driver-popup-action text-xs rounded flex items-center justify-center gap-1.5 transition-colors"
                     title={`Call ${home.driverName}`}>
                     <Phone className="w-3.5 h-3.5" />Call
                   </a>
