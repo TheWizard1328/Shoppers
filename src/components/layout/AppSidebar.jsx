@@ -222,7 +222,7 @@ export default function AppSidebar({
               <div className="flex flex-col items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
+                    <Button aria-label="More options" variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
                       <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                       {hasWebUpdate && <UpdateArrow type="web" size={8} />}
                     </Button>

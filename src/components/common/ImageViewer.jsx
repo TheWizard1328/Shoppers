@@ -20,7 +20,7 @@ export default function ImageViewer({ imageUrl, title = 'Image', onClose }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
           <h3 className="text-white font-semibold">{title}</h3>
           <Button
-            variant="ghost"
+ aria-label="Close image viewer"            variant="ghost"
             size="icon"
             onClick={onClose}
             className="text-white hover:bg-slate-800"

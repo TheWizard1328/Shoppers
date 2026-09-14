@@ -159,7 +159,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
               </span>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
+          <Button aria-label="Cancel signature" variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
             <X className="w-5 h-5" />
           </Button>
         </div>

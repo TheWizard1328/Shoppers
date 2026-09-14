@@ -104,7 +104,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                 </p>
               </div>
               <button
-              onClick={onClose}
+ aria-label="Close patient history"              onClick={onClose}
               className="ml-2 p-1.5 rounded-lg hover:bg-slate-200 transition-colors flex-shrink-0 text-label">
               
                 <X className="w-5 h-5" />

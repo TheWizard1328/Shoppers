@@ -112,7 +112,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           </div>
           <div className="flex items-center gap-3">
             {statusBadge()}
-            <button onClick={skip} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300">
+            <button aria-label="Close temperature reader" onClick={skip} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300">
               <X className="w-5 h-5" />
             </button>
           </div>

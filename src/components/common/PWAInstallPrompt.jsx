@@ -90,7 +90,7 @@ export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' 
               </div>
 
               <Button
-                variant="ghost"
+ aria-label="Dismiss install prompt"                variant="ghost"
                 size="icon"
                 className="w-6 h-6"
                 onClick={handleDismiss}

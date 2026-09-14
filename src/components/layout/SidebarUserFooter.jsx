@@ -639,7 +639,7 @@ export default function SidebarUserFooter({
             </button>
             <button
               onClick={onOpenInviteQR} className="px-2 py-0 rounded-lg hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
-              title="Generate Invite QR Code">
+              title="Generate Invite QR Code" aria-label="Generate invite QR code">
               <QrCode className="w-5 h-5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" />
             </button>
           </div>

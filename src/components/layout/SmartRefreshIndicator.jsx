@@ -423,7 +423,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         activeManager === 'historical' ? 'Historical sync active' :
         activeManager === 'offline' ? 'Offline Sync active' :
         activeManager === 'polling' ? 'Background location polling' :
-        'Click to refresh'}>
+        'Click to refresh'}
+        aria-label="Refresh now">
 
         {hasError ?
         <RefreshCw className="w-3.5 h-3.5 text-white" /> :

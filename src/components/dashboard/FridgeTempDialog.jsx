@@ -276,7 +276,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
                 </div>
               </div>
               <button
-                onClick={handleDismiss}
+ aria-label="Dismiss temperature warning"                onClick={handleDismiss}
                 className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0 p-1"
               >
                 <X className="w-4 h-4" />

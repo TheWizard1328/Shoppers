@@ -789,14 +789,14 @@ export default function AdminMetrics() {
 
         <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
           <Button
-          variant="outline"
+ aria-label="Refresh metrics"          variant="outline"
           size="icon"
           onClick={handleManualRefresh}
           disabled={!selectedCityId || isFetching || isManualRefreshing}
           className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
             <RefreshCw className={`w-4 h-4 ${isFetching || isManualRefreshing || isBackgroundSyncing ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
           </Button>
-          <Button variant="outline" size="icon" disabled={!selectedCityId}>
+          <Button aria-label="Share metrics" variant="outline" size="icon" disabled={!selectedCityId}>
             <Share2 className="w-4 h-4" />
           </Button>
         </div>

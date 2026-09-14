@@ -540,7 +540,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 Escalate Now
               </Button>
               <Button
-                size="sm"
+ aria-label="Cancel availability request"                size="sm"
                 variant="ghost"
                 className="h-7 text-[11px] px-2"
                 onClick={handleCancel}

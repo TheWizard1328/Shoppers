@@ -553,6 +553,7 @@ export default function ResetPolylinesButton({
         onClick={handleReset}
         disabled={disabled || isResetting || driverIds.length === 0}
         title="Reset and update all polylines"
+        aria-label="Reset and update all polylines"
         className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 bg-slate-700 hover:bg-slate-800 ${className}`}
         style={{ pointerEvents: "auto", touchAction: "manipulation" }}
       >

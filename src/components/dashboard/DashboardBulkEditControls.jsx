@@ -385,7 +385,7 @@ export default function DashboardBulkEditControls({
             <Trash2 className="h-4 w-4" />
             {totalDeleteCount}
           </Button>
-          <Button size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting} className="h-8 w-8 min-h-0 min-w-0">
+          <Button aria-label="Clear selection" size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting} className="h-8 w-8 min-h-0 min-w-0">
             <X className="h-4 w-4" />
           </Button>
         </div>

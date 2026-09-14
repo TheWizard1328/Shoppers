@@ -966,7 +966,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                     {!isAtPickupLocation && isNextDelivery && navigationHref && (
                 isWithinActiveStopRange ?
                 <button
-                  type="button"
+ aria-label="Update GPS location"                  type="button"
                   onClick={handleUpdateGPS}
                   className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-emerald-600 text-white hover:bg-emerald-700">
                   

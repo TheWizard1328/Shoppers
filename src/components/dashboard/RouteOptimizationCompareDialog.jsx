@@ -128,7 +128,7 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
               {sorted.length} stops
             </span>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" style={{ color: accent.closeIcon }} onClick={onClose}>
+          <Button aria-label="Close comparison" variant="ghost" size="icon" className="h-7 w-7" style={{ color: accent.closeIcon }} onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>

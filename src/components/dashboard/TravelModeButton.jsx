@@ -44,6 +44,7 @@ export default function TravelModeButton({ currentUser, appUsers = [], value, on
       disabled={disabled}
       className="h-8 w-8 p-0 flex-shrink-0 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}
       title={disabled ? 'Available during active route only' : isWalking ? 'Walking' : isCycling ? 'Cycling' : 'Driving'}
+      aria-label={disabled ? 'Travel mode unavailable' : isWalking ? 'Switch from walking mode' : isCycling ? 'Switch from cycling mode' : 'Switch from driving mode'}
     >
       <CurrentIcon className="w-3.5 h-3.5" />
     </Button>

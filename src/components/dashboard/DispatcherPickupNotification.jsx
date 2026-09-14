@@ -156,7 +156,7 @@ export default function DispatcherPickupNotification({
               </div>
               
               <Button
-                variant="ghost"
+ aria-label="Dismiss pickup notification"                variant="ghost"
                 size="icon"
                 onClick={handleDismiss}
                 className="h-8 w-8 text-white hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 flex-shrink-0"

@@ -148,7 +148,7 @@ export default function StopCardCODCollection({
                 onFocus={(e) => e.target.select()} />
                 </div>
 
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => {e.stopPropagation();handleRemoveCODPayment(index);}}>
+                <Button aria-label="Remove COD payment" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => {e.stopPropagation();handleRemoveCODPayment(index);}}>
                   <X className="w-3 h-3" />
                 </Button>
               </div>

@@ -354,7 +354,7 @@ export default function ConnectionRecoveryBanner() {
             
             {status !== 'recovering' && (
               <button
-                onClick={handleDismiss}
+ aria-label="Dismiss banner"                onClick={handleDismiss}
                 className="p-1 hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 rounded transition-colors"
               >
                 <X className="w-4 h-4" />
