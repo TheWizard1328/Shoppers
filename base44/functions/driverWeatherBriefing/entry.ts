@@ -324,7 +324,9 @@ async function handleBriefing(base44, params = {}) {
     base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).catch(() => []),
   ]);
   const _winterRaw = appSettingsRows?.[0]?.setting_value?.winter_mode || {};
-  const coldThresholdC = Number.isFinite(Number(_winterRaw.cold_threshold_c)) ? Number(_winterRaw.cold_threshold_c) : -10;
+  const coldThresholdMinC = Number.isFinite(Number(_winterRaw.cold_threshold_min_c))
+    ? Number(_winterRaw.cold_threshold_min_c)
+    : Number.isFinite(Number(_winterRaw.cold_threshold_c)) ? Number(_winterRaw.cold_threshold_c) : -15;
   const overrideMap = new Map();
   for (const o of (overrides?.data || overrides || [])) {
     const rec = unwrapEntityRecord(o) || o;
@@ -436,7 +438,7 @@ async function handleBriefing(base44, params = {}) {
       if (w.daily.snowCm && w.daily.snowCm > 0) bits.push(`${w.daily.snowCm} cm snow`);
       bits.push(`wind ${w.current.wind} km/h`);
       lines.push(bits.join(' · '));
-      if (w.daily.low <= coldThresholdC) lines.push(`❄️ Cold day — bundle up.`);
+      if (w.daily.low <= coldThresholdMinC) lines.push(`❄️ Cold day — bundle up.`);
     } else {
       lines.push('Weather unavailable');
     }

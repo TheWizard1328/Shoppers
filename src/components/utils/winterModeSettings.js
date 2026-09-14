@@ -8,7 +8,8 @@
  *     eta_factor: number,      // multiplier for fresh leg durations (1.25 = +25%)
  *     gps_snap_km: number,     // proximity-snap radius in km (default 0.15 = 150m)
  *     arrival_radius_m: number,// arrival geofence radius in meters (default 150)
- *     cold_threshold_c: number // briefing cold-warning threshold in °C
+ *     cold_threshold_min_c: number // enable cold warning at or below this temp (°C)
+ *     cold_threshold_max_c: number // disable cold warning at or above this temp (°C)
  *   }
  *
  * Winter Mode (owner spec, Sep 2026): pads ETAs, raises GPS-drift tolerance
@@ -27,7 +28,8 @@ export const DEFAULT_WINTER_MODE = Object.freeze({
   eta_factor: 1.25,
   gps_snap_km: 0.15,
   arrival_radius_m: 150,
-  cold_threshold_c: -10,
+  cold_threshold_min_c: -15, // enable cold warning at or below this temp
+  cold_threshold_max_c: -5,  // disable cold warning at or above this temp
 });
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -57,7 +59,8 @@ export async function getWinterModeSettings({ force = false } = {}) {
       if (!Number.isFinite(merged.eta_factor) || merged.eta_factor < 1 || merged.eta_factor > 3) merged.eta_factor = DEFAULT_WINTER_MODE.eta_factor;
       if (!Number.isFinite(merged.gps_snap_km) || merged.gps_snap_km <= 0 || merged.gps_snap_km > 1) merged.gps_snap_km = DEFAULT_WINTER_MODE.gps_snap_km;
       if (!Number.isFinite(merged.arrival_radius_m) || merged.arrival_radius_m <= 0) merged.arrival_radius_m = DEFAULT_WINTER_MODE.arrival_radius_m;
-      if (!Number.isFinite(merged.cold_threshold_c)) merged.cold_threshold_c = DEFAULT_WINTER_MODE.cold_threshold_c;
+      if (!Number.isFinite(merged.cold_threshold_min_c)) merged.cold_threshold_min_c = DEFAULT_WINTER_MODE.cold_threshold_min_c;
+      if (!Number.isFinite(merged.cold_threshold_max_c)) merged.cold_threshold_max_c = DEFAULT_WINTER_MODE.cold_threshold_max_c;
       merged.enabled = merged.enabled === true;
       _cached = merged;
       _fetchedAt = Date.now();

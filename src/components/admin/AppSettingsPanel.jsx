@@ -12,6 +12,16 @@ import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
 
 const DEFAULT_API_KEYS = ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY'];
 
+// Reference defaults shown next to each Winter Mode field (also used to hydrate state).
+const DEFAULT_WINTER = {
+  enabled: false,
+  eta_factor: 1.25,
+  gps_snap_km: 0.15,
+  arrival_radius_m: 150,
+  cold_threshold_min_c: -15, // Enable cold warning at or below this temp
+  cold_threshold_max_c: -5,  // Disable cold warning at or above this temp
+};
+
 export default function AppSettingsPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState('0.00');
@@ -33,8 +43,8 @@ export default function AppSettingsPanel() {
   const [fridgeTempSaved, setFridgeTempSaved] = useState(false);
 
   // Winter Mode settings (ETA padding + GPS drift tolerance + cold warnings)
-  const [winterMode, setWinterMode] = useState({ enabled: false, eta_factor: 1.25, gps_snap_km: 0.15, arrival_radius_m: 150, cold_threshold_c: -10 });
-  const [savedWinterMode, setSavedWinterMode] = useState({ enabled: false, eta_factor: 1.25, gps_snap_km: 0.15, arrival_radius_m: 150, cold_threshold_c: -10 });
+  const [winterMode, setWinterMode] = useState({ ...DEFAULT_WINTER });
+  const [savedWinterMode, setSavedWinterMode] = useState({ ...DEFAULT_WINTER });
   const [isSavingWinterMode, setIsSavingWinterMode] = useState(false);
   const [winterModeSaved, setWinterModeSaved] = useState(false);
 
@@ -62,8 +72,12 @@ export default function AppSettingsPanel() {
         }
 
         if (v.winter_mode && typeof v.winter_mode === 'object') {
-          setWinterMode(v.winter_mode);
-          setSavedWinterMode(v.winter_mode);
+          // Merge with defaults so newly-added fields (e.g. split cold thresholds)
+          // hydrate to their default values when loading older saved records.
+          const merged = { ...DEFAULT_WINTER, ...v.winter_mode };
+          delete merged.cold_threshold_c; // drop legacy single-threshold key
+          setWinterMode(merged);
+          setSavedWinterMode(merged);
         }
 
         const configuredApiKeys = Array.isArray(v.available_api_keys) && v.available_api_keys.length > 0
@@ -196,10 +210,11 @@ export default function AppSettingsPanel() {
     try {
       const normalized = {
         enabled: winterMode.enabled === true,
-        eta_factor: Number(winterMode.eta_factor) >= 1 ? Number(winterMode.eta_factor) : 1.25,
-        gps_snap_km: Number(winterMode.gps_snap_km) > 0 ? Number(winterMode.gps_snap_km) : 0.15,
-        arrival_radius_m: Number(winterMode.arrival_radius_m) > 0 ? Number(winterMode.arrival_radius_m) : 150,
-        cold_threshold_c: Number.isFinite(Number(winterMode.cold_threshold_c)) ? Number(winterMode.cold_threshold_c) : -10,
+        eta_factor: Number(winterMode.eta_factor) >= 1 ? Number(winterMode.eta_factor) : DEFAULT_WINTER.eta_factor,
+        gps_snap_km: Number(winterMode.gps_snap_km) > 0 ? Number(winterMode.gps_snap_km) : DEFAULT_WINTER.gps_snap_km,
+        arrival_radius_m: Number(winterMode.arrival_radius_m) > 0 ? Number(winterMode.arrival_radius_m) : DEFAULT_WINTER.arrival_radius_m,
+        cold_threshold_min_c: Number.isFinite(Number(winterMode.cold_threshold_min_c)) ? Number(winterMode.cold_threshold_min_c) : DEFAULT_WINTER.cold_threshold_min_c,
+        cold_threshold_max_c: Number.isFinite(Number(winterMode.cold_threshold_max_c)) ? Number(winterMode.cold_threshold_max_c) : DEFAULT_WINTER.cold_threshold_max_c,
       };
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       const currentSettings = existing?.[0]?.setting_value || {};
@@ -376,7 +391,7 @@ export default function AppSettingsPanel() {
                       <Label htmlFor="winter_eta_factor" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
                         ETA Factor (e.g. 1.25)
                       </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Current: {savedWinterMode?.eta_factor ?? '—'}</span>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.eta_factor}</span>
                     </div>
                     <Input
                       id="winter_eta_factor"
@@ -395,7 +410,7 @@ export default function AppSettingsPanel() {
                       <Label htmlFor="winter_arrival_radius" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
                         Arrival Radius (m)
                       </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Current: {savedWinterMode?.arrival_radius_m ?? '—'}</span>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.arrival_radius_m}</span>
                     </div>
                     <Input
                       id="winter_arrival_radius"
@@ -414,7 +429,7 @@ export default function AppSettingsPanel() {
                       <Label htmlFor="winter_snap_radius" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
                         Proximity Snap (km)
                       </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Current: {savedWinterMode?.gps_snap_km ?? '—'}</span>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.gps_snap_km}</span>
                     </div>
                     <Input
                       id="winter_snap_radius"
@@ -430,17 +445,34 @@ export default function AppSettingsPanel() {
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_cold_threshold" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning Threshold (°C)
+                      <Label htmlFor="winter_cold_min" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                        Cold Warning — Min / Enable (°C)
                       </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Current: {savedWinterMode?.cold_threshold_c ?? '—'}</span>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
                     </div>
                     <Input
-                      id="winter_cold_threshold"
+                      id="winter_cold_min"
                       type="number"
                       step="1"
-                      value={winterMode.cold_threshold_c}
-                      onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_c: e.target.value }))}
+                      value={winterMode.cold_threshold_min_c}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_min_c: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1.5">
+                      <Label htmlFor="winter_cold_max" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                        Cold Warning — Max / Disable (°C)
+                      </Label>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
+                    </div>
+                    <Input
+                      id="winter_cold_max"
+                      type="number"
+                      step="1"
+                      value={winterMode.cold_threshold_max_c}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_max_c: e.target.value }))}
                       className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                       style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
                     />
