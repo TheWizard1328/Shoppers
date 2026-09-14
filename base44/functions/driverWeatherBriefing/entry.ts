@@ -207,10 +207,38 @@ function wmoText(code) {
   return m[code] || 'Mixed';
 }
 
-// ── Weather (Open-Meteo, cached per city) ────────────────────────────────
-const _weatherCache = new Map(); // cityId -> { current, daily, fetchedAt }
-async function getWeatherForCity(cityId, lat, lon) {
-  if (_weatherCache.has(cityId) && Date.now() - _weatherCache.get(cityId).fetchedAt < 10 * 60 * 1000) return _weatherCache.get(cityId);
+// ── Weather: Open-Meteo → wttr.in → met.no (3-provider fallback) ─────────
+// NOTE: Open-Meteo free tier is rate-limited per egress IP; the shared
+// function-runtime IP can exhaust its daily quota (429). Fallbacks keep the
+// 9am briefing reliable. All providers normalize to the same entry shape:
+// { current: { temp, feels, text, wind }, daily: { high, low, precipProb, snowCm, text }, source }
+const _weatherCache = new Map(); // cityId -> entry (10-min TTL)
+
+function mapWttrDesc(v) {
+  const d = (v || '').toLowerCase();
+  if (d.includes('thunder')) return 'Thunderstorm';
+  if (d.includes('snow') || d.includes('sleet') || d.includes('blizzard') || d.includes('ice')) return 'Snow';
+  if (d.includes('rain') || d.includes('drizzle') || d.includes('shower')) return 'Rain';
+  if (d.includes('fog') || d.includes('mist')) return 'Fog';
+  if (d.includes('overcast')) return 'Overcast';
+  if (d.includes('partly cloudy')) return 'Partly cloudy';
+  if (d.includes('clear') || d.includes('sunny')) return 'Clear';
+  return 'Mixed';
+}
+function mapMetNoSymbol(s) {
+  const c = (s || '');
+  if (c.includes('thunder')) return 'Thunderstorm';
+  if (c.includes('sleet')) return 'Sleet';
+  if (c.includes('snow')) return 'Snow';
+  if (c.includes('rain')) return 'Rain';
+  if (c.includes('fog')) return 'Fog';
+  if (c.startsWith('partlycloudy')) return 'Partly cloudy';
+  if (c.startsWith('cloudy')) return 'Cloudy';
+  if (c.startsWith('clearsky')) return 'Clear';
+  return 'Mixed';
+}
+
+async function fetchOpenMeteo(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,snowfall_sum,weather_code` +
@@ -219,12 +247,61 @@ async function getWeatherForCity(cityId, lat, lon) {
   if (!res || !res.ok) return null;
   const j = await res.json().catch(() => null);
   if (!j?.current || !j?.daily) return null;
-  const entry = {
+  return {
     current: { temp: Math.round(j.current.temperature_2m), feels: Math.round(j.current.apparent_temperature), text: wmoText(j.current.weather_code), wind: Math.round(j.current.wind_speed_10m) },
     daily: { high: Math.round(j.daily.temperature_2m_max?.[0]), low: Math.round(j.daily.temperature_2m_min?.[0]), precipProb: j.daily.precipitation_probability_max?.[0] ?? null, snowCm: j.daily.snowfall_sum?.[0] ?? 0, text: wmoText(j.daily.weather_code?.[0]) },
-    fetchedAt: Date.now(),
+    source: 'open-meteo',
   };
-  _weatherCache.set(cityId, entry);
+}
+async function fetchWttr(lat, lon) {
+  const res = await fetch(`https://wttr.in/${lat},${lon}?format=j1`, { headers: { 'User-Agent': 'RxDeliver-Briefing/1.0' } }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const j = await res.json().catch(() => null);
+  const cur = j?.current_condition?.[0];
+  const today = j?.weather?.[0];
+  if (!cur || !today) return null;
+  let precipProb = 0;
+  for (const h of (today.hourly || [])) precipProb = Math.max(precipProb, Number(h?.chanceofrain) || 0, Number(h?.chanceofsnow) || 0);
+  const text = mapWttrDesc(cur.weatherDesc?.[0]?.value);
+  return {
+    current: { temp: Math.round(Number(cur.temp_C)), feels: Math.round(Number(cur.FeelsLikeC)), text, wind: Math.round(Number(cur.windspeedKmph) || 0) },
+    daily: { high: Math.round(Number(today.maxtempC)), low: Math.round(Number(today.mintempC)), precipProb: precipProb || null, snowCm: Number(today.totalSnow_cm) || 0, text },
+    source: 'wttr.in',
+  };
+}
+async function fetchMetNo(lat, lon) {
+  const res = await fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${Number(lat).toFixed(4)}&lon=${Number(lon).toFixed(4)}`, {
+    headers: { 'User-Agent': 'RxDeliver-Driver-Briefing/1.0 (github.com/TheWizard1328/Shoppers)' },
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const j = await res.json().catch(() => null);
+  const ts = j?.properties?.timeseries;
+  if (!ts?.length) return null;
+  const first = ts[0]?.data || {};
+  const inst = first.instant?.details || {};
+  const sym = first.next_1_hours?.summary?.symbol_code || first.next_6_hours?.summary?.symbol_code || first.next_12_hours?.summary?.symbol_code || '';
+  const todayStr = edmontonToday();
+  let hi = -999, lo = 999;
+  for (const t of ts) {
+    if (!String(t.time || '').startsWith(todayStr)) continue;
+    const temp = t?.data?.instant?.details?.air_temperature;
+    if (Number.isFinite(temp)) { if (temp > hi) hi = temp; if (temp < lo) lo = temp; }
+  }
+  if (hi === -999) { hi = inst.air_temperature; lo = inst.air_temperature; }
+  const text = mapMetNoSymbol(sym);
+  return {
+    current: { temp: Math.round(inst.air_temperature || 0), feels: Math.round(inst.air_temperature || 0), text, wind: Math.round((inst.wind_speed || 0) * 3.6) },
+    daily: { high: Math.round(hi), low: Math.round(lo), precipProb: null, snowCm: 0, text },
+    source: 'met.no',
+  };
+}
+async function getWeatherForCity(cityId, lat, lon) {
+  const cached = _weatherCache.get(cityId);
+  if (cached && Date.now() - cached.fetchedAt < 10 * 60 * 1000) return cached;
+  let entry = await fetchOpenMeteo(lat, lon);
+  if (!entry) entry = await fetchWttr(lat, lon);
+  if (!entry) entry = await fetchMetNo(lat, lon);
+  if (entry) { entry.fetchedAt = Date.now(); _weatherCache.set(cityId, entry); }
   return entry;
 }
 
@@ -375,7 +452,7 @@ async function handleBriefing(base44, params = {}) {
       driver_id: driverId,
       driver_name: driverName,
       city: city?.name || null,
-      weather: weather ? { ...weather.current, high: weather.daily.high, low: weather.daily.low, precip: weather.daily.precipProb, snowCm: weather.daily.snowCm, forecast: weather.daily.text } : null,
+      weather: weather ? { ...weather.current, high: weather.daily.high, low: weather.daily.low, precip: weather.daily.precipProb, snowCm: weather.daily.snowCm, forecast: weather.daily.text, source: weather.source } : null,
       stop_count: stopCount,
       first_pickup: firstPickup,
       cod_total: Math.round(codTotal * 100) / 100,
