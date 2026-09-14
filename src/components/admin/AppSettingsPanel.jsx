@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Settings, Save, Loader2, Thermometer, Snowflake } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { realtimeSync } from '../utils/realtimeSync';
 import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
@@ -362,15 +363,12 @@ export default function AppSettingsPanel() {
                   <Label htmlFor="winter_enabled" className="text-sm font-medium" style={{ color: '#d6cfc7' }}>
                     Enabled
                   </Label>
-                  <button
+                  <Switch
                     id="winter_enabled"
-                    type="button"
-                    aria-pressed={winterMode.enabled === true}
-                    onClick={() => setWinterMode((w) => ({ ...w, enabled: !w.enabled }))}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${winterMode.enabled ? 'bg-blue-500' : 'bg-[#3a2e24]'}`}
-                  >
-                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${winterMode.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                  </button>
+                    checked={winterMode.enabled === true}
+                    onCheckedChange={(checked) => setWinterMode((w) => ({ ...w, enabled: checked }))}
+                    className="data-[state=checked]:bg-blue-500 data-[state=unchecked]:bg-[#3a2e24]"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
