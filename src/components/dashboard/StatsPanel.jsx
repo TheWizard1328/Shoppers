@@ -349,7 +349,7 @@ export default function StatsPanel({
   }, [deliveries, selectedDate, selectedDriverId]);
 
   return (
-    <div ref={statsContainerRef} className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
+    <div ref={statsContainerRef} data-dashboard-stats-container className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
       {/* OfflineSyncIndicator: absolutely positioned beside the stats card container on desktop, not inside it */}
       {!isMobile && !isStatsCardCentered &&
       <div style={{ position: 'absolute', left: `${StatsCardMinWidth + 8}px`, top: 0, pointerEvents: 'auto', width: '240px' }}>

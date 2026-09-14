@@ -81,6 +81,15 @@ export default function ProximityForegroundNudge() {
     const measure = () => {
       const header = document.querySelector('[data-mobile-header]');
       let top = header ? Math.ceil(header.getBoundingClientRect().bottom) : 0;
+      // Also clear the Dashboard stats card + driver legend — it's an
+      // absolutely-positioned overlay (z-230) starting right below the header,
+      // below this banner's z-10004 but still visually in the way unless we
+      // anchor beneath it too. Only count it if actually visible on screen.
+      const statsCard = document.querySelector('[data-dashboard-stats-container]');
+      if (statsCard) {
+        const r = statsCard.getBoundingClientRect();
+        if (r.height > 0 && r.bottom > top) top = Math.ceil(r.bottom) + 8;
+      }
       // Stack BELOW the Always-On GPS banner (BackgroundLocationNudge) when
       // both nudges are visible — it renders at the same z-10004 and would
       // otherwise sit exactly on top of this card.
@@ -99,12 +108,23 @@ export default function ProximityForegroundNudge() {
     const t1 = setTimeout(measure, 150);
     const t2 = setTimeout(measure, 500);
     const t3 = setTimeout(measure, 1200);
+    // The stats card can expand/collapse (or the driver legend row can toggle)
+    // well after this banner first measures — keep tracking its live size.
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      const header = document.querySelector('[data-mobile-header]');
+      const statsCard = document.querySelector('[data-dashboard-stats-container]');
+      if (header) ro.observe(header);
+      if (statsCard) ro.observe(statsCard);
+    }
     return () => {
       window.removeEventListener('resize', measure);
       window.removeEventListener('orientationchange', measure);
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      ro?.disconnect();
     };
   }, [visible]);
 

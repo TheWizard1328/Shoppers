@@ -92,7 +92,19 @@ export default function BackgroundLocationNudge({ isOnDuty }) {
     if (!shouldShow) return;
     const measure = () => {
       const header = document.querySelector('[data-mobile-header]');
-      setTopOffset(header ? Math.ceil(header.getBoundingClientRect().bottom) : 0);
+      let top = header ? Math.ceil(header.getBoundingClientRect().bottom) : 0;
+      // Also clear the Dashboard stats card + driver legend (they render as an
+      // absolutely-positioned overlay starting right below the header, z-230 —
+      // higher than the header's z-50 but lower than this banner's z-10004, so
+      // without this the banner paints ON TOP of / overlapping the stats card
+      // instead of appearing below it). Only count it if it's actually visible
+      // on screen (positive height, not translated off-view).
+      const statsCard = document.querySelector('[data-dashboard-stats-container]');
+      if (statsCard) {
+        const r = statsCard.getBoundingClientRect();
+        if (r.height > 0 && r.bottom > top) top = Math.ceil(r.bottom) + 8;
+      }
+      setTopOffset(top);
     };
     measure();
     window.addEventListener('resize', measure);
@@ -101,11 +113,24 @@ export default function BackgroundLocationNudge({ isOnDuty }) {
     // couple of follow-up measures cheaply keep it accurate without polling.
     const t1 = setTimeout(measure, 150);
     const t2 = setTimeout(measure, 500);
+    const t3 = setTimeout(measure, 1200);
+    // The stats card can expand/collapse (or the driver legend row can toggle)
+    // well after this banner first measures — keep tracking its live size.
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      const header = document.querySelector('[data-mobile-header]');
+      const statsCard = document.querySelector('[data-dashboard-stats-container]');
+      if (header) ro.observe(header);
+      if (statsCard) ro.observe(statsCard);
+    }
     return () => {
       window.removeEventListener('resize', measure);
       window.removeEventListener('orientationchange', measure);
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
+      ro?.disconnect();
     };
   }, [shouldShow]);
 
