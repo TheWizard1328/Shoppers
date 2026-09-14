@@ -1,15 +1,16 @@
 /**
  * CyclingLocationSearch
- * Search/select from saved CyclingLocation library.
+ * Direct dropdown select from saved CyclingLocation library (no search field —
+ * changed Sep 14 2026 per owner request; the list is short enough per city that
+ * typing to filter added friction instead of saving time).
  * Filters by nearest city (GPS → appUser city_id fallback → first city).
- * Sorted by usage_count desc, then name asc.
+ * Sorted by distance-from-driver, then usage_count desc, then name asc.
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { MapPin, Search, X } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MapPin, X } from 'lucide-react';
 import { locationTracker } from '@/components/utils/locationTracker';
 
 // Haversine distance in km
@@ -25,13 +26,9 @@ export default function CyclingLocationSearch({
   selectedLocation,   // currently linked CyclingLocation record (or null)
   disabled = false,
 }) {
-  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [cityId, setCityId] = useState(null);
-  const inputRef = useRef(null);
-  const dropdownRef = useRef(null);
 
   // Resolve which city to filter by
   useEffect(() => {
@@ -70,13 +67,12 @@ export default function CyclingLocationSearch({
     return () => { cancelled = true; };
   }, [cities, currentUser?.id, appUsers]);
 
-  // Fetch locations when query or cityId changes
-  const fetchLocations = useCallback(async (searchQuery) => {
+  // Fetch locations when cityId changes
+  const fetchLocations = useCallback(async () => {
     if (!cityId) return;
     setIsLoading(true);
     try {
       const all = await base44.entities.CyclingLocation.filter({ city_id: cityId });
-      const q = searchQuery.toLowerCase().trim();
 
       // Driver's current position for as-the-crow-flies distance ranking.
       // Falls back to null when GPS is unavailable — those locations sort last.
@@ -98,8 +94,8 @@ export default function CyclingLocationSearch({
         return haversine(driverLat, driverLon, loc.latitude, loc.longitude);
       };
 
-      const filtered = (all || [])
-        .filter((loc) => !q || loc.name?.toLowerCase().includes(q))
+      const sorted = (all || [])
+        .slice()
         .sort((a, b) => {
           const da = distFromDriver(a);
           const db = distFromDriver(b);
@@ -107,42 +103,24 @@ export default function CyclingLocationSearch({
             (b.usage_count || 0) - (a.usage_count || 0) ||
             (a.name || '').localeCompare(b.name || '');
         });
-      setResults(filtered.slice(0, 8));
+      setResults(sorted);
     } catch (_) {
       setResults([]);
     } finally {
       setIsLoading(false);
     }
-  }, [cityId]);
+  }, [cityId, appUsers, currentUser?.id]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    fetchLocations(query);
-  }, [query, isOpen, fetchLocations]);
+    fetchLocations();
+  }, [fetchLocations]);
 
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (
-        dropdownRef.current && !dropdownRef.current.contains(e.target) &&
-        inputRef.current && !inputRef.current.contains(e.target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const handleSelect = (loc) => {
-    setIsOpen(false);
-    setQuery('');
-    onSelect?.(loc);
+  const handleSelect = (locId) => {
+    const loc = results.find((r) => r.id === locId);
+    if (loc) onSelect?.(loc);
   };
 
   const handleClear = () => {
-    setQuery('');
-    setIsOpen(false);
     onClearSelection?.();
   };
 
@@ -168,47 +146,32 @@ export default function CyclingLocationSearch({
           )}
         </div>
       ) : (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
-          <Input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
-            onFocus={() => { setIsOpen(true); fetchLocations(query); }}
-            placeholder="Search saved cycling spots…"
-            className="pl-9 h-9 text-sm"
-            disabled={disabled || !cityId}
-          />
-          {isOpen && (
-            <div
-              ref={dropdownRef}
-              className="absolute z-[999999] top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden bg-surface border-surface"
-            >
-              {isLoading ? (
-                <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Searching…</div>
-              ) : results.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-slate-400 dark:text-slate-400">No saved locations found</div>
-              ) : (
-                results.map((loc) => (
-                  <button
-                    key={loc.id}
-                    type="button"
-                    onMouseDown={(e) => { e.preventDefault(); handleSelect(loc); }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 flex items-center gap-2 border-b last:border-b-0"
-                    style={{ borderColor: 'var(--border-slate-100)' }}
-                  >
+        <Select
+          value={undefined}
+          onValueChange={handleSelect}
+          disabled={disabled || !cityId || isLoading}
+        >
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder={isLoading ? 'Loading…' : 'Select a saved cycling spot…'} />
+          </SelectTrigger>
+          <SelectContent className="z-[999999]">
+            {results.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-slate-400 dark:text-slate-400">No saved locations found</div>
+            ) : (
+              results.map((loc) => (
+                <SelectItem key={loc.id} value={loc.id}>
+                  <span className="flex items-center gap-2">
                     <MapPin className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                     <span className="flex-1 truncate font-medium">{loc.name}</span>
                     {loc.usage_count > 0 && (
                       <span className="text-xs text-slate-400 dark:text-slate-400 flex-shrink-0">×{loc.usage_count}</span>
                     )}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+                  </span>
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
       )}
     </div>
   );
