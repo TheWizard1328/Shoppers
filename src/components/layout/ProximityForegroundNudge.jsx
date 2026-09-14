@@ -80,7 +80,16 @@ export default function ProximityForegroundNudge() {
     if (!visible) return;
     const measure = () => {
       const header = document.querySelector('[data-mobile-header]');
-      setTopOffset(header ? Math.ceil(header.getBoundingClientRect().bottom) : 0);
+      let top = header ? Math.ceil(header.getBoundingClientRect().bottom) : 0;
+      // Stack BELOW the Always-On GPS banner (BackgroundLocationNudge) when
+      // both nudges are visible — it renders at the same z-10004 and would
+      // otherwise sit exactly on top of this card.
+      const bgNudge = document.querySelector('[data-bg-location-nudge]');
+      if (bgNudge && bgNudge.offsetHeight > 0) {
+        const b = bgNudge.getBoundingClientRect();
+        if (b.height > 0) top = Math.max(top, Math.ceil(b.bottom));
+      }
+      setTopOffset(top);
     };
     measure();
     window.addEventListener('resize', measure);
@@ -89,11 +98,13 @@ export default function ProximityForegroundNudge() {
     // couple of follow-up measures cheaply keep it accurate without polling.
     const t1 = setTimeout(measure, 150);
     const t2 = setTimeout(measure, 500);
+    const t3 = setTimeout(measure, 1200);
     return () => {
       window.removeEventListener('resize', measure);
       window.removeEventListener('orientationchange', measure);
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
     };
   }, [visible]);
 
