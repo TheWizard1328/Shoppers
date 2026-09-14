@@ -1,0 +1,58 @@
+{
+  "name": "Driver Weather Briefing",
+  "description": "Daily 9am driver briefing: weather + day preview (stop count, first pickup, COD total) pushed to every driver scheduled or default for the day, plus drivers with routes today. Mirrors the COD briefing architecture.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "brief_drivers": {
+          "call": "invoke_backend_function",
+          "then": "owner_summary",
+          "with": {
+            "args": {},
+            "function_name": "driverWeatherBriefing"
+          },
+          "x-base44": {
+            "description": "Push weather + day preview to scheduled/default drivers",
+            "title": "Send driver weather briefings"
+          }
+        }
+      },
+      {
+        "owner_summary": {
+          "call": "invoke_superagent_step",
+          "then": "end",
+          "with": {
+            "message": "This is the daily 9am driver weather briefing run. Here is the result JSON from the driverWeatherBriefing backend function:\n\n${ .brief_drivers }\n\nSend the owner a SHORT WhatsApp message (he uses text-to-speech \u2014 keep it under ~350 characters, no markdown, no emoji reactions). Include only: how many drivers got the briefing pushed, today's weather summary (city, condition, temps), and any drivers where weather data failed or pushes errored. If zero drivers were briefed, say so in one sentence."
+          },
+          "x-base44": {
+            "description": "Brief WhatsApp summary of the briefing run",
+            "title": "Notify owner"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "driver_weather_briefing",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
