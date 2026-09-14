@@ -6,6 +6,7 @@ import { fetchDriverDailyActivityCached } from '@/components/utils/driverDailyAc
 import { isAppOwner } from '@/components/utils/userRoles';
 import { useInterStoreLocation, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
+import WinterModeBanner from "@/components/dashboard/WinterModeBanner";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import { useDriverOverlayLegend } from "@/components/dashboard/useDriverOverlayLegend";
@@ -340,6 +341,9 @@ function DashboardView({
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+
+      {/* Winter Mode — padded ETAs + wider GPS-drift tolerances while enabled */}
+      <WinterModeBanner />
 
       {isSnapshotModeActive && isAppOwner(currentUser) &&
         <div className="absolute left-0 top-0 bottom-0 z-[250]">

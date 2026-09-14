@@ -16,6 +16,7 @@
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
+import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 
 // ─── HERE API Usage Logger ───────────────────────────────────────────────────
 // Best-effort: logs each HERE API hit to GoogleAPILog so the admin badge stays accurate.
@@ -265,6 +266,17 @@ export async function generateRoutePolylines({
   const polylineByDeliveryId = new Map();
   if (!hereApiKey) return polylineByDeliveryId;
 
+  // Winter Mode: pad fresh leg durations by the admin-configured factor.
+  // Applied ONLY to freshly-computed durations (HERE/Google/crow-flies) —
+  // never to stored values, so repeated regenerations never compound the pad.
+  // Cycling-mode legs are untouched (winter mode does not alter cycling logic).
+  const winter = await getWinterModeSettings().catch(() => null);
+  const _winterPad = (minutes, mode) => {
+    if (!winter?.enabled || !minutes || Number(minutes) <= 0) return minutes ? Number(minutes) : null;
+    if (mode === 'cycling') return Number(minutes);
+    return Math.ceil(Number(minutes) * winter.eta_factor);
+  };
+
   const resolveMode = (delivery) => {
     const raw = String(delivery?.transport_mode || fallbackTravelMode).toLowerCase();
     if (raw === 'cycling') return 'cycling';
@@ -363,19 +375,20 @@ export async function generateRoutePolylines({
       } else {
         section = sections[groupLocalIndex] || null;
       }
+      const _winterDurationMinutes = _winterPad(section?.estimated_duration_minutes, group.mode);
       polylineByDeliveryId.set(stop.delivery.id, {
         encodedPolyline: section?.encoded_polyline || null,
         estimatedDistanceKm: section?.estimated_distance_km ?? null,
-        estimatedDurationMinutes: section?.estimated_duration_minutes ?? null,
+        estimatedDurationMinutes: _winterDurationMinutes,
         transportMode: group.mode,
       });
       // Sync directionsLegs (main path only) using the stop's index in routeStops.
-      if (directionsLegs && routeStops && section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
+      if (directionsLegs && routeStops && _winterDurationMinutes && Number(_winterDurationMinutes) > 0) {
         const routeStopIdx = routeStops.findIndex(s => s.delivery.id === stop.delivery.id);
         if (routeStopIdx !== -1) {
           directionsLegs[routeStopIdx] = {
             ...directionsLegs[routeStopIdx],
-            duration: Number(section.estimated_duration_minutes) * 60,
+            duration: Number(_winterDurationMinutes) * 60,
             distance: section.estimated_distance_km
               ? Number(section.estimated_distance_km) * 1000
               : directionsLegs[routeStopIdx]?.distance,

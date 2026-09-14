@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { locationTracker } from "@/components/utils/locationTracker";
+import { getWinterModeSettings, getCachedWinterModeSync } from "@/components/utils/winterModeSettings";
 import { isUIHidden, deferOrRunUI } from "@/components/utils/uiGate";
 
 // ── Battery/CPU tuning (Sep 8 2026) ─────────────────────────────────────────
@@ -100,6 +101,8 @@ export default function useDriverLocationSync({
   const lastMapTriggerTimeRef = useRef(0);
 
   useEffect(() => { deliveriesWithStopOrderRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
+  // Keep the Winter Mode cache warm for the sync proximity-snap getter
+  useEffect(() => { getWinterModeSettings().catch(() => {}); const t = setInterval(() => getWinterModeSettings().catch(() => {}), 5 * 60 * 1000); return () => clearInterval(t); }, []);
   useEffect(() => { patientsRef.current                = patients;                }, [patients]);
   useEffect(() => { storesRef.current                  = stores;                  }, [stores]);
   useEffect(() => { appUsersRef.current                = appUsers;                }, [appUsers]);
@@ -582,8 +585,10 @@ export default function useDriverLocationSync({
     if (dist == null) return;
 
     // Within 100m → auto-enter Phase 2
-    // NOTE: calculateDistance returns kilometers, so 0.1 km = 100 m
-    if (dist <= 0.1) {
+    // Winter Mode: GPS drift tolerance — when enabled, snap within the larger
+    // admin-configured radius (default 0.15 km = 150 m); else the standard 0.1 km.
+    const snapRadiusKm = getCachedWinterModeSync().enabled ? getCachedWinterModeSync().gps_snap_km : 0.1;
+    if (dist <= snapRadiusKm) {
       lastProximitySnapTimeRef.current = now;
       console.log(`🎯 [useDriverLocationSync] Proximity snap: ${Math.round(dist * 1000)}m from next stop → Phase 2`);
 

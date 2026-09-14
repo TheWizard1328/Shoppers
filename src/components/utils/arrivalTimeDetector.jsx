@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { haversineMeters } from './geoUtils';
 import { locationTracker } from "./locationTracker";
+import { getWinterModeSettings, getCachedWinterModeSync } from './winterModeSettings';
 
 /**
  * Detects when driver arrives at delivery/pickup locations (geofence detection)
@@ -10,13 +11,20 @@ import { locationTracker } from "./locationTracker";
  * The only API call is the final Delivery.update when an arrival is confirmed.
  */
 class ArrivalTimeDetector {
+  // Winter Mode: GPS drift is worse in cold weather — when enabled, use the
+  // admin-configured (larger) arrival radius; otherwise the standard 100m.
+  get geofenceRadius() {
+    const winter = getCachedWinterModeSync();
+    return winter.enabled ? winter.arrival_radius_m : 100;
+  }
+
   constructor() {
     this.locationTimeout = null;
     this.lastLocationCoords = null;
     this.stationaryStartTime = null;
     this.currentTargetId = null;
     this.minStationaryDuration = 30000; // 30 seconds in ms
-    this.geofenceRadius = 100; // meters
+
 
     // Cached offline data - refreshed at most once per minute
     this._cachedDeliveries = null;
@@ -551,5 +559,13 @@ class ArrivalTimeDetector {
     this.resetStationary();
   }
 }
+
+// Keep the Winter Mode cache warm for the sync geofence getter (5-min TTL
+// inside the util; this just triggers the initial fetch + periodic refresh).
+if (typeof window !== 'undefined') {
+  getWinterModeSettings().catch(() => {});
+  setInterval(() => getWinterModeSettings().catch(() => {}), 5 * 60 * 1000);
+}
+
 
 export const arrivalTimeDetector = new ArrivalTimeDetector();

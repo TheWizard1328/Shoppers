@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Settings, Save, Loader2, Thermometer } from 'lucide-react';
+import { Settings, Save, Loader2, Thermometer, Snowflake, Switch } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { realtimeSync } from '../utils/realtimeSync';
 import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
@@ -31,6 +31,12 @@ export default function AppSettingsPanel() {
   const [isSavingFridgeTemp, setIsSavingFridgeTemp] = useState(false);
   const [fridgeTempSaved, setFridgeTempSaved] = useState(false);
 
+  // Winter Mode settings (ETA padding + GPS drift tolerance + cold warnings)
+  const [winterMode, setWinterMode] = useState({ enabled: false, eta_factor: 1.25, gps_snap_km: 0.15, arrival_radius_m: 150, cold_threshold_c: -10 });
+  const [savedWinterMode, setSavedWinterMode] = useState({ enabled: false, eta_factor: 1.25, gps_snap_km: 0.15, arrival_radius_m: 150, cold_threshold_c: -10 });
+  const [isSavingWinterMode, setIsSavingWinterMode] = useState(false);
+  const [winterModeSaved, setWinterModeSaved] = useState(false);
+
   // Load settings from database
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -52,6 +58,11 @@ export default function AppSettingsPanel() {
         if (v.fridge_temp_settings) {
           setFridgeTempSettings(v.fridge_temp_settings);
           setSavedFridgeTempSettings(v.fridge_temp_settings);
+        }
+
+        if (v.winter_mode && typeof v.winter_mode === 'object') {
+          setWinterMode(v.winter_mode);
+          setSavedWinterMode(v.winter_mode);
         }
 
         const configuredApiKeys = Array.isArray(v.available_api_keys) && v.available_api_keys.length > 0
@@ -174,6 +185,45 @@ export default function AppSettingsPanel() {
       alert('Failed to save: ' + error.message);
     } finally {
       setIsSavingFridgeTemp(false);
+    }
+  };
+
+
+  const handleSaveWinterMode = async () => {
+    setIsSavingWinterMode(true);
+    setWinterModeSaved(false);
+    try {
+      const normalized = {
+        enabled: winterMode.enabled === true,
+        eta_factor: Number(winterMode.eta_factor) >= 1 ? Number(winterMode.eta_factor) : 1.25,
+        gps_snap_km: Number(winterMode.gps_snap_km) > 0 ? Number(winterMode.gps_snap_km) : 0.15,
+        arrival_radius_m: Number(winterMode.arrival_radius_m) > 0 ? Number(winterMode.arrival_radius_m) : 150,
+        cold_threshold_c: Number.isFinite(Number(winterMode.cold_threshold_c)) ? Number(winterMode.cold_threshold_c) : -10,
+      };
+      const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const currentSettings = existing?.[0]?.setting_value || {};
+      const updatedSettings = { ...currentSettings, winter_mode: normalized };
+      let savedRecord;
+      if (existing && existing.length > 0) {
+        savedRecord = await base44.entities.AppSettings.update(existing[0].id, { setting_value: updatedSettings });
+      } else {
+        savedRecord = await base44.entities.AppSettings.create({
+          setting_key: 'refresh_intervals',
+          setting_value: updatedSettings,
+          description: 'App-wide administrative settings'
+        });
+      }
+      realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
+      window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: { data: savedRecord, source: 'AppSettingsPanel' } }));
+      setSavedWinterMode(normalized);
+      setWinterMode(normalized);
+      setWinterModeSaved(true);
+      setTimeout(() => setWinterModeSaved(false), 2500);
+    } catch (error) {
+      console.error('Failed to save winter mode settings:', error);
+      alert('Failed to save: ' + error.message);
+    } finally {
+      setIsSavingWinterMode(false);
     }
   };
 
@@ -357,6 +407,118 @@ export default function AppSettingsPanel() {
                 {isSavingFridgeTemp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 {isSavingFridgeTemp ? 'Saving…' : fridgeTempSaved ? '✓ Saved' : 'Save Temp Ranges'}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Winter Mode — ETA padding + GPS drift tolerance + cold warnings */}
+          <Card
+            className={`rounded-[14px] border transition-all ${
+              winterModeSaved ? 'border-amber-500' : isSavingWinterMode ? 'border-amber-400' : 'border-blue-500/60'
+            }`}
+            style={{
+              backgroundColor: '#241c17',
+              color: '#ffffff',
+              boxShadow: '0 0 0 1px rgba(59,130,246,0.25), 0 10px 36px -10px rgba(59,130,246,0.35)',
+            }}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
+                <Snowflake className="w-5 h-5 text-blue-400" />
+                Winter Mode
+              </CardTitle>
+              <CardDescription style={{ color: '#a89b8f' }}>
+                Pads ETAs, widens GPS-drift tolerances, and enables cold warnings in the daily driver briefing. Does not affect cycling routes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="winter_enabled" className="text-sm font-medium" style={{ color: '#d6cfc7' }}>
+                    Enabled
+                  </Label>
+                  <button
+                    id="winter_enabled"
+                    type="button"
+                    aria-pressed={winterMode.enabled === true}
+                    onClick={() => setWinterMode((w) => ({ ...w, enabled: !w.enabled }))}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${winterMode.enabled ? 'bg-blue-500' : 'bg-[#3a2e24]'}`}
+                  >
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${winterMode.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="winter_eta_factor" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
+                      ETA Factor (e.g. 1.25)
+                    </Label>
+                    <Input
+                      id="winter_eta_factor"
+                      type="number"
+                      step="0.05"
+                      min="1"
+                      max="3"
+                      value={winterMode.eta_factor}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, eta_factor: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="winter_arrival_radius" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
+                      Arrival Radius (m)
+                    </Label>
+                    <Input
+                      id="winter_arrival_radius"
+                      type="number"
+                      step="10"
+                      min="100"
+                      max="500"
+                      value={winterMode.arrival_radius_m}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, arrival_radius_m: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="winter_snap_radius" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
+                      Proximity Snap (km)
+                    </Label>
+                    <Input
+                      id="winter_snap_radius"
+                      type="number"
+                      step="0.01"
+                      min="0.1"
+                      max="0.5"
+                      value={winterMode.gps_snap_km}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, gps_snap_km: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="winter_cold_threshold" className="text-xs font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
+                      Cold Warning Threshold (°C)
+                    </Label>
+                    <Input
+                      id="winter_cold_threshold"
+                      type="number"
+                      step="1"
+                      value={winterMode.cold_threshold_c}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_c: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleSaveWinterMode}
+                  disabled={isSavingWinterMode}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white"
+                >
+                  {isSavingWinterMode ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {isSavingWinterMode ? 'Saving…' : winterModeSaved ? '✓ Saved' : 'Save Winter Mode'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
