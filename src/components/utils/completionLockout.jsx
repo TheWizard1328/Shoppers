@@ -214,6 +214,14 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
       const refRank = STATUS_RANK[refStatus] ?? -1;
       if (refRank > incomingRank) {
         merged[field] = refStatus;
+      } else if (TERMINAL_STATUSES.includes(incomingVal) && !TERMINAL_STATUSES.includes(refStatus)) {
+        // Restart/undo protection: this device just set an ACTIVE status authoritatively
+        // (lock carries the expected value). A TERMINAL incoming (completed/failed/
+        // cancelled) is the stale PRE-restart record coming back via echo or a racing
+        // server pull — without this rule it sails through (rank 3 > 1) and reverts the
+        // restart. Keep the expected active status for the lock's TTL. Terminal→terminal
+        // corrections are unaffected (refStatus is terminal when the action was terminal).
+        merged[field] = refStatus;
       }
     } else if (field === 'isNextDelivery') {
       // SYMMETRIC guard: if locked and incoming differs from our optimistic

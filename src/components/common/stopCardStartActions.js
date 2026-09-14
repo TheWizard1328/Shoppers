@@ -174,6 +174,28 @@ export function useStopCardStartActions({
             const _idx = restartedRouteDeliveries.findIndex((r) => r?.id === delivery.id);
             if (_idx !== -1) restartedRouteDeliveries[_idx] = { ...restartDelivery, ...restartedRouteDeliveries[_idx] };
           }
+          // CRITICAL: Arm completionLockout field locks BEFORE any state/IDB/echo
+          // merges run. Without an active lock, applyRealtimeMergeWithLockout falls
+          // through to the GLOBAL terminal-stickiness guard, which vets the restart's
+          // OWN optimistic write as a "stale payload resurrecting a just-terminal stop"
+          // and forces status back to completed + isNextDelivery=false. The restart
+          // then runs through every process (notifications, optimization, collapse)
+          // while the record never flips — the "restart button not working" bug.
+          // With the lock armed, the per-field rules use the expected values below
+          // and the optimistic write plus its echoes pass through cleanly.
+          lockDeliveryFields(delivery.id, ['status', 'isNextDelivery'], 60000, {
+            status: newStatus,
+            isNextDelivery: true,
+          });
+          const _prevFlagStop = restartedRouteDeliveries.find((item) =>
+            item && item.id !== delivery.id && item.isNextDelivery === false &&
+            (driverDeliveries.find((routeItem) => routeItem?.id === item.id)?.isNextDelivery || false) === true
+          );
+          if (_prevFlagStop?.id) {
+            lockDeliveryFields(_prevFlagStop.id, ['isNextDelivery'], 60000, { isNextDelivery: false });
+          }
+
+          const _restartServerWrites = [];
           await Promise.all(restartedRouteDeliveries.filter((item) => item && (item.id === delivery.id || item.isNextDelivery === false)).map((item) => {
             const existingRouteItem = driverDeliveries.find((routeItem) => routeItem?.id === item.id);
             if (!existingRouteItem) return Promise.resolve(null);
@@ -185,8 +207,24 @@ export function useStopCardStartActions({
             if ((existingRouteItem.finished_leg_encoded_polyline || null) !== (item.finished_leg_encoded_polyline || null)) updates.finished_leg_encoded_polyline = item.finished_leg_encoded_polyline || null;
             if ((existingRouteItem.PolylineUpdated || false) !== (item.PolylineUpdated || false)) updates.PolylineUpdated = item.PolylineUpdated || false;
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
+            // CRITICAL: AWAIT the direct server write for the restarted stop and the
+            // previously-flagged stop. optimizeRouteAndApplyNextDelivery (below)
+            // re-fetches the driver+date set from the SERVER and bulkSaves that array
+            // over IDB/state via syncNextDeliveryFlagsLocally — with a fire-and-forget
+            // write still mid-commit, the filter returns the pre-restart completed
+            // record and reverts the restart seconds after it ran. (updateDeliveryLocal
+            // queues its own full-record write in the background — that stays as is.)
+            if (item.id === delivery.id || existingRouteItem.isNextDelivery) {
+              _restartServerWrites.push(
+                base44.entities.Delivery.update(item.id, updates).catch((err) => {
+                  console.warn('⚠️ [Restart] Server write failed (continuing optimistically):', err?.message || err);
+                  return null;
+                })
+              );
+            }
             return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true });
           }));
+          await Promise.all(_restartServerWrites);
 
           if (updateDeliveriesLocally) {
             const restartedMap = new Map(restartedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
