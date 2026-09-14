@@ -821,7 +821,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                           const url = `https://www.google.com/maps/dir/?api=1&destination=${user.current_latitude},${user.current_longitude}`;
                           window.open(url, '_blank');
                         }}
-                        className="flex-1 px-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors font-medium flex flex-col items-center gap-0.5"
+                        className="flex-1 px-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white driver-popup-action text-xs rounded transition-colors font-medium flex flex-col items-center gap-0.5"
                         title={`Navigate to ${firstName}'s location`}
                       >
                         <span>📍</span>
@@ -831,7 +831,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                         onClick={() => {
                           window.location.href = `tel:${user.phone}`;
                         }}
-                        className="flex-1 px-2 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors font-medium flex flex-col items-center gap-0.5"
+                        className="flex-1 px-2 py-2 bg-blue-600 hover:bg-blue-700 text-white driver-popup-action text-xs rounded transition-colors font-medium flex flex-col items-center gap-0.5"
                         title={`Call ${firstName}`}
                       >
                         <span>📞</span>

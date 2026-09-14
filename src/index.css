@@ -281,6 +281,13 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   border: 1px solid var(--border-slate-200) !important;
 }
 
+/* Driver location popup action buttons — force white label text so the popup
+   wrapper's `color: !important` can't override the button labels. */
+.leaflet-popup.custom-popup .driver-popup-action,
+.leaflet-popup.custom-popup .driver-popup-action span {
+  color: #ffffff !important;
+}
+
 /* Cluster badge z-order fix — keep the count badge from being clipped by the
    marker icon's box, but DO NOT force a z-index here: Leaflet sets the marker's
    inline z-index from zIndexOffset (so clustered markers stack by stop order),
