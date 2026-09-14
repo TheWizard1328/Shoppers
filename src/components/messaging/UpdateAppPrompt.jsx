@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,16 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUs
     await onUpdate?.();
   }, [sendDeviceUpdatedMessage, onUpdate]);
 
+  // Keep the latest handler in a ref so the countdown interval below does NOT
+  // depend on the callback's identity. A direct dep on handleUpdateClick caused
+  // the effect to re-run (and reset the timer to 30) every time any of its
+  // inputs (currentUser, messageId, conversationId, onUpdate) changed identity
+  // between renders — which made the countdown loop endlessly.
+  const handleUpdateClickRef = useRef(handleUpdateClick);
+  useEffect(() => {
+    handleUpdateClickRef.current = handleUpdateClick;
+  }, [handleUpdateClick]);
+
   useEffect(() => {
     setSecondsLeft(30);
 
@@ -28,7 +38,7 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUs
       setSecondsLeft((current) => {
         if (current <= 1) {
           window.clearInterval(intervalId);
-          handleUpdateClick();
+          handleUpdateClickRef.current?.();
           return 0;
         }
         return current - 1;
@@ -36,7 +46,8 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUs
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [handleUpdateClick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={`fixed inset-0 z-[10003] p-4 ${isTopStatsCardPosition ? 'pointer-events-none' : 'flex items-center justify-center bg-black/60'}`}>

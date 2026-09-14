@@ -34,6 +34,7 @@ import {
 import { processPendingMutationsInternal } from './offlineSyncMutationProcessor';
 import { createOfflineSyncHistoricalHelpers } from './offlineSyncHistorical';
 import { createOfflineSyncPriorityHelpers } from './offlineSyncPriority';
+import { queueEntityRequest } from './requestQueue';
 
 export {
   pauseOfflineSync,
@@ -249,7 +250,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
   
   try {
     // Step 1: Sync Cities (lightweight) — merge-only (never clear existing offline records)
-    const cities = await City.list();
+    const cities = await queueEntityRequest(() => City.list(), 'City.list');
     if (cities && cities.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
     }
@@ -288,7 +289,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         .map(s => s.id);
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    const deliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
     // CRITICAL: Use bulkSave to merge, not replaceRecordsByIndex which clears data
     if (getSyncPaused()) {
       console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');

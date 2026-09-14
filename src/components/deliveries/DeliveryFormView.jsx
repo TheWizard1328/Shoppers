@@ -199,16 +199,45 @@ export default function DeliveryFormView({
   }, [buzzerValue, setFormData]);
 
   // ── After Hours for regular deliveries ─────────────────────────────────
-  // For a patient delivery, the After Hours checkbox is only enabled when the
-  // assigned pickup (matching the delivery's PUID) already has after_hours_pickup
-  // set to true. Admins can then toggle it; everyone else sees it disabled.
+  // For a patient delivery, the After Hours checkbox is only enabled when an
+  // after-hours pickup exists for this delivery's store/date/slot. We check the
+  // exact parent pickup (delivery.puid → pickup.stop_id) first, then fall back to
+  // ANY pickup for the same store + date + AM/PM slot — so the box is reachable
+  // even when the delivery's puid is missing or points at a non-after-hours
+  // pickup while a sibling after-hours pickup exists for that slot. Admins can
+  // then toggle it; everyone else sees it disabled.
   const parentPickupHasAfterHours = React.useMemo(() => {
-    if (isPickupMode || isInterStoreMode || !formData.puid) return false;
-    const parent = (allDeliveries || []).find(
-      (d) => d && !d.patient_id && d.stop_id === formData.puid
-    );
-    return Boolean(parent?.after_hours_pickup);
-  }, [isPickupMode, isInterStoreMode, formData.puid, allDeliveries]);
+    if (isPickupMode || isInterStoreMode) return false;
+    const deliveries = allDeliveries || [];
+
+    // 1) Exact link via puid → pickup.stop_id
+    if (formData.puid) {
+      const parent = deliveries.find(
+        (d) => d && !d.patient_id && d.stop_id === formData.puid
+      );
+      if (parent?.after_hours_pickup) return true;
+    }
+
+    // 2) Fallback: any pickup for the same store/date/AM-PM slot is after hours
+    const storeId = formData.store_id || selectedPatient?.store_id;
+    const date = formData.delivery_date;
+    const slot = formData.ampm_deliveries
+      || (selectedPatient ? determineDeliveryAMPM(selectedPatient) : '')
+      || 'AM';
+    if (storeId && date) {
+      const slotAfterHours = deliveries.some(
+        (d) => d && !d.patient_id &&
+          d.store_id === storeId &&
+          d.delivery_date === date &&
+          (d.ampm_deliveries || 'AM') === (slot || 'AM') &&
+          d.after_hours_pickup
+      );
+      if (slotAfterHours) return true;
+    }
+
+    return false;
+  }, [isPickupMode, isInterStoreMode, formData.puid, formData.store_id,
+      formData.delivery_date, formData.ampm_deliveries, allDeliveries, selectedPatient]);
 
   // InterStore: tracks whether both From + To are selected (gates the Add/Done button)
   const [interStoreReady, setInterStoreReady] = React.useState(false);

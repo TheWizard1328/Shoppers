@@ -173,8 +173,9 @@ export default function DashboardBulkEditControls({
           payload.puid = values.puid || null;
         }
 
-        // After hours pickup — only for pickup stops (no patient_id), only if changed
-        if (values.after_hours_pickup !== undefined && values.after_hours_pickup !== initialValues.after_hours_pickup && !delivery?.patient_id) {
+        // After hours — applies to BOTH pickups and deliveries (a delivery's
+        // after_hours_pickup doubles its base pay). Only write when changed.
+        if (values.after_hours_pickup !== undefined && values.after_hours_pickup !== initialValues.after_hours_pickup) {
           payload.after_hours_pickup = values.after_hours_pickup;
         }
 

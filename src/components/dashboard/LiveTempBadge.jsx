@@ -14,6 +14,8 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin, isDriver as checkIsDriver, isAppOwner } from '@/components/utils/userRoles';
 import { useInkbirdUnified } from '@/components/common/useInkbirdUnified';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
+import { getAppSettings } from '@/components/utils/configCache';
+import { getRxTempLog } from '@/components/utils/rxTempLogsCache';
 
 // Fridge temp defaults — overridden at runtime by AppSettings.fridge_temp_settings
 const DEFAULT_SAFE_MIN     = 2;
@@ -76,9 +78,9 @@ export default function LiveTempBadge({
     danger_buffer: DEFAULT_DANGER_BUFFER,
   });
   useEffect(() => {
-    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
+    getAppSettings()
       .then((s) => {
-        const ft = s?.[0]?.setting_value?.fridge_temp_settings;
+        const ft = s?.setting_value?.fridge_temp_settings;
         if (ft) setFridgeCfg({
           safe_min:      typeof ft.safe_min      === 'number' ? ft.safe_min      : DEFAULT_SAFE_MIN,
           safe_max:      typeof ft.safe_max      === 'number' ? ft.safe_max      : DEFAULT_SAFE_MAX,
@@ -185,8 +187,7 @@ export default function LiveTempBadge({
         logRecord = (all || []).find(l => l?.driver_id === driverId && l?.delivery_date === selectedDate) || null;
       } catch (_) {}
       if (!logRecord) {
-        const logs = await base44.entities.RxTempLogs.filter({ driver_id: driverId, delivery_date: selectedDate });
-        logRecord = logs?.[0] || null;
+        logRecord = await getRxTempLog(driverId, selectedDate);
       }
 
       if (!logRecord) { setLastReading(null); setAvgReading(null); return; }

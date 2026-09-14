@@ -1,4 +1,5 @@
 import { offlineDB } from './offlineDatabase';
+import { queueEntityRequest } from './requestQueue';
 import { createOfflineSyncPreRenderHelpers } from './offlineSyncPreRender';
 import { getSyncPaused } from './offlineSyncState';
 
@@ -158,7 +159,7 @@ export const createOfflineSyncPriorityHelpers = ({
       // Sync RxTempLogs for all drivers — prune records deleted server-side
       try {
         if (RxTempLogs) {
-          const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
+          const serverTempLogs = await queueEntityRequest(() => RxTempLogs.filter({ delivery_date: selectedDateStr }), 'RxTempLogs.filter:byDate');
           const serverIds = new Set((serverTempLogs || []).map(l => l?.id).filter(Boolean));
           const localTempLogs = (await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS))
             .filter(l => l?.delivery_date === selectedDateStr);

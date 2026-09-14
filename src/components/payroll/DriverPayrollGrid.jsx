@@ -394,7 +394,7 @@ export default function DriverPayrollGrid({
                 variant="ghost"
                 onClick={onPrevPeriod}
                 disabled={selectedPeriodIndex === 0}
-                className="h-8 w-8 p-0">
+                className="h-8 w-8 p-0 pointer-events-auto">
                 
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
@@ -417,7 +417,7 @@ export default function DriverPayrollGrid({
                 variant="ghost"
                 onClick={onNextPeriod}
                 disabled={selectedPeriodIndex === allPeriods.length - 1}
-                className="h-8 w-8 p-0">
+                className="h-8 w-8 p-0 pointer-events-auto">
                 
                   <ChevronRight className="w-5 h-5" />
                 </Button>
@@ -449,7 +449,7 @@ export default function DriverPayrollGrid({
                 variant="ghost"
                 onClick={onPrevPeriod}
                 disabled={selectedPeriodIndex === 0}
-                className="h-8 w-8 p-0">
+                className="h-8 w-8 p-0 pointer-events-auto">
                 
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
@@ -462,7 +462,7 @@ export default function DriverPayrollGrid({
                 variant="ghost"
                 onClick={onNextPeriod}
                 disabled={selectedPeriodIndex === allPeriods.length - 1}
-                className="h-8 w-8 p-0">
+                className="h-8 w-8 p-0 pointer-events-auto">
                 
                   <ChevronRight className="w-5 h-5" />
                 </Button>
@@ -506,7 +506,7 @@ export default function DriverPayrollGrid({
                 variant="ghost"
                 onClick={onPrevPeriod}
                 disabled={selectedPeriodIndex === 0}
-                className="h-8 w-8 p-0">
+                className="h-8 w-8 p-0 pointer-events-auto">
                 
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
@@ -519,7 +519,7 @@ export default function DriverPayrollGrid({
                 variant="ghost"
                 onClick={onNextPeriod}
                 disabled={selectedPeriodIndex === allPeriods.length - 1}
-                className="h-8 w-8 p-0">
+                className="h-8 w-8 p-0 pointer-events-auto">
                 
                   <ChevronRight className="w-5 h-5" />
                 </Button>

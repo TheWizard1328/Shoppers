@@ -1,5 +1,6 @@
 import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
+import { queueEntityRequest } from './requestQueue';
 
 /**
  * Historical Delivery Sync — City-Scoped
@@ -99,8 +100,11 @@ export const saveHistoricalCursor = async (cursor, cityIdsHash) => {
 export const syncHistoricalDateCityScoped = async (dateStr, currentUser, stores) => {
   const cityStoreIds = getUserCityStoreIds(currentUser, stores);
 
-  const onlineDeliveries = await base44.entities.Delivery.filter(
-    { delivery_date: dateStr }, '-updated_date', 5000
+  const onlineDeliveries = await queueEntityRequest(
+    () => base44.entities.Delivery.filter(
+      { delivery_date: dateStr }, '-updated_date', 5000
+    ),
+    `HistoricalDelivery.filter(${dateStr})`
   );
 
   const cityOnlineDeliveries = filterToCityScope(onlineDeliveries, cityStoreIds);

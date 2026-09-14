@@ -22,7 +22,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
-import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock } from 'lucide-react';
+import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity } from 'lucide-react';
 import { isMobileDevice as isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import SettingsMenu from './SettingsMenu';
@@ -38,6 +38,7 @@ import QuickStats from './DashboardQuickStats';
 import BatteryIndicator from './BatteryIndicator';
 import { base44 } from '@/api/base44Client';
 import { getEffectiveUser, clearUserCache } from '../utils/auth';
+import { getAppSettings, invalidateConfigCache } from '@/components/utils/configCache';
 import { calculateRouteCodBalance } from '../utils/codTotalCalculator';
 import { createPageUrl } from '../../utils';
 import { useSidebarEntitySubscriptions } from './useSidebarEntitySubscriptions';
@@ -234,14 +235,15 @@ export default function AppSidebar({
                         onAdminImportToggle={async (checked) => {
                           setAdminImportEnabled(checked);
                           try {
-                            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                            if (settings && settings.length > 0) {
-                              await base44.entities.AppSettings.update(settings[0].id, {
+                            const settings = await getAppSettings(true);
+                            if (settings) {
+                              await base44.entities.AppSettings.update(settings.id, {
                                 setting_value: {
-                                  ...settings[0].setting_value,
+                                  ...settings.setting_value,
                                   adminImportEnabled: checked
                                 }
                               });
+                              invalidateConfigCache('AppSettings', { setting_key: 'refresh_intervals' });
                             }
                           } catch (error) {
                             console.error('Failed to save admin import setting:', error);
@@ -517,6 +519,28 @@ export default function AppSidebar({
             }
 
             <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
+
+
+      {/* Driver Activity — admins only */}
+      {userHasRole(currentUser, 'admin') &&
+            <Link
+              to={createPageUrl('DriverActivity')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'DriverActivity' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'DriverActivity' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+          <Activity className="w-5 h-5" />
+          <span className="font-semibold">Driver Activity</span>
+        </Link>
+            }
 
 
       {/* Documents — visible to all roles */}

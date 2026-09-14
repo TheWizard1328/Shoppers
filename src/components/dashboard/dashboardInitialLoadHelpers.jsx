@@ -62,9 +62,9 @@ export async function ensureTempLogsForDate({ selectedDateStr, currentUser }) {
     }
     if (_tempLogDatesVerifiedEmpty.has(selectedDateStr)) return; // server already confirmed empty
 
-    // No data in IDB for this date — pull from server
-    const { base44 } = await import('@/api/base44Client');
-    const logs = await base44.entities.RxTempLogs.filter({ delivery_date: selectedDateStr });
+    // No data in IDB for this date — pull from server via shared cache
+    const { getRxTempLogsForDate } = await import('@/components/utils/rxTempLogsCache');
+    const logs = await getRxTempLogsForDate(selectedDateStr);
     if (logs && logs.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, logs);
       // Notify LiveTempBadge and sidebar badges to re-read

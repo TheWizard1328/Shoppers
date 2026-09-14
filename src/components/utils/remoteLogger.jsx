@@ -2,6 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { getDeviceIdentifier } from '@/components/utils/userSettingsManager';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import { getCurrentDevice } from '@/components/utils/deviceManager';
+import { getRemoteLoggingSettings } from '@/components/utils/configCache';
 
 const STORAGE_KEY = 'rxdeliver_remote_log_buffer';
 const SESSION_KEY = 'rxdeliver_remote_log_session_id';
@@ -96,10 +97,9 @@ const loadSettings = async (force = false) => {
   }
   if (!force && activeSettings) return activeSettings;
   if (!settingsPromise) {
-    settingsPromise = base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 100)
-      .then((rows) => {
-        const valid = (rows || []).filter((s) => s?.scope === 'global');
-        activeSettings = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
+    settingsPromise = getRemoteLoggingSettings(force)
+      .then((settings) => {
+        activeSettings = settings;
         settingsCheckedAt = Date.now();
         return activeSettings;
       })

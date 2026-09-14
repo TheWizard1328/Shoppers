@@ -11,6 +11,7 @@
 import { offlineSyncDeps } from '@/components/services/offlineSyncDeps';
 import { offlineSyncConfig } from '@/components/services/offlineSyncConfig';
 import { createOfflineSyncPatientService } from '@/components/services/offlineSyncPatientService';
+import { queueEntityRequest } from '@/components/utils/requestQueue';
 
 const { offlineDB, Patient, Delivery, Store, City, AppUser, fetchAppUsersDedup, invalidateEntityCache } = offlineSyncDeps;
 const { BATCH_COOLDOWN } = offlineSyncConfig;
@@ -92,14 +93,14 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     if (cityStoreIds.length > 0) {
       // Fetch city-scoped deliveries AND cycling markers (no store_id) in parallel
       const [cityDeliveries, cyclingMarkers] = await Promise.all([
-        Delivery.filter({ delivery_date: selectedDateStr, store_id: { $in: cityStoreIds } }, '-updated_date', 5000).catch(() => []),
-        Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }, '-updated_date', 500).catch(() => []),
+        queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr, store_id: { $in: cityStoreIds } }, '-updated_date', 1000), 'Delivery.filterChangeSync.city').catch(() => []),
+        queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }, '-updated_date', 500), 'Delivery.filterChangeSync.cycling').catch(() => []),
       ]);
       const merged = new Map();
       [...(cityDeliveries || []), ...(cyclingMarkers || [])].forEach(d => { if (d?.id) merged.set(d.id, d); });
       freshDeliveries = Array.from(merged.values());
     } else {
-      freshDeliveries = await Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 5000).catch(() => []);
+      freshDeliveries = await queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 1000), 'Delivery.filterChangeSync.all').catch(() => []);
     }
 
     // ── STEP 3c: Sync ONLY patients referenced by this date's deliveries ──────

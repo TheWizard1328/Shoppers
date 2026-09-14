@@ -2,7 +2,12 @@ import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { format } from 'date-fns';
 import { isMobileDevice as checkIsMobileDevice, getUserAgentInfo } from './deviceUtils';
-import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
+// NOTE: getRouteOptimizationSettings is imported lazily inside loadSettings() to
+// avoid a circular dependency — RouteOptimizationSettings.jsx imports the
+// `locationTracker` singleton from THIS module. A static import here caused
+// Rollup to bundle both modules into one chunk where the evaluation order
+// triggered a TDZ ("Cannot access 'locationTracker' before initialization"),
+// breaking the entire app bundle.
 import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 import { arrivalTimeDetector } from './arrivalTimeDetector';
@@ -90,7 +95,12 @@ class LocationTracker {
    */
   loadSettings() {
     try {
-      getRouteOptimizationSettings();
+      // Lazy import breaks the circular dependency with RouteOptimizationSettings
+      // (which imports the `locationTracker` singleton). Return value is unused —
+      // the defaults below are what actually get applied.
+      import('../dashboard/RouteOptimizationSettings')
+        .then(({ getRouteOptimizationSettings }) => getRouteOptimizationSettings())
+        .catch(() => {});
       this.updateInterval = 15000; // 15s GPS polling — drivers only
       this.minDistanceChange = 100;
       this.breadcrumbSaveInterval = 5000; // 5s — offline DB write frequency, on_duty drivers only

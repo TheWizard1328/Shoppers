@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { format } from '../utils/dataManager';
 import { globalFilters } from '../utils/globalFilters';
 import { requestThrottler } from '../utils/requestThrottler';
+import { queueEntityRequest } from '../utils/requestQueue';
 import { getEffectiveUser, clearUserCache } from '../utils/auth';
 import { destroyKey } from '../utils/idbCrypto';
 import { clearAllBreadcrumbCaches } from '../utils/locationBreadcrumbService';
@@ -400,7 +401,10 @@ export function useLayoutInit({
         setTimeout(async () => {
           try {
             if (!fetchedUser?.id) return;
-            const unreadMessages = (await base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false }) || [])
+            const unreadMessages = (await queueEntityRequest(
+              () => base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false }),
+              'Message.unread'
+            ) || [])
               .filter((m) => m.sender_id !== fetchedUser.id); // self-messages never count as unread
             if (unreadMessages?.length > 0 && setInitialGlobalFiltersSet) {
               // Reuse the setUnreadMessageCount via a custom event so we don't need to thread the setter
@@ -443,11 +447,15 @@ export function useLayoutInit({
         // the last 5 minutes (freshness guard in loadPriorityData). Merge-only:
         // existing offline records are upserted, never cleared.
         setTimeout(() => {
-          const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+          // PRIORITY SYNC ALWAYS USES TODAY — past dates are covered by historical sync
+          // (background backfill) and on-demand filterChangeSync (when the user navigates
+          // to a past date). Using the saved/selected date here made priority sync waste
+          // its one fast-path call on yesterday when a stale date was saved in localStorage.
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
           const selectedCityId = globalFilters.getSelectedCityId();
           const cityIdForSync = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
           import('../utils/offlineSync').then(({ loadPriorityData }) => {
-            loadPriorityData(selectedDateStr, cityIdForSync).catch((e) => {
+            loadPriorityData(todayStr, cityIdForSync).catch((e) => {
               console.warn('⚠️ [Init] Boot priority sync failed:', e?.message || e);
             });
           }).catch(() => {});
