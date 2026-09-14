@@ -10,6 +10,7 @@ import { createPageUrl } from '../../utils';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { isAfterHoursPickup } from '@/components/dashboard/legendStopCounter';
+import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
 /**
  * Driver Payroll Grid
@@ -32,6 +33,16 @@ export default function DriverPayrollGrid({
 }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [statHolidays, setStatHolidays] = useState([]);
+
+  // Load stat holidays once (offline DB first, then API) for row highlighting
+  useEffect(() => {
+    let mounted = true;
+    loadStatHolidays()
+      .then((holidays) => { if (mounted) setStatHolidays(holidays || []); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
   const [headerLayout, setHeaderLayout] = useState('desktop-three-column'); // 'desktop-three-column', 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
   const navigate = useNavigate();
   const { currentUser } = useUser();
@@ -555,17 +566,28 @@ export default function DriverPayrollGrid({
                 const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
                 const monthShort = dateObj.toLocaleDateString('en-US', { month: 'short' });
                 const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                const statHoliday = getStatHoliday(dateKey, statHolidays);
+                const isStatHolidayRow = !!statHoliday;
+                const statHolidayTitle = isStatHolidayRow ? `Stat Holiday: ${statHoliday.holiday_name}` : undefined;
+                const statRowClass = isStatHolidayRow ? 'bg-rose-50 dark:bg-rose-950/40' : '';
 
                 return (
                   <tr
                     key={dateKey}
-                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}>
+                    className={statRowClass}
+                    title={statHolidayTitle}
+                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isStatHolidayRow ? undefined : (isWeekend ? 'var(--bg-slate-100)' : 'transparent') }}>
                     
                     <td
-                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top text-label" style={{ background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}>
+                      className={`text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top text-label ${statRowClass}`}
+                      style={{ background: isStatHolidayRow ? undefined : (isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)') }}
+                      title={statHolidayTitle}>
                       
                       <div className="flex items-center justify-center gap-0.5">
                         <span>{dayNum}</span>
+                        {isStatHolidayRow && (
+                          <span className="text-[0.6rem] font-bold text-rose-600 dark:text-rose-400 leading-none" title={statHolidayTitle}>H</span>
+                        )}
                         <button
                           onClick={() => handleNavigateToDashboard(dateObj)}
                           className="!h-4 !w-4 !min-h-0 !p-0 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100 inline-flex items-center justify-center align-middle"
