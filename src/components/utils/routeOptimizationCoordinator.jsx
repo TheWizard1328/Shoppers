@@ -51,6 +51,7 @@ import { getAllLocations, isInterStoreDelivery } from '@/components/utils/interS
  * @param {boolean} [params.clearNextDeliveryLock=false] — Return-flow "contest mode": sweep flags first, let every active stop (incl. previous next) compete for position 1. See clientRouteEngine.
  * @param {boolean} [params.skipServerWrite=false] — When true, do NOT fire bulkUpdateDeliveries; the caller commits the writeBatch to the server itself (used by the Return flow's atomic client-first commit).
  * @param {string}  [params.recalcTrackingStoreId=null] — When set, only write TR#s for deliveries matching this store_id (prevents overwriting other stores' TR#s). All deliveries are still passed to the calculator for collision detection.
+ * @param {boolean} [params.awaitServerWrite=false] — When true, AWAIT the bulkUpdateDeliveries server write (and its fallback) before returning. Used by paths that immediately resume sync managers after the coordinator returns (Start button, retry) — a fire-and-forget write would still be in flight when SmartRefresh/priority-sync re-pull from the server, and the pre-commit response would bounce the UI back to stale stop_order/isNextDelivery (the Start-button bouncing bug).
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
 async function _performRouteOptimizationInner({
@@ -84,6 +85,7 @@ async function _performRouteOptimizationInner({
   forceRegenerate = false,
   clearNextDeliveryLock = false,
   skipServerWrite = false,
+  awaitServerWrite = false,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
@@ -394,17 +396,31 @@ async function _performRouteOptimizationInner({
           // done, so other devices never see a partial state. IDB is still written below.
           console.log(`[RouteOptimization] ${source} — skipServerWrite=true, deferring server commit to caller (${optimizeData.writeBatch.length} updates)`);
         } else {
-        base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch((e) => {
-          console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
-          // Fallback: individual writes in parallel batches of 20 (fire-and-forget)
-          const CHUNK_SIZE = 20;
-          for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
-            const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
-            Promise.all(chunk.map(async ({ id, data }) => {
-              try { await base44.entities.Delivery.update(id, data); } catch (_) {}
-            })).catch(() => {});
+          const _commitFallback = async (e) => {
+            console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
+            // Fallback: individual writes in parallel batches of 20
+            const CHUNK_SIZE = 20;
+            for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
+              const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
+              await Promise.all(chunk.map(async ({ id, data }) => {
+                try { await base44.entities.Delivery.update(id, data); } catch (_) {}
+              })).catch(() => {});
+            }
+          };
+          if (awaitServerWrite) {
+            // Read-your-write mode: the caller resumes sync managers (which re-pull
+            // from the server) as soon as we return — the server commit must be
+            // complete BEFORE that, or the first pull bounces the UI back to the
+            // pre-optimization stop_order/isNextDelivery.
+            try {
+              await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
+              console.log(`[RouteOptimization] ${source} — bulkUpdateDeliveries committed (awaited)`);
+            } catch (e) {
+              await _commitFallback(e);
+            }
+          } else {
+            base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch(_commitFallback);
           }
-        });
         }
       }
     } else if (orderedDeliveryIds) {

@@ -117,6 +117,7 @@ export function useStopCardStartActions({
               driverId: delivery.driver_id,
               deliveryDate: retryDate,
               source: 'retry',
+              awaitServerWrite: true,
             });
             if (retryCoordResult?.success && Array.isArray(retryCoordResult.freshDeliveries) && retryCoordResult.freshDeliveries.length > 0) {
               updateDeliveriesLocally(retryCoordResult.freshDeliveries, false);
@@ -328,6 +329,7 @@ export function useStopCardStartActions({
                 appUsers,
                 source: 'start_button',
                 bypassDriverStatus: true,
+                awaitServerWrite: true,
               }).catch(() => null);
             } finally {
               resumeOfflineSync('delivery_actions');
@@ -642,6 +644,12 @@ export function useStopCardStartActions({
               appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
+              // Read-your-write: the finally block below restarts SmartRefresh /
+              // backgroundSync the moment this returns. A fire-and-forget server
+              // write would still be mid-commit — the first re-pull would return
+              // pre-optimization stop_order/isNextDelivery and bounce the card
+              // back to its original position (the Start bouncing bug).
+              awaitServerWrite: true,
               // NOTE: TR# recalculation is NOT done here — Start button only reorders
               // stops and regenerates polylines. TR#s are only updated via Accept All
               // and the Add To Route form Done button.

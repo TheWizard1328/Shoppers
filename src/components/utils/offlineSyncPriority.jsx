@@ -2,6 +2,7 @@ import { offlineDB } from './offlineDatabase';
 import { queueEntityRequest } from './requestQueue';
 import { createOfflineSyncPreRenderHelpers } from './offlineSyncPreRender';
 import { getSyncPaused } from './offlineSyncState';
+import { applyRealtimeMergeWithLockout } from './completionLockout';
 
 export const createOfflineSyncPriorityHelpers = ({
   AppUser,
@@ -26,6 +27,26 @@ export const createOfflineSyncPriorityHelpers = ({
     fetchCitiesDedup,
     invalidateEntityCache
   });
+
+  // Lockout-aware server merge: when a Delivery pull races an in-flight local action
+  // (Start/Complete/Accept), the server snapshot can be PRE-COMMIT — bulkSaving it raw
+  // reverts optimistic stop_order/isNextDelivery/status in IDB and the UI bounces back
+  // (the Start-button bouncing bug). applyRealtimeMergeWithLockout only intervenes for
+  // deliveries with an ACTIVE field lock (60s TTL set by the acting device) — unlocked
+  // records pass through untouched, so normal syncing is unchanged.
+  const lockoutGuardDeliveries = (serverDeliveries, existingIdbRecords) => {
+    try {
+      const idbMap = new Map((existingIdbRecords || []).filter(d => d?.id).map(d => [d.id, d]));
+      return (serverDeliveries || []).map(d => {
+        if (!d?.id) return d;
+        const local = idbMap.get(d.id);
+        if (!local) return d;
+        return applyRealtimeMergeWithLockout(d.id, d, local);
+      });
+    } catch (_) {
+      return serverDeliveries; // lockout import/merge failure must never block syncing
+    }
+  };
 
   const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null, fetchAllDriversDeliveries = false) => {
     try {
@@ -114,7 +135,7 @@ export const createOfflineSyncPriorityHelpers = ({
           return { skipped: true, reason: 'paused_during_action' };
         }
         if (selectedDateDeliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, selectedDateDeliveries);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, lockoutGuardDeliveries(selectedDateDeliveries, existingForDate));
         }
         if (toDelete.length > 0) {
           await Promise.all(toDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
@@ -285,7 +306,7 @@ export const createOfflineSyncPriorityHelpers = ({
           return { skipped: true, reason: 'paused_during_action' };
         }
         if (deliveries && deliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, lockoutGuardDeliveries(deliveries, existingForDate2));
         }
         if (toDelete2.length > 0) {
           await Promise.all(toDelete2.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
