@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Settings, Save, Loader2, Thermometer, Snowflake, Switch } from 'lucide-react';
+import { Settings, Save, Loader2, Thermometer, Snowflake } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { realtimeSync } from '../utils/realtimeSync';
 import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
