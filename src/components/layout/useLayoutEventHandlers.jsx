@@ -795,6 +795,34 @@ export function useLayoutEventHandlers({
         console.log('✅ [Recovery] UI refresh complete');
       }, 1500);
     };
+    // ── Queued-create temp→real swap (offlineSyncMutationProcessor) ─────────
+    // When a Delivery create was queued offline (server create failed mid-flow)
+    // and later replayed by the mutation processor, the processor swaps the
+    // temp_ record for the real server record in IDB but only dispatches
+    // 'offlineMutationRecordReplaced' — which ONLY Cities/Stores pages listened
+    // to. Deliveries state kept rendering the temp_ phantom next to the real
+    // record (the duplicate return card that vanished on the next refresh).
+    const handleOfflineDeliveryReplaced = (event) => {
+      const { entity, oldId, record } = event.detail || {};
+      if (entity !== 'Delivery' || !oldId || !record?.id) return;
+      setDeliveries((prev) => {
+        const map = new Map(prev.filter(Boolean).map((d) => [d.id, d]));
+        map.delete(oldId);
+        map.set(record.id, record);
+        return Array.from(map.values());
+      });
+      // Register self-echo suppression for the new server ID — the platform's
+      // WS create echo for this record is a replay of OUR queued write, not a
+      // remote create (marker-mode: suppressed 15s, same as broadcastMutation).
+      if (typeof window !== 'undefined') {
+        if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+        const _ts = window.__localDeliveryWrites.get(record.id);
+        const _isExtended = _ts != null && _ts > Date.now() + 1000;
+        if (!_isExtended) window.__localDeliveryWrites.set(record.id, Date.now());
+      }
+    };
+    window.addEventListener('offlineMutationRecordReplaced', handleOfflineDeliveryReplaced);
+
     window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
     return () => {
@@ -812,6 +840,7 @@ export function useLayoutEventHandlers({
       // window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
+      window.removeEventListener('offlineMutationRecordReplaced', handleOfflineDeliveryReplaced);
       window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
       window.removeEventListener('appUserUpdated', handleAppUserUpdated);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);

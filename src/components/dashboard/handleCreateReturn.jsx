@@ -19,6 +19,16 @@ import { base44 } from '@/api/base44Client';
 
 const getEdmDate = () => getEdmontonDate();
 
+// In-flight dedup — a double-tap on the confirm button (or a retry racing the
+// first invocation) used to run the WHOLE pipeline twice: two temp records, two
+// backend creates (two real returns on the server!), and — via the coordinator's
+// own driverId+date inflight dedup — the second invocation receiving the FIRST
+// one's freshDeliveries, whose stale temp entries then got upserted back into
+// state by STEP 4b as phantom cards ("two return deliveries, one disappears on
+// refresh" — the phantom was a local temp_ record the IDB swap had already
+// deleted). Keyed by driver+date: a second call returns the first call's result.
+const returnFlowInflight = new Map();
+
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 // Extended self-echo suppression window — covers the full local pipeline (flag sweep +
 // optimization + commit) so our own server writes' WS echoes never double-apply.
@@ -51,6 +61,16 @@ const ECHO_SUPPRESSION_MS = 90 * 1000;
 export async function handleCreateReturn({ originalDelivery, returnPatient, store }, {
   currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally, preferredTravelMode
 }) {
+  // Re-entrancy guard: if this driver+date already has a return flow running,
+  // return its promise instead of starting a second one. setIsEntityUpdating /
+  // isCreatingReturn are ASYNC state — a double-tap inside the same render passes
+  // them both, which is exactly how the duplicate-return bug reproduced.
+  const _inflightKey = `${originalDelivery?.driver_id || 'unknown'}:${getEdmontonDate()}`;
+  if (returnFlowInflight.has(_inflightKey)) {
+    console.log('🔁 [CREATE RETURN] In-flight return for this route — returning existing promise');
+    return returnFlowInflight.get(_inflightKey);
+  }
+  const _flowPromise = (async () => {
   setIsEntityUpdating(true);
   pauseOfflineSync();
   smartRefreshManager.pause();
@@ -226,6 +246,13 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
         notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: realReturn.id, data: realReturn });
         finalDeliveries = freshDeliveries.map((d) => (d?.id === tempId ? realReturn : d));
       }
+      // Foreign-temp hygiene: the coordinator dedupes by driverId+date, so if any
+      // concurrent flow (or a stale in-flight promise) contributed freshDeliveries,
+      // records with OTHER temp_ IDs can be present here. IDB no longer holds them
+      // (their swap deleted them) — upserting them into state via STEP 4b would
+      // render phantom cards that vanish on the next refresh. Drop any temp_ that
+      // isn't ours.
+      finalDeliveries = finalDeliveries.filter((d) => d?.id === tempId || d?.id === realReturn?.id || !String(d?.id || '').startsWith('temp_'));
 
       // Server writes for the re-sequenced stops (return excluded — created above
       // with its final stop_order/polyline already attached)
@@ -303,5 +330,12 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
     resumeOfflineSync();
     smartRefreshManager.restart();
     setIsEntityUpdating(false);
+  }
+  })();
+  returnFlowInflight.set(_inflightKey, _flowPromise);
+  try {
+    return await _flowPromise;
+  } finally {
+    returnFlowInflight.delete(_inflightKey);
   }
 }
