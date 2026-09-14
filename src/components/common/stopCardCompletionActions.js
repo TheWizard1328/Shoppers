@@ -262,7 +262,24 @@ export function useStopCardCompletionActions({
       // committed server-side above) and creates/updates all missing items in a SINGLE
       // Square batch-upsert — no per-item catalog scans, no client-supplied amounts.
       if (codBatch.length > 0) {
-        syncDeliveriesSquareCod(codBatch.map((c) => c.deliveryId));
+        // PATCH REQUIRED (Sep 14 2026): STEP 3b fires BEFORE the coordinator's
+        // bulkUpdateDeliveries commits status='in_transit' server-side — the DB
+        // records are still 'pending' at this moment. The reconciler reads those
+        // records authoritatively, and its business rule is pending + COD > 0 =
+        // 'remove' — so bare IDs made it queue a REMOVAL instead of creating the
+        // catalog items. Send the just-written cod fields as a patch (the designed
+        // mechanism for records whose DB write hasn't propagated) so the desired
+        // state resolves to 'want' regardless of commit timing.
+        syncDeliveriesSquareCod(codBatch.map((c) => ({
+          deliveryId: c.deliveryId,
+          patch: {
+            status: 'in_transit',
+            cod_total_amount_required: c.codAmount,
+            patient_name: c.patientName,
+            delivery_date: c.deliveryDate,
+            store_id: c.storeId
+          }
+        })));
       }
 
       // Write pickup route summary note — DEFERRED to after optimization (Step 7).
