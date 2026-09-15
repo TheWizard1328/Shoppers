@@ -25,6 +25,7 @@ import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
+import DispatcherLocationGate from './components/common/DispatcherLocationGate';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { filterDeleted } from './components/utils/deletedDeliveryRegistry';
 import { applyRealtimeMergeWithLockout } from './components/utils/completionLockout';
@@ -1506,6 +1507,8 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
             <GuideAssistant />
+            {/* Dispatcher geo-fence — mobile-only, full-screen block when off-site (Sep 15, 2026) */}
+            <DispatcherLocationGate />
           </AppDataProvider>
           </UserProvider>
       }
