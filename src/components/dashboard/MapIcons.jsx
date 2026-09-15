@@ -85,8 +85,15 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
   let baseSize = 24 * 0.75;
   if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
-  } else if (zBucket < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+  } else if (zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+    baseSize = 24 * 0.75;
+  } else if (zBucket >= ZOOM_LEVELS.HIDE_NUMBERS) {
     baseSize = 20 * 0.75;
+  } else {
+    // Zoomed out past HIDE_NUMBERS — stop-order numbers are gone here, so
+    // shrink the pins a bit more (15px→12.75px base) so markers clustered
+    // close together separate visually instead of fusing into a blob.
+    baseSize = 17 * 0.75;
   }
 
   if (status === 'pending') baseSize *= 0.75;
@@ -175,8 +182,15 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   let baseSize = 24 * 0.75;
   if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
-  } else if (zBucket < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+  } else if (zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+    baseSize = 24 * 0.75;
+  } else if (zBucket >= ZOOM_LEVELS.HIDE_NUMBERS) {
     baseSize = 20 * 0.75;
+  } else {
+    // Zoomed out past HIDE_NUMBERS — stop-order numbers are gone here, so
+    // shrink the pins a bit more (15px→12.75px base) so markers clustered
+    // close together separate visually instead of fusing into a blob.
+    baseSize = 17 * 0.75;
   }
 
   if (status === 'pending') baseSize *= 0.75;
@@ -275,8 +289,15 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   let baseSize = 24 * 0.75;
   if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
-  } else if (zBucket < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+  } else if (zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+    baseSize = 24 * 0.75;
+  } else if (zBucket >= ZOOM_LEVELS.HIDE_NUMBERS) {
     baseSize = 20 * 0.75;
+  } else {
+    // Zoomed out past HIDE_NUMBERS — stop-order numbers are gone here, so
+    // shrink the pins a bit more (15px→12.75px base) so markers clustered
+    // close together separate visually instead of fusing into a blob.
+    baseSize = 17 * 0.75;
   }
 
   if (status === 'pending') baseSize *= 0.75;
