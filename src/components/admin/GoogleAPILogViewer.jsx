@@ -461,6 +461,19 @@ export default function GoogleAPILogViewer() {
     ? Math.max(0, Math.ceil((dateFilter === 'week' ? 7 : Number(dateFilter.replace('month', ''))) / 7) - 1)
     : 0;
 
+  // X-axis tick spacing:
+  //  - Last Hour: 60 per-minute buckets → show a label every 5 min (skip 4)
+  //  - Today / Yesterday: 24 hourly buckets → show every other hour (skip 1)
+  //  - Multi-day ranges: thinned by multiDayInterval
+  //  - Otherwise: show all (0)
+  const xAxisInterval = isMultiDay
+    ? multiDayInterval
+    : dateFilter === 'hourly'
+      ? 4
+      : dateFilter === 'today' || dateFilter === 'yesterday'
+        ? 1
+        : 0;
+
   useEffect(() => {
     loadLogs();
 
@@ -795,7 +808,7 @@ export default function GoogleAPILogViewer() {
                   stroke="#64748b"
                   angle={isMultiDay ? -45 : dateFilter === 'hourly' ? -30 : 0}
                   textAnchor={isMultiDay || dateFilter === 'hourly' ? 'end' : 'middle'}
-                  interval={multiDayInterval}
+                  interval={xAxisInterval}
                   height={isMultiDay ? 60 : dateFilter === 'hourly' ? 45 : 30} />
                 <YAxis tick={{ fontSize: 11 }} stroke="#64748b" />
                 <Tooltip
