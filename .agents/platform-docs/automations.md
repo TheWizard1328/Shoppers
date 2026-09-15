@@ -8,11 +8,11 @@ When an automation triggers you, you handle the task using all your tools (entit
 - `task_name`: a descriptive label for what you'll do (e.g. `daily_report`, `sync_inventory`). It is NOT a function reference.
 - `description`: write in first person what you will do when it fires (e.g. "I will generate a daily report and email it to the team", not "Generate a daily report"). Always use "I will..." or "I ...".
 - `function_args`: additional context/parameters passed to you at trigger time.
-- For AI/LLM work (summarizing, analyzing, generating text), handle it yourself — do NOT create a backend function that calls an LLM API.
+- For AI/LLM work (summarizing, analyzing, generating text), handle it yourself - do NOT create a backend function that calls an LLM API.
 
 ## User timezone
-The current date and the user's local timezone are provided in the developer note near the user's latest message (e.g. "Today is Monday, June 14, 2026, 09:00 (America/Chicago)") — use that timezone. When the user mentions times (e.g. "9am", "midnight"), they mean THEIR timezone.
-- All times you provide (one_time_date, ends_on_date, start_time) should be in the user's local time and date (DO NOT use the sandbox timezone) — they are automatically converted to UTC.
+The current date and the user's local timezone are provided in the developer note near the user's latest message (e.g. "Today is Monday, June 14, 2026, 09:00 (America/Chicago)") - use that timezone. When the user mentions times (e.g. "9am", "midnight"), they mean THEIR timezone.
+- All times you provide (one_time_date, ends_on_date, start_time) should be in the user's local time and date (DO NOT use the sandbox timezone) - they are automatically converted to UTC.
 - For cron_expression: cron times are in UTC, so calculate the UTC equivalent from the user's timezone.
 
 ## Choosing the right schedule
@@ -23,7 +23,7 @@ The current date and the user's local timezone are provided in the developer not
 - Monthly: repeat_unit="months", repeat_on_day_of_month=1 (1-31), start_time="09:00".
 - Cron (advanced, only when simple types can't express the schedule): schedule_type="cron", cron_expression="0 9 * * 1-5" (standard 5-field Unix cron, UTC). Wrap-around ranges like 22-6 (hours) are not supported; use a list instead.
 - End conditions: ends_type="never" (default) / "on" (+ ends_on_date) / "after" (+ ends_after_count).
-- Avoid repeat_unit="minutes" for tasks that send bulk emails or mass outreach to the same recipients — this will spam them. Minute-based schedules are fine for monitoring tasks (e.g. checking for new emails, polling a data source).
+- Avoid repeat_unit="minutes" for tasks that send bulk emails or mass outreach to the same recipients - this will spam them. Minute-based schedules are fine for monitoring tasks (e.g. checking for new emails, polling a data source).
 
 ## Entity automations (automation_type="entity")
 Triggered when records in a data entity are created, updated, or deleted.
@@ -33,8 +33,8 @@ Triggered when records in a data entity are created, updated, or deleted.
 ## Connector automations (automation_type="connector")
 Triggered by webhook events emitted by connected OAuth integrations.
 - Required: integration_type (e.g. 'gmail', 'googlecalendar'), events (array of event names). The integration must be connected (authorized) first.
-- IMPORTANT: only ONE active automation per integration type is allowed. If one already exists, use manage_automation with action="update" instead of creating a new one — reusing it avoids duplicate triggers, saves credits, and keeps behaviour in a single place.
-- Optional: resource_id — a specific resource to watch (e.g. a Google Drive file ID for file.* events, a calendar ID for Google Calendar). Required for some event types like Drive file-level events; omit to watch all resources.
+- IMPORTANT: only ONE active automation per integration type is allowed. If one already exists, use manage_automation with action="update" instead of creating a new one - reusing it avoids duplicate triggers, saves credits, and keeps behaviour in a single place.
+- Optional: resource_id - a specific resource to watch (e.g. a Google Drive file ID for file.* events, a calendar ID for Google Calendar). Required for some event types like Drive file-level events; omit to watch all resources.
 - If the desired external service is not a connector/channel, the usual fallback is scheduled polling or a backend function bridge plus the Superagent API.
 
 ## Credits and confirmation

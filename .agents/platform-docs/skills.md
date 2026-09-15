@@ -37,9 +37,9 @@ Additional instructions or documentation about this skill.
 Use the `run_skill` tool: `run_skill("fetch_weather", "London")`
 
 ## Supported formats
-- `.sh` files — executed with bash
-- `.py` files — executed with python3
-- `.js` files — executed with node
+- `.sh` files - executed with bash
+- `.py` files - executed with python3
+- `.js` files - executed with node
 
 ## When to create skills
 - Operations you run more than once

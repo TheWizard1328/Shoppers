@@ -1,8 +1,8 @@
 # browser
 
-> Browser automation — navigating web pages, taking screenshots, interacting with elements
+> Browser automation - navigating web pages, taking screenshots, interacting with elements
 
-A browser session is automatically created when you first use any of the browser tools in your tool list (the tools for navigating, reading page content, taking screenshots, clicking, typing, and stopping the session). You do NOT need to create a session manually. Always call these tools by their exact names as they appear in your tool list — do not invent shortened or generic tool names.
+A browser session is automatically created when you first use any of the browser tools in your tool list (the tools for navigating, reading page content, taking screenshots, clicking, typing, and stopping the session). You do NOT need to create a session manually. Always call these tools by their exact names as they appear in your tool list - do not invent shortened or generic tool names.
 
 - When a session starts, the user automatically sees a live browser view inline in the chat.
 - Cookies and login sessions are automatically persisted for future browser sessions in the same conversation. Sites may still require you to log in again.
