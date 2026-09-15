@@ -585,9 +585,6 @@ export default function DriverPayrollGrid({
                       
                       <div className="flex items-center justify-center gap-0.5">
                         <span>{dayNum}</span>
-                        {isStatHolidayRow && (
-                          <span className="text-[0.6rem] font-bold text-rose-600 dark:text-rose-400 leading-none" title={statHolidayTitle}>H</span>
-                        )}
                         <button
                           onClick={() => handleNavigateToDashboard(dateObj)}
                           className="!h-4 !w-4 !min-h-0 !p-0 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100 inline-flex items-center justify-center align-middle"
@@ -595,6 +592,9 @@ export default function DriverPayrollGrid({
                           
                           <ExternalLink className="w-3 h-3" />
                         </button>
+                        {isStatHolidayRow && (
+                          <span className="text-[0.6rem] font-bold text-rose-600 dark:text-rose-400 leading-none" title={statHolidayTitle}>Stat</span>
+                        )}
                       </div>
                     </td>
                     {sortedStores.map((store) => {
