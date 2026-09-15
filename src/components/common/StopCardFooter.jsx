@@ -47,7 +47,19 @@ export default function StopCardFooter(props) {
         (d.status === 'pending' || d.status === 'in_transit' || d.status === 'en_route')
       )
     : false;
-  const showCancelPickupButton = isDispatcherOnly && isActivePickup && !hasActiveLinkedDeliveries;
+  // Owner rule (Sep 15, 2026): same store-wide pending guard as the stop card
+  // menu's Cancel Pickup/Delete rule — the PUID-linked check above misses
+  // pending deliveries for the store that aren't attached to THIS pickup yet.
+  const hasPendingStoreDeliveries = allDeliveries.some((item) =>
+    item &&
+    item.id !== delivery?.id &&
+    item.store_id === delivery?.store_id &&
+    item.delivery_date === delivery?.delivery_date &&
+    item.status === 'pending' &&
+    !item.is_cycling_marker &&
+    !!item.patient_id
+  );
+  const showCancelPickupButton = isDispatcherOnly && isActivePickup && !hasActiveLinkedDeliveries && !hasPendingStoreDeliveries;
 
   const shouldShowFooter = (() => {
     if (shouldCondenseCompletedRouteForDriver) return false;
