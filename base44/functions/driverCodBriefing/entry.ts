@@ -189,39 +189,53 @@ async function fetchByIds(base44, entityName, ids) {
   return out;
 }
 
-// Find the App Owner's platform user id. Primary: platform User with
-// role === 'admin' (same check the frontend isAppOwner() uses). Fallback:
-// pinned OWNER_USER_ID — several users carry the 'admin' app role but
-// Robert T is THE App Owner (verified in the AppUser table Sep 15 2026) —
-// then any active AppUser with the admin app role.
-const OWNER_USER_ID = '68570f3cd01bfa2d2408a9d7';
+// Find the App Owner's platform user. The owner resolves through the
+// PLATFORM user database (role === 'admin' — the same check the frontend
+// isAppOwner() uses), NOT the AppUser entity. Fallbacks stay in the platform
+// DB too: role filter, then the pinned platform user id (Robert T — several
+// users carry the 'admin' app role in AppUser, so only the platform DB is
+// authoritative).
+const OWNER_PLATFORM_USER_ID = '68570f3cd01bfa2d2408a9d7';
+async function listPlatformUsers(base44) {
+  const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch((e) => {
+    console.log('[briefing] User.list error:', e?.message || String(e));
+    return [];
+  });
+  const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
+    .map((r) => unwrapEntityRecord(r)).filter(Boolean);
+  console.log('[briefing] platform users listed:', users.length, '| admins:', users.filter((u) => u?.role === 'admin').length, '| roles sample:', users.slice(0, 5).map((u) => u?.role).join(','));
+  return users;
+}
 async function findOwner(base44) {
   try {
-    const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch((e) => {
-      console.log('[briefing] User.list error:', e?.message || String(e));
-      return [];
-    });
-    const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
-      .map((r) => unwrapEntityRecord(r)).filter(Boolean);
-    console.log('[briefing] platform users listed:', users.length, '| admins:', users.filter((u) => u?.role === 'admin').length, '| roles sample:', users.slice(0, 5).map((u) => u?.role).join(','));
+    const users = await listPlatformUsers(base44);
     const owner = users.find((u) => u?.role === 'admin');
     if (owner?.id) return owner;
   } catch (err) {
-    console.log('[briefing] User.list failed:', err?.message || String(err));
+    console.log('[briefing] User.list path failed:', err?.message || String(err));
   }
   try {
-    const appUsers = await listAll(base44, 'AppUser', 'user_name', 500);
-    console.log('[briefing] AppUser fallback: listed', appUsers.length, '| with admin role:', appUsers.filter((u) => Array.isArray(u?.app_roles) && u.app_roles.includes('admin')).length);
-    const byUid = new Map(appUsers.filter((u) => u?.user_id).map((u) => [u.user_id, u]));
-    const pinned = byUid.get(OWNER_USER_ID);
-    if (pinned) return { id: pinned.user_id, full_name: pinned.user_name || 'App Owner' };
-    const adminAppUser = appUsers.find((u) => Array.isArray(u?.app_roles) && u.app_roles.includes('admin') && u?.user_id && u?.status !== 'inactive');
-    if (adminAppUser?.user_id) return { id: adminAppUser.user_id, full_name: adminAppUser.user_name || 'App Owner' };
+    const adminRes = await base44.asServiceRole.entities.User.filter({ role: 'admin' }).catch((e) => {
+      console.log('[briefing] User.filter(role=admin) error:', e?.message || String(e));
+      return [];
+    });
+    const admins = (Array.isArray(adminRes) ? adminRes : []).map((r) => unwrapEntityRecord(r)).filter(Boolean);
+    console.log('[briefing] User.filter(role=admin):', admins.length);
+    if (admins.length) return admins[0];
   } catch (err) {
-    console.log('[briefing] AppUser fallback failed:', err?.message || String(err));
+    console.log('[briefing] User.filter path failed:', err?.message || String(err));
   }
-  // Last resort: pinned id (Robert T, verified Sep 15 2026)
-  if (OWNER_USER_ID) return { id: OWNER_USER_ID, full_name: 'App Owner' };
+  try {
+    const byIdRes = await base44.asServiceRole.entities.User.filter({ id: OWNER_PLATFORM_USER_ID }).catch((e) => {
+      console.log('[briefing] User.filter(id) error:', e?.message || String(e));
+      return [];
+    });
+    const byId = (Array.isArray(byIdRes) ? byIdRes : []).map((r) => unwrapEntityRecord(r)).filter(Boolean);
+    console.log('[briefing] User.filter(pinned id):', byId.length, byId.map((u) => u?.role).join(','));
+    if (byId.length) return byId[0];
+  } catch (err) {
+    console.log('[briefing] User.filter by-id path failed:', err?.message || String(err));
+  }
   return null;
 }
 
@@ -483,6 +497,14 @@ Deno.serve(async (req) => {
     await requireAdminIfAuthenticated(base44);
     let params = {};
     try { params = await req.json(); } catch { params = {}; }
+    if (params?.diagnostic_users) {
+      const users = await listPlatformUsers(base44);
+      return Response.json({
+        count: users.length,
+        admins: users.filter((u) => u?.role === 'admin').map((u) => ({ id: u.id, role: u.role, full_name: u.full_name })),
+        sample: users.slice(0, 10).map((u) => ({ id: u.id, role: u.role, full_name: u?.full_name, keys: Object.keys(u).slice(0, 20) })),
+      });
+    }
     if (params?.diagnostic_fcm_project) {
       const fcmServiceAccountJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
       let projectId = null, clientEmail = null;
