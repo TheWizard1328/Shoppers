@@ -33,7 +33,6 @@ import InterStoreMarkers from "./InterStoreMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
 import { createLiveLocationDot, bucketZoom } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
-import { useHeadingUpMode } from "./useHeadingUpMode";
 import { getInterStoreLocationSync, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
 import { countLegendStops } from "./legendStopCounter";
 
@@ -828,12 +827,6 @@ function DeliveryMap({
     return { ...locationData, driver: currentUser, driverId: currentUser.id, driver_id: currentUser.id };
   }, [currentDriverLocation, safeUsers, currentUser, isMobile, selectedDate]);
 
-  // Heading-up navigation pilot (app owner only) — rotates the map container
-  // so the driver's direction of travel always points up. Self-contained:
-  // gates, overscan, smoothing and gesture snap-back live inside the hook.
-  // NOTE (TDZ): mounted AFTER the currentDriverMarker memo above.
-  const { active: headingUpActive } = useHeadingUpMode({ map, mapReady, currentUser, isMobile, mapViewPhase, currentDriverMarker });
-
   // NOTE (Robert, Sep 4 2026): the routeLocationSnapshot override on driver
   // location markers was REMOVED. The snapshot is gated to 150m/10s (its job is
   // to signal ROUTE RECALCS via useRouteRecalcSignal, not to position markers),
@@ -1620,7 +1613,7 @@ function DeliveryMap({
   }, [map, isRouteComplete, completedRouteCity, crosshairPadding, driverZoomLockEligible]);
 
   return (
-    <div className={`absolute inset-0${headingUpActive ? " overflow-hidden" : ""}`}>
+    <div className="absolute inset-0">
       <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} currentUser={currentUser} />
       <MapContainer
         center={center || [53.5461, -113.4938]}
