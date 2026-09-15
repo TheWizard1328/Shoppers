@@ -13,6 +13,9 @@ import { useMobileNavigation } from '../navigation/MobileNavigationProvider';
 import { getUserAvatarGradient } from './mobileHeaderUtils';
 import { globalFilters } from '../utils/globalFilters';
 import UpdateArrow from '../common/UpdateArrow';
+import UpdateInfoBalloon from '../common/UpdateInfoBalloon';
+import { clearUserCache } from '../utils/auth';
+import { clearSettingsCache } from '../utils/userSettingsManager';
 
 export default function MobileHeader({
   logo,
@@ -149,7 +152,7 @@ export default function MobileHeader({
           {currentUser && !sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
           <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu">
+                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu" data-update-menu-btn>
                   <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                   {hasWebUpdate && <UpdateArrow type="web" />}
                 </Button>
@@ -174,7 +177,7 @@ export default function MobileHeader({
             {/* Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu">
+                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu" data-update-menu-btn>
                   <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                   {hasWebUpdate && <UpdateArrow type="web" />}
                 </Button>
@@ -249,6 +252,26 @@ export default function MobileHeader({
           </div>
         }
       </div>
+      {/* Web-update info balloon — expands from the menu button the moment
+          the green web UpdateArrow appears. Tapping it performs the full app
+          refresh (cache clear + reload), which is what picks up a web build. */}
+      <UpdateInfoBalloon
+        active={!!hasWebUpdate}
+        anchorSelector="[data-update-menu-btn]"
+        direction="down"
+        accent="#10b981"
+        icon="⬆️"
+        title="Update available"
+        message="A new version of the app is ready. Tap to refresh and pick it up."
+        cta="Tap to update"
+        onClick={async () => {
+          try {
+            clearUserCache();
+            clearSettingsCache();
+          } catch (_) { /* silent fail — reload still picks up the build */ }
+          window.location.reload(true);
+        }}
+      />
       {/* Background GPS nudge — shown to drivers on Android after going on duty */}
       {userHasRole(currentUser, 'driver') &&
       <BackgroundLocationNudge isOnDuty={currentUser?.driver_status === 'on_duty'} />
