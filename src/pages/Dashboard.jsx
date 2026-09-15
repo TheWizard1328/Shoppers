@@ -39,6 +39,7 @@ import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/ut
 import { getDeliveryTypeFlags } from "@/components/utils/deliveryTypeUtils";
 import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
+import useRouteDeviationMonitor from '@/components/dashboard/useRouteDeviationMonitor';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
 import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
 import { getBoundsSpanKm, getPhaseBoundsMaxZoom } from '@/components/dashboard/mapCycleZoomHelpers';
@@ -655,6 +656,7 @@ function Dashboard() {
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked, mapUserUnlockedRef });
+  useRouteDeviationMonitor({ isDriver, isPrimaryDevice, driverLocation, currentUser, appUsers, deliveries, patients, stores, selectedDate, updateDeliveriesLocally });
   useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight, statsContainerRef, setStatsContainerBaseHeight });
 
   // Expose stop cards height as CSS variable for GuideAssistant positioning

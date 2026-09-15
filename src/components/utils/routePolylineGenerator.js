@@ -111,7 +111,8 @@ function encodeGooglePolyline(points) {
 // Google 1e5 polyline decode — arithmetic (no bitwise), matching the standard
 // decoder in breadcrumbsManager.jsx. Used to merge consecutive legs when a live-GPS
 // via point splits the current leg into origin→GPS + GPS→firstStop sections.
-function decodeGooglePolyline(encoded) {
+// EXPORTED Sep 14 2026 for the route deviation detector (routeDeviationDetector.js).
+export function decodeGooglePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
   const coordinates = [];
