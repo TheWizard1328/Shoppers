@@ -1,8 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Breadcrumb polylines use 1e5 precision (client encoder in locationBreadcrumbService.jsx)
-// Delivery route polylines use 1e5 precision (HERE API standard Google format)
-const BREADCRUMB_PRECISION = 1e5;
+// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx).
+// Delivery route polylines use 1e5 precision (HERE API standard Google format) — unchanged.
+const BREADCRUMB_PRECISION = 1e7;
 const DELIVERY_PRECISION = 1e5;
 
 function decodePolylineAt(encoded, precision) {

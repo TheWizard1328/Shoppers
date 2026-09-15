@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-// Breadcrumb polylines use 1e5 precision (client encoder in locationBreadcrumbService.jsx)
-const POLY_PRECISION = 1e5;
+// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx).
+// Decoder auto-detects 1e5 (legacy) vs 1e7 (current) for transition safety.
+const POLY_PRECISION = 1e7;
 
 // Haversine distance in meters between two [lat, lon] points
 function haversineM(lat1, lon1, lat2, lon2) {
@@ -17,8 +18,9 @@ function haversineM(lat1, lon1, lat2, lon2) {
 // Decode Google-encoded polyline string into [[lat, lng], ...]
 function decodePolyline(encoded) {
   if (!encoded) return [];
-  const poly = [];
   let index = 0, len = encoded.length, lat = 0, lng = 0;
+  const rawLats = [];
+  const rawLngs = [];
   while (index < len) {
     let b, result = 0, multiplier = 1;
     do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
@@ -26,9 +28,12 @@ function decodePolyline(encoded) {
     result = 0; multiplier = 1;
     do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
     lng += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
-    poly.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return poly;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 // Encode [[lat, lng], ...] into Google-encoded polyline string

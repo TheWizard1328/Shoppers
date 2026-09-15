@@ -9,7 +9,12 @@
     },
     "document_type": {
       "description": "Type of compliance document",
-      "enum": ["PIA", "IMA", "NDA", "legal_cover_sheet"],
+      "enum": [
+        "PIA",
+        "IMA",
+        "NDA",
+        "legal_cover_sheet"
+      ],
       "type": "string"
     },
     "file_uri": {
@@ -45,7 +50,10 @@
     },
     "status": {
       "description": "template = blank template, signed = uploaded signed copy",
-      "enum": ["template", "signed"],
+      "enum": [
+        "template",
+        "signed"
+      ],
       "type": "string"
     },
     "store_owner_id": {
@@ -77,5 +85,6 @@
       "type": "string"
     }
   },
-  "type": "object"
+  "type": "object",
+  "name": "ComplianceDocument"
 }

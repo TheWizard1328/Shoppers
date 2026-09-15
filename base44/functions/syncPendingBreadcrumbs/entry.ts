@@ -7,10 +7,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // The consolidateBreadcrumbs function is responsible for slicing this into stops.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
-// MUST match the client encoder in locationBreadcrumbService.jsx and breadcrumbsManager.jsx.
+// Polyline encoding — 1e7 precision (7 decimal places, ~1cm accuracy).
+// MUST match the client encoder in locationBreadcrumbService.jsx (1e7) and breadcrumbsManager.jsx.
 // Uses pure arithmetic (no bitwise ops) to avoid 32-bit overflow for |longitude| > ~107°.
-const POLY_PRECISION = 1e5;
+const POLY_PRECISION = 1e7;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
@@ -35,10 +35,13 @@ function encodePolyline(points) {
   return result;
 }
 
+// Auto-detect 1e5 (legacy) vs 1e7 (current) precision so unmigrated master records
+// being merged decode correctly during the transition window.
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
-  const coordinates = [];
+  const rawLats = [];
+  const rawLngs = [];
   while (index < encoded.length) {
     let result = 0, multiplier = 1, byte;
     do {
@@ -54,9 +57,12 @@ function decodePolyline(encoded) {
       multiplier *= 32;
     } while (byte >= 0x20);
     lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
-    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return coordinates;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 // Detect corrupted points from the old bitwise-overflow encoder.
