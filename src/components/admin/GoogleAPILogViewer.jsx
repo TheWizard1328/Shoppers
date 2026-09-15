@@ -15,6 +15,9 @@ const getDateRangeSummaryLabel = (dateFilter) => {
   if (dateFilter === 'today') return 'Calls Today';
   if (dateFilter === 'yesterday') return 'Calls Yesterday';
   if (dateFilter === 'week') return 'Calls Last 7 Days';
+  if (dateFilter === 'month30') return 'Calls Last 30 Days';
+  if (dateFilter === 'month60') return 'Calls Last 60 Days';
+  if (dateFilter === 'month90') return 'Calls Last 90 Days';
   if (dateFilter === 'custom') return 'Calls in Range';
   return 'Calls All Time';
 };
@@ -191,6 +194,21 @@ export default function GoogleAPILogViewer() {
       } else if (dateFilter === 'week') {
         passesDateFilter = isWithinInterval(logDate, {
           start: startOfDay(subDays(new Date(), 7)),
+          end: endOfDay(new Date())
+        });
+      } else if (dateFilter === 'month30') {
+        passesDateFilter = isWithinInterval(logDate, {
+          start: startOfDay(subDays(new Date(), 30)),
+          end: endOfDay(new Date())
+        });
+      } else if (dateFilter === 'month60') {
+        passesDateFilter = isWithinInterval(logDate, {
+          start: startOfDay(subDays(new Date(), 60)),
+          end: endOfDay(new Date())
+        });
+      } else if (dateFilter === 'month90') {
+        passesDateFilter = isWithinInterval(logDate, {
+          start: startOfDay(subDays(new Date(), 90)),
           end: endOfDay(new Date())
         });
       } else if (dateFilter === 'custom' && customDateStart && customDateEnd) {
@@ -387,26 +405,21 @@ export default function GoogleAPILogViewer() {
       });
       return Object.values(hourlyMap);
 
-    } else if (dateFilter === 'week') {
-      const periodMap = {};
-      for (let d = 6; d >= 0; d--) {
+    } else if (dateFilter === 'week' || dateFilter === 'month30' || dateFilter === 'month60' || dateFilter === 'month90') {
+      const days = dateFilter === 'week' ? 7 : dateFilter === 'month30' ? 30 : dateFilter === 'month60' ? 60 : 90;
+      const dailyMap = {};
+      for (let d = days - 1; d >= 0; d--) {
         const day = subDays(new Date(), d);
-        const dayStr = format(day, 'MMM dd');
-        ['00-06', '06-12', '12-18', '18-24'].forEach((period) => {
-          const key = `${dayStr} ${period}`;
-          periodMap[key] = { hour: key, calls: 0 };
-          if (isAllUsers) uniqueUsers.forEach((u) => { periodMap[key][u] = 0; });
-        });
+        const key = format(day, 'yyyy-MM-dd');
+        dailyMap[key] = { hour: format(day, 'MMM dd'), calls: 0, sortOrder: days - 1 - d };
+        if (isAllUsers) uniqueUsers.forEach((u) => { dailyMap[key][u] = 0; });
       }
       filteredLogs.forEach((log) => {
         const logDate = new Date(log.timestamp);
-        const dayStr = format(logDate, 'MMM dd');
-        const hour = logDate.getHours();
-        const period = hour < 6 ? '00-06' : hour < 12 ? '06-12' : hour < 18 ? '12-18' : '18-24';
-        const key = `${dayStr} ${period}`;
-        if (periodMap[key]) addLogToEntry(periodMap[key], log);
+        const key = format(logDate, 'yyyy-MM-dd');
+        if (dailyMap[key]) addLogToEntry(dailyMap[key], log);
       });
-      return Object.values(periodMap);
+      return Object.values(dailyMap).sort((a, b) => a.sortOrder - b.sortOrder);
 
     } else {
       const dailyMap = new Map();
@@ -442,6 +455,11 @@ export default function GoogleAPILogViewer() {
     setApiTypeFilter('all');
     setUserFilter('');
   };
+
+  const isMultiDay = ['week', 'month30', 'month60', 'month90'].includes(dateFilter);
+  const multiDayInterval = isMultiDay
+    ? Math.max(0, Math.ceil((dateFilter === 'week' ? 7 : Number(dateFilter.replace('month', ''))) / 7) - 1)
+    : 0;
 
   useEffect(() => {
     loadLogs();
@@ -538,6 +556,9 @@ export default function GoogleAPILogViewer() {
                     <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
+                    <SelectItem value="month30">Last 30 Days</SelectItem>
+                    <SelectItem value="month60">Last 60 Days</SelectItem>
+                    <SelectItem value="month90">Last 90 Days</SelectItem>
                     <SelectItem value="all">All Time</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
@@ -650,6 +671,9 @@ export default function GoogleAPILogViewer() {
                     <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
+                    <SelectItem value="month30">Last 30 Days</SelectItem>
+                    <SelectItem value="month60">Last 60 Days</SelectItem>
+                    <SelectItem value="month90">Last 90 Days</SelectItem>
                     <SelectItem value="all">All Time</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
@@ -755,7 +779,10 @@ export default function GoogleAPILogViewer() {
               {dateFilter === 'hourly' ? 'Last Hour Call Volume' :
                 dateFilter === 'today' ? 'Today\'s Call Volume' :
                 dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
-                dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
+                dateFilter === 'week' ? 'Last 7 Days Call Volume' :
+                dateFilter === 'month30' ? 'Last 30 Days Call Volume' :
+                dateFilter === 'month60' ? 'Last 60 Days Call Volume' :
+                dateFilter === 'month90' ? 'Last 90 Days Call Volume' :
                 'Call Volume by Day'}
             </h3>
             <div className="relative">
@@ -764,11 +791,12 @@ export default function GoogleAPILogViewer() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                   dataKey="hour"
-                  tick={{ fontSize: dateFilter === 'week' ? 9 : dateFilter === 'hourly' ? 10 : 11 }}
+                  tick={{ fontSize: isMultiDay ? 9 : dateFilter === 'hourly' ? 10 : 11 }}
                   stroke="#64748b"
-                  angle={dateFilter === 'week' ? -45 : dateFilter === 'hourly' ? -30 : 0}
-                  textAnchor={dateFilter === 'week' || dateFilter === 'hourly' ? 'end' : 'middle'}
-                  height={dateFilter === 'week' ? 60 : dateFilter === 'hourly' ? 45 : 30} />
+                  angle={isMultiDay ? -45 : dateFilter === 'hourly' ? -30 : 0}
+                  textAnchor={isMultiDay || dateFilter === 'hourly' ? 'end' : 'middle'}
+                  interval={multiDayInterval}
+                  height={isMultiDay ? 60 : dateFilter === 'hourly' ? 45 : 30} />
                 <YAxis tick={{ fontSize: 11 }} stroke="#64748b" />
                 <Tooltip
                   wrapperStyle={{ zIndex: 9999, top: 190, left: '50%', transform: 'translateX(-50%)', width: 'max-content', position: 'absolute' }}
