@@ -260,17 +260,25 @@ export function useFabControlEventHandler({
           break;
         }
         case 'NAVIGATE_BUTTON_TAPPED': {
-          // Navigate button tapped: if currently in phase 2, re-lock it and force map reposition
-          if (mapViewPhaseRef.current === 2) {
-            if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
-            clearTimer();
-            isMapViewLockedRef.current = true;
-            setIsMapViewLocked(true);
-            pendingPhaseRef.current = 2;
-            lastProgrammaticMapMoveRef.current = Date.now();
-            window._lastProgrammaticMapMove = Date.now();
-            setMapViewTrigger((p) => p + 1);
-          }
+          // Navigate button tapped (stop-card Navigate): re-lock the CURRENT
+          // phase — 2 OR 3 — and force a map reposition. Per the event's
+          // contract this ALWAYS re-locks regardless of current lock state:
+          // the stop-card strip's touchstart handler fires USER_MAP_INTERACTION
+          // on any card tap (unlocking the FAB before the button's click lands),
+          // so without this the stop-card Navigate button leaves the FAB
+          // gray/deactivated in phase 2/3 while the immersive-mode navigate FAB
+          // (outside the card strip) never does. If the active FAB face is
+          // phase 2/3 but unlocked, this re-ACTIVATES it.
+          const navPhase = mapViewPhaseRef.current;
+          if (navPhase !== 2 && navPhase !== 3) break;
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
+          clearTimer();
+          isMapViewLockedRef.current = true;
+          setIsMapViewLocked(true);
+          pendingPhaseRef.current = navPhase;
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger((p) => p + 1);
           break;
         }
         case 'PHASE2_TEMP_UNLOCK': {

@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
@@ -978,6 +979,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   onClick={(e) => {
                   e.stopPropagation();
                   dispatchStopCardActionCollapse();
+                  // The card strip's touchstart fires USER_MAP_INTERACTION on ANY
+                  // card tap — including this one — which unlocks the map-cycle FAB
+                  // in phase 2/3 (gray) before this click even lands. Re-assert the
+                  // phase so the FAB stays/gets ACTIVATED, matching the immersive-mode
+                  // navigate FAB (which lives outside the card strip and never
+                  // deactivates the FAB). The handler re-locks the current phase
+                  // (2 or 3) and repositions the map regardless of lock state.
+                  fabControlEvents.notifyNavigateButtonTapped();
                   const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
                   if (isNative) {
                     window.open(navigationHref, '_system');
