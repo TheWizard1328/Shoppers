@@ -1719,12 +1719,6 @@ export default function AdminUtilities() {
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
 
           <TabsContent value="data" className="mt-0">
-            {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
-            <div className="flex justify-center items-center h-60">
-                <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-                <span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading data...</span>
-              </div> :
-
             <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full flex flex-col">
                    <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(8,minmax(max-content,1fr))' }}>
@@ -1894,7 +1888,6 @@ export default function AdminUtilities() {
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
                   <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
               </div>
-            }
           </TabsContent>
 
           <TabsContent value="store-metrics">
