@@ -1,5 +1,4 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
-import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
