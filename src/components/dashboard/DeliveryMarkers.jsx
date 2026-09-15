@@ -169,7 +169,7 @@ function DeliveryMarkers({
         const locKey = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
         const pairsAtLoc = cyclingPairsAtLocation.get(locKey) || 1;
         const allPairsHere = cyclingPairsByLocation.get(locKey) || [];
-        const cycIcon = isStart ? createCyclingStartIcon(isMobile, pairsAtLoc) : createCyclingEndIcon(isMobile, pairsAtLoc);
+        const cycIcon = isStart ? createCyclingStartIcon(isMobile, pairsAtLoc, currentZoom) : createCyclingEndIcon(isMobile, pairsAtLoc, currentZoom);
         const fmtTime = (d) => d?.arrival_time
           ? new Date(d.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
           : d?.actual_delivery_time
@@ -231,7 +231,7 @@ function DeliveryMarkers({
         <Marker
           key={`cycling-split-${delivery.id}`}
           position={[cycLat, cycLng]}
-          icon={createCyclingSplitIcon(isMobile, pairsAtLocSplit)}
+          icon={createCyclingSplitIcon(isMobile, pairsAtLocSplit, currentZoom)}
           zIndexOffset={1000}
           eventHandlers={{
             click: () => onMarkerClick?.(delivery),

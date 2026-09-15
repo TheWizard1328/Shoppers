@@ -420,10 +420,18 @@ export const createLiveLocationDot = () => {
 };
 
 // angle in degrees: positive = CW, negative = CCW. Rotates the whole pin around its tip.
-const createCyclingPinIcon = (color, isMobile = false, angleDeg = 0) => {
+// Cycling pins shrink ~15% once the map is zoomed out past the
+// number-hiding threshold — same band as the delivery/store/circle markers,
+// so clustered markers stay distinguishable when zoomed way out.
+const cyclingScaleForZoom = (zoomLevel) => (
+  bucketZoom(zoomLevel) < ZOOM_LEVELS.HIDE_NUMBERS ? 0.85 : 1
+);
+
+const createCyclingPinIcon = (color, isMobile = false, angleDeg = 0, zoomLevel = null) => {
   const isMob = isMobile || isMobileDevice();
   let circleSize = 24 * 0.80 * 0.80;
   if (isMob) circleSize *= 1.25;
+  if (zoomLevel != null) circleSize *= cyclingScaleForZoom(zoomLevel);
   const pinHeight = circleSize * 0.80;
   const totalH = circleSize + pinHeight;
   const cx = circleSize / 2;
@@ -454,10 +462,11 @@ const createCyclingPinIcon = (color, isMobile = false, angleDeg = 0) => {
 };
 
 // Split half-green (left) / half-red (right) icon for when start and end share the same coords
-const createCyclingSplitIconInternal = (isMobile = false) => {
+const createCyclingSplitIconInternal = (isMobile = false, zoomLevel = null) => {
   const isMob = isMobile || isMobileDevice();
   let circleSize = 24 * 0.80 * 0.80;
   if (isMob) circleSize *= 1.25;
+  if (zoomLevel != null) circleSize *= cyclingScaleForZoom(zoomLevel);
   const pinHeight = circleSize * 0.80;
   const totalH = circleSize + pinHeight;
   const cx = circleSize / 2;
@@ -486,9 +495,9 @@ const createCyclingSplitIconInternal = (isMobile = false) => {
 };
 
 // Green start: tilted 30° counter-clockwise; Red end: tilted 30° clockwise
-export const createCyclingStartIcon = (isMobile = false) => createCyclingPinIcon('#16a34a', isMobile, -30);
-export const createCyclingEndIcon = (isMobile = false) => createCyclingPinIcon('#dc2626', isMobile, 30);
-export const createCyclingSplitIcon = (isMobile = false) => createCyclingSplitIconInternal(isMobile);
+export const createCyclingStartIcon = (isMobile = false, _pairsAtLoc = 1, zoomLevel = null) => createCyclingPinIcon('#16a34a', isMobile, -30, zoomLevel);
+export const createCyclingEndIcon = (isMobile = false, _pairsAtLoc = 1, zoomLevel = null) => createCyclingPinIcon('#dc2626', isMobile, 30, zoomLevel);
+export const createCyclingSplitIcon = (isMobile = false, _pairsAtLoc = 1, zoomLevel = null) => createCyclingSplitIconInternal(isMobile, zoomLevel);
 
 export const createHomeIcon = (color = '#10B981') => {
   const size = 24 * 0.75;
