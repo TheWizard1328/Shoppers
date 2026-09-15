@@ -111,6 +111,23 @@ export default function StopCardFooterMenu(props) {
   const isCurrentDispatcherStopFinished = isDispatcherOnly && finishedStatuses.includes(delivery?.status);
   const areAllDispatcherStoreStopsFinished = isDispatcherOnly && (dispatcherStoreStops.length === 0 || dispatcherStoreStops.every((item) => finishedStatuses.includes(item?.status)));
 
+  // Owner rule (Sep 15, 2026): once the store has 1+ pending deliveries, the
+  // menu's Cancel Pickup and Delete options are disabled — cancelling or
+  // deleting the pickup/cards while unaccepted (pending) work exists for the
+  // store orphans that work. Counts real patient deliveries only (not the
+  // pickup header itself, not cycling markers, not the card being acted on),
+  // scoped to the same store + same delivery date as this card.
+  const pendingStoreDeliveryCount = (allDeliveries || []).filter((item) =>
+    item &&
+    item.id !== delivery?.id &&
+    item.store_id === delivery?.store_id &&
+    item.delivery_date === delivery?.delivery_date &&
+    item.status === 'pending' &&
+    !item.is_cycling_marker &&
+    !!item.patient_id
+  ).length;
+  const hasPendingStoreDeliveries = pendingStoreDeliveryCount > 0;
+
   const [open, setOpen] = useState(false);
   const [showRestartDialog, setShowRestartDialog] = useState(false);
   const closeMenu = () => setOpen(false);
@@ -194,7 +211,7 @@ export default function StopCardFooterMenu(props) {
           {canShowFailCancel && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
+              <DropdownMenuItem inset={false} disabled={isPickupForMenu && hasPendingStoreDeliveries} title={isPickupForMenu && hasPendingStoreDeliveries ? 'Disabled: this store has pending deliveries' : undefined} onPointerDownCapture={(e) => { if (isPickupForMenu && hasPendingStoreDeliveries) return; closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
                 <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
               </DropdownMenuItem>
             </>
@@ -210,7 +227,7 @@ export default function StopCardFooterMenu(props) {
           {canShowDelete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
+              <DropdownMenuItem inset={false} disabled={hasPendingStoreDeliveries} title={hasPendingStoreDeliveries ? 'Disabled: this store has pending deliveries' : undefined} onClick={(e) => { if (hasPendingStoreDeliveries) { e.preventDefault(); e.stopPropagation(); return; } closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
                 <Trash2 className="w-5 h-5 mr-2" />Delete
               </DropdownMenuItem>
             </>
