@@ -388,3 +388,23 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
 .bg-surface { background: var(--bg-white); }
 .bg-surface-2 { background: var(--bg-slate-50); }
 .border-surface { border-color: var(--border-slate-200); }
+/* ── Heading-up navigation mode (Sep 14 2026, app-owner pilot) ───────────────
+ * The map container is rotated by useHeadingUpMode (var --hud-rot) around the
+ * driver's position so the direction of travel always points up. Everything
+ * geographic (tiles, polylines, breadcrumbs) rotates WITH the map. Upright
+ * elements are counter-rotated via the independent CSS `rotate` property so
+ * Leaflet's inline translate3d positioning transforms are untouched. */
+.heading-up-map .leaflet-marker-icon,
+.heading-up-map .leaflet-tooltip,
+.heading-up-map .leaflet-popup {
+  rotate: calc(-1 * var(--hud-rot, 0deg));
+}
+/* Pins hang from their tip; dots/circles are symmetric either way */
+.heading-up-map .leaflet-marker-icon { transform-origin: 50% 100%; }
+.heading-up-map .leaflet-tooltip,
+.heading-up-map .leaflet-popup { transform-origin: center bottom; }
+/* Attribution + controls span the container — counter-rotate around the same driver origin */
+.heading-up-map .leaflet-control-container {
+  rotate: calc(-1 * var(--hud-rot, 0deg));
+  transform-origin: var(--hud-origin, 50% 50%);
+}
