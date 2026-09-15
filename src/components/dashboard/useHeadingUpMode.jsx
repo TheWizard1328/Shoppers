@@ -21,10 +21,10 @@
  *
  * Input safety: while rotated, Leaflet's click/drag math is wrong in screen
  * space (it can't see our CSS rotation), so ANY real user gesture (drag or
- * pinch-zoom) snaps the map back to north-up and pauses auto-rotation for
- * 60s. In Phase 2 the map is gesture-locked anyway; unlocked interactions
- * always start from a north-up map, so Leaflet math is never used while
- * rotated.
+ * pinch-zoom) snaps the map back to north-up and holds it there. The gesture
+ * itself deactivates Phase 2 (free panning/zooming), and heading-up resumes
+ * only when the driver re-activates Phase 2 via the map cycle FAB — no timed
+ * auto-resume.
  *
  * Gate (no toggle — hard pilot gate): app owner + driver role + mobile +
  * primary device + mapViewPhase 2 + live driver marker present.
@@ -38,7 +38,6 @@ const MIN_SPEED_MPS = 2.0;             // below this, hold last heading (red lig
 const MIN_MOVE_M = 4;                  // ignore sub-4m jitter fixes for bearing math
 const HEADING_DEADBAND_DEG = 6;        // target only updates on ≥6° course changes
 const MAX_TURN_PER_TICK_DEG = 14;      // lerp rate — glide, don't jump
-const USER_GESTURE_PAUSE_MS = 60_000;  // after a gesture: snap north + hold 60s
 
 const bearingDeg = (lat1, lon1, lat2, lon2) => {
   const rad = Math.PI / 180;
@@ -154,7 +153,10 @@ export function useHeadingUpMode({ map, mapReady, currentUser, isMobile, mapView
     if (!map || !active) return;
     const snapNorth = () => {
       const s = sRef.current;
-      s.pausedUntil = Date.now() + USER_GESTURE_PAUSE_MS;
+      // Hold north-up indefinitely — Phase 2 exit (FAB deactivation on this
+      // same gesture) tears down and resets state, so rotation resumes fresh
+      // only when the driver re-enters Phase 2 via the map cycle FAB.
+      s.pausedUntil = Number.POSITIVE_INFINITY;
       s.displayDeg = 0;
       const container = map.getContainer();
       container.style.setProperty('--hud-rot', '0deg');
