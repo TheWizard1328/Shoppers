@@ -7,6 +7,7 @@ import { useBookedOffBadge } from './useBookedOffBadge';
 import ShiftCoverageBalloon from './ShiftCoverageBalloon';
 
 import UpdateArrow from '../common/UpdateArrow';
+import UpdateInfoBalloon from '../common/UpdateInfoBalloon';
 import {
   LayoutDashboard,
   Users,
@@ -78,6 +79,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
           onClick={onSidebarToggle}
           className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors shrink-0 relative text-soft"
           aria-label="Open side panel"
+          data-apk-menu-btn
         >
           <Menu className="w-5 h-5" />
           {hasApkUpdate && <UpdateArrow type="apk" />}
@@ -155,6 +157,21 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
           onGoToSchedule={() => navigateToTab('scheduling', createPageUrl('DriverScheduleCalendar'))}
         />
       )}
+
+      {/* APK-update info balloon — expands upward from the menu button the
+          moment the blue APK UpdateArrow appears. Tapping it takes the user
+          to the Settings page where the APK update/download lives. */}
+      <UpdateInfoBalloon
+        active={!!hasApkUpdate}
+        anchorSelector="[data-apk-menu-btn]"
+        direction="up"
+        accent="#2563EB"
+        icon="📦"
+        title="APK update available"
+        message="A new app build is ready to install. Tap to open Settings and update."
+        cta="Go to Settings"
+        onClick={() => navigateToTab('settings', createPageUrl('Settings'))}
+      />
     </nav>
   );
 });
