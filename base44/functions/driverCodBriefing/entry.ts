@@ -189,6 +189,42 @@ async function fetchByIds(base44, entityName, ids) {
   return out;
 }
 
+// Find the App Owner's platform user id. Primary: platform User with
+// role === 'admin' (same check the frontend isAppOwner() uses). Fallback:
+// pinned OWNER_USER_ID — several users carry the 'admin' app role but
+// Robert T is THE App Owner (verified in the AppUser table Sep 15 2026) —
+// then any active AppUser with the admin app role.
+const OWNER_USER_ID = '68570f3cd01bfa2d2408a9d7';
+async function findOwner(base44) {
+  try {
+    const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch((e) => {
+      console.log('[briefing] User.list error:', e?.message || String(e));
+      return [];
+    });
+    const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
+      .map((r) => unwrapEntityRecord(r)).filter(Boolean);
+    console.log('[briefing] platform users listed:', users.length, '| admins:', users.filter((u) => u?.role === 'admin').length, '| roles sample:', users.slice(0, 5).map((u) => u?.role).join(','));
+    const owner = users.find((u) => u?.role === 'admin');
+    if (owner?.id) return owner;
+  } catch (err) {
+    console.log('[briefing] User.list failed:', err?.message || String(err));
+  }
+  try {
+    const appUsers = await listAll(base44, 'AppUser', 'user_name', 500);
+    console.log('[briefing] AppUser fallback: listed', appUsers.length, '| with admin role:', appUsers.filter((u) => Array.isArray(u?.app_roles) && u.app_roles.includes('admin')).length);
+    const byUid = new Map(appUsers.filter((u) => u?.user_id).map((u) => [u.user_id, u]));
+    const pinned = byUid.get(OWNER_USER_ID);
+    if (pinned) return { id: pinned.user_id, full_name: pinned.user_name || 'App Owner' };
+    const adminAppUser = appUsers.find((u) => Array.isArray(u?.app_roles) && u.app_roles.includes('admin') && u?.user_id && u?.status !== 'inactive');
+    if (adminAppUser?.user_id) return { id: adminAppUser.user_id, full_name: adminAppUser.user_name || 'App Owner' };
+  } catch (err) {
+    console.log('[briefing] AppUser fallback failed:', err?.message || String(err));
+  }
+  // Last resort: pinned id (Robert T, verified Sep 15 2026)
+  if (OWNER_USER_ID) return { id: OWNER_USER_ID, full_name: 'App Owner' };
+  return null;
+}
+
 async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
   // Optional: send a TEST push to a single driver only (targets a real driver's real data)
@@ -226,10 +262,7 @@ async function handleBriefing(base44, params = {}) {
     let cleanOwnerPush = null;
     if (!dryRun) {
       try {
-        const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch(() => []);
-        const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
-          .map((r) => unwrapEntityRecord(r)).filter(Boolean);
-        const owner = users.find((u) => u?.role === 'admin');
+        const owner = await findOwner(base44);
         if (owner?.id) {
           const today = new Date().toISOString().slice(0, 10);
           const ownerName = owner.full_name || owner.name || 'App Owner';
@@ -366,10 +399,7 @@ async function handleBriefing(base44, params = {}) {
   let ownerPush = null;
   if (!dryRun) {
     try {
-      const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch(() => []);
-      const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
-        .map((r) => unwrapEntityRecord(r)).filter(Boolean);
-      const owner = users.find((u) => u?.role === 'admin');
+      const owner = await findOwner(base44);
       if (owner?.id) {
         const today = new Date().toISOString().slice(0, 10);
         const ownerName = owner.full_name || owner.name || 'App Owner';
