@@ -317,6 +317,7 @@ export default function AdminUtilities() {
 
   const [activeDataTab, setActiveDataTab] = useState('polylines');
   const [activeUtilityTab, setActiveUtilityTab] = useState('data');
+  const adminScrollContainerRef = useRef(null);
   const [dataViewMode, setDataViewMode] = useState({ deliveries: 'offline' }); // default deliveries to offline DB
 
   const [isBackfilling, setIsBackfilling] = useState(false);
@@ -376,6 +377,14 @@ export default function AdminUtilities() {
   const [editingDriverId, setEditingDriverId] = useState(null);
 
   const refreshIntervalRef = useRef(null);
+
+  // Sep 14 2026 fix: reset scroll to top on every Data sub-tab switch (and
+  // main utility tab switch) — see adminScrollContainerRef declaration above.
+  useEffect(() => {
+    if (adminScrollContainerRef.current) {
+      adminScrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeDataTab, activeUtilityTab]);
 
   const invalidate = async (entityName) => {
     let queryKey;
@@ -1706,7 +1715,7 @@ export default function AdminUtilities() {
       </div>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto px-2 md:px-3 pb-4">
+      <div ref={adminScrollContainerRef} className="flex-1 overflow-y-auto px-2 md:px-3 pb-4">
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
 
           <TabsContent value="data" className="mt-0">
