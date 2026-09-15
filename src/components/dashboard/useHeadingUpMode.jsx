@@ -94,7 +94,7 @@ export function useHeadingUpMode({ map, mapReady, currentUser, isMobile, mapView
       container.style.height = `${OVERSCAN * 100}%`;
       container.style.left = `${-((OVERSCAN - 1) * 50)}%`;
       container.style.top = `${-((OVERSCAN - 1) * 50)}%`;
-      container.style.transition = 'rotate 1s ease-out';
+      container.style.transition = 'rotate 1s ease-out, transform-origin 1s ease-out';
       map.invalidateSize({ animate: false, pan: false });
     }
 
@@ -211,6 +211,10 @@ export function useHeadingUpMode({ map, mapReady, currentUser, isMobile, mapView
     container.style.setProperty('--hud-origin', `${p.x}px ${p.y}px`);
     container.style.rotate = `${deg}deg`;
   }, [currentDriverMarker, active, map]);
+
+  // Exposed so the caller can clip the overscanned container at the map bounds
+  // (without overflow-hidden, the enlarged map would spill over stop cards).
+  return { active };
 }
 
 export default useHeadingUpMode;

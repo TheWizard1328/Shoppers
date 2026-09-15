@@ -832,7 +832,7 @@ function DeliveryMap({
   // so the driver's direction of travel always points up. Self-contained:
   // gates, overscan, smoothing and gesture snap-back live inside the hook.
   // NOTE (TDZ): mounted AFTER the currentDriverMarker memo above.
-  useHeadingUpMode({ map, mapReady, currentUser, isMobile, mapViewPhase, currentDriverMarker });
+  const { active: headingUpActive } = useHeadingUpMode({ map, mapReady, currentUser, isMobile, mapViewPhase, currentDriverMarker });
 
   // NOTE (Robert, Sep 4 2026): the routeLocationSnapshot override on driver
   // location markers was REMOVED. The snapshot is gated to 150m/10s (its job is
@@ -1620,7 +1620,7 @@ function DeliveryMap({
   }, [map, isRouteComplete, completedRouteCity, crosshairPadding, driverZoomLockEligible]);
 
   return (
-    <div className="absolute inset-0">
+    <div className={`absolute inset-0${headingUpActive ? " overflow-hidden" : ""}`}>
       <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} currentUser={currentUser} />
       <MapContainer
         center={center || [53.5461, -113.4938]}
