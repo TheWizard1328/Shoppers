@@ -82,15 +82,17 @@ const decodePolyline = (encoded) => {
   return poly;
 };
 
-// ── Breadcrumb polyline codec (1e5 precision) ─────────────────────────────
-// Breadcrumb polylines are encoded at 1e5 by locationBreadcrumbService.jsx.
-// Delivery route polylines use 1e5 (HERE API standard Google format).
-const BREADCRUMB_PRECISION = 1e5;
+// ── Breadcrumb polyline codec (1e7 precision) ─────────────────────────────
+// Breadcrumb polylines are encoded at 1e7 by locationBreadcrumbService.jsx.
+// Delivery route polylines use 1e5 (HERE API standard Google format) — separate codec below.
+// Decoder auto-detects 1e5 (legacy) vs 1e7 (current) so offline-cached legacy trails render.
+const BREADCRUMB_PRECISION = 1e7;
 
 const decodeBreadcrumbPolyline = (encoded) => {
   if (!encoded) return [];
-  const poly = [];
   let index = 0, len = encoded.length, lat = 0, lng = 0;
+  const rawLats = [];
+  const rawLngs = [];
   while (index < len) {
     let b, result = 0, multiplier = 1;
     do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
@@ -98,9 +100,12 @@ const decodeBreadcrumbPolyline = (encoded) => {
     result = 0; multiplier = 1;
     do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
     lng += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
-    poly.push([lat / BREADCRUMB_PRECISION, lng / BREADCRUMB_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return poly;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 };
 
 const encodeBreadcrumbPolyline = (points) => {
@@ -1081,8 +1086,9 @@ export default function PolylineViewer({ users = [] }) {
       return;
     }
     setIsImportingCrumb(true);
-    const newPoly = matchingDelivery.encoded_polyline;
-    const pts = decodePolyline(newPoly);
+    // Delivery polyline is 1e5 (HERE/Google); breadcrumb records are 1e7. Re-encode.
+    const pts = decodePolyline(matchingDelivery.encoded_polyline);
+    const newPoly = encodeBreadcrumbPolyline(pts);
     try {
       // Update online entity — mark as imported (not yet saved back)
       await base44.entities.DeliveryBreadcrumbs.update(item.id, {
@@ -1125,8 +1131,9 @@ export default function PolylineViewer({ users = [] }) {
       return;
     }
     setIsImportingCrumb(true);
-    const newPoly = delivery.encoded_polyline;
-    const pts = decodePolyline(newPoly);
+    // Delivery polyline is 1e5 (HERE/Google); breadcrumb records are 1e7. Re-encode.
+    const pts = decodePolyline(delivery.encoded_polyline);
+    const newPoly = encodeBreadcrumbPolyline(pts);
     try {
       const existing = breadcrumbs.find(b =>
         b.driver_id === driver_id && b.delivery_date === delivery_date && b.stop_order === stop_order
@@ -1277,7 +1284,7 @@ export default function PolylineViewer({ users = [] }) {
         // Decode only the per-zone bridging segments for the blue overlay
         const zoneSegments = (data.preview_zone_segments || []).map(z => ({
           ...z,
-          coords: decodePolyline(z.encoded_polyline),
+          coords: decodeBreadcrumbPolyline(z.encoded_polyline),
         })).filter(z => z.coords.length > 1);
         setSnapAnalysis(null);
         setSnapPreview({

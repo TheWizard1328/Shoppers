@@ -83,8 +83,9 @@ function parseDeliveryTimeMs(timeValue, deliveryDate) {
   return parseTimestampMs(trimmed);
 }
 
-// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
-const POLY_PRECISION = 1e5;
+// Polyline encoding — 1e7 precision (7 decimal places, ~1cm accuracy).
+// Breadcrumb trails use 1e7; HERE/Google route polylines stay at 1e5 (separate codec).
+const POLY_PRECISION = 1e7;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
@@ -109,10 +110,13 @@ function encodePolyline(points) {
   return result;
 }
 
+// Auto-detect 1e5 (legacy) vs 1e7 (current) precision so unmigrated master records
+// decode correctly during the transition window.
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
-  const coordinates = [];
+  const rawLats = [];
+  const rawLngs = [];
   while (index < encoded.length) {
     let result = 0, multiplier = 1, byte;
     do {
@@ -128,9 +132,12 @@ function decodePolyline(encoded) {
       multiplier *= 32;
     } while (byte >= 0x20);
     lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
-    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return coordinates;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 function dedupeSequential(points) {

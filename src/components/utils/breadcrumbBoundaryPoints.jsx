@@ -4,9 +4,10 @@ import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/ut
 
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
-// Polyline encoding (Google format) — 1e5 precision
-// MUST match the client encoder in locationBreadcrumbService.jsx
-const POLY_PRECISION = 1e5;
+// Polyline encoding (Google format) — 1e7 precision (breadcrumb trails).
+// MUST match the client encoder in locationBreadcrumbService.jsx (1e7).
+// Decoder auto-detects 1e5 (legacy) vs 1e7 (current) for transition safety.
+const POLY_PRECISION = 1e7;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
@@ -34,7 +35,8 @@ function encodePolyline(points) {
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
-  const coordinates = [];
+  const rawLats = [];
+  const rawLngs = [];
   while (index < encoded.length) {
     let result = 0, multiplier = 1, byte;
     do {
@@ -50,9 +52,12 @@ function decodePolyline(encoded) {
       multiplier *= 32;
     } while (byte >= 0x20);
     lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
-    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return coordinates;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 const parseTimestamp = (value) => {

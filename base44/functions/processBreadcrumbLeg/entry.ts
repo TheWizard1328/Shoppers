@@ -12,6 +12,45 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const MIN_BREADCRUMB_POINTS = 5;
 
+// ── Polyline precision shim ──────────────────────────────────────────────────
+// Breadcrumb polylines (DeliveryBreadcrumbs.encoded_polyline) are encoded at 1e7.
+// Delivery.encoded_polyline is consumed by the HERE/Google route renderer at 1e5.
+// Before copying a sliced breadcrumb into the Delivery record, decode at breadcrumb
+// precision (auto-detect 1e5/1e7 for transition safety) and re-encode at 1e5.
+function decodeBreadcrumbPolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, len = encoded.length, lat = 0, lng = 0;
+  const rawLats = [], rawLngs = [];
+  while (index < len) {
+    let b, result = 0, multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lat += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
+    result = 0; multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lng += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
+    rawLats.push(lat); rawLngs.push(lng);
+  }
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
+}
+function encodePolylineAt(points, precision) {
+  const encodeValue = (val) => {
+    let v = Math.round(val * precision);
+    v = v < 0 ? (-v * 2 - 1) : (v * 2);
+    let result = '';
+    while (v >= 0x20) { result += String.fromCharCode((0x20 + (v % 0x20)) + 63); v = Math.floor(v / 0x20); }
+    result += String.fromCharCode(v + 63);
+    return result;
+  };
+  let prevLat = 0, prevLng = 0, encoded = '';
+  for (const [lat, lng] of points) {
+    encoded += encodeValue(lat - prevLat) + encodeValue(lng - prevLng);
+    prevLat = lat; prevLng = lng;
+  }
+  return encoded;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -67,8 +106,11 @@ Deno.serve(async (req) => {
     }
 
     // ── Step 3: Copy sliced polyline to the Delivery record ──────────────────
+    // Breadcrumb is 1e7; Delivery.encoded_polyline expects 1e5 (HERE/Google standard).
+    const bcCoords = decodeBreadcrumbPolyline(breadcrumb.encoded_polyline);
+    const deliveryPolyline = encodePolylineAt(bcCoords, 1e5);
     await base44.asServiceRole.entities.Delivery.update(delivery_id, {
-      encoded_polyline: breadcrumb.encoded_polyline,
+      encoded_polyline: deliveryPolyline,
     });
 
     return Response.json({

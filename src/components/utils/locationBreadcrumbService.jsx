@@ -50,8 +50,10 @@ const MAX_BREADCRUMB_STALENESS_MS = 5 * 60 * 1000; // 5 minutes
 // still stores one point per 5 min so a long stationary stay leaves an audit trail.
 const STATIONARY_DEDUP_RADIUS_M = 12; // ~within phone GPS noise (open-sky ~4m, urban ~10-15m)
 
-// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
-const POLY_PRECISION = 1e5;
+// Polyline encoding — 1e7 precision (7 decimal places, ~1cm accuracy).
+// Breadcrumb trails use 1e7; HERE/Google route polylines stay at 1e5 (separate codec).
+// Arithmetic (non-bitwise) encoder — safe at 1e7 for Edmonton lng (-113.5×1e7 zigzag ≈ 2.27e9, within JS safe-integer range).
+const POLY_PRECISION = 1e7;
 
 // CRITICAL: These encode/decode functions use pure arithmetic instead of JavaScript
 // bitwise operators (<<, >>, &, |, ~). At 1e5 precision, Edmonton's longitude
@@ -87,10 +89,15 @@ function encodePolyline(points) {
   return result;
 }
 
+// Auto-detect 1e5 (legacy) vs 1e7 (current) precision from the first raw lat.
+// 1e5 raw lat for Edmonton (~53.5°) ≈ 5,350,000; 1e7 ≈ 535,000,000.
+// 9,000,000 safely separates the two for any Canada/US latitude, so legacy
+// offline-cached 1e5 trails and migrated 1e7 trails both decode correctly.
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
-  const coordinates = [];
+  const rawLats = [];
+  const rawLngs = [];
   while (index < encoded.length) {
     let result = 0, multiplier = 1, byte;
     do {
@@ -106,9 +113,12 @@ function decodePolyline(encoded) {
       multiplier *= 32;
     } while (byte >= 0x20);
     lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
-    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return coordinates;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 // The stable offline key for the master 'TODAY' timeline record
@@ -236,8 +246,8 @@ export const collectBreadcrumbForTracker = async ({
   const trailPoints = await loadTrailIntoCache(currentUser.id, deliveryDate, offlineKey);
 
   const breadcrumbPoint = [
-    Math.round(latitude * 1e5) / 1e5,
-    Math.round(longitude * 1e5) / 1e5,
+    Math.round(latitude * 1e7) / 1e7,
+    Math.round(longitude * 1e7) / 1e7,
     timestamp,
   ];
 

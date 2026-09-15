@@ -5,8 +5,8 @@ import L from 'leaflet';
 const HISTORICAL_COLOR = '#f97316';
 const LIVE_COLOR = '#2563eb';
 
-// 1e5 precision — MUST match the client encoder in locationBreadcrumbService.jsx
-const POLY_PRECISION = 1e5;
+// Breadcrumb polyline decoding — auto-detects 1e5 (legacy) vs 1e7 (current) precision.
+// MUST match the client encoder in locationBreadcrumbService.jsx (1e7).
 
 // Detect corrupted points from the old bitwise-overflow encoder.
 function isCorruptedPoint(lat, lng) {
@@ -19,7 +19,8 @@ function isCorruptedPoint(lat, lng) {
 const decodePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
-  const coords = [];
+  const rawLats = [];
+  const rawLngs = [];
   while (index < encoded.length) {
     let result = 0, multiplier = 1, byte;
     do { byte = encoded.charCodeAt(index++) - 63; result += (byte % 32) * multiplier; multiplier *= 32; } while (byte >= 0x20);
@@ -27,9 +28,12 @@ const decodePolyline = (encoded) => {
     result = 0; multiplier = 1;
     do { byte = encoded.charCodeAt(index++) - 63; result += (byte % 32) * multiplier; multiplier *= 32; } while (byte >= 0x20);
     lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
-    coords.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return coords;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 };
 
 // Downsample an array of [lat, lng] coordinates to at most maxPoints.

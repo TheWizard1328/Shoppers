@@ -21,8 +21,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *   X-AppUser-Id: <app_user_id>
  */
 
-// ── Polyline encoding (1e5 precision, pure arithmetic — no bitwise ops) ──────
-const POLY_PRECISION = 1e5;
+// ── Polyline encoding (1e7 precision, pure arithmetic — no bitwise ops) ──────
+// Breadcrumb trails use 1e7 (7dp); the AppUser location update below stays at 1e7 too.
+const POLY_PRECISION = 1e7;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
@@ -47,10 +48,13 @@ function encodePolyline(points) {
   return result;
 }
 
+// Auto-detect 1e5 (legacy) vs 1e7 (current) precision so unmigrated master records
+// being merged decode correctly during the transition window.
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
-  const coordinates = [];
+  const rawLats = [];
+  const rawLngs = [];
   while (index < encoded.length) {
     let result = 0, multiplier = 1, byte;
     do {
@@ -66,9 +70,12 @@ function decodePolyline(encoded) {
       multiplier *= 32;
     } while (byte >= 0x20);
     lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
-    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return coordinates;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 function isCorruptedPoint(lat, lng) {

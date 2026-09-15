@@ -10,10 +10,12 @@ function haversineM(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Auto-detects 1e5 (legacy) vs 1e7 (current) breadcrumb precision.
 function decodePolyline(encoded) {
   if (!encoded) return [];
-  const poly = [];
   let index = 0, len = encoded.length, lat = 0, lng = 0;
+  const rawLats = [];
+  const rawLngs = [];
   while (index < len) {
     let b, result = 0, multiplier = 1;
     do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
@@ -21,9 +23,12 @@ function decodePolyline(encoded) {
     result = 0; multiplier = 1;
     do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
     lng += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
-    poly.push([lat / 1e5, lng / 1e5]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return poly;
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
 const HERE_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';

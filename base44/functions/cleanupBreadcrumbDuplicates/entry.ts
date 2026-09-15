@@ -1,9 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const POLY_PRECISION = 1e5;
+// Breadcrumb polylines use 1e7 precision. Decoder auto-detects 1e5/1e7 for transition safety.
+const POLY_PRECISION = 1e7;
 function encodePolylineValue(value) { let v = Math.round(value * POLY_PRECISION); v = v < 0 ? (-v * 2 - 1) : (v * 2); let r = ''; while (v >= 0x20) { r += String.fromCharCode((0x20 + (v % 0x20)) + 63); v = Math.floor(v / 0x20); } r += String.fromCharCode(v + 63); return r; }
 function encodePolyline(points) { let pL = 0, pN = 0, r = ''; for (const p of points) { r += encodePolylineValue(p[0] - pL); r += encodePolylineValue(p[1] - pN); pL = p[0]; pN = p[1]; } return r; }
-function decodePolyline(e) { if (!e || typeof e !== 'string') return []; let i = 0, lat = 0, lng = 0; const c = []; while (i < e.length) { let r = 0, m = 1, b; do { b = e.charCodeAt(i++) - 63; r += (b % 32) * m; m *= 32; } while (b >= 0x20); lat += (r % 2 !== 0) ? -((r + 1) / 2) : (r / 2); r = 0; m = 1; do { b = e.charCodeAt(i++) - 63; r += (b % 32) * m; m *= 32; } while (b >= 0x20); lng += (r % 2 !== 0) ? -((r + 1) / 2) : (r / 2); c.push([lat / POLY_PRECISION, lng / POLY_PRECISION]); } return c; }
+function decodePolyline(e) { if (!e || typeof e !== 'string') return []; let i = 0, lat = 0, lng = 0; const rl = [], rn = []; while (i < e.length) { let r = 0, m = 1, b; do { b = e.charCodeAt(i++) - 63; r += (b % 32) * m; m *= 32; } while (b >= 0x20); lat += (r % 2 !== 0) ? -((r + 1) / 2) : (r / 2); r = 0; m = 1; do { b = e.charCodeAt(i++) - 63; r += (b % 32) * m; m *= 32; } while (b >= 0x20); lng += (r % 2 !== 0) ? -((r + 1) / 2) : (r / 2); rl.push(lat); rn.push(lng); } const d = Math.abs(rl[0] ?? 0) > 9_000_000 ? 1e7 : 1e5; return rl.map((x, j) => [x / d, rn[j] / d]); }
 function isCorruptedPoint(lat, lng) { return Math.abs(lat) > 1 && Math.abs(lng) < 0.01; }
 function parseTs(v) { if (v == null) return null; if (typeof v === 'number' && Number.isFinite(v)) { return v > 1e12 ? v : v > 1e9 ? v * 1000 : null; } if (typeof v === 'string') { const t = v.trim(); if (/^\d+$/.test(t)) { const n = Number(t); return n > 1e12 ? n : n > 1e9 ? n * 1000 : null; } const p = new Date(t).getTime(); return Number.isNaN(p) ? null : p; } return null; }
 
