@@ -10,6 +10,7 @@
  *     arrival_radius_m: number,// arrival geofence radius in meters (default 150)
  *     cold_threshold_min_c: number // enable cold warning at or below this temp (°C)
  *     cold_threshold_max_c: number // disable cold warning at or above this temp (°C)
+ *     breadcrumb_accuracy_gate_m: number // drop GPS fixes ≥ this accuracy (m) from the breadcrumb chain-commit buffer (default 100)
  *   }
  *
  * Winter Mode (owner spec, Sep 2026): pads ETAs, raises GPS-drift tolerance
@@ -30,6 +31,7 @@ export const DEFAULT_WINTER_MODE = Object.freeze({
   arrival_radius_m: 150,
   cold_threshold_min_c: -15, // enable cold warning at or below this temp
   cold_threshold_max_c: -5,  // disable cold warning at or above this temp
+  breadcrumb_accuracy_gate_m: 100, // drop GPS fixes ≥ this accuracy (m) from the breadcrumb chain buffer
 });
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -61,6 +63,7 @@ export async function getWinterModeSettings({ force = false } = {}) {
       if (!Number.isFinite(merged.arrival_radius_m) || merged.arrival_radius_m <= 0) merged.arrival_radius_m = DEFAULT_WINTER_MODE.arrival_radius_m;
       if (!Number.isFinite(merged.cold_threshold_min_c)) merged.cold_threshold_min_c = DEFAULT_WINTER_MODE.cold_threshold_min_c;
       if (!Number.isFinite(merged.cold_threshold_max_c)) merged.cold_threshold_max_c = DEFAULT_WINTER_MODE.cold_threshold_max_c;
+      if (!Number.isFinite(merged.breadcrumb_accuracy_gate_m) || merged.breadcrumb_accuracy_gate_m <= 0) merged.breadcrumb_accuracy_gate_m = DEFAULT_WINTER_MODE.breadcrumb_accuracy_gate_m;
       merged.enabled = merged.enabled === true;
       _cached = merged;
       _fetchedAt = Date.now();

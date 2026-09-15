@@ -45,6 +45,13 @@
       "type": "boolean",
       "default": false,
       "description": "True when this master trail (stop_order = -1) has been road-snapped via snapMasterTimeline (HERE Route Matching). Used by consolidateBreadcrumbSegment to prefer the snapped master over stale raw duplicates created by the syncPendingBreadcrumbs race, and to clean up those duplicates."
+    },
+    "outage_timestamps": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "description": "Unix timestamps (ms) of force-committed breadcrumb points \u2014 fixes committed during a genuine GPS outage where no buffered fix was within the 250m chain-commit cap. Diagnostic only: lets the Route viewer / snap analysis annotate these as known GPS-outage gaps rather than sampling artifacts. snapMasterTimeline still fills the gaps via HERE routing. Stable across the timestamp-keyed merge in syncPendingBreadcrumbs."
     }
   },
   "required": [

@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { driver_id, delivery_date, encoded_polyline: incomingPolyline, timestamps: incomingTimestamps, point_count } = body;
+    const { driver_id, delivery_date, encoded_polyline: incomingPolyline, timestamps: incomingTimestamps, point_count, outage_timestamps: incomingOutageTs } = body;
 
     if (!driver_id || !delivery_date || !incomingPolyline) {
       return Response.json({ error: 'driver_id, delivery_date, and encoded_polyline are required' }, { status: 400 });
@@ -198,6 +198,29 @@ Deno.serve(async (req) => {
 
     const mergedPoints = Array.from(tsMap.values()).sort((a, b) => a[2] - b[2]);
 
+    // ── Outage marker merge ────────────────────────────────────────────────
+    // outage_timestamps are the ms timestamps of force-committed points (genuine
+    // GPS outages where no buffered fix was within the 250m chain-commit cap).
+    // They're keyed by timestamp — the same key the merge above uses — so they
+    // survive the merge stably. Union the existing record's markers with the
+    // client's incoming ones so they accumulate across syncs.
+    const outageSet = new Set();
+    for (const rec of sortedExisting) {
+      if (Array.isArray(rec?.outage_timestamps)) {
+        for (const ts of rec.outage_timestamps) {
+          const ms = parseTimestampMs(ts);
+          if (ms) outageSet.add(ms);
+        }
+      }
+    }
+    if (Array.isArray(incomingOutageTs)) {
+      for (const ts of incomingOutageTs) {
+        const ms = parseTimestampMs(ts);
+        if (ms) outageSet.add(ms);
+      }
+    }
+    const mergedOutageTs = Array.from(outageSet).sort((a, b) => a - b);
+
     if (mergedPoints.length === 0) {
       return Response.json({ status: 'skipped', reason: 'no_valid_points' });
     }
@@ -219,6 +242,7 @@ Deno.serve(async (req) => {
       transport_mode: 'driving',
       point_count: mergedPoints.length,
       ...(isSnapped ? { is_snapped: true } : {}),
+      ...(mergedOutageTs.length > 0 ? { outage_timestamps: mergedOutageTs } : {}),
     };
 
     if (existingRecord?.id) {
@@ -280,6 +304,7 @@ Deno.serve(async (req) => {
             timestamps: postMerged.map((p) => p[2]).join(','),
             transport_mode: 'driving',
             point_count: postMerged.length,
+            ...(mergedOutageTs.length > 0 ? { outage_timestamps: mergedOutageTs } : {}),
           });
           await Promise.all(
             postDupIds.map((id) =>

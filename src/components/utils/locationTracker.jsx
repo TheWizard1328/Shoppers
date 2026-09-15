@@ -18,7 +18,8 @@ import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
 import { calculateDistance, calculateDistanceInMeters } from './locationTrackerMath';
 import { syncUpdatedAppUser } from './locationTrackerBroadcast';
 import { remoteLogger } from './remoteLogger';
-import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches } from './locationBreadcrumbService';
+import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches, getLastCommittedCrumb } from './locationBreadcrumbService';
+import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
 
 class LocationTracker {
     constructor() {
@@ -85,6 +86,14 @@ class LocationTracker {
         // reduce breadcrumb frequency to 60s instead of 5s.
         this.isBreadcrumbSlowed = false;
         this._atStopBreadcrumbInterval = null;
+
+        // ── Conditional chain-commit buffer (250m) ──────────────────────────────
+        // Holds the ~1s watchPosition fixes between 5s commit ticks. When the
+        // latest fix at a tick would breach 250m from the last committed crumb,
+        // selectChainCommitPoint walks this buffer and commits the furthest fix
+        // strictly < 250m, carrying the rest forward (see breadcrumbChainCommit.js).
+        this._breadcrumbFixBuffer = [];
+        this._lastCommittedCrumb = null; // {lat, lng} of the last stored crumb
 
       // Load settings from RouteOptimizationSettings
       this.loadSettings();
@@ -294,7 +303,7 @@ class LocationTracker {
         });
         this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
         this.lastBreadcrumbSavedAt = 0; // bypass gate for this forced tick
-        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
+        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('🍞 [At-stop breadcrumb] GPS fix failed:', e?.message);
       }
@@ -323,7 +332,7 @@ class LocationTracker {
           enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
         });
         this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
-        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
+        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed:', e?.message);
       }
@@ -340,7 +349,7 @@ class LocationTracker {
           const freshPos = await this.locationProvider.getCurrentPosition({ enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false });
           this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
           this.lastBreadcrumbSavedAt = 0;
-          await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now);
+          await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now, freshPos.coords.accuracy);
         } catch (e) {}
       }
     }, 10000);
@@ -869,7 +878,7 @@ class LocationTracker {
     // This is the fix for "entire leg missing" — the setInterval was being throttled
     // or killed by Android Chrome during backgrounding, but watchPosition survives.
     if (this._isBreadcrumbStatusActive() && this.appUserId && this.currentUser?.id) {
-      this.collectBreadcrumb(latitude, longitude, Date.now()).catch((e) => {
+      this.collectBreadcrumb(latitude, longitude, Date.now(), accuracy).catch((e) => {
         console.warn('🍞 [LocationTracker] watchPosition breadcrumb failed:', e?.message);
       });
     }
@@ -1213,7 +1222,8 @@ class LocationTracker {
             await this.collectBreadcrumb(
               freshPos.coords.latitude,
               freshPos.coords.longitude,
-              Date.now()
+              Date.now(),
+              freshPos.coords.accuracy
             );
           } catch (e) {
             console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed:', e?.message);
@@ -1253,7 +1263,7 @@ class LocationTracker {
               };
               // Reset the gate so collectBreadcrumb doesn't skip it
               this.lastBreadcrumbSavedAt = 0;
-              await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now);
+              await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now, freshPos.coords.accuracy);
             } catch (e) {
               console.warn('🍞 [Breadcrumb Watchdog] Force fix failed:', e?.message);
             }
@@ -1373,6 +1383,8 @@ class LocationTracker {
     this.lastBreadcrumbPosition = null;
     this.lastBreadcrumbSavedAt = 0;
     this.lastBreadcrumbTickAt = 0;
+    this._breadcrumbFixBuffer = [];
+    this._lastCommittedCrumb = null;
     this.lastEtaRefreshPosition = null;
     this.lastEtaRefreshAt = 0;
     this.lastHeartbeatAt = 0;
@@ -1502,7 +1514,7 @@ class LocationTracker {
     this.lastBreadcrumbPosition = null;
   }
 
-  async collectBreadcrumb(latitude, longitude, timestamp) {
+  async collectBreadcrumb(latitude, longitude, timestamp, accuracy = null) {
     if (!this._isBreadcrumbStatusActive() || !this.appUserId || !this.currentUser?.id) {
       return;
     }
@@ -1513,19 +1525,60 @@ class LocationTracker {
       return;
     }
 
-    if (this.lastBreadcrumbSavedAt && timestamp - this.lastBreadcrumbSavedAt < this.breadcrumbSaveInterval) {
-      return; // Silent skip — 5s gate handled by the interval
+    // ── Accuracy gate (conservative, ≥ gate m dropped) ──────────────────────
+    // Keeps multipath / low-confidence fixes out of the chain-commit buffer.
+    // Tunable via Winter Mode (breadcrumb_accuracy_gate_m, default 100m).
+    if (shouldDropByAccuracy(accuracy)) {
+      return;
     }
 
-    // ── GAP DETECTION ──────────────────────────────────────────────────────
-    // Log gaps >10s between consecutive breadcrumbs for diagnostics.
-    // Common causes: app backgrounding, main-thread blocking during completion,
-    // GPS re-acquisition delay, or setInterval throttling by the OS.
+    // Drop Null Island / invalid fixes before they enter the buffer.
+    if (Math.abs(latitude) < 0.0001 && Math.abs(longitude) < 0.0001) {
+      return;
+    }
+
+    // ── GAP DETECTION (diagnostic) ──────────────────────────────────────────
+    // Log gaps >10s between consecutive watchPosition fixes. Common causes:
+    // app backgrounding, main-thread blocking, GPS re-acquisition, or OS
+    // setInterval throttling. Measured on the raw fix cadence (not commits).
     if (this.lastBreadcrumbTickAt > 0) {
       const gapMs = timestamp - this.lastBreadcrumbTickAt;
       if (gapMs > 10000) {
         console.warn(`🍞 [Breadcrumb Gap] ${Math.round(gapMs / 1000)}s gap detected between breadcrumbs. Last: ${new Date(this.lastBreadcrumbTickAt).toISOString()}, Now: ${new Date(timestamp).toISOString()}`);
       }
+    }
+    // A real GPS fix was observed this tick — keep the watchdog calm.
+    this.lastBreadcrumbTickAt = timestamp;
+
+    // ── Buffer every ~1s watchPosition fix ──────────────────────────────────
+    // The 5s gate below decides when to run the chain-commit selection over
+    // this buffer. Fixes that arrive between ticks accumulate here so the
+    // chain walk has the intermediate points it needs to keep committed
+    // crumb-to-crumb distances < 250m on highway sections.
+    this._breadcrumbFixBuffer.push({ lat: latitude, lng: longitude, ts: timestamp });
+
+    // 5s gate — only run the chain-commit selection once per tick window.
+    if (this.lastBreadcrumbSavedAt && timestamp - this.lastBreadcrumbSavedAt < this.breadcrumbSaveInterval) {
+      return;
+    }
+
+    // ── Resolve the last committed crumb (session-resume aware) ─────────────
+    let lastCommitted = this._lastCommittedCrumb;
+    if (!lastCommitted && this.currentUser?.id && this.currentDeliveryDate) {
+      lastCommitted = getLastCommittedCrumb(this.currentUser.id, this.currentDeliveryDate);
+      if (lastCommitted) this._lastCommittedCrumb = lastCommitted;
+    }
+
+    // ── Conditional chain-commit (250m) ─────────────────────────────────────
+    // Walk the buffered fixes and commit the furthest one strictly < 250m
+    // from the last committed crumb, carrying the rest forward. When no
+    // buffered fix is within the cap (genuine outage), force-commit the
+    // latest fix and mark it as an outage point.
+    const { commit, carryForward } = selectChainCommitPoint(this._breadcrumbFixBuffer, lastCommitted);
+    this._breadcrumbFixBuffer = carryForward;
+
+    if (!commit) {
+      return;
     }
 
     try {
@@ -1534,26 +1587,25 @@ class LocationTracker {
         appUserId: this.appUserId,
         currentUser: this.currentUser,
         currentDeliveryDate: this.currentDeliveryDate,
-        latitude,
-        longitude,
-        timestamp
+        latitude: commit.lat,
+        longitude: commit.lng,
+        timestamp: commit.ts,
+        outage: commit.outage === true,
       });
 
       if (!result) {
         return;
       }
 
-      // A real GPS fix was processed — keep the watchdog calm even if the fix
-      // was deduped (stationary) so it doesn't force redundant GPS acquisitions.
-      this.lastBreadcrumbTickAt = timestamp; // Track for watchdog + gap detection
-
       if (result.deduped) {
-        // Stationary fix within dedup radius — not stored, not synced.
-        // Don't advance lastBreadcrumbSavedAt so the 5s gate keeps trying.
+        // Selected commit was within the stationary dedup radius — not stored.
+        // Keep the carryForward buffer; don't advance the 5s gate so the next
+        // tick re-evaluates as soon as the driver moves past the dedup radius.
         return;
       }
 
-      this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
+      this._lastCommittedCrumb = { lat: commit.lat, lng: commit.lng };
+      this.lastBreadcrumbPosition = { latitude: commit.lat, longitude: commit.lng, timestamp: commit.ts };
       this.lastBreadcrumbSavedAt = timestamp;
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
@@ -1569,6 +1621,10 @@ class LocationTracker {
     // starts fresh from IDB for the new date (prevents stale trail from previous day).
     if (this.currentDeliveryDate && this.currentUser?.id && this.currentDeliveryDate !== deliveryDate) {
       clearBreadcrumbCache(this.currentUser.id, this.currentDeliveryDate);
+      // Reset the chain-commit buffer + last-committed crumb for the new date so
+      // the next breadcrumb starts a fresh chain (no stale cross-day references).
+      this._breadcrumbFixBuffer = [];
+      this._lastCommittedCrumb = null;
     }
     this.currentDeliveryDate = deliveryDate;
   }
@@ -1701,7 +1757,7 @@ class LocationTracker {
       // (d) Save an immediate breadcrumb at the fresh position.
       //     Reset the gate first so collectBreadcrumb doesn't skip it.
       this.lastBreadcrumbSavedAt = 0;
-      await this.collectBreadcrumb(latitude, longitude, now);
+      await this.collectBreadcrumb(latitude, longitude, now, accuracy);
 
     } catch (err) {
       console.warn('⚠️ [LocationTracker] Resume GPS fix failed:', err?.message);
@@ -1728,7 +1784,7 @@ class LocationTracker {
           longitude: freshPos.coords.longitude,
           accuracy: freshPos.coords.accuracy
         };
-        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
+        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed on interval tick:', e?.message);
       }

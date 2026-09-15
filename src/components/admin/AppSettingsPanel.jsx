@@ -20,6 +20,7 @@ const DEFAULT_WINTER = {
   arrival_radius_m: 150,
   cold_threshold_min_c: -15, // Enable cold warning at or below this temp
   cold_threshold_max_c: -5,  // Disable cold warning at or above this temp
+  breadcrumb_accuracy_gate_m: 100, // Drop GPS fixes ≥ this accuracy (m) from the breadcrumb chain buffer
 };
 
 export default function AppSettingsPanel() {
@@ -215,6 +216,7 @@ export default function AppSettingsPanel() {
         arrival_radius_m: Number(winterMode.arrival_radius_m) > 0 ? Number(winterMode.arrival_radius_m) : DEFAULT_WINTER.arrival_radius_m,
         cold_threshold_min_c: Number.isFinite(Number(winterMode.cold_threshold_min_c)) ? Number(winterMode.cold_threshold_min_c) : DEFAULT_WINTER.cold_threshold_min_c,
         cold_threshold_max_c: Number.isFinite(Number(winterMode.cold_threshold_max_c)) ? Number(winterMode.cold_threshold_max_c) : DEFAULT_WINTER.cold_threshold_max_c,
+        breadcrumb_accuracy_gate_m: Number(winterMode.breadcrumb_accuracy_gate_m) > 0 ? Number(winterMode.breadcrumb_accuracy_gate_m) : DEFAULT_WINTER.breadcrumb_accuracy_gate_m,
       };
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       const currentSettings = existing?.[0]?.setting_value || {};
@@ -473,6 +475,24 @@ export default function AppSettingsPanel() {
                       step="1"
                       value={winterMode.cold_threshold_max_c}
                       onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_max_c: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1.5">
+                      <Label htmlFor="winter_breadcrumb_accuracy" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                        Breadcrumb Accuracy Gate (m)
+                      </Label>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.breadcrumb_accuracy_gate_m}</span>
+                    </div>
+                    <Input
+                      id="winter_breadcrumb_accuracy"
+                      type="number"
+                      step="10"
+                      min="20"
+                      value={winterMode.breadcrumb_accuracy_gate_m}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, breadcrumb_accuracy_gate_m: e.target.value }))}
                       className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                       style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
                     />

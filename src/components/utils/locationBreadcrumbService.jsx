@@ -23,6 +23,11 @@ import { acquireBreadcrumbSyncLock } from './breadcrumbSyncLock';
 // On subsequent saves, the cache is the source of truth — no IDB read, no decode.
 const _masterTrailCache = new Map(); // key: `${driverId}:${date}` → array of [lat, lng, ts]
 
+// Outage markers (force-committed GPS-outage timestamps), mirroring the trail cache
+// lifecycle. Loaded from IDB on first breadcrumb of the session, appended on each
+// forced commit, and persisted alongside the master 'TODAY' record.
+const _outageTimestampsCache = new Map(); // key: `${driverId}:${date}` → Set<number>
+
 function getCacheKey(driverId, deliveryDate) {
   return `${driverId}:${deliveryDate}`;
 }
@@ -154,6 +159,15 @@ async function loadTrailIntoCache(driverId, deliveryDate, offlineKey) {
   }
 
   _masterTrailCache.set(cacheKey, points);
+
+  // Load existing outage markers (force-committed GPS-outage timestamps) so they
+  // survive across session restarts and are re-persisted on each subsequent save.
+  const existingOutage = Array.isArray(existingRecord?.outage_timestamps) ? existingRecord.outage_timestamps : [];
+  _outageTimestampsCache.set(
+    cacheKey,
+    new Set(existingOutage.map(Number).filter((n) => Number.isFinite(n))),
+  );
+
   return points;
 }
 
@@ -164,6 +178,7 @@ async function loadTrailIntoCache(driverId, deliveryDate, offlineKey) {
 export function clearBreadcrumbCache(driverId, deliveryDate) {
   const cacheKey = getCacheKey(driverId, deliveryDate);
   _masterTrailCache.delete(cacheKey);
+  _outageTimestampsCache.delete(cacheKey);
 }
 
 /**
@@ -171,6 +186,21 @@ export function clearBreadcrumbCache(driverId, deliveryDate) {
  */
 export function clearAllBreadcrumbCaches() {
   _masterTrailCache.clear();
+  _outageTimestampsCache.clear();
+}
+
+/**
+ * Peek the last committed crumb's {lat, lng} from the in-memory trail cache.
+ * Returns null when the cache is empty (first crumb of the session, or the
+ * trail hasn't been loaded yet). Used by the chain-commit walk in locationTracker
+ * to compute distances from the last stored point without re-reading IDB.
+ */
+export function getLastCommittedCrumb(driverId, deliveryDate) {
+  const cacheKey = getCacheKey(driverId, deliveryDate);
+  const trail = _masterTrailCache.get(cacheKey);
+  if (!trail || trail.length === 0) return null;
+  const last = trail[trail.length - 1];
+  return { lat: last[0], lng: last[1] };
 }
 
 export const collectBreadcrumbForTracker = async ({
@@ -180,7 +210,8 @@ export const collectBreadcrumbForTracker = async ({
   currentDeliveryDate,
   latitude,
   longitude,
-  timestamp
+  timestamp,
+  outage = false,
 }) => {
   // Breadcrumb recording rule — collected ONLY while on duty or on break.
   // Off-duty and "online" (non-driver) statuses must NOT produce trails.
@@ -197,6 +228,7 @@ export const collectBreadcrumbForTracker = async ({
 
   const deliveryDate = currentDeliveryDate || getLocalDateString();
   const offlineKey = getTodayOfflineKey(currentUser.id, deliveryDate);
+  const cacheKey = getCacheKey(currentUser.id, deliveryDate);
 
   // ── O(1) CACHE PATH: Use in-memory array instead of decoding from IDB ──────
   // First breadcrumb of the session loads from IDB (one-time decode). All
@@ -228,13 +260,24 @@ export const collectBreadcrumbForTracker = async ({
       }
 
       if (distanceM > MAX_BREADCRUMB_DISTANCE_M) {
-        console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting`);
+        console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting${outage ? ' (forced outage commit)' : ''}`);
       }
     }
   }
 
   // O(1) append to in-memory array
   trailPoints.push(breadcrumbPoint);
+
+  // ── Outage marker ─────────────────────────────────────────────────────────
+  // Record the timestamp of a force-committed (genuine GPS outage) point so the
+  // Route viewer / snap analysis can annotate the resulting >250m gap as a
+  // known outage rather than a sampling artifact. Diagnostic only.
+  if (outage) {
+    let outageSet = _outageTimestampsCache.get(cacheKey);
+    if (!outageSet) { outageSet = new Set(); _outageTimestampsCache.set(cacheKey, outageSet); }
+    outageSet.add(timestamp);
+  }
+  const outageTsArr = Array.from(_outageTimestampsCache.get(cacheKey) || []);
 
   // O(N) encode from in-memory array (no decode needed — this is the key optimization)
   const encodedPolyline = encodePolyline(trailPoints);
@@ -250,6 +293,7 @@ export const collectBreadcrumbForTracker = async ({
     timestamps,
     transport_mode: 'driving',
     point_count: trailPoints.length,
+    outage_timestamps: outageTsArr,
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
@@ -267,9 +311,10 @@ export const collectBreadcrumbForTracker = async ({
         encoded_polyline: encodedPolyline,
         timestamps,
         point_count: trailPoints.length,
+        outage_timestamps: outageTsArr,
       });
     } catch (error) {
-      const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.().includes('rate limit');
+      const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.includes('rate limit');
       if (!isRateLimited) {
         console.warn(`⚠️ [Breadcrumbs] Server sync failed:`, error.message);
       }
