@@ -7,7 +7,7 @@
 //   2. Returns the full grouped breakdown (all drivers, all items) so the
 //      app-owner briefing can be composed and delivered (agent/WhatsApp).
 //
-// Params: { dry_run?: boolean } — dry_run=true computes everything but does
+// Params: { dry_run?, owner_only?, test_driver_id? } — dry_run=true computes everything but does
 // NOT send pushes (used for test runs).
 //
 // Push delivery is INLINED (web-push VAPID + FCM v1 HTTP API) — this function
@@ -193,6 +193,10 @@ async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
   // Optional: send a TEST push to a single driver only (targets a real driver's real data)
   const testDriverId = params?.test_driver_id || null;
+  // Optional: send ONLY the App Owner copy (full cross-driver briefing) and
+  // skip all driver pushes — used to test/demo the owner briefing without
+  // re-notifying every driver.
+  const ownerOnly = !!params?.owner_only;
   const startedAt = Date.now();
 
   // App Owner (Robert T): now receives the SAME treatment as drivers — in-app
@@ -216,7 +220,46 @@ async function handleBriefing(base44, params = {}) {
   });
   console.log('[briefing] catalog items (deduped):', catalogItems.length);
   if (!catalogItems.length) {
-    return { success: true, dry_run: dryRun, drivers: [], totals: { drivers: 0, items: 0, amount: 0 }, pushes: [], message: 'No outstanding CODs.', duration_ms: Date.now() - startedAt };
+    // Clean slate still reaches the owner in-app (same as the WhatsApp copy —
+    // "the COD slate is clean"). Drivers have nothing to collect, so no
+    // driver pushes go out.
+    let cleanOwnerPush = null;
+    if (!dryRun) {
+      try {
+        const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch(() => []);
+        const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
+          .map((r) => unwrapEntityRecord(r)).filter(Boolean);
+        const owner = users.find((u) => u?.role === 'admin');
+        if (owner?.id) {
+          const today = new Date().toISOString().slice(0, 10);
+          const ownerName = owner.full_name || owner.name || 'App Owner';
+          const cleanBody = `${ownerOnly ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}\n\nNo outstanding CODs — the slate is clean.`;
+          let cleanMessageId = null;
+          try {
+            const created = await base44.asServiceRole.entities.Message.create({
+              sender_id: 'cod_briefing',
+              sender_name: 'COD Briefing',
+              receiver_id: owner.id,
+              receiver_name: ownerName,
+              conversation_id: ['cod_briefing', owner.id].sort().join('_'),
+              content: cleanBody,
+              read: false,
+              message_type: 'text',
+            });
+            cleanMessageId = created?.id || null;
+          } catch (err) {
+            console.log('[briefing] clean Message.create failed:', err?.message || String(err));
+          }
+          const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
+          const result = await sendPushToUser(base44, owner.id, `${ownerOnly ? 'TEST — ' : ''}COD Briefing (All Drivers) — ${shortDate(today)}`, cleanBody, chatUrl, `cod-briefing-owner-${today}`);
+          cleanOwnerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: cleanMessageId, ...result };
+          console.log('[briefing] clean-slate owner push result:', JSON.stringify(result));
+        }
+      } catch (err) {
+        console.log('[briefing] clean-slate owner briefing failed:', err?.message || String(err));
+      }
+    }
+    return { success: true, dry_run: dryRun, owner_only: ownerOnly, drivers: [], totals: { drivers: 0, items: 0, amount: 0 }, pushes: [], owner_push: cleanOwnerPush, message: 'No outstanding CODs.', duration_ms: Date.now() - startedAt };
   }
 
   // 2. Map to deliveries (driver assignment)
@@ -265,7 +308,7 @@ async function handleBriefing(base44, params = {}) {
 
   // 5. Send pushes (skip in dry-run)
   const pushes = [];
-  if (!dryRun) {
+  if (!dryRun && !ownerOnly) {
     const today = new Date().toISOString().slice(0, 10);
     for (const g of driverBriefings) {
       if (testDriverId && g.driver_id !== testDriverId) continue;
@@ -313,6 +356,78 @@ async function handleBriefing(base44, params = {}) {
     }
   }
 
+  // ── App Owner copy (Sep 15 2026): the owner asked to receive the FULL
+  // cross-driver briefing as an in-app push + in-app Message (previously the
+  // only push they got was their own driver-specific one when they drive; the
+  // full version only went out via the WhatsApp workflow broadcast). The
+  // owner is identified by platform User.role === 'admin' — the same check
+  // the frontend isAppOwner() uses. Sent as the same 'COD Briefing' system
+  // thread shape drivers get.
+  let ownerPush = null;
+  if (!dryRun) {
+    try {
+      const usersRes = await base44.asServiceRole.entities.User.list({ limit: 500 }).catch(() => []);
+      const users = (Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []))
+        .map((r) => unwrapEntityRecord(r)).filter(Boolean);
+      const owner = users.find((u) => u?.role === 'admin');
+      if (owner?.id) {
+        const today = new Date().toISOString().slice(0, 10);
+        const ownerName = owner.full_name || owner.name || 'App Owner';
+        // Compose full per-driver breakdown with aligned money columns
+        const moneyStrsAll = driverBriefings.flatMap((g) => g.items.map((it) => (Number(it.amount) || 0).toFixed(2)));
+        const totalAll = (Math.round(driverBriefings.reduce((sm, g) => sm + g.total, 0) * 100) / 100).toFixed(2);
+        const moneyWidth = Math.max(totalAll.length, ...(moneyStrsAll.length ? moneyStrsAll : ['0']));
+        const lines = [];
+        for (const g of driverBriefings) {
+          const gTotal = (Math.round(g.total * 100) / 100).toFixed(2);
+          lines.push(`${String(g.driver_name).toUpperCase()} — ${g.count} COD${g.count === 1 ? '' : 's'}, $${gTotal}`);
+          g.items.forEach((it, idx) => {
+            const amt = (Number(it.amount) || 0).toFixed(2);
+            lines.push(`${shortDate(it.delivery_date)} ${(it.store_abbreviation || it.store_name || '—').slice(0, 12)} · $${amt.padStart(moneyWidth)} · ${it.patient_name}`);
+          });
+          lines.push('');
+        }
+        if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
+        lines.push(`TOTAL: ${catalogItems.length} COD${catalogItems.length === 1 ? '' : 's'}, $${totalAll}`);
+        const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
+        if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
+        const ownerBody = [
+          `${ownerOnly ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`,
+          '',
+          ...lines,
+        ].join('\n');
+        // In-app Message: same system-thread shape as the driver copies
+        let ownerMessageId = null;
+        try {
+          const created = await base44.asServiceRole.entities.Message.create({
+            sender_id: 'cod_briefing',
+            sender_name: 'COD Briefing',
+            receiver_id: owner.id,
+            receiver_name: ownerName,
+            conversation_id: ['cod_briefing', owner.id].sort().join('_'),
+            content: ownerBody,
+            read: false,
+            message_type: 'text',
+          });
+          ownerMessageId = created?.id || null;
+        } catch (err) {
+          console.log('[briefing] owner Message.create failed:', err?.message || String(err));
+        }
+        const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
+        const title = `${ownerOnly ? 'TEST — ' : ''}COD Briefing (All Drivers) — ${shortDate(today)}`;
+        const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
+        ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
+        console.log('[briefing] owner push result:', JSON.stringify(result));
+      } else {
+        console.log('[briefing] No App Owner found (platform role admin) — owner push skipped.');
+        ownerPush = { skipped: true, reason: 'No platform user with role=admin found' };
+      }
+    } catch (err) {
+      console.log('[briefing] owner briefing failed:', err?.message || String(err));
+      ownerPush = { error: err?.message || String(err) };
+    }
+  }
+
   const totals = {
     drivers: driverBriefings.length,
     items: catalogItems.length,
@@ -327,6 +442,7 @@ async function handleBriefing(base44, params = {}) {
     drivers: driverBriefings,
     unassigned_items: unassigned,
     pushes,
+    owner_push: ownerPush,
     duration_ms: Date.now() - startedAt,
   };
 }
