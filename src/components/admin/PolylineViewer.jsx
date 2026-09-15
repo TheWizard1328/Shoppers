@@ -1841,8 +1841,17 @@ export default function PolylineViewer({ users = [] }) {
   );
 
   // ═════════════════════════════════════════════════════════════════════════
+  // Sep 14 2026 fix: TabsContent (parent) is now an explicit flex column with
+  // a real height (calc(100vh - 220px) on mobile/desktop). "h-full" (height:
+  // 100%) silently failed to fill that box because the parent wasn't a flex
+  // container — a plain block parent's height doesn't propagate to a
+  // percentage-height child the way flex-grow does here. flex-1 + min-h-0
+  // matches the same pattern already used successfully by every descendant
+  // below (CardContent, the map/list row, the map div all use flex-1
+  // min-h-0) — this was the one broken link at the top of that chain, which
+  // is why the whole card rendered short with dead space above and below it.
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="flex-1 flex flex-col min-h-0">
       <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">

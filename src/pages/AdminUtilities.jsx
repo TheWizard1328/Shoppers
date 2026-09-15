@@ -1880,7 +1880,7 @@ export default function AdminUtilities() {
                     
                     </SimpleDataViewTab>
                   </TabsContent>
-                  <TabsContent value="polylines" className="mt-4" style={{ height: 'calc(100vh - 220px)' }}><PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} /></TabsContent>
+                  <TabsContent value="polylines" className="mt-4 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 220px)' }}><PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} /></TabsContent>
                   <TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
                   <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
