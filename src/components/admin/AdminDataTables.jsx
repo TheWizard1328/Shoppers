@@ -15,6 +15,7 @@ import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 import { patientMatchesSearch } from '@/components/utils/careProSearchHelper';
 
 import { ResizableColumnHeader, ColumnVisibilityControl } from './AdminTableControls';
+import { useDevice } from '@/components/utils/DeviceContext';
 
 const parseFlexibleDate = (dateString) => {
   if (!dateString || typeof dateString !== 'string') return null;
@@ -95,6 +96,7 @@ export const PatientDataTable = ({
   isLoadingData, onDeleteAll, onDeleteSelected,
 }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('patients');
+  const { isMobile } = useDevice();
   const [columnWidths, setColumnWidths] = useState(() => {
     const saved = localStorage.getItem('admin_patient_column_widths');
     return saved ? JSON.parse(saved) : { checkbox: 50, id: 280, full_name: 200, patient_id: 100, phone: 140, address: 250, unit: 100, store: 150, last_delivery_date: 120, actions: 150 };
@@ -176,9 +178,20 @@ export const PatientDataTable = ({
   const isAllSelected = filteredPatients.length > 0 && selectedPatients.size === filteredPatients.length;
   const isSomeSelected = selectedPatients.size > 0 && selectedPatients.size < filteredPatients.length;
 
+  // Mobile-only layout fix (Sep 14 2026): Card/CardContent become a flex
+  // column filling whatever height AdminPatientsTab hands down, and ONLY the
+  // table's own scroll div gets flex-1 (no more fixed max-h-[600px], which is
+  // what pushed the visible table area off the bottom of the screen and left
+  // a dead white gap under it once the outer page finished its own separate
+  // scroll). Desktop keeps the original fixed 600px table height unchanged.
+  const duplicateFilterRowClass = isMobile
+    ? 'grid grid-cols-2 gap-2 w-full'
+    : 'flex flex-wrap gap-2';
+  const duplicateFilterBtnClass = isMobile ? 'w-full' : '';
+
   return (
-    <Card className="bg-surface border-surface">
-      <CardHeader>
+    <Card className={isMobile ? 'bg-surface border-surface h-full flex flex-col min-h-0' : 'bg-surface border-surface'}>
+      <CardHeader className={isMobile ? 'shrink-0' : ''}>
         <CardTitle className="flex items-center justify-between text-body">
           <span>Patients</span>
           <div className="flex gap-2">
@@ -189,8 +202,8 @@ export const PatientDataTable = ({
         </CardTitle>
         <CardDescription style={textMuted}>Filtered and sorted list of patients.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3 mb-4">
+      <CardContent className={isMobile ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : ''}>
+        <div className={isMobile ? 'space-y-3 mb-4 shrink-0' : 'space-y-3 mb-4'}>
           <div className="flex gap-3 flex-wrap">
             <Input placeholder="Filter by ID, name, PID, phone, address, store, last delivery date, Care Pro, or CP name..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} disabled={isLoadingData} className="flex-1 min-w-[250px]" />
             <Select value={storeFilter} onValueChange={setStoreFilter} disabled={isLoadingData}>
@@ -201,25 +214,25 @@ export const PatientDataTable = ({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-wrap gap-2 items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              <Button variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
-              <Button variant={duplicateFilter === 'nameAndAddress' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('nameAndAddress')} disabled={dc.nameAndAddress === 0}><Database className="w-4 h-4 mr-1" />Dup Name+Address ({dc.nameAndAddress})</Button>
-              <Button variant={duplicateFilter === 'phone' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('phone')} disabled={dc.phone === 0}><Database className="w-4 h-4 mr-1" />Duplicate Phones ({dc.phone})</Button>
-              <Button variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
+          <div className={isMobile ? 'flex flex-col gap-2' : 'flex flex-wrap gap-2 items-center justify-between'}>
+            <div className={duplicateFilterRowClass}>
+              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
+              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'nameAndAddress' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('nameAndAddress')} disabled={dc.nameAndAddress === 0}><Database className="w-4 h-4 mr-1" />Dup Name+Address ({dc.nameAndAddress})</Button>
+              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'phone' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('phone')} disabled={dc.phone === 0}><Database className="w-4 h-4 mr-1" />Duplicate Phones ({dc.phone})</Button>
+              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
             </div>
             <Button
               variant={portalLoginFilter ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPortalLoginFilter((v) => !v)}
-              className={portalLoginFilter ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : ''}
+              className={`${portalLoginFilter ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : ''} ${isMobile ? 'w-full' : ''}`}
             >
               🔐 Portal Logins ({portalPatientCount})
             </Button>
           </div>
         </div>
-        <div className="border rounded-md overflow-hidden border-surface">
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+        <div className={isMobile ? 'border rounded-md overflow-hidden border-surface flex-1 min-h-0 flex flex-col' : 'border rounded-md overflow-hidden border-surface'}>
+          <div className={isMobile ? 'overflow-x-auto overflow-y-auto flex-1 min-h-0' : 'overflow-x-auto max-h-[600px] overflow-y-auto'}>
             <table className="w-full text-sm table-fixed">
               <thead className="border-b sticky top-0 z-10 border-surface" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>

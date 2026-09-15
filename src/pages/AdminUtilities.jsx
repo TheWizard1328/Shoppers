@@ -40,6 +40,7 @@ import { matchesDeliveryCodFilter } from '../components/admin/deliveryCodFilter'
 import UserSettingsTable from '../components/admin/UserSettingsTable';
 import InkbirdRawDiagnostic from '../components/admin/InkbirdRawDiagnostic';
 import InkbirdBleLog from '../components/devices/InkbirdBleLog';
+import { useDevice } from '../components/utils/DeviceContext';
 
 // Wrapper — keeps PolylineViewer mounted while the Routes tab is active.
 // PolylineViewer already updates its own state on breadcrumbSavedToDelivery,
@@ -297,6 +298,7 @@ const DeliveryDataTable = (props) => <AdminDeliveriesTable {...props} />;
 
 
 export default function AdminUtilities() {
+  const { isMobile } = useDevice();
   const queryClient = useQueryClient();
   const {
     deliveries: contextDeliveries,
@@ -1829,7 +1831,11 @@ export default function AdminUtilities() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="patients" className="mt-6">
+                  <TabsContent
+                    value="patients"
+                    className={isMobile ? "mt-6 flex flex-col overflow-hidden" : "mt-6"}
+                    style={isMobile ? { height: 'calc(100vh - 220px)' } : undefined}
+                  >
                     <AdminPatientsTab
                     dataViewMode={dataViewMode}
                     setDataViewMode={setDataViewMode}>
