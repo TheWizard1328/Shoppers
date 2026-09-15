@@ -1836,7 +1836,7 @@ export default function AdminUtilities() {
 
                   <TabsContent
                     value="patients"
-                    className={isMobile ? "mt-6 flex flex-col overflow-hidden" : "mt-6"}
+                    className={isMobile ? "mt-6 flex flex-col overflow-hidden data-[state=inactive]:hidden" : "mt-6"}
                     style={isMobile ? { height: 'calc(100vh - 220px)' } : undefined}
                   >
                     <AdminPatientsTab
@@ -1883,7 +1883,7 @@ export default function AdminUtilities() {
                     
                     </SimpleDataViewTab>
                   </TabsContent>
-                  <TabsContent value="polylines" className="mt-4 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 220px)' }}><PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} /></TabsContent>
+                  <TabsContent value="polylines" className="mt-4 flex flex-col overflow-hidden data-[state=inactive]:hidden" style={{ height: 'calc(100vh - 220px)' }}><PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} /></TabsContent>
                   <TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
                   <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
