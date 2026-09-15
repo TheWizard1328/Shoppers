@@ -88,22 +88,24 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
         {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
         Backfill Last Delivery
       </Button>
-      <Button
-        variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
-        size="sm"
-        onClick={() => setDataViewMode((prev) => ({ ...prev, patients: 'offline' }))}
-        className={buttonClass}
-      >
-        Offline
-      </Button>
-      <Button
-        variant={dataViewMode.patients !== 'offline' ? 'default' : 'outline'}
-        size="sm"
-        onClick={() => setDataViewMode((prev) => ({ ...prev, patients: 'online' }))}
-        className={buttonClass}
-      >
-        Online
-      </Button>
+      <div className={`flex gap-1 ${buttonClass}`}>
+        <Button
+          variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setDataViewMode((prev) => ({ ...prev, patients: 'offline' }))}
+          className="flex-1 min-h-10 px-2"
+        >
+          Offline
+        </Button>
+        <Button
+          variant={dataViewMode.patients !== 'offline' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setDataViewMode((prev) => ({ ...prev, patients: 'online' }))}
+          className="flex-1 min-h-10 px-2"
+        >
+          Online
+        </Button>
+      </div>
     </>
   );
 

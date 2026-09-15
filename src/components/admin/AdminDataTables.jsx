@@ -204,7 +204,7 @@ export const PatientDataTable = ({
       </CardHeader>
       <CardContent className={isMobile ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : ''}>
         <div className={isMobile ? 'space-y-3 mb-4 shrink-0' : 'space-y-3 mb-4'}>
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3 flex-wrap items-center">
             <Input placeholder="Filter by ID, name, PID, phone, address, store, last delivery date, Care Pro, or CP name..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} disabled={isLoadingData} className="flex-1 min-w-[250px]" />
             <Select value={storeFilter} onValueChange={setStoreFilter} disabled={isLoadingData}>
               <SelectTrigger className="w-48"><SelectValue placeholder="All Stores" /></SelectTrigger>
@@ -213,22 +213,20 @@ export const PatientDataTable = ({
                 {stores.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
-          <div className={isMobile ? 'flex flex-col gap-2' : 'flex flex-wrap gap-2 items-center justify-between'}>
-            <div className={duplicateFilterRowClass}>
-              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
-              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'nameAndAddress' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('nameAndAddress')} disabled={dc.nameAndAddress === 0}><Database className="w-4 h-4 mr-1" />Dup Name+Address ({dc.nameAndAddress})</Button>
-              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'phone' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('phone')} disabled={dc.phone === 0}><Database className="w-4 h-4 mr-1" />Duplicate Phones ({dc.phone})</Button>
-              <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
-            </div>
             <Button
               variant={portalLoginFilter ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPortalLoginFilter((v) => !v)}
-              className={`${portalLoginFilter ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : ''} ${isMobile ? 'w-full' : ''}`}
+              className={`shrink-0 ${portalLoginFilter ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : ''} ${isMobile ? 'w-full' : ''}`}
             >
               🔐 Portal Logins ({portalPatientCount})
             </Button>
+          </div>
+          <div className={duplicateFilterRowClass}>
+            <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
+            <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'nameAndAddress' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('nameAndAddress')} disabled={dc.nameAndAddress === 0}><Database className="w-4 h-4 mr-1" />Dup Name+Address ({dc.nameAndAddress})</Button>
+            <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'phone' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('phone')} disabled={dc.phone === 0}><Database className="w-4 h-4 mr-1" />Duplicate Phones ({dc.phone})</Button>
+            <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
           </div>
         </div>
         <div className={isMobile ? 'border rounded-md overflow-hidden border-surface flex-1 min-h-0 flex flex-col' : 'border rounded-md overflow-hidden border-surface'}>
