@@ -169,10 +169,11 @@ const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})
 
 async function listAll(base44, entityName, sortField, limit = 2000) {
   const out = [];
-  const res = await base44.asServiceRole.entities[entityName].list(sortField, limit).catch((e) => {
-    console.log('[briefing] listAll ERROR:', entityName, '|', e?.message || String(e));
-    return [];
-  });
+  // NOTE (Sep 15 2026): list errors are NOT swallowed anymore. A transient
+  // list failure used to look like an empty catalog — which produced a
+  // FALSE "clean slate" briefing. Now the error propagates and the run
+  // fails loudly with no pushes sent.
+  const res = await base44.asServiceRole.entities[entityName].list(sortField, limit);
   const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
   rows.forEach((r) => { const u = unwrapEntityRecord(r); if (u) out.push(u); });
   return out;
@@ -209,8 +210,23 @@ async function listPlatformUsers(base44) {
 async function findOwner(base44) {
   try {
     const users = await listPlatformUsers(base44);
-    const owner = users.find((u) => u?.role === 'admin');
-    if (owner?.id) return owner;
+    const admins = users.filter((u) => u?.role === 'admin');
+    if (admins.length === 1) return admins[0];
+    if (admins.length > 1) {
+      // Multiple platform users carry role=admin (e.g. the workspace's
+      // Superagent platform user shares the owner's name). The REAL app
+      // owner is the one with registered push devices in this app.
+      for (const a of admins) {
+        const subs = await base44.asServiceRole.entities.PushSubscription.filter({ user_id: a.id }).catch(() => []);
+        if (Array.isArray(subs) && subs.length) {
+          console.log('[briefing] owner disambiguated by push subscriptions:', a.id, `(${(subs || []).length} subs)`);
+          return a;
+        }
+      }
+      // No admin has subs — prefer the pinned platform id.
+      const pinnedAdmin = admins.find((a) => a.id === OWNER_PLATFORM_USER_ID);
+      if (pinnedAdmin) return pinnedAdmin;
+    }
   } catch (err) {
     console.log('[briefing] User.list path failed:', err?.message || String(err));
   }
@@ -236,7 +252,14 @@ async function findOwner(base44) {
   } catch (err) {
     console.log('[briefing] User.filter by-id path failed:', err?.message || String(err));
   }
-  return null;
+  // Final fallback: the pinned platform user id. NOTE — the service role
+  // CANNOT read the platform User collection (User.list/filter return 0
+  // records from unauthenticated scheduled functions), so the role=admin
+  // lookup above can never resolve here. The pinned id IS the platform
+  // user with role=admin (Robert T) — a platform-DB identity, not an
+  // AppUser one — verified by his devices' push subscriptions.
+  console.log('[briefing] platform DB lookups unavailable — using pinned platform owner id');
+  return { id: OWNER_PLATFORM_USER_ID, full_name: 'App Owner' };
 }
 
 async function handleBriefing(base44, params = {}) {
@@ -254,7 +277,16 @@ async function handleBriefing(base44, params = {}) {
   // the owner workflow sends via WhatsApp (owner requested all channels).
   // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
   console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none');
-  let catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
+  let catalogItems = [];
+  try {
+    catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
+  } catch (err) {
+    // LOUD failure: never send a briefing based on a failed read. If the
+    // catalog list fails we cannot tell "clean" from "broken" — abort the
+    // whole run so no driver/owner gets a false briefing.
+    console.log('[briefing] FATAL: SquareCatalogItems list failed:', err?.message || String(err));
+    return { success: false, error: `SquareCatalogItems list failed: ${err?.message || String(err)}`, duration_ms: Date.now() - startedAt };
+  }
   console.log('[briefing] catalog items (raw):', catalogItems.length);
   // Dedupe: the reconciler sweep's bookkeeping upsert can create duplicate rows
   // for the same COD when its existence-check filter fails under platform strain
@@ -481,6 +513,7 @@ async function handleBriefing(base44, params = {}) {
   return {
     success: true,
     dry_run: dryRun,
+    owner_only: ownerOnly,
     generated_at: new Date().toISOString(),
     totals,
     drivers: driverBriefings,
