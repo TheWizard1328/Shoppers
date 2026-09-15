@@ -1716,11 +1716,14 @@ function DeliveryMap({
         <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
         <Pane name="currentLegPane" style={{ zIndex: 620 }} />
 
-        {/* CRITICAL: Driver markers pane — must always render above ALL other markers
-            (delivery, pickup, home, interstore) and ALL polylines (route, breadcrumb).
-            markerPane=600, popupPane=700, tooltipPane=650, overlayPane=400.
-            This pane at 1000 ensures driver/live location markers are never occluded. */}
-        <Pane name="driverMarkerPane" style={{ zIndex: 1000 }}>
+        {/* CRITICAL: Driver markers pane — must render above ALL other markers
+            (delivery, pickup, home, interstore — markerPane=600) and ALL polylines
+            (route/breadcrumb panes ≤460, currentLegPane=620), but BELOW the popup
+            (popupPane=700) and tooltip (tooltipPane=650) panes so stop-marker info
+            balloons and driver popups always paint ON TOP of the live/shared dots.
+            630 keeps driver dots above every marker & polyline while letting any
+            open Popup (which lives in popupPane=700) correctly cover the dot. */}
+        <Pane name="driverMarkerPane" style={{ zIndex: 630 }}>
           {currentDriverMarker && (
             <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} pane="driverMarkerPane" eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
               <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
