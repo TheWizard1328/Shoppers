@@ -1837,7 +1837,12 @@ function Dashboard() {
   // (same phase-1 fit) and just refits with the final server data.
   const pendingFabReactivationComboRef = useRef(null);
   const lastFabComboRef = useRef(null);
+  const fabReactivationTimerRef = useRef(null);
   const runFabPhase1Reactivation = useCallback(() => {
+    // Date/driver change is a deliberate selection change — always refit, even if
+    // the user had free-panned before (mirrors REACTIVATE_FAB's explicit-activation
+    // clearing of mapUserUnlockedRef; without this the trigger effect bails out).
+    if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
     mapViewPhaseRef.current = 1; isMapViewLockedRef.current = true; pendingPhaseRef.current = 1;
@@ -1874,15 +1879,25 @@ function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, selectedDriverId, initialMapViewApplied, runFabPhase1Reactivation]);
 
-  // Fire once the new selection's markers have rendered (deliveriesWithStopOrder committed)
+  // Fire once the new selection's markers have rendered (deliveriesWithStopOrder committed).
+  // CRITICAL: NO cleanup here. This effect re-runs on every state update during the
+  // date-change sync (deliveriesWithStopOrder identity changes several times:
+  // IDB snapshot → lock → fresh server data → apply). A returned cleanup would cancel
+  // the armed 250ms timer before it ever fired, and since pending was already cleared
+  // the reactivation was lost entirely — the "FAB never activates after markers
+  // render" bug. The timer ref guards against double-arming and self-clears.
   useEffect(() => {
     const combo = `${format(selectedDate, 'yyyy-MM-dd')}-${selectedDriverId}`;
     if (pendingFabReactivationComboRef.current !== combo) return;
     if (!deliveriesWithStopOrder || deliveriesWithStopOrder.length === 0) return;
-    pendingFabReactivationComboRef.current = null;
+    if (fabReactivationTimerRef.current) return; // already armed
     // Markers committed in this render — give Leaflet a moment to paint the layers
-    const t = setTimeout(() => runFabPhase1Reactivation(), 250);
-    return () => clearTimeout(t);
+    fabReactivationTimerRef.current = setTimeout(() => {
+      fabReactivationTimerRef.current = null;
+      if (pendingFabReactivationComboRef.current !== combo) return; // superseded by a newer combo
+      pendingFabReactivationComboRef.current = null;
+      runFabPhase1Reactivation();
+    }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveriesWithStopOrder, selectedDate, selectedDriverId, runFabPhase1Reactivation]);
 
