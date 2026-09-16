@@ -21,7 +21,7 @@ export default function TestModeBanner() {
 
   return (
     <div
-      className="fixed top-0 left-1/2 -translate-x-1/2 z-[9998] flex items-center gap-2 bg-slate-800 text-white pl-3 pr-1.5 py-1 rounded-b-lg shadow-lg text-xs font-medium max-w-[92vw]"
+      className="test-mode-banner fixed top-0 left-1/2 -translate-x-1/2 z-[9998] flex items-center gap-2 bg-slate-800 pl-3 pr-1.5 py-1 rounded-b-lg shadow-lg text-xs font-medium max-w-[92vw]"
       role="status"
     >
       <UserRound className="w-3.5 h-3.5 flex-shrink-0" />
@@ -30,7 +30,7 @@ export default function TestModeBanner() {
       </span>
       <button
         type="button"
-        className="flex-shrink-0 ml-1 bg-white/15 hover:bg-white/25 rounded-md px-2 py-0.5 flex items-center gap-1 font-semibold"
+        className="test-mode-banner-exit flex-shrink-0 ml-1 bg-white/15 hover:bg-white/25 rounded-md px-2 py-0.5 flex items-center gap-1 font-semibold"
         onClick={() => exitTestMode()}
         title="Exit — back to App Owner"
       >

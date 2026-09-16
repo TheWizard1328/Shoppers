@@ -288,6 +288,18 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   color: #ffffff !important;
 }
 
+/* Test Mode banner — force white text/icon. Same class of bug as the driver
+   popup buttons above: the global `html, body { color: var(--text-slate-900) }`
+   base rule (layoutStyles.jsx) otherwise wins over Tailwind's `text-white`
+   utility on this fixed, portal-level element. */
+.test-mode-banner,
+.test-mode-banner span,
+.test-mode-banner svg,
+.test-mode-banner-exit,
+.test-mode-banner-exit span {
+  color: #ffffff !important;
+}
+
 /* Cluster badge z-order fix — keep the count badge from being clipped by the
    marker icon's box, but DO NOT force a z-index here: Leaflet sets the marker's
    inline z-index from zIndexOffset (so clustered markers stack by stop order),
