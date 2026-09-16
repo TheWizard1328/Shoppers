@@ -1,0 +1,92 @@
+name: Build Play Store AAB
+
+# Builds a SIGNED release App Bundle (.aab) for Google Play submission.
+# Uses the release keystore stored in repo secrets (ANDROID_KEYSTORE_BASE64 /
+# ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD).
+#
+# The release build differs from the sideload debug build in two ways:
+#   1. Signed with the Play upload key (Google re-signs for distribution).
+#   2. PLAY_STORE_BUILD=true → the JS layer disables the in-app APK
+#      self-updater, and the release manifest strips REQUEST_INSTALL_PACKAGES
+#      (Play policy forbids self-installing app updates).
+#
+# Triggers only when the native shell/pipeline actually changes — routine
+# src/ changes reach devices through the WebView (live site) instantly.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'capacitor/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.*'
+      - '.github/workflows/build-aab.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install web app dependencies
+        working-directory: .
+        run: npm ci || npm install
+
+      - name: Build web app (Vite)
+        working-directory: .
+        run: npx vite build
+        env:
+          NODE_ENV: production
+
+      - name: Install capacitor dependencies
+        working-directory: capacitor
+        run: npm ci || npm install
+
+      - name: Sync Capacitor Android project
+        working-directory: capacitor
+        run: npx cap sync android
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Decode release keystore
+        working-directory: capacitor/android/app
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > rxdeliver-release.p12
+
+      - name: Build release AAB (Play Store build)
+        working-directory: capacitor/android
+        run: ./gradlew bundleRelease --no-daemon -x test
+        env:
+          PLAY_STORE_BUILD: 'true'
+          RXD_STORE_FILE: rxdeliver-release.p12
+          RXD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RXD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RXD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Rename AAB with build number
+        working-directory: capacitor/android/app/build/outputs/bundle/release
+        run: |
+          BUILD_NUM="${GITHUB_RUN_NUMBER:-unknown}"
+          mv app-release.aab "rxdeliver-play-v1.0.${BUILD_NUM}.aab" || true
+          ls -la
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rxdeliver-play-aab
+          path: capacitor/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+          compression-level: 0

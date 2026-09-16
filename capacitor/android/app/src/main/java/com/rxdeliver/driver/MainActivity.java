@@ -21,6 +21,7 @@ import android.os.Looper;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
+import com.rxdeliver.driver.BuildConfig;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import android.widget.Toast;
@@ -89,6 +90,18 @@ public class MainActivity extends BridgeActivity {
     // the DownloadManager service, WebView caching prevents the
     // DownloadListener from firing, etc.).
     public class NativeDownloadInterface {
+        // Update channel for the JS layer: "playstore" builds must NEVER use the
+        // in-app APK self-updater (Play policy) — updates come from Google Play.
+        // Sideload (debug) builds keep the green/blue arrow updater.
+        @JavascriptInterface
+        public String getBuildChannel() {
+            try {
+                return BuildConfig.PLAY_STORE_BUILD ? "playstore" : "sideload";
+            } catch (Throwable t) {
+                return "sideload";
+            }
+        }
+
         @JavascriptInterface
         public void downloadApk(String url) {
             runOnUiThread(() -> startApkDownload(url, "RxDeliver WebView"));

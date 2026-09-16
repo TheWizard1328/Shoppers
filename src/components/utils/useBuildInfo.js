@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { isCapacitorNativeApp, getCapacitorPlatform } from './locationProviders/capacitorRuntime';
+import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from './locationProviders/capacitorRuntime';
 
 /**
  * Shared hook that fetches the latest APK build info from GitHub.
@@ -83,10 +83,11 @@ export function useLatestApkBuildInfo() {
     let cancelled = false;
     let timer = null;
 
-    // Only poll GitHub for APK build info on the native Android app. Web (incl.
-    // the builder preview and the published web app) never needs APK update
-    // checks — the calls exhaust GitHub's 60/hr anonymous limit and spam 403s.
-    if (!isCapacitorNativeApp()) return;
+    // Only poll GitHub for APK build info on the native sideloaded Android app.
+    // Web (incl. the builder preview and the published web app) never needs APK
+    // update checks — the calls exhaust GitHub's 60/hr anonymous limit and spam
+    // 403s. Play Store builds skip it too — Google Play manages updates.
+    if (!isCapacitorNativeApp() || isPlayStoreBuild()) return;
 
     const fetchData = async () => {
       const cached = loadCachedBuildInfo();

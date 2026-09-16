@@ -43,6 +43,18 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Release signing for Google Play (App Bundle upload key).
+        // Credentials come from CI env vars (GitHub Actions secrets:
+        // ANDROID_KEYSTORE_BASE64 decoded to rxdeliver-release.p12 by the
+        // build-aab workflow). Never checked into the repo.
+        release {
+            if (System.env.RXD_STORE_FILE) {
+                storeFile file(System.env.RXD_STORE_FILE)
+                storePassword System.env.RXD_STORE_PASSWORD
+                keyAlias System.env.RXD_KEY_ALIAS
+                keyPassword System.env.RXD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
@@ -60,7 +72,22 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Play build uses the release upload key when available (CI);
+            // local release builds without the keystore fall back to the
+            // pinned debug key so nothing breaks on a dev machine.
+            signingConfig System.env.RXD_STORE_FILE ? signingConfigs.release : signingConfigs.debug
         }
+    }
+    // BuildConfig is off by default in AGP 8+; the native bridge reads
+    // PLAY_STORE_BUILD to tell the JS layer which update channel to use.
+    buildFeatures {
+        buildConfig true
+    }
+    // PLAY_STORE_BUILD=true marks Play Store builds: the JS layer disables
+    // the in-app APK self-updater (Play policy forbids self-installing
+    // updates) and the release manifest strips REQUEST_INSTALL_PACKAGES.
+    defaultConfig {
+        buildConfigField "boolean", "PLAY_STORE_BUILD", "${System.env.PLAY_STORE_BUILD == 'true'}"
     }
 }
 

@@ -47,3 +47,8 @@ venv/
 .pub-cache/
 Pods/
 DerivedData/
+
+# Release signing key — NEVER commit (kept in GitHub Actions secrets + owner's private backup)
+*.p12
+capacitor/android/app/rxdeliver-release.p12
+capacitor/android/app/keystore.properties

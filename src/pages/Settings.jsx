@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
+import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from '@/components/utils/locationProviders/capacitorRuntime';
 import { isNativePushAvailable, checkNativePushPermission, initNativePushNotifications, forceReRegisterNativePush, runPushDiagnostics, getRegistrationDiagnostics } from "@/components/utils/nativePushNotifications";
 import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 import { useAndroidAppUpdateCheck } from '@/components/utils/nativeAppUpdateCheck';
@@ -812,6 +812,9 @@ export default function Settings() {
   // macOS, Linux, etc.) — the APK is Android-only.
   const { os: deviceOS } = getUserAgentInfo();
   const isNonAndroidDevice = deviceOS !== 'Android';
+  // Play Store builds: updates are delivered by Google Play — the in-app
+  // APK self-updater (download/update button + New badge) must never show.
+  const isPlayStoreDevice = isPlayStoreBuild();
 
   // Single shared fetch for build number (GitHub Actions run_number) + build
   // date, used by the Native App row, the download dialog, and the bottom
@@ -901,16 +904,19 @@ export default function Settings() {
       disabled: isNonAndroidDevice,
       items: [
         {
-          label: updateAvailable ? 'Update Android App' : 'Download Android App',
+          label: isPlayStoreDevice ? 'Android App (Play Store)'
+            : updateAvailable ? 'Update Android App' : 'Download Android App',
           description: isNonAndroidDevice
             ? 'Not available on this device'
-            : updateAvailable
-              ? 'A newer build is available — tap to update'
-              : 'Install the native APK (Grey Icon)',
+            : isPlayStoreDevice
+              ? 'Updates are delivered automatically by Google Play'
+              : updateAvailable
+                ? 'A newer build is available — tap to update'
+                : 'Install the native APK (Grey Icon)',
           subDescription: isNonAndroidDevice ? undefined : apkBuildInfo.buildText,
-          onClick: isNonAndroidDevice ? undefined : () => setOpenPanel('apk'),
-          disabled: isNonAndroidDevice,
-          showUpdateBadge: updateAvailable,
+          onClick: (isNonAndroidDevice || isPlayStoreDevice) ? undefined : () => setOpenPanel('apk'),
+          disabled: isNonAndroidDevice || isPlayStoreDevice,
+          showUpdateBadge: isPlayStoreDevice ? false : updateAvailable,
         },
       ],
     },

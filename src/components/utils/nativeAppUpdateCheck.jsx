@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
+import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from '@/components/utils/locationProviders/capacitorRuntime';
 
 /**
  * useAndroidAppUpdateCheck
@@ -25,6 +25,12 @@ export function useAndroidAppUpdateCheck(latestBuildNumber) {
     const run = async () => {
       if (!isCapacitorNativeApp() || getCapacitorPlatform() !== 'android') {
         setChecked(true);
+        return;
+      }
+      // Play Store builds: updates are managed by Google Play — never show
+      // the self-updater badge.
+      if (isPlayStoreBuild()) {
+        if (!cancelled) { setUpdateAvailable(false); setChecked(true); }
         return;
       }
       try {

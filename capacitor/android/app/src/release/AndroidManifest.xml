@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Release (Play Store) manifest overlay.
+  Google Play rejects apps that request REQUEST_INSTALL_PACKAGES unless
+  installing other apps is a core function. The sideload/debug build keeps it
+  for the green/blue arrow APK self-updater; release builds strip it — the
+  JS layer also disables the self-updater via BuildConfig.PLAY_STORE_BUILD.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+</manifest>

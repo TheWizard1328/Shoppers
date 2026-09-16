@@ -34,6 +34,23 @@ export const isCapacitorNativeApp = () => {
   }
 };
 
+// Native update channel: 'playstore' | 'sideload' | null (web/PWA).
+// Play Store builds must never use the in-app APK self-updater — the JS
+// layer hides it and lets Google Play manage updates.
+export const getNativeBuildChannel = () => {
+  try {
+    if (!isCapacitorNativeApp()) return null;
+    if (window.AndroidNative && typeof window.AndroidNative.getBuildChannel === 'function') {
+      const ch = window.AndroidNative.getBuildChannel();
+      if (typeof ch === 'string' && ch.length > 0) return ch;
+    }
+  } catch (_) {}
+  // Pre-bridge builds are all sideload builds.
+  return isCapacitorNativeApp() ? 'sideload' : null;
+};
+
+export const isPlayStoreBuild = () => getNativeBuildChannel() === 'playstore';
+
 export const getCapacitorPlatform = () => {
   if (typeof Capacitor?.getPlatform === 'function') {
     return Capacitor.getPlatform();
