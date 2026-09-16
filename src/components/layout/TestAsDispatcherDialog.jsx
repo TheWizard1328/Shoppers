@@ -16,7 +16,24 @@ export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, s
   const active = isTestModeActive();
   const cfg = active ? getTestModeConfig() : null;
 
-  // Active dispatchers (no admin hybrids) to mirror store/city assignments from
+  const storeNameById = useMemo(() => {
+    const m = new Map();
+    (stores || []).forEach((s) => { if (s?.id) m.set(s.id, s.name || s.id); });
+    return m;
+  }, [stores]);
+
+  // Store sort_order lookup — same field used everywhere else in the app to
+  // order stores (dashboard filters, stats cards, etc.)
+  const storeSortOrderById = useMemo(() => {
+    const m = new Map();
+    (stores || []).forEach((s) => { if (s?.id) m.set(s.id, typeof s.sort_order === 'number' ? s.sort_order : Infinity); });
+    return m;
+  }, [stores]);
+
+  // Active dispatchers (no admin hybrids) to mirror store/city assignments
+  // from — ordered by their FIRST assigned store's sort_order (matching the
+  // store order used elsewhere in the app), then alphabetically as a
+  // tiebreak / fallback for dispatchers with no store assigned.
   const dispatchers = useMemo(() => {
     return (appUsers || [])
       .filter((u) => u && Array.isArray(u.app_roles)
@@ -24,14 +41,13 @@ export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, s
         && !u.app_roles.includes('admin')
         && u.status !== 'inactive'
         && u.user_name)
-      .sort((a, b) => (a.user_name || '').localeCompare(b.user_name || ''));
-  }, [appUsers]);
-
-  const storeNameById = useMemo(() => {
-    const m = new Map();
-    (stores || []).forEach((s) => { if (s?.id) m.set(s.id, s.name || s.id); });
-    return m;
-  }, [stores]);
+      .sort((a, b) => {
+        const aOrder = storeSortOrderById.get(a.store_ids?.[0]) ?? Infinity;
+        const bOrder = storeSortOrderById.get(b.store_ids?.[0]) ?? Infinity;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return (a.user_name || '').localeCompare(b.user_name || '');
+      });
+  }, [appUsers, storeSortOrderById]);
 
   const mirrorFrom = (au) => activateTestMode({
     store_ids: Array.isArray(au?.store_ids) ? au.store_ids : [],
