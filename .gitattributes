@@ -71,3 +71,13 @@ capacitor/android/**/res/**/*.png -filter -diff -merge -text
 *.exe filter=lfs diff=lfs merge=lfs -text
 *.wasm filter=lfs diff=lfs merge=lfs -text
 *.bin filter=lfs diff=lfs merge=lfs -text
+
+# Build/serving-critical small binaries MUST stay as real git content.
+# LFS pointers break GitHub Actions builds (GradleWrapperMain ClassNotFound)
+# and Base44's git-based web deploys (broken icons). Added Sep 16 2026 after
+# the broad *.jar/*.png LFS rules converted these to pointers.
+capacitor/android/gradle/wrapper/gradle-wrapper.jar !filter !diff !merge binary
+public/apple-touch-icon.png !filter !diff !merge binary
+public/favicon-32.png !filter !diff !merge binary
+public/icons/icon-192-v2.png !filter !diff !merge binary
+public/icons/icon-512-v2.png !filter !diff !merge binary
