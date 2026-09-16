@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { applyTestModeOverlay } from './testMode';
 import { getEffectiveUser } from './auth';
 
 const UserContext = createContext({
@@ -89,8 +90,14 @@ export const UserProvider = ({ children, initialUser = null }) => {
     setEnvPreferenceAndRedirect();
   }, [currentUser?.id, currentUser?.role]);
 
+  // Test Mode ("Test as Dispatcher"): overlay the PROVIDED user only. The raw
+  // `currentUser` state stays the real Owner — the native env-redirect effect
+  // above still sees role 'admin' (keeps the APK pinned to preview), and
+  // refreshUser() keeps resolving the real account.
+  const providedUser = useMemo(() => applyTestModeOverlay(currentUser), [currentUser]);
+
   return (
-    <UserContext.Provider value={{ currentUser, isLoadingUser, refreshUser }}>
+    <UserContext.Provider value={{ currentUser: providedUser, isLoadingUser, refreshUser }}>
       {children}
     </UserContext.Provider>
   );

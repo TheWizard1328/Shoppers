@@ -22,6 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
+import { applyTestModeOverlay } from "./components/utils/testMode";
+import TestModeBanner from "./components/layout/TestModeBanner";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
@@ -134,6 +136,10 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(null);
+  // Test Mode ("Test as Dispatcher") — App Owner sees the app as a dispatcher.
+  // Layout's INTERNAL logic (boot sync, payroll, user merges) keeps the real
+  // Owner; only the outward-facing context + sidebar/nav props get the overlay.
+  const effectiveCurrentUser = useMemo(() => applyTestModeOverlay(currentUser), [currentUser]);
   const [collapsed, setCollapsed] = useState(false);
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
@@ -1388,7 +1394,7 @@ export default function Layout({ children, currentPageName }) {
 
       <UserProvider initialUser={currentUser}>
            <AppDataProvider value={{
-          deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: drivers || [], users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
+          deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: drivers || [], users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser: effectiveCurrentUser,
           squareLocationConfigs: squareLocationConfigs || [],
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,
           applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) {const existing = map.get(item.id);const base = existing ? { ...existing, ...item } : item;/* applyRealtimeMergeWithLockout applies the global terminal-stickiness guard even when no per-delivery lock is armed (receiving devices) — prevents stale WS/server payloads from resurrecting just-terminal stops. */map.set(item.id, existing ? applyRealtimeMergeWithLockout(item.id, base, existing) : base);}});return Array.from(map.values());}),
@@ -1416,7 +1422,7 @@ export default function Layout({ children, currentPageName }) {
                   appVersion={sidebarVersion}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}
-                  currentUser={currentUser}
+                  currentUser={effectiveCurrentUser}
                   setCurrentUser={setCurrentUser}
                   currentPageName={currentPageName}
                   stores={stores}
@@ -1502,11 +1508,12 @@ export default function Layout({ children, currentPageName }) {
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
                     {/* Bottom nav shows only on mobile phones (portrait) and tablet-portrait — never in landscape */}
                     {!sidebarOpen && currentUser && isMobile &&
-              <MobileBottomNav ref={bottomNavRef} currentUser={currentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} hasApkUpdate={hasApkUpdate} />
+              <MobileBottomNav ref={bottomNavRef} currentUser={effectiveCurrentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} hasApkUpdate={hasApkUpdate} />
               }
               </div>
             </div>
             <GuideAssistant />
+            <TestModeBanner />
             {/* Dispatcher geo-fence — mobile-only, full-screen block when off-site (Sep 15, 2026) */}
             <DispatcherLocationGate />
           </AppDataProvider>

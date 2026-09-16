@@ -31,6 +31,7 @@ import { canShowExportRoute, getUserAvatarGradient } from '@/components/layout/s
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
+import TestAsDispatcherDialog from '@/components/layout/TestAsDispatcherDialog';
 import { getEnvironmentLabel } from '@/components/utils/envUtils';
 import { loadStatHolidays, isStatHoliday, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
@@ -387,6 +388,9 @@ export default function SidebarUserFooter({
   const selectedDateHoliday = getStatHoliday(selectedDateStr, statHolidays);
   const isSelectedDateStatHoliday = !!selectedDateHoliday;
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [testAsOpen, setTestAsOpen] = useState(false);
+  // App Owner "Test as Dispatcher" entry — avatar tap (also re-opens while active)
+  const canOpenTestDialog = isAppOwner(currentUser) || !!currentUser?.__testModeActive;
   const { logout: authLogout } = useAuth();
   const driversExpandedAtRef = useRef(null);
 
@@ -591,13 +595,15 @@ export default function SidebarUserFooter({
 
           {/* Clickable area: avatar + name/role/phone — shows logout for dispatchers */}
           <div
-            className={`flex items-center gap-3 flex-1 min-w-0 rounded-lg py-1 -mx-1 px-1 transition-colors ${currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'cursor-pointer hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 active:bg-slate-200' : ''}`}
+            className={`flex items-center gap-3 flex-1 min-w-0 rounded-lg py-1 -mx-1 px-1 transition-colors ${canOpenTestDialog || (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) ? 'cursor-pointer hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 active:bg-slate-200' : ''}`}
             onClick={() => {
-              if (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) {
+              if (canOpenTestDialog) {
+                setTestAsOpen(true);
+              } else if (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) {
                 setShowLogoutConfirm(true);
               }
             }}
-            title={currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'Tap to log out' : undefined}>
+            title={canOpenTestDialog ? 'Test as Dispatcher' : (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'Tap to log out' : undefined)}>
             
             <div className="w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0" style={{ background: getUserAvatarGradient(currentUser) }}>
               <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
@@ -608,6 +614,11 @@ export default function SidebarUserFooter({
                 {isAppOwner(currentUser) && (
                   <span className="text-[10px] font-semibold px-1 py-0 rounded-full bg-slate-200 text-slate-600 flex-shrink-0" title="Current build environment">
                     {getEnvironmentLabel()}
+                  </span>
+                )}
+                {currentUser?.__testModeActive && (
+                  <span className="text-[10px] font-bold px-1.5 py-0 rounded-full bg-red-600 text-white flex-shrink-0" title="Test Mode active — tap avatar to exit">
+                    TEST
                   </span>
                 )}
               </p>
@@ -675,6 +686,13 @@ export default function SidebarUserFooter({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* App Owner — Test as Dispatcher */}
+      <TestAsDispatcherDialog
+        open={testAsOpen}
+        onOpenChange={setTestAsOpen}
+        appUsers={appUsers}
+        stores={stores} />
     </div>);
 
 }
