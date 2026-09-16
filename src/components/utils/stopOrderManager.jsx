@@ -42,8 +42,9 @@ const etaToMinutes = (etaStr) => {
 /**
  * Recalculates and updates stop orders for all deliveries for a given driver/date.
  *
- * Finished stops sort by actual_delivery_time; incomplete by ETA (delivery_time_eta),
- * falling back to existing stop_order when ETA is absent. Pending stops sort last.
+ * Finished stops sort by actual_delivery_time; incomplete stops keep their EXISTING
+ * stop_order (route sequence — primary key, so polylines stay coherent); ETA only
+ * orders unnumbered stops. Pending stops sort last.
  * Cycling markers follow the same rules as regular stops.
  * Updates all stop orders sequentially from 1 to N.
  *
@@ -87,6 +88,13 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     return Number.MAX_SAFE_INTEGER;
   };
 
+  // Creation time — final tie-break for unnumbered stops (stable, insertion order).
+  const getCreationTime = (d) => {
+    if (!d) return Number.MAX_SAFE_INTEGER;
+    const t = new Date(d.created_date).getTime();
+    return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+  };
+
   const getExistingOrder = (d) => {
     const n = Number(d?.stop_order);
     return Number.isFinite(n) && n > 0 ? n : Number.MAX_SAFE_INTEGER;
@@ -99,7 +107,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
   // Sort finished by actual_delivery_time (cycling markers treated equally)
   const sortedFinished = [...finishedDeliveries].sort((a, b) => getCompletionTime(a) - getCompletionTime(b));
 
-  // Sort incomplete: isNextDelivery first, then by ETA (delivery_time_eta), then by existing stop_order, pending last
+  // Sort incomplete: isNextDelivery first, then existing stop_order (route sequence), pending last
   const nextDeliveryId = incompleteDeliveries.find(
     d => d?.isNextDelivery && d?.status !== 'pending'
   )?.id || null;
@@ -117,12 +125,33 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     if (aPending && !bPending) return 1;
     if (!aPending && bPending) return -1;
 
-    // Both pending or both non-pending: sort by ETA first, then existing stop_order
-    const aEta = etaToMinutes(a?.delivery_time_eta || a?.delivery_time_start);
-    const bEta = etaToMinutes(b?.delivery_time_eta || b?.delivery_time_start);
-    if (aEta !== bEta) return aEta - bEta;
-
-    return getExistingOrder(a) - getExistingOrder(b);
+    // CRITICAL FIX (Sep 16, 2026): EXISTING stop_order is the PRIMARY key.
+    //
+    // The leg polylines (encoded_polyline) are generated for the optimizer's
+    // route sequence and stored per-delivery. Repair previously re-sorted
+    // incomplete stops by ETA/time-window FIRST (stop_order only as a
+    // tie-break), so any repair pass after a completion/edit renumbered the
+    // stops to TIME order while the polylines stayed attached to the ROUTE
+    // order — scrambling the leg chain. Symptoms: current-leg (blue) polyline
+    // rendered from a wrong origin (e.g. a Sherwood Park stop instead of the
+    // last completed stop), future legs starting from completed or
+    // out-of-sequence stops.
+    //
+    // Repair is a GAP-COMPACTION pass: it must preserve the route sequence
+    // (existing stop_order), never re-derive it. ETA is now only a tie-break
+    // for stops that have no valid stop_order yet (e.g. freshly inserted
+    // deliveries that haven't been optimized/numbered — they sort after all
+    // numbered stops, ordered among themselves by ETA).
+    const aOrder = getExistingOrder(a);
+    const bOrder = getExistingOrder(b);
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    if (aOrder === Number.MAX_SAFE_INTEGER) {
+      // Both unnumbered: order by ETA/time-window, then creation time.
+      const aEta = etaToMinutes(a?.delivery_time_eta || a?.delivery_time_start);
+      const bEta = etaToMinutes(b?.delivery_time_eta || b?.delivery_time_start);
+      if (aEta !== bEta) return aEta - bEta;
+    }
+    return getCreationTime(a) - getCreationTime(b);
   });
 
   // Merge: finished first, then incomplete
