@@ -74,18 +74,18 @@ export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, s
           </DialogTitle>
           <DialogDescription>
             {active
-              ? `You're viewing the app as a dispatcher${cfg?.mirrored_from ? ` (mirroring ${cfg.mirrored_from})` : ''}. All database writes are blocked. Exit to return to normal.`
-              : 'Simulate a dispatcher\u2019s view of the app on this device. Your account stays signed in \u2014 all writes to the database are blocked while testing.'}
+              ? `You're currently acting as a dispatcher${cfg?.mirrored_from ? ` (mirroring ${cfg.mirrored_from})` : ''}. You have full dispatcher privileges and every action you take is real. Exit to return to App Owner.`
+              : 'Switch to a real dispatcher\u2019s role on this device \u2014 same privileges, same store and city assignments. Everything you do acts exactly as that dispatcher would. Exit anytime.'}
           </DialogDescription>
         </DialogHeader>
 
         {active ? (
           <div className="py-2 space-y-3">
-            <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-900 p-3 text-sm">
-              <p className="font-semibold text-red-700 dark:text-red-400">TEST MODE ACTIVE</p>
-              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+            <div className="rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-3 text-sm">
+              <p className="font-semibold">ACTING AS DISPATCHER</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                 {cfg?.mirrored_from ? `Mirroring store/city assignments from ${cfg.mirrored_from}.` : 'Generic dispatcher (no store filter).'}
-                {' '}Auto-expires after 2 hours.
+                {' '}Full dispatcher privileges are live. Auto-expires after 2 hours.
               </p>
             </div>
             <Button
@@ -94,7 +94,7 @@ export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, s
               onClick={() => { onOpenChange(false); exitTestMode(); }}
             >
               <DoorOpen className="w-4 h-4 mr-2" />
-              Exit Test Mode
+              Exit — Back to App Owner
             </Button>
           </div>
         ) : (
@@ -139,7 +139,7 @@ export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, s
             </button>
 
             <p className="text-[11px] text-slate-400 dark:text-slate-500 pt-1">
-              Note: a few read-only backend functions still run (queries, geocoding). Nothing that writes data will execute. Test Mode auto-expires after 2 hours.
+              Note: you keep your own sign-in — actions run under your account with dispatcher privileges. Auto-expires after 2 hours.
             </p>
           </div>
         )}

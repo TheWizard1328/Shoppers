@@ -617,7 +617,7 @@ export default function SidebarUserFooter({
                   </span>
                 )}
                 {currentUser?.__testModeActive && (
-                  <span className="text-[10px] font-bold px-1.5 py-0 rounded-full bg-red-600 text-white flex-shrink-0" title="Test Mode active — tap avatar to exit">
+                  <span className="text-[10px] font-bold px-1.5 py-0 rounded-full bg-red-600 text-white flex-shrink-0" title="Acting as dispatcher — tap avatar to exit">
                     TEST
                   </span>
                 )}

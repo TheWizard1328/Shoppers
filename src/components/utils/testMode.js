@@ -12,11 +12,10 @@
  *    dispatcher (role stripped to 'user', app_roles = ['dispatcher'],
  *    store/city assignments mirrored from a real dispatcher). The real
  *    account is untouched — same ID, same auth, same session.
- *  - installTestModeWriteGuard() hard-blocks all entity WRITES and all
- *    known mutating backend functions while Test Mode is active, so
- *    nothing the tester clicks can change real data. Reads work
- *    normally, so the map / dashboard / sidebar render exactly as a
- *    dispatcher would see them.
+ *  - NO write blocking — this is a true "act as dispatcher" switch. The
+ *    Owner gets the full dispatcher experience: same privileges, same
+ *    store/city assignments, and every action they take performs for
+ *    real, exactly as a dispatcher would (attributed to their account).
  *  - Auto-expires after 2 hours.
  *
  * Owner-only: the overlay only applies when the real platform user has
@@ -25,45 +24,6 @@
 
 const TEST_MODE_KEY = 'rxdeliver_test_mode_v1';
 const TEST_MODE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
-
-// Entity handler methods that mutate data — hard-blocked in Test Mode.
-// list/filter/get/subscribe are reads and stay allowed.
-const BLOCKED_ENTITY_METHODS = new Set([
-  'create', 'update', 'delete', 'deleteMany',
-  'bulkCreate', 'updateMany', 'bulkUpdate', 'importEntities',
-]);
-
-// Backend functions known to mutate data / have side effects (Square writes,
-// status changes, route/patient mutations, notifications, catalog ops...).
-// Read-only functions (queries, geocoding, ETA calc, doc serving...) stay allowed.
-const BLOCKED_FUNCTIONS = new Set([
-  'approveDocAccess', 'backfillGoogleApiLogUsername', 'backfillPatientHistory',
-  'bulkUpdateDeliveries', 'clearAndSetNextDelivery', 'clearRemoteLogs',
-  'consolidateBreadcrumbSegment', 'consolidateBreadcrumbs', 'deleteMyAccount',
-  'docAccessManager', 'driverAvailabilityManager',
-  'ensureDefaultPickupsForDriver', 'ensurePickupCompletion', 'ensurePickupForDelivery',
-  'etaOptimizer', 'fullRouteOptimizer',
-  'generateDemoData', 'generateDemoWeekV2', 'generateRouteManifest', 'generateStoreInvoices',
-  'handleStartDelivery', 'processBarcode',
-  'recalculateTrackingNumbers', 'recalculateTravelDistance', 'recordFridgeTemperature',
-  'runPatientActivityScan', 'saveCrumbPolylineToDelivery',
-  'scanPatientHistoryForStore', 'scanPrescriptionLabel', 'sendPushNotification',
-  'setDriverStatus', 'snapMasterTimeline',
-  'squareCleanupCatalog', 'squareCodReconcile', 'squareCreateCodItem', 'squareDeleteCodItem',
-  'squareMarkDebit', 'squareMirrorCatalog', 'squarePurgeCatalog', 'squareRecordPmt',
-  'squareSyncCatalog2', 'squareSyncCatalogItems', 'squareSyncOnline',
-  'syncPatientLastDeliveryDate', 'syncPendingBreadcrumbs', 'syncRoutePatients', 'syncSquareCods',
-  'updateMatchingPatientGPS', 'updatePatientsAfterRouteCompletion',
-]);
-
-const notifyBlocked = (detail) => {
-  try {
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('testModeWriteBlocked', { detail }));
-    }
-    console.warn(`[TestMode] Blocked ${detail.kind === 'function' ? 'function' : 'entity write'}: ${detail.name} — Test Mode is active`);
-  } catch {}
-};
 
 /**
  * Read the active Test Mode config (null if off/expired).
@@ -136,59 +96,4 @@ export const applyTestModeOverlay = (user) => {
     __testModeActive: true,
     __testModeMirroredFrom: cfg.mirrored_from,
   };
-};
-
-/**
- * Install the write guard on the shared Base44 SDK client.
- * Call once from base44Client.js right after createClient().
- */
-export const installTestModeWriteGuard = (client) => {
-  if (!client || !client.entities) return;
-
-  // ── Guard entity writes ──────────────────────────────────────────────
-  const originalEntities = client.entities;
-  try {
-    client.entities = new Proxy(originalEntities, {
-      get(target, entityName) {
-        if (typeof entityName !== 'string' || entityName === 'then' || entityName.startsWith('_')) {
-          return Reflect.get(target, entityName);
-        }
-        const handler = Reflect.get(target, entityName);
-        if (!handler || typeof handler !== 'object') return handler;
-        return new Proxy(handler, {
-          get(h, method) {
-            const fn = Reflect.get(h, method);
-            if (typeof fn !== 'function' || !BLOCKED_ENTITY_METHODS.has(method)) return fn;
-            const label = `${entityName}.${method}`;
-            return function (...args) {
-              if (isTestModeActive()) {
-                notifyBlocked({ kind: 'entity', name: label });
-                return Promise.reject(new Error(`TEST_MODE_BLOCKED: ${label}() — entity writes are disabled while Test Mode is active`));
-              }
-              return fn.apply(h, args);
-            };
-          },
-        });
-      },
-    });
-  } catch (e) {
-    console.error('[TestMode] Failed to install entity write guard:', e?.message || e);
-  }
-
-  // ── Guard mutating backend functions ────────────────────────────────
-  try {
-    const fns = client.functions;
-    if (fns && typeof fns.invoke === 'function') {
-      const originalInvoke = fns.invoke.bind(fns);
-      fns.invoke = function (functionName, data) {
-        if (isTestModeActive() && BLOCKED_FUNCTIONS.has(functionName)) {
-          notifyBlocked({ kind: 'function', name: functionName });
-          return Promise.reject(new Error(`TEST_MODE_BLOCKED: ${functionName}() is disabled while Test Mode is active`));
-        }
-        return originalInvoke(functionName, data);
-      };
-    }
-  } catch (e) {
-    console.error('[TestMode] Failed to install function guard:', e?.message || e);
-  }
 };
