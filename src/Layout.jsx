@@ -1407,7 +1407,7 @@ export default function Layout({ children, currentPageName }) {
           // Persisted FAB map phase — read by Dashboard on mount to restore last user-set phase
           initialFabPhase: initialFabPhase,
         }}>
-            <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : isMobile ? 'mobile-device' : 'desktop-device'}`}>
+            <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : isMobile ? 'mobile-device' : 'desktop-device'} ${(isMobile || isTabletPortrait) ? 'chrome-mobile' : 'chrome-desktop'}`}>
               {(isMobile || isTabletPortrait) && sidebarOpen &&
             <div
               className="sidebar-overlay"
