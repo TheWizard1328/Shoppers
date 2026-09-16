@@ -8,8 +8,8 @@
  * a stored current-leg polyline) → perpendicular distance from GPS to that
  * polyline → if over the admin threshold (default 200m) AND the per-driver
  * cooldown (default 5 min) has elapsed → performRouteOptimization with
- * preserveExistingOrder + skipOptimize (NO stop reshuffling — same posture as
- * the delete-not-next-delivery path). The engine's live-GPS via-point (Sep 11)
+ * preserveExistingOrder (NO stop reshuffling, no skipOptimize — see fix note
+ * at the call site). The engine's live-GPS via-point (Sep 11)
  * then regenerates the current leg through the driver's actual position, and
  * the next stop's ETA/distance use only the GPS→stop portion.
  *
@@ -134,8 +134,15 @@ export function useRouteDeviationMonitor({
           stores: s.stores,
           appUsers: s.appUsers,
           source: 'route_deviation',
-          skipOptimize: true,           // NO re-sequencing — polyline regen only
-          preserveExistingOrder: true,  // keep stop_order as-is
+          // CRITICAL FIX (Sep 16, 2026): do NOT pass skipOptimize. In the coordinator,
+          // the ENTIRE polyline-regen + writeBatch + server/IDB write path runs only
+          // inside `if (!skipOptimize)` — with skipOptimize:true (and no orderedDeliveryIds)
+          // the call returned "success" with a null writeBatch and regenerated NOTHING,
+          // silently. preserveExistingOrder:true alone is the correct posture: the
+          // engine keeps stop_order as-is (no re-sequencing), keeps the isNextDelivery
+          // lock, and regenerates all legs — the current leg bending through the
+          // driver's live GPS via-point (the actual deviation recovery).
+          preserveExistingOrder: true,  // keep stop_order as-is — NO re-sequencing
           awaitServerWrite: true,       // read-your-write: commit before sync managers re-pull
         });
 
