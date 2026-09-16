@@ -1828,6 +1828,64 @@ function Dashboard() {
     setRsFabPhaseReady(false);
   }, [selectedDriverId, selectedDate]);
 
+  // ── FAB RE-ACTIVATION ON DATE/DRIVER CHANGE (Sep 16, 2026) ─────────────────
+  // handleDateChange/handleDriverChange only trigger the FAB/map reposition
+  // AFTER the full server sync completes (~10s on production). The markers for
+  // the new selection render from IDB/current state long before that. Fire the
+  // same phase-1 reactivation the handlers use as soon as the new selection's
+  // markers have rendered — the later sync-completion trigger is idempotent
+  // (same phase-1 fit) and just refits with the final server data.
+  const pendingFabReactivationComboRef = useRef(null);
+  const lastFabComboRef = useRef(null);
+  const runFabPhase1Reactivation = useCallback(() => {
+    if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
+    mapLockExpiresAtRef.current = null;
+    mapViewPhaseRef.current = 1; isMapViewLockedRef.current = true; pendingPhaseRef.current = 1;
+    setMapViewPhase(1); setIsMapViewLocked(true);
+    lastProgrammaticMapMoveRef.current = Date.now();
+    if (typeof window !== 'undefined') window._lastProgrammaticMapMove = Date.now();
+    setMapViewTrigger((p) => p + 1);
+    window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
+    fabControlEvents.notifyDataReady();
+    fabControlEvents.notifyDoneButtonClicked(250);
+    const _exp = Date.now() + 250;
+    mapLockExpiresAtRef.current = _exp;
+    mapLockTimeoutRef.current = setTimeout(() => {
+      if (mapLockExpiresAtRef.current === _exp) { isMapViewLockedRef.current = false; setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; }
+    }, 250);
+  }, []); // refs + stable setters only
+
+  // Arm on combo change — post-boot only (the boot chain owns the first activation)
+  useEffect(() => {
+    const combo = `${format(selectedDate, 'yyyy-MM-dd')}-${selectedDriverId}`;
+    const prevCombo = lastFabComboRef.current;
+    lastFabComboRef.current = combo;
+    if (!initialMapViewApplied) return;       // boot not finished — staggered chain handles it
+    if (!prevCombo || prevCombo === combo) return;
+    pendingFabReactivationComboRef.current = combo;
+    // Fallback: empty selection (no markers will ever render) — still reactivate
+    const t = setTimeout(() => {
+      if (pendingFabReactivationComboRef.current === combo) {
+        pendingFabReactivationComboRef.current = null;
+        runFabPhase1Reactivation();
+      }
+    }, 2500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedDriverId, initialMapViewApplied, runFabPhase1Reactivation]);
+
+  // Fire once the new selection's markers have rendered (deliveriesWithStopOrder committed)
+  useEffect(() => {
+    const combo = `${format(selectedDate, 'yyyy-MM-dd')}-${selectedDriverId}`;
+    if (pendingFabReactivationComboRef.current !== combo) return;
+    if (!deliveriesWithStopOrder || deliveriesWithStopOrder.length === 0) return;
+    pendingFabReactivationComboRef.current = null;
+    // Markers committed in this render — give Leaflet a moment to paint the layers
+    const t = setTimeout(() => runFabPhase1Reactivation(), 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveriesWithStopOrder, selectedDate, selectedDriverId, runFabPhase1Reactivation]);
+
   // CRITICAL: Enable FAB repositioning once stop cards are measured
   useEffect(() => {
     if (stopCardsBaseHeight > 0 && !cardsReadyForFAB) {

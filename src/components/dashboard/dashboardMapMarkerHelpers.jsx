@@ -19,6 +19,12 @@ export function getVisibleHomeMarkersForBounds({
 }) {
   const isAdmin = userHasRole(currentUser, 'admin');
   const isShowAllMode = showAllDriverMarkers || selectedDriverId === 'all';
+  // SELECTED-DRIVER BOUNDS RULE (Sep 16, 2026): when a specific driver is
+  // selected, ONLY that driver's home marker may contribute to the FAB bounds —
+  // even in show-all mode. Admins/owner render home pins for ALL active drivers
+  // (Sep 11 rule), but those pins must not stretch the zoom/center fit when the
+  // admin is focused on one driver.
+  const isSpecificDriverSelected = !!selectedDriverId && selectedDriverId !== 'all';
 
   if (hasDriverMarkers) {
     return [];
@@ -30,14 +36,20 @@ export function getVisibleHomeMarkersForBounds({
     const allStopsFinished = stops.length > 0 && finishedStops.length === stops.length;
     const noFinishedStops = finishedStops.length === 0;
 
-    // Is this the selected driver?
+    // Is this the selected driver? (loose String compare — driverId may be user.id or user.user_id)
     const isSelectedDriver = home.driverId === selectedDriverId ||
+      String(home.driverId) === String(selectedDriverId) ||
       (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id);
 
     // Admins always count as "viewing the selected driver" when one is selected
-    const isAdminViewingSelectedDriver = isAdmin && home.driverId === selectedDriverId;
+    const isAdminViewingSelectedDriver = isAdmin &&
+      (home.driverId === selectedDriverId || String(home.driverId) === String(selectedDriverId));
 
     const isViewingThisDriver = isSelectedDriver || isAdminViewingSelectedDriver;
+
+    // With a specific driver selected, every other driver's home marker is
+    // excluded from the bounds, full stop — no show-all override.
+    if (isSpecificDriverSelected && !isViewingThisDriver) return false;
 
     // Always show home for the selected driver when route is complete OR has no finished stops yet
     const shouldShowHome = isViewingThisDriver
