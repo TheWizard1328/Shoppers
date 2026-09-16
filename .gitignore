@@ -40,3 +40,10 @@ conversations/
 icon_work/
 incoming_files/
 .build-id
+.venv/
+venv/
+.gradle/
+.dart_tool/
+.pub-cache/
+Pods/
+DerivedData/
