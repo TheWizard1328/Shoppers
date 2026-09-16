@@ -287,11 +287,12 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           body.is-native-apk .fixed.bottom-\[var\(--bottom-nav-height\)\] {
             bottom: calc(var(--bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
           }
-          /* Hide bottom nav when screen is wide enough for the desktop layout */
-          @media (min-width: 850px) {
-            nav[data-mobile-bottom-nav] { display: none !important; }
-            :root { --bottom-nav-height: 0px !important; }
-          }
+          /* Hide bottom nav on desktop chrome only (Mode 3 / desktop browsers).
+             Scoped to the chrome class — NOT a width media query. A width query
+             wrongly hid the nav on wide PORTRAIT screens (foldable inner display,
+             tablets) even though the JS correctly renders it there. */
+          .app-container.chrome-desktop nav[data-mobile-bottom-nav] { display: none !important; }
+          .app-container.chrome-desktop { --bottom-nav-height: 0px; }
           .bg-slate-50 { background-color:#f8fafc !important; }
           .text-xs, .text-sm { color:inherit; }
           [role="option"][aria-selected="true"], [role="option"][data-selected="true"], [cmdk-item][data-selected="true"], [role="option"][aria-selected="true"] span, [role="option"][data-selected="true"] span, [cmdk-item][data-selected="true"] span { color:#000000 !important; }

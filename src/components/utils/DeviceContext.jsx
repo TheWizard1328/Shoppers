@@ -21,7 +21,11 @@
  *   - Foldable landscape     → isDesktop = true (Mode 3)
  *   - Tablet portrait        → isMobile = true  (mimics mobile)
  *   - Tablet landscape       → isDesktop = true (mimics desktop)
- *   - Desktop/laptop         → width-driven (>= 850px = desktop)
+ *   - Desktop/laptop         → same orientation rule (portrait windows = mobile chrome)
+ *
+ * NO width thresholds decide the chrome — only height vs width. A width split
+ * wrongly gave wide portrait screens (foldable inner display, tablets) the
+ * desktop chrome and hid the bottom nav.
  *
  * Usage anywhere in the app:
  *   import { useDevice } from '@/components/utils/DeviceContext';
@@ -87,29 +91,18 @@ export function DeviceProvider({ children }) {
     };
   }, [deviceType]);
 
-  // Thresholds: widescreen = 850px wide; a landscape screen qualifies for
-  // desktop chrome only when it's also tall enough (foldables/tablets).
-  // Short landscape screens are phones — they keep the mobile chrome.
-  const WIDESCREEN_THRESHOLD = 850;
+  // Chrome is decided by ORIENTATION alone — no width thresholds.
+  // A landscape screen qualifies for desktop chrome only when it is also TALL
+  // enough (foldables/tablets). Short landscape screens are phones — they keep
+  // the mobile chrome (rotated desktop layout for narrow screens was rejected).
   const LANDSCAPE_DESKTOP_MIN_HEIGHT = 480;
   const isLandscape = !isPortrait;
-  const isTouchDevice = isPhysicalMobile || isTablet;
-  const isWideScreenMobile = isPhysicalMobile && screenWidth >= WIDESCREEN_THRESHOLD;
-  const isLandscapeWide = isLandscape && screenHeight >= LANDSCAPE_DESKTOP_MIN_HEIGHT && screenWidth >= WIDESCREEN_THRESHOLD;
+  // Display hint only (battery-indicator placement in the sidebar) — NOT chrome
+  const isWideScreenMobile = isPhysicalMobile && screenWidth >= 850;
+  const isLandscapeTall = isLandscape && screenHeight >= LANDSCAPE_DESKTOP_MIN_HEIGHT;
 
-  // The two flags everything should use
-  let isMobile;
-  if (!isTouchDevice) {
-    // Desktop / editor windows: unchanged, plain width-driven responsive layout
-    isMobile = screenWidth < WIDESCREEN_THRESHOLD;
-  } else if (isPortrait) {
-    // Modes 1 & 2 — any touch device held vertically gets the mobile chrome
-    isMobile = true;
-  } else {
-    // Mode 3 — landscape: desktop chrome only on wide devices (foldables/tablets).
-    // Phones in landscape (short screens) stay mobile.
-    isMobile = !isLandscapeWide;
-  }
+  // The flag everything should use
+  const isMobile = !isLandscapeTall;
   const isDesktop = !isMobile;
 
   const value = {
@@ -120,7 +113,7 @@ export function DeviceProvider({ children }) {
     isTabletLandscape: isTablet && !isTabletPortrait,
     isWideScreenMobile,
     isLandscape,
-    isLandscapeWide,
+    isLandscapeTall: isLandscapeTall,
     // Chrome mode consumed by Layout for the app-container class + CSS
     chromeMode: isMobile ? 'mobile' : 'desktop',
     deviceType,   // raw: 'Mobile' | 'Tablet' | 'Desktop'
