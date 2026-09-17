@@ -381,6 +381,7 @@ async function _performRouteOptimizationInner({
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
       }
+      let _serverCommitFailed = false;
       if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
         const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
         const _trWrites = optimizeData.writeBatch.filter(w => w.data?.tracking_number != null).length;
@@ -398,14 +399,20 @@ async function _performRouteOptimizationInner({
         } else {
           const _commitFallback = async (e) => {
             console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
-            // Fallback: individual writes in parallel batches of 20
+            // Fallback: individual writes in parallel batches of 20.
+            // Report per-update outcomes so the awaited path can detect a total
+            // commit failure (device offline) — previously every failure was
+            // swallowed silently and callers reported success with a stale server.
             const CHUNK_SIZE = 20;
+            let _okCount = 0, _failCount = 0;
             for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
               const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
               await Promise.all(chunk.map(async ({ id, data }) => {
-                try { await base44.entities.Delivery.update(id, data); } catch (_) {}
+                try { await base44.entities.Delivery.update(id, data); _okCount++; } catch (_) { _failCount++; }
               })).catch(() => {});
             }
+            if (_failCount > 0) console.warn(`[RouteOptimization] ${source} — fallback commit: ${_okCount} ok, ${_failCount} failed`);
+            return { okCount: _okCount, failCount: _failCount };
           };
           if (awaitServerWrite) {
             // Read-your-write mode: the caller resumes sync managers (which re-pull
@@ -416,7 +423,15 @@ async function _performRouteOptimizationInner({
               await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
               console.log(`[RouteOptimization] ${source} — bulkUpdateDeliveries committed (awaited)`);
             } catch (e) {
-              await _commitFallback(e);
+              const _fb = await _commitFallback(e);
+              if (_fb.failCount > 0) {
+                // Total/partial commit failure (device offline / server error): the
+                // server still holds pre-optimization stop_order/polyline state.
+                // Flag it so read-your-write callers (e.g. the cycling dialog) can
+                // queue resilient backup writes instead of reporting success.
+                // Local IDB/UI (Step 3 below) still receive the fresh data.
+                _serverCommitFailed = true;
+              }
             }
           } else {
             base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch(_commitFallback);
@@ -462,6 +477,7 @@ async function _performRouteOptimizationInner({
 
     return {
       success: true,
+      serverCommitFailed: _serverCommitFailed,
       optimizeData,
       freshDeliveries: freshDeliveries || [],
       orderedDeliveryIds: optimizeData?.orderedDeliveryIds || orderedDeliveryIds || null,
