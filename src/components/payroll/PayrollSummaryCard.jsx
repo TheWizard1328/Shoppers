@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2 } from 'lucide-react';
+import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2, Pencil, Check, Lock } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
 import ScreenshotShareModal from '../common/ScreenshotShareModal';
@@ -26,7 +26,7 @@ import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
-import { getActiveDeductionsForPeriod } from '../utils/deductionHelpers';
+import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
@@ -126,6 +126,13 @@ export default function PayrollSummaryCard({
   const paidRefreshPauseRef = useRef({});
   const [deductionDraftName, setDeductionDraftName] = useState('');
   const [deductionDraftAmount, setDeductionDraftAmount] = useState('');
+  const [deductionDraftStartDate, setDeductionDraftStartDate] = useState('');
+  const [deductionDraftEndDate, setDeductionDraftEndDate] = useState('');
+  const [editingDeductionIdx, setEditingDeductionIdx] = useState(null);
+  const [editDeductionName, setEditDeductionName] = useState('');
+  const [editDeductionAmount, setEditDeductionAmount] = useState('');
+  const [editDeductionStartDate, setEditDeductionStartDate] = useState('');
+  const [editDeductionEndDate, setEditDeductionEndDate] = useState('');
   const contentRef = useRef(null);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -627,16 +634,20 @@ export default function PayrollSummaryCard({
     }));
   }, [appFeeOverlayAllDriversId]);
 
-  // Initialize deduction input drafts when dialog opens
+  // Initialize deduction input drafts when dialog opens. Default the new
+  // deduction's date range to the current pay period — it's meant to be a
+  // single-pay-cycle extra by default, but the admin can widen/narrow it.
   useEffect(() => {
-    if (!deductionOverlayDriverId) {
-      setDeductionDraftName('');
-      setDeductionDraftAmount('');
-      return;
-    }
     setDeductionDraftName('');
     setDeductionDraftAmount('');
-  }, [deductionOverlayDriverId]);
+    setDeductionDraftStartDate(deductionOverlayDriverId ? periodStartStr || '' : '');
+    setDeductionDraftEndDate(deductionOverlayDriverId ? periodEndStr || '' : '');
+    setEditingDeductionIdx(null);
+    setEditDeductionName('');
+    setEditDeductionAmount('');
+    setEditDeductionStartDate('');
+    setEditDeductionEndDate('');
+  }, [deductionOverlayDriverId, periodStartStr, periodEndStr]);
 
   // Initialize bonus input draft when dialog opens
   useEffect(() => {
@@ -987,14 +998,20 @@ export default function PayrollSummaryCard({
         const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
         next[k] = {
           ...prev[k],
-          // CRITICAL: deductions MUST track AppUser.deductions (period-overlap filtered)
-          // as the source of truth. The persisted `pr.deductions` is only a stale
-          // snapshot from when the record was created — if the admin adds a new
-          // deduction to AppUser afterwards, the stale snapshot would mask it.
-          // Any extras the admin added live via the Manage Deductions overlay for
-          // THIS period (and saved to the entity) are still honoured below because
-          // the overlay writes back through savePayrollChanges, which updates pr too.
-          deductions: data.deductionsArray?.length > 0 ? data.deductionsArray : (pr?.deductions ?? []),
+          // Recurring deductions ALWAYS come live from AppUser.deductions
+          // (data.deductionsArray, period-overlap filtered) — never from the
+          // persisted `pr.deductions` snapshot, which can go stale if the admin
+          // edits a recurring deduction on the driver's profile after this
+          // Payroll record was created. One-time, single-pay-cycle extras added
+          // via the Manage Deductions overlay live ONLY on `pr.deductions`
+          // (tagged is_one_time) since they don't exist on AppUser at all —
+          // pull those in from the persisted snapshot so they survive this sync
+          // instead of being silently discarded (previous bug: any non-empty
+          // recurring array wholesale replaced the entire persisted list,
+          // throwing away one-time adds/edits/removals on every re-sync).
+          deductions: [
+          ...(data.deductionsArray || []),
+          ...((pr?.deductions || []).filter((d) => d?.is_one_time))],
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
           appFeePercent: pr?.app_fee_percentage ?? 0,
           appFeeAmount: pr?.app_fee_amount ?? 0,
@@ -1282,34 +1299,140 @@ export default function PayrollSummaryCard({
               <div>
                 <label className="text-xs font-semibold text-label">Current Deductions:</label>
                 <div className="mt-2 space-y-1">
-                  {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) =>
-                  <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                      <span>{ded.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
-                        <button
-                        onClick={async () => {
-                          const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
-                          setDriverEdits((prev) => ({
-                            ...prev,
-                            [deductionOverlayDriverId]: {
-                              ...prev[deductionOverlayDriverId],
-                              deductions: updatedDeductions
-                            }
-                          }));
-                          // Save immediately
-                          await savePayrollChanges(deductionOverlayDriverId, {
-                            deductions: updatedDeductions,
-                            total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
-                          });
-                        }}
-                        className="p-1 hover:bg-red-100 rounded">
+                  {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) => {
+                    const isOneTime = !!ded?.is_one_time;
+                    const dateRangeLabel = formatDeductionDateRange(ded);
+                    const isEditingThis = editingDeductionIdx === idx;
 
-                           <X className="w-4 h-4 text-red-600" />
-                         </button>
-                      </div>
-                    </div>
-                  )}
+                    if (isEditingThis) {
+                      return (
+                        <div key={idx} className="p-2 bg-slate-50 dark:bg-slate-800 rounded space-y-1.5">
+                          <input
+                            type="text"
+                            value={editDeductionName}
+                            onChange={(e) => setEditDeductionName(e.target.value)}
+                            placeholder="Deduction name"
+                            className="w-full px-2 py-1 text-sm border rounded" />
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="flex items-center text-sm">$</span>
+                            <input
+                              type="number"
+                              value={editDeductionAmount}
+                              onChange={(e) => setEditDeductionAmount(e.target.value)}
+                              step="0.01"
+                              className="w-20 px-2 py-1 text-sm border rounded" />
+                            <input
+                              type="date"
+                              value={editDeductionStartDate}
+                              onChange={(e) => setEditDeductionStartDate(e.target.value)}
+                              title="Start date"
+                              className="flex-1 min-w-[110px] px-1.5 py-1 text-xs border rounded" />
+                            <span className="text-xs text-slate-400">→</span>
+                            <input
+                              type="date"
+                              value={editDeductionEndDate}
+                              onChange={(e) => setEditDeductionEndDate(e.target.value)}
+                              title="End date"
+                              className="flex-1 min-w-[110px] px-1.5 py-1 text-xs border rounded" />
+                            <button
+                              onClick={async () => {
+                                const name = editDeductionName.trim();
+                                const amount = editDeductionAmount;
+                                if (!name || !amount) return;
+                                const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.map((d, i) =>
+                                  i === idx ?
+                                  {
+                                    ...d,
+                                    name,
+                                    amount: parseFloat(amount),
+                                    start_date: normalizeDate(editDeductionStartDate) || undefined,
+                                    end_date: normalizeDate(editDeductionEndDate) || undefined,
+                                    is_one_time: true
+                                  } :
+                                  d
+                                );
+                                setDriverEdits((prev) => ({
+                                  ...prev,
+                                  [deductionOverlayDriverId]: {
+                                    ...prev[deductionOverlayDriverId],
+                                    deductions: updatedDeductions
+                                  }
+                                }));
+                                setEditingDeductionIdx(null);
+                                await savePayrollChanges(deductionOverlayDriverId, {
+                                  deductions: updatedDeductions,
+                                  total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                                });
+                              }}
+                              className="p-1 hover:bg-emerald-100 rounded">
+                              <Check className="w-4 h-4 text-emerald-600" />
+                            </button>
+                            <button
+                              onClick={() => setEditingDeductionIdx(null)}
+                              className="p-1 hover:bg-slate-200 rounded">
+                              <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate">{ded.name}</div>
+                          {(dateRangeLabel || !isOneTime) &&
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {dateRangeLabel}{dateRangeLabel && !isOneTime ? ' · recurring' : !isOneTime ? 'Recurring' : ''}
+                          </div>
+                          }
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="font-semibold">-${Number(ded.amount || 0).toFixed(2)}</span>
+                          {isOneTime ?
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingDeductionIdx(idx);
+                                setEditDeductionName(ded.name || '');
+                                setEditDeductionAmount(String(ded.amount ?? ''));
+                                setEditDeductionStartDate(normalizeDate(ded.start_date));
+                                setEditDeductionEndDate(normalizeDate(ded.end_date));
+                              }}
+                              className="p-1 hover:bg-blue-100 rounded">
+                              <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
+                                setDriverEdits((prev) => ({
+                                  ...prev,
+                                  [deductionOverlayDriverId]: {
+                                    ...prev[deductionOverlayDriverId],
+                                    deductions: updatedDeductions
+                                  }
+                                }));
+                                // Save immediately
+                                await savePayrollChanges(deductionOverlayDriverId, {
+                                  deductions: updatedDeductions,
+                                  total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                                });
+                              }}
+                              className="p-1 hover:bg-red-100 rounded">
+                              <X className="w-4 h-4 text-red-600" />
+                            </button>
+                          </> :
+
+                          <span
+                            title="Recurring deduction — edit it on the driver's profile in Driver Settings"
+                            className="p-1 opacity-40 cursor-not-allowed">
+                            <Lock className="w-3.5 h-3.5 text-slate-400" />
+                          </span>
+                          }
+                        </div>
+                      </div>);
+
+                  })}
                   {!driverEdits[deductionOverlayDriverId]?.deductions?.length &&
                   <p className="text-xs text-slate-500 dark:text-slate-400">No deductions</p>
                   }
@@ -1317,7 +1440,7 @@ export default function PayrollSummaryCard({
               </div>
               
               <div className="border-t pt-3">
-                <label className="text-xs font-semibold block mb-2 text-label">Add New Deduction:</label>
+                <label className="text-xs font-semibold block mb-2 text-label">Add New Deduction (this pay cycle only):</label>
                 <div className="space-y-2">
                   <input
                     type="text"
@@ -1326,22 +1449,42 @@ export default function PayrollSummaryCard({
                     onChange={(e) => setDeductionDraftName(e.target.value)}
                     className="w-full px-2 py-1 text-sm border rounded" />
 
-                  <div className="flex gap-2">
-                    <span className="flex items-center">$</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="flex items-center text-sm">$</span>
                     <input
                       type="number"
                       placeholder="Amount"
                       value={deductionDraftAmount}
                       onChange={(e) => setDeductionDraftAmount(e.target.value)}
-                      className="flex-1 px-2 py-1 text-sm border rounded"
+                      className="w-20 px-2 py-1 text-sm border rounded"
                       step="0.01" />
+                    <input
+                      type="date"
+                      value={deductionDraftStartDate}
+                      onChange={(e) => setDeductionDraftStartDate(e.target.value)}
+                      title="Start date"
+                      className="flex-1 min-w-[110px] px-1.5 py-1 text-xs border rounded" />
+                    <span className="text-xs text-slate-400">→</span>
+                    <input
+                      type="date"
+                      value={deductionDraftEndDate}
+                      onChange={(e) => setDeductionDraftEndDate(e.target.value)}
+                      title="End date"
+                      className="flex-1 min-w-[110px] px-1.5 py-1 text-xs border rounded" />
 
                     <button
                       onClick={async () => {
                         const name = deductionDraftName.trim();
                         const amount = deductionDraftAmount;
                         if (name && amount) {
-                          const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
+                          const newDed = {
+                            name,
+                            amount: parseFloat(amount),
+                            is_one_time: true,
+                            start_date: normalizeDate(deductionDraftStartDate) || undefined,
+                            end_date: normalizeDate(deductionDraftEndDate) || undefined
+                          };
+                          const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), newDed];
                           setDriverEdits((prev) => ({
                             ...prev,
                             [deductionOverlayDriverId]: {
@@ -1351,6 +1494,8 @@ export default function PayrollSummaryCard({
                           }));
                           setDeductionDraftName('');
                           setDeductionDraftAmount('');
+                          setDeductionDraftStartDate(periodStartStr || '');
+                          setDeductionDraftEndDate(periodEndStr || '');
                           // Save immediately
                           await savePayrollChanges(deductionOverlayDriverId, {
                             deductions: newDeductions,
@@ -1358,7 +1503,7 @@ export default function PayrollSummaryCard({
                           });
                         }
                       }}
-                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700">
+                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700 whitespace-nowrap">
 
                      Add
                     </button>
