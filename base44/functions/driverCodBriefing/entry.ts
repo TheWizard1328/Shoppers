@@ -396,7 +396,7 @@ async function handleBriefing(base44, params = {}) {
       const moneyStrs = g.items.map((it) => (Number(it.amount) || 0).toFixed(2));
       const totalStr = (Math.round(g.total * 100) / 100).toFixed(2);
       const moneyWidth = Math.max(totalStr.length, ...moneyStrs.map((m) => m.length));
-      const lines = g.items.map((it, idx) => `${shortDate(it.delivery_date)} ${it.store_abbreviation || (it.store_name || '').slice(0, 12)} · $${moneyStrs[idx].padStart(moneyWidth)} · ${it.patient_name}`);
+      const lines = g.items.map((it, idx) => `$ ${moneyStrs[idx].padStart(moneyWidth)} · ${shortDate(it.delivery_date)}(${it.store_abbreviation || (it.store_name || '').slice(0, 12)})-${it.patient_name}`);
       const body = [
         `${g.count} uncollected COD${g.count === 1 ? '' : 's'} totaling $${totalStr}.`,
         '',
@@ -456,15 +456,15 @@ async function handleBriefing(base44, params = {}) {
         const lines = [];
         for (const g of driverBriefings) {
           const gTotal = (Math.round(g.total * 100) / 100).toFixed(2);
-          lines.push(`${String(g.driver_name).toUpperCase()} — ${g.count} COD${g.count === 1 ? '' : 's'}, $${gTotal}`);
+          lines.push(`${String(g.driver_name).toUpperCase()} — ${g.count} COD${g.count === 1 ? '' : 's'}, $ ${gTotal.padStart(moneyWidth)}`);
           g.items.forEach((it, idx) => {
             const amt = (Number(it.amount) || 0).toFixed(2);
-            lines.push(`${shortDate(it.delivery_date)} ${(it.store_abbreviation || it.store_name || '—').slice(0, 12)} · $${amt.padStart(moneyWidth)} · ${it.patient_name}`);
+            lines.push(`$ ${amt.padStart(moneyWidth)} · ${shortDate(it.delivery_date)}(${(it.store_abbreviation || it.store_name || '—').slice(0, 12)})-${it.patient_name}`);
           });
           lines.push('');
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
-        lines.push(`TOTAL: ${catalogItems.length} COD${catalogItems.length === 1 ? '' : 's'}, $${totalAll}`);
+        lines.push(`OVERALL TOTAL: ${catalogItems.length} COD${catalogItems.length === 1 ? '' : 's'}, $ ${totalAll}`);
         const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
         if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
         const ownerBody = [
