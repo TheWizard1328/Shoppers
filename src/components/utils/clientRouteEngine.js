@@ -151,7 +151,7 @@ const isHistoricalRouteDate = (dateStr) => {
   return String(dateStr) < getEdmontonTodayDateString();
 };
 
-const getLatestFinishedDelivery = (deliveries) =>
+export const getLatestFinishedDelivery = (deliveries) =>
   [...(deliveries || [])]
     .filter((d) => FINISHED_STATUSES.includes(d?.status))
     .sort((a, b) => {
@@ -162,7 +162,7 @@ const getLatestFinishedDelivery = (deliveries) =>
 
 // ─── Coordinate resolution ───────────────────────────────────────────────────
 
-const getDeliveryCoords = (delivery, patientMap, storeMap) => {
+export const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   if (!delivery) return null;
   if (delivery.is_cycling_marker) {
     const lat = Number(delivery.cycling_latitude);

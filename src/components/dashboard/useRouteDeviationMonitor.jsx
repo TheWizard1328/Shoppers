@@ -7,11 +7,13 @@
  * driver device, on duty, today's route, a non-cycling in-flight next stop with
  * a stored current-leg polyline) → perpendicular distance from GPS to that
  * polyline → if over the admin threshold (default 200m) AND the per-driver
- * cooldown (default 5 min) has elapsed → performRouteOptimization with
- * preserveExistingOrder (NO stop reshuffling, no skipOptimize — see fix note
- * at the call site). The engine's live-GPS via-point (Sep 11)
- * then regenerates the current leg through the driver's actual position, and
- * the next stop's ETA/distance use only the GPS→stop portion.
+ * cooldown (default 5 min) has elapsed → regenerateCurrentLegPolyline (Sep 17
+ * 2026: scoped to the CURRENT LEG ONLY — a single 2-3 point Directions call
+ * bending through the driver's actual position, instead of the old full-route
+ * performRouteOptimization which re-cut every remaining leg). The next stop's
+ * polyline/ETA/distance update; every other stop stays exactly as the last
+ * full optimization left it. The Maps API usage log labels this call
+ * 'Route Deviation (Google Directions) — Current Route Leg'.
  *
  * Loop safety (three layers):
  *   1. The regenerated leg bends through the GPS, so the next measurement is
@@ -20,10 +22,10 @@
  *   3. In-flight promise lock — GPS ticks arriving during the await are dropped.
  *
  * The 'deliveriesUpdated' event is dispatched with alreadyOptimized: true so
- * listeners don't re-optimize our write. All writes go through the coordinator's
- * own bulkUpdateDeliveries (awaitServerWrite: true — the same read-your-write
- * fix used for the Start button, so the first post-regen server re-pull sees
- * committed data instead of bouncing the map back to the stale polyline).
+ * listeners don't re-optimize our write. The single-delivery commit goes through
+ * entityMutations.updateDelivery (optimistic UI + IDB + user-scoped server write
+ * with WS broadcast + local-write echo suppression) — the same pipeline the stop
+ * card actions use.
  */
 import { useEffect, useRef } from 'react';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
@@ -123,36 +125,34 @@ export function useRouteDeviationMonitor({
       lastRegenAtByDriver.set(driverId, now);
 
       try {
-        console.log(`[RouteDeviation] ${Math.round(distance)}m off the current leg (threshold ${threshold}m) — regenerating leg via live-GPS waypoint`);
-        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
-        const result = await performRouteOptimization({
-          driverId,
-          deliveryDate: todayStr,
-          currentLocation: { lat: Number(gps.latitude), lon: Number(gps.longitude) },
+        console.log(`[RouteDeviation] ${Math.round(distance)}m off the current leg (threshold ${threshold}m) — regenerating CURRENT LEG ONLY via live-GPS via-point`);
+        // Scoped regen (Sep 17 2026): one 2-3 point Directions call for the current
+        // leg only — origin (last finished stop / home) → live GPS → next stop.
+        // No coordinator run, no re-sequencing, other stops' polylines untouched.
+        // (Previous full performRouteOptimization re-cut every remaining leg on
+        // each deviation — slower and churned legs that were still valid.)
+        const { regenerateCurrentLegPolyline } = await import('@/components/utils/currentLegRegenerator');
+        const result = await regenerateCurrentLegPolyline({
+          nextStop,
+          gps: { latitude: Number(gps.latitude), longitude: Number(gps.longitude) },
           deliveries: todayDeliveries,
           patients: s.patients,
           stores: s.stores,
           appUsers: s.appUsers,
-          source: 'route_deviation',
-          // CRITICAL FIX (Sep 16, 2026): do NOT pass skipOptimize. In the coordinator,
-          // the ENTIRE polyline-regen + writeBatch + server/IDB write path runs only
-          // inside `if (!skipOptimize)` — with skipOptimize:true (and no orderedDeliveryIds)
-          // the call returned "success" with a null writeBatch and regenerated NOTHING,
-          // silently. preserveExistingOrder:true alone is the correct posture: the
-          // engine keeps stop_order as-is (no re-sequencing), keeps the isNextDelivery
-          // lock, and regenerates all legs — the current leg bending through the
-          // driver's live GPS via-point (the actual deviation recovery).
-          preserveExistingOrder: true,  // keep stop_order as-is — NO re-sequencing
-          awaitServerWrite: true,       // read-your-write: commit before sync managers re-pull
+          driverId,
         });
 
-        if (result?.success && Array.isArray(result.freshDeliveries) && result.freshDeliveries.length > 0) {
-          s.updateDeliveriesLocally?.(result.freshDeliveries, false);
+        if (result?.success) {
+          // Belt-and-suspenders local state sync (updateDelivery already pushed the
+          // optimistic record through the mutation subscription).
+          s.updateDeliveriesLocally?.([result.updatedDelivery], false);
+        } else {
+          console.log(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
         }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { driverId, deliveryDate: todayStr, triggeredBy: 'routeDeviation', alreadyOptimized: true }
         }));
-        console.log('[RouteDeviation] regen complete');
+        console.log('[RouteDeviation] current-leg regen complete');
       } catch (err) {
         console.warn('[RouteDeviation] regen failed:', err?.message || err);
       } finally {

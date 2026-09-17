@@ -150,7 +150,7 @@ function mergeGooglePolylines(first, second) {
 
 // ─── HERE API: multi-stop route ──────────────────────────────────────────────
 
-export async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
+export async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null, logPurpose = null } = {}) {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
@@ -169,7 +169,7 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
   });
-  logHereApiCall({ apiType: 'Routes (HERE)', purpose: `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
+  logHereApiCall({ apiType: 'Routes (HERE)', purpose: logPurpose || `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
 
@@ -263,6 +263,9 @@ export async function generateRoutePolylines({
                               // right after the origin (first mode group only). Current-leg
                               // polyline bends through the driver's position; the first
                               // stop's ETA/distance metrics use the GPS→stop leg only.
+  logPurpose = null,          // Optional override for the Maps API usage-log purpose
+                              // (e.g. 'Route Deviation (Google Directions) — Current Route Leg').
+                              // Null → default 'Polyline generation' labels, unchanged.
 }) {
   const polylineByDeliveryId = new Map();
   if (!hereApiKey) return polylineByDeliveryId;
@@ -343,11 +346,11 @@ export async function generateRoutePolylines({
     const viaPoint = useVia ? [{ lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) }] : [];
     const points = [group.fromPoint, ...viaPoint, ...group.stops.map(s => ({ lat: s.lat, lon: s.lng }))];
     const result = useGooglePoly
-      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName }).catch((err) => {
+      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — Google Directions THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         })
-      : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName }).catch((err) => {
+      : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName, logPurpose }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — HERE Router v8 THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         });

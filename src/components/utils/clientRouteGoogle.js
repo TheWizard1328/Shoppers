@@ -42,7 +42,7 @@ function encodeGooglePolyline(points) {
  * @param {Array<{lat:number,lon:number}>} points
  * @param {string} transportMode 'driving'|'cycling'|'pedestrian'
  * @param {string} _googleApiKey UNUSED — the backend resolves the Google key server-side.
- * @param {{driverId?:string, userName?:string}} _opts unused (backend logs usage)
+ * @param {{driverId?:string, userName?:string, purpose?:string}} _opts purpose is forwarded to the backend for the Maps API usage log
  */
 export async function getMultiStopRouteGoogle(points, transportMode, _googleApiKey, _opts = {}) {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
@@ -52,6 +52,7 @@ export async function getMultiStopRouteGoogle(points, transportMode, _googleApiK
     const res = await base44.functions.invoke('getGoogleDirectionsPolyline', {
       points: validPoints,
       transportMode,
+      ...(_opts?.purpose ? { purpose: _opts.purpose } : {}),
     });
     const data = res?.data || res || {};
     let sections = Array.isArray(data.sections) ? data.sections : [];
