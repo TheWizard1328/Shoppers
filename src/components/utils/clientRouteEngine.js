@@ -986,6 +986,10 @@ let _inheritedWindowCount = 0;
   // generateRoutePolylines helper). Only the ordering (HERE sequencing here vs
   // puid-chain in _handleFutureRoute) and the leg origin differ between paths.
   let segmentPolylineByDeliveryId = new Map();
+  // Deviation-waypoint transfer bookkeeping (Sep 17 2026). Declared at function
+  // scope — the writeBatch loop below (outside the polyline-phase block) reads it.
+  // Empty when no transfer happened → no deviation_waypoints field is written.
+  const deviationTransferChanges = new Map(); // deliveryId -> new deviation_waypoints
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
@@ -1012,8 +1016,10 @@ let _inheritedWindowCount = 0;
     // routeStops, so completed legs keep their historical points for admin
     // completed-route regens. Changes are reflected in the writeBatch so the
     // transfer is committed atomically with stop_order/polyline.
-    const deviationTransferChanges = new Map(); // deliveryId -> new deviation_waypoints
-    {
+    // HARDCENED (Sep 17 fix): the whole step is fault-isolated — corrupted or
+    // blank deviation data can NEVER break an optimization.
+    try {
+      {
       const validWaypoint = (p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng));
       const inFlightStops = routeStops.filter((rs) => ['en_route', 'in_transit'].includes(String(rs.delivery?.status || '')));
       const harvest = [];   // points from in-flight stops that are no longer next
@@ -1067,6 +1073,11 @@ let _inheritedWindowCount = 0;
           console.log(`[clientRouteEngine] ${source} — deviation waypoints transferred: ${movers.length} stop(s) emptied, ${keptPts.length}/${movedPts.length} point(s) moved onto new next stop (merged w/ ${existingNextPts.length} existing)`);
         }
       }
+    }
+    } catch (_devTransferErr) {
+      // Fault isolation: a deviation-data problem must never fail the
+      // optimization itself. Transfer is a best-effort enhancement.
+      console.warn('[clientRouteEngine] deviation waypoint transfer skipped (non-fatal):', _devTransferErr?.message || _devTransferErr);
     }
 
     // ── Live-GPS via point (Sep 11 2026) ─────────────────────────────────────
