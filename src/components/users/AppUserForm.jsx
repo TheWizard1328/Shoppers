@@ -10,6 +10,39 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { useAppData } from '../utils/AppDataContext';
 import { format } from 'date-fns';
 
+const ROLE_LABELS = {
+  admin: 'Admin',
+  dispatcher: 'Dispatcher',
+  driver: 'Driver',
+  store_owner: 'Store Owner'
+};
+
+// User Status (driver_status) options, filtered by app role. Driver options
+// take priority when a user has both driver + dispatcher roles. Falls back
+// to the full set for admin/store_owner-only users (no duty concept for them).
+const DRIVER_STATUS_OPTIONS = [
+  { value: 'off_duty', label: 'Off Duty' },
+  { value: 'on_duty', label: 'On Duty' },
+  { value: 'on_break', label: 'On Break' }
+];
+const DISPATCHER_STATUS_OPTIONS = [
+  { value: 'off_duty', label: 'Off Line' },
+  { value: 'online', label: 'On Line' }
+];
+const DEFAULT_STATUS_OPTIONS = [
+  { value: 'online', label: 'Online' },
+  { value: 'on_duty', label: 'On Duty' },
+  { value: 'on_break', label: 'On Break' },
+  { value: 'off_duty', label: 'Off Duty' }
+];
+
+function getStatusOptionsForRoles(roles) {
+  const list = roles || [];
+  if (list.includes('driver')) return DRIVER_STATUS_OPTIONS;
+  if (list.includes('dispatcher')) return DISPATCHER_STATUS_OPTIONS;
+  return DEFAULT_STATUS_OPTIONS;
+}
+
 export default function AppUserForm({ appUser, authUsers, stores, cities, onSave, onCancel }) {
   const { setIsFormOverlayOpen } = useAppData();
 
@@ -112,11 +145,19 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
 
   const handleRoleToggle = (role) => {
     const currentRoles = formData.app_roles || [];
-    if (currentRoles.includes(role)) {
-      setFormData({ ...formData, app_roles: currentRoles.filter((r) => r !== role) });
-    } else {
-      setFormData({ ...formData, app_roles: [...currentRoles, role] });
-    }
+    const newRoles = currentRoles.includes(role) ?
+    currentRoles.filter((r) => r !== role) :
+    [...currentRoles, role];
+
+    // Keep driver_status valid for the new role set — reset to the first
+    // valid option if the current value no longer applies (e.g. switching
+    // from driver to dispatcher-only while status was 'on_break').
+    const validOptions = getStatusOptionsForRoles(newRoles);
+    const nextDriverStatus = validOptions.some((o) => o.value === formData.driver_status) ?
+    formData.driver_status :
+    validOptions[0].value;
+
+    setFormData({ ...formData, app_roles: newRoles, driver_status: nextDriverStatus });
   };
 
   return (
@@ -151,39 +192,19 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
               </Select>
             </div>
 
-            {/* Display Name and App Roles on same row */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Display Name, Status and Phone on one row */}
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="user_name">Display Name *</Label>
                 <Input
                   id="user_name"
                   value={formData.user_name}
                   onChange={(e) => setFormData((prev) => ({ ...prev, user_name: e.target.value }))}
-                  placeholder="Display name for the app"
+                  placeholder="Display name"
                   required
                   className="border-slate-300 dark:border-slate-600 h-9" />
               </div>
 
-              <div>
-                <Label>App Roles</Label>
-                <div className="flex gap-1">
-                  {['admin', 'dispatcher', 'driver', 'store_owner'].map((role) =>
-                  <Button
-                    key={role}
-                    type="button"
-                    size="sm"
-                    variant={formData.app_roles?.includes(role) ? 'default' : 'outline'}
-                    onClick={() => handleRoleToggle(role)}
-                    className="text-xs px-2 h-9">
-                      {role}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Status and Phone on same row */}
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Status</Label>
                 <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
@@ -206,6 +227,24 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                   onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                   placeholder="Phone number"
                   className="h-9" />
+              </div>
+            </div>
+
+            {/* App Roles on their own full-width row — bigger buttons */}
+            <div>
+              <Label>App Roles</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {['admin', 'dispatcher', 'driver', 'store_owner'].map((role) =>
+                <Button
+                  key={role}
+                  type="button"
+                  size="sm"
+                  variant={formData.app_roles?.includes(role) ? 'default' : 'outline'}
+                  onClick={() => handleRoleToggle(role)}
+                  className="text-xs sm:text-sm px-1 h-10 whitespace-nowrap">
+                    {ROLE_LABELS[role]}
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -242,10 +281,9 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[10003]">
-                    <SelectItem value="online">Online</SelectItem>
-                    <SelectItem value="on_duty">On Duty</SelectItem>
-                    <SelectItem value="on_break">On Break</SelectItem>
-                    <SelectItem value="off_duty">Off Duty</SelectItem>
+                    {getStatusOptionsForRoles(formData.app_roles).map((opt) =>
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
