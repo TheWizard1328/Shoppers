@@ -61,6 +61,7 @@ const flushTimers = {};
 const POLYLINE_PRESERVE_FIELDS = [
   'encoded_polyline', 'travel_dist', 'polyline_saved_at',
   'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes',
+  'deviation_waypoints',
 ];
 
 function bufferEvent(entityName, payload) {

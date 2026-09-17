@@ -1002,6 +1002,73 @@ let _inheritedWindowCount = 0;
     const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
 
+    // ── Deviation waypoint transfer (Sep 17 2026) ──────────────────────────
+    // Deviation points live on the stop the driver was heading to when the
+    // route deviated (recorded by currentLegRegenerator). If this run
+    // re-sequenced the route so a DIFFERENT stop is now next, the points must
+    // TRANSFER to the new next stop — the regenerated current leg then bends
+    // through the path actually driven instead of snapping back to the
+    // theoretical route (owner's request). Terminal stops never enter
+    // routeStops, so completed legs keep their historical points for admin
+    // completed-route regens. Changes are reflected in the writeBatch so the
+    // transfer is committed atomically with stop_order/polyline.
+    const deviationTransferChanges = new Map(); // deliveryId -> new deviation_waypoints
+    {
+      const validWaypoint = (p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng));
+      const inFlightStops = routeStops.filter((rs) => ['en_route', 'in_transit'].includes(String(rs.delivery?.status || '')));
+      const harvest = [];   // points from in-flight stops that are no longer next
+      const holderStops = []; // stops whose points we may need to move
+      for (const rs of inFlightStops) {
+        const pts = Array.isArray(rs.delivery?.deviation_waypoints) ? rs.delivery.deviation_waypoints.filter(validWaypoint) : [];
+        if (pts.length > 0) holderStops.push({ rs, pts });
+      }
+      if (holderStops.length > 0) {
+        // New next stop — same priority formula the writeBatch uses below
+        // (explicit lock → first non-ISP/ISD when the lock is cleared or the
+        // route hasn't started). ISP/ISD swaps haven't run yet, but they never
+        // affect the first NON-InterStore stop, so the result is identical.
+        const _routeInProgress = completedDeliveries.length > 0;
+        const firstNonInterStore = inFlightStops.find((rs) => !isInterStoreDelivery(rs.delivery?.delivery_id)) || null;
+        const newNextId = (explicitNextDelivery && !clearNextDeliveryLock ? explicitNextDelivery.id : null)
+          || (clearNextDeliveryLock || !_routeInProgress
+            ? (firstNonInterStore?.delivery?.id || inFlightStops[0]?.delivery?.id || null)
+            : null);
+        const keepers = newNextId ? holderStops.filter((h) => h.rs.delivery.id === newNextId) : holderStops;
+        const movers = newNextId ? holderStops.filter((h) => h.rs.delivery.id !== newNextId) : [];
+        if (movers.length > 0 && newNextId) {
+          const movedPts = movers.flatMap((h) => h.pts)
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+          // Guard: drop points that now sit BEHIND the new leg (closer to the
+          // origin than to the new next stop) — the driver has already passed
+          // them; routing back through them would zigzag.
+          const newNextRs = inFlightStops.find((rs) => rs.delivery.id === newNextId);
+          const newNextCoords = newNextRs ? { lat: newNextRs.lat, lng: newNextRs.lng } : null;
+          const keptPts = newNextCoords
+            ? movedPts.filter((pt) => {
+                const dOrigin = haversineKm(polylineOrigin.lat, polylineOrigin.lon, Number(pt.lat), Number(pt.lng));
+                const dNext = haversineKm(newNextCoords.lat, newNextCoords.lng, Number(pt.lat), Number(pt.lng));
+                return dNext <= dOrigin;
+              })
+            : [];
+          const existingNextPts = keepers.flatMap((h) => h.pts)
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+          const merged = [...existingNextPts, ...keptPts]
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+            .slice(-3); // same cap as the regenerator / generator
+          // Move: movers emptied, new next stop receives the merged list.
+          for (const h of movers) {
+            h.rs.delivery.deviation_waypoints = [];
+            deviationTransferChanges.set(h.rs.delivery.id, []);
+          }
+          if (newNextRs) {
+            newNextRs.delivery.deviation_waypoints = merged;
+            deviationTransferChanges.set(newNextId, merged);
+          }
+          console.log(`[clientRouteEngine] ${source} — deviation waypoints transferred: ${movers.length} stop(s) emptied, ${keptPts.length}/${movedPts.length} point(s) moved onto new next stop (merged w/ ${existingNextPts.length} existing)`);
+        }
+      }
+    }
+
     // ── Live-GPS via point (Sep 11 2026) ─────────────────────────────────────
     // When the driver is ON DUTY with at least one in-flight (en_route/in_transit)
     // stop, inject their live GPS as a via waypoint right after the polyline origin
@@ -1247,6 +1314,11 @@ let _inheritedWindowCount = 0;
       ...(!isPending && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode } : {}),
       ...(isPending ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
+
+    // Deviation-waypoint transfer changes ride along with stop_order/polyline
+    // so the server write commits them atomically (Sep 17 2026).
+    const _deviationWaypoints = deviationTransferChanges.get(stop.id);
+    if (_deviationWaypoints) updateData.deviation_waypoints = _deviationWaypoints;
 
     if (pendingStartTime) {
       updateData.delivery_time_start = pendingStartTime;

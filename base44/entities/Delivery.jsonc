@@ -232,6 +232,31 @@
       "type": "string",
       "description": "HERE API encoded polyline for this stop's planned route segment"
     },
+    "deviation_waypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "description": "Latitude of the recorded route-deviation point (driver's live GPS when deviation was detected on this leg)"
+          },
+          "lng": {
+            "type": "number",
+            "description": "Longitude of the recorded route-deviation point"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO timestamp when the deviation was detected (ordering within the leg)"
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ]
+      },
+      "description": "Route-deviation via points for this stop's leg (max 3, chronological). Written by the current-leg deviation regen so later polyline regenerations (manual re-optimization, admin regenerate on completed routes) keep the leg snapped to the path actually driven instead of reverting to the theoretical route. Transferred to the newly-next stop when a re-optimization changes stop order mid-leg."
+    },
     "transport_mode": {
       "type": "string",
       "enum": [

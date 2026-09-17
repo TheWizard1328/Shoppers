@@ -40,6 +40,30 @@ import { updateDelivery } from './entityMutations';
 const TIME_ZONE = 'America/Edmonton';
 export const DEVIATION_REGEN_LOG_PURPOSE = 'Route Deviation (Google Directions) — Current Route Leg';
 
+// ── Deviation waypoint persistence (Sep 17 2026) ────────────────────────────
+// Each successful current-leg deviation regen records the driver's position at
+// the deviation onto the stop's `deviation_waypoints`. Later polyline regenerations
+// (manual re-optimization mid-route, admin regenerate on completed routes) insert
+// these as via waypoints via generateRoutePolylines so the leg stays snapped to
+// the path actually driven instead of reverting to the theoretical route.
+const DEVIATION_WAYPOINT_CAP = 3;      // keep the 3 most recent points per leg
+const DEVIATION_DEDUPE_KM = 0.1;       // skip points within 100m of an existing one
+
+function buildUpdatedDeviationWaypoints(existingWaypoints, gps) {
+  const existing = (Array.isArray(existingWaypoints) ? existingWaypoints : [])
+    .filter((p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+  // Dedupe: jitter near an already-recorded point is not a new deviation.
+  const isNearExisting = existing.some((p) => haversineKm(Number(p.lat), Number(p.lng), gpsPointLat(gps), gpsPointLon(gps)) <= DEVIATION_DEDUPE_KM);
+  if (isNearExisting) {
+    return existing.length > 0 ? existing.slice(-DEVIATION_WAYPOINT_CAP) : [];
+  }
+  const next = [...existing, { lat: gpsPointLat(gps), lng: gpsPointLon(gps), timestamp: new Date().toISOString() }];
+  return next.slice(-DEVIATION_WAYPOINT_CAP);
+}
+
+const gpsPointLat = (gps) => Number(gps.latitude);
+const gpsPointLon = (gps) => Number(gps.longitude);
+
 // ── Edmonton wall-clock helpers (mirror clientRouteEngine's parse/format) ──
 const parseTimeToMinutes = (t) => {
   if (!t) return null;
@@ -179,6 +203,9 @@ export async function regenerateCurrentLegPolyline({
   const updateData = {
     encoded_polyline: seg.encodedPolyline,
     transport_mode: safeTransportMode,
+    // Record this deviation point on the stop so later regens (manual re-opt,
+    // admin regenerate) keep the leg snapped to the driven path (Sep 17 2026).
+    deviation_waypoints: buildUpdatedDeviationWaypoints(nextStop.deviation_waypoints, gps),
     delivery_time_eta: newEta,
     ...(Number.isFinite(seg.estimatedDistanceKm) ? { estimated_distance_km: seg.estimatedDistanceKm } : {}),
     ...(Number.isFinite(seg.estimatedDurationMinutes) ? { estimated_duration_minutes: seg.estimatedDurationMinutes } : {}),
