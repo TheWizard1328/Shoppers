@@ -50,10 +50,14 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
   }
 
   try {
+    // Incremental tail cut: only the just-finished stop's leg is cut, anchored
+    // at the final point of the previous finished stop's segment. Earlier legs
+    // are never re-cut (the full home-anchored walk is the resnip scissors' job).
     const result = await consolidateBreadcrumbSegment({
       driver_id: driverId,
       delivery_date: deliveryDate,
       delivery_id: deliveryId,
+      mode: 'incremental',
     });
     if (result?.success) {
       console.log(`✅ [Breadcrumbs] Proximity slicing complete: ${result.total_segments} segments, ${result.master_point_count} master points`);

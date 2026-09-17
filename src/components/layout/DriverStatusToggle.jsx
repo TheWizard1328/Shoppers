@@ -8,6 +8,7 @@ import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings } from "../utils/userSettingsManager";
 import { reconcilePendingBreadcrumbsOnDuty } from "../utils/pendingBreadcrumbReconciliation";
+import { seedHomeAnchorOnDuty } from "../utils/locationBreadcrumbService";
 import { globalFilters } from "../utils/globalFilters";
 import {
   showTrackingNotification,
@@ -472,6 +473,38 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             appUsers: [{ id: appUserId, user_id: currentUser.id }],
             currentDateStr: today
           });
+
+          // ── Home anchor seed (owner-defined Sep 17 2026) ─────────────────
+          // Only on the driver's own PRIMARY device (same guard as the GPS
+          // write above): if the driver toggles on duty MORE than 50m from
+          // home, home coords become the very first point of the master
+          // breadcrumb trail. Pre-duty stray crumbs are cleared when no stops
+          // are finished yet; a mid-route master (stops finished) is untouched.
+          if (shouldUpdateLocation && Number.isFinite(gps?.lat) && Number.isFinite(gps?.lng)) {
+            try {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+              const allIdbDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
+              const hasFinishedStops = (allIdbDeliveries || []).some((dl) =>
+                dl && dl.driver_id === currentUser.id && dl.delivery_date === today && TERMINAL.has(String(dl.status || '').toLowerCase())
+              );
+              const seedResult = await seedHomeAnchorOnDuty({
+                driverId: currentUser.id,
+                deliveryDate: today,
+                homeLat: effectiveUser?.home_latitude,
+                homeLng: effectiveUser?.home_longitude,
+                currentLat: gps.lat,
+                currentLng: gps.lng,
+                hasFinishedStops,
+              });
+              if (seedResult?.seeded) {
+                console.log(`🍞 [DriverStatusToggle] Home anchor seeded (${seedResult.distance}m from home${seedResult.cleared ? ', pre-duty crumbs cleared' : ''})`);
+              }
+            } catch (seedErr) {
+              console.warn('⚠️ [DriverStatusToggle] Home anchor seed failed:', seedErr?.message || seedErr);
+            }
+          }
+
           locationTracker.setDriverStatus(newStatus);
           if (locationTracker._webOnlyMode) {
             await locationTracker.upgradeToFullTracking({ ...currentUser, appUserId });

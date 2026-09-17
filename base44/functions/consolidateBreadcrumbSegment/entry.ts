@@ -2,26 +2,43 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// consolidateBreadcrumbSegment — First-Local-Minimum Spatial Breadcrumb Slicing
+// consolidateBreadcrumbSegment — Sequential Home-Anchored Breadcrumb Slicing
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// Timestamp-free spatial slicing. The master trail (stop_order = -1) is decoded
-// into GPS points. Stops are walked strictly in stop_order; for each stop the
-// algorithm scans forward from the cursor, tracks the running minimum-distance
-// trail point, and accepts it as the boundary only once the trail has genuinely
-// DEPARTED (moved DEPARTURE_THRESHOLD_M past the minimum) — locking onto the
-// real arrive-then-leave cluster instead of a later drive-by pass. The minimum
-// must be within SANITY_MAX_M of the stop; otherwise the trail never truly
-// reached it and a 2-point synthetic leg is emitted instead.
+// Two modes:
 //
-// Timestamps are ignored entirely by the matching logic, so this works on
-// hand-edited / road-snapped trails whose injected points carry no timestamp.
+// FULL (default — the Route Viewer "resnip" scissors tool, snapMasterTimeline,
+// and preview_only reclip projections):
+//   1. Resolve the driver's HOME coords (AppUser.home_latitude/longitude, or
+//      home_lat/home_lng override params).
+//   2. Anchor the route at home: find the first master crumb within 50m of
+//      home (bounded by the first crumb within 50m of stop 1, so an end-of-day
+//      return home can never win). If no crumb qualifies, the home coords are
+//      PREPENDED as a synthetic first point of the home→stop-1 leg.
+//   3. Walk stops strictly in stop_order. For stop N, the scan window runs
+//      from the previous boundary to the first crumb within 50m of stop N+1
+//      (end of trail for the last stop). This bound makes drive-bys immune:
+//      a later pass near stop N can never steal points from a later leg, and
+//      an unvisited stop can never swallow future legs.
+//   4. A crumb QUALIFIES for stop N if it is within 50m of the stop OR within
+//      ±2 minutes of the stop's actual_delivery_time (rescues GPS drift — the
+//      crumbs recorded at the delivery moment are at the stop even when the
+//      fix drifts past 50m). Among qualifiers the ABSOLUTE CLOSEST by distance
+//      wins and becomes the leg boundary.
+//   5. No qualifier: if the closest approach in the window is ≤200m, the leg
+//      is the trail up to that point PLUS the stop's own coords appended as
+//      the final anchor (stamped with actual_delivery_time). Beyond 200m
+//      (skipped/failed stop) the leg is a straight 2-point line from the
+//      previous boundary to the stop coords — no unrelated trail dragged in.
 //
-// When a stop has no trail coverage (never reached, GPS dropout, completed
-// before tracking), a 2-point synthetic leg connects the previous boundary
-// (or the route origin) to the stop's coordinates.
+// INCREMENTAL (mode: 'incremental' — the automatic stop-finish path):
+//   The driver's GPS is freshly at the just-finished stop (the completion flow
+//   force-flushes the master right before this call), so only ONE leg is cut:
+//   from the final point of the PREVIOUS finished stop's saved segment (or the
+//   home anchor / trail start for the first finished stop) forward through the
+//   trail to the closest qualifying crumb (same 50m / ±2min rule). Earlier
+//   legs are NEVER re-cut. Only the just-finished stop's segment is written.
 //
 // All stop types are handled identically:
 //   - Patient deliveries → patient.lat/lng
@@ -30,15 +47,15 @@ import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 //   - ISP (inter-store pickup) → InterStoreLocation by pickupLocationPhone in delivery_id
 //   - Cycling markers → cycling_latitude/cycling_longitude on the delivery
 //
-// Coordinate resolution mirrors the client-side resolveStopLocation() in
-// deliveryTypeUtils.jsx.
-//
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── Polyline encode/decode — 1e7 precision (breadcrumb trails). ──────────
-// Decoder auto-detects 1e5 (legacy) vs 1e7 (current) for transition safety.
-const POLY_PRECISION = 1e7;
+// ── Constants ──────────────────────────────────────────────────────────────────
+const MATCH_RADIUS_M = 50;            // crumb qualifies by proximity
+const TIME_WINDOW_MS = 2 * 60 * 1000; // crumb qualifies by ±2 min of delivery time
+const NEAR_MISS_MAX_M = 200;          // closest approach beyond this → straight synthetic line
+const POLY_PRECISION = 1e7;           // breadcrumb trails are 1e7 (legacy 1e5 auto-detected)
 
+// ── Polyline encode/decode ───────────────────────────────────────────────────
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
   v = v < 0 ? (-v * 2 - 1) : (v * 2);
@@ -106,6 +123,46 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ── Edmonton wall-clock ("YYYY-MM-DD HH:MM:SS") → epoch ms ───────────────────
+// actual_delivery_time is stored as a LOCAL Edmonton wall-clock string. The
+// master trail timestamps are epoch ms (UTC). Convert via a two-iteration
+// Intl offset lookup so DST is handled correctly.
+function edmontonOffsetMs(utcMs) {
+  try {
+    const dtf = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Edmonton',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    });
+    const parts = dtf.formatToParts(new Date(utcMs));
+    const get = (t) => Number(parts.find((p) => p.type === t)?.value || 0);
+    const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+    return asUtc - utcMs; // Edmonton is behind UTC → negative offset
+  } catch {
+    return -6 * 3600 * 1000; // MDT fallback
+  }
+}
+
+function deliveryTimeToEpochMs(raw) {
+  if (raw == null) return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw > 1e12 ? raw : raw > 1e9 ? raw * 1000 : null;
+  }
+  const s = String(raw).trim();
+  if (!s) return null;
+  // "YYYY-MM-DD HH:MM:SS" (Edmonton local, seconds or minute precision)
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(s);
+  if (m) {
+    const naive = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
+    // Two-iteration refinement handles DST boundaries correctly
+    const o1 = edmontonOffsetMs(naive);
+    const e1 = naive - o1;
+    const o2 = edmontonOffsetMs(e1);
+    return naive - o2;
+  }
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 // ── ISD/ISP delivery_id parsing (mirrors interStoreDisplayName.jsx) ──────────
 function parseInterStoreDeliveryId(deliveryId) {
@@ -128,7 +185,6 @@ function stripPhone(s) {
 }
 
 // ── Resolve coordinates for a single delivery ───────────────────────────────
-// Returns { lat, lng } or null if unresolvable.
 function resolveDeliveryCoords(delivery, phoneToInterStore, patientMap, storeMap) {
   if (!delivery) return null;
 
@@ -199,6 +255,41 @@ function resolveDeliveryCoords(delivery, phoneToInterStore, patientMap, storeMap
   return null;
 }
 
+// ── Shared slicing helpers ────────────────────────────────────────────────────
+
+/**
+ * Find the first trail index (scanning from `from`) whose point is within
+ * `radiusM` of (lat,lng). Returns the index or -1.
+ */
+function firstIndexWithin(masterPoints, from, lat, lng, radiusM) {
+  for (let i = Math.max(0, from); i < masterPoints.length; i++) {
+    if (haversineMeters(lat, lng, masterPoints[i][0], masterPoints[i][1]) <= radiusM) return i;
+  }
+  return -1;
+}
+
+/**
+ * Scan window [from, to) for the stop at (lat,lng) with delivery time `dtMs`.
+ * A crumb qualifies when within MATCH_RADIUS_M of the stop OR within
+ * TIME_WINDOW_MS of the delivery time. Returns:
+ *   qualifierIdx/qualifierDist — absolute-closest qualifying crumb
+ *   closestIdx/closestDist     — closest approach regardless of qualification
+ */
+function scanWindow(masterPoints, from, to, lat, lng, dtMs) {
+  let qualifierIdx = null, qualifierDist = Infinity;
+  let closestIdx = null, closestDist = Infinity;
+  for (let i = Math.max(0, from); i < to && i < masterPoints.length; i++) {
+    const mp = masterPoints[i];
+    const dist = haversineMeters(lat, lng, mp[0], mp[1]);
+    if (dist < closestDist) { closestDist = dist; closestIdx = i; }
+    const timeOk = dtMs != null && Math.abs((mp[2] || 0) - dtMs) <= TIME_WINDOW_MS;
+    if ((dist <= MATCH_RADIUS_M || timeOk) && dist < qualifierDist) {
+      qualifierDist = dist; qualifierIdx = i;
+    }
+  }
+  return { qualifierIdx, qualifierDist, closestIdx, closestDist };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main handler
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -216,32 +307,24 @@ Deno.serve(async (req) => {
     const {
       driver_id,
       delivery_date,
-      delivery_id: _triggeredDeliveryId,  // optional, for logging only
-      transport_mode = 'driving',
-      // Optional: when provided, ONLY these stop_orders are re-clipped (the user
-      // explicitly selected them in ResegmentStopsDialog), and any saved_to_route
-      // skip is bypassed for them (force re-clip). Unlisted stops are left alone,
-      // and the orphan-cleanup step is skipped so we don't nuke untouched crumbs.
+      delivery_id: _triggeredDeliveryId,  // just-finished stop in incremental mode
       selected_stop_orders = null,
-      // When true, re-clip ALL segments regardless of saved_to_route status,
-      // preserving the existing saved_to_route value on the updated record.
-      // Used by snapMasterTimeline after a master re-snap so stale saved
-      // segments are replaced with fresh slices from the snapped master.
       force_replace = false,
-      // When provided, use these directly instead of reading the master record
-      // from the DB. This eliminates read-after-write consistency gaps when
-      // called immediately after snapMasterTimeline saves the snapped polyline.
       master_polyline = null,
       master_timestamps = null,
-      // When true, run the proximity slicing but DON'T save anything — return the
-      // projected point count per stop so the Reclip dialog can show
-      // "current → projected" before the user commits.
       preview_only = false,
+      // NEW — 'full' (default, scissors/snap/preview) | 'incremental' (stop-finish tail cut)
+      mode = 'full',
+      // NEW — optional home coords override (else fetched from AppUser)
+      home_lat = null,
+      home_lng = null,
     } = body || {};
 
     if (!driver_id || !delivery_date) {
       return Response.json({ success: false, error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
+
+    const isIncremental = mode === 'incremental';
 
     // Normalize the optional selected_stop_orders into a Set<number> (empty = full route).
     const selectedSet = Array.isArray(selected_stop_orders) && selected_stop_orders.length > 0
@@ -249,24 +332,12 @@ Deno.serve(async (req) => {
       : null;
     const explicitlySelected = !!selectedSet;
 
-    console.log(`🍞 [consolidateBreadcrumbSegment] Proximity slicing for driver=${driver_id}, date=${delivery_date}${_triggeredDeliveryId ? `, triggered by ${_triggeredDeliveryId}` : ''}`);
+    console.log(`🍞 [consolidateBreadcrumbSegment] ${isIncremental ? 'INCREMENTAL tail cut' : 'FULL home-anchored walk'} for driver=${driver_id}, date=${delivery_date}${_triggeredDeliveryId ? `, target ${_triggeredDeliveryId}` : ''}`);
 
     // ── 1. Read the master trail (stop_order = -1) ─────────────────────────────
-    // When master_polyline is passed directly (from snapMasterTimeline), use it
-    // instead of reading from the DB to avoid read-after-write consistency gaps.
     const usePassedMaster = typeof master_polyline === 'string' && master_polyline.length > 0;
 
-    // Build the master trail. For a single authoritative master (passed-in or
-    // snapped), keep EVERY decoded polyline point in its recorded order. We do
-    // NOT key by timestamp — doing so drops points that share a timestamp (very
-    // common with 1 Hz / batched GPS) AND drops points whose timestamp is 0 or
-    // missing, which deflates the trail (e.g. 3530 polyline pts → 1237). The
-    // proximity slicer walks points by array index, so decoded order is the
-    // true trail order. The timestamp-keyed map is only used for the rare case
-    // of multiple non-snapped duplicate masters, where it dedups overlapping
-    // points across records.
     const masterPointsArr = [];
-    const masterPointsMap = new Map();
 
     const pushDecodedCoords = (encoded, tsStr) => {
       const coords = decodePolyline(encoded);
@@ -291,46 +362,24 @@ Deno.serve(async (req) => {
         stop_order: -1
       });
 
-      const hasMultipleMasters = Array.isArray(masterRecords) && masterRecords.length > 1;
-      if (hasMultipleMasters) {
-        console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — merging points from all before slicing.`);
+      if (Array.isArray(masterRecords) && masterRecords.length > 1) {
+        console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — using best, deleting stale.`);
       }
 
       const { best: bestMaster, rest: dupMasters } = pickBestMaster(masterRecords);
 
-      if (bestMaster?.is_snapped === true) {
-        console.log(`🍞 [consolidateBreadcrumbSegment] Using SNAPPED master ${bestMaster.id} (${bestMaster.point_count ?? 0} pts) — deleting ${dupMasters.length} stale duplicate(s)`);
-        for (const dup of dupMasters) {
-          if (dup?.id) {
-            await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dup.id).catch(() => null);
-          }
+      console.log(`🍞 [consolidateBreadcrumbSegment] Using master ${bestMaster?.id} (${bestMaster?.point_count ?? 0} pts)${bestMaster?.is_snapped === true ? ' [SNAPPED]' : ''} — deleting ${dupMasters.length} stale duplicate(s)`);
+      for (const dup of dupMasters) {
+        if (dup?.id) {
+          await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dup.id).catch(() => null);
         }
+      }
+      if (bestMaster?.encoded_polyline) {
         pushDecodedCoords(bestMaster.encoded_polyline, bestMaster.timestamps);
-      } else {
-        // No snapped master — use the best (most complete) master's decoded
-        // polyline directly, keeping ALL points. Delete the stale duplicates.
-        // (Previously this merged all duplicates by timestamp, but keying by ts
-        // collapses points that share a timestamp — very common with 1 Hz /
-        // batched GPS — which deflates the trail. pickBestMaster already
-        // selects the most complete single master, so merging is unnecessary.)
-        console.log(`🍞 [consolidateBreadcrumbSegment] Using master ${bestMaster?.id} (${bestMaster?.point_count ?? 0} pts) — deleting ${dupMasters.length} duplicate(s)`);
-        for (const dup of dupMasters) {
-          if (dup?.id) {
-            await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dup.id).catch(() => null);
-          }
-        }
-        if (bestMaster?.encoded_polyline) {
-          pushDecodedCoords(bestMaster.encoded_polyline, bestMaster.timestamps);
-        }
       }
     }
 
-    // Prefer the full decoded array (passed/snapped path — all polyline points,
-    // recorded order). Fall back to the timestamp-merged map only for the
-    // duplicate non-snapped case.
-    const masterPoints = masterPointsArr.length > 0
-      ? masterPointsArr
-      : Array.from(masterPointsMap.values()).sort((a, b) => a[2] - b[2]);
+    const masterPoints = masterPointsArr;
 
     if (masterPoints.length === 0) {
       return Response.json({
@@ -342,14 +391,9 @@ Deno.serve(async (req) => {
       }, { status: 404 });
     }
 
-    if (masterPoints.length === 0) {
-      return Response.json({ success: false, error: 'Master trail has no valid points', point_count: 0 }, { status: 500 });
-    }
-
     console.log(`🍞 [consolidateBreadcrumbSegment] Master trail: ${masterPoints.length} points`);
 
     // ── 2. Fetch all deliveries for this driver/date, sorted by stop_order ────
-    // Only slice COMPLETED stops — incomplete stops have no trail legs yet.
     const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id,
@@ -364,10 +408,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, error: 'No deliveries with stop_order found', point_count: 0 }, { status: 404 });
     }
 
-    console.log(`🍞 [consolidateBreadcrumbSegment] ${stops.length} stops to slice`);
+    console.log(`🍞 [consolidateBreadcrumbSegment] ${stops.length} finished stops`);
 
     // ── 3. Build lookup maps for coordinate resolution ────────────────────────
-    // Collect all patient_ids and store_ids we need to resolve
     const patientIds = new Set();
     const storeIds = new Set();
     const interStorePhones = new Set();
@@ -385,7 +428,6 @@ Deno.serve(async (req) => {
       if (d.store_id) storeIds.add(d.store_id);
     }
 
-    // Fetch InterStoreLocations and build phone→record map
     const phoneToInterStore = new Map();
     if (interStorePhones.size > 0) {
       const allInterStoreLocs = await base44.asServiceRole.entities.InterStoreLocation.list().catch(() => []);
@@ -395,17 +437,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch Patients and build id→record map
     const patientMap = new Map();
     if (patientIds.size > 0) {
-      // Fetch all patients (filter API may not support bulk id lookup)
       const allPatients = await base44.asServiceRole.entities.Patient.list().catch(() => []);
       for (const p of (allPatients || [])) {
         if (patientIds.has(p.id)) patientMap.set(p.id, p);
       }
     }
 
-    // Fetch Stores and build id→record map
     const storeMap = new Map();
     if (storeIds.size > 0) {
       const allStores = await base44.asServiceRole.entities.Store.list().catch(() => []);
@@ -414,14 +453,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 4. Resolve coordinates for each stop ──────────────────────────────────
+    // ── 4. Resolve coordinates + delivery times for each stop ─────────────────
     const stopsWithCoords = [];
     const stopsWithoutCoords = [];
 
     for (const d of stops) {
       const coords = resolveDeliveryCoords(d, phoneToInterStore, patientMap, storeMap);
+      const dtMs = deliveryTimeToEpochMs(d.actual_delivery_time);
       if (coords) {
-        stopsWithCoords.push({ delivery: d, coords });
+        stopsWithCoords.push({ delivery: d, coords, dtMs });
       } else {
         stopsWithoutCoords.push(d);
       }
@@ -440,77 +480,298 @@ Deno.serve(async (req) => {
       console.log(`⚠️ [consolidateBreadcrumbSegment] ${stopsWithoutCoords.length} stops with unresolvable coords (will be skipped)`);
     }
 
-    console.log(`🍞 [consolidateBreadcrumbSegment] ${stopsWithCoords.length}/${stops.length} stops resolved with coords`);
-
-    // ── 5. Resolve route origin (store/home) for first-stop synthetic fallback ─
-    let originCoords = null;
-    const firstStopDelivery = stopsWithCoords[0]?.delivery;
-    if (firstStopDelivery?.store_id && storeMap.has(firstStopDelivery.store_id)) {
-      const store = storeMap.get(firstStopDelivery.store_id);
-      const oLat = Number(store.latitude);
-      const oLng = Number(store.longitude);
-      if (Number.isFinite(oLat) && Number.isFinite(oLng)) {
-        originCoords = { lat: oLat, lng: oLng };
+    // ── 5. Resolve home coords ─────────────────────────────────────────────────
+    let homeCoords = null;
+    if (Number.isFinite(Number(home_lat)) && Number.isFinite(Number(home_lng))) {
+      homeCoords = { lat: Number(home_lat), lng: Number(home_lng) };
+    } else {
+      const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driver_id }).catch(() => []);
+      const au = (appUsers || [])[0];
+      const hLat = Number(au?.home_latitude);
+      const hLng = Number(au?.home_longitude);
+      if (Number.isFinite(hLat) && Number.isFinite(hLng)) {
+        homeCoords = { lat: hLat, lng: hLng };
       }
     }
-    if (!originCoords && masterPoints.length > 0) {
-      originCoords = { lat: masterPoints[0][0], lng: masterPoints[0][1] };
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // 6a. INCREMENTAL MODE — tail-only cut for the just-finished stop
+    // ═════════════════════════════════════════════════════════════════════════
+    if (isIncremental) {
+      const target = stopsWithCoords.find((s) =>
+        s.delivery.id === _triggeredDeliveryId || s.delivery.delivery_id === _triggeredDeliveryId
+      ) || stopsWithCoords[stopsWithCoords.length - 1]; // fallback: highest stop_order
+
+      if (!target) {
+        return Response.json({ success: false, error: 'Just-finished stop not found among terminal stops', point_count: 0 }, { status: 404 });
+      }
+
+      const stopOrder = Number(target.delivery.stop_order);
+      console.log(`🍞 [consolidateBreadcrumbSegment] Incremental target: stop #${stopOrder} (dt=${target.dtMs ?? 'n/a'})`);
+
+      const existingAll = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id,
+        delivery_date
+      }).catch(() => []);
+
+      // Find the anchor: previous finished stop (by stop_order) with a saved segment
+      let cursor = -1;            // boundary index in the trail (-1 = trail start)
+      let anchorPoint = null;     // synthetic home point prepended to a first leg
+      const prevStops = stopsWithCoords.filter((s) => Number(s.delivery.stop_order) < stopOrder);
+      let prevSegmentRecord = null;
+      let prevStop = null;
+
+      for (let i = prevStops.length - 1; i >= 0 && !prevSegmentRecord; i--) {
+        const cand = prevStops[i];
+        const rec = (existingAll || []).find((r) => Number(r.stop_order) === Number(cand.delivery.stop_order));
+        if (rec?.encoded_polyline) { prevSegmentRecord = rec; prevStop = cand; }
+      }
+
+      if (prevSegmentRecord) {
+        // Anchor = final point of the previous stop's saved leg. Locate it in the
+        // master trail (it IS a trail point for real legs; the stop coords for
+        // synthetic ones — first-within-1m finds the exact point).
+        const segPts = decodePolyline(prevSegmentRecord.encoded_polyline);
+        const last = segPts[segPts.length - 1];
+        if (last) {
+          let idx = firstIndexWithin(masterPoints, 0, last[0], last[1], 1);
+          if (idx === -1) idx = firstIndexWithin(masterPoints, 0, last[0], last[1], MATCH_RADIUS_M);
+          if (idx !== -1) {
+            cursor = idx;
+            console.log(`🍞 [consolidateBreadcrumbSegment] Anchor: prev stop #${Number(prevStop.delivery.stop_order)} final point → trail idx ${idx}`);
+          }
+        }
+      }
+
+      // No previous segment (first finished stop) → anchor at home / trail start
+      if (cursor === -1) {
+        if (homeCoords) {
+          const stop1Approach = firstIndexWithin(masterPoints, 0, target.coords.lat, target.coords.lng, MATCH_RADIUS_M);
+          const homeBound = stop1Approach === -1 ? masterPoints.length : stop1Approach;
+          const homeIdx = firstIndexWithin(masterPoints, 0, homeCoords.lat, homeCoords.lng, MATCH_RADIUS_M);
+          if (homeIdx !== -1 && homeIdx < homeBound) {
+            cursor = homeIdx;
+          } else {
+            const firstDist = haversineMeters(homeCoords.lat, homeCoords.lng, masterPoints[0][0], masterPoints[0][1]);
+            if (firstDist > MATCH_RADIUS_M) {
+              anchorPoint = [homeCoords.lat, homeCoords.lng, masterPoints[0][2] || 0];
+            }
+            cursor = 0;
+          }
+        } else {
+          cursor = 0;
+        }
+      }
+
+      // Scan forward through the trail for the target stop
+      const cursorStart = cursor + 1;
+      const win = scanWindow(masterPoints, cursorStart, masterPoints.length, target.coords.lat, target.coords.lng, target.dtMs);
+
+      let segPts;
+      let matchDistance;
+      let method;
+
+      if (win.qualifierIdx !== null) {
+        segPts = masterPoints.slice(cursorStart, win.qualifierIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+        if (anchorPoint) segPts.unshift(anchorPoint);
+        matchDistance = win.qualifierDist;
+        method = 'incremental-proximity';
+      } else if (win.closestIdx !== null && win.closestDist <= NEAR_MISS_MAX_M) {
+        segPts = masterPoints.slice(cursorStart, win.closestIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+        if (anchorPoint) segPts.unshift(anchorPoint);
+        segPts.push([target.coords.lat, target.coords.lng, target.dtMs ?? 0]);
+        matchDistance = win.closestDist;
+        method = 'incremental-near-miss-anchor';
+      } else {
+        const anchorCoords = cursor >= 0
+          ? [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]
+          : (anchorPoint || [masterPoints[0][0], masterPoints[0][1], masterPoints[0][2] || 0]);
+        segPts = [anchorCoords, [target.coords.lat, target.coords.lng, target.dtMs ?? 0]];
+        matchDistance = win.closestDist;
+        method = 'incremental-synthetic';
+      }
+
+      // Transport mode resolution (mirrors full mode)
+      let segTransportMode = 'driving';
+      if (target.delivery.is_cycling_marker) {
+        const notes = String(target.delivery.delivery_notes || '').toLowerCase();
+        if (notes.includes('end')) segTransportMode = 'cycling';
+      } else if (String(target.delivery.transport_mode || '').toLowerCase() === 'cycling') {
+        segTransportMode = 'cycling';
+      }
+
+      // ── Write ONLY the target segment ──────────────────────────────────────
+      let existing = null;
+      const dupIds = [];
+      const seen = new Set();
+      for (const rec of (existingAll || [])) {
+        if (Number(rec.stop_order) === stopOrder) {
+          if (!existing || (rec.saved_to_route === true && existing.saved_to_route !== true)) {
+            if (existing) dupIds.push(existing.id);
+            existing = rec;
+          } else {
+            dupIds.push(rec.id);
+          }
+          seen.add(rec.id);
+        }
+      }
+      for (const id of dupIds) {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(id).catch(() => null);
+      }
+
+      // Respect manual saves — a saved_to_route leg is never auto-overwritten
+      if (existing?.saved_to_route === true) {
+        console.log(`⏭️ [consolidateBreadcrumbSegment] Incremental: stop #${stopOrder} already saved_to_route — skipping write`);
+        return Response.json({
+          success: true,
+          segments: [{ stop_order: stopOrder, skipped: true }],
+          total_segments: 1,
+          master_point_count: masterPoints.length,
+          driver_id,
+          delivery_date,
+        });
+      }
+
+      const segEncoded = encodePolyline(segPts.map((p) => [p[0], p[1]]));
+      const segTimestamps = segPts.map((p) => p[2] || 0).join(',');
+      const payload = {
+        driver_id,
+        delivery_date,
+        stop_order: stopOrder,
+        encoded_polyline: segEncoded,
+        timestamps: segTimestamps,
+        transport_mode: segTransportMode,
+        point_count: segPts.length,
+        saved_to_route: false,
+      };
+
+      if (existing?.id) {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, payload);
+      } else {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(payload);
+      }
+
+      console.log(`✅ [consolidateBreadcrumbSegment] Incremental cut stop #${stopOrder}: ${segPts.length} pts (${method}, ${Math.round(matchDistance || 0)}m)`);
+
+      return Response.json({
+        success: true,
+        segments: [{
+          stop_order: stopOrder,
+          delivery_id: target.delivery.delivery_id || target.delivery.id,
+          point_count: segPts.length,
+          match_distance_m: Math.round(matchDistance || 0),
+          method,
+          has_polyline: !!segEncoded,
+        }],
+        total_segments: 1,
+        master_point_count: masterPoints.length,
+        driver_id,
+        delivery_date,
+      });
     }
 
-    // ── 6. First-local-minimum spatial slicing (inlined) ───────────────────────
-    const DEPARTURE_THRESHOLD_M = 60;
-    const SANITY_MAX_M = 1000;
+    // ═════════════════════════════════════════════════════════════════════════
+    // 6b. FULL MODE — sequential home-anchored walk through every stop
+    // ═════════════════════════════════════════════════════════════════════════
     const segments = [];
     {
-      let cursor = 0;
-      let lastRealTrailIdx = -1;
-      let lastRealCoords = originCoords ? [originCoords.lat, originCoords.lng] : null;
+      // ── Home anchor ────────────────────────────────────────────────────────
+      let homePrepend = null;   // synthetic home point prepended to stop 1's leg
+      let cursor = 0;           // first crumb index of the current leg (inclusive)
+      let boundaryIdx = -1;     // last crumb index of the previous leg
+      let boundaryCoords = null;
 
+      if (homeCoords) {
+        // Bound the home scan at the first crumb within 50m of stop 1, so an
+        // end-of-day return home can never be mistaken for the route start.
+        const firstStop = stopsWithCoords[0];
+        const stop1Approach = firstIndexWithin(masterPoints, 0, firstStop.coords.lat, firstStop.coords.lng, MATCH_RADIUS_M);
+        const homeBound = stop1Approach === -1 ? masterPoints.length : stop1Approach;
+        let homeIdx = -1;
+        let bestHomeDist = Infinity;
+        for (let i = 0; i < homeBound; i++) {
+          const d = haversineMeters(homeCoords.lat, homeCoords.lng, masterPoints[i][0], masterPoints[i][1]);
+          if (d <= MATCH_RADIUS_M && d < bestHomeDist) { bestHomeDist = d; homeIdx = i; }
+        }
+        if (homeIdx !== -1) {
+          cursor = homeIdx; // leg 1 starts AT the home crumb (pre-route crumbs dropped)
+          console.log(`🍞 [consolidateBreadcrumbSegment] Home anchor: crumb idx ${homeIdx} (${Math.round(bestHomeDist)}m from home)`);
+        } else if (masterPoints.length > 0) {
+          const firstDist = haversineMeters(homeCoords.lat, homeCoords.lng, masterPoints[0][0], masterPoints[0][1]);
+          if (firstDist > MATCH_RADIUS_M) {
+            homePrepend = [homeCoords.lat, homeCoords.lng, masterPoints[0][2] || 0];
+            console.log(`🍞 [consolidateBreadcrumbSegment] No home crumb within 50m — prepending synthetic home point (first crumb ${Math.round(firstDist)}m from home)`);
+          }
+        }
+      }
+
+      // ── Sequential walk ─────────────────────────────────────────────────────
       for (let s = 0; s < stopsWithCoords.length; s++) {
         const swc = stopsWithCoords[s];
         const stopLat = swc.coords.lat;
         const stopLng = swc.coords.lng;
         const stopOrder = Number(swc.delivery.stop_order);
 
-        let bestIdx = null;
-        let bestDist = Infinity;
-        let accepted = false;
-
-        for (let i = cursor; i < masterPoints.length; i++) {
-          const mp = masterPoints[i];
-          const dist = haversineMeters(stopLat, stopLng, mp[0], mp[1]);
-          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
-          // Only accept the departure when the minimum is actually within a sane
-          // distance of the stop — otherwise the trail is just starting far away
-          // and moving off, not genuinely arriving. This keeps scanning until the
-          // trail truly approaches the stop.
-          if (bestIdx !== null && bestDist <= SANITY_MAX_M && dist > bestDist + DEPARTURE_THRESHOLD_M) { accepted = true; break; }
+        // Window bound: first crumb within 50m of the NEXT stop, scanned from
+        // the current cursor. Makes drive-bys immune — a later pass near this
+        // stop can never steal points, and an unvisited stop can never swallow
+        // the legs of later stops.
+        let windowEnd = masterPoints.length;
+        if (s < stopsWithCoords.length - 1) {
+          const next = stopsWithCoords[s + 1];
+          const bound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
+          if (bound !== -1 && bound > cursor) windowEnd = bound;
         }
-        // If the trail ended within the stop's vicinity without a clear departure
-        // (e.g. the last stop on the route), accept the closest point found.
-        if (!accepted && bestDist <= SANITY_MAX_M) { accepted = true; }
 
-        const hasCoverage = accepted && bestDist <= SANITY_MAX_M;
-        if (hasCoverage && bestIdx !== null) {
-          const startIdx = lastRealTrailIdx + 1;
-          const pts = masterPoints.slice(startIdx, bestIdx + 1);
-          segments.push({ delivery: swc.delivery, stopOrder, points: pts, pointCount: pts.length, matchDistance: bestDist, method: 'first-local-min', synthetic: false });
-          lastRealTrailIdx = bestIdx;
-          lastRealCoords = [masterPoints[bestIdx][0], masterPoints[bestIdx][1]];
-          cursor = bestIdx + 1;
+        const win = scanWindow(masterPoints, cursor, windowEnd, stopLat, stopLng, swc.dtMs);
+
+        let pts;
+        let matchDistance;
+        let method;
+        let synthetic = false;
+
+        if (win.qualifierIdx !== null) {
+          pts = masterPoints.slice(cursor, win.qualifierIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+          if (s === 0 && homePrepend) pts.unshift(homePrepend);
+          matchDistance = win.qualifierDist;
+          method = win.qualifierDist <= MATCH_RADIUS_M ? 'proximity-50m' : 'time-2min';
+          boundaryIdx = win.qualifierIdx;
+          boundaryCoords = [masterPoints[win.qualifierIdx][0], masterPoints[win.qualifierIdx][1]];
+          cursor = win.qualifierIdx + 1;
+        } else if (win.closestIdx !== null && win.closestDist <= NEAR_MISS_MAX_M) {
+          // Near miss: trail got close but never within 50m / ±2min — cut up to
+          // the closest approach and append the stop coords as the leg anchor.
+          pts = masterPoints.slice(cursor, win.closestIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+          if (s === 0 && homePrepend) pts.unshift(homePrepend);
+          pts.push([stopLat, stopLng, swc.dtMs ?? 0]);
+          matchDistance = win.closestDist;
+          method = 'near-miss-anchor';
+          boundaryIdx = win.closestIdx;
+          boundaryCoords = [stopLat, stopLng];
+          cursor = win.closestIdx + 1;
         } else {
-          const org = lastRealCoords || (masterPoints.length > 0 ? [masterPoints[0][0], masterPoints[0][1]] : [stopLat, stopLng]);
-          segments.push({ delivery: swc.delivery, stopOrder, points: [[org[0], org[1], 0], [stopLat, stopLng, 0]], pointCount: 2, matchDistance: bestIdx !== null ? bestDist : Infinity, method: 'no-coverage', synthetic: true });
+          // Far miss (skipped/failed stop) — straight 2-point line from the
+          // previous boundary to the stop. Cursor UNCHANGED: the trail between
+          // the boundary and the next stop belongs to the next leg.
+          const anchor = boundaryCoords
+            ? [boundaryCoords[0], boundaryCoords[1], 0]
+            : (s === 0 && homePrepend
+              ? [homePrepend[0], homePrepend[1], homePrepend[2]]
+              : [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]);
+          pts = [anchor, [stopLat, stopLng, swc.dtMs ?? 0]];
+          matchDistance = win.closestDist;
+          method = 'far-miss-synthetic';
+          synthetic = true;
         }
+
+        segments.push({ delivery: swc.delivery, stopOrder, points: pts, pointCount: pts.length, matchDistance, method, synthetic });
       }
     }
 
     const syntheticCount = segments.filter(s => s.synthetic).length;
-    console.log(`🍞 [consolidateBreadcrumbSegment] Sliced ${segments.length} segments (${syntheticCount} synthetic): ${segments.map(s => `#${s.stopOrder}:${s.pointCount}pts${s.synthetic ? '(synth)' : ''}`).join(', ')}`);
+    console.log(`🍞 [consolidateBreadcrumbSegment] Sliced ${segments.length} segments (${syntheticCount} synthetic): ${segments.map(s => `#${s.stopOrder}:${s.pointCount}pts:${s.method}`).join(', ')}`);
 
     // ── PREVIEW MODE ─────────────────────────────────────────────────────────
-    // Return projected point counts per stop WITHOUT writing. Used by
-    // ResegmentStopsDialog to show "current → projected" before committing.
     if (preview_only) {
       const existingSegs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
         driver_id,
@@ -530,6 +791,7 @@ Deno.serve(async (req) => {
           projected_point_count: seg.pointCount,
           current_point_count: currentByStop.has(so) ? currentByStop.get(so) : null,
           match_distance_m: Math.round(seg.matchDistance),
+          method: seg.method,
         };
       });
       return Response.json({
@@ -543,21 +805,18 @@ Deno.serve(async (req) => {
     }
 
     // ── 7. Save each segment to DeliveryBreadcrumbs ────────────────────────────
-    // Fetch existing segments for this driver/date (all stop_orders except -1)
     const existingSegments = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
       delivery_date
     }).catch(() => []);
 
-    // Build map: stop_order → existing records (may have duplicates from prior runs)
-    const existingByStopOrder = new Map(); // stop_order → first record (to update)
-    const duplicateCrumbIds = [];          // extra records to delete
+    const existingByStopOrder = new Map();
+    const duplicateCrumbIds = [];
     const seenStopOrders = new Set();
     for (const rec of (existingSegments || [])) {
       if (rec.stop_order !== -1) {
         const so = Number(rec.stop_order);
         if (seenStopOrders.has(so)) {
-          // Duplicate! Keep the one with saved_to_route=true if any, delete the rest
           const existing = existingByStopOrder.get(so);
           if (existing && existing.saved_to_route === true && rec.saved_to_route !== true) {
             duplicateCrumbIds.push(rec.id);
@@ -565,7 +824,6 @@ Deno.serve(async (req) => {
             duplicateCrumbIds.push(existing.id);
             existingByStopOrder.set(so, rec);
           } else {
-            // Neither saved, or both saved — keep the first, delete the second
             duplicateCrumbIds.push(rec.id);
           }
         } else {
@@ -575,7 +833,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Delete duplicate breadcrumb records
     for (const dupId of duplicateCrumbIds) {
       console.log(`🗑️ [consolidateBreadcrumbSegment] Deleting duplicate breadcrumb record ${dupId}`);
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dupId).catch(() => null);
@@ -586,9 +843,6 @@ Deno.serve(async (req) => {
     for (const seg of segments) {
       const stopOrder = Number(seg.delivery.stop_order);
 
-      // When the caller passed selected_stop_orders, skip segments for unlisted stops —
-      // we still ran the proximity matching above for ALL stops (to keep the trail
-      // boundaries correct), but we only WRITE the segments the user requested.
       if (explicitlySelected && !selectedSet.has(stopOrder)) {
         continue;
       }
@@ -597,12 +851,8 @@ Deno.serve(async (req) => {
       const segEncoded = encodePolyline(segCoords);
       const segTimestamps = seg.points.map(p => p[2]).join(',');
 
-      // Determine transport mode from the delivery's transport_mode field
-      // (NOT preferred_travel_mode — that's on AppUser, not Delivery)
       let segTransportMode = 'driving';
       if (seg.delivery.is_cycling_marker) {
-        // Cycling start marker → the leg TO this marker is driving (driver drives to start point)
-        // Cycling end marker → the leg TO this marker is cycling (rider cycles to end point)
         const notes = String(seg.delivery.delivery_notes || '').toLowerCase();
         if (notes.includes('end')) {
           segTransportMode = 'cycling';
@@ -613,10 +863,6 @@ Deno.serve(async (req) => {
 
       const existing = existingByStopOrder.get(stopOrder);
 
-      // When the admin explicitly re-clips selected stops OR force_replace is set,
-      // preserve the existing saved_to_route status so the new cut REPLACES the old
-      // one without resetting it to "unsaved" (which would let auto-consolidation
-      // overwrite it again). For non-explicit auto-consolidation, set false as before.
       const preserveSavedToRoute = (explicitlySelected || force_replace) && existing?.saved_to_route === true;
 
       const payload = {
@@ -630,11 +876,8 @@ Deno.serve(async (req) => {
         saved_to_route: preserveSavedToRoute ? true : false,
       };
 
-      let savedRecord;
       if (existing?.id) {
-        existingByStopOrder.delete(stopOrder); // mark as handled
-        // Skip overwriting legs that have already been manually saved — UNLESS
-        // the caller explicitly selected this stop OR force_replace is set.
+        existingByStopOrder.delete(stopOrder);
         if (!explicitlySelected && !force_replace && existing.saved_to_route === true) {
           console.log(`⏭️ [consolidateBreadcrumbSegment] Skipping stop #${stopOrder} — already saved_to_route`);
           results.push({
@@ -647,9 +890,9 @@ Deno.serve(async (req) => {
           });
           continue;
         }
-        savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, payload);
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, payload);
       } else {
-        savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(payload);
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(payload);
       }
 
       results.push({
@@ -657,15 +900,12 @@ Deno.serve(async (req) => {
         delivery_id: seg.delivery.delivery_id || seg.delivery.id,
         point_count: seg.pointCount,
         match_distance_m: Math.round(seg.matchDistance),
+        method: seg.method,
         has_polyline: !!segEncoded,
       });
     }
 
     // ── 8. Clean up orphaned segments for stops that no longer exist ──────────
-    // (e.g., deliveries were deleted or re-assigned to a different date)
-    // Skipped when the caller scoped the run to selected_stop_orders — in that
-    // mode unprocessed stops still appear in existingByStopOrder by design, and
-    // deleting them would silently wipe the user's untouched breadcrumb data.
     if (!explicitlySelected) {
       const validStopOrders = new Set(stops.map(d => Number(d.stop_order)));
       for (const [stopOrder, rec] of existingByStopOrder) {
@@ -675,9 +915,8 @@ Deno.serve(async (req) => {
         }
       }
     }
-    // Duplicate records were already deleted in step 7 above.
 
-    console.log(`✅ [consolidateBreadcrumbSegment] Proximity slicing complete: ${segments.length} segments saved, driver=${driver_id}, date=${delivery_date}`);
+    console.log(`✅ [consolidateBreadcrumbSegment] Home-anchored slicing complete: ${results.length} segments saved, driver=${driver_id}, date=${delivery_date}`);
 
     return Response.json({
       success: true,

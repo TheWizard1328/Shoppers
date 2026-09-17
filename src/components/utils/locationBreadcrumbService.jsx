@@ -346,3 +346,105 @@ export const collectBreadcrumbForTracker = async ({
 
   return { pendingKey: offlineKey, deliveryDate };
 };
+// ═══════════════════════════════════════════════════════════════════════════════
+// seedHomeAnchorOnDuty — home anchor for the master trail (on_duty toggle)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Called from DriverStatusToggle when the driver toggles ON DUTY from their own
+// primary device. Rule (owner-defined, Sep 17 2026):
+//   - If the driver is MORE than 50m from home, the home coords become the very
+//     FIRST point of the master breadcrumb trail.
+//   - If crumbs already exist in the master AND no stops are finished yet for
+//     the date, those stray pre-duty crumbs are CLEARED first (the route starts
+//     fresh from home — the trail only covers the on-duty period).
+//   - If stops are already finished (mid-route re-toggle after a break), the
+//     master is left COMPLETELY untouched.
+//   - Within 50m of home, no seed — the trail naturally starts at home.
+//
+// Mutates the in-memory trail cache + IDB record + immediately flushes to the
+// server so the slicer's home anchor (consolidateBreadcrumbSegment) sees it.
+export const seedHomeAnchorOnDuty = async ({
+  driverId,
+  deliveryDate,
+  homeLat,
+  homeLng,
+  currentLat,
+  currentLng,
+  hasFinishedStops,
+}) => {
+  const hLat = Number(homeLat);
+  const hLng = Number(homeLng);
+  const cLat = Number(currentLat);
+  const cLng = Number(currentLng);
+  if (!driverId || ![hLat, hLng, cLat, cLng].every(Number.isFinite)) {
+    return { seeded: false, reason: 'missing_coords' };
+  }
+
+  const distFromHome = haversineMeters(hLat, hLng, cLat, cLng);
+  if (distFromHome <= 50) {
+    return { seeded: false, reason: 'within_50m', distance: Math.round(distFromHome) };
+  }
+
+  const { offlineDB } = await import('./offlineDatabase');
+  const d = deliveryDate || getLocalDateString();
+  const offlineKey = getTodayOfflineKey(driverId, d);
+  const cacheKey = getCacheKey(driverId, d);
+
+  // Load the trail into the in-memory cache (same cache the collector appends to)
+  const trailPoints = await loadTrailIntoCache(driverId, d, offlineKey);
+
+  if (trailPoints.length > 0 && hasFinishedStops) {
+    // Mid-route re-toggle — the master is authoritative, never touched.
+    return { seeded: false, reason: 'route_in_progress', distance: Math.round(distFromHome) };
+  }
+
+  const now = Date.now();
+  const homePoint = [hLat, hLng, now];
+
+  if (trailPoints.length === 0) {
+    trailPoints.push(homePoint);
+  } else {
+    // Stray pre-duty crumbs with no finished stops — wipe and restart from home.
+    console.log(`🍞 [Breadcrumbs] Duty-toggle seed: clearing ${trailPoints.length} pre-duty crumbs, restarting master from home (${Math.round(distFromHome)}m from driver)`);
+    trailPoints.length = 0;
+    _outageTimestampsCache.set(cacheKey, new Set());
+    trailPoints.push(homePoint);
+  }
+
+  const encodedPolyline = encodePolyline(trailPoints);
+  const timestamps = trailPoints.map((p) => p[2] || 0).join(',');
+  const outageTsArr = Array.from(_outageTimestampsCache.get(cacheKey) || []);
+
+  const offlineRecord = {
+    id: offlineKey,
+    driver_id: driverId,
+    delivery_date: d,
+    stop_order: -1,
+    encoded_polyline: encodedPolyline,
+    timestamps,
+    transport_mode: 'driving',
+    point_count: trailPoints.length,
+    outage_timestamps: outageTsArr,
+  };
+  await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
+
+  // Immediate flush so the server master (and the slicer's home anchor) sees it
+  // right away — don't wait for the 3rd-collect sync cycle.
+  const releaseLock = await acquireBreadcrumbSyncLock();
+  try {
+    await base44.functions.invoke('syncPendingBreadcrumbs', {
+      driver_id: driverId,
+      delivery_date: d,
+      encoded_polyline: encodedPolyline,
+      timestamps,
+      point_count: trailPoints.length,
+      outage_timestamps: outageTsArr,
+    });
+  } catch (error) {
+    console.warn(`⚠️ [Breadcrumbs] Duty-toggle seed flush failed (will retry on next collect):`, error?.message || error);
+  } finally {
+    releaseLock();
+  }
+
+  console.log(`🍞 [Breadcrumbs] Duty-toggle seed: home coords injected as first master point (${Math.round(distFromHome)}m from driver, ${trailPoints.length} pts total)`);
+  return { seeded: true, cleared: trailPoints.length === 1, distance: Math.round(distFromHome) };
+};
