@@ -23,7 +23,7 @@
       "dsl": "1.0.0",
       "name": "driver_cod_briefing",
       "namespace": "base44",
-      "version": "1.0.3"
+      "version": "1.0.4"
     },
     "do": [
       {
@@ -31,7 +31,7 @@
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "It is 9am \u2014 the weekday driver COD briefing is running now (Mon-Fri only; no briefing on weekends). Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver briefing function, which sends push notifications to every driver with outstanding uncollected CODs and returns the full grouped JSON):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverCodBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, compose a compact app-owner briefing in PLAIN TEXT (WhatsApp, no markdown) broken down BY DRIVER. For each driver show a header line like: ROBERT T \u2014 2 CODs, $236.46. Under it, list each item in the format: 09/01 HS \u00b7 $ 36.44 \u00b7 Melinda Martin\nLAYOUT RULE: within each driver block, right-align the money column \u2014 pad all amounts (including the header total) to the same width so every $ sign and decimal lines up vertically.\nEnd with the overall total across drivers. Also note any driver whose push failed (pushes array shows sent/skipped/errors per driver) \u2014 mention delivery failures briefly at the end.\nIf there are no outstanding CODs, just say the COD slate is clean.\n\n3. Broadcast the briefing to the owner via broadcast_message, then stop."
+            "message": "It is 9am \u2014 the weekday driver COD briefing is running now (Mon-Fri only; no briefing on weekends). Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver briefing function, which sends push notifications to every driver with outstanding uncollected CODs and returns the full grouped JSON):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverCodBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, compose a compact app-owner briefing in PLAIN TEXT (WhatsApp, no markdown) broken down BY DRIVER. Match the Square Catalog item format exactly \u2014 the MONEY comes FIRST on each item line:\n\nROBERT T \u2014 2 CODs, $ 204.76\n$ 200.02 \u00b7 09/03(HS)-Glenn Bursey\n$   4.74 \u00b7 09/14(LD)-Jeanne Lavallee\n\nLAYOUT RULES: within each driver block, right-align the money column \u2014 pad every item amount (and the driver header total) to the same width so all $ signs and decimals line up vertically. Each item line = '$ ' + right-padded amount + ' \u00b7 ' + MM/DD delivery date + '(' + store abbreviation + ')' + '-' + patient name. Header line = DRIVER NAME \u2014 N CODs, $ + total.\nAfter all driver blocks, end with: OVERALL TOTAL: N CODs, $ X.XX\nThen note push delivery failures briefly (from the pushes array: sent/skipped/errors per driver) \u2014 e.g. 'Push delivery failures: none reported.'\nIf there are no outstanding CODs, just say the COD slate is clean.\n\n3. Broadcast the briefing to the owner via broadcast_message, then stop."
           },
           "x-base44": {
             "description": "Push driver COD notifications, brief the owner",
