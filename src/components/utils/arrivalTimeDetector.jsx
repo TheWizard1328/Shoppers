@@ -302,6 +302,12 @@ class ArrivalTimeDetector {
                     if (!d || d.id === nextDelivery.id) return false;
                     if (!allowedStatuses.includes(String(d.status))) return false;
                     if (d.arrival_time) return false;
+                    // Cycling markers are sequential route boundaries — a marker only
+                    // gets arrival_time when IT is the isNextDelivery stop. Start and
+                    // end markers frequently share identical coordinates, so co-located
+                    // stamping would record arrival for a marker the driver isn't at
+                    // "yet" (its turn hasn't come).
+                    if (d.is_cycling_marker) return false;
                     // Resolve this stop's coordinates
                     let stopLat, stopLon;
                     if (d.is_cycling_marker) { stopLat = d.cycling_latitude; stopLon = d.cycling_longitude; }
@@ -432,6 +438,9 @@ class ArrivalTimeDetector {
           if (!d || d.id === nextStop.id) return false;
           if (!['en_route', 'in_transit'].includes(String(d.status))) return false;
           if (d.arrival_time) return false;
+          // Cycling markers only get arrival_time via their own isNextDelivery turn
+          // (start/end markers share coordinates — co-located stamping is wrong for them).
+          if (d.is_cycling_marker) return false;
           let stopLat, stopLon;
           if (d.is_cycling_marker) { stopLat = d.cycling_latitude; stopLon = d.cycling_longitude; }
           else if (d.patient_id) { const p = patients.find(p => p?.id === d.patient_id); stopLat = p?.latitude; stopLon = p?.longitude; }
