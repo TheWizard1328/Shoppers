@@ -97,6 +97,7 @@ export default function RealTimeRouteOptimizer({
               </div>
 
               <button
+                aria-label="Dismiss notification"
                 onClick={() => setNotification(null)}
                 className="transition-colors flex-shrink-0"
                 style={{ color: 'var(--text-slate-400)' }}

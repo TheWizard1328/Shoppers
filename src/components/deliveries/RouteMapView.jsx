@@ -132,7 +132,7 @@ export default function RouteMapView({
               <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 Route Map - {dateString}
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={onClose}>
+              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close route map">
                 <X className="w-4 h-4" />
               </Button>
             </div>

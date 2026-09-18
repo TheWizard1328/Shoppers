@@ -104,6 +104,7 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 flex-shrink-0"
+                aria-label="Dismiss route notification"
                 onClick={() => {
                   setIsVisible(false);
                   setTimeout(() => onDismiss?.(), 300);

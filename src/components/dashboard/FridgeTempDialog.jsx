@@ -285,6 +285,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
 
             <div className="flex items-center justify-center gap-4 mb-3">
               <button
+                aria-label="Decrease temperature"
                 onClick={() => handleStepChange(-0.5)}
                 className="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >
@@ -299,6 +300,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
               </div>
 
               <button
+                aria-label="Increase temperature"
                 onClick={() => handleStepChange(0.5)}
                 className="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >

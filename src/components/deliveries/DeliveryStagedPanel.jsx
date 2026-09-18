@@ -176,7 +176,7 @@ export function DeliveryStagedPanelMobile({
               <h3 className="text-lg font-semibold text-body">
                 Deliveries: (S: {sortedStagedDeliveries.filter((s) => !s.id).length} P: {sortedStagedDeliveries.filter((s) => s.id).length})
               </h3>
-              <Button variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close staged deliveries panel"><X className="w-4 h-4" /></Button>
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               <DeliveryFormStaged

@@ -41,6 +41,7 @@ export default function DriverRouteHeader({
       className="flex-shrink-0 shadow-sm relative min-w-0 overflow-hidden bg-surface border-surface"
     >
       <button
+        aria-label="Toggle route dates menu"
         onClick={() => setIsMobileMenuOpen((v) => !v)}
         className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden text-body-2 bg-surface" style={{ borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}
       >

@@ -936,7 +936,7 @@ export default function DeliveryFormView({
                     </div>
                   );
                 })()}
-                <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving} aria-label="Close form"><X className="w-4 h-4" /></Button>
               </div>
             </div>
             {!delivery &&

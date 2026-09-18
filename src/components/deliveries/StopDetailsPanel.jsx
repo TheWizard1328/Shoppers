@@ -426,7 +426,7 @@ export default function StopDetailsPanel({
         {/* ── DESKTOP layout (md+): two-row header ── */}
         <div className="hidden md:flex flex-col gap-1">
           <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0">
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close stop details" className="flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h2 className="text-lg font-bold flex-shrink-0 text-body">Stop Details</h2>
@@ -517,7 +517,7 @@ export default function StopDetailsPanel({
         <div className="flex flex-col gap-1 md:hidden">
           {/* Row 1: back arrow + title | store badge + status badge */}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0 -ml-2">
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close stop details" className="flex-shrink-0 -ml-2">
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <h2 className="text-lg font-bold flex-1 text-body">Stop Details</h2>
@@ -602,7 +602,7 @@ export default function StopDetailsPanel({
               {/* Edit/Delete Buttons inline with name */}
               {canManageStop &&
               <div className="flex items-center gap-1 flex-shrink-0">
-                <Button onClick={() => onEdit(delivery)} variant="ghost" size="icon" className="h-8 w-8">
+                <Button onClick={() => onEdit(delivery)} variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit stop">
                   <Pencil className="w-4 h-4 text-soft" />
                 </Button>
                 <Button
@@ -618,7 +618,8 @@ export default function StopDetailsPanel({
                   disabled={typeof onDelete !== 'function'}
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8">
+                  className="h-8 w-8"
+                  aria-label="Delete stop">
                   <Trash2 className="w-4 h-4 text-red-600" />
                 </Button>
               </div>

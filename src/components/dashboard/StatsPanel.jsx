@@ -571,6 +571,7 @@ export default function StatsPanel({
                 } : undefined} />
                 
             <Button variant="ghost" size="sm"
+              aria-label={isExpanded ? "Collapse stats panel" : "Expand stats panel"}
               onClick={isDispatcherLockedExpanded ? undefined : (e) => {e.stopPropagation();if (!isExpanded) window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));setIsExpanded(!isExpanded);}}
               disabled={isDispatcherLockedExpanded || currentUser?.status === 'inactive' && isDriver && !isAdmin}
               className={`h-8 w-8 p-0 flex-shrink-0 ${isDispatcherLockedExpanded ? 'opacity-0 cursor-default' : currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -685,6 +686,7 @@ export default function StatsPanel({
                         }
                       }}
                       className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                      aria-label={showAllDriverMarkers ? "Hide all drivers on map" : "Show all drivers on map"}
                       style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <Binoculars className="w-4 h-4" />
                       </Button>

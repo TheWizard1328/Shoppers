@@ -958,6 +958,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 <a
                   href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
                   onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
+                  aria-label="Call customer"
                   className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
                   
                         <Phone className="w-6 h-6" />
@@ -975,6 +976,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
                 <button
                   type="button"
+                  aria-label="Navigate to stop"
                   onClick={(e) => {
                   e.stopPropagation();
                   dispatchStopCardActionCollapse();

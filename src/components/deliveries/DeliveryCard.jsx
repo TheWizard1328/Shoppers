@@ -527,7 +527,7 @@ function DeliveryCard({
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               {onEdit && canEditDelivery && !isProjected && (
-                <Button variant="ghost" size="icon" className="w-6 h-6" onClick={(e) => { e.stopPropagation(); onEdit(delivery); }}>
+                <Button variant="ghost" size="icon" className="w-6 h-6" aria-label="Edit delivery" onClick={(e) => { e.stopPropagation(); onEdit(delivery); }}>
                   <Edit className="w-3 h-3" />
                 </Button>
               )}
@@ -537,9 +537,9 @@ function DeliveryCard({
                   variant="ghost"
                   size="icon"
                   className="w-6 h-6 text-red-500 hover:text-red-700"
+                  aria-label="Delete delivery"
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('Delete button clicked for delivery:', delivery.id);
                     onDelete(delivery.id);
                   }}
                 >
