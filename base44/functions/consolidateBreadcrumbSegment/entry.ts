@@ -789,15 +789,31 @@ Deno.serve(async (req) => {
         const stopLng = swc.coords.lng;
         const stopOrder = Number(swc.delivery.stop_order);
 
-        // Window bound: first crumb within 50m of the NEXT stop, scanned from
-        // the current cursor. Makes drive-bys immune — a later pass near this
-        // stop can never steal points, and an unvisited stop can never swallow
-        // the legs of later stops.
+        // Window bound: the leg for stop N ends before stop N+1. Two bounds,
+        // whichever is tighter (earlier in the trail):
+        //   1. Proximity: first crumb within 50m of stop N+1 (drive-by immunity).
+        //   2. Time: crumb closest in time to stop N+1's actual_delivery_time.
+        // The time bound is critical for cycling stops — the driver parks and
+        // cycles to the stop, so no driving crumb ever lands within 50m of a
+        // cycling stop's coords. Without the time bound, the proximity bound
+        // never triggers and stop N's leg swallows all subsequent stops' trail
+        // (e.g. stop 27's leg absorbing stops 28/29/30 when those are cycling).
         let windowEnd = masterPoints.length;
         if (s < stopsWithCoords.length - 1) {
           const next = stopsWithCoords[s + 1];
-          const bound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
-          if (bound !== -1 && bound > cursor) windowEnd = bound;
+          const proxBound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
+          if (proxBound !== -1 && proxBound > cursor) windowEnd = Math.min(windowEnd, proxBound);
+          if (next.dtMs != null) {
+            let bestIdx = -1, bestDelta = Infinity;
+            for (let i = cursor; i < masterPoints.length; i++) {
+              const dt = masterPoints[i][2] || 0;
+              if (dt <= 0) continue;
+              const delta = Math.abs(dt - next.dtMs);
+              if (delta < bestDelta) { bestDelta = delta; bestIdx = i; }
+              if (dt > next.dtMs + TIME_WINDOW_MS) break;
+            }
+            if (bestIdx !== -1 && bestIdx > cursor) windowEnd = Math.min(windowEnd, bestIdx);
+          }
         }
 
         const win = scanWindow(masterPoints, cursor, windowEnd, stopLat, stopLng, swc.dtMs);
