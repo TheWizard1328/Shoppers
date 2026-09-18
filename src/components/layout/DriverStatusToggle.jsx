@@ -437,6 +437,35 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             }
 
             console.log(`[DriverStatusToggle] on_duty sync: ${updatedDeliveries.length} deliveries, nextStop=${nextStop?.id || 'none'} (${nextStop?.status || '-'})`);
+
+            // ── On-duty route deviation check (owner rule Sep 18 2026) ──────
+            // The driver may be re-entering the route far from the current leg's
+            // stored polyline (break stop, off-duty errand). Measure deviation
+            // against the current leg NOW; if beyond the admin threshold, run the
+            // scoped current-leg regen (bends the leg through the driver's
+            // position) instead of waiting for the next GPS-tick detection.
+            if (nextStop && Number.isFinite(Number(gps?.lat)) && Number.isFinite(Number(gps?.lng))) {
+              try {
+                const { checkCurrentLegDeviationOnDuty } = await import('../dashboard/useRouteDeviationMonitor');
+                const devResult = await checkCurrentLegDeviationOnDuty({
+                  driverId: effectiveUser.id,
+                  lat: Number(gps.lat),
+                  lng: Number(gps.lng),
+                  deliveries: allRouteDeliveries,
+                  patients: appDataContext?.patients || [],
+                  stores: appDataContext?.stores || [],
+                  appUsers: appDataContext?.appUsers || [],
+                  updateDeliveriesLocally: appDataContext?.updateDeliveriesLocally,
+                });
+                if (devResult?.regenerated) {
+                  console.log(`[DriverStatusToggle] on-duty deviation check: current leg regenerated (was ${devResult.deviatedMeters}m off-path)`);
+                } else if (devResult?.checked && devResult?.deviated) {
+                  console.log(`[DriverStatusToggle] on-duty deviation check: ${devResult.deviatedMeters}m off-path, regen skipped (${devResult.reason || 'unknown'})`);
+                }
+              } catch (devErr) {
+                console.warn('[DriverStatusToggle] on-duty deviation check failed:', devErr?.message || devErr);
+              }
+            }
           }
         } catch (e) {
           console.warn('[DriverStatusToggle] Could not sync isNextDelivery after on_duty:', e?.message);

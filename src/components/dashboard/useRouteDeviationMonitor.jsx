@@ -29,6 +29,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
+import { locationTracker } from '@/components/utils/locationTracker';
 
 const CHECK_THROTTLE_MS = 10_000;          // min time between deviation CHECKS
 const GPS_FRESHNESS_MS = 2 * 60 * 1000;    // ignore stale GPS (tracker cached ≤15s, this is generous)
@@ -44,6 +45,105 @@ function localDateString(d) {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+// ── Shared scoped current-leg regen ─────────────────────────────────────────
+// Single code path for BOTH callers: the GPS-tick monitor (below) and the
+// on-duty deviation check (exported below). Owns the in-flight lock + the
+// per-driver cooldown stamp so the two can never double-regen.
+async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally, todayStr }) {
+  if (regenInFlight) return { regenerated: false, reason: 'in_flight' };
+  regenInFlight = true;
+  lastRegenAtByDriver.set(driverId, Date.now());
+  try {
+    console.log(`[RouteDeviation] ${driverId === undefined ? '' : ''}regenerating CURRENT LEG ONLY via live-GPS via-point`);
+    const { regenerateCurrentLegPolyline } = await import('@/components/utils/currentLegRegenerator');
+    const result = await regenerateCurrentLegPolyline({
+      nextStop,
+      gps: { latitude: Number(gps.latitude), longitude: Number(gps.longitude) },
+      deliveries: todayDeliveries,
+      patients,
+      stores,
+      appUsers,
+      driverId,
+    });
+
+    if (result?.success) {
+      // Belt-and-suspenders local state sync (updateDelivery already pushed the
+      // optimistic record through the mutation subscription).
+      updateDeliveriesLocally?.([result.updatedDelivery], false);
+    } else {
+      console.log(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
+    }
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: { driverId, deliveryDate: todayStr, triggeredBy: 'routeDeviation', alreadyOptimized: true }
+    }));
+    console.log('[RouteDeviation] current-leg regen complete');
+    return { regenerated: result?.success === true, updatedDelivery: result?.updatedDelivery || null };
+  } catch (err) {
+    console.warn('[RouteDeviation] regen failed:', err?.message || err);
+    return { regenerated: false, error: err?.message || String(err) };
+  } finally {
+    regenInFlight = false;
+  }
+}
+
+// ── On-duty deviation check (owner rule Sep 18 2026) ────────────────────────
+// Called from DriverStatusToggle right after a driver is toggled ON duty. The
+// driver may be re-entering the route far from the current leg's stored
+// polyline (break stop, off-duty errand). Measure deviation NOW — if beyond
+// the admin threshold, regenerate the CURRENT leg through the driver's
+// position instead of waiting for the next GPS-tick detection cycle.
+// Gates mirror the GPS-tick monitor (settings, in-flight next stop, cycling
+// exclusion, cooldown, in-flight lock) EXCEPT duty status — the caller has
+// just confirmed the on_duty transition.
+export async function checkCurrentLegDeviationOnDuty({
+  driverId, lat, lng, deliveries, patients = [], stores = [], appUsers = [], updateDeliveriesLocally,
+}) {
+  if (!driverId) return { checked: false, reason: 'no_driver_id' };
+  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return { checked: false, reason: 'no_gps' };
+
+  const settings = getDeviationSettings();
+  if (!settings.enableRouteDeviationDetection) return { checked: false, reason: 'detection_disabled' };
+  const threshold = Number(settings.routeDeviationThresholdMeters) || 200;
+  const cooldownMs = (Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
+
+  const todayStr = localDateString();
+  const todayDeliveries = (deliveries || [])
+    .filter((d) => d && d.driver_id === driverId && d.delivery_date === todayStr);
+  const nextStop = todayDeliveries
+    .filter((d) => IN_FLIGHT_STATUSES.includes(String(d.status || '').toLowerCase()))
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+  if (!nextStop) return { checked: false, reason: 'no_next_stop' };
+  // Cycling markers have their own specialized regen paths — never deviation-regen them.
+  if (nextStop.delivery_notes === 'Cycling Route Start') return { checked: false, reason: 'cycling_marker' };
+
+  const distance = deviationFromDeliveryPolylineMeters(Number(lat), Number(lng), nextStop.encoded_polyline);
+  if (!Number.isFinite(distance) || distance <= threshold) {
+    return { checked: true, deviated: false, deviatedMeters: Number.isFinite(distance) ? Math.round(distance) : null };
+  }
+
+  const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
+  if (Date.now() - lastRegenAt < cooldownMs) {
+    return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: 'cooldown' };
+  }
+  if (regenInFlight) {
+    return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: 'in_flight' };
+  }
+
+  console.log(`[RouteDeviation] on-duty check: driver ${Math.round(distance)}m off the current leg (threshold ${threshold}m) — regenerating CURRENT leg`);
+  const regenResult = await _regenCurrentLeg({
+    nextStop,
+    gps: { latitude: Number(lat), longitude: Number(lng) },
+    todayDeliveries,
+    patients,
+    stores,
+    appUsers,
+    driverId,
+    updateDeliveriesLocally,
+    todayStr,
+  });
+  return { checked: true, deviated: true, ...regenResult, deviatedMeters: Math.round(distance) };
 }
 
 export function useRouteDeviationMonitor({
@@ -75,6 +175,14 @@ export function useRouteDeviationMonitor({
 
       // ── Gates ──
       if (!s.isDriver || !s.isPrimaryDevice) return;
+
+      // ── Duty hard gate (owner rule Sep 18 2026) ──
+      // Deviation detection must be DISABLED while the driver is off_duty or
+      // on_break. The appUsers React state below can lag behind the actual duty
+      // toggle (WS / refresh propagation delay); the locationTracker's
+      // in-memory status flips SYNCHRONOUSLY with the toggle, so treat it as
+      // authoritative whenever the tracker has a user loaded.
+      if (locationTracker?.currentUser && !['on_duty', 'online'].includes(String(locationTracker.driverStatus || '').toLowerCase())) return;
 
       const settings = getDeviationSettings();
       if (!settings.enableRouteDeviationDetection) return;
@@ -121,43 +229,21 @@ export function useRouteDeviationMonitor({
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
       if (now - lastRegenAt < cooldownMs) return;
       if (regenInFlight) return;
-      regenInFlight = true;
-      lastRegenAtByDriver.set(driverId, now);
 
-      try {
-        console.log(`[RouteDeviation] ${Math.round(distance)}m off the current leg (threshold ${threshold}m) — regenerating CURRENT LEG ONLY via live-GPS via-point`);
-        // Scoped regen (Sep 17 2026): one 2-3 point Directions call for the current
-        // leg only — origin (last finished stop / home) → live GPS → next stop.
-        // No coordinator run, no re-sequencing, other stops' polylines untouched.
-        // (Previous full performRouteOptimization re-cut every remaining leg on
-        // each deviation — slower and churned legs that were still valid.)
-        const { regenerateCurrentLegPolyline } = await import('@/components/utils/currentLegRegenerator');
-        const result = await regenerateCurrentLegPolyline({
-          nextStop,
-          gps: { latitude: Number(gps.latitude), longitude: Number(gps.longitude) },
-          deliveries: todayDeliveries,
-          patients: s.patients,
-          stores: s.stores,
-          appUsers: s.appUsers,
-          driverId,
-        });
-
-        if (result?.success) {
-          // Belt-and-suspenders local state sync (updateDelivery already pushed the
-          // optimistic record through the mutation subscription).
-          s.updateDeliveriesLocally?.([result.updatedDelivery], false);
-        } else {
-          console.log(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
-        }
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { driverId, deliveryDate: todayStr, triggeredBy: 'routeDeviation', alreadyOptimized: true }
-        }));
-        console.log('[RouteDeviation] current-leg regen complete');
-      } catch (err) {
-        console.warn('[RouteDeviation] regen failed:', err?.message || err);
-      } finally {
-        regenInFlight = false;
-      }
+      // Scoped regen (Sep 17 2026): one 2-3 point Directions call for the current
+      // leg only — origin (last finished stop / home) → live GPS → next stop.
+      // No coordinator run, no re-sequencing, other stops' polylines untouched.
+      await _regenCurrentLeg({
+        nextStop,
+        gps: { latitude: Number(gps.latitude), longitude: Number(gps.longitude) },
+        todayDeliveries,
+        patients: s.patients,
+        stores: s.stores,
+        appUsers: s.appUsers,
+        driverId,
+        updateDeliveriesLocally: s.updateDeliveriesLocally,
+        todayStr,
+      });
     };
 
     // React to every driverLocation update (live GPS on the primary device).
