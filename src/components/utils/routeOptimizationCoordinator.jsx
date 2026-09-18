@@ -263,6 +263,7 @@ async function _performRouteOptimizationInner({
   try {
     // ── Step 1: Run client-side optimization engine ──────────────────────────
     let optimizeData = null;
+    let _serverCommitFailed = false;
 
     if (!skipOptimize) {
       const engineResult = await optimizeRouteClientSide({
@@ -381,7 +382,6 @@ async function _performRouteOptimizationInner({
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
       }
-      let _serverCommitFailed = false;
       if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
         const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
         const _trWrites = optimizeData.writeBatch.filter(w => w.data?.tracking_number != null).length;
