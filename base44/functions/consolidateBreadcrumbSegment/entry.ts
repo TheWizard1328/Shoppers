@@ -789,20 +789,22 @@ Deno.serve(async (req) => {
         const stopLng = swc.coords.lng;
         const stopOrder = Number(swc.delivery.stop_order);
 
-        // Window bound: the leg for stop N ends before stop N+1. Two bounds,
-        // whichever is tighter (earlier in the trail):
-        //   1. Proximity: first crumb within 50m of stop N+1 (drive-by immunity).
-        //   2. Time: crumb closest in time to stop N+1's actual_delivery_time.
-        // The time bound is critical for cycling stops — the driver parks and
-        // cycles to the stop, so no driving crumb ever lands within 50m of a
-        // cycling stop's coords. Without the time bound, the proximity bound
-        // never triggers and stop N's leg swallows all subsequent stops' trail
-        // (e.g. stop 27's leg absorbing stops 28/29/30 when those are cycling).
+        // Window bound: the leg for stop N ends before stop N+1. The TIME bound
+        // is primary — the crumb closest in time to stop N+1's actual_delivery_time
+        // is the natural chronological boundary. The proximity bound (first crumb
+        // within 50m of stop N+1) is only used when stop N+1 has no delivery time.
+        //
+        // Why time-primary: for cycling stops the driver parks and cycles to the
+        // stop, so no driving crumb lands within 50m of the stop's coords — the
+        // proximity bound never triggers and the leg swallows all subsequent
+        // stops (e.g. a 633-pt cycling-marker leg absorbing stops 29-33). Worse,
+        // an EARLY drive-by of stop N+1's location (before stop N is even reached)
+        // makes the proximity bound trigger too early, excluding stop N's real
+        // qualifier and forcing the unbounded fallback. The delivery-time bound
+        // is immune to both: it lands at the true chronological handoff.
         let windowEnd = masterPoints.length;
         if (s < stopsWithCoords.length - 1) {
           const next = stopsWithCoords[s + 1];
-          const proxBound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
-          if (proxBound !== -1 && proxBound > cursor) windowEnd = Math.min(windowEnd, proxBound);
           if (next.dtMs != null) {
             let bestIdx = -1, bestDelta = Infinity;
             for (let i = cursor; i < masterPoints.length; i++) {
@@ -812,7 +814,10 @@ Deno.serve(async (req) => {
               if (delta < bestDelta) { bestDelta = delta; bestIdx = i; }
               if (dt > next.dtMs + TIME_WINDOW_MS) break;
             }
-            if (bestIdx !== -1 && bestIdx > cursor) windowEnd = Math.min(windowEnd, bestIdx);
+            if (bestIdx !== -1 && bestIdx > cursor) windowEnd = bestIdx;
+          } else {
+            const proxBound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
+            if (proxBound !== -1 && proxBound > cursor) windowEnd = proxBound;
           }
         }
 
