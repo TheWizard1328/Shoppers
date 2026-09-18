@@ -16,9 +16,19 @@ Deno.serve(async (req) => {
     const WINDOW_MS = 5 * 60 * 1000;
 
     // ── Store coords ──
-    const allStores = await base44.asServiceRole.entities.Store.list({ limit: 1000 }).catch(() => []);
+    let allStores = [];
+    let storeListError = null;
+    try { allStores = await base44.asServiceRole.entities.Store.list(); } catch (e) { storeListError = String(e && e.message ? e.message : e); }
     const store = (allStores || []).find((s) => s && s.id === STORE_ID) || null;
-    if (!store) return Response.json({ error: 'store not found', storeId: STORE_ID });
+    if (!store) {
+      return Response.json({
+        error: 'store not found',
+        storeId: STORE_ID,
+        storeListError,
+        storeCount: (allStores || []).length,
+        storeSample: (allStores || []).slice(0, 12).map((s) => ({ id: s.id, name: s.name })),
+      });
+    }
 
     // ── Breadcrumb records for the driver+date (find the master trail) ──
     const crumbs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
