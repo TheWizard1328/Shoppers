@@ -633,6 +633,32 @@ Deno.serve(async (req) => {
         if (tpDist > MATCH_RADIUS_M) segPts.push([target.coords.lat, target.coords.lng, target.dtMs ?? 0]);
         matchDistance = tpDist;
         method = 'incremental-time-priority';
+      } else if (target.dtMs != null) {
+        // Unbounded time-priority fallback: no qualifier/near-miss/±10min crumb
+        // in the bounded window. Scan the entire remaining trail for the crumb
+        // closest in time to the delivery — the driver was at the stop then.
+        let ubIdx = -1, ubDelta = Infinity;
+        for (let i = cursorStart; i < masterPoints.length; i++) {
+          const dt = masterPoints[i][2] || 0;
+          if (dt <= 0) continue;
+          const delta = Math.abs(dt - target.dtMs);
+          if (delta < ubDelta) { ubDelta = delta; ubIdx = i; }
+        }
+        if (ubIdx !== -1) {
+          segPts = masterPoints.slice(cursorStart, ubIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+          if (anchorPoint) segPts.unshift(anchorPoint);
+          const ubDist = haversineMeters(target.coords.lat, target.coords.lng, masterPoints[ubIdx][0], masterPoints[ubIdx][1]);
+          if (ubDist > MATCH_RADIUS_M) segPts.push([target.coords.lat, target.coords.lng, target.dtMs ?? 0]);
+          matchDistance = ubDist;
+          method = 'incremental-time-priority-unbounded';
+        } else {
+          const anchorCoords = cursor >= 0
+            ? [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]
+            : (anchorPoint || [masterPoints[0][0], masterPoints[0][1], masterPoints[0][2] || 0]);
+          segPts = [anchorCoords, [target.coords.lat, target.coords.lng, target.dtMs ?? 0]];
+          matchDistance = win.closestDist;
+          method = 'incremental-synthetic';
+        }
       } else {
         const anchorCoords = cursor >= 0
           ? [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]
@@ -813,11 +839,46 @@ Deno.serve(async (req) => {
           boundaryIdx = win.timePriorityIdx;
           boundaryCoords = tpDist > MATCH_RADIUS_M ? [stopLat, stopLng] : [masterPoints[win.timePriorityIdx][0], masterPoints[win.timePriorityIdx][1]];
           cursor = win.timePriorityIdx + 1;
+        } else if (swc.dtMs != null) {
+          // Unbounded time-priority fallback: the bounded window (cut at the next
+          // stop's drive-by) had no qualifier, near-miss, or ±10min crumb. Scan
+          // the ENTIRE remaining trail for the crumb closest in time to the
+          // delivery — the driver was at the stop then, so that crumb is the
+          // correct leg boundary even though it sits outside the drive-by window.
+          let ubIdx = -1, ubDelta = Infinity;
+          for (let i = cursor; i < masterPoints.length; i++) {
+            const dt = masterPoints[i][2] || 0;
+            if (dt <= 0) continue;
+            const delta = Math.abs(dt - swc.dtMs);
+            if (delta < ubDelta) { ubDelta = delta; ubIdx = i; }
+          }
+          if (ubIdx !== -1) {
+            pts = masterPoints.slice(cursor, ubIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+            if (s === 0 && homePrepend) pts.unshift(homePrepend);
+            const ubDist = haversineMeters(stopLat, stopLng, masterPoints[ubIdx][0], masterPoints[ubIdx][1]);
+            if (ubDist > MATCH_RADIUS_M) pts.push([stopLat, stopLng, swc.dtMs ?? 0]);
+            matchDistance = ubDist;
+            method = 'time-priority-unbounded';
+            boundaryIdx = ubIdx;
+            boundaryCoords = ubDist > MATCH_RADIUS_M ? [stopLat, stopLng] : [masterPoints[ubIdx][0], masterPoints[ubIdx][1]];
+            cursor = ubIdx + 1;
+          } else {
+            // No timestamped crumb anywhere — genuine straight line
+            const anchor = boundaryCoords
+              ? [boundaryCoords[0], boundaryCoords[1], 0]
+              : (s === 0 && homePrepend
+                ? [homePrepend[0], homePrepend[1], homePrepend[2]]
+                : [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]);
+            pts = [anchor, [stopLat, stopLng, swc.dtMs ?? 0]];
+            matchDistance = win.closestDist;
+            method = 'far-miss-synthetic';
+            synthetic = true;
+            cursor = cursor + 1;
+            boundaryIdx = cursor - 1;
+            boundaryCoords = [stopLat, stopLng];
+          }
         } else {
-          // Far miss (genuine GPS gap at a visited stop) — straight 2-point line
-          // from the previous boundary to the stop. Advance the cursor to the
-          // last crumb before the delivery time so the next stop's window starts
-          // after the gap instead of re-scanning the same trail (multi-leg fix).
+          // No delivery time — no time anchor, genuine straight 2-point line
           const anchor = boundaryCoords
             ? [boundaryCoords[0], boundaryCoords[1], 0]
             : (s === 0 && homePrepend
@@ -827,17 +888,9 @@ Deno.serve(async (req) => {
           matchDistance = win.closestDist;
           method = 'far-miss-synthetic';
           synthetic = true;
-          if (swc.dtMs != null) {
-            let lastBeforeGap = cursor - 1;
-            for (let i = cursor; i < masterPoints.length; i++) {
-              const dt = masterPoints[i][2] || 0;
-              if (dt > 0 && dt < swc.dtMs) lastBeforeGap = i;
-              else if (dt >= swc.dtMs) break;
-            }
-            cursor = lastBeforeGap + 1;
-            boundaryIdx = lastBeforeGap;
-            boundaryCoords = [stopLat, stopLng];
-          }
+          cursor = cursor + 1;
+          boundaryIdx = cursor - 1;
+          boundaryCoords = [stopLat, stopLng];
         }
 
         segments.push({ delivery: swc.delivery, stopOrder, points: pts, pointCount: pts.length, matchDistance, method, synthetic });
