@@ -938,7 +938,7 @@ export function useStopCardCompletionActions({
         // Only run (and log) the proximity check when the identity/role gate passed —
         // avoids noisy distance logs on regular delivery fails/cancels.
         const withinStoreRange = isDriverCancellingPickup
-          ? isDriverWithinStoreRange({ currentUser, appUsers, store, stores, delivery })
+          ? await isDriverWithinStoreRange({ currentUser, appUsers, store, stores, delivery })
           : false;
         if (isDriverCancellingPickup && withinStoreRange) {
           criticalUpdate.after_hours_pickup = true;
