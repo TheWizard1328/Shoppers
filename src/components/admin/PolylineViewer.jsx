@@ -103,9 +103,24 @@ const decodeBreadcrumbPolyline = (encoded) => {
     rawLats.push(lat);
     rawLngs.push(lng);
   }
-  const firstLat = rawLats[0] ?? 0;
+  // Robust precision auto-detect: skip (0,0) null-island leading points so a
+  // single bad fix can't flip a 1e7 trail to 1e5 decoding (100x distance inflation).
+  let firstLat = 0;
+  for (let i = 0; i < rawLats.length; i++) {
+    if (Math.abs(rawLats[i]) > 0 || Math.abs(rawLngs[i]) > 0) { firstLat = rawLats[i]; break; }
+  }
   const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
-  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
+  // Filter null-island (0,0) and out-of-range corruption so distances and map
+  // rendering aren't poisoned by a ~11,500 km jump to the Atlantic.
+  const pts = [];
+  for (let i = 0; i < rawLats.length; i++) {
+    const la = rawLats[i] / divisor;
+    const ln = rawLngs[i] / divisor;
+    if (Math.abs(la) < 0.01 && Math.abs(ln) < 0.01) continue;
+    if (Math.abs(la) > 85 || Math.abs(ln) > 180) continue;
+    pts.push([la, ln]);
+  }
+  return pts;
 };
 
 const encodeBreadcrumbPolyline = (points) => {
@@ -1465,8 +1480,11 @@ export default function PolylineViewer({ users = [] }) {
                   </div>
                 )}
                 {isBreadcrumb && (() => {
-                  const pts = decodePolyline(item.encoded_polyline);
-                  const distKm = calcPolylineDistanceKm(pts);
+                   // Breadcrumb trails are 1e7-encoded — use the breadcrumb decoder
+                   // (with robust auto-detect + null-island filter), NOT the 1e5
+                   // delivery decoder, or distances inflate 100x.
+                   const pts = decodeBreadcrumbPolyline(item.encoded_polyline);
+                   const distKm = calcPolylineDistanceKm(pts);
                   const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
                   const matchingDelivery = deliveries.find(d => d.driver_id === item.driver_id && d.delivery_date === item.delivery_date && d.stop_order === item.stop_order);
                   const activeMode = matchingDelivery?.transport_mode || item.transport_mode;

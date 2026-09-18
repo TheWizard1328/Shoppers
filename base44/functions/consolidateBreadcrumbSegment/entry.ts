@@ -52,6 +52,7 @@ import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 // ── Constants ──────────────────────────────────────────────────────────────────
 const MATCH_RADIUS_M = 50;            // crumb qualifies by proximity
 const TIME_WINDOW_MS = 2 * 60 * 1000; // crumb qualifies by ±2 min of delivery time
+const TIME_WINDOW_WIDE_MS = 10 * 60 * 1000; // time-priority fallback window — a visited stop should always have a crumb within ±10 min
 const NEAR_MISS_MAX_M = 200;          // closest approach beyond this → straight synthetic line
 const POLY_PRECISION = 1e7;           // breadcrumb trails are 1e7 (legacy 1e5 auto-detected)
 
@@ -102,14 +103,25 @@ function decodePolyline(encoded) {
     rawLats.push(lat);
     rawLngs.push(lng);
   }
-  const firstLat = rawLats[0] ?? 0;
+  // Robust precision auto-detect: skip (0,0) null-island leading points so a single
+  // bad fix at the start of the trail can't flip a 1e7 trail to 1e5 decoding.
+  let firstLat = 0;
+  for (let i = 0; i < rawLats.length; i++) {
+    if (Math.abs(rawLats[i]) > 0 || Math.abs(rawLngs[i]) > 0) { firstLat = rawLats[i]; break; }
+  }
   const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
   return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
 }
 
-// Detect corrupted points from the old bitwise-overflow encoder.
+// Detect corrupted points: null-island (0,0) bad GPS fixes, the old bitwise-overflow
+// encoder pattern, and out-of-range coordinates. Null-island points break the
+// precision auto-detect (firstLat=0 picks 1e5 for a 1e7 trail → 100x distance inflation)
+// and inflate distances with a ~11,500 km jump to the Atlantic.
 function isCorruptedPoint(lat, lng) {
-  return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
+  if (Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01) return true; // null-island
+  if (Math.abs(lat) > 1 && Math.abs(lng) < 0.01) return true;     // old bitwise overflow
+  if (Math.abs(lat) > 85 || Math.abs(lng) > 180) return true;    // out of range
+  return false;
 }
 
 // ── Haversine distance (meters) ─────────────────────────────────────────────
@@ -278,16 +290,27 @@ function firstIndexWithin(masterPoints, from, lat, lng, radiusM) {
 function scanWindow(masterPoints, from, to, lat, lng, dtMs) {
   let qualifierIdx = null, qualifierDist = Infinity;
   let closestIdx = null, closestDist = Infinity;
+  let timePriorityIdx = null, timePriorityDelta = Infinity;
   for (let i = Math.max(0, from); i < to && i < masterPoints.length; i++) {
     const mp = masterPoints[i];
     const dist = haversineMeters(lat, lng, mp[0], mp[1]);
     if (dist < closestDist) { closestDist = dist; closestIdx = i; }
-    const timeOk = dtMs != null && Math.abs((mp[2] || 0) - dtMs) <= TIME_WINDOW_MS;
+    const dt = mp[2] || 0;
+    const timeOk = dtMs != null && Math.abs(dt - dtMs) <= TIME_WINDOW_MS;
     if ((dist <= MATCH_RADIUS_M || timeOk) && dist < qualifierDist) {
       qualifierDist = dist; qualifierIdx = i;
     }
+    // Time-priority fallback: crumb closest in time to delivery within ±10 min.
+    // A visited stop always has a crumb within ±10 min of completion; this rescues
+    // stops where GPS drifted past 50m at the delivery moment.
+    if (dtMs != null && dt > 0) {
+      const delta = Math.abs(dt - dtMs);
+      if (delta <= TIME_WINDOW_WIDE_MS && delta < timePriorityDelta) {
+        timePriorityDelta = delta; timePriorityIdx = i;
+      }
+    }
   }
-  return { qualifierIdx, qualifierDist, closestIdx, closestDist };
+  return { qualifierIdx, qualifierDist, closestIdx, closestDist, timePriorityIdx, timePriorityDelta };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -528,17 +551,35 @@ Deno.serve(async (req) => {
       }
 
       if (prevSegmentRecord) {
-        // Anchor = final point of the previous stop's saved leg. Locate it in the
-        // master trail (it IS a trail point for real legs; the stop coords for
-        // synthetic ones — first-within-1m finds the exact point).
+        // Anchor = final point of the previous stop's saved leg. Use the last
+        // NON-null-island point (a trailing (0,0) would mis-locate the anchor
+        // 14,000 km away). Locate it in the master trail via 1m then 50m.
         const segPts = decodePolyline(prevSegmentRecord.encoded_polyline);
-        const last = segPts[segPts.length - 1];
+        let last = null;
+        for (let i = segPts.length - 1; i >= 0; i--) {
+          if (segPts[i] && !isCorruptedPoint(segPts[i][0], segPts[i][1])) { last = segPts[i]; break; }
+        }
         if (last) {
           let idx = firstIndexWithin(masterPoints, 0, last[0], last[1], 1);
           if (idx === -1) idx = firstIndexWithin(masterPoints, 0, last[0], last[1], MATCH_RADIUS_M);
           if (idx !== -1) {
             cursor = idx;
             console.log(`🍞 [consolidateBreadcrumbSegment] Anchor: prev stop #${Number(prevStop.delivery.stop_order)} final point → trail idx ${idx}`);
+          } else if (prevStop?.dtMs != null) {
+            // Fallback: the previous segment's end can't be located in the master
+            // (precision-corrupted or synthetic). Anchor at the master crumb closest
+            // in TIME to the previous stop's delivery — the driver was there then.
+            let bestIdx = -1, bestDelta = Infinity;
+            for (let i = 0; i < masterPoints.length; i++) {
+              const dt = masterPoints[i][2] || 0;
+              if (dt <= 0) continue;
+              const delta = Math.abs(dt - prevStop.dtMs);
+              if (delta < bestDelta) { bestDelta = delta; bestIdx = i; }
+            }
+            if (bestIdx !== -1) {
+              cursor = bestIdx;
+              console.log(`🍞 [consolidateBreadcrumbSegment] Anchor fallback: prev stop #${Number(prevStop.delivery.stop_order)} time-based → trail idx ${bestIdx} (±${Math.round(bestDelta / 1000)}s)`);
+            }
           }
         }
       }
@@ -582,6 +623,16 @@ Deno.serve(async (req) => {
         segPts.push([target.coords.lat, target.coords.lng, target.dtMs ?? 0]);
         matchDistance = win.closestDist;
         method = 'incremental-near-miss-anchor';
+      } else if (win.timePriorityIdx !== null) {
+        // Time-priority: no crumb within 50m/±2min, but a crumb exists within ±10min
+        // of delivery time — the driver was there. Cut the leg at that crumb and
+        // append the stop coords as the anchor if it's >50m away.
+        segPts = masterPoints.slice(cursorStart, win.timePriorityIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+        if (anchorPoint) segPts.unshift(anchorPoint);
+        const tpDist = haversineMeters(target.coords.lat, target.coords.lng, masterPoints[win.timePriorityIdx][0], masterPoints[win.timePriorityIdx][1]);
+        if (tpDist > MATCH_RADIUS_M) segPts.push([target.coords.lat, target.coords.lng, target.dtMs ?? 0]);
+        matchDistance = tpDist;
+        method = 'incremental-time-priority';
       } else {
         const anchorCoords = cursor >= 0
           ? [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]
@@ -749,10 +800,24 @@ Deno.serve(async (req) => {
           boundaryIdx = win.closestIdx;
           boundaryCoords = [stopLat, stopLng];
           cursor = win.closestIdx + 1;
+        } else if (win.timePriorityIdx !== null) {
+          // Time-priority: no crumb within 50m/±2min, but a crumb exists within
+          // ±10min of delivery time. Cut the leg up to that crumb; append stop
+          // coords as the anchor if it's >50m away (GPS drifted past the stop).
+          pts = masterPoints.slice(cursor, win.timePriorityIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+          if (s === 0 && homePrepend) pts.unshift(homePrepend);
+          const tpDist = haversineMeters(stopLat, stopLng, masterPoints[win.timePriorityIdx][0], masterPoints[win.timePriorityIdx][1]);
+          if (tpDist > MATCH_RADIUS_M) pts.push([stopLat, stopLng, swc.dtMs ?? 0]);
+          matchDistance = tpDist;
+          method = 'time-priority';
+          boundaryIdx = win.timePriorityIdx;
+          boundaryCoords = tpDist > MATCH_RADIUS_M ? [stopLat, stopLng] : [masterPoints[win.timePriorityIdx][0], masterPoints[win.timePriorityIdx][1]];
+          cursor = win.timePriorityIdx + 1;
         } else {
-          // Far miss (skipped/failed stop) — straight 2-point line from the
-          // previous boundary to the stop. Cursor UNCHANGED: the trail between
-          // the boundary and the next stop belongs to the next leg.
+          // Far miss (genuine GPS gap at a visited stop) — straight 2-point line
+          // from the previous boundary to the stop. Advance the cursor to the
+          // last crumb before the delivery time so the next stop's window starts
+          // after the gap instead of re-scanning the same trail (multi-leg fix).
           const anchor = boundaryCoords
             ? [boundaryCoords[0], boundaryCoords[1], 0]
             : (s === 0 && homePrepend
@@ -762,6 +827,17 @@ Deno.serve(async (req) => {
           matchDistance = win.closestDist;
           method = 'far-miss-synthetic';
           synthetic = true;
+          if (swc.dtMs != null) {
+            let lastBeforeGap = cursor - 1;
+            for (let i = cursor; i < masterPoints.length; i++) {
+              const dt = masterPoints[i][2] || 0;
+              if (dt > 0 && dt < swc.dtMs) lastBeforeGap = i;
+              else if (dt >= swc.dtMs) break;
+            }
+            cursor = lastBeforeGap + 1;
+            boundaryIdx = lastBeforeGap;
+            boundaryCoords = [stopLat, stopLng];
+          }
         }
 
         segments.push({ delivery: swc.delivery, stopOrder, points: pts, pointCount: pts.length, matchDistance, method, synthetic });
