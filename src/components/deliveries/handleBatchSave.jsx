@@ -310,24 +310,6 @@ export async function handleBatchSave({
       // pickup containers (en_route) are created.
       let newPickupsCreated = normalizedDefaultPickups.length > 0;
 
-      // Build a set of driver/date pairs that already have ISP/ISD stops (no pickup needed)
-      const ispIsdDriverDateKeys = new Set([
-        ...(allDeliveries || [])
-          .filter((d) => d && !d.patient_id && (
-            String(d.delivery_id || '').toUpperCase().startsWith('ISP-') ||
-            String(d.delivery_id || '').toUpperCase().startsWith('ISD-') ||
-            d._interstore_source_id
-          ))
-          .map((d) => `${d.driver_id}__${d.delivery_date}`),
-        ...(newDeliveries || [])
-          .filter((d) => d && (
-            String(d.delivery_id || '').toUpperCase().startsWith('ISP-') ||
-            String(d.delivery_id || '').toUpperCase().startsWith('ISD-') ||
-            d._interstore_source_id
-          ))
-          .map((d) => `${d.driver_id}__${d.delivery_date}`)
-      ]);
-
       // Helper: resolve PUID for ISP/ISD patient deliveries from the route.
       // ISP → look for a future (not completed/cancelled) pickup stop on the To Store on the same date.
       // ISD → look back for any (including completed/en_route) pickup stop on the store on the same date.
@@ -369,12 +351,17 @@ export async function handleBatchSave({
           const isInterStoreDelivery = String(delivery.delivery_id || '').toUpperCase().startsWith('ISP-') ||
             String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-') ||
             !!delivery._interstore_source_id;
-          if (isInterStoreDelivery || ispIsdDriverDateKeys.has(driverDateKey)) {
-            if (isInterStoreDelivery) {
-              const interStorePuid = resolveInterStorePuid(delivery);
-              if (interStorePuid) {
-                ensureResultsByKey.set(key, { data: { puid: interStorePuid, pickup: null } });
-              }
+          // FIX (Robert, Sep 19 2026): only ISP/ISD-tagged deliveries skip the pickup
+          // ensure. Previously ANY driver/date with an ISP/ISD stop skipped it entirely,
+          // so a regular patient delivery on an interstore route (e.g. a Bonnie Doon
+          // stop created while an ISP transfer was in transit) was saved pending with NO
+          // pickup and no puid — orphaned. Regular deliveries must still fall through to
+          // the default-pickup lookup / on-demand ensurePickupForDelivery path, which
+          // creates an after_hours pickup when the driver isn't the scheduled store driver.
+          if (isInterStoreDelivery) {
+            const interStorePuid = resolveInterStorePuid(delivery);
+            if (interStorePuid) {
+              ensureResultsByKey.set(key, { data: { puid: interStorePuid, pickup: null } });
             }
             continue;
           }
