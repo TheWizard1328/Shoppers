@@ -1097,19 +1097,29 @@ class LocationTracker {
               timeout: 30000,
               maximumAge: 0,
               requestPermissions: true,
-              distanceFilter: 0,
               // CRITICAL: @capgo/background-geolocation reads "minIntervalMs" (NOT "interval")
               // to set the native LocationManager polling interval. This controls BOTH
               // the GPS hardware firing rate AND the native POST throttle (shouldPost).
               //
-              // Set to 1000ms (1 second) so the driver's own marker moves smoothly on
-              // every GPS fix. The 15-second DB upload throttle is handled by TWO layers:
-              //   1. JS layer: updateLocationInDatabase() has a 15s upload gate
-              //   2. Server layer: nativeLocationUpdate backend function throttles to 15s
-              // The native POST fires every 1s but the server ignores most, only writing
-              // to the DB every 15s. This wastes lightweight HTTP calls but ensures the
-              // local marker updates smoothly while keeping DB writes throttled.
-              minIntervalMs: 1000,
+              // Sep 18 2026 battery work: fixes every 1s were the #1 battery drain
+              // (GPS hardware duty cycle + a native HTTP POST every second whose
+              // radio wakeups keep the cellular modem out of sleep). 5s fixes cut
+              // GPS duty cycle ~80% and POSTs 5x; the server only writes every 15s
+              // anyway (nativeLocationUpdate throttle + the 15s JS upload gate).
+              //
+              // 10m distanceFilter: while parked (stores, lights, home) the plugin
+              // delivers NO fixes at all — stationary time stops costing battery.
+              // At city speed 10m elapses in <1s, so the 5s interval dominates
+              // while moving.
+              //
+              // Marker smoothness is preserved WITHOUT the 1s fixes: the driver's
+              // own blue dot uses polyline-follow interpolation between fixes
+              // (LiveDriverLocationMarker + liveMarkerInterpolator) — it glides
+              // along the current-leg road geometry at ~20fps, so it LOOKS like
+              // 1s fixes while the hardware wakes at 5s. Display-only; geofences,
+              // ETAs, breadcrumbs, and DB all consume the real 5s fixes.
+              distanceFilter: 10,
+              minIntervalMs: 5000,
               backgroundTitle: 'RxDeliver location tracking',
               backgroundMessage: 'Tracking delivery location in the background.'
             };

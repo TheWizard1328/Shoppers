@@ -221,7 +221,7 @@ class NativeLocationProvider {
     const startOpts = {
       requestPermissions: options.requestPermissions ?? true,
       stale: false,
-      distanceFilter: options.distanceFilter ?? 0,
+      distanceFilter: options.distanceFilter ?? 10, // Sep 18 2026: 10m default — no fixes while parked (battery)
       backgroundTitle: options.backgroundTitle || 'RxDeliver — Active Delivery',
       backgroundMessage: options.backgroundMessage || 'Location is being tracked for your active deliveries.',
     };

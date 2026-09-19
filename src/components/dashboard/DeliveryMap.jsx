@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { haversineMeters } from '@/components/utils/geoUtils';
-import { MapContainer, Marker, Pane, Polyline, Popup } from "react-leaflet";
+import { MapContainer, Pane, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { CachedTileLayer } from "../utils/hereTileCache";
-import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 
 
@@ -24,6 +23,8 @@ import { buildMapPadding } from "./DashboardHelpers";
 import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } from "./completedRouteView";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
+import LiveDriverLocationMarker from "./LiveDriverLocationMarker";
+import { decodeGooglePolyline } from "../utils/dynamicPolylineManager";
 import HereTileUsageTracker from "./HereTileUsageTracker";
 import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
@@ -826,6 +827,34 @@ function DeliveryMap({
 
     return { ...locationData, driver: currentUser, driverId: currentUser.id, driver_id: currentUser.id };
   }, [currentDriverLocation, safeUsers, currentUser, isMobile, selectedDate]);
+
+  // ── Road geometry for the self-marker polyline-follow interpolation ──────────
+  // The next stop's leg polyline (origin → stop, including the live-GPS via
+  // point) is the road path the driver is currently driving. LiveDriverLocationMarker
+  // uses it to glide the blue dot ALONG THE ROAD between 5s GPS fixes instead of
+  // stepping (Sep 18 2026 battery work: native fixes reduced 1s → 5s + 10m filter).
+  // Display-only — nothing here feeds geofences, ETAs, breadcrumbs, or the DB.
+  const livePathCoords = useMemo(() => {
+    try {
+      const selfId = currentUser?.id;
+      if (!selfId) return null;
+      const mine = [...pickupMarkers, ...deliveryMarkers].filter(
+        (stop) => stop && stop.driver_id === selfId
+          && !FINISHED_STATUSES.includes(stop.status)
+          && stop.status !== "pending"
+          && !stop.is_cycling_marker
+      );
+      if (!mine.length) return null;
+      mine.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      const next = mine.find((stop) => stop.isNextDelivery === true) || mine[0];
+      const encoded = next?.polyline;
+      if (!encoded || typeof encoded !== "string") return null;
+      const coords = decodeGooglePolyline(encoded);
+      return Array.isArray(coords) && coords.length > 1 ? coords : null;
+    } catch (_) {
+      return null;
+    }
+  }, [pickupMarkers, deliveryMarkers, currentUser?.id]);
 
   // NOTE (Robert, Sep 4 2026): the routeLocationSnapshot override on driver
   // location markers was REMOVED. The snapshot is gated to 150m/10s (its job is
@@ -1725,14 +1754,11 @@ function DeliveryMap({
             open Popup (which lives in popupPane=700) correctly cover the dot. */}
         <Pane name="driverMarkerPane" style={{ zIndex: 630 }}>
           {currentDriverMarker && (
-            <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} pane="driverMarkerPane" eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
-              <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
-                <div className="min-w-[150px]">
-                  <div className="font-semibold text-xs">Your Location</div>
-                  {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600 dark:text-slate-400">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
-                </div>
-              </Popup>
-            </Marker>
+            <LiveDriverLocationMarker
+              marker={currentDriverMarker}
+              pathCoords={livePathCoords}
+              onMarkerClick={onMarkerClick}
+            />
           )}
 
           {mapReady && (
