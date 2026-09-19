@@ -208,10 +208,13 @@ export default function StopCardFooterMenu(props) {
               </DropdownMenuItem>
             </>
           )}
-          {canShowFailCancel && (
+          {/* Owner rule (Sep 19, 2026): Cancel Pickup is HIDDEN (not disabled) when the store has pending
+              deliveries; patient stops still show Mark as Failed. Delete stays ENABLED — the confirm dialog
+              already warns and offers transfer/delete-all for the pending stops. */}
+          {canShowFailCancel && !(isPickupForMenu && hasPendingStoreDeliveries) && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} disabled={isPickupForMenu && hasPendingStoreDeliveries} title={isPickupForMenu && hasPendingStoreDeliveries ? 'Disabled: this store has pending deliveries' : undefined} onPointerDownCapture={(e) => { if (isPickupForMenu && hasPendingStoreDeliveries) return; closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
                 <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
               </DropdownMenuItem>
             </>
@@ -227,7 +230,7 @@ export default function StopCardFooterMenu(props) {
           {canShowDelete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} disabled={hasPendingStoreDeliveries} title={hasPendingStoreDeliveries ? 'Disabled: this store has pending deliveries' : undefined} onClick={(e) => { if (hasPendingStoreDeliveries) { e.preventDefault(); e.stopPropagation(); return; } closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
+              <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
                 <Trash2 className="w-5 h-5 mr-2" />Delete
               </DropdownMenuItem>
             </>
