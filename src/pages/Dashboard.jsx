@@ -38,6 +38,7 @@ import { getFabTargetDriverMapLocation, isDriverOffDuty } from "@/components/das
 import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
 import { getDeliveryTypeFlags } from "@/components/utils/deliveryTypeUtils";
 import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
+import { getVisibleHomeMarkersForBounds } from "@/components/dashboard/dashboardMapMarkerHelpers";
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useRouteDeviationMonitor from '@/components/dashboard/useRouteDeviationMonitor';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
@@ -1311,7 +1312,11 @@ function Dashboard() {
         const visibleDriverIdsForBounds = new Set((deliveriesToMap || []).map((d) => d?.driver_id).filter(Boolean));
         if (hasStopMarkers) {
           const mapDriverLocationMarkersForBounds = (window.__mapDriverLocationMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id || marker?.driverId || marker?.user_id || marker?.id));
-          const mapHomeMarkers = (window.__dashboardMapMarkerHelpers?.getVisibleHomeMarkersForBounds || ((params) => params.mapHomeMarkers || []))({
+          // FIX (Sep 19, 2026): call the imported helper directly. The window.__dashboardMapMarkerHelpers
+          // lookup always fell back to the raw (unfiltered) marker list because nothing ever imports
+          // dashboardMapMarkerHelpers.jsx, so its module-level global registration never ran — every
+          // driver's home pin entered the Phase 1 bounds even in single-driver mode.
+          const mapHomeMarkers = getVisibleHomeMarkersForBounds({
             mapHomeMarkers: window.__mapHomeMarkers || [],
             mapDeliveryMarkers: (window.__mapDeliveryMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id)),
             mapPickupMarkers: (window.__mapPickupMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id)),
