@@ -275,7 +275,7 @@ export default function SquareLocationConfigs() {
                     <span className="text-slate-500 dark:text-slate-400">Stores:</span>
                     {linkedStores.length > 0 ? (
                       [...linkedStores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((s) => (
-                        <Badge key={s.id} className="text-xs text-white border-0" style={{ backgroundColor: s.color || '#64748b' }}>{s.name}</Badge>
+                        <Badge key={s.id} className="text-xs border-0" style={{ backgroundColor: s.color || '#64748b', color: 'white' }}>{s.name}</Badge>
                       ))
                     ) : (
                       <span className="text-slate-400 dark:text-slate-400 italic">No stores linked</span>
