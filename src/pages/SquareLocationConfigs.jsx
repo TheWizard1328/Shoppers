@@ -202,7 +202,12 @@ export default function SquareLocationConfigs() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    // Layout's <main> and PageTransition are overflow-hidden — a page must supply
+    // its own h-full flex column + overflow-y-auto body or content beyond the
+    // viewport is clipped with no scrollbar (Sep 19 2026: mobile users could not
+    // scroll past the first ~3 config cards).
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Square Location Configs</h1>
@@ -292,6 +297,7 @@ export default function SquareLocationConfigs() {
           })}
         </div>
       )}
+      </div>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
