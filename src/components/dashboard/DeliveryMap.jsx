@@ -1455,6 +1455,30 @@ function DeliveryMap({
     };
   }, [map, isMobile, isStatsCardExpanded, areStopCardsVisible, stopCardsHeight, effectiveTopOverlayHeight]);
 
+  // PHASE 1 ASPECT-CHANGE RE-FIT (Sep 19, 2026): Leaflet fires 'resize' when the
+  // map container's size/aspect changes (rotation, window resize, invalidateSize).
+  // Phases 2/3 stay fresh via GPS ticks + the useDriverLocationSync watchdog, but
+  // Phase 1's fitBounds is one-shot — an aspect change after the fit leaves markers
+  // occluded by the stats card / stop cards. Relay a debounced window event so
+  // Dashboard can re-fire the Phase 1 fit. fitBounds never changes the container
+  // size, so this cannot loop.
+  useEffect(() => {
+    if (!map) return;
+    let aspectTimer = null;
+    const handleMapResize = () => {
+      if (aspectTimer != null) clearTimeout(aspectTimer);
+      aspectTimer = setTimeout(() => {
+        aspectTimer = null;
+        window.dispatchEvent(new CustomEvent('mapAspectChanged'));
+      }, 250);
+    };
+    map.on('resize', handleMapResize);
+    return () => {
+      if (aspectTimer != null) clearTimeout(aspectTimer);
+      map.off('resize', handleMapResize);
+    };
+  }, [map]);
+
   // Delegated marker hover: replaces the per-marker `:has()` selectors that were
   // too costly for Chrome/Safari's compositor to re-evaluate during every paint
   // while panning/zooming (a `.leaflet-marker-icon:has(.delivery-marker:hover)`

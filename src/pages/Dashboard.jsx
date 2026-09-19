@@ -1630,6 +1630,31 @@ function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapViewTrigger]);
 
+  // PHASE 1 ASPECT-CHANGE AUTO-REFIT (Sep 19, 2026): when the map container's
+  // aspect ratio changes (rotation, window resize), re-fire the Phase 1 fit so
+  // markers aren't left occluded behind the stats card / stop cards. Phases 2/3
+  // already self-heal via GPS ticks + the useDriverLocationSync watchdog. Guards
+  // mirror the watchdog: never override a manual pan, and respect touch /
+  // suppression / immersive-transition grace windows.
+  useEffect(() => {
+    const handleMapAspectChanged = () => {
+      if (mapViewPhaseRef.current !== 1) return;
+      if (mapUserUnlockedRef.current) return;
+      const now = Date.now();
+      if ((window._isUserTouchingMap || false) === true) return;
+      if ((window._userMapControlUntil || 0) > now) return;
+      if ((window._suppressMapRepositionUntil || 0) > now) return;
+      if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
+      if ((window._lastImmersiveEntryAt || 0) > now - 3500) return;
+      pendingPhaseRef.current = 1;
+      lastProgrammaticMapMoveRef.current = now;
+      window._lastProgrammaticMapMove = now;
+      setMapViewTrigger((p) => p + 1);
+    };
+    window.addEventListener('mapAspectChanged', handleMapAspectChanged);
+    return () => window.removeEventListener('mapAspectChanged', handleMapAspectChanged);
+  }, [setMapViewTrigger]);
+
   const hasLoadedOfflineDataRef = useRef(false);
   const lastOfflineLoadDateRef = useRef(''); // tracks date to re-run on date change
   useEffect(() => {
