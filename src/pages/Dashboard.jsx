@@ -492,7 +492,15 @@ function Dashboard() {
     const total=sd.length+ap.filter((d)=>d&&isISP(d)&&!d.after_hours_pickup).length; /* excl AH pickups, keep AH deliveries 1x */
     const inTransitIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&(d.status==='in_transit'||d.status==='en_route')).length;
     const completedIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&d.status==='completed').length;
-    const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+inTransitIsdIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
+    // Fix (Sep 18 2026): ISD stops are ALREADY inside sd (sd = patient_id || ISD), so the
+    // old `sd.filter(in_transit) + inTransitIsdIsp` counted every active ISD TWICE (a
+    // 4-stop route with one active ISD showed 5 In Progress). Active ISD is now counted
+    // exactly once via sd (in_transit, plus the legacy en_route ISD write-bug case);
+    // only active ISP is added separately (ISP lives in ap, not sd). The ISD/ISP
+    // superscript annotation (inTransitIsdIsp) is unchanged — it's a display count,
+    // not part of the arithmetic.
+    const activeIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&isISP(d)&&(d.status==='in_transit'||d.status==='en_route')).length;
+    const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+sd.filter((d)=>d&&isISD(d)&&d.status==='en_route').length+activeIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
     const completed=sd.filter((d)=>d&&d.status==='completed'&&!isRtn(d)).length+rd.filter((d)=>d&&!d.patient_id&&isISP(d)&&!d.after_hours_pickup&&(d.status==='completed'||d.status==='cancelled')).length; /* excl AH pickups, keep AH deliveries 1x */
     const returned=sd.filter(isRtn).length; const failed=sd.filter((d)=>d&&((d.status==='failed'&&!isRtn(d))||(d.status==='cancelled'&&!d.patient_id))).length+ap.filter((d)=>d&&isISP(d)&&d.status==='failed').length;
     const completedPickups=ap.filter((d)=>d&&!isISP(d)&&(d.status==='completed'||d.status==='cancelled')).length;
