@@ -13,7 +13,7 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
-import { applyRealtimeMergeWithLockout } from './completionLockout';
+import { applyRealtimeMergeWithLockout, isFieldLocked } from './completionLockout';
 import { isDeleted, isDeletedByContent, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -23,6 +23,14 @@ const listeners = new Set();
 
 // Pause flag — when true, flushBuffered skips UI dispatches (but still saves to offline DB)
 let _realtimePaused = false;
+
+// Tracks WHEN each delivery last transitioned INTO in_transit locally
+// (pending→in_transit). The stale-echo ratchet in the incoming merge only applies
+// within a short window after that transition — Accept All's stale 'pending' echoes
+// arrive within seconds, while legitimate bulk-edit resets (in_transit→pending)
+// happen later and must NOT be blocked forever.
+const inTransitTransitionAt = new Map();
+const IN_TRANSIT_RATCHET_WINDOW_MS = 60 * 1000;
 
 import { emitGatedEvent } from './uiGate';
 
@@ -1125,14 +1133,38 @@ const subscribeToEntity = (entityName) => {
                     'polyline_saved_at', 'transport_mode', 'travel_dist',
                   ]);
 
+                  // Stamp pending→in_transit transitions so the ratchet below only
+                  // protects freshly-accepted stops, not forever.
+                  if (merged?.status === 'in_transit' && existing?.status && existing.status !== 'in_transit') {
+                    if (inTransitTransitionAt.size > 2000) inTransitTransitionAt.clear(); // leak guard
+                    inTransitTransitionAt.set(data.id, Date.now());
+                  }
+
                   // CRITICAL: Status regression guard. If the existing IDB record has
                   // status='in_transit' (just transitioned by Accept All) and the incoming
                   // WS payload or background fetch carries status='pending' (stale server
                   // data that hasn't received the status write yet), preserve 'in_transit'.
-                  // This is a one-way ratchet: pending→in_transit is allowed (server
-                  // catching up), but in_transit→pending is blocked.
-                  if (existing?.status === 'in_transit' && merged.status === 'pending') {
+                  // TIME-BOXED (60s from the local in_transit transition) so legitimate
+                  // bulk-edit resets (in_transit→pending) are not blocked forever — the
+                  // old unconditional ratchet made every status reset invisible on all
+                  // devices until a full app restart.
+                  // ALSO skipped while the acting device holds a status lock with an
+                  // explicit expected value (bulk edit symmetric lock / Accept All lock) —
+                  // applyRealtimeMergeWithLockout below decides.
+                  const _ratchetTs = inTransitTransitionAt.get(data.id);
+                  const _withinRatchetWindow = _ratchetTs != null && (Date.now() - _ratchetTs) < IN_TRANSIT_RATCHET_WINDOW_MS;
+                  if (
+                    existing?.status === 'in_transit' &&
+                    merged.status === 'pending' &&
+                    _withinRatchetWindow &&
+                    !isFieldLocked(data.id, 'status')
+                  ) {
                     merged.status = 'in_transit';
+                  } else if (merged.status !== 'in_transit' && merged.status !== undefined) {
+                    // Record confirmed OUT of in_transit (pending accepted via bulk edit
+                    // lock, en_route, terminal) — drop the stamp so the ratchet doesn't
+                    // fire again for this era. Staying in in_transit keeps the stamp.
+                    inTransitTransitionAt.delete(data.id);
                   }
 
                   for (const field of PRESERVE_FIELDS) {
