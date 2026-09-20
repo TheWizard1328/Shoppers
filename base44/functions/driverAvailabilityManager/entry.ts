@@ -238,9 +238,9 @@ export default async function(req: Request): Promise<Response> {
       // Send push notifications
       if (hasAssignedDrivers) {
         // Send to assigned drivers only
-        const pushTitle = `Pickup Request — ${store_name || store?.name || 'Store'}`;
+        const pushTitle = `Pickup Request`;
         const pushBody = extra_info ||
-          `${dispatcherName} at ${store_name || store?.name || 'Store'} is requesting a driver for pickup`;
+          `${store_name || store?.name || 'Store'} is requesting a driver for pickup`;
 
         for (const driver of assignedDrivers) {
           const driverName = driver.user_name || 'Driver';
