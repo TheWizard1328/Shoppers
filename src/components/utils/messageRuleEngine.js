@@ -7,6 +7,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { getAppOwnerUserIds } from './appOwnerResolver';
 
 // ── In-memory cache of enabled rules, keyed by event_name ──────────────────
 let _ruleCache = null;
@@ -196,18 +197,33 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
     } else if (r.startsWith('relation:')) {
       const rel = r.slice(9);
       if (rel === 'driver') {
-        console.warn('[MessageRuleEngine] relation:driver — context.driver_id:', JSON.stringify(context.driver_id), '— truthy:', !!context.driver_id);
         if (context.driver_id) userIds.add(context.driver_id);
       } else if (rel === 'appowner') {
-        // App owner is typically the first admin or has a specific flag
-        const owner = users.find((u) => u.app_roles?.includes('admin'));
-        console.warn('[MessageRuleEngine] relation:appowner — found:', !!owner, '— user_id:', owner?.user_id, '— id:', owner?.id, '— total users checked:', users.length);
-        if (owner) userIds.add(owner.user_id || owner.id);
+        // App Owner = PLATFORM User.role === 'admin' (via appOwnerResolver),
+        // NOT the AppUser 'admin' app_role. The old code grabbed the FIRST
+        // app-role admin it found — a random admin, not necessarily the
+        // owner. If owner ids can't be resolved, send to NOBODY rather than
+        // falling back to admins.
+        const ownerIds = await getAppOwnerUserIds();
+        if (ownerIds && ownerIds.size > 0) {
+          users.forEach((u) => {
+            if (u.status === 'inactive') return;
+            if (ownerIds.has(u.user_id || u.id)) {
+              userIds.add(u.user_id || u.id);
+            }
+          });
+        } else {
+          console.warn('[MessageRuleEngine] relation:appowner — no platform owner ids resolved; skipping recipient (NOT falling back to admins)');
+        }
       } else if (rel === 'dispatchers' && context.store_id) {
+        // Store-assigned dispatchers only. The old code also included
+        // store-assigned ADMINS here — that leaked dispatcher-targeted
+        // events to admins. Use the explicit role:admin recipient or
+        // relation:appowner if admins should receive an event.
         users.forEach((u) => {
           if (u.status === 'inactive') return;
           const roles = u.app_roles || [];
-          if (roles.includes('dispatcher') || roles.includes('admin')) {
+          if (roles.includes('dispatcher')) {
             const storeIds = u.store_ids || [];
             if (storeIds.includes(context.store_id)) {
               userIds.add(u.user_id || u.id);

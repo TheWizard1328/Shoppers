@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from './geoUtils';
+import { getAppOwnerUserIds } from './appOwnerResolver';
 import { 
   NOTIFICATION_EVENTS, 
   shouldNotify, 
@@ -144,15 +145,24 @@ export function getDispatchersForStore(storeId, appUsers) {
 }
 
 /**
- * Get admin app users (app_roles includes 'admin')
+ * Get the App Owner(s) — resolved via the PLATFORM User entity
+ * (User.role === 'admin'), NOT the AppUser 'admin' app_role.
+ *
+ * The old implementation returned every AppUser with the 'admin' app_role,
+ * which sent "App Owner" notifications to all admins. The platform role is
+ * the only authoritative App Owner signal (mirrors isAppOwner in userRoles).
  */
-export function getAppOwners(appUsers) {
+export async function getAppOwners(appUsers) {
   if (!appUsers) return [];
+  const ownerIds = await getAppOwnerUserIds();
+  if (!ownerIds || ownerIds.size === 0) {
+    console.warn('[deliveryMessaging] getAppOwners — no platform owner ids resolved; sending to nobody instead of all admins');
+    return [];
+  }
   return appUsers.filter(user => {
-    if (!user || !user.app_roles) return false;
-    if (!user.app_roles.includes('admin')) return false;
+    if (!user || !user.user_id) return false;
     if (user.status !== 'active') return false;
-    return true;
+    return ownerIds.has(user.user_id);
   });
 }
 
@@ -170,8 +180,16 @@ export async function getRecipientsForEvent(recipientTypes, { storeId, appUsers,
       users = getDispatchersForStore(storeId, appUsers);
       users = users.map(u => ({ id: u.user_id, name: u.user_name }));
     } else if (type === 'appowner') {
-      const owners = getAppOwners(appUsers);
+      // Platform App Owner only — see getAppOwners.
+      const owners = await getAppOwners(appUsers);
       users = owners.map(u => ({ id: u.user_id, name: u.user_name }));
+    } else if (type === 'admins') {
+      // Explicit "all admins" recipient type (e.g. admin_broadcast) —
+      // intentionally distinct from 'appowner'. Resolves to every ACTIVE
+      // AppUser holding the 'admin' app_role.
+      users = (appUsers || [])
+        .filter(u => Array.isArray(u?.app_roles) && u.app_roles.includes('admin') && u?.status === 'active')
+        .map(u => ({ id: u.user_id, name: u.user_name }));
     } else if (type === 'driver' && driverId) {
       const driver = appUsers?.find(u => u?.user_id === driverId);
       if (driver) {
