@@ -31,7 +31,8 @@ import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { recalculateTrackingNumbersLocal, applyTrackingNumberUpdates } from '../utils/recalculateTrackingNumbersLocal';
-import { notifyDriverAccepted, notifyDriverCompleted, notifyDriverFailed } from "../utils/deliveryMessaging";
+import { notifyDriverCompleted, notifyDriverFailed } from "../utils/deliveryMessaging";
+import { notifyDriverAcceptedStops } from "../deliveries/driverAcceptedStopsNotifier";
 import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
@@ -248,10 +249,15 @@ export function useStopCardCompletionActions({
           // on behalf of a driver, the message must say the DRIVER accepted the
           // stops, not the admin who clicked the button.
           const assignedDriverUser = appUsers.find(u => u?.user_id === delivery.driver_id) || driverAppUser || currentUser;
-          notifyDriverAccepted({
+          // Route through the Rule Builder (MessageRule "+Stops Accepted+",
+          // event driver_accepted) with legacy fallback. The actor's role keys
+          // rule conditions; the credited driver is the ASSIGNED driver.
+          notifyDriverAcceptedStops({
+            actor: currentUser,
             driver: assignedDriverUser,
             store,
             appUsers,
+            deliveries: notifyDeliveries,
             pendingCount: notifyDeliveries.length,
           }).catch(() => {});
         }
@@ -1300,13 +1306,15 @@ export function useStopCardCompletionActions({
         // ════════════════════════════════════════════════════════════════════
         // Accept Single is driver-only now — the dispatcher/admin "Assign on
         // behalf of driver" path has been removed (button hidden, code path retired).
-        notifyDriverAccepted({
+        notifyDriverAcceptedStops({
+          actor: currentUser,
           driver: currentUser,
           store: resolvedStore,
           appUsers,
+          deliveries: [projectedDelivery],
           pendingCount: 1,
           patientName: projectedDelivery.patient_name || '',
-        }).catch((e) => console.warn('[AcceptSingle] notifyDriverAccepted failed:', e?.message || e));
+        }).catch((e) => console.warn('[AcceptSingle] notifyDriverAcceptedStops failed:', e?.message || e));
 
         console.log(`[AcceptSingle] STEP 5 — Notifications sent`);
 
