@@ -267,10 +267,18 @@ export async function applyBulkEditStops({
           });
 
       const { updateDeliveryLocal } = await import("../utils/entityMutations");
-      return updateDeliveryLocal(deliveryId, nextUpdates, {
-        isBatchOperation: true,
-        deferPolylineRefresh: true
-      });
+      console.warn(`🔍 [BulkEdit] Deliveries-page apply to ${deliveryId} (linked=${isLinked}): payload=${JSON.stringify(nextUpdates)}`);
+      try {
+        const result = await updateDeliveryLocal(deliveryId, nextUpdates, {
+          isBatchOperation: true,
+          deferPolylineRefresh: true
+        });
+        console.warn(`🔍 [BulkEdit] Deliveries-page result for ${deliveryId}: ${result === null ? 'NULL (deleted-registry block or paused)' : result === undefined ? 'undefined' : 'ok, status=' + (result?.status || '?')}`);
+        return result;
+      } catch (err) {
+        console.warn(`🔍 [BulkEdit] Deliveries-page apply THREW for ${deliveryId}: ${err?.message}`);
+        throw err;
+      }
     })
   )
     .then(async () => {

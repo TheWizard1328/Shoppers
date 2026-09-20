@@ -219,9 +219,19 @@ export default function DashboardBulkEditControls({
         // We do NOT use isBatchOperation: true because that would QUEUE the backend
         // write to pending mutations instead of writing immediately. We want
         // immediate backend writes with suppressed UI notifications.
-        await Promise.all(perDeliveryPayloads.map(({ delivery, payload }) =>
-          updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false })
-        ));
+        const _t0 = Date.now();
+        const _results = await Promise.all(perDeliveryPayloads.map(async ({ delivery, payload }) => {
+          console.warn(`🔍 [BulkEdit] Applying to ${delivery.id} (status=${delivery.status || '?'} patient=${!!delivery.patient_id}): payload=${JSON.stringify(payload)}`);
+          try {
+            const result = await updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false });
+            console.warn(`🔍 [BulkEdit] updateDeliveryLocal result for ${delivery.id}: ${result === null ? 'NULL (blocked)' : result === undefined ? 'undefined' : 'ok, status now=' + (result?.status || '?')}`);
+            return result;
+          } catch (err) {
+            console.warn(`🔍 [BulkEdit] updateDeliveryLocal THREW for ${delivery.id}: ${err?.message}`);
+            throw err;
+          }
+        }));
+        console.warn(`🔍 [BulkEdit] Dashboard bulk apply complete: ${_results.length} records, ${Date.now() - _t0}ms`);
 
         // STEP 6: Save patient time window edits (updates Patient entity directly).
         const patientUpdates = Object.entries(patientWindowEdits || {}).map(([patientId, edits]) => {

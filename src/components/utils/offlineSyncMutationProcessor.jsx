@@ -126,11 +126,18 @@ export const processPendingMutationsInternal = async () => {
         return cleaned;
       })() : mutation.payload;
 
-      if (mutation.entity === 'Delivery' && !deliveryPayload?.delivery_date) {
+      // delivery_date guard applies to CREATES only (a create without a date is
+      // genuinely invalid). UPDATE mutations are partial diffs by design — e.g.
+      // a bulk-edit status change queues only { status } — and were being
+      // silently discarded here, permanently losing the change server-side.
+      if (mutation.entity === 'Delivery' && mutation.operation === 'create' && !deliveryPayload?.delivery_date) {
         console.warn(`⚠️ [OfflineSync] Removing invalid queued Delivery mutation ${mutation.mutationId} - missing delivery_date`);
         await offlineDB.removePendingMutation(mutation.mutationId);
         successCount++;
         continue;
+      }
+      if (mutation.entity === 'Delivery' && mutation.operation === 'update' && !deliveryPayload?.delivery_date) {
+        console.warn(`⚠️ [OfflineSync] Flushing partial Delivery update mutation ${mutation.mutationId} (no delivery_date — valid partial diff) fields: ${Object.keys(deliveryPayload || {}).join(',')}`);
       }
 
       if (mutation.operation === 'create') {
