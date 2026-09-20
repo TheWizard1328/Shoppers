@@ -11,7 +11,7 @@ import { performBackgroundSync, processPendingMutations } from '../utils/offline
 import { clearUserCache, patchEffectiveUserCacheFields } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
-import { applyTerminalStatusGuard } from '../utils/completionLockout';
+import { applyTerminalStatusGuard, applyRealtimeMergeWithLockout } from '../utils/completionLockout';
 import { isUIHidden, deferOrRunUI } from '../utils/uiGate';
 
 /**
@@ -501,7 +501,11 @@ export function useLayoutEventHandlers({
               // Full-record IDB merge model, EXCEPT: never let a stale interleaved
               // WS payload resurrect a just-terminal stop as in_transit + NEXT
               // (the completion bounce on receiving devices).
-              const merged = applyTerminalStatusGuard(existing ? { ...existing, ...d } : d, existing);
+              // ALSO apply the per-delivery lockout: while a user-initiated action
+              // (Accept All / Start / Complete) has an armed lock with expected
+              // values, a stale event (e.g. pending echo racing the in_transit
+              // write) must not revert the optimistic status in React state.
+              const merged = applyRealtimeMergeWithLockout(d.id, existing ? { ...existing, ...d } : d, existing);
               map.set(d.id, merged);
             }
           });
@@ -532,7 +536,10 @@ export function useLayoutEventHandlers({
             // Full-record IDB merge model, EXCEPT: never let a stale interleaved
             // WS payload resurrect a just-terminal stop as in_transit + NEXT
             // (the completion bounce on receiving devices).
-            merged = applyTerminalStatusGuard(merged, existing);
+            // ALSO apply the per-delivery lockout so an armed Accept All / Start
+            // lock blocks stale pending/status reverts in React state (the
+            // "instant accept then reverts until refresh" glitch).
+            merged = applyRealtimeMergeWithLockout(d.id, merged, existing);
             map.set(d.id, merged);
           });
           return Array.from(map.values());
