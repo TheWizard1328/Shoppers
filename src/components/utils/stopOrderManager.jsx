@@ -2,12 +2,19 @@
  * Centralized Stop Order Management
  * Handles sequential stop order calculation for deliveries
  *
- * Sort spec:
- *   1. Finished stops (completed/failed/cancelled/returned) first, sorted by
- *      actual_delivery_time ASC. Cycling markers follow the same rule.
- *   2. Incomplete stops sorted by their ETA (delivery_time_eta) ASC, with
- *      pending last. If no ETA, falls back to existing stop_order.
- *   3. ALL stops (finished + incomplete) receive a fresh sequential stop_order 1..N.
+ * Sort spec (FROZEN-NUMBER POLICY, Sep 21, 2026):
+ *   1. ALL stops (finished + incomplete, interleaved) sort by their EXISTING
+ *      stop_order (the route sequence). Finished stops are NEVER re-sorted by
+ *      completion time — their number is frozen at the moment they were
+ *      numbered/completed. (Previously every repair pass re-sorted finished
+ *      stops by actual_delivery_time and renumbered them 1..K; with
+ *      out-of-sequence completions or missing/retroactively-adjusted
+ *      completion times, finished stops visibly shuffled on every edit.)
+ *   2. Stops with NO valid stop_order (legacy/unnumbered) sort last:
+ *      unnumbered finished by completion time, then unnumbered incomplete by
+ *      ETA with pending last (cycling markers never count as pending).
+ *   3. The merged list is compacted to a gap-free 1..N sequence, preserving
+ *      relative order — numbers only shift to close gaps (e.g. a deletion).
  *
  * CRITICAL: This function does a SINGLE-PASS resequencing:
  *   1. Sort in memory
@@ -42,10 +49,11 @@ const etaToMinutes = (etaStr) => {
 /**
  * Recalculates and updates stop orders for all deliveries for a given driver/date.
  *
- * Finished stops sort by actual_delivery_time; incomplete stops keep their EXISTING
- * stop_order (route sequence — primary key, so polylines stay coherent); ETA only
- * orders unnumbered stops. Pending stops sort last.
- * Cycling markers follow the same rules as regular stops.
+ * ALL stops keep their EXISTING stop_order as the primary sort key (route
+ * sequence — so polylines stay coherent AND finished stops never get
+ * renumbered). Completion time only orders unnumbered finished stops; ETA
+ * only orders unnumbered incomplete stops (pending last). Cycling markers
+ * follow the same rules as regular stops.
  * Updates all stop orders sequentially from 1 to N.
  *
  * SINGLE-PASS: one IDB write, one UI event, one batched server write.
@@ -100,62 +108,69 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     return Number.isFinite(n) && n > 0 ? n : Number.MAX_SAFE_INTEGER;
   };
 
-  // Partition
-  const finishedDeliveries   = driverDeliveries.filter(d => FINISHED_STATUSES.includes(d?.status));
-  const incompleteDeliveries = driverDeliveries.filter(d => !FINISHED_STATUSES.includes(d?.status));
+  // ── FROZEN-NUMBER POLICY (Sep 21, 2026) ─────────────────────────────────────
+  // Finished and incomplete stops are sorted TOGETHER by their EXISTING
+  // stop_order (the route sequence). This extends the Sep 16 gap-compaction
+  // fix to FINISHED stops:
+  //
+  // The old code sorted finished stops by actual_delivery_time and renumbered
+  // them 1..K on EVERY repair pass (after any edit/delete/create/optimization).
+  // Two things made that destructive:
+  //   1. Out-of-sequence completions (deviation, retry) renumbered finished
+  //      stops away from their route positions — "finished stop numbers change".
+  //   2. getCompletionTime falls back to arrival_time || updated_date ||
+  //      created_date when actual_delivery_time is missing — and updated_date
+  //      bumps on ANY touch (COD sync, note edit, admin edit, retroactive
+  //      timing recalculation), so finished stops could silently reshuffle.
+  //
+  // Leg polylines (encoded_polyline) are generated for the route sequence, so
+  // preserving everyone's existing number also keeps legs coherent — including
+  // for the completed segment of the route drawn by PolylineViewer /
+  // DeliveryMap, which sort finished legs by stop_order.
+  //
+  // isNextDelivery is NOT pinned to a position anymore: setNextDeliveryFlag is
+  // the sole authority for the flag (standing instruction), and the optimizer
+  // keeps flag + order in sync. The flag marks the stop the driver is heading
+  // to; the number marks its route position. They no longer fight.
+  //
+  // Renumbering below is GAP COMPACTION ONLY: the merged order is preserved
+  // exactly; numbers only shift to close gaps (e.g. after a deletion).
+  const isFinished = (d) => FINISHED_STATUSES.includes(d?.status);
 
-  // Sort finished by actual_delivery_time (cycling markers treated equally)
-  const sortedFinished = [...finishedDeliveries].sort((a, b) => getCompletionTime(a) - getCompletionTime(b));
-
-  // Sort incomplete: isNextDelivery first, then existing stop_order (route sequence), pending last
-  const nextDeliveryId = incompleteDeliveries.find(
-    d => d?.isNextDelivery && d?.status !== 'pending'
-  )?.id || null;
-
-  const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
-    // "next delivery" always first among incomplete
-    const aNext = nextDeliveryId && a?.id === nextDeliveryId;
-    const bNext = nextDeliveryId && b?.id === nextDeliveryId;
-    if (aNext && !bNext) return -1;
-    if (!aNext && bNext) return 1;
-
-    // Pending last (but cycling markers are never pending in practice)
-    const aPending = a?.status === 'pending' && !a?.is_cycling_marker;
-    const bPending = b?.status === 'pending' && !b?.is_cycling_marker;
-    if (aPending && !bPending) return 1;
-    if (!aPending && bPending) return -1;
-
-    // CRITICAL FIX (Sep 16, 2026): EXISTING stop_order is the PRIMARY key.
-    //
-    // The leg polylines (encoded_polyline) are generated for the optimizer's
-    // route sequence and stored per-delivery. Repair previously re-sorted
-    // incomplete stops by ETA/time-window FIRST (stop_order only as a
-    // tie-break), so any repair pass after a completion/edit renumbered the
-    // stops to TIME order while the polylines stayed attached to the ROUTE
-    // order — scrambling the leg chain. Symptoms: current-leg (blue) polyline
-    // rendered from a wrong origin (e.g. a Sherwood Park stop instead of the
-    // last completed stop), future legs starting from completed or
-    // out-of-sequence stops.
-    //
-    // Repair is a GAP-COMPACTION pass: it must preserve the route sequence
-    // (existing stop_order), never re-derive it. ETA is now only a tie-break
-    // for stops that have no valid stop_order yet (e.g. freshly inserted
-    // deliveries that haven't been optimized/numbered — they sort after all
-    // numbered stops, ordered among themselves by ETA).
+  const ordered = [...driverDeliveries].sort((a, b) => {
     const aOrder = getExistingOrder(a);
     const bOrder = getExistingOrder(b);
+
+    // Primary: existing route number — finished and incomplete interleaved.
     if (aOrder !== bOrder) return aOrder - bOrder;
-    if (aOrder === Number.MAX_SAFE_INTEGER) {
-      // Both unnumbered: order by ETA/time-window, then creation time.
-      const aEta = etaToMinutes(a?.delivery_time_eta || a?.delivery_time_start);
-      const bEta = etaToMinutes(b?.delivery_time_eta || b?.delivery_time_start);
-      if (aEta !== bEta) return aEta - bEta;
+
+    // Both numbered with the SAME value (duplicate order — data corruption
+    // or a race): keep it stable — finished first, then creation time.
+    if (aOrder !== Number.MAX_SAFE_INTEGER) {
+      const aFin = isFinished(a);
+      const bFin = isFinished(b);
+      if (aFin !== bFin) return aFin ? -1 : 1;
+      return getCreationTime(a) - getCreationTime(b);
     }
+
+    // Both UNNUMBERED: finished stops first (by completion time — they are
+    // historical and cannot inherit a route position), then incomplete stops
+    // (pending last, then ETA, then creation time — same as the Sep 16 rule).
+    const aFin = isFinished(a);
+    const bFin = isFinished(b);
+    if (aFin !== bFin) return aFin ? -1 : 1;
+    if (aFin) return getCompletionTime(a) - getCompletionTime(b);
+
+    // Cycling markers are never treated as pending (same as display sort).
+    const aPending = a?.status === 'pending' && !a?.is_cycling_marker;
+    const bPending = b?.status === 'pending' && !b?.is_cycling_marker;
+    if (aPending !== bPending) return aPending ? 1 : -1;
+
+    const aEta = etaToMinutes(a?.delivery_time_eta || a?.delivery_time_start);
+    const bEta = etaToMinutes(b?.delivery_time_eta || b?.delivery_time_start);
+    if (aEta !== bEta) return aEta - bEta;
     return getCreationTime(a) - getCreationTime(b);
   });
-
-  // Merge: finished first, then incomplete
-  const ordered = [...sortedFinished, ...sortedIncomplete];
 
   // ── STEP 3: Assign sequential stop_order 1..N, collect only changed records ──
   const changedRecords = [];

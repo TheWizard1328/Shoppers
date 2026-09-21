@@ -80,8 +80,6 @@ export async function handleStartDelivery({
     );
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
-    const completedCount = driverLocalDeliveries.filter((d) => finishedStatuses.has(d.status)).length;
-    const nextStopOrder = completedCount + 1;
 
     // Build the full mutated set we'll write to IndexedDB in one go
     const mutatedDeliveries = driverLocalDeliveries.map((d) => {
@@ -94,13 +92,18 @@ export async function handleStartDelivery({
       }
 
       // Transition the target stop
+      // FROZEN-NUMBER POLICY (Sep 21, 2026): do NOT renumber the started stop.
+      // The old code assigned stop_order = completedCount + 1, which assumed
+      // finished stops occupy a contiguous 1..K block. On out-of-sequence
+      // routes that assumption is false, so Start visibly reshuffled the stop
+      // into a wrong position. The stop keeps its existing route number; the
+      // coordinator/engine assigns numbers for stops that have none yet.
       if (d.id === deliveryId) {
         transitionedIds.add(d.id);
         return {
           ...d,
           isNextDelivery: true,
           status: newStatus,
-          stop_order: nextStopOrder,
           delivery_time_start: etaString,
           delivery_time_eta: etaString,
           updated_date: new Date().toISOString(),
@@ -135,7 +138,7 @@ export async function handleStartDelivery({
     console.log('✅ [handleStartDelivery] Step 3 complete — UI updated from local state');
 
     // ─── STEP 4: Authoritative clear-all-then-promote (ordered broadcast) ────
-    // Phase 1: write the target stop's status/stop_order/ETA WITHOUT isNextDelivery,
+    // Phase 1: write the target stop's status/ETA WITHOUT isNextDelivery or stop_order,
     //   so the true flag is controlled solely by phases 2+3 below.
     // Phase 2: clear ALL isNextDelivery=true flags on this driver+date route via a
     //   server-side query (authoritative — catches stale trues the local snapshot
@@ -143,7 +146,6 @@ export async function handleStartDelivery({
     // Phase 3: promote the target to isNextDelivery=true LAST.
     await base44.entities.Delivery.update(deliveryId, {
       status: newStatus,
-      stop_order: nextStopOrder,
       delivery_time_start: etaString,
       delivery_time_eta: etaString,
     }).catch((err) => {
