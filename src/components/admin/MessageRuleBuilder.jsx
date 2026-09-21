@@ -136,7 +136,7 @@ const ACTION_PRESETS_BY_EVENT = {
 // ── Template variable suggestions ───────────────────────────────────────────
 
 const TEMPLATE_VARIABLES = [
-  '{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
+  '{{driverName}}', '{{adminName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
   '{{pendingCount}}', '{{pendingCountLabel}}', '{{existingStopCount}}', '{{hasExistingStops}}',
   '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
 ];
@@ -144,6 +144,13 @@ const TEMPLATE_VARIABLES = [
 // Sample values used to render a test message preview
 const SAMPLE_DATA = {
   driverName: 'John D.',
+  // {{adminName}} — the real AppUser name of whoever performed the action
+  // (the admin/dispatcher who assigned or accepted stops), NOT the platform
+  // admin. Use it in place of a generic "An Administrator" phrase, e.g.
+  // "{{adminName}} has assigned you...". If that same person is also the
+  // credited driver (self-service admin/driver), the push to them is
+  // automatically skipped — see MessageRuleEngine self-action bypass.
+  adminName: 'Robert T.',
   patientName: 'Jane Smith',
   storeName: 'Main Pharmacy',
   deliveryCount: '3',

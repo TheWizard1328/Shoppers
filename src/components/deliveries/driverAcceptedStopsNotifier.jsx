@@ -51,15 +51,28 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
 
   const storeIds = [...new Set((deliveries || []).map((d) => d?.store_id).filter(Boolean))];
 
+  // The real name of whoever clicked Accept (admin, dispatcher, or the driver
+  // themselves), exposed to templates as {{adminName}} — same idea as
+  // dispatcherAssignedStopsNotifier's adminName. When an admin accepts on
+  // behalf of a driver, this is the admin's own AppUser name, not the
+  // credited driver's name (that's driverName).
+  const adminName = actor?.user_name || actor?.full_name || 'Administrator';
+  // The acting AppUser's id — used ONLY for the self-action push bypass in
+  // the rule engine (dispatchMessageRules), never for display.
+  const actingUserId = actor?.user_id || actor?.id || '';
+  const resolvedDriverId = driverId || driver?.user_id || '';
+
   return {
     eventName: 'Driver Accepted',
     driverName: driver?.user_name || driver?.full_name || 'Driver',
+    adminName,
     pendingCount: String(pendingCount != null ? pendingCount : (deliveries || []).length),
     deliveryList: buildDeliveryList(deliveries),
     patientName: patientName || (deliveries?.[0]?.patient_name || ''),
     store_id: store?.id || storeIds[0] || '',
     store_ids: storeIds,
-    driver_id: driverId || driver?.user_id || '',
+    driver_id: resolvedDriverId,
+    actingUserId,
     delivery_status: 'in_transit',
     user_role: userRole,
     user_roles: roles,

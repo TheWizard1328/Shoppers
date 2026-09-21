@@ -98,9 +98,20 @@ function buildBatchAwareContext({
     ? `${deliveries.length} more`
     : String(deliveries.length);
 
+  // The real name of whoever performed the assignment (admin or dispatcher),
+  // exposed to templates as {{adminName}} so rules can say "Robert T has
+  // assigned you..." instead of a generic "An Administrator has...". This is
+  // the AppUser's name, never the platform User.role admin — same identity
+  // source as driverName/patientName/storeName.
+  const adminName = dispatcher?.user_name || dispatcher?.full_name || 'Administrator';
+  // The acting AppUser's id — used ONLY for the self-action push bypass in
+  // the rule engine (dispatchMessageRules), never for display.
+  const actingUserId = dispatcher?.user_id || dispatcher?.id || '';
+
   const context = {
     eventName: 'Dispatcher Assigned Stops',
     driverName,
+    adminName,
     storeName,
     deliveryList,
     pendingCount: String(deliveries.length),
@@ -113,6 +124,7 @@ function buildBatchAwareContext({
     store_id: primaryStoreId,
     store_ids: storeIds,
     driver_id: driverId,
+    actingUserId,
     delivery_status: 'pending',
     delivery_status_list: statuses,
     user_role: userRole,

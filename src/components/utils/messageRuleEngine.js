@@ -298,20 +298,40 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
       const isShadow = rule.shadow_mode;
       const channels = rule.channels || ['in_app'];
 
+      // ── Self-action push bypass ─────────────────────────────────────────
+      // If the person who PERFORMED the action (context.actingUserId — the
+      // admin/dispatcher who clicked assign/accept) is the SAME physical
+      // person as the driver being credited (context.driver_id), AND this
+      // recipient IS that person, skip the push: they already know what
+      // they just did. Example: Robert T holds both admin and driver roles;
+      // when he assigns/accepts stops for himself, he shouldn't get a push
+      // telling him "An Administrator has assigned you deliveries" for his
+      // own action. In-app is left alone — this is a push-only bypass.
+      const isSelfAction = !!(
+        context.actingUserId &&
+        context.driver_id &&
+        context.actingUserId === context.driver_id &&
+        userId === context.actingUserId
+      );
+
       if (!isShadow) {
         if (channels.includes('in_app') && sendInApp) {
           try { await sendInApp(userId, message, eventName, rule); }
           catch (e) { console.error('[MessageRuleEngine] in_app send failed:', e); }
         }
         if (channels.includes('push') && sendPush) {
-          try { await sendPush(userId, message, eventName, rule); }
-          catch (e) { console.error('[MessageRuleEngine] push send failed:', e); }
+          if (isSelfAction) {
+            console.log(`[MessageRuleEngine] Skipping push to ${userId} — self-action (acting admin/dispatcher is also the credited driver)`);
+          } else {
+            try { await sendPush(userId, message, eventName, rule); }
+            catch (e) { console.error('[MessageRuleEngine] push send failed:', e); }
+          }
         }
       } else {
         console.log(`[MessageRuleEngine] SHADOW MODE — would send to ${userId}: "${message}" via ${channels.join(', ')}`);
       }
 
-      results.push({ ruleId: rule.id, userId, channels, message, shadow: isShadow });
+      results.push({ ruleId: rule.id, userId, channels, message, shadow: isShadow, selfActionPushSkipped: isSelfAction && !isShadow && channels.includes('push') });
     }
 
     // If stop_on_match, stop evaluating further rules for this event
