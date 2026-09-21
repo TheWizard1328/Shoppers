@@ -13,6 +13,14 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *   driver_response — Driver taps Yes/No on push notification.
  *                     "yes" → creates Message to dispatcher, marks request completed.
  *                     "no"  → if during assigned phase, triggers escalation.
+ *   get_pending_for_driver — Returns the active, unanswered request (if any)
+ *                     targeting the logged-in driver. Used by the in-app
+ *                     DriverAvailabilityPrompt so a driver who taps a push
+ *                     that arrived while the app was killed — or missed the
+ *                     push entirely — still sees the Yes/No prompt on app
+ *                     open. No push/JS can display a response UI while the
+ *                     app process is dead; the app-open check is the
+ *                     guaranteed fallback.
  *   check_guard     — Returns whether any driver has isNextDelivery=true for the store.
  *   get_active      — Returns the dispatcher's active request (if any).
  */
@@ -444,6 +452,35 @@ export default async function(req: Request): Promise<Response> {
       }
 
       return Response.json({ ok: true, status: 'waiting', time_remaining_ms: timeout - now, request });
+    }
+
+    // ── get_pending_for_driver: Driver-side check for an active, unanswered
+    // request targeting the logged-in driver (waiting or escalated phase).
+    // The driver may have received the push while the app was killed — the OS
+    // displayed it (notification payload), they tapped it, and the app cold
+    // started without the URL param — or missed the push entirely. Either
+    // way this returns the request so the in-app prompt can offer Yes/No.
+    if (action === 'get_pending_for_driver') {
+      const allRequests = await base44.asServiceRole.entities.DriverAvailabilityRequest.list(200);
+      const now = Date.now();
+      const pending = (allRequests || [])
+        .filter(r => {
+          if (r.status !== 'waiting' && r.status !== 'escalated') return false;
+          // Only fresh requests — stale waiting rows get swept by the
+          // dispatcher-side timeout/auto-expire logic, but don't surface
+          // anything older than 30 minutes to a driver opening the app.
+          const created = r.created_date ? new Date(r.created_date).getTime() : 0;
+          if (!created || now - created > 30 * 60 * 1000) return false;
+          const assigned = r.assigned_driver_ids || [];
+          const broadcast = r.broadcast_driver_ids || [];
+          if (!assigned.includes(user.id) && !broadcast.includes(user.id)) return false;
+          if ((r.excluded_driver_ids || []).includes(user.id)) return false;
+          const alreadyResponded = (r.assigned_driver_responses || []).some(resp => resp.driver_id === user.id);
+          return !alreadyResponded;
+        })
+        .sort((a, b) => new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime());
+
+      return Response.json({ ok: true, request: pending[0] || null });
     }
 
     // ── cancel: Dispatcher cancels an active request ─────────────────────

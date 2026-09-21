@@ -194,16 +194,23 @@ Deno.serve(async (req) => {
           return;
         }
         try {
-          // ── Interactive notifications (with action buttons) MUST be sent as
-          // data-only FCM messages. Android's OS auto-displays "notification"-type
-          // FCM messages directly (no JS involved) when the app is backgrounded/
-          // killed — and the OS's default display has NO way to show custom action
-          // buttons. Data-only messages, by contrast, always route through the
-          // app's JS (Capacitor's pushNotificationReceived), even when backgrounded,
-          // letting us build a native LocalNotification with a registered
-          // actionTypeId (real tappable buttons) for parity with desktop Web Push.
-          // Non-interactive notifications keep the reliable notification+data
-          // hybrid (unchanged) to avoid any delivery-reliability regression.
+          // ── ALL FCM messages (interactive AND non-interactive) carry a
+          // `notification` payload (title + body). A data-ONLY message requires
+          // the app's JS layer to be alive to display anything — when the app
+          // is cleared from memory, a data-only message wakes the process but
+          // the WebView/JS never loads, so the plugin silently queues it as
+          // `lastMessage` and the driver sees NOTHING (the "no pushes when
+          // killed" bug). A `notification` payload is displayed by the OS
+          // itself, so it shows even with the app fully killed.
+          //
+          // Interactive sends keep their action data (`__interactive`,
+          // `actions`, title/body in data) so the FOREGROUND JS path still
+          // builds the button-rich LocalNotification (Yes, I'm available /
+          // Unavailable). Trade-off: when the app is backgrounded-but-alive,
+          // the OS displays the notification WITHOUT buttons. Tapping it opens
+          // the app, where the in-app DriverAvailabilityPrompt (mounted in
+          // GlobalOverlays) shows the same Yes/No prompt, so the response
+          // flow survives every state: foreground, background, killed.
           const isInteractive = Array.isArray(actions) && actions.length > 0;
 
           const fcmDataPayload = Object.fromEntries(
@@ -219,27 +226,25 @@ Deno.serve(async (req) => {
             data: fcmDataPayload,
             android: {
               priority: 'high',
-              ...(isInteractive ? {} : {
-                notification: {
-                  tag: tag || undefined,
-                  channel_id: 'default',
-                  icon: 'ic_stat_notify',
-                  color: '#22c55e',
-                  // Pass URL via data only — click_action expects an Android
-                  // intent action name, not a URL. Capacitor's tap handler
-                  // reads the URL from notification.data.url instead.
-                },
-              }),
+              // icon: Android status bar small icon (monochrome). The resource
+              // name must exist in the APK's res/drawable-* folders.
+              // color: tint for the small icon in the expanded shade — matches
+              // the app's brand green (Rx planet mark), not pure white.
+              // URL passes via data only — click_action expects an Android
+              // intent action name, not a URL. Capacitor's tap handler reads
+              // the URL from notification.data.url instead.
+              notification: {
+                tag: tag || undefined,
+                channel_id: 'default',
+                icon: 'ic_stat_notify',
+                color: '#22c55e',
+              },
             },
           };
 
-          if (!isInteractive) {
-            // icon: Android status bar small icon (monochrome). The resource
-            // name must exist in the APK's res/drawable-* folders.
-            // color: tint for the small icon in the expanded shade — matches
-            // the app's brand green (Rx planet mark), not pure white.
-            fcmMessage.notification = { title, body };
-          }
+          // Present for BOTH variants so the OS can display the message when
+          // the app process is dead (killed-from-memory deliveries).
+          fcmMessage.notification = { title, body };
 
           const fcmPayload = { message: fcmMessage };
 
