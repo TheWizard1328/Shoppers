@@ -348,12 +348,13 @@ export default function GoogleAPILogViewer() {
 
   // Per-API-category colors — used by the tooltip grid, the single-user
   // per-type chart lines, and the legend so all three always match.
-  const CAT_COLORS = { here: '#4f46e5', gpd: '#0891b2', gpa: '#059669', tiles: '#94a3b8' };
+  const CAT_COLORS = { here: '#4f46e5', gpd: '#0891b2', gpa: '#059669', tiles: '#94a3b8', other: '#f97316' };
   const CAT_SERIES = [
     { cat: 'here',  label: 'HERE' },
     { cat: 'gpd',   label: 'GPD' },
     { cat: 'gpa',   label: 'GPA' },
     { cat: 'tiles', label: 'Tiles' },
+    { cat: 'other', label: 'Other' },
   ];
 
   // Classify a log into one of the 4 tracked categories.
@@ -366,7 +367,10 @@ export default function GoogleAPILogViewer() {
     if (getApiLogProvider(log) === 'here') return 'here';
     if (t.includes('Place Details')) return 'gpd';
     if (t.includes('Places Autocomplete')) return 'gpa';
-    return null;
+    // Every remaining log (Google Directions, Distance Matrix, Geocoding, ...)
+    // falls into 'other' — NEVER null, so the 5 category totals always sum to
+    // the grand Total shown at the top of the tooltip/chart/legend.
+    return 'other';
   };
 
   // Helper: shorten service user names for display
@@ -879,7 +883,10 @@ export default function GoogleAPILogViewer() {
                     const rightNames = allUserNames.filter(n => !isDriver(n));
 
                     const colW = 34;
-                    const gridStyle = { display: 'grid', gridTemplateColumns: `auto ${colW}px ${colW}px ${colW}px ${colW}px ${colW}px`, gap: '3px 6px', alignItems: 'center' };
+                    // Columns are driven by CAT_SERIES (HERE/GPD/GPA/Tiles/Other) so a
+                    // per-user row always sums to that user's Total — no category is
+                    // silently dropped from the grid.
+                    const gridStyle = { display: 'grid', gridTemplateColumns: `auto ${CAT_SERIES.map(() => `${colW}px`).join(' ')} ${colW}px`, gap: '3px 6px', alignItems: 'center' };
                     const hdrCell = (txt, color) => (
                       <span style={{ fontSize: 10, color: color || '#94a3b8', fontWeight: 700, textAlign: 'center', display: 'block' }}>{txt}</span>
                     );
@@ -890,26 +897,16 @@ export default function GoogleAPILogViewer() {
                       <div style={gridStyle}>
                         {/* header */}
                         <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>User</span>
-                        {hdrCell('HERE', CAT_COLORS.here)}
-                        {hdrCell('GPD',  CAT_COLORS.gpd)}
-                        {hdrCell('GPA',  CAT_COLORS.gpa)}
-                        {hdrCell('Tiles',CAT_COLORS.tiles)}
+                        {CAT_SERIES.map(({ cat, label }) => hdrCell(label, CAT_COLORS[cat]))}
                         {hdrCell('Total','#475569')}
                         {/* rows */}
-                        {names.map((name, idx) => {
+                        {names.map((name) => {
                           const color = userColors[legendDriverNames.indexOf(name) % userColors.length];
-                          const here  = dataPoint[`${name}__here`]  || 0;
-                          const gpd   = dataPoint[`${name}__gpd`]   || 0;
-                          const gpa   = dataPoint[`${name}__gpa`]   || 0;
-                          const tiles = dataPoint[`${name}__tiles`] || 0;
                           const total = dataPoint[name] || 0;
                           return (
                             <React.Fragment key={name}>
                               <span style={{ color, fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap' }}>{shortUserName(name)}</span>
-                              {valCell(here,  CAT_COLORS.here)}
-                              {valCell(gpd,   CAT_COLORS.gpd)}
-                              {valCell(gpa,   CAT_COLORS.gpa)}
-                              {valCell(tiles, CAT_COLORS.tiles)}
+                              {CAT_SERIES.map(({ cat }) => valCell(dataPoint[`${name}__${cat}`] || 0, CAT_COLORS[cat]))}
                               <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', textAlign: 'center', display: 'block' }}>{total}</span>
                             </React.Fragment>
                           );
@@ -1018,7 +1015,7 @@ export default function GoogleAPILogViewer() {
                 );
               };
               // Single-user mode — legend mirrors the per-API-type chart lines
-              const catCounts = { here: 0, gpd: 0, gpa: 0, tiles: 0 };
+              const catCounts = { here: 0, gpd: 0, gpa: 0, tiles: 0, other: 0 };
               filteredLogs.forEach((log) => {
                 const cat = getLogCategory(log);
                 if (cat) catCounts[cat] += getApiLogCallCount(log);
