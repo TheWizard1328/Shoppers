@@ -889,7 +889,12 @@ export default function GoogleAPILogViewer() {
                 {uniqueUsers.length > 1 ? (
                   <>
                     <Line type="monotone" dataKey="calls" name="Total" stroke="#1e293b" strokeWidth={3} strokeDasharray="5 5" dot={false} />
-                    {uniqueUsers.slice(0, 10).map((user, idx) => (
+                    {/* Iterate legendDriverNames (not uniqueUsers) — the legend below assigns
+                        colors by THIS order (sort_order-based), while uniqueUsers is a plain
+                        alphabetical sort of the same names. Using uniqueUsers here made line
+                        colors drift out of sync with the legend whenever the two orderings
+                        differed. */}
+                    {legendDriverNames.slice(0, 10).map((user, idx) => (
                       <Line
                         key={user}
                         type="monotone"
