@@ -58,6 +58,9 @@ const FIELD_OPTIONS = [
   { value: 'user_role',                 label: 'User Role',             type: 'role' },
   { value: 'user_roles',                label: 'User Roles (Contains)', type: 'roles' },
   { value: 'page_context',              label: 'Page/Screen',           type: 'text' },
+  { value: 'patient_name',              label: 'Patient Name',          type: 'text' },
+  { value: 'patient_notes',             label: 'Patient Notes',         type: 'text' },
+  { value: 'delivery_notes',            label: 'Driver Notes',          type: 'text' },
 ];
 
 const OPERATOR_OPTIONS = [
@@ -235,6 +238,12 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
     } else if (newField?.type === 'role' || newField?.type === 'roles' || newField?.type === 'status') {
       if (!DROPDOWN_OPERATORS.includes(condition.operator)) {
         onChange(index, 'operator', 'equals');
+      }
+    } else if (newField?.type === 'text') {
+      // Name/notes search fields — default to substring match, the natural
+      // operator for "find a matching string" conditions.
+      if (!['equals', 'not_equals', 'contains'].includes(condition.operator)) {
+        onChange(index, 'operator', 'contains');
       }
     } else if (condition.operator === 'is_true' || condition.operator === 'is_false') {
       onChange(index, 'operator', 'equals');

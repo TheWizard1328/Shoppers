@@ -25,6 +25,7 @@
  *   - driver_id points at the ASSIGNED driver's user_id so
  *     "relation:driver" recipients resolve correctly for on-behalf accepts.
  */
+import { base44 } from '@/api/base44Client';
 import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
 import {
@@ -44,7 +45,7 @@ function buildDeliveryList(deliveries) {
   return list;
 }
 
-function buildContext({ actor, driver, driverId, store, deliveries, pendingCount, patientName }) {
+function buildContext({ actor, driver, driverId, store, deliveries, pendingCount, patientName, patientNotesJoined = '' }) {
   const roles = Array.isArray(actor?.app_roles) ? actor.app_roles
     : (typeof actor?.app_role === 'string' ? [actor.app_role] : []);
   const userRole = actor?.app_role || (roles.length > 0 ? roles[0] : '');
@@ -69,6 +70,12 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
     pendingCount: String(pendingCount != null ? pendingCount : (deliveries || []).length),
     deliveryList: buildDeliveryList(deliveries),
     patientName: patientName || (deliveries?.[0]?.patient_name || ''),
+    // Text-search fields for Rule Builder "Patient Name" / "Patient Notes" /
+    // "Driver Notes" conditions — joined across the WHOLE batch so "Contains"
+    // matches if ANY delivery/patient in the batch qualifies.
+    patient_name: [...new Set((deliveries || []).map((d) => d?.patient_name).filter(Boolean))].join(' | '),
+    patient_notes: patientNotesJoined,
+    delivery_notes: [...new Set((deliveries || []).map((d) => d?.delivery_notes).filter(Boolean))].join(' | '),
     store_id: store?.id || storeIds[0] || '',
     store_ids: storeIds,
     driver_id: resolvedDriverId,
@@ -136,7 +143,22 @@ export async function notifyDriverAcceptedStops({
     });
   };
 
-  const context = buildContext({ actor, driver, driverId, store, deliveries, pendingCount: count, patientName });
+  // Self-contained Patient lookup: unlike dispatcherAssignedStopsNotifier
+  // (which receives `patients` from the caller's already-loaded state),
+  // neither Accept All nor Accept Single thread patient records through to
+  // this notifier — fetch just the notes for the patients in THIS batch.
+  const patientIds = [...new Set((deliveries || []).map((d) => d?.patient_id).filter(Boolean))];
+  let patientNotesJoined = '';
+  if (patientIds.length > 0) {
+    try {
+      const patientRecords = await base44.entities.Patient.filter({ id: { $in: patientIds } });
+      patientNotesJoined = (patientRecords || []).map((p) => p?.notes).filter(Boolean).join(' | ');
+    } catch (e) {
+      console.warn('[DriverAcceptedStops] patient notes lookup failed:', e?.message || e);
+    }
+  }
+
+  const context = buildContext({ actor, driver, driverId, store, deliveries, pendingCount: count, patientName, patientNotesJoined });
   console.warn('[DriverAcceptedStops] context — user_role:', context.user_role, '— driver_id:', context.driver_id, '— store_id:', context.store_id, '— pendingCount:', context.pendingCount);
 
   // Force a fresh rule load so newly-created / edited rules are picked up immediately

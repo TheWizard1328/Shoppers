@@ -68,6 +68,7 @@ function buildBatchAwareContext({
   dispatcher,
   deliveryList,
   existingStopCount = 0,
+  patients = [],
 }) {
   const storeIds = aggregateList(deliveries, 'store_id');
   // If a single store, keep its id directly on store_id (matches "equals"/"in_list")
@@ -133,6 +134,15 @@ function buildBatchAwareContext({
     timestamp: new Date().toLocaleString(),
     // Aggregate delivery-level boolean + numeric fields
     patientName: deliveries[0]?.patient_name || '',
+    // Text-search fields for Rule Builder "Patient Name" / "Patient Notes" /
+    // "Driver Notes" conditions — joined across the WHOLE batch (not just the
+    // first record) so "Contains" matches if ANY delivery/patient qualifies.
+    patient_name: aggregateList(deliveries, 'patient_name').join(' | '),
+    patient_notes: (() => {
+      const ids = new Set(deliveries.map((d) => d?.patient_id).filter(Boolean));
+      return (patients || []).filter((p) => ids.has(p?.id)).map((p) => p?.notes).filter(Boolean).join(' | ');
+    })(),
+    delivery_notes: aggregateList(deliveries, 'delivery_notes').join(' | '),
   };
 
   for (const f of BOOL_FIELDS) {
@@ -251,7 +261,7 @@ export async function notifyDispatcherAssignedStops({
 
   const context = buildBatchAwareContext({
     driver, driverId, driverName, store, storeName, deliveries, dispatcher, deliveryList,
-    existingStopCount,
+    existingStopCount, patients,
   });
   console.warn('[DispatcherAssignedStops] context built — driver_id:', context.driver_id, '— driver object:', { user_id: driver?.user_id, id: driver?.id }, '— user_role:', context.user_role, '— store_id:', context.store_id, '— existingStopCount:', existingStopCount, '— pendingCountLabel:', context.pendingCountLabel);
 
