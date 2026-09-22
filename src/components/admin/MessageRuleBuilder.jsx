@@ -692,7 +692,7 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
           )}
         </div>
         <div className="flex flex-col gap-1.5 items-end shrink-0">
-          {/* Row 1: enable toggle + Test */}
+          {/* Row 1: enable toggle + Test + expand chevron */}
           <div className="flex items-center gap-1">
             <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
             <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
@@ -700,12 +700,12 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
               {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
               {testSuccessId === rule.id ? 'Sent!' : 'Test'}
             </Button>
-          </div>
-          {/* Row 2: expand chevron + edit + copy + delete */}
-          <div className="flex items-center gap-1">
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
               {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </Button>
+          </div>
+          {/* Row 2: edit + copy + delete */}
+          <div className="flex items-center gap-1">
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(rule)}>
               <Pencil className="w-3.5 h-3.5" />
             </Button>
