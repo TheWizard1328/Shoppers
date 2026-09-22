@@ -635,7 +635,6 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
 // ── Rule card ────────────────────────────────────────────────────────────────
 
 function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drivers, onTest, testingId, testSuccessId, testPushStatus }) {
-  const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
   const [expanded, setExpanded] = useState(false);
 
   const recipientLabels = (rule.recipients || []).map((r) => {
@@ -671,7 +670,6 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold truncate">{rule.rule_label}</span>
-            <Badge variant="outline" className="text-xs shrink-0">{eventLabel}</Badge>
             {rule.shadow_mode && <Badge variant="outline" className="text-xs shrink-0 bg-amber-50 dark:bg-amber-950 border-amber-300 text-amber-700"><Eye className="w-2.5 h-2.5 mr-1" />Shadow</Badge>}
             {rule.cooldown_seconds > 0 && <Badge variant="outline" className="text-xs shrink-0"><Clock className="w-2.5 h-2.5 mr-1" />{rule.cooldown_seconds}s</Badge>}
             <Badge variant="outline" className="text-xs shrink-0">#{rule.priority || 10}</Badge>
