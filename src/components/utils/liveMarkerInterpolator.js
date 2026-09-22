@@ -44,6 +44,8 @@ const MAX_INTERVAL_MS = 10000;      // clamp fix-pair interval (clock skew guard
 const SPEED_CAP_MPS = 40;           // ~144 km/h — clamp absurd GPS-derived speeds
 const LEAD_CAP_M = 180;             // bound worst-case lead distance (highway x gap)
 const MIN_LEAD_SPEED_MPS = 1.0;     // below ~3.6 km/h → stationary, dot holds on the fix
+const TURN_LEAD_LIMIT_DEG = 25;     // lead stops AT an upcoming corner sharper than this
+const RE_ANCHOR_MAX_M = 30;         // dot farther than this from a new fix → snap, don't arc
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 
@@ -139,6 +141,27 @@ export function createLiveMarkerInterpolator() {
     return clean.length > 1 ? clean : null;
   }
 
+  /**
+   * Cap the lead at the first significant corner in (fromAlong, toAlong).
+   * A turn takes the driver ~2s while the next fix can be 5s out — leading
+   * THROUGH an intersection before the driver turns reads as a wide arc.
+   * The dot glides to the corner and waits for the next real fix (which lands
+   * on the new street) to carry it around. Gentle bends (< limit per vertex)
+   * are followed continuously — only sharp corners cap.
+   */
+  function capLeadAtTurn(fromAlong, toAlong) {
+    const { pts, cum } = path;
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (cum[i] <= fromAlong + 1 || cum[i] >= toAlong) continue;
+      const bIn = bearingRad(pts[i - 1], pts[i]);
+      const bOut = bearingRad(pts[i], pts[i + 1]);
+      let diff = Math.abs(bOut - bIn);
+      if (diff > Math.PI) diff = 2 * Math.PI - diff;
+      if (diff > toRad(TURN_LEAD_LIMIT_DEG)) return cum[i];
+    }
+    return toAlong;
+  }
+
   function ptAtAlong(along) {
     const { pts, cum } = path;
     if (!pts || !cum) return null;
@@ -219,6 +242,9 @@ export function createLiveMarkerInterpolator() {
       let mode = "line";
       let waypoints = null;
       let leadPt = null;
+      let fromAlong = 0;
+      let rawAlong = 0;
+      let toAlong = 0;
 
       if (path) {
         const projNew = projectOnPath(path, fix);
@@ -232,8 +258,13 @@ export function createLiveMarkerInterpolator() {
           projNew.distAlong >= projPrev.distAlong - 2
         ) {
           const curProj = projectOnPath(path, curPt);
-          const fromAlong = curProj.offDist <= OFF_ROUTE_THRESHOLD_M ? curProj.distAlong : projNew.distAlong;
-          const toAlong = Math.min(projNew.distAlong + leadM, path.cum[path.cum.length - 1]);
+          fromAlong = curProj.offDist <= OFF_ROUTE_THRESHOLD_M ? curProj.distAlong : projNew.distAlong;
+          rawAlong = Math.min(projNew.distAlong + leadM, path.cum[path.cum.length - 1]);
+          // Only SPECULATIVE corners cap the lead: geometry between the last
+          // fix and the new fix is road the driver already covered — a corner
+          // there is confirmed. Corners ahead of the new fix are unproven
+          // until the next fix lands, so the dot stops at them.
+          toAlong = capLeadAtTurn(Math.max(fromAlong, projNew.distAlong), rawAlong);
           if (toAlong > fromAlong + 1) {
             waypoints = pathBetween(fromAlong, toAlong);
             if (waypoints) {
@@ -256,16 +287,29 @@ export function createLiveMarkerInterpolator() {
         ];
       }
 
+      // Re-anchor from the displayed point ONLY when it's still near reality;
+      // after a turn the old lead can be a block off — gliding from there
+      // sweeps a wide arc across the corner. Snap to the real fix instead.
+      const reAnchorOk = haversineM(curPt, fix) <= Math.max(RE_ANCHOR_MAX_M, leadM * 0.5);
+
+      // Capped at a corner: glide to the corner over the ESTIMATED arrival
+      // time, then HOLD there — never settle back (the fix is behind the
+      // corner). The next fix (on the new street) re-anchors from the corner.
+      const capped = mode === "path" && rawAlong > toAlong + 0.5;
+      const spanM = Math.max(0, toAlong - fromAlong);
+      const travelMs = speedMps > 0.5 ? (spanM / speedMps) * 1000 : gapMs;
+
       anim = {
         mode,
         waypoints,
-        from: mode === "line" ? curPt : null,
+        from: mode === "line" ? (reAnchorOk ? curPt : fix) : null,
         to: mode === "line" ? leadPt : null,
         fixPos: fix,
         endPos: leadPt,
         start: now,
-        end: now + gapMs,
-        settleEnd: now + gapMs * 2,
+        end: capped ? now + Math.min(Math.max(travelMs, 400), gapMs) : now + gapMs,
+        holdEnd: capped,
+        settleEnd: capped ? null : now + gapMs * 2,
       };
     },
 
@@ -312,6 +356,9 @@ export function createLiveMarkerInterpolator() {
         const p = lerpPt(anim.endPos, anim.fixPos, k);
         return { latitude: p[0], longitude: p[1] };
       }
+
+      // Capped lead waiting at a corner for the next fix: hold the corner.
+      if (anim.holdEnd) return { latitude: anim.endPos[0], longitude: anim.endPos[1] };
 
       return { latitude: anim.fixPos[0], longitude: anim.fixPos[1] };
     },

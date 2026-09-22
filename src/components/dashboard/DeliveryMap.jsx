@@ -847,7 +847,11 @@ function DeliveryMap({
       if (!mine.length) return null;
       mine.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const next = mine.find((stop) => stop.isNextDelivery === true) || mine[0];
-      const encoded = next?.polyline;
+      // Delivery records store the leg geometry in `encoded_polyline` (the
+      // legacy bare `polyline` field is never written). Reading the wrong
+      // field here left livePathCoords null, so the self-marker ran in
+      // straight-line mode and arced off-route through every turn (Sep 21 fix).
+      const encoded = next?.encoded_polyline || next?.polyline;
       if (!encoded || typeof encoded !== "string") return null;
       const coords = decodeGooglePolyline(encoded);
       return Array.isArray(coords) && coords.length > 1 ? coords : null;
