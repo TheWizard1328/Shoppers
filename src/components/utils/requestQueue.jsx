@@ -1,3 +1,5 @@
+import { connectionMonitor } from './connectionMonitor';
+
 /**
  * Global Request Queue - Stagger all entity fetches to prevent rate limiting
  * All entity.filter() and entity.list() calls should go through this queue
@@ -9,7 +11,7 @@ const DEDUP_WINDOW = 500; // Deduplicate identical requests within 500ms window
 // settles on its own — without this, one hung request at the queue head freezes
 // `processing` forever and starves every queued entity fetch (the frozen
 // smart-refresh spinner / dead manager bug).
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 15000;
 
 class RequestQueue {
   constructor() {
@@ -133,8 +135,10 @@ class RequestQueue {
             REQUEST_TIMEOUT_MS
           );
         });
+        const requestStartedAt = Date.now();
         const result = await Promise.race([requestFn(), timeoutPromise]);
         clearTimeout(timeoutId);
+        connectionMonitor.recordResponseTime(Date.now() - requestStartedAt);
         // Success — reset backoff escalation to the floor
         this.rateLimitBackoffMs = 30000;
         resolve(result);
@@ -149,11 +153,13 @@ class RequestQueue {
           error?.code === 429 ||
           (error?.message && (/429/.test(error.message) || /rate limit/i.test(error.message)));
         if (is429) {
+          connectionMonitor.recordError('rate_limit');
           this.rateLimitUntil = Date.now() + this.rateLimitBackoffMs;
           // Escalate: 30s → 60s on consecutive 429s
           this.rateLimitBackoffMs = this.rateLimitBackoffMs === 30000 ? 60000 : this.rateLimitBackoffMs;
           console.warn(`⏰ [RequestQueue] 429 on "${requestName}" — backing off ${Math.round(this.rateLimitBackoffMs / 1000)}s (all queued callers paused)`);
         } else {
+          connectionMonitor.recordError(/timed out|timeout/i.test(String(error?.message || '')) ? 'timeout' : 'network');
           console.warn(`❌ [RequestQueue] Request failed: "${requestName}" -`, error?.message || error);
         }
         reject(error);

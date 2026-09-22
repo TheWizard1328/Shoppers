@@ -20,6 +20,7 @@ import { syncUpdatedAppUser } from './locationTrackerBroadcast';
 import { remoteLogger } from './remoteLogger';
 import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches, getLastCommittedCrumb } from './locationBreadcrumbService';
 import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
+import { connectionMonitor } from './connectionMonitor';
 
 class LocationTracker {
     constructor() {
@@ -56,6 +57,13 @@ class LocationTracker {
         this.deviceCapabilities = null;
         this.locationProvider = getLocationProvider();
         this.isPrimaryDevice = false;
+
+        // Async overlap guards. GPS callbacks, heartbeat timers and watchdogs can
+        // all fire together after a signal dropout or foreground resume. Only one
+        // upload, heartbeat acquisition and breadcrumb write may run at a time.
+        this._locationUploadInFlight = false;
+        this._heartbeatTickInFlight = false;
+        this._breadcrumbWriteInFlight = false;
 
         // Event-driven updates tracking
         this._pendingEventUpdate = false;
@@ -144,7 +152,8 @@ class LocationTracker {
 
     const doHeartbeat = async () => {
       if (!this.isTracking || !this._dispatcherHeartbeatMode) return;
-      if (!navigator.onLine || !this.appUserId) return;
+      if (!this.appUserId || !connectionMonitor.canAttemptNetwork() || this._heartbeatTickInFlight) return;
+      this._heartbeatTickInFlight = true;
       try {
         const nowISO = getLocalTimestamp();
         await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO, last_seen_at: nowISO });
@@ -152,6 +161,8 @@ class LocationTracker {
         this._logLocationRemote('info', 'DISPATCHER-HEARTBEAT', { latitude: null, longitude: null, accuracy: null, timestampOnly: true });
       } catch (err) {
         console.warn('⚠️ [LocationTracker] Dispatcher heartbeat failed:', err?.message);
+      } finally {
+        this._heartbeatTickInFlight = false;
       }
     };
 
@@ -627,23 +638,20 @@ class LocationTracker {
     // double-check the native provider's _active flag — if a non-primary device somehow
     // has a running native watcher, we should not be processing its GPS callbacks.
 
-    if (forceUpdate) {
-    } else {
+    if (!this.appUserId || !this.currentUser || !connectionMonitor.canAttemptNetwork()) {
+      return;
     }
 
-    // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication
+    // A weak connection can leave one upload pending across multiple 15s ticks.
+    // Skip overlapping attempts; the next heartbeat retries after this one settles.
+    if (this._locationUploadInFlight) return;
+    this._locationUploadInFlight = true;
+
+    // Set before attempting upload for deduplication.
     this.lastUpdate = now;
-    this.lastUploadTime = now; // Track for deduplication
+    this.lastUploadTime = now;
 
     try {
-      // Check if online before attempting update
-      if (!navigator.onLine) {
-        return;
-      }
-
-      if (!this.appUserId || !this.currentUser) {
-        return;
-      }
 
       const nowISO = getLocalTimestamp();
 
@@ -805,7 +813,7 @@ class LocationTracker {
         // Only disable location_tracking_enabled when actually stopping tracking.
         // If keepTrackingAlive is true (web-only or on-duty), the heartbeat continues
         // and the flag should remain enabled so other devices still show the marker.
-        if (!keepTrackingAlive && this.appUserId) {
+        if (!keepTrackingAlive && this.appUserId && connectionMonitor.canAttemptNetwork()) {
           try {
             const updateData = {
               location_tracking_enabled: false
@@ -835,6 +843,8 @@ class LocationTracker {
           }
         }));
       }
+    } finally {
+      this._locationUploadInFlight = false;
     }
   }
 
@@ -1170,7 +1180,8 @@ class LocationTracker {
         // within the 15s window wins, the other is suppressed.
         this._clearHeartbeat(); // Guard: ensure no stale interval before starting a new one
         this.heartbeatInterval = setInterval(async () => {
-          if (!this.isTracking) return;
+          if (!this.isTracking || this._heartbeatTickInFlight) return;
+          this._heartbeatTickInFlight = true;
           try {
             // When native background watcher is active, getCurrentPosition returns
             // the last known position from the native service (no new GPS fix needed).
@@ -1198,7 +1209,7 @@ class LocationTracker {
           } catch (err) {
             // Even if GPS fails, upload a timestamp-only update so the marker
             // stays "fresh" and doesn't show as stale to dispatchers.
-            if (this.isPrimaryDevice && this.appUserId && navigator.onLine) {
+            if (this.isPrimaryDevice && this.appUserId && connectionMonitor.canAttemptNetwork()) {
               try {
                 const nowISO = getLocalTimestamp();
                 await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
@@ -1206,6 +1217,8 @@ class LocationTracker {
                 console.warn(`⚠️ [${providerName} PROVIDER] Timestamp heartbeat failed:`, e?.message);
               }
             }
+          } finally {
+            this._heartbeatTickInFlight = false;
           }
         }, this.updateInterval);
 
@@ -1591,6 +1604,9 @@ class LocationTracker {
       return;
     }
 
+    if (this._breadcrumbWriteInFlight) return;
+    this._breadcrumbWriteInFlight = true;
+
     try {
       const result = await collectBreadcrumbForTracker({
         driverStatus: this.driverStatus,
@@ -1619,6 +1635,8 @@ class LocationTracker {
       this.lastBreadcrumbSavedAt = timestamp;
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
+    } finally {
+      this._breadcrumbWriteInFlight = false;
     }
   }
 

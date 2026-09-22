@@ -8,6 +8,7 @@ const DB_NAME = 'rxdeliver_persistent_offline_v2';
 const DB_VERSION = 20; // v20: Added driver_daily_activity store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
+const IDB_OPERATION_TIMEOUT_MS = 8000;
 
 // Store names
 const STORES = {
@@ -71,11 +72,21 @@ const _endWrite = () => {
  * Wait for all in-flight write transactions to complete (up to timeoutMs).
  * Returns true if writes drained, false if timed out.
  */
-const waitForWritesToDrain = (timeoutMs = 30000) => {
+const waitForWritesToDrain = (timeoutMs = 10000) => {
   if (_activeWrites <= 0) return Promise.resolve(true);
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    _writeDrainResolvers.push(() => { clearTimeout(timer); resolve(true); });
+    let settled = false;
+    const finish = (drained) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const index = _writeDrainResolvers.indexOf(onDrain);
+      if (index >= 0) _writeDrainResolvers.splice(index, 1);
+      resolve(drained);
+    };
+    const onDrain = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    _writeDrainResolvers.push(onDrain);
   });
 };
 
@@ -440,11 +451,17 @@ const save = async (storeName, record) => {
       ? { ...recordToStore, [keyPath]: record.id || `${storeName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }
       : recordToStore;
 
-    return new Promise((resolve, reject) => {
-      const request = store.put(normalizedRecord);
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await withTimeout(new Promise((resolve, reject) => {
+        const request = store.put(normalizedRecord);
+        request.onsuccess = () => resolve({ success: true });
+        request.onerror = () => reject(request.error);
+        transaction.onabort = () => reject(transaction.error || new Error(`IDB save(${storeName}) aborted`));
+      }), IDB_OPERATION_TIMEOUT_MS, `IDB save(${storeName})`);
+    } catch (error) {
+      try { transaction.abort(); } catch (_) {}
+      throw error;
+    }
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -510,7 +527,12 @@ const bulkSave = async (storeName, records) => {
       });
     });
 
-    await Promise.all(promises);
+    try {
+      await withTimeout(Promise.all(promises), IDB_OPERATION_TIMEOUT_MS, `IDB bulkSave(${storeName})`);
+    } catch (error) {
+      try { transaction.abort(); } catch (_) {}
+      throw error;
+    }
     return { success: true, count: successCount };
   } catch (error) {
     return { success: false, error: error.message };
@@ -539,7 +561,8 @@ const getAll = async (storeName) => {
     // IDB lock and blocks ALL reads, so the 6s getAll timeout would fire
     // simultaneously across every store during a write burst.
     if (_activeWrites > 0) {
-      await waitForWritesToDrain(30000);
+      const drained = await waitForWritesToDrain(10000);
+      if (!drained) throw new Error(`IDB getAll(${storeName}) blocked by a stalled write`);
     }
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readonly');
@@ -576,7 +599,7 @@ const getByIndex = async (storeName, indexName, value) => {
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
 
-    return new Promise((resolve, reject) => {
+    return await withTimeout(new Promise((resolve, reject) => {
       const request = index.getAll(value);
       request.onsuccess = async () => {
         const results = request.result;
@@ -587,7 +610,7 @@ const getByIndex = async (storeName, indexName, value) => {
         }
       };
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getByIndex(${storeName}.${indexName})`);
   } catch (error) {
     return [];
   }
@@ -603,7 +626,7 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
 
-    return new Promise((resolve, reject) => {
+    return await withTimeout(new Promise((resolve, reject) => {
       const request = index.getAll(values);
       request.onsuccess = async () => {
         const results = request.result;
@@ -614,7 +637,7 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
         }
       };
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getByCompoundIndex(${storeName}.${indexName})`);
   } catch (error) {
     return [];
   }
@@ -1017,7 +1040,7 @@ const getById = async (storeName, recordId) => {
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
 
-    return new Promise((resolve, reject) => {
+    return await withTimeout(new Promise((resolve, reject) => {
       const request = store.get(recordId);
       request.onsuccess = async () => {
         const result = request.result || null;
@@ -1028,7 +1051,7 @@ const getById = async (storeName, recordId) => {
         }
       };
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getById(${storeName})`);
   } catch (error) {
     return null;
   }
@@ -1038,18 +1061,27 @@ const getById = async (storeName, recordId) => {
  * Delete a single record from a store by ID
  */
 const deleteRecord = async (storeName, recordId) => {
+  _beginWrite();
   try {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
 
-    return new Promise((resolve, reject) => {
-      const request = store.delete(recordId);
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await withTimeout(new Promise((resolve, reject) => {
+        const request = store.delete(recordId);
+        request.onsuccess = () => resolve({ success: true });
+        request.onerror = () => reject(request.error);
+        transaction.onabort = () => reject(transaction.error || new Error(`IDB delete(${storeName}) aborted`));
+      }), IDB_OPERATION_TIMEOUT_MS, `IDB delete(${storeName})`);
+    } catch (error) {
+      try { transaction.abort(); } catch (_) {}
+      throw error;
+    }
   } catch (error) {
     return { success: false, error: error.message };
+  } finally {
+    _endWrite();
   }
 };
 

@@ -1,128 +1,172 @@
-/**
- * Connection Quality Monitor
- * Tracks API response times and connection health
- */
+const MAX_SAMPLES = 10;
+const DEGRADED_HOLD_MS = 30000;
 
+const getNavigatorOnline = () =>
+  typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+
+const getNetworkInformation = () => {
+  if (typeof navigator === 'undefined') return null;
+  return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+};
+
+const classifyNetworkInformation = (connection) => {
+  if (!connection) return 'good';
+  const effectiveType = String(connection.effectiveType || '').toLowerCase();
+  const rtt = Number(connection.rtt);
+  const downlink = Number(connection.downlink);
+
+  if (effectiveType === 'slow-2g' || effectiveType === '2g') return 'poor';
+  if (effectiveType === '3g') return 'fair';
+  if (Number.isFinite(rtt) && rtt >= 1200) return 'poor';
+  if (Number.isFinite(rtt) && rtt >= 650) return 'fair';
+  if (Number.isFinite(downlink) && downlink > 0 && downlink <= 0.5) return 'poor';
+  if (Number.isFinite(downlink) && downlink > 0 && downlink <= 1.5) return 'fair';
+  return 'good';
+};
+
+/**
+ * Shared connection-health state.
+ *
+ * navigator.onLine only reports whether the device has a network interface. A
+ * phone can still be black-holed, connected to weak cellular, or stuck during a
+ * handoff. This monitor combines browser online/offline events, the Network
+ * Information API when available, API latency samples, and real request errors.
+ */
 class ConnectionMonitor {
   constructor() {
-    this.quality = 'good'; // good | fair | poor
-    this.lastCheckTime = Date.now();
+    this.isOnline = getNavigatorOnline();
+    this.connection = getNetworkInformation();
     this.responseTimeSamples = [];
-    this.maxSamples = 10;
-    this.listeners = [];
-    this.isOnline = navigator.onLine;
-    
-    // Listen for online/offline events
-    window.addEventListener('online', () => this.handleOnline());
-    window.addEventListener('offline', () => this.handleOffline());
+    this.listeners = new Set();
+    this.degradedUntil = 0;
+    this.lastErrorType = null;
+    this._degradeTimer = null;
+    this.quality = this.isOnline ? classifyNetworkInformation(this.connection) : 'offline';
+
+    if (typeof window !== 'undefined') {
+      this._handleOnline = () => this.handleOnline();
+      this._handleOffline = () => this.handleOffline();
+      this._handleConnectionChange = () => this.recalculate();
+      window.addEventListener('online', this._handleOnline);
+      window.addEventListener('offline', this._handleOffline);
+      this.connection?.addEventListener?.('change', this._handleConnectionChange);
+    }
   }
-  
+
   handleOnline() {
     this.isOnline = true;
-    this.quality = 'good';
+    // Do not immediately claim the connection is healthy. Keep it fair until a
+    // request succeeds or browser network information proves it is good.
+    this.quality = classifyNetworkInformation(this.connection) === 'good' ? 'fair' : classifyNetworkInformation(this.connection);
     this.notifyListeners();
+    clearTimeout(this._degradeTimer);
+    this._degradeTimer = setTimeout(() => this.recalculate(), 10000);
   }
-  
+
   handleOffline() {
     this.isOnline = false;
-    this.quality = 'poor';
+    this.quality = 'offline';
+    this.lastErrorType = 'offline';
     this.notifyListeners();
   }
-  
-  /**
-   * Record an API call response time
-   */
+
   recordResponseTime(timeMs) {
-    this.responseTimeSamples.push({
-      time: timeMs,
-      timestamp: Date.now()
-    });
-    
-    // Keep only last N samples
-    if (this.responseTimeSamples.length > this.maxSamples) {
-      this.responseTimeSamples.shift();
-    }
-    
-    this.updateQuality();
-  }
-  
-  /**
-   * Record an API error (rate limit, timeout, etc.)
-   */
-  recordError(errorType) {
-    if (errorType === 'rate_limit' || errorType === '429') {
-      this.quality = 'poor';
-    } else if (errorType === 'timeout' || errorType === 'network') {
-      this.quality = 'poor';
-    }
-    
-    this.notifyListeners();
-  }
-  
-  /**
-   * Update quality based on response times
-   */
-  updateQuality() {
+    if (!Number.isFinite(timeMs) || timeMs < 0) return;
+    this.isOnline = getNavigatorOnline();
     if (!this.isOnline) {
+      this.handleOffline();
+      return;
+    }
+
+    this.responseTimeSamples.push({ time: timeMs, timestamp: Date.now() });
+    if (this.responseTimeSamples.length > MAX_SAMPLES) this.responseTimeSamples.shift();
+    this.lastErrorType = null;
+    this.degradedUntil = 0;
+    this.recalculate();
+  }
+
+  recordSuccess(timeMs = null) {
+    if (Number.isFinite(timeMs)) {
+      this.recordResponseTime(timeMs);
+      return;
+    }
+    this.isOnline = getNavigatorOnline();
+    this.lastErrorType = null;
+    this.degradedUntil = 0;
+    this.recalculate();
+  }
+
+  recordError(errorType = 'network') {
+    this.isOnline = getNavigatorOnline();
+    this.lastErrorType = errorType;
+    this.degradedUntil = Date.now() + DEGRADED_HOLD_MS;
+    this.quality = this.isOnline ? 'poor' : 'offline';
+    this.notifyListeners();
+    clearTimeout(this._degradeTimer);
+    this._degradeTimer = setTimeout(() => this.recalculate(), DEGRADED_HOLD_MS + 100);
+  }
+
+  recalculate() {
+    this.isOnline = getNavigatorOnline();
+    if (!this.isOnline) {
+      this.quality = 'offline';
+      this.notifyListeners();
+      return;
+    }
+
+    const browserQuality = classifyNetworkInformation(this.connection);
+    if (Date.now() < this.degradedUntil) {
       this.quality = 'poor';
-      this.notifyListeners();
-      return;
-    }
-    
-    if (this.responseTimeSamples.length === 0) {
-      this.quality = 'good';
-      this.notifyListeners();
-      return;
-    }
-    
-    // Calculate average response time
-    const avg = this.responseTimeSamples.reduce((sum, s) => sum + s.time, 0) / this.responseTimeSamples.length;
-    
-    // Quality thresholds
-    if (avg < 1000) {
-      this.quality = 'good'; // < 1 second
-    } else if (avg < 3000) {
-      this.quality = 'fair'; // 1-3 seconds
     } else {
-      this.quality = 'poor'; // > 3 seconds
+      const recent = this.responseTimeSamples.filter((sample) => Date.now() - sample.timestamp <= 120000);
+      const average = recent.length
+        ? recent.reduce((sum, sample) => sum + sample.time, 0) / recent.length
+        : null;
+      const measuredQuality = average == null ? 'good' : average >= 5000 ? 'poor' : average >= 2000 ? 'fair' : 'good';
+      this.quality = browserQuality === 'poor' || measuredQuality === 'poor'
+        ? 'poor'
+        : browserQuality === 'fair' || measuredQuality === 'fair'
+          ? 'fair'
+          : 'good';
     }
-    
     this.notifyListeners();
   }
-  
-  /**
-   * Get current quality
-   */
+
+  canAttemptNetwork() {
+    return this.isOnline && this.quality !== 'poor';
+  }
+
+  getAverageResponseTime() {
+    if (!this.responseTimeSamples.length) return null;
+    return Math.round(this.responseTimeSamples.reduce((sum, sample) => sum + sample.time, 0) / this.responseTimeSamples.length);
+  }
+
   getQuality() {
     return {
       quality: this.quality,
       isOnline: this.isOnline,
-      avgResponseTime: this.getAverageResponseTime()
+      avgResponseTime: this.getAverageResponseTime(),
+      effectiveType: this.connection?.effectiveType || null,
+      downlink: Number.isFinite(Number(this.connection?.downlink)) ? Number(this.connection.downlink) : null,
+      rtt: Number.isFinite(Number(this.connection?.rtt)) ? Number(this.connection.rtt) : null,
+      lastErrorType: this.lastErrorType,
     };
   }
-  
-  getAverageResponseTime() {
-    if (this.responseTimeSamples.length === 0) return null;
-    return Math.round(
-      this.responseTimeSamples.reduce((sum, s) => sum + s.time, 0) / this.responseTimeSamples.length
-    );
-  }
-  
-  /**
-   * Subscribe to quality changes
-   */
+
   subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(cb => cb !== callback);
-    };
+    this.listeners.add(callback);
+    try { callback(this.getQuality()); } catch {}
+    return () => this.listeners.delete(callback);
   }
-  
+
   notifyListeners() {
     const status = this.getQuality();
-    this.listeners.forEach(cb => {
-      try { cb(status); } catch (e) {}
+    this.listeners.forEach((callback) => {
+      try { callback(status); } catch {}
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('connectionHealthChanged', { detail: status }));
+    }
   }
 }
 
