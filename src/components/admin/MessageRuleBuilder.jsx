@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2, Plus, Trash2, Save, X, GripVertical, Bell, BellRing,
-  Eye, EyeOff, Zap, Clock, Copy, ChevronDown, ChevronRight, FlaskConical, CheckCircle
+  Eye, EyeOff, Pencil, Clock, Copy, ChevronDown, ChevronRight, FlaskConical, CheckCircle
 } from 'lucide-react';
 import { loadEnabledRules, clearRuleCache, dispatchMessageRules, renderTemplate } from '@/components/utils/messageRuleEngine';
 import { applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -691,25 +691,31 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
-          <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
-            className={`h-7 px-2 text-xs gap-1 ${testSuccessId === rule.id ? 'border-green-500 text-green-600' : ''}`}>
-            {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
-            {testSuccessId === rule.id ? 'Sent!' : 'Test'}
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
-            {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(rule)}>
-            <Zap className="w-3.5 h-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onDuplicate(rule)}>
-            <Copy className="w-3.5 h-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => onDelete(rule)}>
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+        <div className="flex flex-col gap-1.5 items-end shrink-0">
+          {/* Row 1: enable toggle + Test */}
+          <div className="flex items-center gap-1">
+            <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
+            <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
+              className={`h-7 px-2 text-xs gap-1 ${testSuccessId === rule.id ? 'border-green-500 text-green-600' : ''}`}>
+              {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {testSuccessId === rule.id ? 'Sent!' : 'Test'}
+            </Button>
+          </div>
+          {/* Row 2: expand chevron + edit + copy + delete */}
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(rule)}>
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onDuplicate(rule)}>
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => onDelete(rule)}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -927,11 +933,13 @@ export default function MessageRuleBuilder() {
             </h4>
             <Badge variant="outline" className="text-xs">{rulesByEvent[eventKey].length}</Badge>
           </div>
-          {rulesByEvent[eventKey].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((rule) => (
-            <RuleCard key={rule.id} rule={rule} onEdit={(r) => { setEditingRule(r); setShowEditor(true); }}
-              onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers}
-              onTest={handleTest} testingId={testingId} testSuccessId={testSuccessId} testPushStatus={testPushStatus} />
-          ))}
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {rulesByEvent[eventKey].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((rule) => (
+              <RuleCard key={rule.id} rule={rule} onEdit={(r) => { setEditingRule(r); setShowEditor(true); }}
+                onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers}
+                onTest={handleTest} testingId={testingId} testSuccessId={testSuccessId} testPushStatus={testPushStatus} />
+            ))}
+          </div>
         </div>
       ))}
 
