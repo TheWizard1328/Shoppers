@@ -527,6 +527,19 @@ export default function Layout({ children, currentPageName }) {
             const existing = prevById.get(d?.id);
             return existing ? applyRealtimeMergeWithLockout(d.id, d, existing) : d;
           });
+          // CRITICAL: Preserve locally-created, not-yet-server-synced records.
+          // Full replacements are built from server reads (driver change, Pull to
+          // Sync, data-source toggle, Step 9 priority refresh). A record created
+          // offline-first (temp ID + _isLocal=true — cycling markers, pickups,
+          // returns) is ABSENT from that read while its bulkCreate is in flight or
+          // queued, and would be silently dropped from the UI until a manual app
+          // refresh (the "cycling markers keep disappearing" bug). Carry unsynced
+          // local records over unless they were explicitly deleted here.
+          const nextIds = new Set(next.filter(Boolean).map((d) => d.id));
+          const unsyncedLocal = prev.filter(Boolean).filter((d) =>
+            d?._isLocal === true && d.id && !nextIds.has(d.id) && !(_deletedIds && _deletedIds.has(d.id))
+          );
+          if (unsyncedLocal.length > 0) next = [...next, ...unsyncedLocal];
         }
         // Only use the replacement if it has content or prev is empty
         next = next.length || !prev.length ? next : prev;

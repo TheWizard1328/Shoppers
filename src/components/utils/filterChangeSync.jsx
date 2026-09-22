@@ -90,15 +90,26 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     // ── STEP 3b: Fetch deliveries for selected date + city ────────────────────
     console.log(`🔄 [FilterSync] Step 3b — fetch deliveries for ${selectedDateStr}`);
     let freshDeliveries = [];
+    // Markers are only pruned in Step 3d when a fetch covering them positively
+    // confirmed their absence. A failed marker fetch (429 / network) must never
+    // be read as "markers gone from server" — that purged live markers from IDB
+    // and stripped them from the UI until the next app refresh.
+    let _markersConfirmed = cityStoreIds.length === 0; // unscoped date fetch includes markers
     if (cityStoreIds.length > 0) {
       // Fetch city-scoped deliveries AND cycling markers (no store_id) in parallel
       const [cityDeliveries, cyclingMarkers] = await Promise.all([
         queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr, store_id: { $in: cityStoreIds } }, '-updated_date', 1000), 'Delivery.filterChangeSync.city').catch(() => []),
-        queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }, '-updated_date', 500), 'Delivery.filterChangeSync.cycling').catch(() => []),
+        queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }, '-updated_date', 500), 'Delivery.filterChangeSync.cycling').catch(() => null),
       ]);
-      const merged = new Map();
-      [...(cityDeliveries || []), ...(cyclingMarkers || [])].forEach(d => { if (d?.id) merged.set(d.id, d); });
-      freshDeliveries = Array.from(merged.values());
+      if (Array.isArray(cyclingMarkers)) {
+        _markersConfirmed = true;
+        const merged = new Map();
+        [...(cityDeliveries || []), ...cyclingMarkers].forEach(d => { if (d?.id) merged.set(d.id, d); });
+        freshDeliveries = Array.from(merged.values());
+      } else {
+        console.warn('⚠️ [FilterSync] cycling marker fetch failed — keeping existing markers (purge skipped for markers)');
+        freshDeliveries = cityDeliveries || [];
+      }
     } else {
       freshDeliveries = await queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 1000), 'Delivery.filterChangeSync.all').catch(() => []);
     }
@@ -129,6 +140,7 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
         if (!d?.id) return false;
         if (freshIds.has(d.id)) return false; // still present on server — keep
         if (selectedCityId && cityStoreIds.length > 0 && !cityStoreIds.includes(d?.store_id) && !d?.is_cycling_marker) return false; // different city — keep
+        if (d?.is_cycling_marker && !_markersConfirmed) return false; // marker fetch failed — absence NOT confirmed, keep
         return true; // city-scoped AND gone from server — safe to purge
       })
       .map(d => d?.id).filter(Boolean);
