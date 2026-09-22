@@ -356,15 +356,16 @@ export default function GoogleAPILogViewer() {
     { cat: 'tiles', label: 'Tiles' },
   ];
 
-  // Classify a log into one of the 4 tracked categories
+  // Classify a log into one of the 4 tracked categories.
+  // 'here' = ALL non-tile HERE calls (Directions, Routes, Route Optimization,
+  // Geocoding, ...) — matching on provider, not one literal display type, so
+  // real-world api_type values like 'Routes (HERE)' actually count.
   const getLogCategory = (log) => {
-    const apiType = String(log?.api_type || '');
     const t = getApiLogDisplayType(log);
-    // Tiles: raw api_type contains "Map Tiles" or display type does
-    if (apiType.includes('Map Tiles') || t.includes('Map Tiles')) return 'tiles';
-    if (t === 'HERE Directions') return 'here';
-    if (t === 'Google Place Details') return 'gpd';
-    if (t === 'Google Places Autocomplete') return 'gpa';
+    if (t.includes('Map Tiles')) return 'tiles';
+    if (getApiLogProvider(log) === 'here') return 'here';
+    if (t.includes('Place Details')) return 'gpd';
+    if (t.includes('Places Autocomplete')) return 'gpa';
     return null;
   };
 
