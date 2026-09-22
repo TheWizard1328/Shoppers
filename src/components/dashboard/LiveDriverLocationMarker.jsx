@@ -5,13 +5,18 @@
  *
  * With the Sep 18 2026 battery work, native GPS fixes arrive every ~5s
  * (minIntervalMs 5000 + 10m distance filter) instead of every 1s. A raw 5s
- * cadence would make the dot step instead of glide, so this component adds
- * rAF-driven interpolation between fixes (see liveMarkerInterpolator.js):
+ * cadence would make the dot step, and interpolating BETWEEN fixes trails
+ * the car by a full interval (Sep 21 2026 driver report). So the marker
+ * renders PREDICTIVELY (see liveMarkerInterpolator.js):
  *
- *   - POLYLINE-FOLLOW: while the fix is on-route, the dot glides along the
- *     current-leg road geometry (next stop's polyline) — corners traced
- *     naturally, no overshoot past turns.
- *   - OFF-ROUTE / no geometry: eased straight glide with a turn-snap.
+ *   - LEAD: the dot starts at the latest fix and glides FORWARD along the
+ *     current-leg road geometry (or the fix-pair bearing off-route) at the
+ *     measured speed — it rides at the driver's TRUE current position with
+ *     zero lag, rounding upcoming turns with the route. Each new fix
+ *     re-anchors the glide smoothly; corrections ease in, never snap.
+ *   - SETTLE: if the expected next fix never arrives (slowing / stopped at a
+ *     light, where the 10m filter suppresses fixes), the dot eases back to
+ *     the last real fix and parks on the driver.
  *   - FALLBACK: if live fixes stop for STALE_FIX_MS (tracker off), the marker
  *     reverts to declarative prop positions (server-synced coords) — exactly
  *     the pre-interpolation behavior for secondary devices / tracker-off.

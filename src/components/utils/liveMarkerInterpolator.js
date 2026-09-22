@@ -1,40 +1,49 @@
 /**
  * liveMarkerInterpolator.js
  *
- * Polyline-following interpolation for the driver's OWN live blue-dot marker.
+ * PREDICTIVE display positioning for the driver's OWN live blue-dot marker.
  *
- * CONTEXT (Sep 18 2026 battery work): native GPS was reduced from a 1s fix
- * cadence to a 5s cadence (minIntervalMs 5000) plus a 10m distance filter.
- * A raw 5s cadence makes the dot step instead of glide, so between fixes we
- * animate the marker position:
+ * CONTEXT (Sep 18 2026 battery work): native GPS runs at a 5s fix cadence
+ * (minIntervalMs 5000) plus a 10m distance filter. The original v1 animated
+ * BETWEEN the last two fixes — which replayed the PAST segment on a one-cycle
+ * delay, leaving the dot ~5s behind the car (Sep 21 2026 driver report: "by
+ * the time the turn comes up we're already past it"). v2 flips to prediction:
  *
- *   1. POLYLINE-FOLLOW (preferred): when the current-leg road geometry (the
- *      next stop's encoded leg polyline, decoded at 1e5) is available and the
- *      fix is on-route (< OFF_ROUTE_THRESHOLD_M from the path), the dot glides
- *      ALONG THE ROAD GEOMETRY between the previous fix's projection and the
- *      new fix's projection. Corners and curves are traced naturally — the
- *      marker never sails past a turn, which is the classic flaw of straight-
- *      line easing.
+ *   1. LEAD (steady driving): the dot starts AT the latest fix and glides
+ *      FORWARD along the current-leg road geometry (path mode) or along the
+ *      fix-pair bearing (line mode) at the speed measured from the last two
+ *      fixes, for the expected next-fix gap. In steady state the dot sits at
+ *      the driver's TRUE current position, and each new fix re-anchors the
+ *      glide from wherever the dot is showing — corrections ease in, never
+ *      snap or teleport.
  *
- *   2. OFF-ROUTE / NO GEOMETRY fallback: straight eased glide between raw
- *      fixes, with a TURN SNAP — if the fix-to-fix bearing changes by more
- *      than TURN_SNAP_DEG, the marker snaps to the fix instantly instead of
- *      gliding through the intersection.
+ *   2. POLYLINE-FOLLOW: lead rides the route geometry, so the dot rounds
+ *      corners WITH the route — the driver sees the upcoming turn arriving
+ *      under the dot in real time. If the driver goes off-route (or there is
+ *      no leg geometry), lead falls back to straight-line bearing prediction.
  *
- *   3. STALE fixes: if no fix arrives within STALE_FIX_MS, the marker holds
- *      the last fix (caller also uses this to fall back to server coords).
+ *   3. SETTLE (fix gap runs over — slowing down / stopped at a light, where
+ *      the 10m distance filter suppresses fixes): once the lead glide
+ *      finishes and no new fix has arrived, the dot eases BACK to the last
+ *      real fix over another gap. This bounds any overshoot from the last
+ *      pre-stop speed and leaves the dot parked on the driver.
+ *
+ *   4. STALE fixes: if no fix arrives within STALE_FIX_MS, the caller falls
+ *      back to declarative server-synced coordinates (unchanged).
  *
  * Display-only: nothing here feeds geofences, ETAs, breadcrumbs, or the DB —
- * those consume real GPS fixes. The interpolated position exists solely so
- * the dot looks like it moves at 1s while the hardware only wakes at 5s.
+ * those consume real GPS fixes. This exists solely so a 5s hardware cadence
+ * renders as a live, zero-lag dot.
  */
 
 const OFF_ROUTE_THRESHOLD_M = 45;   // >this far from the leg polyline → off-route
-const TURN_SNAP_DEG = 30;           // sharp direction change → snap instead of glide
+const TURN_SNAP_DEG = 60;           // implausible bearing flip at speed → hold, don't lead
 const STALE_FIX_MS = 15000;         // caller falls back to declarative mode after this
-const MIN_ANIM_MS = 700;            // don't teleport on very fast fix pairs
-const MAX_ANIM_MS = 4500;           // just under the 5s fix interval
+const MAX_GAP_MS = 6000;            // lead/settle phases each span at most this
 const MAX_INTERVAL_MS = 10000;      // clamp fix-pair interval (clock skew guard)
+const SPEED_CAP_MPS = 40;           // ~144 km/h — clamp absurd GPS-derived speeds
+const LEAD_CAP_M = 180;             // bound worst-case lead distance (highway x gap)
+const MIN_LEAD_SPEED_MPS = 1.0;     // below ~3.6 km/h → stationary, dot holds on the fix
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 
@@ -108,19 +117,40 @@ function projectOnPath(path, point) {
 export function createLiveMarkerInterpolator() {
   let path = null;          // current road geometry (or null)
   let fixes = [];           // [[lat, lng, tsMs], ...] capped at 3, newest last
-  let prevProj = null;      // projection of the previous fix (path-mode chaining)
-  let anim = null;          // active animation plan
+  let prevProj = null;      // projection of the previous fix (off-route guard)
+  let anim = null;          // active lead/settle plan
   let lastFixTs = 0;
 
-  function planPathWalk(fromProj, toProj) {
-    const wp = [fromProj.pt];
+  function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+
+  /** Walk the path geometry between two along-distances → [lat,lng][] waypoints. */
+  function pathBetween(fromAlong, toAlong) {
+    const wp = [];
+    const fromPt = ptAtAlong(fromAlong);
+    const toPt = ptAtAlong(toAlong);
+    if (!fromPt || !toPt) return null;
+    wp.push(fromPt);
     for (let i = 0; i < path.pts.length; i++) {
       const d = path.cum[i];
-      if (d > fromProj.distAlong && d < toProj.distAlong) wp.push(path.pts[i]);
+      if (d > fromAlong && d < toAlong) wp.push(path.pts[i]);
     }
-    wp.push(toProj.pt);
+    wp.push(toPt);
     const clean = wp.filter((p, i) => i === 0 || haversineM(p, wp[i - 1]) > 0.5);
     return clean.length > 1 ? clean : null;
+  }
+
+  function ptAtAlong(along) {
+    const { pts, cum } = path;
+    if (!pts || !cum) return null;
+    const a = clamp(along, 0, cum[cum.length - 1]);
+    for (let i = 1; i < cum.length; i++) {
+      if (a <= cum[i]) {
+        const seg = cum[i] - cum[i - 1];
+        const t = seg > 0 ? (a - cum[i - 1]) / seg : 0;
+        return lerpPt(pts[i - 1], pts[i], t);
+      }
+    }
+    return pts[pts.length - 1];
   }
 
   return {
@@ -142,92 +172,148 @@ export function createLiveMarkerInterpolator() {
       if (fixes.length > 3) fixes.shift();
       lastFixTs = ts;
 
-      // First fix — just sit on it, nothing to interpolate from.
+      const now = Date.now();
+
+      // First fix — nothing to predict from. Park the dot on it.
       if (!prev) {
-        anim = null;
+        anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now };
         prevProj = null;
         return;
       }
 
-      const now = Date.now();
-      const rawInterval = Math.min(Math.max(ts - prev[2], 500), MAX_INTERVAL_MS);
-      const animMs = Math.min(Math.max(rawInterval * 0.9, MIN_ANIM_MS), MAX_ANIM_MS);
-      const fromRaw = [prev[0], prev[1]];
+      const rawInterval = clamp(ts - prev[2], 500, MAX_INTERVAL_MS);
+      const gapMs = Math.min(rawInterval, MAX_GAP_MS);
+      const distM = haversineM([prev[0], prev[1]], fix);
+      const speedMps = clamp(distM / (rawInterval / 1000), 0, SPEED_CAP_MPS);
+
+      // Current DISPLAYED point — the new glide re-anchors from it so
+      // corrections ease in instead of snapping (no backward teleport).
+      const cur = this.getDisplayPosition(now);
+      const curPt = cur ? [cur.latitude, cur.longitude] : fix;
+
+      // Implausible bearing flip at speed → GPS artifact or hairpin; don't
+      // lead into the unknown — hold on the real fix this cycle.
+      if (speedMps > 8 && fixes.length >= 3) {
+        const older = fixes[fixes.length - 3];
+        const bPrev = bearingRad([older[0], older[1]], [prev[0], prev[1]]);
+        const bNew = bearingRad([prev[0], prev[1]], fix);
+        let diff = Math.abs(bNew - bPrev);
+        if (diff > Math.PI) diff = 2 * Math.PI - diff;
+        if (diff > toRad(TURN_SNAP_DEG)) {
+          prevProj = path ? projectOnPath(path, fix) : null;
+          anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now + gapMs };
+          return;
+        }
+      }
+
+      // Stationary / walking speed → no lead; the dot sits on the fix.
+      if (speedMps < MIN_LEAD_SPEED_MPS) {
+        prevProj = path ? projectOnPath(path, fix) : null;
+        anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now + gapMs };
+        return;
+      }
+
+      // Lead distance: one expected fix-gap of travel, capped.
+      const leadM = Math.min(speedMps * (gapMs / 1000), LEAD_CAP_M);
+
       let mode = "line";
       let waypoints = null;
+      let leadPt = null;
 
-      // ── POLYLINE-FOLLOW: project both fixes onto the road geometry ──
       if (path) {
         const projNew = projectOnPath(path, fix);
-        const projPrev = prevProj || projectOnPath(path, fromRaw);
+        const projPrev = prevProj || projectOnPath(path, [prev[0], prev[1]]);
         prevProj = projNew;
+        // Path mode only when both fixes are on-route and the driver is
+        // moving FORWARD along the route (backwards → don't walk the path).
         if (
           projNew.offDist <= OFF_ROUTE_THRESHOLD_M &&
           projPrev.offDist <= OFF_ROUTE_THRESHOLD_M &&
-          projNew.distAlong >= projPrev.distAlong - 2 // moving backward → don't walk the path backwards
+          projNew.distAlong >= projPrev.distAlong - 2
         ) {
-          waypoints = planPathWalk(projPrev, projNew);
-          if (waypoints) mode = "path";
+          const curProj = projectOnPath(path, curPt);
+          const fromAlong = curProj.offDist <= OFF_ROUTE_THRESHOLD_M ? curProj.distAlong : projNew.distAlong;
+          const toAlong = Math.min(projNew.distAlong + leadM, path.cum[path.cum.length - 1]);
+          if (toAlong > fromAlong + 1) {
+            waypoints = pathBetween(fromAlong, toAlong);
+            if (waypoints) {
+              mode = "path";
+              leadPt = waypoints[waypoints.length - 1];
+            }
+          }
         }
       } else {
         prevProj = null;
       }
 
-      // ── TURN SNAP (line mode only): sharp direction change → snap, don't glide ──
-      if (mode === "line" && fixes.length >= 3) {
-        const older = fixes[fixes.length - 3];
-        const bPrev = bearingRad([older[0], older[1]], fromRaw);
-        const bNew = bearingRad(fromRaw, fix);
-        let diff = Math.abs(bNew - bPrev);
-        if (diff > Math.PI) diff = 2 * Math.PI - diff;
-        if (diff > toRad(TURN_SNAP_DEG)) {
-          anim = { mode: "hold", start: now, end: now, endPos: fix };
-          return;
-        }
+      if (mode === "line") {
+        // Bearing 0 = north: dLat scales with cos(brg), dLng with sin(brg)
+        // (adjusted by cos(lat) for longitude convergence).
+        const brg = bearingRad([prev[0], prev[1]], fix);
+        leadPt = [
+          fix[0] + Math.cos(brg) * (leadM / 111111),
+          fix[1] + Math.sin(brg) * (leadM / 111111) / Math.max(Math.cos(toRad(fix[0])), 0.01),
+        ];
       }
 
       anim = {
         mode,
         waypoints,
-        from: mode === "path" ? null : fromRaw,
-        to: mode === "path" ? null : fix,
+        from: mode === "line" ? curPt : null,
+        to: mode === "line" ? leadPt : null,
+        fixPos: fix,
+        endPos: leadPt,
         start: now,
-        end: now + animMs,
-        endPos: mode === "path" ? waypoints[waypoints.length - 1] : fix,
+        end: now + gapMs,
+        settleEnd: now + gapMs * 2,
       };
     },
 
-    /** Interpolated display position for the given wall-clock time (ms). */
+    /** Predictive display position for the given wall-clock time (ms). */
     getDisplayPosition(nowMs = Date.now()) {
       if (!fixes.length) return null;
       const latest = fixes[fixes.length - 1];
       if (!anim) return { latitude: latest[0], longitude: latest[1] };
-      if (nowMs >= anim.end) return { latitude: anim.endPos[0], longitude: anim.endPos[1] };
-      const span = Math.max(1, anim.end - anim.start);
-      const t = Math.min(Math.max((nowMs - anim.start) / span, 0), 1);
 
-      if (anim.mode === "hold") return { latitude: anim.endPos[0], longitude: anim.endPos[1] };
+      const t = nowMs;
 
-      if (anim.mode === "path") {
-        const wp = anim.waypoints;
-        if (!anim.wpCum) {
-          const cum = [0];
-          for (let i = 1; i < wp.length; i++) cum.push(cum[i - 1] + haversineM(wp[i - 1], wp[i]));
-          anim.wpCum = cum;
+      // LEAD phase — glide fix → predicted position at constant (linear)
+      // speed; matches the driver's true velocity instead of pulsing.
+      if (t <= anim.end) {
+        const span = Math.max(1, anim.end - anim.start);
+        const k = clamp((t - anim.start) / span, 0, 1);
+        if (anim.mode === "hold") return { latitude: anim.endPos[0], longitude: anim.endPos[1] };
+        if (anim.mode === "path") {
+          const wp = anim.waypoints;
+          if (!anim.wpCum) {
+            const cum = [0];
+            for (let i = 1; i < wp.length; i++) cum.push(cum[i - 1] + haversineM(wp[i - 1], wp[i]));
+            anim.wpCum = cum;
+          }
+          const total = anim.wpCum[anim.wpCum.length - 1];
+          const d = total > 0 ? total * k : total;
+          let i = 1;
+          while (i < anim.wpCum.length - 1 && anim.wpCum[i] < d) i++;
+          const seg = anim.wpCum[i] - anim.wpCum[i - 1];
+          const st = seg > 0 ? (d - anim.wpCum[i - 1]) / seg : 0;
+          const p = lerpPt(wp[i - 1], wp[i], st);
+          return { latitude: p[0], longitude: p[1] };
         }
-        const total = anim.wpCum[anim.wpCum.length - 1];
-        const d = total > 0 ? total * smoothstep(t) : total;
-        let i = 1;
-        while (i < anim.wpCum.length - 1 && anim.wpCum[i] < d) i++;
-        const seg = anim.wpCum[i] - anim.wpCum[i - 1];
-        const st = seg > 0 ? (d - anim.wpCum[i - 1]) / seg : 0;
-        const p = lerpPt(wp[i - 1], wp[i], st);
+        const p = lerpPt(anim.from, anim.to, k);
         return { latitude: p[0], longitude: p[1] };
       }
 
-      // line mode — eased straight glide
-      const p = lerpPt(anim.from, anim.to, smoothstep(t));
-      return { latitude: p[0], longitude: p[1] };
+      // SETTLE phase — expected fix never arrived (slowing/stopped): ease the
+      // dot back from the predicted lead to the last REAL fix, then park.
+      const leadErrM = anim.endPos && anim.fixPos ? haversineM(anim.endPos, anim.fixPos) : 0;
+      if (anim.settleEnd && t < anim.settleEnd && leadErrM > 0.25) {
+        const span = Math.max(1, anim.settleEnd - anim.end);
+        const k = smoothstep(clamp((t - anim.end) / span, 0, 1));
+        const p = lerpPt(anim.endPos, anim.fixPos, k);
+        return { latitude: p[0], longitude: p[1] };
+      }
+
+      return { latitude: anim.fixPos[0], longitude: anim.fixPos[1] };
     },
 
     /** Epoch ms of the most recent fix (0 if none). */
