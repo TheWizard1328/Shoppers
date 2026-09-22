@@ -224,6 +224,67 @@ async function removeBookkeeping(b44, deliveryId, reason, ns) {
   return { transactions: (dts || []).length, catalogRecords: (cats || []).length };
 }
 
+// ── DUPLICATE COLLAPSE — same patient + delivery_date + amount + store ─────
+// Root cause of duplicate catalog items: two concurrent reconcile calls for the
+// SAME delivery (e.g. an edit save racing a WebSocket-triggered re-sync) can both
+// see "no existing item yet" and both create one. Because catalogMapByDeliveryId
+// keys off delivery_id and keeps only the first match, the second item becomes a
+// permanent orphan — invisible to the normal want/remove logic, never cleaned up.
+// This pass groups ACTIVE bookkeeping rows by business identity (patient + date +
+// amount + store) regardless of delivery_id, and removes every item in a group
+// except one survivor — from Square (catalog object) and from bookkeeping
+// (SquareCatalogItems row + any pending SquareTransaction tied to the removed
+// delivery_id). Runs after every reconcile (scoped to the touched date(s) — cheap),
+// during the scheduled sweep (whole date), and on-demand via payload.dedupe.
+const nameFromItemName = (n) => nt(String(n || '').replace(/^\d{2}\/\d{2}\([^)]*\)-/, '')).toLowerCase();
+
+const businessKey = (r) => {
+  const patientKey = nt(r.patient_id) ? `pid:${nt(r.patient_id)}` : `name:${nameFromItemName(r.item_name)}`;
+  return [patientKey, nt(r.delivery_date), Math.round(Number(r.amount_cents || 0)), nt(r.store_id)].join('|');
+};
+
+// Prefer the item still backed by a real Delivery record; among those (or if
+// none resolve), keep the most recently updated bookkeeping row.
+async function chooseSurvivor(b44, items) {
+  const withDelivery = await Promise.all(items.map(async (it) => ({
+    it, exists: it.delivery_id ? !!(await b44.asServiceRole.entities.Delivery.get(it.delivery_id).catch(() => null)) : false
+  })));
+  const existing = withDelivery.filter((x) => x.exists);
+  const pool = (existing.length ? existing : withDelivery).map((x) => x.it);
+  pool.sort((a, b2) => new Date(b2.updated_date || 0) - new Date(a.updated_date || 0));
+  return pool[0];
+}
+
+async function collapseDuplicateCatalogItems(b44, token, { deliveryDate, dryRun } = {}) {
+  const filter = deliveryDate ? { status: 'active', delivery_date: deliveryDate } : { status: 'active' };
+  const rows = await b44.asServiceRole.entities.SquareCatalogItems.filter(filter, '-updated_date', 500).catch(() => []);
+  const groups = new Map();
+  for (const r of rows || []) {
+    const key = businessKey(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const actions = [];
+  for (const [key, items] of groups) {
+    if (items.length <= 1) continue;
+    const survivor = await chooseSurvivor(b44, items);
+    for (const d of items) {
+      if (d.id === survivor.id) continue;
+      if (dryRun) { actions.push({ key, action: 'planned_remove', duplicateId: d.id, deliveryId: d.delivery_id, catalogObjectId: d.square_catalog_object_id, keptId: survivor.id, keptDeliveryId: survivor.delivery_id }); continue; }
+      if (d.square_catalog_object_id) await sdo(d.square_catalog_object_id, token).catch(() => null);
+      await b44.asServiceRole.entities.SquareCatalogItems.delete(d.id).catch(() => null);
+      if (d.delivery_id && d.delivery_id !== survivor.delivery_id) {
+        const txs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: d.delivery_id, status: 'pending' }).catch(() => []);
+        for (const tx of txs || []) {
+          await b44.asServiceRole.entities.SquareTransaction.update(tx.id, { status: 'cancelled', raw_square_data: { ...(tx.raw_square_data || {}), deleted_at: new Date().toISOString(), deleted_reason: `duplicate_collapsed_kept_${survivor.delivery_id}` } }).catch(() => null);
+        }
+      }
+      actions.push({ key, action: 'removed', duplicateId: d.id, deliveryId: d.delivery_id, catalogObjectId: d.square_catalog_object_id, keptId: survivor.id, keptDeliveryId: survivor.delivery_id });
+    }
+  }
+  return actions;
+}
+
 Deno.serve(async (req) => {
   const started = Date.now();
   try {
@@ -279,7 +340,9 @@ Deno.serve(async (req) => {
       log(`sweep ${date}: ${wants.length} want, ${removes.length} remove`);
     }
 
-    if (!wants.length && !removes.length) {
+    // A dedupe-only call (payload.dedupe, no records/sweep) legitimately has no
+    // wants/removes — don't short-circuit before the dedupe pass runs below.
+    if (!wants.length && !removes.length && !payload?.dedupe) {
       return Response.json({ success: true, processed: 0, results });
     }
 
@@ -391,9 +454,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── DUPLICATE COLLAPSE ────────────────────────────────────────────────
+    // Scoped to the date(s) actually touched by this request (cheap) for normal
+    // record-mode calls; whole date for sweep; explicit payload.dedupe for
+    // on-demand/manual cleanup (dedupeDate optional — omit to scan ALL active rows).
+    let dedupeActions = [];
+    try {
+      if (payload?.sweep) {
+        dedupeActions = await collapseDuplicateCatalogItems(b, token, { deliveryDate: nt(payload?.deliveryDate) || getEdmDate(), dryRun });
+      } else if (payload?.dedupe) {
+        dedupeActions = await collapseDuplicateCatalogItems(b, token, { deliveryDate: nt(payload?.dedupeDate) || undefined, dryRun });
+      } else if (wants.length) {
+        const touchedDates = new Set(wants.map((w) => nt(w.delivery?.delivery_date)).filter(Boolean));
+        for (const dt of touchedDates) {
+          const a = await collapseDuplicateCatalogItems(b, token, { deliveryDate: dt, dryRun });
+          dedupeActions.push(...a);
+        }
+      }
+      if (dedupeActions.length) log(`dedupe: collapsed ${dedupeActions.filter((a) => a.action === 'removed').length} duplicate(s), planned ${dedupeActions.filter((a) => a.action === 'planned_remove').length}`);
+    } catch (e) { console.error('[squareCodReconcile] dedupe pass FAILED:', e?.message || e); }
+
     const errors = results.filter((r) => r.status === 'error');
     log(`done in ${Date.now() - started}ms — ${results.length} results, ${errors.length} errors`);
-    return Response.json({ success: errors.length === 0, processed: results.length, errors: errors.length, results });
+    return Response.json({ success: errors.length === 0, processed: results.length, errors: errors.length, results, dedupeActions });
   } catch (error) {
     console.error('[squareCodReconcile] FATAL:', error?.message || error);
     return Response.json({ error: error?.message || 'Error' }, { status: error?.status || 500 });
