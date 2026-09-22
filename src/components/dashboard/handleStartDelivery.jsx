@@ -70,6 +70,8 @@ export async function handleStartDelivery({
 
   // Track which delivery IDs were mutated locally so we can batch-sync them
   const transitionedIds = new Set();
+  // Hoisted so the finally block can inspect the coordinator result (serverCommitFailed)
+  let coordResult = null;
 
   try {
     // ─── STEP 2: Compute all transitions locally, write ONLY to offlineDB ────
@@ -188,7 +190,7 @@ export async function handleStartDelivery({
     // Pass the just-mutated local deliveries directly to the client-side engine.
     // mutatedDeliveries already contains the full driver+date set from offlineDB
     // with the latest status/isNextDelivery/stop_order writes applied.
-    const coordResult = await performRouteOptimization({
+    coordResult = await performRouteOptimization({
       driverId,
       deliveryDate,
       currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
@@ -198,6 +200,7 @@ export async function handleStartDelivery({
       appUsers,
       source: 'start_delivery',
       bypassDriverStatus: true,
+      awaitServerWrite: true,
     });
     console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
 
@@ -332,7 +335,16 @@ export async function handleStartDelivery({
     // Schedule a priority delivery refresh 3 sec later so other drivers' deliveries
     // (and any server-side changes triggered by this start) are reconciled without
     // racing the just-resumed sync managers.
+    // GUARD: if the coordinator's server commit failed (offline / server error), the
+    // server still holds PRE-optimization stop_order/polyline state — a forced
+    // refresh now would clobber the good local UI/IDB state (stale until refresh).
+    // Skip it; the offline mutation queue re-pushes the writes when back online.
+    const _serverCommitFailed = coordResult?.serverCommitFailed === true;
+    if (_serverCommitFailed) {
+      console.warn('⚠️ [handleStartDelivery] Step 9 skipped — optimization server commit failed; priority refresh would revert local state');
+    }
     setTimeout(() => {
+      if (_serverCommitFailed) return;
       import('@/components/utils/dataManager')
         .then(({ loadPriorityDeliveriesForSelection }) =>
           loadPriorityDeliveriesForSelection(deliveryDate, 'all', true)
