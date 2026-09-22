@@ -605,7 +605,7 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Users</SelectItem>
-                    {uniqueUsers.map((user) =>
+                    {legendDriverNames.map((user) =>
                     <SelectItem key={user} value={user}>{user}</SelectItem>
                     )}
                   </SelectContent>
@@ -743,7 +743,7 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Users</SelectItem>
-                    {uniqueUsers.map((user) =>
+                    {legendDriverNames.map((user) =>
                     <SelectItem key={user} value={user}>{user}</SelectItem>
                     )}
                   </SelectContent>
