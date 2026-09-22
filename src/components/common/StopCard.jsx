@@ -1098,7 +1098,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 };
                 // 1. Write status update locally + backend
                 await updateDeliveryLocal(targetDelivery.id, completionUpdate, { skipSmartRefresh: true });
-                await base44.entities.Delivery.update(targetDelivery.id, completionUpdate).catch(() => null);
 
                 // 2. Recalculate isNextDelivery across all stops for this driver+date — same as executeTerminalAction
                 const allDriverDeliveries = allDeliveries
@@ -1144,7 +1143,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 };
                 // 1. Write status update locally + backend
                 await updateDeliveryLocal(targetDelivery.id, failUpdate, { skipSmartRefresh: true });
-                await base44.entities.Delivery.update(targetDelivery.id, failUpdate).catch(() => null);
 
                 // 2. Recalculate isNextDelivery across all stops — same as executeTerminalAction
                 const allDriverDeliveries = allDeliveries

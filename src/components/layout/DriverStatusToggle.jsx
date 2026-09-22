@@ -350,6 +350,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         recordId: appUserId,
         payload: updatePayload,
         _userInitiated: true,
+        notBefore: connectionMonitor.canAttemptNetwork() ? Date.now() + 30000 : 0,
         driverStatusTransition: {
           newStatus,
           deviceId,

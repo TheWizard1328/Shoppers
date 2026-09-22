@@ -35,6 +35,8 @@ import { processPendingMutationsInternal } from './offlineSyncMutationProcessor'
 import { createOfflineSyncHistoricalHelpers } from './offlineSyncHistorical';
 import { createOfflineSyncPriorityHelpers } from './offlineSyncPriority';
 import { queueEntityRequest } from './requestQueue';
+import { applyPendingAppUserMutations } from './pendingAppUserMutations';
+import { applyPendingEntityMutations } from './pendingEntityMutations';
 
 export {
   pauseOfflineSync,
@@ -271,7 +273,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         if (newLocTime > exLocTime) appUsersByUserId.set(au.user_id, au);
       }
     });
-    const appUsers = Array.from(appUsersByUserId.values());
+    const appUsers = await applyPendingAppUserMutations(Array.from(appUsersByUserId.values()));
     // Merge-only: bulkSave upserts by id and never clears existing offline AppUsers
     if (appUsers && appUsers.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
@@ -289,7 +291,13 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         .map(s => s.id);
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
-    const deliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
+    const serverDeliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
+    const deliveries = await applyPendingEntityMutations({
+      entityName: 'Delivery',
+      serverRows: serverDeliveries || [],
+      storeName: offlineDB.STORES.DELIVERIES,
+      filter: deliveryFilter,
+    });
     // CRITICAL: Use bulkSave to merge, not replaceRecordsByIndex which clears data
     if (getSyncPaused()) {
       console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');
@@ -313,9 +321,14 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     let syncedPatients = [];
     if (patientIds.length > 0) {
       const { freshPatients = [] } = await syncPatientsByIds(patientIds);
-      if (freshPatients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-        syncedPatients = freshPatients;
+      const protectedPatients = await applyPendingEntityMutations({
+        entityName: 'Patient',
+        serverRows: freshPatients,
+        storeName: offlineDB.STORES.PATIENTS,
+      });
+      if (protectedPatients.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, protectedPatients);
+        syncedPatients = protectedPatients;
       }
     }
     invalidateEntityCache('Patient');
@@ -1178,8 +1191,10 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
       // queued mutation reached the server.
       try {
         await processPendingMutations();
+        const { flushPendingBreadcrumbMasters } = await import('./locationBreadcrumbService');
+        await flushPendingBreadcrumbMasters();
       } catch (error) {
-        console.warn('[OfflineSync] Reconnect mutation replay failed:', error?.message);
+        console.warn('[OfflineSync] Reconnect upload replay failed:', error?.message);
       }
       await performBackgroundSync(getLocalDateString()).catch(() => {});
     }, 1500);

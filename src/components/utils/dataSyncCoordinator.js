@@ -13,6 +13,8 @@ import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { queueEntityRequest } from './requestQueue';
 import { applyPendingAppUserMutations } from './pendingAppUserMutations';
+import { applyPendingEntityMutations } from './pendingEntityMutations';
+import { offlineDB } from './offlineDatabase';
 
 const CACHE_TTL = 10000; // 10 seconds - short cache to avoid stale data
 
@@ -120,7 +122,7 @@ export const fetchDeliveriesDedup = async (dateStr, filter = {}) => {
   
   // Check cache
   if (isCacheValid(cacheKey)) {
-    return dataCache.get(cacheKey).data;
+    return applyPendingEntityMutations({ entityName: 'Delivery', serverRows: dataCache.get(cacheKey).data, storeName: offlineDB.STORES.DELIVERIES, filter: { delivery_date: dateStr, ...filter } });
   }
   
   // Check if already fetching
@@ -140,7 +142,7 @@ export const fetchDeliveriesDedup = async (dateStr, filter = {}) => {
       });
       
       pendingRequests.delete(cacheKey);
-      return data || [];
+      return applyPendingEntityMutations({ entityName: 'Delivery', serverRows: data || [], storeName: offlineDB.STORES.DELIVERIES, filter: { delivery_date: dateStr, ...filter } });
     })
     .catch(error => {
       pendingRequests.delete(cacheKey);
@@ -159,7 +161,7 @@ export const fetchPatientsDedup = async (filter = {}) => {
   
   // Check cache
   if (isCacheValid(cacheKey)) {
-    return dataCache.get(cacheKey).data;
+    return applyPendingEntityMutations({ entityName: 'Patient', serverRows: dataCache.get(cacheKey).data, storeName: offlineDB.STORES.PATIENTS, filter });
   }
   
   // Check if already fetching
@@ -181,7 +183,7 @@ export const fetchPatientsDedup = async (filter = {}) => {
       });
       
       pendingRequests.delete(cacheKey);
-      return clean;
+      return applyPendingEntityMutations({ entityName: 'Patient', serverRows: clean, storeName: offlineDB.STORES.PATIENTS, filter });
     })
     .catch(error => {
       pendingRequests.delete(cacheKey);

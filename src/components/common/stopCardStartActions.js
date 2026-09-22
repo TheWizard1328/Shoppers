@@ -18,7 +18,7 @@ import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
-import { createDeliveryLocal, updateDeliveryLocal, pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
+import { createDeliveryLocal, updateDeliveryLocal, updatePatientLocal, pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { parseLocalTimestamp } from '../utils/timeRoundingHelper';
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
@@ -473,11 +473,10 @@ export function useStopCardStartActions({
           }
           if (Object.keys(updates).length === 0) continue;
           updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }).catch(() => {});
-          base44.entities.Delivery.update(item.id, updates).catch(() => null);
         }
 
         if (!isPickup && patient?.id && patient?.status === 'inactive') {
-          base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => null);
+          updatePatientLocal(patient.id, { status: 'active' }).catch(() => null);
         }
 
         // CRITICAL: No setAndCenterNextDelivery — the optimistic update above already

@@ -15,6 +15,7 @@ import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
 import { applyRealtimeMergeWithLockout, isFieldLocked } from './completionLockout';
 import { isDeleted, isDeletedByContent, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
+import { applyPendingEntityMutations } from './pendingEntityMutations';
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -1230,6 +1231,21 @@ const subscribeToEntity = (entityName) => {
             if (entityName === 'Payroll' && type === 'update' && finalDataToSave?.id) {
               dataToSave = finalDataToSave;
             }
+
+            // Pending local fields win over stale server/WebSocket payloads until
+            // their durable queue entry is successfully replayed.
+            if (['Delivery', 'Patient', 'AppUser'].includes(entityName) && finalDataToSave?.id) {
+              const protectedRows = await applyPendingEntityMutations({
+                entityName,
+                serverRows: [finalDataToSave],
+                storeName,
+              });
+              const protectedRecord = protectedRows.find((row) => row?.id === finalDataToSave.id);
+              if (!protectedRecord) return;
+              finalDataToSave = protectedRecord;
+              dataToSave = protectedRecord;
+            }
+
             await offlineDB.save(storeName, finalDataToSave);
             const savedLabel = entityName === 'Patient'
               ? (data?.full_name || data?.id || 'Patient')

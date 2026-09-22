@@ -304,6 +304,7 @@ export const collectBreadcrumbForTracker = async ({
     transport_mode: 'driving',
     point_count: trailPoints.length,
     outage_timestamps: outageTsArr,
+    _pending_server_sync: true,
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
@@ -323,6 +324,10 @@ export const collectBreadcrumbForTracker = async ({
         point_count: trailPoints.length,
         outage_timestamps: outageTsArr,
       });
+      const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey).catch(() => null);
+      if (latest?.encoded_polyline === encodedPolyline) {
+        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
+      }
     } catch (error) {
       const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.includes('rate limit');
       if (!isRateLimited) {
@@ -424,6 +429,7 @@ export const seedHomeAnchorOnDuty = async ({
     transport_mode: 'driving',
     point_count: trailPoints.length,
     outage_timestamps: outageTsArr,
+    _pending_server_sync: true,
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
@@ -439,6 +445,10 @@ export const seedHomeAnchorOnDuty = async ({
       point_count: trailPoints.length,
       outage_timestamps: outageTsArr,
     });
+    const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey).catch(() => null);
+    if (latest?.encoded_polyline === encodedPolyline) {
+      await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
+    }
   } catch (error) {
     console.warn(`⚠️ [Breadcrumbs] Duty-toggle seed flush failed (will retry on next collect):`, error?.message || error);
   } finally {
@@ -447,4 +457,59 @@ export const seedHomeAnchorOnDuty = async ({
 
   console.log(`🍞 [Breadcrumbs] Duty-toggle seed: home coords injected as first master point (${Math.round(distFromHome)}m from driver, ${trailPoints.length} pts total)`);
   return { seeded: true, cleared: trailPoints.length === 1, distance: Math.round(distFromHome) };
+};
+
+
+/** Flush every dirty local master trail after connectivity returns. */
+export const flushPendingBreadcrumbMasters = async () => {
+  const { offlineDB } = await import('./offlineDatabase');
+  const records = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS).catch(() => []);
+  const pending = (records || []).filter((record) =>
+    record?._pending_server_sync !== false &&
+    record?.driver_id && record?.delivery_date && record?.encoded_polyline && record?.timestamps
+  );
+  if (!pending.length) return { flushed: 0 };
+
+  const releaseLock = await acquireBreadcrumbSyncLock();
+  let flushed = 0;
+  try {
+    for (const record of pending) {
+      if (Number(record.stop_order) === -1) {
+        await base44.functions.invoke('syncPendingBreadcrumbs', {
+          driver_id: record.driver_id,
+          delivery_date: record.delivery_date,
+          encoded_polyline: record.encoded_polyline,
+          timestamps: record.timestamps,
+          point_count: record.point_count,
+          outage_timestamps: record.outage_timestamps || [],
+        });
+      } else {
+        const payload = {
+          driver_id: record.driver_id,
+          delivery_id: record.delivery_id,
+          delivery_date: record.delivery_date,
+          stop_order: record.stop_order,
+          encoded_polyline: record.encoded_polyline,
+          timestamps: record.timestamps,
+          transport_mode: record.transport_mode || 'driving',
+          point_count: record.point_count,
+        };
+        const existing = await base44.entities.DeliveryBreadcrumbs.filter({
+          driver_id: record.driver_id,
+          delivery_date: record.delivery_date,
+          stop_order: record.stop_order,
+        }).catch(() => []);
+        if (existing?.[0]?.id) await base44.entities.DeliveryBreadcrumbs.update(existing[0].id, payload);
+        else await base44.entities.DeliveryBreadcrumbs.create(payload);
+      }
+      const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, record.id).catch(() => null);
+      if (latest?.encoded_polyline === record.encoded_polyline) {
+        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
+      }
+      flushed++;
+    }
+  } finally {
+    releaseLock();
+  }
+  return { flushed };
 };

@@ -670,9 +670,6 @@ export function useStopCardCompletionActions({
               ...(patient?.status === 'inactive' ? { status: 'active' } : {}),
             }).catch(() => {});
           }).catch(() => {});
-          if (patient?.status === 'inactive') {
-            base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => {});
-          }
         }
 
         // ── ISP pre-prompt (BEFORE isNextDelivery is reassigned) ──────────────

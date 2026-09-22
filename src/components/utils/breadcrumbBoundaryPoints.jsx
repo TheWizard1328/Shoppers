@@ -116,6 +116,7 @@ async function appendPointToDeliveryBreadcrumbs({ driverId, delivery, deliveryDa
     timestamps,
     transport_mode: delivery.transport_mode || 'driving',
     point_count: allPoints.length,
+    _pending_server_sync: true,
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
@@ -143,6 +144,10 @@ async function appendPointToDeliveryBreadcrumbs({ driverId, delivery, deliveryDa
       await base44.entities.DeliveryBreadcrumbs.update(existingBackendRecord.id, payload);
     } else {
       await base44.entities.DeliveryBreadcrumbs.create(payload);
+    }
+    const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey).catch(() => null);
+    if (latest?.encoded_polyline === encodedPolyline) {
+      await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
     }
   } catch (_) {}
 

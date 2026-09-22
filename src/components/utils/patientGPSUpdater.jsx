@@ -6,6 +6,8 @@
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { locationTracker } from "@/components/utils/locationTracker";
+import { updatePatientLocal } from "@/components/utils/offlineMutations";
+import { offlineDB } from "@/components/utils/offlineDatabase";
 
 // Simple in-module throttle to prevent rapid repeated GPS updates
 let _gpsUpdateInFlight = false;
@@ -112,9 +114,9 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
     // 3) Compute driving distance from store via HERE API (falls back to haversine if unavailable)
     const distanceKm = await getHereRoutingDistanceKm(store.latitude, store.longitude, nextLatitude, nextLongitude);
 
-    // 4) Update ONLY the selected patient directly
-    const existingPatient = await base44.entities.Patient.get(patientId);
-    await base44.entities.Patient.update(patientId, {
+    // 4) Update ONLY the selected patient through the durable local-first queue.
+    const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId).catch(() => null);
+    await updatePatientLocal(patientId, {
       latitude: nextLatitude,
       longitude: nextLongitude,
       distance_from_store: distanceKm,
@@ -134,28 +136,7 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
       }
     } catch {}
 
-    // 4c) CRITICAL (Sep 6 2026): Write the MERGED record to local IDB and upsert it
-    // into the UI immediately. The server update above only carries 3 fields — if the
-    // UI relied on the WS echo, the patient's local record previously got REPLACED by
-    // the partial payload (name/address/phone wiped → stop card rendered 'Unknown').
-    // Writing existingPatient + the 3 new fields keeps the local record whole.
-    try {
-      const { offlineDB } = await import('./offlineDatabase');
-      const mergedPatient = {
-        ...(existingPatient || {}),
-        id: patientId,
-        latitude: nextLatitude,
-        longitude: nextLongitude,
-        distance_from_store: distanceKm,
-        updated_date: new Date().toISOString(),
-      };
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [mergedPatient]);
-      window.dispatchEvent(new CustomEvent('patientsUpdated', {
-        detail: { patients: [mergedPatient], deletedIds: [], fromPullToSync: false, fullReplacement: false }
-      }));
-    } catch (localErr) {
-      console.warn('[patientGPSUpdater] Local merged patient write failed (non-fatal):', localErr?.message);
-    }
+    // Local IDB/cache refresh is handled by updatePatientLocal.
 
     // 5) Log this as a "Direct Change" pending admin review for bulk propagation —
     //    but ONLY if there are other patients sharing the same address (otherwise no bulk update is needed).

@@ -571,13 +571,13 @@ async function handleGetCodData(base44, payload={}) {
   // ("COD for <patient> | Delivery <deliveryId>"), so we use it here to finally
   // delete catalog items whose referenced delivery is already completed+collected.
   // Mirrors the collection rule from syncSquareCods' event trigger.
-  // IMPORTANT: Only card payments (Debit/Credit) count as "collected" here — those
+  // IMPORTANT: Direct payments (Debit/Credit/Cheque/Check) count as "collected" here — those
   // bypass Square entirely via the card machine, so any lingering catalog item is
-  // stale and safe to delete. Cash/Check completions must NOT be treated as
+  // stale and safe to delete. Cash completions must NOT be treated as
   // collected just because cod_payments has an entry: those are exactly the items
   // that need to STAY in the Square catalog until the store actually rings them
   // through the register (tracked via a completed SquareTransaction below).
-  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'debit', 'credit', 'card']);
+  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card']);
   const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
   const collectedDeliveryIds = new Set(
     (deliveriesWithAmounts || [])
@@ -687,7 +687,7 @@ async function handleGetCodData(base44, payload={}) {
     const cfg = activeConfigById.get(store.square_location_config_id);
     if (!cfg?.square_location_id || cfg.status !== 'active') return false;
     const cps = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-    const hasCardPayment = cps.some((p) => ['Debit', 'Credit', 'card', 'debit', 'credit'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
+    const hasCardPayment = cps.some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'card', 'debit', 'credit', 'cheque', 'check'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
     if (d?.status === 'completed' && hasCardPayment) return false; // card bypasses Square catalog
     return true;
   };

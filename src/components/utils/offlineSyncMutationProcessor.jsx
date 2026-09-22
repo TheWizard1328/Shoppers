@@ -11,11 +11,34 @@ const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
+let deferredReplayTimer = null;
+const scheduleDeferredReplay = (mutations = []) => {
+  if (!mutations.length || typeof window === 'undefined') return;
+  const now = Date.now();
+  const hasDueMutation = mutations.some((mutation) => !mutation?.notBefore || Number(mutation.notBefore) <= now);
+  const futureTimes = mutations
+    .map((mutation) => Number(mutation?.notBefore || 0))
+    .filter((time) => time > now);
+  const delay = hasDueMutation
+    ? 100
+    : Math.max(100, Math.min(...futureTimes) - now + 100);
+  if (deferredReplayTimer) clearTimeout(deferredReplayTimer);
+  deferredReplayTimer = setTimeout(() => {
+    deferredReplayTimer = null;
+    processPendingMutationsInternal().catch(() => {});
+  }, delay);
+};
+
 export const processPendingMutationsInternal = async () => {
   if (getSyncPaused()) return { success: true, skipped: true };
 
-  const mutations = await offlineDB.getPendingMutations();
-  if (mutations.length === 0) return { success: true, processed: 0 };
+  const allMutations = await offlineDB.getPendingMutations();
+  const now = Date.now();
+  const mutations = allMutations.filter((mutation) => !mutation?.notBefore || Number(mutation.notBefore) <= now);
+  if (mutations.length === 0) {
+    scheduleDeferredReplay(allMutations);
+    return { success: true, processed: 0, deferred: allMutations.length };
+  }
 
   const BATCH_SIZE = 50;
   const batch = mutations.slice(0, BATCH_SIZE);
@@ -233,6 +256,7 @@ export const processPendingMutationsInternal = async () => {
       }
 
       await offlineDB.removePendingMutation(mutation.mutationId);
+      invalidateEntityCache(mutation.entity);
       if (mutation.entity === 'AppUser' && mutation.driverStatusTransition && typeof window !== 'undefined') {
         const hasPendingStatus = await hasPendingDriverStatusMutation(mutation.recordId);
         window.dispatchEvent(new CustomEvent('offlineDriverStatusSynced', {
@@ -263,5 +287,7 @@ export const processPendingMutationsInternal = async () => {
     }
   }
 
-  return { success: failCount === 0, processed: successCount, failed: failCount, remaining: mutations.length - batch.length };
+  const remainingMutations = await offlineDB.getPendingMutations();
+  scheduleDeferredReplay(remainingMutations);
+  return { success: failCount === 0, processed: successCount, failed: failCount, remaining: remainingMutations.length };
 };
