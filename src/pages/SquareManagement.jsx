@@ -588,6 +588,34 @@ export default function SquareManagement() {
     if (nextStores.length > 0) setStores(nextStores);
   }, [appDataStores]);
 
+  // Direct one-time-per-mount server refresh for SquareLocationConfig.
+  // The boot-time priority fetch (useLayoutInit) only re-fetches this entity when
+  // the device's offline cache is EMPTY (squareConfigsMissing) — once ANY configs
+  // are cached, that gate never fires again on this device. So a store whose Square
+  // location gets created, renamed, or flips active/inactive AFTER the cache was
+  // first seeded is invisible on that device forever (reported: Londonderry missing
+  // from every store filter/dropdown on Sep 22, 2026 despite being active server-side).
+  // This page needs current status to decide which stores to show, so it bypasses
+  // that gate and always pulls a fresh copy on mount, merging into both React state
+  // and the offline cache so other pages/next boots benefit too.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const fresh = await base44.entities.SquareLocationConfig.list();
+        if (!mounted || !(fresh || []).length) return;
+        setLocationConfigs(fresh);
+        locationConfigsRef.current = fresh;
+        setLocationIds(fresh.map((c) => c?.square_location_id).filter(Boolean));
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, fresh).catch(() => {});
+      } catch (err) {
+        console.warn('[SquareManagement] Direct SquareLocationConfig refresh failed:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []); // once per mount — deliberately independent of the offline-cache-gated boot fetch
+
   // Keep patients in sync without triggering the heavy lookup-data sync effect
   // Merge (not replace) so the role-neutral patient loader below survives —
   // appDataPatients is role-scoped (the dashboard fetches only the user's
