@@ -1538,13 +1538,17 @@ function DeliveryMap({
     const targetZoom = Math.max(currentZoom, 15);
     const size = map.getSize();
     const topObscured = isMobile ? (immersiveHidden ? 0 : (effectiveTopOverlayHeight || 116)) : 0;
-    const bottomObscured = immersiveHidden ? 0 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0);
-    // Place marker slightly below the vertical midpoint of the visible area
-    const verticalCenter = topObscured + (size.y - topObscured - bottomObscured) * 0.38;
+    const bottomObscured = immersiveHidden ? 0 : (areStopCardsVisible ? stopCardsHeight : 0);
+    // Keep the selected marker in the unobscured map area, clear of the
+    // stop-card controls and the temp badge floating above them.
+    const markerY = topObscured + (size.y - topObscured - bottomObscured) * 0.58;
     const point = map.project([lat, lng], targetZoom);
-    const newCenter = map.unproject(L.point(point.x, point.y - (size.y / 2 - verticalCenter)), targetZoom);
-    map.setView(newCenter, targetZoom, { animate: true }); // false
-  }, [map, currentZoom, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
+    // Screen marker position = projected marker - projected map center + half
+    // the viewport. The old subtraction here mirrored markerY around the
+    // viewport midpoint and pushed clicked markers down behind the badge.
+    const newCenter = map.unproject(L.point(point.x, point.y + size.y / 2 - markerY), targetZoom);
+    map.setView(newCenter, targetZoom, { animate: true });
+  }, [map, currentZoom, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight, immersiveHidden]);
 
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
     const locationKey = getLocationKey(marker.latitude, marker.longitude, currentZoom);
