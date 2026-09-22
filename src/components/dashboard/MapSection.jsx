@@ -42,7 +42,13 @@ export default function MapSection({
 }) {
   const { isMobile } = useDevice();
   const stableOnMapInteraction = useCallback(() => {
-    onImmersiveMapTap?.();
+    // Sep 21 2026: panning, pinch-zooming, and marker taps NO LONGER exit
+    // immersive mode — drivers routinely steer/zoom the map while driving, and
+    // the UI snapping back on every gesture made the map unusable mid-drive.
+    // The ONLY user gesture that disables immersive mode now is a double-tap
+    // (stableOnDoubleTap below → onImmersiveMapTap). All programmatic
+    // deactivations (next-stop proximity, stopped driving, post-stop cooldown,
+    // override timer) live in useImmersiveMode and are unaffected.
     const timeSinceDoubleTap = Date.now() - (window._lastMapDoubleTapAt || 0);
     if (timeSinceDoubleTap < 800) return;
     // CRITICAL: Leaflet fitBounds animations fire moveend/zoomend after ~900ms.
@@ -56,7 +62,7 @@ export default function MapSection({
     if (!isRealGesture && timeSinceProgrammaticMove < 1200) return;
     fabControlEvents.notifyUserMapInteraction();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onImmersiveMapTap]);
+  }, []);
   const stableOnDoubleTap = useCallback(() => {
     window._lastMapDoubleTapAt = Date.now();
     onImmersiveMapTap?.();
