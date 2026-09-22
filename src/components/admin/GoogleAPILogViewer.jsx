@@ -175,48 +175,61 @@ export default function GoogleAPILogViewer() {
     setAlerts(newAlerts);
   };
 
+  // Date filter predicate — shared by filteredLogs and the user-filter-independent
+  // dropdown log set below (so selecting a user doesn't shrink its own dropdown).
+  const logPassesDateFilter = (log) => {
+    const logDate = new Date(log.timestamp);
+
+    if (dateFilter === 'hourly') {
+      return logDate >= subHours(new Date(), 1);
+    } else if (dateFilter === 'today') {
+      return format(logDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+    } else if (dateFilter === 'yesterday') {
+      return format(logDate, 'yyyy-MM-dd') === format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    } else if (dateFilter === 'week') {
+      return isWithinInterval(logDate, {
+        start: startOfDay(subDays(new Date(), 7)),
+        end: endOfDay(new Date())
+      });
+    } else if (dateFilter === 'month30') {
+      return isWithinInterval(logDate, {
+        start: startOfDay(subDays(new Date(), 30)),
+        end: endOfDay(new Date())
+      });
+    } else if (dateFilter === 'month60') {
+      return isWithinInterval(logDate, {
+        start: startOfDay(subDays(new Date(), 60)),
+        end: endOfDay(new Date())
+      });
+    } else if (dateFilter === 'month90') {
+      return isWithinInterval(logDate, {
+        start: startOfDay(subDays(new Date(), 90)),
+        end: endOfDay(new Date())
+      });
+    } else if (dateFilter === 'custom' && customDateStart && customDateEnd) {
+      return isWithinInterval(logDate, {
+        start: startOfDay(new Date(customDateStart)),
+        end: endOfDay(new Date(customDateEnd))
+      });
+    }
+    return true;
+  };
+
+  // Logs filtered by date + API type ONLY (no user filter) — the source for the
+  // User dropdown so all users with activity in the range stay selectable.
+  const logsForUserDropdown = useMemo(() => {
+    return logs.filter((log) => (
+      logPassesDateFilter(log) &&
+      (apiTypeFilter === 'all' || getApiLogDisplayType(log) === apiTypeFilter)
+    ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logs, dateFilter, customDateStart, customDateEnd, apiTypeFilter]);
+
   // Filter logs based on current filters
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       // Date filter
-      const logDate = new Date(log.timestamp);
-      let passesDateFilter = true;
-
-      if (dateFilter === 'hourly') {
-        // Last 1 hour from current time
-        const oneHourAgo = subHours(new Date(), 1);
-        passesDateFilter = logDate >= oneHourAgo;
-      } else if (dateFilter === 'today') {
-        // Today's calendar day
-        passesDateFilter = format(logDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-      } else if (dateFilter === 'yesterday') {
-        passesDateFilter = format(logDate, 'yyyy-MM-dd') === format(subDays(new Date(), 1), 'yyyy-MM-dd');
-      } else if (dateFilter === 'week') {
-        passesDateFilter = isWithinInterval(logDate, {
-          start: startOfDay(subDays(new Date(), 7)),
-          end: endOfDay(new Date())
-        });
-      } else if (dateFilter === 'month30') {
-        passesDateFilter = isWithinInterval(logDate, {
-          start: startOfDay(subDays(new Date(), 30)),
-          end: endOfDay(new Date())
-        });
-      } else if (dateFilter === 'month60') {
-        passesDateFilter = isWithinInterval(logDate, {
-          start: startOfDay(subDays(new Date(), 60)),
-          end: endOfDay(new Date())
-        });
-      } else if (dateFilter === 'month90') {
-        passesDateFilter = isWithinInterval(logDate, {
-          start: startOfDay(subDays(new Date(), 90)),
-          end: endOfDay(new Date())
-        });
-      } else if (dateFilter === 'custom' && customDateStart && customDateEnd) {
-        passesDateFilter = isWithinInterval(logDate, {
-          start: startOfDay(new Date(customDateStart)),
-          end: endOfDay(new Date(customDateEnd))
-        });
-      }
+      const passesDateFilter = logPassesDateFilter(log);
 
       // API type filter
       const passesTypeFilter = apiTypeFilter === 'all' || getApiLogDisplayType(log) === apiTypeFilter;
@@ -226,6 +239,7 @@ export default function GoogleAPILogViewer() {
 
       return passesDateFilter && passesTypeFilter && passesUserFilter;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logs, dateFilter, customDateStart, customDateEnd, apiTypeFilter, userFilter]);
 
   // Get unique users from filtered logs
@@ -249,19 +263,26 @@ export default function GoogleAPILogViewer() {
     return map;
   }, [users]);
 
-  const legendDriverNames = useMemo(() => {
+  // Shared sorter: log user names ordered by AppUser sort_order (via sortUsers),
+  // with unmatched names (service accounts, etc.) appended alphabetically.
+  const buildSortedUserNames = (logArray) => {
     const logUserNames = new Set(
-      filteredLogs.map((log) => log.user_name).filter(Boolean)
+      (logArray || []).map((log) => log.user_name).filter(Boolean)
     );
-    // All AppUsers present in logs, sorted by sort_order via sortUsers
     const sortedAppUserNames = sortUsers(
       users.filter((user) => user.user_name && logUserNames.has(user.user_name))
     ).map((user) => user.user_name);
     const sortedSet = new Set(sortedAppUserNames);
-    // Remaining names not matched to any AppUser (service accounts, etc.) — append alphabetically
     const rest = Array.from(logUserNames).filter(n => !sortedSet.has(n)).sort();
     return [...sortedAppUserNames, ...rest];
-  }, [filteredLogs, users]);
+  };
+
+  // Legend/chart order — derived from the FULLY-filtered logs (chart shows only these)
+  const legendDriverNames = useMemo(() => buildSortedUserNames(filteredLogs), [filteredLogs, users]);
+
+  // Dropdown order — derived from logs filtered by date + API type ONLY, so
+  // selecting one user doesn't wipe the other users out of the User dropdown.
+  const dropdownUserNames = useMemo(() => buildSortedUserNames(logsForUserDropdown), [logsForUserDropdown, users]);
 
   const storeLegendNames = useMemo(() => {
     const logStoreNames = new Set(
@@ -605,7 +626,7 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Users</SelectItem>
-                    {legendDriverNames.map((user) =>
+                    {dropdownUserNames.map((user) =>
                     <SelectItem key={user} value={user}>{user}</SelectItem>
                     )}
                   </SelectContent>
@@ -743,7 +764,7 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Users</SelectItem>
-                    {legendDriverNames.map((user) =>
+                    {dropdownUserNames.map((user) =>
                     <SelectItem key={user} value={user}>{user}</SelectItem>
                     )}
                   </SelectContent>
