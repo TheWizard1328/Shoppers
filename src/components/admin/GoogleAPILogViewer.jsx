@@ -346,6 +346,16 @@ export default function GoogleAPILogViewer() {
     return rows;
   }, [storeLegendNames]);
 
+  // Per-API-category colors — used by the tooltip grid, the single-user
+  // per-type chart lines, and the legend so all three always match.
+  const CAT_COLORS = { here: '#4f46e5', gpd: '#0891b2', gpa: '#059669', tiles: '#94a3b8' };
+  const CAT_SERIES = [
+    { cat: 'here',  label: 'HERE' },
+    { cat: 'gpd',   label: 'GPD' },
+    { cat: 'gpa',   label: 'GPA' },
+    { cat: 'tiles', label: 'Tiles' },
+  ];
+
   // Classify a log into one of the 4 tracked categories
   const getLogCategory = (log) => {
     const apiType = String(log?.api_type || '');
@@ -373,11 +383,31 @@ export default function GoogleAPILogViewer() {
       const callCount = getApiLogCallCount(log);
       entry.calls += callCount;
       if (isAllUsers && log.user_name) {
-        const uName = log.user_name;
-        entry[uName] = (entry[uName] || 0) + callCount;
-        const cat = getLogCategory(log);
-        if (cat) entry[`${uName}__${cat}`] = (entry[`${uName}__${cat}`] || 0) + callCount;
+        entry[log.user_name] = (entry[log.user_name] || 0) + callCount;
       }
+      // Per-user category counts are recorded in BOTH modes — the multi-user
+      // tooltip grid reads them, and the single-user chart draws one line
+      // per API type from them.
+      if (log.user_name) {
+        const cat = getLogCategory(log);
+        if (cat) entry[`${log.user_name}__${cat}`] = (entry[`${log.user_name}__${cat}`] || 0) + callCount;
+      }
+    };
+
+    // Single-user mode: default the selected user's 4 category keys on every
+    // bucket so the per-type lines are continuous (no gaps for quiet hours).
+    const finalize = (entries) => {
+      if (!userFilter) return entries;
+      return (entries || []).map((e) => {
+        const missing = CAT_SERIES.some(({ cat }) => e[`${userFilter}__${cat}`] === undefined);
+        if (!missing) return e;
+        const out = { ...e };
+        CAT_SERIES.forEach(({ cat }) => {
+          const k = `${userFilter}__${cat}`;
+          if (out[k] === undefined) out[k] = 0;
+        });
+        return out;
+      });
     };
 
     if (dateFilter === 'hourly') {
@@ -393,7 +423,7 @@ export default function GoogleAPILogViewer() {
         const minuteKey = format(new Date(log.timestamp), 'MMM dd HH:mm');
         if (hourlyMap[minuteKey]) addLogToEntry(hourlyMap[minuteKey], log);
       });
-      return Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder);
+      return finalize(Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder));
 
     } else if (dateFilter === 'today') {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -409,7 +439,7 @@ export default function GoogleAPILogViewer() {
         const hourKey = format(logDate, 'HH:00');
         if (hourlyMap[hourKey]) addLogToEntry(hourlyMap[hourKey], log);
       });
-      return Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder);
+      return finalize(Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder));
 
     } else if (dateFilter === 'yesterday') {
       const targetDateStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
@@ -424,7 +454,7 @@ export default function GoogleAPILogViewer() {
         const logHour = format(new Date(log.timestamp), 'HH:00');
         if (hourlyMap[logHour]) addLogToEntry(hourlyMap[logHour], log);
       });
-      return Object.values(hourlyMap);
+      return finalize(Object.values(hourlyMap));
 
     } else if (dateFilter === 'week' || dateFilter === 'month30' || dateFilter === 'month60' || dateFilter === 'month90') {
       const days = dateFilter === 'week' ? 7 : dateFilter === 'month30' ? 30 : dateFilter === 'month60' ? 60 : 90;
@@ -440,7 +470,7 @@ export default function GoogleAPILogViewer() {
         const key = format(logDate, 'yyyy-MM-dd');
         if (dailyMap[key]) addLogToEntry(dailyMap[key], log);
       });
-      return Object.values(dailyMap).sort((a, b) => a.sortOrder - b.sortOrder);
+      return finalize(Object.values(dailyMap).sort((a, b) => a.sortOrder - b.sortOrder));
 
     } else {
       const dailyMap = new Map();
@@ -453,9 +483,9 @@ export default function GoogleAPILogViewer() {
         }
         addLogToEntry(dailyMap.get(dayKey), log);
       });
-      return Array.from(dailyMap.values())
+      return finalize(Array.from(dailyMap.values())
         .sort((a, b) => a.sortDate - b.sortDate)
-        .map(({ sortDate, ...rest }) => rest);
+        .map(({ sortDate, ...rest }) => rest));
     }
   }, [filteredLogs, dateFilter, userFilter, uniqueUsers]);
 
@@ -847,7 +877,6 @@ export default function GoogleAPILogViewer() {
                     const leftNames = allUserNames.filter(n => isDriver(n));
                     const rightNames = allUserNames.filter(n => !isDriver(n));
 
-                    const CAT_COLORS = { here: '#4f46e5', gpd: '#0891b2', gpa: '#059669', tiles: '#94a3b8' };
                     const colW = 34;
                     const gridStyle = { display: 'grid', gridTemplateColumns: `auto ${colW}px ${colW}px ${colW}px ${colW}px ${colW}px`, gap: '3px 6px', alignItems: 'center' };
                     const hdrCell = (txt, color) => (
@@ -926,6 +955,22 @@ export default function GoogleAPILogViewer() {
                         dot={false} />
                     ))}
                   </>
+                ) : userFilter ? (
+                  <>
+                    {/* Individual user selected — one line per API type,
+                        colored to match the tooltip grid and legend. */}
+                    <Line type="monotone" dataKey="calls" name="Total" stroke="#1e293b" strokeWidth={3} strokeDasharray="5 5" dot={false} />
+                    {CAT_SERIES.map(({ cat, label }) => (
+                      <Line
+                        key={cat}
+                        type="monotone"
+                        dataKey={`${userFilter}__${cat}`}
+                        name={label}
+                        stroke={CAT_COLORS[cat]}
+                        strokeWidth={2}
+                        dot={false} />
+                    ))}
+                  </>
                 ) : (
                   <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={2} dot={false} />
                 )}
@@ -952,6 +997,18 @@ export default function GoogleAPILogViewer() {
                   </div>
                 );
               };
+              // Single-user mode — legend mirrors the per-API-type chart lines
+              const catCounts = { here: 0, gpd: 0, gpa: 0, tiles: 0 };
+              filteredLogs.forEach((log) => {
+                const cat = getLogCategory(log);
+                if (cat) catCounts[cat] += getApiLogCallCount(log);
+              });
+              const renderCatItem = ({ cat, label }) => (
+                <div key={cat} className="flex items-center gap-1.5 min-w-0">
+                  <span className="block h-0.5 w-5 flex-shrink-0 rounded-full" style={{ background: CAT_COLORS[cat] }} />
+                  <span className="truncate">{label} <span className="text-slate-400 dark:text-slate-500">({catCounts[cat]})</span></span>
+                </div>
+              );
               const renderStoreItem = (name) => {
                 const count = storeCallCounts.get(name) || 0;
                 return (
@@ -963,8 +1020,14 @@ export default function GoogleAPILogViewer() {
               };
               return (
                 <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  {row1.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row1.map(renderItem)}</div>}
-                  {row2.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row2.map(renderItem)}</div>}
+                  {userFilter ? (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">{CAT_SERIES.map(renderCatItem)}</div>
+                  ) : (
+                    <>
+                      {row1.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row1.map(renderItem)}</div>}
+                      {row2.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row2.map(renderItem)}</div>}
+                    </>
+                  )}
                   {storeLegendRows.map((row, rIdx) => (
                     <div key={`store-row-${rIdx}`} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-1">
                       {row.map(renderStoreItem)}
