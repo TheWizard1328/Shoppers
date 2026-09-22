@@ -12,6 +12,7 @@ import { Patient } from '@/entities/Patient';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { queueEntityRequest } from './requestQueue';
+import { applyPendingAppUserMutations } from './pendingAppUserMutations';
 
 const CACHE_TTL = 10000; // 10 seconds - short cache to avoid stale data
 
@@ -64,7 +65,7 @@ export const fetchAppUsersDedup = async () => {
   
   // Check cache
   if (isCacheValid(cacheKey)) {
-    return dataCache.get(cacheKey).data;
+    return applyPendingAppUserMutations(dataCache.get(cacheKey).data);
   }
   
   // Check if already fetching
@@ -101,7 +102,7 @@ export const fetchAppUsersDedup = async () => {
     });
     
     pendingRequests.delete(cacheKey);
-    return result;
+    return applyPendingAppUserMutations(result);
   }).catch(error => {
     pendingRequests.delete(cacheKey);
     throw error;

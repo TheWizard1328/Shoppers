@@ -1172,9 +1172,16 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
   window.__rxdeliverReconnectSyncRegistered = true;
 
   const triggerOfflineBackgroundSync = () => {
-    setTimeout(() => {
-      processPendingMutations().catch(() => {});
-      performBackgroundSync(getLocalDateString()).catch(() => {});
+    setTimeout(async () => {
+      // Push local intent first. Pulling server state concurrently used to let a
+      // stale AppUser.driver_status overwrite an offline duty toggle before its
+      // queued mutation reached the server.
+      try {
+        await processPendingMutations();
+      } catch (error) {
+        console.warn('[OfflineSync] Reconnect mutation replay failed:', error?.message);
+      }
+      await performBackgroundSync(getLocalDateString()).catch(() => {});
     }, 1500);
   };
 

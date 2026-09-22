@@ -2,6 +2,9 @@ import { offlineDB } from './offlineDatabase';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { getSyncPaused } from './offlineSyncState';
 import { isDeleted, isDeletedByContent } from './deletedDeliveryRegistry';
+import { base44 } from '@/api/base44Client';
+import { sanitizeAppUserMutationPayload, hasPendingDriverStatusMutation } from './pendingAppUserMutations';
+import { invalidateEntityCache } from './dataSyncCoordinator';
 
 // Terminal (finished) delivery statuses — see TERMINAL_STATUSES unification.
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
@@ -187,7 +190,11 @@ export const processPendingMutationsInternal = async () => {
           continue;
         }
 
-        let finalPayload = mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload;
+        let finalPayload = mutation.entity === 'Delivery'
+          ? deliveryPayload
+          : mutation.entity === 'AppUser'
+            ? sanitizeAppUserMutationPayload(mutation.payload)
+            : mutation.payload;
 
         // ── TERMINAL-REVERT GUARD (Robert, Sep 4 2026) ─────────────────────────
         // Rule: the online database is only pushed from DIRECT user actions.
@@ -215,9 +222,28 @@ export const processPendingMutationsInternal = async () => {
         }
 
         await Entity.update(mutation.recordId, finalPayload);
+
+        // Driver status changes have backend side effects beyond AppUser.update:
+        // duty-segment recording, device ownership, tracking state and next-stop
+        // handling. Replay those only after the queued entity update succeeds.
+        if (mutation.entity === 'AppUser' && mutation.driverStatusTransition) {
+          await base44.functions.invoke('setDriverStatus', mutation.driverStatusTransition);
+          invalidateEntityCache('AppUser');
+        }
       }
 
       await offlineDB.removePendingMutation(mutation.mutationId);
+      if (mutation.entity === 'AppUser' && mutation.driverStatusTransition && typeof window !== 'undefined') {
+        const hasPendingStatus = await hasPendingDriverStatusMutation(mutation.recordId);
+        window.dispatchEvent(new CustomEvent('offlineDriverStatusSynced', {
+          detail: {
+            appUserId: mutation.recordId,
+            userId: mutation.driverStatusTransition.targetUserId,
+            status: mutation.driverStatusTransition.newStatus,
+            hasPendingStatus,
+          }
+        }));
+      }
       successCount++;
       await new Promise(r => setTimeout(r, 500));
     } catch (error) {

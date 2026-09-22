@@ -7,6 +7,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { applyPendingAppUserMutations } from './pendingAppUserMutations';
 
 const CACHE_TTL = 600000; // 10 minutes
 
@@ -59,7 +60,7 @@ export const fetchAppUsersDedup = async () => {
   
   // Check cache
   if (isCacheValid(cacheKey)) {
-    return dataCache.get(cacheKey).data;
+    return applyPendingAppUserMutations(dataCache.get(cacheKey).data);
   }
   
   // Check if already fetching
@@ -96,7 +97,7 @@ export const fetchAppUsersDedup = async () => {
     });
     
     pendingRequests.delete(cacheKey);
-    return result;
+    return applyPendingAppUserMutations(result);
   }).catch(error => {
     pendingRequests.delete(cacheKey);
     throw error;

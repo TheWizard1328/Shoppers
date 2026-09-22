@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { liveDistanceTracker } from "../utils/liveDistanceTracker";
@@ -17,6 +17,8 @@ import {
   onStopTrackingFromNotification,
 } from "../utils/trackingNotification";
 import resolveNextStopDisplayName from "./nextStopDisplayName";
+import { connectionMonitor } from '../utils/connectionMonitor';
+import { hasPendingDriverStatusMutation } from '../utils/pendingAppUserMutations';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -87,6 +89,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
   const lastRequestedStatusRef = useRef(null);
   const lastWebSocketUpdateRef = useRef(0);
   const lastWsStatusRef = useRef(null);
+  const pendingStatusMutationRef = useRef(null);
 
   // ── Listen for "Go Off Duty" from the persistent tracking notification ──
   useEffect(() => {
@@ -123,6 +126,10 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         const loadedStatus = resolvedAppUser.driver_status || 'off_duty';
         setAppUserId(resolvedAppUser.id);
         setStatus(loadedStatus);
+        if (await hasPendingDriverStatusMutation(resolvedAppUser.id)) {
+          pendingStatusMutationRef.current = 'persisted';
+          lastRequestedStatusRef.current = loadedStatus;
+        }
 
         // Location tracking only applies to the logged-in user's own device
         if (!isOwnUser) return;
@@ -181,7 +188,10 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     const applyStatusUpdate = (newDriverStatus) => {
       if (isTogglingRef.current) return;
       if (lastWsStatusRef.current === newDriverStatus) return;
-      if (newDriverStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
+      // While a local duty mutation is queued, stale server/WS snapshots must not
+      // overwrite the driver's latest offline intent.
+      if (pendingStatusMutationRef.current && lastRequestedStatusRef.current && newDriverStatus !== lastRequestedStatusRef.current) return;
+      if (!pendingStatusMutationRef.current && newDriverStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
 
       lastWebSocketUpdateRef.current = Date.now();
       lastWsStatusRef.current = newDriverStatus;
@@ -207,11 +217,26 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       if (isMatch) applyStatusUpdate(data.driver_status);
     };
 
+    const handleOfflineDriverStatusSynced = (event) => {
+      const detail = event.detail || {};
+      const isMatch = (appUserId && detail.appUserId === appUserId) || detail.userId === effectiveUser?.id;
+      if (!isMatch) return;
+      if (detail.hasPendingStatus) return;
+      pendingStatusMutationRef.current = null;
+      if (detail.status === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
+      if (detail.status) {
+        setStatus(detail.status);
+        if (isOwnUser) locationTracker.setDriverStatus(detail.status);
+      }
+    };
+
     window.addEventListener('appUserUpdated', handleAppUserUpdated);
     window.addEventListener('entityMutationBroadcast', handleEntityMutationBroadcast);
+    window.addEventListener('offlineDriverStatusSynced', handleOfflineDriverStatusSynced);
     return () => {
       window.removeEventListener('appUserUpdated', handleAppUserUpdated);
       window.removeEventListener('entityMutationBroadcast', handleEntityMutationBroadcast);
+      window.removeEventListener('offlineDriverStatusSynced', handleOfflineDriverStatusSynced);
     };
   }, [appUserId, effectiveUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -234,7 +259,14 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     // hasn't started yet and going off-duty is allowed.
     if (newStatus === 'off_duty') {
       try {
-        const todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser.id, delivery_date: selectedRouteDate });
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const localDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
+        let todayDeliveries = (localDeliveries || []).filter((delivery) =>
+          delivery?.driver_id === effectiveUser.id && delivery?.delivery_date === selectedRouteDate
+        );
+        if (todayDeliveries.length === 0 && connectionMonitor.canAttemptNetwork()) {
+          todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser.id, delivery_date: selectedRouteDate });
+        }
         const finishedStatuses = ['completed', 'failed', 'cancelled'];
         const hasFinished = todayDeliveries.some(d => finishedStatuses.includes(d.status));
         const activeStops = todayDeliveries.filter(d => d.status === 'en_route' || d.status === 'in_transit' || d.status === 'pending');
@@ -257,6 +289,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
     const previousStatus = status;
     let updatePayload = null;
+    let pendingMutationId = null;
+    let serverStatusConfirmed = false;
+    let queuedForReconnect = false;
 
     try {
       lastRequestedStatusRef.current = newStatus;
@@ -300,17 +335,75 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         }
       }
 
-      // Persist to API + offline DB
-      const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
+      // LOCAL-FIRST: commit the full AppUser record and durable mutation before
+      // attempting the network. This makes the duty toggle survive weak signal,
+      // reconnect sync, app backgrounding and a full process restart.
       const { offlineDB } = await import('../utils/offlineDatabase');
-      // CRITICAL: Merge the API response with the EXISTING offline DB record AND the
-      // update payload. IndexedDB `put` REPLACES the entire record — it does NOT merge.
-      // If the SDK response omits fields (app_roles, user_name, etc.), saving just the
-      // response + updatePayload would permanently lose those fields in the offline DB.
-      // Future reads via getEffectiveUser/getAppUserByUserId would then return a merged
-      // user with empty app_roles, causing "No Role" in the sidebar and null driver_status.
+      const transitionAt = new Date().toISOString();
       const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
-      const safeRecord = { ...existingRecord, ...updatedAppUser, ...updatePayload, id: appUserId };
+      const localRecord = { ...existingRecord, ...updatePayload, id: appUserId, user_id: effectiveUser.id, updated_date: transitionAt };
+      await offlineDB.save(offlineDB.STORES.APP_USERS, localRecord);
+      const hadPendingStatusBefore = await hasPendingDriverStatusMutation(appUserId);
+      pendingMutationId = await offlineDB.addPendingMutation({
+        operation: 'update',
+        entity: 'AppUser',
+        recordId: appUserId,
+        payload: updatePayload,
+        _userInitiated: true,
+        driverStatusTransition: {
+          newStatus,
+          deviceId,
+          selectedDate: optimizerDate,
+          disableLocationTracking: newStatus === 'off_duty',
+          targetUserId: effectiveUser.id,
+          previousStatus,
+          anchorTime: transitionAt,
+        },
+      });
+      pendingStatusMutationRef.current = pendingMutationId || 'queued';
+
+      if (!connectionMonitor.canAttemptNetwork()) {
+        queuedForReconnect = true;
+        if (isOwnUser) {
+          locationTracker.setDriverStatus(newStatus);
+          if (newStatus === 'off_duty') {
+            if (!locationTracker._webOnlyMode) locationTracker.stopTracking();
+            hideTrackingNotification().catch(() => {});
+          } else if (newStatus === 'on_duty') {
+            if (locationTracker._webOnlyMode) {
+              locationTracker.upgradeToFullTracking({ ...currentUser, appUserId }).catch(() => {});
+            } else if (!locationTracker.isTracking) {
+              locationTracker.startTracking({ ...currentUser, appUserId }).catch(() => {});
+            }
+          }
+        }
+        if (onStatusChange) onStatusChange(newStatus);
+        toast.info('Status saved offline. It will sync when your connection returns.');
+        return;
+      }
+
+      // If earlier offline duty transitions exist, replay the whole ordered
+      // chain before proceeding. Sending only the newest transition directly
+      // could record activity segments out of order and allow an older queued
+      // status to overwrite it later.
+      if (hadPendingStatusBefore) {
+        const { processPendingMutations } = await import('../utils/offlineSync');
+        const replayResult = await processPendingMutations();
+        const stillPending = await hasPendingDriverStatusMutation(appUserId);
+        if (replayResult?.failed || stillPending) {
+          throw new Error('Driver status replay is still pending');
+        }
+        serverStatusConfirmed = true;
+        pendingMutationId = null;
+        pendingStatusMutationRef.current = null;
+        lastRequestedStatusRef.current = null;
+        if (isOwnUser) locationTracker.setDriverStatus(newStatus);
+        if (onStatusChange) onStatusChange(newStatus);
+        return;
+      }
+
+      const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
+      const safeRecord = { ...localRecord, ...updatedAppUser, ...updatePayload, id: appUserId };
       await offlineDB.save(offlineDB.STORES.APP_USERS, safeRecord);
 
       // Clear isNextDelivery flags when going off_duty or on_break
@@ -352,6 +445,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       });
 
       const confirmedStatus = result?.data?.driver_status || newStatus;
+      serverStatusConfirmed = true;
+      if (pendingMutationId) await offlineDB.removePendingMutation(pendingMutationId);
+      pendingStatusMutationRef.current = null;
       setStatus(confirmedStatus);
       if (isOwnUser) locationTracker.setDriverStatus(confirmedStatus);
       if (confirmedStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
@@ -559,24 +655,38 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
     } catch (error) {
       console.error('[DriverStatusToggle] Failed to update status:', error);
-      lastRequestedStatusRef.current = null;
-      setStatus(previousStatus);
-      if (isOwnUser) locationTracker.setDriverStatus(previousStatus);
-      // CRITICAL: Revert the offline DB to match the reverted React state.
-      // The frontend AppUser.update may have succeeded but the backend function
-      // (setDriverStatus) failed — leaving the offline DB with the new status
-      // while the UI shows the old one. Without this revert, getEffectiveUser()
-      // would read the stale new status from offline DB.
-      if (appUserId && previousStatus) {
-        try {
-          const { offlineDB } = await import('../utils/offlineDatabase');
-          const existingAppUser = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId);
-          if (existingAppUser && existingAppUser.driver_status !== previousStatus) {
-            await offlineDB.save(offlineDB.STORES.APP_USERS, { ...existingAppUser, driver_status: previousStatus });
-          }
-        } catch (_) {}
+      const errorText = String(error?.message || '').toLowerCase();
+      const isConnectivityFailure =
+        !connectionMonitor.canAttemptNetwork() ||
+        error?.code === 'ECONNABORTED' ||
+        errorText.includes('timeout') ||
+        errorText.includes('network') ||
+        errorText.includes('fetch');
+
+      if ((pendingMutationId && isConnectivityFailure) || serverStatusConfirmed) {
+        // Keep the optimistic local state and durable queue entry. Reconnect
+        // processing pushes this mutation before any server pull is applied.
+        queuedForReconnect = !serverStatusConfirmed;
+        setStatus(newStatus);
+        if (isOwnUser) locationTracker.setDriverStatus(newStatus);
+        if (queuedForReconnect) toast.info('Status saved offline. It will sync when your connection returns.');
+      } else {
+        lastRequestedStatusRef.current = null;
+        pendingStatusMutationRef.current = null;
+        setStatus(previousStatus);
+        if (isOwnUser) locationTracker.setDriverStatus(previousStatus);
+        if (pendingMutationId) {
+          try {
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            await offlineDB.removePendingMutation(pendingMutationId);
+            const existingAppUser = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId);
+            if (existingAppUser && existingAppUser.driver_status !== previousStatus) {
+              await offlineDB.save(offlineDB.STORES.APP_USERS, { ...existingAppUser, driver_status: previousStatus });
+            }
+          } catch (_) {}
+        }
+        toast.error('Failed to update status. Please try again.');
       }
-      toast.error('Failed to update status. Please try again.');
       try {
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
         smartRefreshManager.resume();
