@@ -867,27 +867,6 @@ class LocationTracker {
       window.dispatchEvent(new CustomEvent('driverPositionUpdated', { detail }));
     }
 
-    // ── Data-path GPS tick — ALWAYS dispatched, including while hidden ──────
-    // (Sep 21 2026) Route-deviation detection is a data path (geometry + one
-    // entity write on trigger), not render work — it must keep running while
-    // backgrounded/screen-off, exactly when the driver is actually driving.
-    // driverPositionUpdated above stays UI-gated (battery rule); this light
-    // event is consumed by useRouteDeviationMonitor only. While hidden, the
-    // driver's own blue dot is stale ON PURPOSE (nobody is looking) — but the
-    // current-leg polyline regen still commits so the route stays correct.
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('driverPositionDataTick', {
-        detail: {
-          userId: this.currentUser?.id,
-          latitude,
-          longitude,
-          accuracy,
-          timestamp: getLocalTimestamp(),
-          source: this.locationProvider?.name || 'web'
-        }
-      }));
-    }
-
     if (!this.isTracking) return;
 
     // ── BREADCRUMB COLLECTION FROM watchPosition (PRIMARY SOURCE) ──────────────

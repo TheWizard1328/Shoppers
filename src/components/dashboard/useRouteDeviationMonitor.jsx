@@ -39,6 +39,21 @@ const IN_FLIGHT_STATUSES = ['en_route', 'in_transit'];
 // Module-level (survive component remounts): per-driver cooldown + in-flight lock
 const lastRegenAtByDriver = new Map();
 let regenInFlight = false;
+// TEMPORARY live-path diagnostics (Sep 21 2026): reports said the deviation
+// check never ran while the app was foregrounded, only on resume. These
+// throttled warn lines (console.warn survives the production Terser pass and
+// is captured by remoteLogger) expose each check's outcome so the next test
+// drive pinpoints the failing gate. Remove once live health is confirmed.
+let _diagLastBeatAt = 0;
+const _diag = (reason, extra = '') => {
+  const n = Date.now();
+  if (reason === 'ok') {
+    // Normal case: heartbeat at most one line per 2 minutes.
+    if (n - _diagLastBeatAt < 120000) return;
+    _diagLastBeatAt = n;
+  }
+  try { console.warn(`[RouteDeviation] ${reason}${extra ? ' ' + extra : ''}`); } catch (_) {}
+};
 
 function localDateString(d) {
   const now = d || new Date();
@@ -146,6 +161,7 @@ export async function checkCurrentLegDeviationOnDuty({
     updateDeliveriesLocally,
     todayStr,
   });
+  _diag(regenResult?.regenerated ? 'regen' : 'regen_failed', `dist=${Math.round(distance)}m${regenResult?.reason ? ' reason=' + regenResult.reason : ''}${regenResult?.error ? ' error=' + regenResult.error : ''}`);
   return { checked: true, deviated: true, ...regenResult, deviatedMeters: Math.round(distance) };
 }
 
@@ -168,15 +184,13 @@ export function useRouteDeviationMonitor({
   const lastCheckAtRef = useRef(0);
 
   // ── Shared deviation check ────────────────────────────────────────────────
-  // Called from BOTH triggers: driverLocation STATE changes (visible UI) and
-  // `driverPositionDataTick` events (fired by locationTracker on EVERY real GPS
-  // fix — including while the app is backgrounded/screen-off, when state pushes
-  // are UI-gated for battery). Deviation detection is a DATA path: geometry on
-  // the fix + (on trigger) one entity write — it must keep running exactly when
-  // the driver is actually driving with the phone in their pocket, otherwise
-  // detection only "catches up" at resume-from-background (the live-deviation
-  // gap reported Sep 21 2026). The 10s throttle + per-driver cooldown + in-flight
-  // lock dedupe the two triggers.
+  // Called from BOTH triggers: driverLocation STATE changes (GPS fixes flowing
+  // through the UI-gated driverPositionUpdated event) and a foreground-only
+  // 15s safety interval reading locationTracker.lastPosition directly. Per the
+  // owner's design (Sep 21 2026): detection runs ONLY while the app is visible —
+  // backgrounded/screen-off is OFF by design (battery), with the leg updated on
+  // resume. The 10s throttle + per-driver cooldown + in-flight lock dedupe the
+  // two triggers.
   const tick = useCallback(async (eventFix) => {
       const now = Date.now();
       const s = stateRef.current;
@@ -186,7 +200,7 @@ export function useRouteDeviationMonitor({
       lastCheckAtRef.current = now;
 
       // ── Gates ──
-      if (!s.isDriver || !s.isPrimaryDevice) return;
+      if (!s.isDriver || !s.isPrimaryDevice) { return; }
 
       // ── Duty hard gate (owner rule Sep 18 2026) ──
       // Deviation detection must be DISABLED while the driver is off_duty or
@@ -194,30 +208,30 @@ export function useRouteDeviationMonitor({
       // toggle (WS / refresh propagation delay); the locationTracker's
       // in-memory status flips SYNCHRONOUSLY with the toggle, so treat it as
       // authoritative whenever the tracker has a user loaded.
-      if (locationTracker?.currentUser && !['on_duty', 'online'].includes(String(locationTracker.driverStatus || '').toLowerCase())) return;
+      if (locationTracker?.currentUser && !['on_duty', 'online'].includes(String(locationTracker.driverStatus || '').toLowerCase())) { _diag('gate:tracker_duty', locationTracker.driverStatus); return; }
 
       const settings = getDeviationSettings();
-      if (!settings.enableRouteDeviationDetection) return;
+      if (!settings.enableRouteDeviationDetection) { _diag('gate:disabled_setting'); return; }
       const threshold = Number(settings.routeDeviationThresholdMeters) || 200;
       const cooldownMs = (Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
 
-      // Prefer the live event fix — while hidden, driverLocation state stops
-      // updating (UI gate) but the data events keep flowing.
+      // Prefer the direct fix (safety interval) over the state value — the
+      // tracker's lastPosition is never subject to the UI push gates.
       const gps = eventFix || s.driverLocation;
-      if (!gps || !Number.isFinite(Number(gps.latitude)) || !Number.isFinite(Number(gps.longitude))) return;
+      if (!gps || !Number.isFinite(Number(gps.latitude)) || !Number.isFinite(Number(gps.longitude))) { _diag('gate:no_gps'); return; }
       const gpsTime = gps.timestamp ? new Date(gps.timestamp).getTime() : now;
-      if (now - gpsTime > GPS_FRESHNESS_MS) return;
+      if (now - gpsTime > GPS_FRESHNESS_MS) { _diag('gate:stale_gps', Math.round((now - gpsTime) / 1000) + 's'); return; }
 
       const driverId = s.currentUser?.id;
-      if (!driverId) return;
+      if (!driverId) { _diag('gate:no_user'); return; }
 
       // Today's route only — deviation regen on past/future dates makes no sense.
       const todayStr = localDateString();
-      if (localDateString(s.selectedDate) !== todayStr) return;
+      if (localDateString(s.selectedDate) !== todayStr) { _diag('gate:date', String(s.selectedDate)); return; }
 
       // Driver must be on duty (matches the clientRouteEngine via-point gates).
       const selfAppUser = (s.appUsers || []).find((au) => au?.user_id === driverId);
-      if (!['on_duty', 'online'].includes(String(selfAppUser?.driver_status || '').toLowerCase())) return;
+      if (!['on_duty', 'online'].includes(String(selfAppUser?.driver_status || '').toLowerCase())) { _diag('gate:appuser_duty', selfAppUser?.driver_status); return; }
 
       // Today's driver deliveries (same scope the delete flow passes the
       // coordinator) + the next in-flight stop (lowest stop_order among
@@ -227,27 +241,28 @@ export function useRouteDeviationMonitor({
       const nextStop = todayDeliveries
         .filter((d) => IN_FLIGHT_STATUSES.includes(String(d.status || '').toLowerCase()))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-      if (!nextStop) return;
+      if (!nextStop) { _diag('gate:no_next_stop'); return; }
 
       // Cycling markers have their own specialized regen paths (segment-only,
       // hand-picked origins) — never deviation-regen them.
-      if (nextStop.delivery_notes === 'Cycling Route Start') return;
+      if (nextStop.delivery_notes === 'Cycling Route Start') { _diag('gate:cycling_marker'); return; }
 
       // ── Deviation measurement ──
       const distance = deviationFromDeliveryPolylineMeters(
         Number(gps.latitude), Number(gps.longitude), nextStop.encoded_polyline
       );
-      if (!Number.isFinite(distance) || distance <= threshold) return;
+      if (!Number.isFinite(distance)) { _diag('gate:unusable_polyline', 'no encoded_polyline on next stop'); return; }
+      if (distance <= threshold) { _diag('ok', `dist=${Math.round(distance)}m thr=${threshold}m next=${nextStop.tracking_number || nextStop.id}`); return; }
 
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
-      if (now - lastRegenAt < cooldownMs) return;
-      if (regenInFlight) return;
+      if (now - lastRegenAt < cooldownMs) { _diag('cooldown', `dist=${Math.round(distance)}m`); return; }
+      if (regenInFlight) { _diag('gate:regen_in_flight', `dist=${Math.round(distance)}m`); return; }
 
       // Scoped regen (Sep 17 2026): one 2-3 point Directions call for the current
       // leg only — origin (last finished stop / home) → live GPS → next stop.
       // No coordinator run, no re-sequencing, other stops' polylines untouched.
-      await _regenCurrentLeg({
+      const regenResult = await _regenCurrentLeg({
         nextStop,
         gps: { latitude: Number(gps.latitude), longitude: Number(gps.longitude) },
         todayDeliveries,
@@ -258,6 +273,7 @@ export function useRouteDeviationMonitor({
         updateDeliveriesLocally: s.updateDeliveriesLocally,
         todayStr,
       });
+      _diag(regenResult?.regenerated ? 'regen' : 'regen_failed', `dist=${Math.round(distance)}m${regenResult?.reason ? ' reason=' + regenResult.reason : ''}${regenResult?.error ? ' error=' + regenResult.error : ''}`);
   }, []);
 
   // Trigger 1: driverLocation state updates (visible UI path — unchanged).
@@ -265,18 +281,27 @@ export function useRouteDeviationMonitor({
     tick();
   }, [driverLocation, tick]);
 
-  // Trigger 2: raw GPS fixes from the tracker — ALWAYS delivered, including
-  // while backgrounded/screen-off. This is the live-deviation detection path.
+  // Trigger 2: foreground-only safety interval (Sep 21 2026). The live path
+  // reported dead while the app is visibly open (detection only fired on
+  // resume-from-background), yet every link of the state-push chain looks
+  // correct — so this interval GUARANTEES the foreground check runs every 15s
+  // by reading locationTracker.lastPosition (the raw, ungated freshest fix)
+  // instead of relying on driverLocation state pushes. document.hidden check
+  // keeps the background-off design: no checks while minimized/screen-off —
+  // the resume catch-up path (deferred replay + foreground snap) stays the
+  // only hidden→visible transition point. The 10s CHECK_THROTTLE dedupes
+  // against Trigger 1 when both fire.
   useEffect(() => {
-    const onDataTick = (event) => {
-      const d = event.detail || {};
-      const uid = stateRef.current.currentUser?.id;
-      if (d.userId && uid && d.userId !== uid) return;
-      if (!Number.isFinite(Number(d.latitude)) || !Number.isFinite(Number(d.longitude))) return;
-      tick({ latitude: d.latitude, longitude: d.longitude, timestamp: d.timestamp, accuracy: d.accuracy });
-    };
-    window.addEventListener('driverPositionDataTick', onDataTick);
-    return () => window.removeEventListener('driverPositionDataTick', onDataTick);
+    const iv = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return; // background OFF by design
+      const lp = locationTracker?.lastPosition;
+      if (!Number.isFinite(Number(lp?.latitude)) || !Number.isFinite(Number(lp?.longitude))) return;
+      const s = stateRef.current;
+      if (s.isDriver && s.isPrimaryDevice) {
+        tick({ latitude: lp.latitude, longitude: lp.longitude, timestamp: new Date().toISOString(), accuracy: lp.accuracy });
+      }
+    }, 15000);
+    return () => clearInterval(iv);
   }, [tick]);
 }
 
