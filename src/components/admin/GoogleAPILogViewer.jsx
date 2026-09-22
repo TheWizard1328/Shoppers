@@ -918,13 +918,32 @@ export default function GoogleAPILogViewer() {
 
                     const grandTotal = dataPoint.calls || 0;
                     const hasUsers = leftNames.length > 0 || rightNames.length > 0;
+
+                    // Single-user mode — per-API-type breakdown for this hovered
+                    // point, colored to match the chart lines/legend. The
+                    // multi-user grid above doesn't apply here since dataPoint[name]
+                    // (the per-user total key) is only populated in "All Users" mode.
+                    const catBreakdown = userFilter && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {CAT_SERIES.map(({ cat, label }) => (
+                          <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: CAT_COLORS[cat] }}>
+                              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: CAT_COLORS[cat] }} />
+                              {label}
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>{dataPoint[`${userFilter}__${cat}`] || 0}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+
                     return (
                       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 24 }}>
                           <span style={{ fontWeight: 700, fontSize: 12, color: '#0f172a' }}>{label}</span>
                           <span style={{ fontWeight: 600, fontSize: 12, color: '#0f172a' }}>Total: {grandTotal}</span>
                         </div>
-                        {hasUsers && (
+                        {userFilter ? catBreakdown : hasUsers && (
                           <div style={{ display: 'flex', gap: 14 }}>
                             {leftNames.length > 0 && renderBlock(leftNames)}
                             {leftNames.length > 0 && rightNames.length > 0 && <div style={{ width: 1, background: '#e2e8f0', flexShrink: 0 }} />}
