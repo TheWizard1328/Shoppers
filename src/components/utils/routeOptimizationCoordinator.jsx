@@ -14,7 +14,6 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { invalidate } from '@/components/utils/dataManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { getOrFetchRoutingKey } from '@/components/utils/routingKeyStore';
@@ -264,6 +263,7 @@ async function _performRouteOptimizationInner({
     // ── Step 1: Run client-side optimization engine ──────────────────────────
     let optimizeData = null;
     let _serverCommitFailed = false;
+    let optimizationServerCommit = Promise.resolve(false);
 
     if (!skipOptimize) {
       const engineResult = await optimizeRouteClientSide({
@@ -378,6 +378,7 @@ async function _performRouteOptimizationInner({
         }
       }
 
+      // Repair must wait for this commit to finish, never race the bulk write.
       // ── Step 2: Write results to backend DB via single bulk call ─────────
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
@@ -414,27 +415,24 @@ async function _performRouteOptimizationInner({
             if (_failCount > 0) console.warn(`[RouteOptimization] ${source} — fallback commit: ${_okCount} ok, ${_failCount} failed`);
             return { okCount: _okCount, failCount: _failCount };
           };
+          optimizationServerCommit = base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch })
+            .then(() => true)
+            .catch(async (e) => {
+              const fallback = await _commitFallback(e);
+              return fallback.failCount === 0 && fallback.okCount === optimizeData.writeBatch.length;
+            });
           if (awaitServerWrite) {
             // Read-your-write mode: the caller resumes sync managers (which re-pull
             // from the server) as soon as we return — the server commit must be
             // complete BEFORE that, or the first pull bounces the UI back to the
             // pre-optimization stop_order/isNextDelivery.
             try {
-              await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
-              console.log(`[RouteOptimization] ${source} — bulkUpdateDeliveries committed (awaited)`);
+              if (!await optimizationServerCommit) _serverCommitFailed = true;
+              else console.log(`[RouteOptimization] ${source} — bulkUpdateDeliveries committed (awaited)`);
             } catch (e) {
-              const _fb = await _commitFallback(e);
-              if (_fb.failCount > 0) {
-                // Total/partial commit failure (device offline / server error): the
-                // server still holds pre-optimization stop_order/polyline state.
-                // Flag it so read-your-write callers (e.g. the cycling dialog) can
-                // queue resilient backup writes instead of reporting success.
-                // Local IDB/UI (Step 3 below) still receive the fresh data.
-                _serverCommitFailed = true;
-              }
+              _serverCommitFailed = true;
+              console.warn(`[RouteOptimization] ${source} — server commit failed:`, e?.message || e);
             }
-          } else {
-            base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch(_commitFallback);
           }
         }
       }
@@ -451,6 +449,7 @@ async function _performRouteOptimizationInner({
       return patch ? { ...d, ...patch } : d;
     });
 
+    let optimizationLocalSave = Promise.resolve();
     if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
       const _freshPolyCount = freshDeliveries.filter(d => d?.encoded_polyline).length;
       console.log(`[RouteOptimization] ${source} — local merge: ${freshDeliveries.length} deliveries, ${_freshPolyCount} with polylines`);
@@ -462,7 +461,7 @@ async function _performRouteOptimizationInner({
       // N concurrent IDB transactions block the main thread between commits — visible as
       // a "Page Unresponsive" freeze on large routes. bulkSave batches all writes in
       // one transaction, releasing the thread in a single yield.
-      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+      optimizationLocalSave = offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
     }
 
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
@@ -475,30 +474,39 @@ async function _performRouteOptimizationInner({
       window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
     }
 
-    // ── Repair/compact stop_order (fire-and-forget) ───────────────────────────
-    // Standing policy: repairStopOrders runs after every stop edit/create/delete/
-    // optimization. This coordinator is the SINGLE choke point nearly every
-    // optimization flow passes through (Accept All, Start, cycling mode, quick
-    // reorder, deviation, WS-triggered regen) — wiring the repair call here makes
-    // stop numbering self-healing everywhere instead of relying on each caller to
-    // remember it. Root-cause example this fixes: a cycling marker's "authoritative
-    // layout" placeholder number (assigned once at creation from the then-current
-    // max completed stop_order) never gets compacted after later completions shrink
-    // the gap — repair sorts finished stops by actual_delivery_time and reassigns
-    // 1..K, then incomplete stops keep their existing relative order at K+1..N.
-    if (driverId && deliveryDate) {
-      import('./stopOrderManager').then(({ recalculateAndUpdateStopOrders }) => {
-        recalculateAndUpdateStopOrders(driverId, deliveryDate).catch((e) => {
-          console.warn(`[RouteOptimization] ${source} — post-optimization repair failed:`, e?.message || e);
-        });
-      }).catch(() => {});
+    // Only repair after the optimizer's server AND IDB writes finish. Otherwise
+    // an in-flight bulk write can overwrite the repaired numbers, while a failed
+    // bulk write can leave the route broken after an apparent repair success.
+    // skipServerWrite delegates the commit to its caller; it cannot be repaired
+    // here until that caller has completed its own atomic write.
+    let finalDeliveries = freshDeliveries;
+    if (!skipServerWrite && optimizeData?.writeBatch?.length && driverId && deliveryDate) {
+      const repair = Promise.all([optimizationServerCommit, optimizationLocalSave]).then(async ([committed]) => {
+        if (!committed) return null;
+        const { recalculateAndUpdateStopOrders } = await import('./stopOrderManager');
+        return recalculateAndUpdateStopOrders(driverId, deliveryDate);
+      }).catch((e) => {
+        console.warn(`[RouteOptimization] ${source} — post-optimization repair failed:`, e?.message || e);
+        return null;
+      });
+      // Read-your-write callers (notably cycling setup) must receive the
+      // repaired stop numbers before resuming sync or applying freshDeliveries.
+      if (awaitServerWrite) {
+        const repaired = await repair;
+        if (repaired?.sortedDeliveries?.length) {
+          const repairedById = new Map(repaired.sortedDeliveries.map(d => [d.id, d]));
+          finalDeliveries = freshDeliveries.map(d => repairedById.get(d.id) || d);
+        }
+      }
+    } else {
+      optimizationLocalSave.catch(() => {});
     }
 
     return {
       success: true,
       serverCommitFailed: _serverCommitFailed,
       optimizeData,
-      freshDeliveries: freshDeliveries || [],
+      freshDeliveries: finalDeliveries || [],
       orderedDeliveryIds: optimizeData?.orderedDeliveryIds || orderedDeliveryIds || null,
       usedFallbackOrdering,
       usedFallbackPolyline,

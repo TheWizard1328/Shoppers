@@ -172,6 +172,9 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     }
   }
 
+  const changedById = new Map(changedRecords.map((record) => [record.id, record]));
+  const repairedOrder = ordered.map((delivery) => changedById.get(delivery.id) || delivery);
+
   if (changedRecords.length === 0) {
     // Nothing changed — still dispatch routeReordered for consumers that need it
     try {
@@ -206,7 +209,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
         triggeredBy: 'stopOrderRecalc',
         driverId,
         deliveryDate,
-        freshDeliveries: ordered,   // full sorted list — Layout merges by id, preserving all fields
+        freshDeliveries: repairedOrder, // full repaired list, not stale pre-repair numbers
         preserveLocalState: true
       }
     }));
@@ -236,7 +239,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     exitBatchSilentMode();
   }
 
-  return { sortedDeliveries: ordered, orderChanged: true };
+  return { sortedDeliveries: repairedOrder, orderChanged: true };
 };
 
 /**
