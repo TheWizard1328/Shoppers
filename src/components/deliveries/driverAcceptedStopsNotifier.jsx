@@ -48,7 +48,13 @@ function buildDeliveryList(deliveries) {
 function buildContext({ actor, driver, driverId, store, deliveries, pendingCount, patientName, patientNotesJoined = '' }) {
   const roles = Array.isArray(actor?.app_roles) ? actor.app_roles
     : (typeof actor?.app_role === 'string' ? [actor.app_role] : []);
-  const userRole = actor?.app_role || (roles.length > 0 ? roles[0] : '');
+  const actingUserId = actor?.user_id || actor?.id || '';
+  const resolvedDriverId = driverId || driver?.user_id || '';
+  // Accepting one's OWN assigned deliveries is always a driver action, even
+  // when that user also holds admin. Admin remains the actor role only when
+  // accepting on behalf of a different driver.
+  const isOwnDriverAccept = !!(actingUserId && resolvedDriverId && actingUserId === resolvedDriverId && roles.includes('driver'));
+  const userRole = isOwnDriverAccept ? 'driver' : (actor?.app_role || (roles.length > 0 ? roles[0] : ''));
 
   const storeIds = [...new Set((deliveries || []).map((d) => d?.store_id).filter(Boolean))];
 
@@ -58,10 +64,8 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
   // behalf of a driver, this is the admin's own AppUser name, not the
   // credited driver's name (that's driverName).
   const adminName = actor?.user_name || actor?.full_name || 'Administrator';
-  // The acting AppUser's id — used ONLY for the self-action push bypass in
-  // the rule engine (dispatchMessageRules), never for display.
-  const actingUserId = actor?.user_id || actor?.id || '';
-  const resolvedDriverId = driverId || driver?.user_id || '';
+  // actingUserId and resolvedDriverId are used only for self-action
+  // suppression and recipient resolution, never for display.
 
   return {
     eventName: 'Driver Accepted',
@@ -80,6 +84,7 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
     store_ids: storeIds,
     driver_id: resolvedDriverId,
     actingUserId,
+    suppressSelfNotifications: true,
     delivery_status: 'in_transit',
     user_role: userRole,
     user_roles: roles,
@@ -172,6 +177,7 @@ export async function notifyDriverAcceptedStops({
       context,
       sendInApp,
       sendPush,
+      appUsers,
     );
     handled = !!result?.handled;
     console.warn('[DriverAcceptedStops] rule engine result — handled:', handled, '— matchedRules:', result?.matchedRules?.length, '— results:', JSON.stringify(result?.results));

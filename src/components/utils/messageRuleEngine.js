@@ -255,9 +255,10 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
  * @param {object} context - The event context (driverName, patientName, store_id, etc.)
  * @param {function} sendInApp - Callback(userId, message, eventName) for in-app
  * @param {function} sendPush - Callback(userId, message, eventName) for push
+ * @param {array|null} appUsers - already-loaded AppUsers for reliable recipient resolution
  * @returns {Promise<{handled, matchedRules, results}>}
  */
-export async function dispatchMessageRules(eventName, context = {}, sendInApp = null, sendPush = null) {
+export async function dispatchMessageRules(eventName, context = {}, sendInApp = null, sendPush = null, appUsers = null) {
   const rulesByEvent = await loadEnabledRules();
   const rules = rulesByEvent[eventName];
   console.warn('[MessageRuleEngine] dispatchMessageRules:', eventName, '— rules found:', rules?.length || 0, '— all event keys:', Object.keys(rulesByEvent));
@@ -280,7 +281,7 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
     matchedRules.push(rule);
 
     // Resolve recipients
-    const recipientIds = await resolveRecipients(rule.recipients, context);
+    const recipientIds = await resolveRecipients(rule.recipients, context, appUsers);
     console.warn('[MessageRuleEngine] Rule', rule.rule_label, '— recipients:', rule.recipients, '— resolved:', recipientIds);
 
     // Render message
@@ -288,6 +289,22 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
 
     // Send to each recipient via specified channels
     for (const userId of recipientIds) {
+      const isSelfAction = !!(
+        context.actingUserId &&
+        context.driver_id &&
+        context.actingUserId === context.driver_id &&
+        userId === context.actingUserId
+      );
+
+      // Some events, especially driver_accepted, must suppress BOTH in-app
+      // and push delivery to the person who just performed the action. Do this
+      // before cooldown accounting so a skipped self-event cannot suppress a
+      // real notification if another driver accepts moments later.
+      if (isSelfAction && context.suppressSelfNotifications === true) {
+        results.push({ ruleId: rule.id, userId, skipped: 'self_action', channels: rule.channels || ['in_app'] });
+        continue;
+      }
+
       // Cooldown check
       if (isInCooldown(rule, userId)) {
         results.push({ ruleId: rule.id, userId, skipped: 'cooldown' });
@@ -298,21 +315,8 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
       const isShadow = rule.shadow_mode;
       const channels = rule.channels || ['in_app'];
 
-      // ── Self-action push bypass ─────────────────────────────────────────
-      // If the person who PERFORMED the action (context.actingUserId — the
-      // admin/dispatcher who clicked assign/accept) is the SAME physical
-      // person as the driver being credited (context.driver_id), AND this
-      // recipient IS that person, skip the push: they already know what
-      // they just did. Example: Robert T holds both admin and driver roles;
-      // when he assigns/accepts stops for himself, he shouldn't get a push
-      // telling him "An Administrator has assigned you deliveries" for his
-      // own action. In-app is left alone — this is a push-only bypass.
-      const isSelfAction = !!(
-        context.actingUserId &&
-        context.driver_id &&
-        context.actingUserId === context.driver_id &&
-        userId === context.actingUserId
-      );
+      // Other event paths retain the historical push-only self-action bypass.
+      const isSelfActionPushOnly = isSelfAction;
 
       if (!isShadow) {
         if (channels.includes('in_app') && sendInApp) {
@@ -320,8 +324,8 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
           catch (e) { console.error('[MessageRuleEngine] in_app send failed:', e); }
         }
         if (channels.includes('push') && sendPush) {
-          if (isSelfAction) {
-            console.log(`[MessageRuleEngine] Skipping push to ${userId} — self-action (acting admin/dispatcher is also the credited driver)`);
+          if (isSelfActionPushOnly) {
+            console.log(`[MessageRuleEngine] Skipping push to ${userId} — self-action (acting user is also the credited driver)`);
           } else {
             try { await sendPush(userId, message, eventName, rule); }
             catch (e) { console.error('[MessageRuleEngine] push send failed:', e); }
@@ -331,7 +335,7 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
         console.log(`[MessageRuleEngine] SHADOW MODE — would send to ${userId}: "${message}" via ${channels.join(', ')}`);
       }
 
-      results.push({ ruleId: rule.id, userId, channels, message, shadow: isShadow, selfActionPushSkipped: isSelfAction && !isShadow && channels.includes('push') });
+      results.push({ ruleId: rule.id, userId, channels, message, shadow: isShadow, selfActionPushSkipped: isSelfActionPushOnly && !isShadow && channels.includes('push') });
     }
 
     // If stop_on_match, stop evaluating further rules for this event

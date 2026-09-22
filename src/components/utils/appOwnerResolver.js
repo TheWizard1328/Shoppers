@@ -11,9 +11,9 @@
  * and caches them in-memory. This mirrors isAppOwner() in userRoles.js —
  * the ONLY authoritative definition of App Owner in the app.
  *
- * Note: base44.entities.User.list() is callable by all authenticated users
- * (DriverSettings already relies on it for emails), so this works from
- * driver devices too — which is where most stop-event notifications fire.
+ * Resolution runs through an authenticated backend function with service-role
+ * visibility. Driver-side User.list() can be RLS-scoped to the current driver,
+ * which previously made app-owner notification rules resolve to nobody.
  */
 import { base44 } from '@/api/base44Client';
 
@@ -39,17 +39,17 @@ export async function getAppOwnerUserIds(force = false) {
 
   _inFlight = (async () => {
     try {
-      const users = await base44.entities.User.list();
-      const ids = new Set(
-        (Array.isArray(users) ? users : [])
-          .filter((u) => u?.role === 'admin' && u?.id)
-          .map((u) => u.id)
-      );
+      // Resolve through an authenticated backend function using service-role
+      // visibility. Driver-side User.list() can be RLS-scoped to the caller,
+      // which made relation:appowner resolve to nobody on driver devices.
+      const response = await base44.functions.invoke('resolveAppOwnerIds', {});
+      const ownerIds = response?.data?.owner_ids ?? response?.owner_ids ?? [];
+      const ids = new Set((Array.isArray(ownerIds) ? ownerIds : []).filter(Boolean));
       _ownerIds = ids;
       _loadedAt = Date.now();
       return ids;
     } catch (e) {
-      console.warn('[appOwnerResolver] Failed to resolve platform owner ids:', e?.message || e);
+      console.warn('[appOwnerResolver] Backend owner resolution failed:', e?.message || e);
       if (_ownerIds) {
         // Keep serving stale data rather than dropping notifications entirely.
         _loadedAt = Date.now();
