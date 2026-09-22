@@ -715,8 +715,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (entry.la !== la || entry.lng !== lng) {
         entry.la = la;
         entry.lng = lng;
-        const tsRaw = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
-        entry.interp.onFix(la, lng, Number.isFinite(tsRaw) && tsRaw > 0 ? tsRaw : Date.now());
+        // Wall-clock feed stamps, NOT location_updated_at: the heartbeat
+        // timestamp advances more often than the pushed coordinates change,
+        // which measured the glide span at ~5s and left the dot frozen ~10s
+        // at the fix each cycle. The observable coordinate-change cadence IS
+        // the interval we want the glide to span (Sep 21 report).
+        entry.interp.onFix(la, lng, Date.now());
       }
     });
 
