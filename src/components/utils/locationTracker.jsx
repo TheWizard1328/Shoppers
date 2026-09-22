@@ -57,6 +57,7 @@ class LocationTracker {
         this.deviceCapabilities = null;
         this.locationProvider = getLocationProvider();
         this.isPrimaryDevice = false;
+        this._gpsExpected = false;
 
         // Async overlap guards. GPS callbacks, heartbeat timers and watchdogs can
         // all fire together after a signal dropout or foreground resume. Only one
@@ -346,6 +347,7 @@ class LocationTracker {
         await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed:', e?.message);
+        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
       }
     }, this.breadcrumbSaveInterval);
 
@@ -568,6 +570,22 @@ class LocationTracker {
   }
 
   _currentDeviceName = null;
+
+  _emitGpsHealth(status, details = {}) {
+    if (typeof window === 'undefined') return;
+    if (!this._gpsExpected && status !== 'disabled') return;
+    window.dispatchEvent(new CustomEvent('gpsHealthChanged', {
+      detail: {
+        status,
+        accuracy: Number.isFinite(Number(details.accuracy)) ? Number(details.accuracy) : null,
+        error: details.error || null,
+        code: details.code ?? null,
+        source: details.source || this.locationProvider?.name || 'web',
+        timestamp: new Date().toISOString(),
+        trackingExpected: this._gpsExpected,
+      }
+    }));
+  }
 
   _logLocationRemote(level, source, opts = {}) {
     const userName = this.currentUser?.user_name || this.currentUser?.full_name || 'Unknown';
@@ -854,6 +872,10 @@ class LocationTracker {
 
     // CRITICAL: Always update lastPosition so the heartbeat interval has a fresh fix.
     this.lastPosition = { latitude, longitude, accuracy };
+    this._emitGpsHealth(Number.isFinite(Number(accuracy)) && Number(accuracy) > 100 ? 'weak' : 'good', {
+      accuracy,
+      source: this.locationProvider?.name || 'web'
+    });
 
     // ── UI event dispatch — SKIP when app is backgrounded ──────────────────
     // When the app is hidden (document.hidden), nobody is looking at the marker.
@@ -929,6 +951,7 @@ class LocationTracker {
       errorMessage = 'Location request timed out. Retrying...';
     }
 
+    this._emitGpsHealth('lost', { error: errorMessage, code: errorCode });
     window.dispatchEvent(new CustomEvent('locationTrackingError', {
       detail: { message: errorMessage, code: errorCode }
     }));
@@ -1067,6 +1090,9 @@ class LocationTracker {
       await this._startDispatcherHeartbeat();
       return;
     }
+
+    this._gpsExpected = true;
+    this._emitGpsHealth('searching', { source: this.locationProvider?.name || 'web' });
 
     return new Promise(async (resolve, reject) => {
       try {
@@ -1250,6 +1276,7 @@ class LocationTracker {
             );
           } catch (e) {
             console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed:', e?.message);
+        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
           }
         }, this.breadcrumbSaveInterval);
 
@@ -1347,6 +1374,8 @@ class LocationTracker {
   }
 
   stopTracking() {
+    this._gpsExpected = false;
+    this._emitGpsHealth('disabled');
     // Stop native off-duty Foreground Service watcher if active
     if (this._nativeOffDutyWatcher && this.nativeWatchId != null) {
       const offDutyId = this.nativeWatchId;
@@ -1789,6 +1818,7 @@ class LocationTracker {
 
     } catch (err) {
       console.warn('⚠️ [LocationTracker] Resume GPS fix failed:', err?.message);
+        this._emitGpsHealth('lost', { error: err?.message || 'GPS fix unavailable' });
       // Even if the fix fails, still reset breadcrumb timer so the next interval tick tries again
     }
 
@@ -1815,6 +1845,7 @@ class LocationTracker {
         await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed on interval tick:', e?.message);
+        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
       }
     }, this.breadcrumbSaveInterval);
 

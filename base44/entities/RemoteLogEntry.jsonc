@@ -16,6 +16,10 @@
       "type": "string",
       "description": "Captured console message"
     },
+    "event_type": {
+      "type": "string",
+      "description": "Structured event type for filtering, such as NETWORK_OFFLINE or GPS_LOST"
+    },
     "timestamp": {
       "type": "string",
       "format": "date-time",

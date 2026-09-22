@@ -1,4 +1,3 @@
-import React from 'react';
 import ConnectionRecoveryBanner from './ConnectionRecoveryBanner';
 import MobileOverlayBackHandler from './MobileOverlayBackHandler';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
@@ -43,7 +42,7 @@ export default function GlobalOverlays({
   const { isMobile, isTabletPortrait } = useDevice();
   return (
     <>
-      <ConnectionRecoveryBanner />
+      <ConnectionRecoveryBanner currentUser={currentUser} />
       <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => {if (sidebarOpen) setSidebarOpen(false);if (showMessaging) {setShowMessaging(false);setInitialConversation(null);}if (showInviteQRModal) setShowInviteQRModal(false);if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));}} />
 
       {/* PWA Install Prompt */}
