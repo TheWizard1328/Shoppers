@@ -475,6 +475,25 @@ async function _performRouteOptimizationInner({
       window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
     }
 
+    // ── Repair/compact stop_order (fire-and-forget) ───────────────────────────
+    // Standing policy: repairStopOrders runs after every stop edit/create/delete/
+    // optimization. This coordinator is the SINGLE choke point nearly every
+    // optimization flow passes through (Accept All, Start, cycling mode, quick
+    // reorder, deviation, WS-triggered regen) — wiring the repair call here makes
+    // stop numbering self-healing everywhere instead of relying on each caller to
+    // remember it. Root-cause example this fixes: a cycling marker's "authoritative
+    // layout" placeholder number (assigned once at creation from the then-current
+    // max completed stop_order) never gets compacted after later completions shrink
+    // the gap — repair sorts finished stops by actual_delivery_time and reassigns
+    // 1..K, then incomplete stops keep their existing relative order at K+1..N.
+    if (driverId && deliveryDate) {
+      import('./stopOrderManager').then(({ recalculateAndUpdateStopOrders }) => {
+        recalculateAndUpdateStopOrders(driverId, deliveryDate).catch((e) => {
+          console.warn(`[RouteOptimization] ${source} — post-optimization repair failed:`, e?.message || e);
+        });
+      }).catch(() => {});
+    }
+
     return {
       success: true,
       serverCommitFailed: _serverCommitFailed,
