@@ -15,6 +15,8 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
+import { decodeGooglePolyline } from '../utils/dynamicPolylineManager';
+import { createLiveMarkerInterpolator } from '../utils/liveMarkerInterpolator';
 import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 
 // Create driver/dispatcher icon with border ring based on delivery status
@@ -636,56 +638,116 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   };
 
   // Stable initial positions — used as the React prop for each Marker so the prop never changes
-  // (position updates are applied imperatively via setLatLng in the animation effect below).
+  // (position updates are applied imperatively via setLatLng in the trail loop below).
   const initialPositionsRef = useRef(new Map());
 
-  useEffect(() => {
-    const animateMarker = (stableKey, targetLat, targetLng) => {
-      const marker = markerRefs.current[stableKey];
-      if (!marker?.setLatLng || !Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return;
-      const start = marker.getLatLng?.();
-      if (!start) {
-        marker.setLatLng([targetLat, targetLng]);
-        return;
-      }
-      const startLat = Number(start.lat);
-      const startLng = Number(start.lng);
-      const durationMs = 450;
-      const startedAt = performance.now();
-      const step = (now) => {
-        const progress = Math.min((now - startedAt) / durationMs, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const nextLat = startLat + (targetLat - startLat) * eased;
-        const nextLng = startLng + (targetLng - startLng) * eased;
-        marker.setLatLng([nextLat, nextLng]);
-        if (progress < 1) {
-          window.requestAnimationFrame(step);
-        }
-      };
-      window.requestAnimationFrame(step);
-    };
+  // ── TRAIL INTERPOLATION for peer/shared driver markers ─────────────────────
+  // Peer coordinates arrive every ~15s (AppUser heartbeat). A declarative
+  // render (or the old 450ms hop) makes the dots teleport across the map.
+  // Instead each dot now GLIDES from its previous position to the new one
+  // over the full update interval, following the driver's own next-stop leg
+  // polyline when available (rounds corners along the road, never cuts
+  // through blocks) and falling back to a straight-line glide off-route.
+  // Still one interval behind — but it flows instead of jumping. Display-only.
+  const trailInterpRef = useRef(new Map());   // stableKey → { interp, la, lng }
+  const trailRafRef = useRef(0);
+  const trailPaintRef = useRef(0);
 
+  // Per-driver leg geometry from the deliveries prop (full records include
+  // encoded_polyline). Candidate stop per driver: isNextDelivery first, else
+  // the lowest stop_order in-flight stop. Decode results cached by encoded
+  // string so WS/poller re-renders don't re-decode unchanged polylines.
+  const trailDecodeCacheRef = useRef(new Map());
+  const driverPathCoords = useMemo(() => {
+    try {
+      const candidate = new Map(); // driver_id → { isNext, stop_order, encoded }
+      for (const d of deliveries) {
+        if (!d || !d.driver_id || d.is_cycling_marker) continue;
+        if (['completed', 'failed', 'cancelled'].includes(d.status) || d.status === 'pending') continue;
+        const encoded = d.encoded_polyline || d.polyline;
+        if (!encoded || typeof encoded !== 'string') continue;
+        const isNext = d.isNextDelivery === true;
+        const so = Number(d.stop_order) || 999;
+        const cur = candidate.get(d.driver_id);
+        if (!cur || (isNext && !cur.isNext) || (!cur.isNext && !isNext && so < cur.stop_order)) {
+          candidate.set(d.driver_id, { isNext, stop_order: so, encoded });
+        }
+      }
+      const cache = trailDecodeCacheRef.current;
+      if (cache.size > 60) cache.clear();
+      const out = {};
+      for (const [driverId, v] of candidate) {
+        let coords = cache.get(v.encoded);
+        if (!coords) {
+          coords = decodeGooglePolyline(v.encoded);
+          cache.set(v.encoded, coords);
+        }
+        if (Array.isArray(coords) && coords.length > 1) out[driverId] = coords;
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }, [deliveries]);
+
+  // Feed fixes: on every peer update (poller push ~15s) with CHANGED coords,
+  // hand the interpolator the new position + the driver's leg geometry.
+  useEffect(() => {
     visibleDrivers.forEach((user) => {
       const stableKey = getDriverIdentityKey(user) || user.id;
-      const targetLat = Number(user.current_latitude);
-      const targetLng = Number(user.current_longitude);
-      if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return;
+      const la = Number(user.current_latitude);
+      const lng = Number(user.current_longitude);
+      if (!Number.isFinite(la) || !Number.isFinite(lng)) return;
 
       if (!initialPositionsRef.current.has(stableKey)) {
         // First time we see this driver — seed the stable position (used as React prop)
-        initialPositionsRef.current.set(stableKey, [targetLat, targetLng]);
+        initialPositionsRef.current.set(stableKey, [la, lng]);
       }
 
-      // Always animate imperatively — never change the React position prop
-      animateMarker(stableKey, targetLat, targetLng);
+      let entry = trailInterpRef.current.get(stableKey);
+      if (!entry) {
+        entry = { interp: createLiveMarkerInterpolator({ mode: 'trail' }), la: null, lng: null };
+        trailInterpRef.current.set(stableKey, entry);
+      }
+      // Leg geometry: keyed by either ID format (User.id vs AppUser.user_id)
+      const legPath = driverPathCoords[user.id] || driverPathCoords[user.user_id] || null;
+      entry.interp.setPath(legPath);
+      if (entry.la !== la || entry.lng !== lng) {
+        entry.la = la;
+        entry.lng = lng;
+        const tsRaw = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        entry.interp.onFix(la, lng, Number.isFinite(tsRaw) && tsRaw > 0 ? tsRaw : Date.now());
+      }
     });
 
-    // Clean up positions for drivers that are no longer visible
+    // Clean up drivers that are no longer visible
     const visibleKeys = new Set(visibleDrivers.map(u => getDriverIdentityKey(u) || u.id));
+    for (const key of trailInterpRef.current.keys()) {
+      if (!visibleKeys.has(key)) trailInterpRef.current.delete(key);
+    }
     for (const key of initialPositionsRef.current.keys()) {
       if (!visibleKeys.has(key)) initialPositionsRef.current.delete(key);
     }
-  }, [visibleDrivers]);
+  }, [visibleDrivers, driverPathCoords]);
+
+  // rAF loop — drives every visible dot along its trail glide at ~20fps.
+  useEffect(() => {
+    const FRAME_MIN_MS = 50;
+    const loop = () => {
+      trailRafRef.current = window.requestAnimationFrame(loop);
+      const now = Date.now();
+      if (now - trailPaintRef.current < FRAME_MIN_MS) return;
+      trailPaintRef.current = now;
+      for (const [stableKey, entry] of trailInterpRef.current) {
+        const marker = markerRefs.current[stableKey];
+        if (!marker?.setLatLng) continue;
+        const p = entry.interp.getDisplayPosition(now);
+        if (p) marker.setLatLng([p.latitude, p.longitude]);
+      }
+    };
+    trailRafRef.current = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(trailRafRef.current);
+  }, []);
 
   // Stable icon cache — keyed by driver identity + visual state signature.
   // Reuses the same L.divIcon object as long as staleness/status/deliveryStatus don't change,

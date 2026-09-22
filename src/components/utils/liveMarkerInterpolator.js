@@ -46,6 +46,8 @@ const LEAD_CAP_M = 180;             // bound worst-case lead distance (highway x
 const MIN_LEAD_SPEED_MPS = 1.0;     // below ~3.6 km/h → stationary, dot holds on the fix
 const TURN_LEAD_LIMIT_DEG = 25;     // lead stops AT an upcoming corner sharper than this
 const RE_ANCHOR_MAX_M = 30;         // dot farther than this from a new fix → snap, don't arc
+const TRAIL_MIN_INTERVAL_MS = 2000; // trail mode: clamp heartbeat interval lower bound
+const TRAIL_MAX_INTERVAL_MS = 30000;// trail mode: clamp heartbeat interval upper bound
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 
@@ -116,7 +118,8 @@ function projectOnPath(path, point) {
   return best;
 }
 
-export function createLiveMarkerInterpolator() {
+export function createLiveMarkerInterpolator(options = {}) {
+  const trailMode = options.mode === "trail"; // peer/shared markers: glide fix→fix over the update interval
   let path = null;          // current road geometry (or null)
   let fixes = [];           // [[lat, lng, tsMs], ...] capped at 3, newest last
   let prevProj = null;      // projection of the previous fix (off-route guard)
@@ -201,6 +204,55 @@ export function createLiveMarkerInterpolator() {
       if (!prev) {
         anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now };
         prevProj = null;
+        return;
+      }
+
+      // ── TRAIL MODE ─────────────────────────────────────────────────────────
+      // Peer/shared markers: server coords arrive every ~15s (heartbeat). The
+      // dot glides from its CURRENT displayed position to the NEW position
+      // over the measured update interval, following the leg polyline when
+      // both endpoints project onto it (straight line otherwise). The dot is
+      // always one interval behind — but it FLOWS along the route instead of
+      // hopping. When the anim completes it parks exactly on the real fix
+      // until the next update lands.
+      if (trailMode) {
+        const intervalMs = clamp(ts - prev[2], TRAIL_MIN_INTERVAL_MS, TRAIL_MAX_INTERVAL_MS);
+        const curDisp = this.getDisplayPosition(now);
+        const curPt = curDisp ? [curDisp.latitude, curDisp.longitude] : fix;
+
+        let m = "line";
+        let wp = null;
+        let endPt = fix;
+        if (path) {
+          const projNew = projectOnPath(path, fix);
+          if (projNew.offDist <= OFF_ROUTE_THRESHOLD_M) {
+            const curProj = projectOnPath(path, curPt);
+            const fromAlong = curProj.offDist <= OFF_ROUTE_THRESHOLD_M ? curProj.distAlong : projNew.distAlong;
+            // Forward along the leg → walk the geometry; backwards or
+            // off-route → straight-line glide.
+            if (projNew.distAlong >= fromAlong - 2) {
+              const walked = pathBetween(fromAlong, projNew.distAlong);
+              if (walked) {
+                m = "path";
+                wp = walked;
+                endPt = projNew.pt; // ride the line exactly — park on the projection
+              }
+            }
+          }
+        } else {
+          prevProj = null;
+        }
+
+        anim = {
+          mode: m,
+          waypoints: wp,
+          from: m === "line" ? curPt : null,
+          to: m === "line" ? fix : null,
+          fixPos: endPt,
+          endPos: endPt,
+          start: now,
+          end: now + intervalMs,
+        };
         return;
       }
 
