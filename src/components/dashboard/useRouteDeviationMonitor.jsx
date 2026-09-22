@@ -27,7 +27,8 @@
  * with WS broadcast + local-write echo suppression) — the same pipeline the stop
  * card actions use.
  */
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { emitGatedEvent } from '@/components/utils/uiGate';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
 import { locationTracker } from '@/components/utils/locationTracker';
 
@@ -75,9 +76,11 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
     } else {
       console.log(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
     }
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+    // UI-gated: while the app is hidden the deliveriesUpdated re-render is
+    // deferred and replays at resume (the entity/IDB writes above already ran).
+    emitGatedEvent(new CustomEvent('deliveriesUpdated', {
       detail: { driverId, deliveryDate: todayStr, triggeredBy: 'routeDeviation', alreadyOptimized: true }
-    }));
+    }), 'deliveriesUpdated:routeDeviation');
     console.log('[RouteDeviation] current-leg regen complete');
     return { regenerated: result?.success === true, updatedDelivery: result?.updatedDelivery || null };
   } catch (err) {
@@ -164,8 +167,17 @@ export function useRouteDeviationMonitor({
   stateRef.current = { isDriver, isPrimaryDevice, driverLocation, currentUser, appUsers, deliveries, patients, stores, selectedDate, updateDeliveriesLocally };
   const lastCheckAtRef = useRef(0);
 
-  useEffect(() => {
-    const tick = async () => {
+  // ── Shared deviation check ────────────────────────────────────────────────
+  // Called from BOTH triggers: driverLocation STATE changes (visible UI) and
+  // `driverPositionDataTick` events (fired by locationTracker on EVERY real GPS
+  // fix — including while the app is backgrounded/screen-off, when state pushes
+  // are UI-gated for battery). Deviation detection is a DATA path: geometry on
+  // the fix + (on trigger) one entity write — it must keep running exactly when
+  // the driver is actually driving with the phone in their pocket, otherwise
+  // detection only "catches up" at resume-from-background (the live-deviation
+  // gap reported Sep 21 2026). The 10s throttle + per-driver cooldown + in-flight
+  // lock dedupe the two triggers.
+  const tick = useCallback(async (eventFix) => {
       const now = Date.now();
       const s = stateRef.current;
 
@@ -189,7 +201,9 @@ export function useRouteDeviationMonitor({
       const threshold = Number(settings.routeDeviationThresholdMeters) || 200;
       const cooldownMs = (Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
 
-      const gps = s.driverLocation;
+      // Prefer the live event fix — while hidden, driverLocation state stops
+      // updating (UI gate) but the data events keep flowing.
+      const gps = eventFix || s.driverLocation;
       if (!gps || !Number.isFinite(Number(gps.latitude)) || !Number.isFinite(Number(gps.longitude))) return;
       const gpsTime = gps.timestamp ? new Date(gps.timestamp).getTime() : now;
       if (now - gpsTime > GPS_FRESHNESS_MS) return;
@@ -244,11 +258,26 @@ export function useRouteDeviationMonitor({
         updateDeliveriesLocally: s.updateDeliveriesLocally,
         todayStr,
       });
-    };
+  }, []);
 
-    // React to every driverLocation update (live GPS on the primary device).
+  // Trigger 1: driverLocation state updates (visible UI path — unchanged).
+  useEffect(() => {
     tick();
-  }, [driverLocation]);
+  }, [driverLocation, tick]);
+
+  // Trigger 2: raw GPS fixes from the tracker — ALWAYS delivered, including
+  // while backgrounded/screen-off. This is the live-deviation detection path.
+  useEffect(() => {
+    const onDataTick = (event) => {
+      const d = event.detail || {};
+      const uid = stateRef.current.currentUser?.id;
+      if (d.userId && uid && d.userId !== uid) return;
+      if (!Number.isFinite(Number(d.latitude)) || !Number.isFinite(Number(d.longitude))) return;
+      tick({ latitude: d.latitude, longitude: d.longitude, timestamp: d.timestamp, accuracy: d.accuracy });
+    };
+    window.addEventListener('driverPositionDataTick', onDataTick);
+    return () => window.removeEventListener('driverPositionDataTick', onDataTick);
+  }, [tick]);
 }
 
 export default useRouteDeviationMonitor;
