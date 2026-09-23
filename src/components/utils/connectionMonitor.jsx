@@ -39,6 +39,7 @@ class ConnectionMonitor {
     this.responseTimeSamples = [];
     this.listeners = new Set();
     this.degradedUntil = 0;
+    this.rateLimitedUntil = 0;
     this.lastErrorType = null;
     this._degradeTimer = null;
     this.quality = this.isOnline ? classifyNetworkInformation(this.connection) : 'offline';
@@ -82,6 +83,7 @@ class ConnectionMonitor {
     if (this.responseTimeSamples.length > MAX_SAMPLES) this.responseTimeSamples.shift();
     this.lastErrorType = null;
     this.degradedUntil = 0;
+    this.rateLimitedUntil = 0;
     this.recalculate();
   }
 
@@ -93,12 +95,21 @@ class ConnectionMonitor {
     this.isOnline = getNavigatorOnline();
     this.lastErrorType = null;
     this.degradedUntil = 0;
+    this.rateLimitedUntil = 0;
     this.recalculate();
   }
 
   recordError(errorType = 'network') {
     this.isOnline = getNavigatorOnline();
     this.lastErrorType = errorType;
+    if (errorType === 'rate_limit') {
+      // HTTP 429 means the SERVER is refusing more requests, not that this
+      // device's Wi-Fi/Ethernet/cellular link is weak. Retain the existing
+      // 30-second canAttemptNetwork backoff without fabricating a signal loss.
+      this.rateLimitedUntil = Date.now() + DEGRADED_HOLD_MS;
+      this.recalculate();
+      return;
+    }
     this.degradedUntil = Date.now() + DEGRADED_HOLD_MS;
     this.quality = this.isOnline ? 'poor' : 'offline';
     this.notifyListeners();
@@ -133,7 +144,7 @@ class ConnectionMonitor {
   }
 
   canAttemptNetwork() {
-    return this.isOnline && this.quality !== 'poor';
+    return this.isOnline && this.quality !== 'poor' && Date.now() >= this.rateLimitedUntil;
   }
 
   getAverageResponseTime() {
