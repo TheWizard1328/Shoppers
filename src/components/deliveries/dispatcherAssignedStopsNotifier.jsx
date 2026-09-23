@@ -191,6 +191,17 @@ export async function notifyDispatcherAssignedStops({
   const storeName = store?.name || 'Store';
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const driverId = driver?.user_id || driver?.id;
+  const actorId = dispatcher?.user_id || dispatcher?.id;
+  // Guard the entire dispatch, including the legacy fallback, for self-assigned
+  // batches. The rule-engine recipient filter below also suppresses the actor
+  // when the assigned driver is SOMEONE ELSE but the actor is the App Owner.
+  // Use the persisted deliveries' driver IDs as well as the caller's driver.
+  if (actorId && deliveries.every((d) =>
+    String(d?.driver_id || driverId) === String(actorId)
+  )) {
+    console.warn('[DispatcherAssignedStops] Skipping self-assignment notification');
+    return;
+  }
 
   // Build the patient delivery list with badges + distance (legacy format)
   let deliveryList = '';

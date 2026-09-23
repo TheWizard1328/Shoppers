@@ -8,7 +8,6 @@
 
 import { base44 } from '@/api/base44Client';
 import { getAppOwnerUserIds } from './appOwnerResolver';
-import { toast } from 'sonner';
 
 // ── In-memory cache of enabled rules, keyed by event_name ──────────────────
 let _ruleCache = null;
@@ -297,23 +296,17 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
         userId === context.actingUserId
       );
 
-      // TEMPORARY DIAGNOSTIC — Sep 23 2026 self-notification investigation.
-      // Surfaces the exact ids the self-action check is comparing, directly
-      // as an on-screen toast (visible without opening devtools), so we can
-      // see why isSelfAction is/isn't tripping for a specific real test.
-      // REMOVE once the self-notification-to-self bug is confirmed fixed.
-      try {
-        toast.info(
-          `[DEBUG ${rule.rule_label}] recipient=${userId}\nactingUserId=${context.actingUserId || '(none)'}\ndriver_id=${context.driver_id || '(none)'}\nisSelfAction=${isSelfAction}\nsuppressSelfNotifications=${context.suppressSelfNotifications === true}`,
-          { duration: 15000 }
-        );
-      } catch { /* toast not mounted — ignore */ }
-
       // Some events, especially driver_accepted, must suppress BOTH in-app
       // and push delivery to the person who just performed the action. Do this
       // before cooldown accounting so a skipped self-event cannot suppress a
       // real notification if another driver accepts moments later.
-      if (isSelfAction && context.suppressSelfNotifications === true) {
+      // Stops Created can address the assigned driver AND the App Owner. When
+      // the assigning admin is also the App Owner, the owner recipient is the
+      // actor even if another driver is assigned. Suppress BOTH channels for
+      // the actor, but still deliver to other recipients (including the driver).
+      const isStopsCreatedActor = eventName === 'stops_created' &&
+        !!context.actingUserId && String(userId) === String(context.actingUserId);
+      if (isStopsCreatedActor || (isSelfAction && context.suppressSelfNotifications === true)) {
         results.push({ ruleId: rule.id, userId, skipped: 'self_action', channels: rule.channels || ['in_app'] });
         continue;
       }
