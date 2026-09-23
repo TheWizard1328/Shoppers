@@ -45,13 +45,15 @@ let regenInFlight = false;
 // is captured by remoteLogger) expose each check's outcome so the next test
 // drive pinpoints the failing gate. Remove once live health is confirmed.
 let _diagLastBeatAt = 0;
+const _diagLastByReason = new Map();
 const _diag = (reason, extra = '') => {
   const n = Date.now();
-  if (reason === 'ok') {
-    // Normal case: heartbeat at most one line per 2 minutes.
-    if (n - _diagLastBeatAt < 120000) return;
-    _diagLastBeatAt = n;
-  }
+  // 'ok' heartbeat: at most one line per 2 minutes. Every other reason: at
+  // most one line per minute (was: unlimited — gate spam every 15s drowned
+  // the real signal, a multi-minute silent gap in the tick loop).
+  const last = reason === 'ok' ? _diagLastBeatAt : (_diagLastByReason.get(reason) || 0);
+  if (n - last < (reason === 'ok' ? 120000 : 60000)) return;
+  if (reason === 'ok') _diagLastBeatAt = n; else _diagLastByReason.set(reason, n);
   try { console.warn(`[RouteDeviation] ${reason}${extra ? ' ' + extra : ''}`); } catch (_) {}
 };
 
@@ -296,10 +298,18 @@ export function useRouteDeviationMonitor({
     const iv = setInterval(() => {
       if (isUIHidden()) { _diag('gate:hidden_ui'); return; } // background OFF by owner design
       const lp = locationTracker?.lastPosition;
-      if (!Number.isFinite(Number(lp?.latitude)) || !Number.isFinite(Number(lp?.longitude))) return;
+      if (!Number.isFinite(Number(lp?.latitude)) || !Number.isFinite(Number(lp?.longitude))) {
+        _diag('gate:no_last_position'); // tracker has no fix yet (was a SILENT skip)
+        return;
+      }
       const s = stateRef.current;
       if (s.isDriver && s.isPrimaryDevice) {
         tick({ latitude: lp.latitude, longitude: lp.longitude, timestamp: new Date().toISOString(), accuracy: lp.accuracy });
+      } else {
+        // was a SILENT skip — a suspected cause of the Sep 23 12:16-12:23 MDT
+        // foreground dead window (device-context/IDB flakiness flipping
+        // isPrimaryDevice). Logged now so the next test drive pins it.
+        _diag('gate:not_driver_device', `isDriver=${!!s.isDriver} isPrimaryDevice=${!!s.isPrimaryDevice}`);
       }
     }, 15000);
     return () => clearInterval(iv);
