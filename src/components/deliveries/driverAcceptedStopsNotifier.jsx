@@ -81,7 +81,7 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
     patient_name: [...new Set((deliveries || []).map((d) => d?.patient_name).filter(Boolean))].join(' | '),
     patient_notes: patientNotesJoined,
     delivery_notes: [...new Set((deliveries || []).map((d) => d?.delivery_notes).filter(Boolean))].join(' | '),
-    store_id: store?.id || storeIds[0] || '',
+    store_id: storeIds[0] || store?.id || '',
     store_ids: storeIds,
     driver_id: resolvedDriverId,
     actingUserId,

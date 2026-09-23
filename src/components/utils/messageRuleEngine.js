@@ -182,6 +182,23 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
     } catch { users = []; }
   }
 
+  // Dashboard/offline AppUser snapshots may be filtered or stale. Resolve an
+  // empty store-dispatcher match from the authoritative AppUser roster before
+  // deciding that a matching rule has nobody to notify.
+  const addStoreDispatchers = (roster, storeId) => {
+    let found = 0;
+    for (const u of roster || []) {
+      if (u?.status === 'inactive') continue;
+      const roles = Array.isArray(u?.app_roles) ? u.app_roles : (u?.role ? [u.role] : []);
+      const storeIds = Array.isArray(u?.store_ids) ? u.store_ids : [];
+      if (roles.includes('dispatcher') && storeIds.some((id) => String(id) === String(storeId))) {
+        const id = u.user_id || u.id;
+        if (id) { userIds.add(id); found++; }
+      }
+    }
+    return found;
+  };
+
   for (const r of recipientStrings || []) {
     if (!r) continue;
 
@@ -215,21 +232,43 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
         } else {
           console.warn('[MessageRuleEngine] relation:appowner — no platform owner ids resolved; skipping recipient (NOT falling back to admins)');
         }
-      } else if (rel === 'dispatchers' && context.store_id) {
-        // Store-assigned dispatchers only. The old code also included
-        // store-assigned ADMINS here — that leaked dispatcher-targeted
-        // events to admins. Use the explicit role:admin recipient or
-        // relation:appowner if admins should receive an event.
-        users.forEach((u) => {
-          if (u.status === 'inactive') return;
-          const roles = u.app_roles || [];
-          if (roles.includes('dispatcher')) {
-            const storeIds = u.store_ids || [];
-            if (storeIds.includes(context.store_id)) {
-              userIds.add(u.user_id || u.id);
+      } else if (rel === 'dispatchers') {
+        // The accepted delivery's store is authoritative. `store_ids` also
+        // covers batch contexts where no single store object was supplied.
+        const storeIds = [...new Set([context.store_id, ...(context.store_ids || [])].filter(Boolean))];
+        for (const storeId of storeIds) {
+          let found = addStoreDispatchers(users, storeId);
+          if (!found && Array.isArray(appUsers)) {
+            // `appUsers` passed from the Dashboard is an offline snapshot. It
+            // can omit the store dispatcher even when that account is active.
+            try {
+              const fresh = await base44.entities.AppUser.list('sort_order', 200, null,
+                'id,user_id,user_name,app_roles,status,store_ids,role');
+              found = addStoreDispatchers(Array.isArray(fresh) ? fresh : [], storeId);
+              console.warn('[MessageRuleEngine] dispatcher roster refresh — store:', storeId, '— fresh records:', fresh?.length || 0, '— matches:', found);
+            } catch (e) {
+              console.warn('[MessageRuleEngine] dispatcher roster refresh failed:', e?.message || e);
             }
           }
-        });
+          if (!found) {
+            // Older/stale AppUser snapshots can lack store_ids. Use the Store's
+            // explicit dispatcher assignment only after validating its active
+            // AppUser account and dispatcher role. Never guess a recipient.
+            try {
+              const store = await base44.entities.Store.get(storeId);
+              if (store?.dispatcher_id) {
+                const matches = await base44.entities.AppUser.filter({ user_id: store.dispatcher_id });
+                const active = (matches || []).find((u) =>
+                  u?.status !== 'inactive' && Array.isArray(u?.app_roles) &&
+                  u.app_roles.includes('dispatcher') && u.user_id === store.dispatcher_id);
+                if (active) { userIds.add(active.user_id); found = 1; }
+              }
+              console.warn('[MessageRuleEngine] store dispatcher fallback — store:', storeId, '— matched:', found);
+            } catch (e) {
+              console.warn('[MessageRuleEngine] store dispatcher fallback failed:', e?.message || e);
+            }
+          }
+        }
       }
     } else if (r.startsWith('user:')) {
       userIds.add(r.slice(5));
