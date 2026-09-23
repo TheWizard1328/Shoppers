@@ -8,6 +8,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { getAppOwnerUserIds } from './appOwnerResolver';
+import { toast } from 'sonner';
 
 // ── In-memory cache of enabled rules, keyed by event_name ──────────────────
 let _ruleCache = null;
@@ -295,6 +296,18 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
         context.actingUserId === context.driver_id &&
         userId === context.actingUserId
       );
+
+      // TEMPORARY DIAGNOSTIC — Sep 23 2026 self-notification investigation.
+      // Surfaces the exact ids the self-action check is comparing, directly
+      // as an on-screen toast (visible without opening devtools), so we can
+      // see why isSelfAction is/isn't tripping for a specific real test.
+      // REMOVE once the self-notification-to-self bug is confirmed fixed.
+      try {
+        toast.info(
+          `[DEBUG ${rule.rule_label}] recipient=${userId}\nactingUserId=${context.actingUserId || '(none)'}\ndriver_id=${context.driver_id || '(none)'}\nisSelfAction=${isSelfAction}\nsuppressSelfNotifications=${context.suppressSelfNotifications === true}`,
+          { duration: 15000 }
+        );
+      } catch { /* toast not mounted — ignore */ }
 
       // Some events, especially driver_accepted, must suppress BOTH in-app
       // and push delivery to the person who just performed the action. Do this
