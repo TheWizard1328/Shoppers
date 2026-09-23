@@ -6,9 +6,9 @@ summary: A personal briefing of open tasks, messages, deadlines and decisions th
 
 # For you
 
-## RxDeliver Driver Accepted notifications — diagnostic needed
+## RxDeliver Driver Accepted notifications — verify fix
 
-* [ ] Hamptons dispatcher received neither in-app nor push notification when Robert clicked Accept All on a Hamptons stop (Sep 23). The delivery changed to `in_transit`; the root cause inside the live notification path is not yet verified. No diagnostic toast appeared, but console confirms `dispatchMessageRules: driver_accepted — rules found: 2`; ask Robert for the immediately following `Rule … conditions`, `recipients … resolved`, and `rule engine result` console lines to isolate the stall/failure. Remove the diagnostic toast after fixing and verifying delivery.
+* [ ] Hamptons dispatcher received neither in-app nor push after Robert clicked Accept All on Sep 23. Console confirmed the `+Stops Accepted+` rule matched `user_role: driver` but resolved zero recipients. A fix was pushed to both remotes (commit `5301893`) and verified on Preview build `53018931b`: it uses the accepted delivery's store ID and refreshes the dispatcher roster when the Dashboard snapshot yields no match, with a validated Store assignment fallback. Verify a new Accept All notification reaches Hamptons, then remove the temporary diagnostic toast.
 
 ## RxAssist rollout (RxDeliver AI assistant) — action needed
 
