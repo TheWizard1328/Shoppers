@@ -579,8 +579,27 @@ export default function DeliveryForm({
       const scopeStore = scopeStoreId ? storesToUse.find((s) => s && s.id === scopeStoreId) : null;
       const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') ? (currentUser.store_ids || []) : null;
       if (scopeStore && (!dispatcherStoreIds || dispatcherStoreIds.includes(scopeStore.id))) {
-        const officialOptions = sortStores(expandStoresForTimeSlots({ stores: [scopeStore], deliveryDate: formData.delivery_date }));
-        return getStorePickupOptions({ store: scopeStore, allDeliveries, stagedDeliveries, driverId: formData.driver_id, deliveryDate: formData.delivery_date, officialStoreOptions: officialOptions });
+        // Store re-assignment (Sep 23 2026): when a patient was moved to a different
+        // store, their existing delivery still points at the old one. Offer BOTH the
+        // delivery's current store AND the patient's newly assigned store in the
+        // dropdown so the delivery can be re-assigned from the form — previously the
+        // edit dropdown only listed the delivery's own store, forcing a manual DB edit.
+        const scopedStores = [scopeStore];
+        const editedPatientStoreId = editedPatient?.store_id;
+        if (editedPatientStoreId && editedPatientStoreId !== scopeStore.id) {
+          const editedPatientStore = storesToUse.find((st) => st && st.id === editedPatientStoreId);
+          if (editedPatientStore && (!dispatcherStoreIds || dispatcherStoreIds.includes(editedPatientStore.id))) {
+            scopedStores.push(editedPatientStore);
+          }
+        }
+        return sortStores(scopedStores.flatMap((scopedStore) => getStorePickupOptions({
+          store: scopedStore,
+          allDeliveries,
+          stagedDeliveries,
+          driverId: formData.driver_id,
+          deliveryDate: formData.delivery_date,
+          officialStoreOptions: sortStores(expandStoresForTimeSlots({ stores: [scopedStore], deliveryDate: formData.delivery_date }))
+        })));
       }
       if (userHasRole(currentUser, 'admin')) { relevantStores = storesToUse; }
       else if (editedPatient && editedPatient.store_id) { const patientStore = storesToUse.find((s) => s && s.id === editedPatient.store_id); relevantStores = patientStore ? [patientStore] : storesToUse; }

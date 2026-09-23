@@ -140,6 +140,8 @@ export default function PatientForm({
   const [showWeeklyDays, setShowWeeklyDays] = useState(false);
   const [isAddressLookupActive, setIsAddressLookupActive] = useState(false);
   const isInitialLoad = useRef(true);
+  // Seeds the store id the distance-recompute effect last saw (see that effect).
+  const lastStoreIdForDistanceRef = useRef(undefined);
   const allPatientsRef = useRef(allPatients);
 
   const cityCenter = useMemo(() => {
@@ -181,6 +183,44 @@ export default function PatientForm({
 
     return null;
   }, [currentUser, cities, stores, formData.store_id]);
+
+  // Store re-assignment (Sep 23 2026): changing the assigned store must refresh
+  // distance_from_store — the old value was measured from the previous store and
+  // used to survive saves silently (the haversine fallback at submit only fires
+  // when the field is EMPTY, and it was populated with the stale distance).
+  // Ref-seeded (not isInitialLoad) so it also works on brand-new patient forms,
+  // where isInitialLoad never flips false: the first effect run seeds the ref with
+  // the form's opening store and only SUBSEQUENT changes recompute.
+  useEffect(() => {
+    if (lastStoreIdForDistanceRef.current === undefined) {
+      lastStoreIdForDistanceRef.current = formData.store_id || null;
+      return;
+    }
+    const storeId = formData.store_id || null;
+    if (lastStoreIdForDistanceRef.current === storeId) return;
+    lastStoreIdForDistanceRef.current = storeId;
+    if (!storeId || !formData.latitude || !formData.longitude) return;
+    const assignedStore = (stores || []).find((st) => st && st.id === storeId);
+    if (!assignedStore?.latitude || !assignedStore?.longitude) return;
+    const origin = { latitude: assignedStore.latitude, longitude: assignedStore.longitude };
+    const dest = { latitude: formData.latitude, longitude: formData.longitude };
+    // Clear the stale value first so a save mid-fetch can't persist it.
+    setFormData((prev) => ({ ...prev, distance_from_store: null }));
+    base44.functions.invoke('getGoogleDrivingDistance', {
+      originLat: origin.latitude, originLng: origin.longitude,
+      destLat: dest.latitude, destLng: dest.longitude
+    }).then((res) => {
+      const drivingKm = res?.data?.distance_km ?? res?.distance_km;
+      if (Number.isFinite(drivingKm)) {
+        setFormData((prev) => ({ ...prev, distance_from_store: drivingKm }));
+      } else {
+        setFormData((prev) => ({ ...prev, distance_from_store: calculateDistanceKm(origin, dest) }));
+      }
+    }).catch(() => {
+      // Haversine fallback — same last-resort the submit path already uses.
+      setFormData((prev) => ({ ...prev, distance_from_store: calculateDistanceKm(origin, dest) }));
+    });
+  }, [formData.store_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep ref in sync with latest allPatients without triggering re-renders
   useEffect(() => {allPatientsRef.current = allPatients;}, [allPatients]);

@@ -83,11 +83,18 @@ export default function DeliveryStatusAndTiming({
     // never re-look-up by store/slot, which can snap to a different (e.g. cancelled) pickup.
     const directStopId = selectedStore?._pickupStopId || selectedStore?._pickupPuid || null;
     const newPuid = directStopId || getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries, formData.driver_id);
+    // Store re-assignment (Sep 23 2026): update EVERY store-derived field together.
+    // Previously a store change on the edit form updated store_id/puid but left
+    // store_phone pointing at the old store — mixed store data on the saved record.
+    // store_name/store_abbreviation are display-only (derived from store_id), so
+    // store_id + puid + ampm + store_phone is the complete persisted store set.
+    const newStorePhone = selectedStore?.phone || '';
     setFormData((prev) => ({
       ...prev,
       store_id: storeId,
       ampm_deliveries: timeSlot,
       puid: newPuid || '',
+      store_phone: newStorePhone,
       stop_id: isPickupMode && !delivery ? newPuid || '' : prev.stop_id
     }));
     if (isPickupMode) setSelectedPickupOption(value);
