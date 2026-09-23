@@ -244,10 +244,14 @@ export const updatePatientLocal = async (patientId, updates) => {
 
   try {
     
-    // Get current patient from IndexedDB
-    const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    const existingPatient = patients.find(p => p.id === patientId);
-    
+    // Get current patient from IndexedDB — targeted getById, NOT getAll.
+    // (Sep 23 2026) getAll(PATIENTS) read every patient record on every patient
+    // update — with delivery_history-laden patient records this full-table read
+    // was one of the top IDB timeouts of the Sep 23 sluggishness incident
+    // ("getAll(patients) failed: IDB getAll(patients) timed out after 6000ms"
+    // across all devices), and it surfaced to users as "Failed to update
+    // patient locally" during delivery-form saves.
+    const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId);
     if (!existingPatient) {
       throw new Error(`Patient ${patientId} not found in local database`);
     }
@@ -294,7 +298,7 @@ export const updatePatientLocal = async (patientId, updates) => {
     smartRefreshManager.restart();
     return updatedPatient;
   } catch (error) {
-    console.error('❌ [OfflineMutations] Failed to update patient locally:', error);
+    console.error('❌ [OfflineMutations] Failed to update patient locally: patientId=' + patientId, (error && error.message) ? error.message : error);
     // CRITICAL: Restart smart refresh on error
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.restart();
