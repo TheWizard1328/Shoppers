@@ -26,6 +26,7 @@
  *     "relation:driver" recipients resolve correctly for on-behalf accepts.
  */
 import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
 import {
@@ -181,6 +182,23 @@ export async function notifyDriverAcceptedStops({
     );
     handled = !!result?.handled;
     console.warn('[DriverAcceptedStops] rule engine result — handled:', handled, '— matchedRules:', result?.matchedRules?.length, '— results:', JSON.stringify(result?.results));
+
+    // TEMPORARY DIAGNOSTIC — Sep 23 2026 "Store Dispatchers not notified on
+    // Accept All" investigation. Surfaces the exact inputs/outputs of the
+    // driver_accepted dispatch as an on-screen toast (visible without
+    // devtools). REMOVE once the root cause is confirmed fixed.
+    try {
+      const ruleSummary = (result?.matchedRules || []).map((r) => {
+        const recips = (result?.results || []).filter((x) => x.ruleId === r.id);
+        const sent = recips.filter((x) => !x.skipped).map((x) => x.userId);
+        const skipped = recips.filter((x) => x.skipped).map((x) => `${x.userId}(${x.skipped})`);
+        return `${r.rule_label}→recipients:[${(r.recipients || []).join(',')}] sent:[${sent.join(',') || 'none'}] skipped:[${skipped.join(',') || 'none'}]`;
+      }).join('\n');
+      toast.info(
+        `[DEBUG driver_accepted] store_id=${context.store_id || '(empty)'}\nuser_role=${context.user_role}\nuser_roles=${(context.user_roles || []).join(',')}\nhandled=${handled}\n${ruleSummary || '(no matched rules)'}`,
+        { duration: 20000 }
+      );
+    } catch { /* toast not mounted — ignore */ }
   } catch (e) {
     ruleEngineError = e;
     console.warn('[DriverAcceptedStops] rule engine failed:', e?.message || e);
