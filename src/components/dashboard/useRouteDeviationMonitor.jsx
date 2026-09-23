@@ -28,7 +28,7 @@
  * card actions use.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { emitGatedEvent } from '@/components/utils/uiGate';
+import { emitGatedEvent, isUIHidden } from '@/components/utils/uiGate';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
 import { locationTracker } from '@/components/utils/locationTracker';
 
@@ -281,19 +281,20 @@ export function useRouteDeviationMonitor({
     tick();
   }, [driverLocation, tick]);
 
-  // Trigger 2: foreground-only safety interval (Sep 21 2026). The live path
-  // reported dead while the app is visibly open (detection only fired on
-  // resume-from-background), yet every link of the state-push chain looks
-  // correct — so this interval GUARANTEES the foreground check runs every 15s
-  // by reading locationTracker.lastPosition (the raw, ungated freshest fix)
-  // instead of relying on driverLocation state pushes. document.hidden check
-  // keeps the background-off design: no checks while minimized/screen-off —
-  // the resume catch-up path (deferred replay + foreground snap) stays the
-  // only hidden→visible transition point. The 10s CHECK_THROTTLE dedupes
-  // against Trigger 1 when both fire.
+  // Trigger 2: 15s safety interval (Sep 21 2026; owner re-confirmed Sep 23 2026).
+  // Reads locationTracker.lastPosition (the raw, ungated freshest fix) instead
+  // of relying on driverLocation state pushes, so the check runs every 15s
+  // WHILE THE APP IS FOREGROUND/VISIBLE. Deviation checks are OFF while the
+  // app is backgrounded, minimized, or the screen is off — they resume when
+  // the app regains focus (resume path: fresh GPS + resync + this interval).
+  // The gate uses uiGate.isUIHidden(), NOT document.hidden: the APK shell does
+  // not fire visibilitychange on screen off/on, so on native the hidden flag is
+  // maintained by the Capacitor appStateChange listener wired into uiGate
+  // (locationTracker). On web/PWA isUIHidden() tracks document.hidden exactly.
+  // The 10s CHECK_THROTTLE dedupes against Trigger 1 when both fire.
   useEffect(() => {
     const iv = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return; // background OFF by design
+      if (isUIHidden()) { _diag('gate:hidden_ui'); return; } // background OFF by owner design
       const lp = locationTracker?.lastPosition;
       if (!Number.isFinite(Number(lp?.latitude)) || !Number.isFinite(Number(lp?.longitude))) return;
       const s = stateRef.current;

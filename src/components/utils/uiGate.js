@@ -53,6 +53,22 @@ if (typeof document !== 'undefined') {
 export const isUIHidden = () => hidden;
 
 /**
+ * Native-shell pause/resume hook (Sep 23 2026). Android WebView does NOT fire
+ * visibilitychange on screen off/on (only on real activity transitions), so
+ * on the APK the `hidden` flag above never gets set/cleared by toggling the
+ * screen — UI work kept running while the screen was off, and deferred units
+ * never replayed when it came back on. The native appStateChange listener in
+ * locationTracker calls this:
+ *   isActive=false → defer UI work (same as a visibilitychange-hidden)
+ *   isActive=true  → replay deferred units + fire resume callbacks
+ * Idempotent with the visibilitychange listener: both gate on `hidden`.
+ */
+export const markNativeHidden = (isHidden) => {
+  if (isHidden) { hidden = true; return; }
+  if (hidden) replay();
+};
+
+/**
  * Run a unit of UI work now, or defer the LATEST unit per key until the app
  * becomes visible. While hidden, each call with the same key REPLACES the
  * previous one (last-wins) — used for full-snapshot payloads like WS

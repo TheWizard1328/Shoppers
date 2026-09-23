@@ -21,6 +21,7 @@ import { remoteLogger } from './remoteLogger';
 import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches, getLastCommittedCrumb } from './locationBreadcrumbService';
 import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
 import { connectionMonitor } from './connectionMonitor';
+import { markNativeHidden } from './uiGate';
 
 class LocationTracker {
     constructor() {
@@ -2092,14 +2093,16 @@ class LocationTracker {
 
 export const locationTracker = new LocationTracker();
 
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      locationTracker.lastFocusLostAt = Date.now();
-      return;
-    }
-
+// Shared foreground-return logic for BOTH the visibilitychange listener (web +
+// app-switch transitions) and the native Capacitor appStateChange listener
+// (screen off/on — see below). A 3s dedupe guard prevents a double
+// _resumeAfterAbsence when both listeners fire for the same transition.
+let _lastForegroundReturnAt = 0;
+const _handleForegroundReturn = () => {
     const now = Date.now();
+    if (now - _lastForegroundReturnAt < 3000) return;
+    _lastForegroundReturnAt = now;
+
     // Use lastFocusLostAt directly — Math.max with other timestamps caused false-short
     // awayDuration values when a background tick updated lastBreadcrumbSavedAt/lastHeartbeatAt
     // after the page was hidden, making the guard skip _resumeAfterAbsence entirely.
@@ -2179,7 +2182,45 @@ if (typeof document !== 'undefined') {
         }
       })();
     }
+};
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      locationTracker.lastFocusLostAt = Date.now();
+      return;
+    }
+    _handleForegroundReturn();
   });
+
+  // ── Native APK lifecycle (Sep 23 2026) ────────────────────────────────────
+  // Android WebView does NOT fire visibilitychange on screen off/on — only on
+  // real activity transitions (app switch). Without this listener, turning the
+  // screen back on NEVER ran the resume catch-up: lastFocusLostAt stayed 0
+  // (no _resumeAfterAbsence, no fresh GPS fix, no resume resync) and uiGate
+  // deferred units never replayed. This is why deviation updates/leg redraws
+  // appeared ONLY when switching apps. appStateChange fires on BOTH screen
+  // off/on AND app switches, so it covers every native transition; the 3s
+  // dedupe guard above collapses the double-fire when visibilitychange runs too.
+  if (isCapacitorNativeApp()) {
+    import('@capacitor/app').then(({ App }) => {
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) {
+          // Screen off / app switch. Mark UI hidden so render-driving work
+          // defers (uiGate), and stamp the focus-loss time for awayDuration.
+          markNativeHidden(true);
+          // Always re-stamp (mirrors the visibilitychange-hidden path) so the
+          // next return measures the away duration from THIS transition.
+          locationTracker.lastFocusLostAt = Date.now();
+          return;
+        }
+        // Screen on / app return. Replay deferred UI first, then run the same
+        // resume path visibilitychange-visible uses (fresh GPS + resync).
+        markNativeHidden(false);
+        _handleForegroundReturn();
+      });
+    }).catch((e) => console.warn('📱 [LocationTracker] Native appStateChange listener unavailable:', e?.message));
+  }
 
   // ── F: Breadcrumb resume after stop completion/fail/cancel ──────────────────
   // The completion chain in useStopCardActions can block the main thread for several
