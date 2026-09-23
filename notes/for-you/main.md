@@ -6,6 +6,10 @@ summary: A personal briefing of open tasks, messages, deadlines and decisions th
 
 # For you
 
+## RxDeliver Driver Accepted notifications — diagnostic needed
+
+* [ ] Hamptons dispatcher received neither in-app nor push notification when Robert clicked Accept All on a Hamptons stop (Sep 23). The delivery changed to `in_transit`; the root cause inside the live notification path is not yet verified. Ask Robert for the temporary `[DEBUG driver_accepted]` toast shown by Preview build `0af48a5ed`, or whether no toast appeared. Remove the diagnostic toast after fixing and verifying delivery.
+
 ## RxAssist rollout (RxDeliver AI assistant) — action needed
 
 * [ ] **Add `RXASSIST_API_KEY` to RxDeliver's secrets** — App editor → App Settings → Secrets/env → name it exactly `RXASSIST_API_KEY`, value = the RxAssist agent API key (same one provided to The Coder on Sep 4). The rxAssistChat backend function returns `ai_not_configured` until this is set. Everything else is deployed and verified.
