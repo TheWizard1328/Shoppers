@@ -160,19 +160,21 @@ function buildBatchAwareContext({
 }
 
 // ── Sender resolution for in-app messages ────────────────────────────────────
-async function resolveInAppSender({ store, dispatcher }) {
-  // 1. Try the store pseudo-user (preserves legacy behaviour)
-  const storeUser = await getStoreUser(store).catch(() => null);
+// Resolves to the store's REAL dispatcher AppUser (plain user_name, e.g.
+// "Hamptons") so this thread's sender identity matches the same dispatcher's
+// identity used as the RECEIVER of "Stops Accepted" messages — otherwise the
+// two events land in separate conversation threads for the same person.
+async function resolveInAppSender({ store, dispatcher, appUsers }) {
+  // 1. Real store dispatcher AppUser (preferred — merges conversation threads)
+  const storeUser = await getStoreUser(store, appUsers).catch(() => null);
   if (storeUser?.id && storeUser?.user_name) return storeUser;
 
-  // 2. Fall back to the dispatcher themselves so the in-app message is STILL
-  //    delivered even when no store pseudo-user exists. The legacy system would
-  //    have bailed on a null storeUser entirely, leaving the driver with no
-  //    in-app notification.
-  const fallbackName = store?.name ? `${store.name} (Dispatcher)` : 'Dispatcher';
+  // 2. Fall back to the acting dispatcher/admin themselves so the in-app
+  //    message is STILL delivered even when no store dispatcher AppUser
+  //    exists. Plain name only — no suffix.
   const fallbackId = dispatcher?.id || dispatcher?.user_id || null;
   if (fallbackId) {
-    return { id: fallbackId, user_name: dispatcher?.user_name || fallbackName };
+    return { id: fallbackId, user_name: dispatcher?.user_name || 'Dispatcher' };
   }
 
   // 3. Last resort — bail; push channel still goes out.
@@ -185,6 +187,7 @@ export async function notifyDispatcherAssignedStops({
   store,
   deliveries,
   patients,
+  appUsers = null,
 }) {
   if (!deliveries || deliveries.length === 0 || !driver) return;
 
@@ -216,7 +219,7 @@ export async function notifyDispatcherAssignedStops({
   // Resolve sender lazily (needed for in-app messages)
   let senderPromise = null;
   const getSender = () => {
-    if (!senderPromise) senderPromise = resolveInAppSender({ store, dispatcher });
+    if (!senderPromise) senderPromise = resolveInAppSender({ store, dispatcher, appUsers });
     return senderPromise;
   };
 

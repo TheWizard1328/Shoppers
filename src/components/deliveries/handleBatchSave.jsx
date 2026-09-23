@@ -496,6 +496,7 @@ export async function handleBatchSave({
             store,
             deliveries: notifyDeliveries,
             patients,
+            appUsers,
           }).catch((e) => console.warn('[DispatcherAssignedStops] notify failed:', e?.message || e));
         }
       }

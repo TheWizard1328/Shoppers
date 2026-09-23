@@ -285,36 +285,58 @@ export function buildDistanceBadge(patient, store) {
 }
 
 /**
- * Get or create a store user for messaging
- * If the store doesn't have a user yet, creates one on-the-fly
+ * Resolve the store's real dispatcher AppUser for messaging.
+ *
+ * Previously this returned a SYNTHETIC pseudo-user (`store_<id>` /
+ * "<Store> (Store)") whenever no AppUser was literally named "<Store> (Store)"
+ * — which is always, since real dispatcher accounts are just named after the
+ * store (e.g. "Hamptons"). That fake identity never matches the real
+ * dispatcher's user_id, so messages FROM the store (Stops Assigned) and TO
+ * the store (Stops Accepted) landed in two separate conversation threads for
+ * the same person — "Hamptons" and "Hamptons (Store)". Fix: always resolve
+ * to the real active dispatcher AppUser assigned to this store and use its
+ * plain user_name, no suffix — the same identity `relation:dispatchers`
+ * resolves to in messageRuleEngine.js.
  */
-export async function getStoreUser(store) {
+export async function getStoreUser(store, appUsers = null) {
   if (!store || !store.id) {
     console.warn('[deliveryMessaging] Invalid store');
     return null;
   }
-  
+
+  const isActiveStoreDispatcher = (u) => {
+    if (!u || u.status === 'inactive') return false;
+    const roles = Array.isArray(u.app_roles) ? u.app_roles : (u.role ? [u.role] : []);
+    const storeIds = Array.isArray(u.store_ids) ? u.store_ids : [];
+    return roles.includes('dispatcher') && storeIds.some((id) => String(id) === String(store.id));
+  };
+
   try {
-    // Search for existing store user by name pattern
-    const storeUserName = `${store.name} (Store)`;
-    const existingUsers = await base44.entities.AppUser.filter({ 
-      user_name: storeUserName 
-    });
-    
-    if (existingUsers && existingUsers.length > 0) {
-      return {
-        id: existingUsers[0].user_id,
-        user_name: existingUsers[0].user_name
-      };
+    // 1. Check the roster already in memory (avoids an extra fetch on the
+    //    common path where the caller already has it loaded).
+    const cached = (appUsers || []).find(isActiveStoreDispatcher);
+    if (cached) return { id: cached.user_id || cached.id, user_name: cached.user_name };
+
+    // 2. Fresh roster lookup — the in-memory list can be a stale/filtered
+    //    Dashboard snapshot missing the dispatcher.
+    const fresh = await base44.entities.AppUser.filter({});
+    const freshMatch = (fresh || []).find(isActiveStoreDispatcher);
+    if (freshMatch) return { id: freshMatch.user_id || freshMatch.id, user_name: freshMatch.user_name };
+
+    // 3. Store's explicit dispatcher assignment, validated against a real
+    //    active dispatcher AppUser.
+    if (store.dispatcher_id) {
+      const byId = await base44.entities.AppUser.filter({ user_id: store.dispatcher_id });
+      const validated = (byId || []).find((u) => u.status !== 'inactive' &&
+        Array.isArray(u.app_roles) && u.app_roles.includes('dispatcher') && u.user_id === store.dispatcher_id);
+      if (validated) return { id: validated.user_id, user_name: validated.user_name };
     }
-    
-    // If no store user exists, return store data directly for message creation
-    // (we'll use store.id as sender, but won't create an actual AppUser)
-    console.log(`[deliveryMessaging] Using store "${store.name}" as message sender`);
-    return {
-      id: `store_${store.id}`,
-      user_name: storeUserName
-    };
+
+    // 4. Last resort — no real dispatcher account exists for this store.
+    // Keep the plain store name (no "(Store)" suffix) but this identity has
+    // no real inbox, so the driver never gets an in-app reply thread merge.
+    console.warn(`[deliveryMessaging] No real dispatcher AppUser found for store "${store.name}" — using synthetic sender`);
+    return { id: `store_${store.id}`, user_name: store.name };
   } catch (error) {
     console.error('[deliveryMessaging] Error getting store user:', error);
     return null;
