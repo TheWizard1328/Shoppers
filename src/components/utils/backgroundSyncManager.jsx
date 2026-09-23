@@ -550,6 +550,7 @@ class BackgroundSyncManager {
     }
 
     let syncedCount = 0;
+    let checkedDates = 0; // Count reads, not only writes: matching dates still cost one API call each.
     let skippedDates = 0; // aggregate — per-date 'already synced' logs were flooding RemoteLogEntry (~200k rows/day)
     let cursor = new Date(this.historicalSyncDateCursor);
     cursor.setHours(0, 0, 0, 0);
@@ -561,7 +562,7 @@ class BackgroundSyncManager {
     }
 
     try {
-      while (cursor >= cutoffDate && syncedCount < maxDatesPerCycle) {
+      while (cursor >= cutoffDate && checkedDates < maxDatesPerCycle) {
         if (this.isPaused || !this.isRunning) break;
         if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
 
@@ -579,6 +580,7 @@ class BackgroundSyncManager {
 
       const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
           this.currentCycleAPICalls++;
+          checkedDates++;
 
           if (result.synced) {
             console.log(`🔄 [BackgroundSync] Synced ${result.onlineCount} deliveries for ${dateStr} (was ${result.offlineCount}, pruned ${result.pruned})`);
