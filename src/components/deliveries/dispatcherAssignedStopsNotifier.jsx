@@ -126,6 +126,12 @@ function buildBatchAwareContext({
     store_ids: storeIds,
     driver_id: driverId,
     actingUserId,
+    // Without this, dispatchMessageRules only skips the PUSH channel for a
+    // self-assign (admin assigning stops to themselves as driver) — in-app
+    // messages still went out because that gate additionally requires this
+    // flag. Set it so an admin assigning to themselves gets neither channel,
+    // consistent with driverAcceptedStopsNotifier's self-accept suppression.
+    suppressSelfNotifications: true,
     delivery_status: 'pending',
     delivery_status_list: statuses,
     user_role: userRole,

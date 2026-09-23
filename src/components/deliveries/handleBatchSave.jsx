@@ -475,8 +475,23 @@ export async function handleBatchSave({
           const resolvedDriver = (appUsers || []).find(
             (u) => (u?.user_id || u?.id) === routeDriverId,
           ) || { user_id: routeDriverId };
+          // Resolve the ACTING user's own AppUser record (app_roles, user_id)
+          // instead of passing the raw platform `currentUser`, which has no
+          // app_roles/user_id fields at all. Without this, "User Role Contains
+          // Admin" / "Is Dispatcher" rule conditions can't evaluate correctly
+          // against who actually clicked Done, and — critically for the
+          // self-assign case — dispatchMessageRules' self-action check
+          // (actingUserId === driver_id) always sees actingUserId as the bare
+          // platform User.id, which happens to still equal the driver's
+          // user_id when they're the same person, but the missing app_roles
+          // was silently pushing this event to the legacy notifier (no
+          // self-suppression at all) whenever the rule conditions failed to
+          // match on the empty role data.
+          const resolvedDispatcher = (appUsers || []).find(
+            (u) => (u?.user_id || u?.id) === currentUser?.id,
+          ) || currentUser;
           notifyDispatcherAssignedStops({
-            dispatcher: currentUser,
+            dispatcher: resolvedDispatcher,
             driver: resolvedDriver,
             store,
             deliveries: notifyDeliveries,
