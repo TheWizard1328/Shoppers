@@ -223,12 +223,29 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
         // falling back to admins.
         const ownerIds = await getAppOwnerUserIds();
         if (ownerIds && ownerIds.size > 0) {
-          users.forEach((u) => {
-            if (u.status === 'inactive') return;
-            if (ownerIds.has(u.user_id || u.id)) {
-              userIds.add(u.user_id || u.id);
+          for (const ownerId of ownerIds) {
+            const inRoster = users.find((u) =>
+              u?.status !== 'inactive' && String(u?.user_id || u?.id) === String(ownerId));
+            if (inRoster) {
+              userIds.add(ownerId);
+              continue;
             }
-          });
+            // The driver often accepts with an empty/filtered AppUser snapshot.
+            // The owner resolver has already validated PLATFORM owner status;
+            // confirm the AppUser is active with a targeted lookup rather than
+            // requiring the owner to appear in the driver's roster.
+            try {
+              const matches = await base44.entities.AppUser.filter({ user_id: ownerId });
+              if ((matches || []).some((u) =>
+                u?.status !== 'inactive' && String(u?.user_id) === String(ownerId))) {
+                userIds.add(ownerId);
+              } else {
+                console.warn('[MessageRuleEngine] relation:appowner — active AppUser not found for resolved owner:', ownerId);
+              }
+            } catch (e) {
+              console.warn('[MessageRuleEngine] relation:appowner — AppUser lookup failed:', e?.message || e);
+            }
+          }
         } else {
           console.warn('[MessageRuleEngine] relation:appowner — no platform owner ids resolved; skipping recipient (NOT falling back to admins)');
         }
