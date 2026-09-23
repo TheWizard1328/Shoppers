@@ -208,7 +208,7 @@ export async function notifyDispatcherAssignedStops({
   for (const delivery of deliveries) {
     const patient = patients?.find((p) => p?.id === delivery?.patient_id);
     const patientName = patient?.full_name || delivery?.patient_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, patient);
+    const badges = buildSpecialBadges(delivery, patient, { iconsOnly: true });
     const distance = buildDistanceBadge(patient, store);
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }

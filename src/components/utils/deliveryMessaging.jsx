@@ -212,7 +212,7 @@ export async function getRecipientsForEvent(recipientTypes, { storeId, appUsers,
 /**
  * Build special badges string for a delivery
  */
-export function buildSpecialBadges(delivery, patient) {
+export function buildSpecialBadges(delivery, patient, { iconsOnly = false } = {}) {
   const badges = [];
   
   const hasCOD = delivery?.cod_total_amount_required > 0;
@@ -223,11 +223,11 @@ export function buildSpecialBadges(delivery, patient) {
   const hasFridge = delivery?.fridge_item === true;
   const hasSignature = delivery?.signature_needed === true;
 
-  if (hasCOD) badges.push('💵 COD');
-  if (isFirstDelivery) badges.push('🆕 New');
-  if (hasOversized) badges.push('📦 Oversized');
-  if (hasFridge) badges.push('❄️ Fridge');
-  if (hasSignature) badges.push('✍️ Signature');
+  if (hasCOD) badges.push(iconsOnly ? '💵' : '💵 COD');
+  if (isFirstDelivery) badges.push(iconsOnly ? '🆕' : '🆕 New');
+  if (hasOversized) badges.push(iconsOnly ? '📦' : '📦 Oversized');
+  if (hasFridge) badges.push(iconsOnly ? '❄️' : '❄️ Fridge');
+  if (hasSignature) badges.push(iconsOnly ? '✍️' : '✍️ Signature');
 
   return badges.length > 0 ? ` [${badges.join(', ')}]` : '';
 }
@@ -386,7 +386,7 @@ export async function notifyDispatcherAssignedAll({
   for (const delivery of deliveries) {
     const patient = patients?.find(p => p?.id === delivery.patient_id);
     const patientName = patient?.full_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, patient);
+    const badges = buildSpecialBadges(delivery, patient, { iconsOnly: true });
     const distance = buildDistanceBadge(patient, store);
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
