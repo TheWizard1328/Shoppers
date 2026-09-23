@@ -36,17 +36,17 @@ import {
   buildSpecialBadges,
 } from '../utils/deliveryMessaging';
 
-function buildDeliveryList(deliveries) {
+function buildDeliveryList(deliveries, patientNameMap) {
   let list = '';
   for (const delivery of deliveries || []) {
-    const patientName = delivery?.patient_name || 'Unknown';
+    const patientName = patientNameMap?.get(delivery?.patient_id) || delivery?.patient_name || 'Unknown';
     const badges = buildSpecialBadges(delivery, null);
     list += `\n• ${patientName}${badges}`;
   }
   return list;
 }
 
-function buildContext({ actor, driver, driverId, store, deliveries, pendingCount, patientName, patientNotesJoined = '' }) {
+function buildContext({ actor, driver, driverId, store, deliveries, pendingCount, patientName, patientNotesJoined = '', patientNameMap = null }) {
   const roles = Array.isArray(actor?.app_roles) ? actor.app_roles
     : (typeof actor?.app_role === 'string' ? [actor.app_role] : []);
   const actingUserId = actor?.user_id || actor?.id || '';
@@ -73,12 +73,16 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
     driverName: driver?.user_name || driver?.full_name || 'Driver',
     adminName,
     pendingCount: String(pendingCount != null ? pendingCount : (deliveries || []).length),
-    deliveryList: buildDeliveryList(deliveries),
-    patientName: patientName || (deliveries?.[0]?.patient_name || ''),
+    deliveryList: buildDeliveryList(deliveries, patientNameMap),
+    patientName: patientName || (patientNameMap?.get(deliveries?.[0]?.patient_id) || deliveries?.[0]?.patient_name || ''),
     // Text-search fields for Rule Builder "Patient Name" / "Patient Notes" /
     // "Driver Notes" conditions — joined across the WHOLE batch so "Contains"
-    // matches if ANY delivery/patient in the batch qualifies.
-    patient_name: [...new Set((deliveries || []).map((d) => d?.patient_name).filter(Boolean))].join(' | '),
+    // matches if ANY delivery/patient in the batch qualifies. Deliveries only
+    // carry patient_id — resolve through the fetched Patient records (the
+    // old code read a non-existent delivery.patient_name, always empty,
+    // which is why notifications rendered "Unknown").
+    patient_name: [...new Set((deliveries || []).map((d) =>
+      patientNameMap?.get(d?.patient_id) || d?.patient_name).filter(Boolean))].join(' | '),
     patient_notes: patientNotesJoined,
     delivery_notes: [...new Set((deliveries || []).map((d) => d?.delivery_notes).filter(Boolean))].join(' | '),
     store_id: storeIds[0] || store?.id || '',
@@ -122,6 +126,26 @@ export async function notifyDriverAcceptedStops({
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const deliveryIds = (deliveries || []).map((d) => d?.id).filter(Boolean);
 
+  // Resolve the receiving AppUser's display name (a store dispatcher account
+  // like "Hamptons", the App Owner, or the driver themselves) — the old
+  // hardcoded 'User' literal is what showed instead of the store name.
+  const receiverNameCache = new Map();
+  const resolveReceiverName = async (userId) => {
+    if (receiverNameCache.has(userId)) return receiverNameCache.get(userId);
+    let name = (appUsers || []).find((u) => (u?.user_id || u?.id) === userId)?.user_name;
+    if (!name) {
+      try {
+        const matches = await base44.entities.AppUser.filter({ user_id: userId });
+        name = matches?.[0]?.user_name;
+      } catch (e) {
+        console.warn('[DriverAcceptedStops] receiver name lookup failed:', e?.message || e);
+      }
+    }
+    name = name || 'User';
+    receiverNameCache.set(userId, name);
+    return name;
+  };
+
   const sendInApp = async (userId, message, eventName, rule) => {
     const label = rule?.rule_label || getNotificationLabel(eventName);
     const content = label ? `[${label}]\n${message}` : message;
@@ -129,7 +153,7 @@ export async function notifyDriverAcceptedStops({
       senderId: driverId,
       senderName: driverName,
       receiverId: userId,
-      receiverName: 'User',
+      receiverName: await resolveReceiverName(userId),
       content,
     });
   };
@@ -155,16 +179,20 @@ export async function notifyDriverAcceptedStops({
   // this notifier — fetch just the notes for the patients in THIS batch.
   const patientIds = [...new Set((deliveries || []).map((d) => d?.patient_id).filter(Boolean))];
   let patientNotesJoined = '';
+  const patientNameMap = new Map();
   if (patientIds.length > 0) {
     try {
       const patientRecords = await base44.entities.Patient.filter({ id: { $in: patientIds } });
       patientNotesJoined = (patientRecords || []).map((p) => p?.notes).filter(Boolean).join(' | ');
+      (patientRecords || []).forEach((p) => {
+        if (p?.id && p?.full_name) patientNameMap.set(p.id, p.full_name);
+      });
     } catch (e) {
-      console.warn('[DriverAcceptedStops] patient notes lookup failed:', e?.message || e);
+      console.warn('[DriverAcceptedStops] patient notes/name lookup failed:', e?.message || e);
     }
   }
 
-  const context = buildContext({ actor, driver, driverId, store, deliveries, pendingCount: count, patientName, patientNotesJoined });
+  const context = buildContext({ actor, driver, driverId, store, deliveries, pendingCount: count, patientName, patientNotesJoined, patientNameMap });
   console.warn('[DriverAcceptedStops] context — user_role:', context.user_role, '— driver_id:', context.driver_id, '— store_id:', context.store_id, '— pendingCount:', context.pendingCount);
 
   // Force a fresh rule load so newly-created / edited rules are picked up immediately
