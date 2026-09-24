@@ -421,6 +421,49 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── COLLECTED-CONFIRMED GUARD (create path only) ─────────────────────
+    // A completed+cash COD whose catalog item is gone was very likely already
+    // rung through Square (collection confirmed). Confirm against live Square
+    // orders — ONE cached fetch per invocation, only when such candidates exist —
+    // and skip re-creating items for confirmed-collected deliveries. Without
+    // this, reconciler creates and sync deletes loop forever (the churn bug).
+    const completedCashCreates = toCreate.filter((c) => String(c.delivery?.status || '').toLowerCase() === 'completed' && hasCashPayment(c.delivery));
+    if (completedCashCreates.length > 0 && !dryRun) {
+      try {
+        const cfgs = await b.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []);
+        const locIds = Array.from(new Set((Array.isArray(cfgs) ? cfgs : []).filter((c) => c?.status === 'active').map((c) => nt(c?.square_location_id)).filter(Boolean)));
+        const lookback = new Date(Date.now() - 90 * 86400000).toISOString();
+        const orders = []; let ordCursor = null;
+        do {
+          const body = locIds.length > 0 ? { location_ids: locIds, query: { filter: { date_time_filter: { created_at: { start_at: lookback } }, state_filter: { states: ['COMPLETED'] } }, sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' } }, limit: 500, cursor: ordCursor || undefined }
+            : { query: { filter: { date_time_filter: { created_at: { start_at: lookback } }, state_filter: { states: ['COMPLETED'] } } }, limit: 500, cursor: ordCursor || undefined };
+          const j = await sf('/v2/orders/search', 'POST', token, body);
+          orders.push(...(j?.orders || [])); ordCursor = j?.cursor || null; await sleep(150);
+        } while (ordCursor);
+        const collectedNameAmounts = new Set();
+        for (const o of orders) {
+          for (const li of (o?.line_items || [])) {
+            const n = nt(li?.name); const cents = Number(li?.base_price_money?.amount || 0);
+            if (n) collectedNameAmounts.add(`${n}::${cents}`);
+          }
+        }
+        const skipIds = new Set();
+        for (const c of completedCashCreates) {
+          if (collectedNameAmounts.has(`${c.itemName}::${c.amountCents}`)) skipIds.add(c.delivery.id);
+        }
+        if (skipIds.size > 0) {
+          for (const did of skipIds) { await removeBookkeeping(b, did, 'collected_confirmed', 'cancelled').catch(() => null); }
+          for (let i = toCreate.length - 1; i >= 0; i--) {
+            if (skipIds.has(toCreate[i].delivery.id)) {
+              results.push({ deliveryId: toCreate[i].delivery.id, action: 'create', status: 'skipped', reason: 'collected_confirmed_in_square_orders' });
+              toCreate.splice(i, 1);
+            }
+          }
+          log(`collected-confirmed guard skipped ${skipIds.size} create(s)`);
+        }
+      } catch (e) { log('collected-confirmed guard failed (proceeding without):', e?.message || String(e)); }
+    }
+
     // ── BATCH CREATE (single batch-upsert for all missing items) ─────────
     if (toCreate.length > 0) {
       const objects = toCreate.map((c) => ({

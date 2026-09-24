@@ -595,6 +595,13 @@ async function handleGetCodData(base44, payload={}) {
       collectedDeliveryIds.add(tx.delivery_id);
     }
   }
+  // CONFIRMED-collected: the delivery matched a COMPLETED real Square order this
+  // run (the store rang it through). Terminal state — see the 5a purge below.
+  const confirmedCollectedDeliveryIds = new Set(
+    (transactionRecords || [])
+      .filter((t) => t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed')
+      .map((t) => t.delivery_id)
+  );
 
   // Catalog items that are already linked to a SquareTransaction record (i.e. they
   // show a "Transaction ID" in the UI). The link is the same the catalog builder's
@@ -667,6 +674,25 @@ async function handleGetCodData(base44, payload={}) {
     await Promise.all(dbCleanupPromises);
   }
 
+  // ── 5a) Purge DB records for confirmed-collected deliveries ─────────
+  // Owner directive (Sep 24 2026): once a COD is confirmed collected by a
+  // matching real Square transaction, remove its SquareTransaction AND
+  // SquareCatalogItems DB rows entirely. Devices mirror these stores into
+  // IndexedDB with replace-semantics saves, so purged rows disappear from
+  // every device on the next sync — keeping device storage lean. The Finance
+  // Audit ledger (SquareLedgerEntry) and Square's own order history retain the
+  // permanent record. OPEN-order (still-ringing) matches keep their tx row.
+  let purgedTxRows = 0, purgedCatalogRows = 0;
+  if (confirmedCollectedDeliveryIds.size > 0) {
+    await Promise.all(Array.from(confirmedCollectedDeliveryIds).map(async (did) => {
+      const txs = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: did }).catch(() => []);
+      for (const t of (txs || [])) { await base44.asServiceRole.entities.SquareTransaction.delete(t.id).catch(() => null); purgedTxRows++; }
+      const cats = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: did }).catch(() => []);
+      for (const c of (cats || [])) { await base44.asServiceRole.entities.SquareCatalogItems.delete(c.id).catch(() => null); purgedCatalogRows++; }
+    }));
+    console.log('[squareGetCodData2] Purged collected-delivery DB records:', { deliveries: confirmedCollectedDeliveryIds.size, transactions: purgedTxRows, catalogRows: purgedCatalogRows });
+  }
+
   // ── CRITICAL: strip deleted items out of catalogRecords ──────────────
   // catalogRecords was built in step 4 from the PRE-deletion liveCatalogItems
   // snapshot, so without this filter, every item we just deleted from Square
@@ -723,6 +749,7 @@ async function handleGetCodData(base44, payload={}) {
     if (!deliveryNeedsCatalogItem(d)) continue;
     if (existingTxDeliveryIds.has(d.id)) continue;
     if (liveCatalogDeliveryIds.has(d.id)) continue;
+    if (collectedDeliveryIds.has(d.id)) continue; // collected this run (real order/card)
     try {
       const store = (safeStores || []).find((s) => s?.id === d?.store_id);
       const cfg = activeConfigById.get(store?.square_location_config_id);
@@ -755,13 +782,17 @@ async function handleGetCodData(base44, payload={}) {
   // is secondary, used for cross-device visibility and admin queries.
   const dbWriteErrors = [];
   try {
-    if (txToCreate.length > 0) {
-      await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToCreate);
-      console.log('[squareGetCodData2] DB: created', txToCreate.length, 'transactions');
+    // Confirmed-collected deliveries: never (re)write their tx rows — they were
+    // purged in 5a and must stay purged.
+    const writableTxToCreate = txToCreate.filter((op) => !(op?.data?.delivery_id && confirmedCollectedDeliveryIds.has(op.data.delivery_id)));
+    const writableTxToUpdate = txToUpdate.filter((op) => !(op?.data?.delivery_id && confirmedCollectedDeliveryIds.has(op.data.delivery_id)));
+    if (writableTxToCreate.length > 0) {
+      await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, writableTxToCreate);
+      console.log('[squareGetCodData2] DB: created', writableTxToCreate.length, 'transactions');
     }
-    if (txToUpdate.length > 0) {
-      await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToUpdate);
-      console.log('[squareGetCodData2] DB: updated', txToUpdate.length, 'transactions');
+    if (writableTxToUpdate.length > 0) {
+      await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, writableTxToUpdate);
+      console.log('[squareGetCodData2] DB: updated', writableTxToUpdate.length, 'transactions');
     }
   } catch (e) { dbWriteErrors.push({type:'transactions', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB transaction write failed:', e?.message); }
 
@@ -807,9 +838,10 @@ async function handleGetCodData(base44, payload={}) {
     shouldRefreshDeliveries: refreshDeliveries,
     deliverySyncWindow: { startDate: formatLocalDate(new Date(Date.now() - daysBack * 86400000)), endDate: formatLocalDate(new Date()), daysBack, refreshedAt: refreshDeliveries ? new Date().toISOString() : null },
     catalogRecords: filteredCatalogRecords,
-    transactionRecords,
+    transactionRecords: transactionRecords.filter((t) => !(t?.delivery_id && confirmedCollectedDeliveryIds.has(t.delivery_id))),
     deletedCatalogIds,
     cleanupDbCount,
+    collectedPurge: { deliveries: confirmedCollectedDeliveryIds.size, transactions: purgedTxRows, catalogRows: purgedCatalogRows },
     locationConfigs: safeConfigs,
     locationIds,
     dbWriteErrors,
