@@ -345,9 +345,9 @@ function SegmentDialog({ record, onSave, onClose }) {
         </DialogHeader>
         <div className="space-y-3 py-2">
           {segments.map((seg, i) =>
-          <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800">
+          <div key={i} className="border border-surface rounded-lg p-3 space-y-2 bg-surface-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Segment {i + 1}</span>
+                <span className="text-xs font-semibold text-label">Segment {i + 1}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
