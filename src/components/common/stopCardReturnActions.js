@@ -88,6 +88,10 @@ export function useStopCardReturnActions({
       Promise.resolve().then(async () => {
         try {
           const backgroundTasks = [];
+          // Fresh GPS fix on return too (owner directive Sep 24 2026).
+          if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+            backgroundTasks.push(import('../utils/stopCompletionGpsFix').then(({ recordStopCompletionGpsFix }) => recordStopCompletionGpsFix({ currentUser, deliveryDate: _returnDeliveryDate || delivery.delivery_date })));
+          }
           if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(Promise.resolve(syncDeliverySquareCod(delivery.id, { status: 'returned' })));
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery: createdReturnDelivery || delivery, store, appUsers }));
           await Promise.allSettled(backgroundTasks);

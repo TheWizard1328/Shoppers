@@ -38,6 +38,7 @@ import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/tra
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
 import { isDriverWithinStoreRange } from './afterHoursProximityCheck';
+import { recordStopCompletionGpsFix } from '../utils/stopCompletionGpsFix';
 import { promptInterStoreDropoff } from './interStoreDropoffPrompt';
 import {
   queueConsolidateBreadcrumbs,
@@ -555,6 +556,14 @@ export function useStopCardCompletionActions({
         // Only the driver accepting their own stop toggles themselves (as before).
         ensureDriverOnline().catch(() => {});
 
+        // Fresh GPS fix + timestamp on every stop completion (owner directive
+        // Sep 24 2026): the PWA may not have had enough foreground time to
+        // re-acquire GPS after backgrounding — force a fix so AppUser location
+        // and breadcrumbs don't lag a stop behind. Fire-and-forget, ~8s max.
+        if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+          recordStopCompletionGpsFix({ currentUser, deliveryDate: delivery.delivery_date }).catch(() => {});
+        }
+
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
         if (autoCODPayment) setCodPayments(autoCODPayment);
@@ -864,6 +873,10 @@ export function useStopCardCompletionActions({
         setShowFailureReasonDialog(false);
         setPendingFailureStatus(null);
         setIsFailing(true);
+        // Fresh GPS fix on fail-with-reason too (same directive as completion).
+        if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+          recordStopCompletionGpsFix({ currentUser, deliveryDate: delivery.delivery_date }).catch(() => {});
+        }
         fabControlEvents.deactivateFAB();
         fabControlEvents.notifyPhaseTwoTempUnlock();
         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
