@@ -12,6 +12,7 @@
  *   - handleAcceptSingleStop: single-stop accept (lighter TR# recalc path)
  */
 import { useCallback } from "react";
+import { parseAnyTimestamp } from '../utils/albertaTime';
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from './pendingBreadcrumbsStubs';
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
@@ -732,7 +733,7 @@ export function useStopCardCompletionActions({
         const _driverAppUserForEOD = _routeIsFinished ? (appUsers || []).find((au) => au?.user_id === delivery.driver_id) : null;
         const _driverStatusForEOD = _driverAppUserForEOD?.driver_status ?? currentUser?.driver_status;
         if (_routeIsFinished && _driverStatusForEOD === 'on_duty') {
-          // CRITICAL: completionActualTime is a NAIVE local timestamp string
+          // CRITICAL: completionActualTime is a NAIVE Edmonton wall timestamp string (parsed via pure Alberta math, not device-local — machines with premature tz data would misanchor by 1hr). Legacy note:
           // (e.g. "2026-08-06T13:40:00", no timezone suffix) built from local
           // Date components on this device. The backend setDriverStatus function
           // runs on a UTC server — new Date() there treats a naive/no-offset
@@ -742,7 +743,7 @@ export function useStopCardCompletionActions({
           // date-time strings ARE correctly interpreted as this device's local
           // time) before sending — the backend then parses an unambiguous
           // 'Z'-suffixed ISO string.
-          const anchorTimeUTC = new Date(completionActualTime).toISOString();
+          const anchorTimeUTC = parseAnyTimestamp(completionActualTime).toISOString();
           setDriverStatus({
             newStatus: 'off_duty',
             selectedDate: delivery?.delivery_date,

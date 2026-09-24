@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { toEdmontonWall } from '../utils/albertaTime';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
@@ -1091,7 +1092,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 const localTimeString = generateCompletionTimestamp(targetDelivery, allDeliveries, FINISHED_STATUSES);
                 const completionUpdate = {
                   status: 'completed',
-                  actual_delivery_time: localTimeString || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                  actual_delivery_time: localTimeString || (() => { const w = toEdmontonWall(now); return `${String(w.h).padStart(2,'0')}:${String(w.mi).padStart(2,'0')}`; })(),
                   isNextDelivery: false,
                   PolylineUpdated: true,
                   finished_leg_transport_mode: currentDriverAppUser?.preferred_travel_mode || 'driving',
@@ -1136,7 +1137,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 const failUpdate = {
                   status: 'failed',
                   delivery_notes: updatedNotes,
-                  actual_delivery_time: localTimeString || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                  actual_delivery_time: localTimeString || (() => { const w = toEdmontonWall(now); return `${String(w.h).padStart(2,'0')}:${String(w.mi).padStart(2,'0')}`; })(),
                   isNextDelivery: false,
                   PolylineUpdated: true,
                   finished_leg_transport_mode: currentDriverAppUser?.preferred_travel_mode || 'driving',

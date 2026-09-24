@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RefreshCw, Plus, Edit, Trash2, Loader2, Clock, User, LayoutGrid, List, BarChart2, AlertCircle } from 'lucide-react';
-import { parseISO, differenceInMinutes } from 'date-fns';
+import { differenceInMinutes } from 'date-fns';
 
 const STATUS_COLORS = {
   on_duty: { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', label: 'On Duty' },
@@ -26,13 +26,10 @@ const formatDuration = (minutes) => {
 
 const formatTime = (isoStr) => {
   if (!isoStr) return '—';
-  try {
-    const d = parseISO(isoStr);
-    if (isNaN(d)) return isoStr;
-    const { h, m } = getEdmontonHM(d);
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-  } catch {return isoStr;}
+  const hm = parseTimelineHM(isoStr);
+  if (!hm) return isoStr;
+  const h12 = hm.h % 12 === 0 ? 12 : hm.h % 12;
+  return `${h12}:${String(hm.m).padStart(2, '0')} ${hm.h >= 12 ? 'PM' : 'AM'}`;
 };
 
 const calcSegmentMinutes = (seg) => {
@@ -107,20 +104,33 @@ const edmontonInputToIso = (inputVal) => {
   return new Date(Date.UTC(y, mo - 1, d, h, mi) - offsetHours * 3600000).toISOString();
 };
 
-// Parse any time string to Alberta-local minutes-since-midnight (see getEdmontonHM above)
-const localMinutes = (timeStr) => {
+// Device-independent {h, m} extraction for ANY stored time format:
+//   - naive "YYYY-MM-DDTHH:mm[:ss]" (actual_delivery_time convention): these ARE
+//     Edmonton wall-clock strings — read the components VERBATIM. Never
+//     Date-parse them: new Date(naive) applies the device's own timezone engine,
+//     which is broken/premature on some fleet machines (-1hr skew).
+//   - short "HH:mm": already wall-clock, verbatim.
+//   - real ISO with Z/offset: true instant -> Edmonton wall via pure UTC math.
+const parseTimelineHM = (timeStr) => {
   if (!timeStr) return null;
   try {
-    // Handle short "HH:mm" strings (no date) — already wall-clock, no conversion needed
-    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
-      const [h, m] = timeStr.split(':').map(Number);
-      return h * 60 + m;
+    const str = String(timeStr);
+    let m = /^(\d{1,2}):(\d{2})$/.exec(str);
+    if (m) return { h: Number(m[1]), m: Number(m[2]) };
+    m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(str);
+    if (m && !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str)) {
+      return { h: Number(m[4]), m: Number(m[5]) }; // naive Edmonton wall — verbatim
     }
-    const d = new Date(timeStr);
+    const d = new Date(str);
     if (isNaN(d)) return null;
-    const { h, m } = getEdmontonHM(d);
-    return h * 60 + m;
+    return getEdmontonHM(d);
   } catch {return null;}
+};
+
+// Parse any time string to Alberta-local minutes-since-midnight
+const localMinutes = (timeStr) => {
+  const hm = parseTimelineHM(timeStr);
+  return hm ? hm.h * 60 + hm.m : null;
 };
 
 const formatHourLabel = (totalMinutes) => {
