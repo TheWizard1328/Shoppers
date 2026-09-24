@@ -184,8 +184,15 @@ Deno.serve(async (req) => {
       const rows = page || [];
       for (const item of rows) {
         if (item?.square_catalog_object_id) {
+          // delivery_id is often null on catalog rows — recover it from the
+          // description ("COD for <patient> | Delivery <id>")
+          let deliveryId = item.delivery_id || null;
+          if (!deliveryId) {
+            const m = String(item.description || '').match(/Delivery\s+([A-Za-z0-9]{16,})/i);
+            if (m) deliveryId = m[1];
+          }
           catalogByObjectId.set(item.square_catalog_object_id, {
-            delivery_id: item.delivery_id || null,
+            delivery_id: deliveryId,
             patient_id: item.patient_id || null,
             item_name: item.item_name || null,
           });
