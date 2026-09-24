@@ -348,10 +348,22 @@ export async function applyBulkEditStops({
 
       const activeStatuses = new Set(['pending', 'in_transit', 'en_route']);
 
-      if (statusChanged || timeStartChanged || timeEndChanged) {
-        // Optimize all affected routes
+      if (statusChanged) {
+        // Status changes are structural — optimize all affected routes
         for (const route of affectedRoutes) {
           setOptimize(route.driver_id, route.delivery_date, true);
+        }
+      } else if (timeStartChanged || timeEndChanged) {
+        // Time-window changes only reoptimize routes where an edited NON-pending
+        // stop lives (owner rule, Sep 24 2026). Pending stops are not on the active
+        // route — editing their windows is a schedule note consumed later by
+        // Accept All / Assign All / the manual re-optimize FAB.
+        for (const edited of freshDeliveries) {
+          if (!allIdsToUpdate.includes(edited.id)) continue;
+          if (String(edited.status || '') === 'pending') continue;
+          if (edited.driver_id && edited.delivery_date) {
+            setOptimize(edited.driver_id, edited.delivery_date, true);
+          }
         }
       }
 

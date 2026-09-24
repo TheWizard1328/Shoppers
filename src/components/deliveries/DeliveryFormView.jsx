@@ -772,7 +772,11 @@ export default function DeliveryFormView({
           const _deliveryDate = formData?.delivery_date;
           const _previousDriverId = delivery?.driver_id;
           const _previousDeliveryDate = delivery?.delivery_date;
-          const _shouldOptimizeInBackground = (delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || '');
+          // Time-window edits on PENDING stops must NOT reoptimize the route (owner rule,
+          // Sep 24 2026): pending stops are not on the active route — their windows are
+          // consumed later by Accept All / Assign All / the manual re-optimize FAB.
+          const _pendingStaysPending = String(delivery?.status || '') === 'pending' && String(formData?.status || '') === 'pending';
+          const _shouldOptimizeInBackground = !_pendingStaysPending && ((delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || ''));
           const _travelModeOnly = !!delivery &&
           !_shouldOptimizeInBackground &&
           (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
@@ -2145,7 +2149,11 @@ export default function DeliveryFormView({
                   const _deliveryDate = formData?.delivery_date;
                   const _previousDriverId = delivery?.driver_id;
                   const _previousDeliveryDate = delivery?.delivery_date;
-                  const _shouldOptimizeInBackground = (delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || '');
+                  // Time-window edits on PENDING stops must NOT reoptimize the route (owner rule,
+                  // Sep 24 2026): pending stops are not on the active route — their windows are
+                  // consumed later by Accept All / Assign All / the manual re-optimize FAB.
+                  const _pendingStaysPending = String(delivery?.status || '') === 'pending' && String(formData?.status || '') === 'pending';
+                  const _shouldOptimizeInBackground = !_pendingStaysPending && ((delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || ''));
                   const _travelModeOnly = !!delivery &&
                   !_shouldOptimizeInBackground &&
                   (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
