@@ -67,6 +67,19 @@ const periodLabelOf = (key, granularity) => {
   return String(key).slice(5).replace("-", "/");
 };
 
+const RANGE_MONTHS_BY_VALUE = { today: 1, "1": 1, "3": 3, "6": 6, "12": 12, "24": 24 };
+
+const rangeSelectionToMonths = (val) => RANGE_MONTHS_BY_VALUE[val] || 3;
+
+const rangeSelectionToDates = (val) => {
+  const todayWall = edmontonWallString(new Date()).slice(0, 10);
+  if (val === "today") return { from: todayWall, to: todayWall };
+  const months = RANGE_MONTHS_BY_VALUE[val] || 3;
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, now.getUTCDate()));
+  return { from: edmontonWallString(start).slice(0, 10), to: todayWall };
+};
+
 const monthWindowUtc = (monthsAgo) => {
   const now = new Date();
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
@@ -136,7 +149,7 @@ export default function SquareSyncAudit() {
   const [syncProgress, setSyncProgress] = useState("");
   const [lastSyncResult, setLastSyncResult] = useState(null);
   const [lastLedgerSyncAt, setLastLedgerSyncAt] = useState(null);
-  const [backfillMonths, setBackfillMonths] = useState("24");
+  const [rangeSelection, setRangeSelection] = useState("24");
 
   // ledger filters
   const [kindFilter, setKindFilter] = useState("all");
@@ -412,6 +425,13 @@ export default function SquareSyncAudit() {
     }
   }, [activeTab, redFlags, isAdmin, loadRedFlags]);
 
+  // Range-selection dropdown drives the displayed date window for Ledger + Summaries
+  useEffect(() => {
+    const { from, to } = rangeSelectionToDates(rangeSelection);
+    setFromDate(from);
+    setToDate(to);
+  }, [rangeSelection]);
+
   // ---------- sync actions ----------
 
   const runMonthlyBackfill = useCallback(async (months) => {
@@ -527,7 +547,7 @@ export default function SquareSyncAudit() {
   ];
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -538,9 +558,11 @@ export default function SquareSyncAudit() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={backfillMonths} onValueChange={setBackfillMonths}>
+          <Select value={rangeSelection} onValueChange={setRangeSelection}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="1">1 mo</SelectItem>
               <SelectItem value="3">3 mo</SelectItem>
               <SelectItem value="6">6 mo</SelectItem>
               <SelectItem value="12">1 yr</SelectItem>
@@ -550,7 +572,7 @@ export default function SquareSyncAudit() {
           <Button variant="outline" size="sm" disabled={isSyncing || isLoading} onClick={runRecentSync}>
             <RefreshCw className={`h-4 w-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} /> Refresh Recent
           </Button>
-          <Button size="sm" disabled={isSyncing || isLoading} onClick={() => runMonthlyBackfill(Number(backfillMonths))}>
+          <Button size="sm" disabled={isSyncing || isLoading} onClick={() => runMonthlyBackfill(rangeSelectionToMonths(rangeSelection))}>
             <Wallet className="h-4 w-4 mr-1" /> {isSyncing ? "Syncing…" : "Full Backfill"}
           </Button>
         </div>
@@ -576,7 +598,7 @@ export default function SquareSyncAudit() {
           <button
             key={t.id}
             onClick={() => { setActiveTab(t.id); if (t.id === "health") loadSyncHealth(); }}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${activeTab === t.id ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${activeTab === t.id ? "border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500 dark:text-white" : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
           >
             <t.icon className="h-4 w-4" /> {t.label}
           </button>
