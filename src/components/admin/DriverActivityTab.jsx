@@ -135,7 +135,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
             <div className="flex items-center gap-2 mb-0.5 sm:hidden">
               <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{name}</span>
               <span className="text-[10px] text-slate-400 dark:text-slate-400">{formatDuration(totalMin)}</span>
-              <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="ml-auto flex gap-1">
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
               </div>
@@ -196,7 +196,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                 })}
               </div>
               {/* Desktop: edit/delete buttons on right */}
-              <div className="hidden sm:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <div className="hidden sm:flex gap-1 flex-shrink-0">
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
               </div>
