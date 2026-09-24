@@ -50,22 +50,19 @@ const totalOnDutyMinutes = (record) => {
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 
 // Alberta (America/Edmonton) wall-clock math — 100% pure UTC arithmetic, NO Intl
-// and NO system-local Date getters involved anywhere. One PC in the fleet has a broken
-// browser timezone engine (Intl.DateTimeFormat().resolvedOptions().timeZone returns
-// undefined, and even explicit-timeZone Intl lookups return DST-ignorant results), which
-// silently skewed every system-tz rendering path by -1hr on that machine only. These
-// helpers compute the Alberta offset directly from the UTC instant + the legislated DST
-// rule (2nd Sunday of March 2:00 local -> 1st Sunday of November 2:00 local), so they
-// produce identical results on every device regardless of browser/OS tz health.
+// and NO system-local Date getters involved anywhere, so a device's own timezone
+// database health can never skew the rendering. Alberta no longer observes daylight
+// saving time (owner-confirmed Sep 2026): it is permanently Mountain Standard Time,
+// UTC-7 year-round. Phone/tablet tz databases already reflect this; one PC's stale
+// Windows tz database still applied the old DST rule (rendering Sep as UTC-6 MDT),
+// which produced the machine-specific -1hr skew. A single constant offset means every
+// device computes identical, correct Alberta wall-clock times.
 
-// UTC instant -> Alberta offset (-6 MDT / -7 MST) for that instant
-const edmontonOffsetHoursAt = (utcMs) => {
-  const y = new Date(utcMs).getUTCFullYear();
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);  // 2nd Sun Mar 2:00 MST = 09:00 UTC
-  const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);       // 1st Sun Nov 2:00 MDT = 08:00 UTC
-  return utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
-};
+// Alberta is fixed UTC-7 (MST) year-round — no DST
+const EDMONTON_UTC_OFFSET_HOURS = -7;
+
+// UTC instant -> Alberta offset (constant MST, no DST)
+const edmontonOffsetHoursAt = () => EDMONTON_UTC_OFFSET_HOURS;
 
 // UTC instant -> {h, m} Alberta wall-clock
 const getEdmontonHM = (date) => {
@@ -88,12 +85,7 @@ const edmontonInputToIso = (inputVal) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(inputVal || '');
   if (!m) return null;
   const [, y, mo, d, h, mi] = m.map(Number);
-  // DST rule judged on the wall-clock date (2nd Sun Mar .. 1st Sun Nov, day granularity)
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const afterMar = mo - 1 > 2 || (mo - 1 === 2 && d >= firstSundayDate(2) + 7);
-  const beforeNov = mo - 1 < 10 || (mo - 1 === 10 && d < firstSundayDate(10));
-  const offsetHours = afterMar && beforeNov ? -6 : -7;
-  return new Date(Date.UTC(y, mo - 1, d, h, mi) - offsetHours * 3600000).toISOString();
+  return new Date(Date.UTC(y, mo - 1, d, h, mi) - EDMONTON_UTC_OFFSET_HOURS * 3600000).toISOString();
 };
 
 // Parse any time string to Alberta-local minutes-since-midnight (see getEdmontonHM above)
