@@ -605,7 +605,17 @@ async function handleGetCodData(base44, payload={}) {
   // items whose catalog_object_id was recreated since the original payment.
   const txCatalogObjectIds = new Set();
   const txSignatureSet = new Set();
-  for (const t of (existingTransactions || [])) {
+  // REAL-order filter: a transaction only counts as "used in Square POS" when it
+  // carries a square_transaction_id (matched from an actual Square order).
+  // PENDING records WITHOUT one are our own bookkeeping from catalog item
+  // creation (handleCreateCodItem writes them with the live item's exact id,
+  // name and amount) — treating those as collected deleted every still-active
+  // catalog item on each Sync, including cash-collected CODs that must stay in
+  // the catalog until the store rings them through the register.
+  const realPosTransactions = (existingTransactions || []).filter(
+    (t) => normalizeText(t?.square_transaction_id) !== ''
+  );
+  for (const t of realPosTransactions) {
     const cid = normalizeText(t?.square_catalog_object_id);
     if (cid && cid !== '') txCatalogObjectIds.add(cid);
     const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
@@ -701,9 +711,11 @@ async function handleGetCodData(base44, payload={}) {
       .map((t) => normalizeText(t?.delivery_id))
       .filter(Boolean)
   );
+  // Post-deletion state: liveCatalogItems is the PRE-deletion snapshot — items
+  // deleted earlier in this run must NOT block their own recreation here.
   const liveCatalogDeliveryIds = new Set();
-  for (const item of (liveCatalogItems || [])) {
-    const did = extractDeliveryIdFromCatalog(item);
+  for (const record of (filteredCatalogRecords || [])) {
+    const did = normalizeText(record?.delivery_id);
     if (did) liveCatalogDeliveryIds.add(did);
   }
   const createdCatalogRecords = [];
