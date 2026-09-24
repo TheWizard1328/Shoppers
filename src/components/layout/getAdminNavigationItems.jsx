@@ -77,7 +77,7 @@ export default function getAdminNavigationItems({
         icon: CreditCard
       },
       {
-        title: 'Square COD Audit',
+        title: 'Square Finance Audit',
         pageName: 'SquareSyncAudit',
         url: createPageUrl('SquareSyncAudit'),
         icon: FileText

@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 20; // v20: Added driver_daily_activity store
+const DB_VERSION = 21; // v21: Added square_ledger store (Square finance audit)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -34,7 +34,8 @@ const STORES = {
   TILE_COVERAGE: 'tile_coverage',         // collective driver tile discovery — mirrors TileCoverage Base44 entity
   RX_TEMP_LOGS: 'rx_temp_logs',           // cooler temperature logs per driver/date
   STAT_HOLIDAYS: 'stat_holidays',         // statutory holidays for date lookups
-  DRIVER_DAILY_ACTIVITY: 'driver_daily_activity' // v20: driver on-duty activity segments
+  DRIVER_DAILY_ACTIVITY: 'driver_daily_activity', // v20: driver on-duty activity segments
+  SQUARE_LEDGER: 'square_ledger' // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
 };
 
 // PHI-bearing stores — these get encrypted at rest via AES-GCM
@@ -397,6 +398,18 @@ const openDatabase = async () => {
         driverActivityStore.createIndex('activity_date', 'activity_date', { unique: false });
         driverActivityStore.createIndex('date_driver', ['activity_date', 'driver_id'], { unique: false });
         driverActivityStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      // v21: square_ledger — Square finance audit entries (payments, cash tenders, refunds, declines, payouts)
+      if (!db.objectStoreNames.contains(STORES.SQUARE_LEDGER)) {
+        const squareLedgerStore = db.createObjectStore(STORES.SQUARE_LEDGER, { keyPath: 'id' });
+        squareLedgerStore.createIndex('square_id', 'square_id', { unique: false });
+        squareLedgerStore.createIndex('entry_kind', 'entry_kind', { unique: false });
+        squareLedgerStore.createIndex('location_id', 'location_id', { unique: false });
+        squareLedgerStore.createIndex('occurred_at', 'occurred_at', { unique: false });
+        squareLedgerStore.createIndex('delivery_id', 'delivery_id', { unique: false });
+        squareLedgerStore.createIndex('card_fingerprint', 'card_fingerprint', { unique: false });
+        squareLedgerStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       // v19: stat_holidays — statutory holidays for offline date lookups

@@ -1,0 +1,114 @@
+{
+  "name": "SquareLedgerEntry",
+  "type": "object",
+  "properties": {
+    "square_id": {
+      "type": "string",
+      "description": "Unique dedupe key: Square payment ID, tender ID, refund ID or payout ID"
+    },
+    "entry_kind": {
+      "type": "string",
+      "enum": [
+        "sale",
+        "refund",
+        "decline",
+        "payout"
+      ],
+      "description": "Kind of ledger entry"
+    },
+    "tender_type": {
+      "type": "string",
+      "description": "Tender used for sales: CARD, CASH, SQUARE_ACCOUNT, OTHER (null for non-sales)"
+    },
+    "sale_class": {
+      "type": "string",
+      "enum": [
+        "cod_collection",
+        "card_spend",
+        "other_sale"
+      ],
+      "description": "cod_collection is set at sync time (delivery link). card_spend/other_sale are derived at render time from card labels; stored value may be null"
+    },
+    "amount_cents": {
+      "type": "number",
+      "description": "Absolute amount in cents (sign is derived from classification at render time)"
+    },
+    "fee_cents": {
+      "type": "number",
+      "description": "Processing fee in cents",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "description": "Raw Square status: COMPLETED, FAILED, PENDING, CANCELED, REJECTED, SENT etc."
+    },
+    "occurred_at": {
+      "type": "string",
+      "description": "True UTC ISO timestamp of the event from Square"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Square location ID"
+    },
+    "location_name": {
+      "type": "string",
+      "description": "Resolved friendly name from SquareLocationConfig at sync time"
+    },
+    "order_id": {
+      "type": "string",
+      "description": "Square order ID (nullable)"
+    },
+    "delivery_id": {
+      "type": "string",
+      "description": "Linked RxDeliver delivery ID when the sale/refund belongs to a COD item (nullable)"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Patient ID from the linked COD catalog item (nullable)"
+    },
+    "cod_item_name": {
+      "type": "string",
+      "description": "COD catalog item name when linked (nullable)"
+    },
+    "refund_of_payment_id": {
+      "type": "string",
+      "description": "For refunds: the payment ID that was refunded (nullable)"
+    },
+    "refund_of_square_id": {
+      "type": "string",
+      "description": "For refunds: ledger square_id of the refunded entry, when known (nullable)"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Refund reason / decline details / payout type (nullable)"
+    },
+    "card_fingerprint": {
+      "type": "string",
+      "description": "Card fingerprint for card payments (nullable)"
+    },
+    "card_last4": {
+      "type": "string",
+      "description": "Last 4 digits of the card (nullable)"
+    },
+    "card_brand": {
+      "type": "string",
+      "description": "Card brand, e.g. VISA, MASTERCARD (nullable)"
+    },
+    "entry_method": {
+      "type": "string",
+      "description": "Card entry method: SWIPED, CHIP, CONTACTLESS, KEYED (nullable)"
+    },
+    "synced_at": {
+      "type": "string",
+      "description": "ISO timestamp when this record was last synced from Square"
+    }
+  },
+  "required": [
+    "square_id",
+    "entry_kind",
+    "amount_cents",
+    "occurred_at",
+    "location_id"
+  ],
+  "rls": {}
+}
