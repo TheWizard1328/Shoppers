@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarRange, CreditCard, Download, Flag, RefreshCw, Search, Table2, Wallet } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { invokeWithLongTimeout } from "@/components/utils/squareLongTimeout";
 import { useUser } from "@/components/utils/UserContext";
 import { edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 import {
@@ -215,7 +216,7 @@ export default function SquareSyncAudit() {
 
   const loadSyncHealth = useCallback(async () => {
     try {
-      const res = await base44.functions.invoke("squareSyncHealth", {});
+      const res = await invokeWithLongTimeout("squareSyncHealth", {});
       setSyncHealth(res?.data || res || { runs: [], logs: [] });
     } catch {
       setSyncHealth({ runs: [], logs: [] });
@@ -443,7 +444,7 @@ export default function SquareSyncAudit() {
         if (syncAbortRef.current) break;
         const win = monthWindowUtc(i);
         setSyncProgress(`Backfilling ${win.label} (${months - i} of ${months})…`);
-        const res = await base44.functions.invoke("squareLedgerSync", { startDate: win.start, endDate: win.end });
+        const res = await invokeWithLongTimeout("squareLedgerSync", { startDate: win.start, endDate: win.end });
         const data = res?.data || res || {};
         if (data?.success === false) throw new Error(data?.error || "Sync failed");
         totalUpserted += Number(data?.entriesUpserted || 0);
@@ -464,7 +465,7 @@ export default function SquareSyncAudit() {
     setIsSyncing(true);
     try {
       setSyncProgress("Syncing recent Square activity (last 3 days)…");
-      const res = await base44.functions.invoke("squareLedgerSync", { startDate: new Date(Date.now() - 3 * 86400000).toISOString() });
+      const res = await invokeWithLongTimeout("squareLedgerSync", { startDate: new Date(Date.now() - 3 * 86400000).toISOString() });
       const data = res?.data || res || {};
       if (data?.success === false) throw new Error(data?.error || "Sync failed");
       setLastSyncResult(data);

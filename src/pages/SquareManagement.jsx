@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { invokeWithLongTimeout } from "@/components/utils/squareLongTimeout";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -269,7 +270,7 @@ export default function SquareManagement() {
       if (itemsToAdd.length > 0) {
         // Wait for the batch to fully complete — syncSquareCods creates the items
         // in Square AND persists SquareCatalogItems + SquareTransaction records.
-        const res = await base44.functions.invoke('syncSquareCods', {
+        const res = await invokeWithLongTimeout('syncSquareCods', {
           items: itemsToAdd,
           deletions: [],
         });
@@ -354,7 +355,7 @@ export default function SquareManagement() {
       let syncError = null;
       let codData = null;
       try {
-        const codResponse = await base44.functions.invoke('squareGetCodData2', {
+        const codResponse = await invokeWithLongTimeout('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: 90,
         });
@@ -446,7 +447,7 @@ export default function SquareManagement() {
         let autoFailedCount = 0;
         if (itemsToCreate.length > 0) {
           try {
-            const createRes = await base44.functions.invoke('syncSquareCods', {
+            const createRes = await invokeWithLongTimeout('syncSquareCods', {
               items: itemsToCreate,
               deletions: [],
             });
@@ -460,7 +461,7 @@ export default function SquareManagement() {
 
             // Re-fetch catalog from Square to pick up the newly created items
             if (autoAddedCount > 0) {
-              const refreshRes = await base44.functions.invoke('squareGetCodData2', {
+              const refreshRes = await invokeWithLongTimeout('squareGetCodData2', {
                 forceDeliveryRefresh: false,
                 daysBack: 90,
               });
