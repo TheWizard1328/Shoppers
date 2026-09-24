@@ -21,7 +21,7 @@ const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
 const isRetryableSquareStatus = (s: number) => [408, 409, 429, 500, 502, 503, 504].includes(Number(s));
 
-const UPSERT_CHUNK = 100;
+const UPSERT_CHUNK = 50;
 const DEFAULT_MONTHS_BACK = 24;
 const MAX_MONTHS_BACK = 60;
 const MAX_PAGES_PER_ENDPOINT = 100; // 500 records/page -> hard cap 50k per location
@@ -382,28 +382,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Persist — upsert keyed on square_id, chunked
+    // Persist — keyed on square_id: create new records, update existing ones.
+    // (The functions runtime SDK has no .upsert(); use the proven list+create/update pattern.)
     const allEntries = Array.from(entries.values());
+    const existingIdBySquareId = new Map<string, string>();
+    try {
+      let skip = 0;
+      for (let page = 0; page < 50; page++) {
+        const rows = await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip).catch(() => []);
+        const list = rows || [];
+        for (const r of list) if (r?.square_id) existingIdBySquareId.set(r.square_id, r.id);
+        if (list.length < 2000) break;
+        skip += 2000;
+      }
+    } catch (e: any) {
+      syncErrors.push(`existingScan: ${e?.message || e}`);
+    }
+
     let upserted = 0;
     let failedUpserts = 0;
     for (let i = 0; i < allEntries.length; i += UPSERT_CHUNK) {
       const chunk = allEntries.slice(i, i + UPSERT_CHUNK);
-      try {
-        await base44.asServiceRole.entities.SquareLedgerEntry.upsert(chunk, { key: 'square_id' });
-        upserted += chunk.length;
-      } catch (e: any) {
-        // Fall back to per-record upsert so one bad record can't drop a whole chunk
-        for (const record of chunk) {
-          try {
-            await base44.asServiceRole.entities.SquareLedgerEntry.upsert([record], { key: 'square_id' });
-            upserted++;
-          } catch (e2: any) {
-            failedUpserts++;
-            if (syncErrors.length < 10) syncErrors.push(`upsert(${record.square_id}): ${e2?.message || e2}`);
-          }
-        }
-      }
-      if (i % (UPSERT_CHUNK * 10) === 0) await sleep(100);
+      const results = await Promise.all(chunk.map((record: any) => {
+        const existingId = existingIdBySquareId.get(record.square_id);
+        if (existingId) return base44.asServiceRole.entities.SquareLedgerEntry.update(existingId, record).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`update(${record.square_id}): ${e?.message || e}`); return false; });
+        return base44.asServiceRole.entities.SquareLedgerEntry.create(record).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`create(${record.square_id}): ${e?.message || e}`); return false; });
+      }));
+      upserted += results.filter(Boolean).length;
+      failedUpserts += results.filter((r: any) => !r).length;
+      await sleep(100);
     }
 
     const result = {
