@@ -2,6 +2,7 @@ import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
 import { toEdmontonWall } from '../utils/albertaTime';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
+import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import useStopCardActions from "./useStopCardActions";
@@ -128,6 +129,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const liveDriverLocationRef = useRef(null);
   const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "No driver notes");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Owner spec (Sep 24 2026): PAUSE the deferred 5s window-edit reoptimization
+  // countdown while this stop's delete confirmation is open (the delete itself
+  // runs its own optimization). The countdown restarts from the full 5s when
+  // the confirmation closes.
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    const token = pauseDeferredReoptimization('stop_delete_confirm');
+    return () => resumeDeferredReoptimization(token);
+  }, [showDeleteConfirm]);
   const [codPayments, setCodPayments] = useState(delivery?.cod_payments || []);
   const [showCODCollection, setShowCODCollection] = useState(false);
   const [showReturnConfirm, setShowReturnConfirm] = useState(false);

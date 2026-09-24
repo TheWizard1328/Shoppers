@@ -8,6 +8,7 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { isInterStoreDelivery, resolveInterStoreFromName } from '../utils/interStoreDisplayName';
 import useSloppyTouchSensor from './useSloppyTouchSensor';
+import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 
 // Portal element mounted once at body level to avoid remounting during drag
 let portalEl = null;
@@ -28,6 +29,13 @@ export default function QuickRouteAdjustments({
   onCancel
 }) {
   const [isOptimizing, setIsOptimizing] = useState(false);
+
+  // Owner spec (Sep 24 2026): PAUSE the deferred 5s window-edit reoptimization
+  // countdown while this panel is open; restart the full 5s when it closes.
+  useEffect(() => {
+    const token = pauseDeferredReoptimization('quick_route_adjustments');
+    return () => resumeDeferredReoptimization(token);
+  }, []);
 
   // CRITICAL: Pause background sync while panel is open
   useEffect(() => {

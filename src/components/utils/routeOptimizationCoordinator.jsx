@@ -21,6 +21,7 @@ import { getOrFetchPolylineConfig } from '@/components/utils/polylineKeyStore';
 import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
 import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateTrackingNumbersLocal';
 import { getAllLocations, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
+import { cancelDeferredReoptimization } from '@/components/utils/deferredRouteReoptimization';
 
 /**
  * Core route optimization engine (client-side).
@@ -587,6 +588,14 @@ export async function performRouteOptimization(params) {
     result = await _performRouteOptimizationInner(params);
   } catch (e) {
     result = { success: false, error: e?.message || String(e) };
+  }
+  // Owner spec (Sep 24 2026): a fresher optimization just ran for this route —
+  // absorb any pending deferred window-edit reoptimization that was scheduled
+  // BEFORE this run started (its fire would just redo this work and burn a
+  // HERE call). Entries scheduled DURING this run keep their own countdown.
+  // The deferred fire itself (source 'post_delivery_sync') is excluded.
+  if (result?.success && params?.driverId && params?.deliveryDate && params?.source !== 'post_delivery_sync') {
+    cancelDeferredReoptimization(`${params.driverId}:${params.deliveryDate}`, _t0);
   }
   if (typeof window !== 'undefined' && window.__optimizationAuditDisabled !== true) {
     _writeOptimizationAuditLog({ params, result, durationMs: Date.now() - _t0 }).catch(() => {});

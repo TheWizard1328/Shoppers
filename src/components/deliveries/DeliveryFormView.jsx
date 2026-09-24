@@ -30,6 +30,7 @@ import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
 import { runPostDeliveryUpdateSync, closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
+import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { handleBatchSaveDelivery } from '@/components/dashboard/handleBatchSaveDelivery.jsx';
 import { toast } from 'sonner';
@@ -153,6 +154,15 @@ export default function DeliveryFormView({
   autoCommitProgress = 1
 }) {
   const activeFieldScrollFrameRef = useRef(null);
+
+  // Owner spec (Sep 24 2026): PAUSE the deferred 5s window-edit reoptimization
+  // countdown while this form is open (Delivery Edit / Add To Route / InterStore
+  // all render through this view). When the form closes, the countdown restarts
+  // from the full 5 seconds — back-to-back edits batch into ONE optimization.
+  useEffect(() => {
+    const token = pauseDeferredReoptimization('delivery_form');
+    return () => resumeDeferredReoptimization(token);
+  }, []);
 
   // Broadcast delivery-form open/close so the global Guide Assistant FAB can
   // relocate into this header (mobile only) while the form is visible.
