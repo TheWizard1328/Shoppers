@@ -26,7 +26,13 @@ const formatDuration = (minutes) => {
 
 const formatTime = (isoStr) => {
   if (!isoStr) return '—';
-  try {return format(parseISO(isoStr), 'h:mm a');} catch {return isoStr;}
+  try {
+    const d = parseISO(isoStr);
+    if (isNaN(d)) return isoStr;
+    const { h, m } = getEdmontonHM(d);
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+  } catch {return isoStr;}
 };
 
 const calcSegmentMinutes = (seg) => {
@@ -43,18 +49,54 @@ const totalOnDutyMinutes = (record) => {
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 
-// Parse any time string to local minutes-since-midnight
+// Extract {h, m} for a Date in Alberta local time (America/Edmonton), independent of
+// the browser/OS's own detected timezone. Some browsers/environments misreport or
+// fail to auto-detect the system zone (seen as Intl.DateTimeFormat().resolvedOptions()
+// .timeZone returning undefined on one PC, which throws off plain d.getHours()), so we
+// pin explicitly to America/Edmonton here rather than trusting the runtime's local zone.
+// Falls back to a manual DST calculation (2nd Sun Mar - 1st Sun Nov, matching Alberta's
+// MDT/MST rule) if Intl.DateTimeFormat itself is unavailable or throws.
+const getEdmontonHM = (date) => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Edmonton',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+    const h = Number(parts.find((p) => p.type === 'hour')?.value);
+    const m = Number(parts.find((p) => p.type === 'minute')?.value);
+    if (!isNaN(h) && !isNaN(m)) return { h: h === 24 ? 0 : h, m };
+  } catch {/* fall through to manual DST calc below */}
+
+  const utcMs = date.getTime();
+  const year = date.getUTCFullYear();
+  const nthSundayUtc = (y, monthIdx, n) => {
+    const first = new Date(Date.UTC(y, monthIdx, 1, 9, 0, 0)); // ~2am local = ~9am UTC
+    const firstSundayDate = 1 + ((7 - first.getUTCDay()) % 7);
+    return new Date(Date.UTC(y, monthIdx, firstSundayDate + (n - 1) * 7, 9, 0, 0));
+  };
+  const dstStart = nthSundayUtc(year, 2, 2); // 2nd Sunday of March
+  const dstEnd = nthSundayUtc(year, 10, 1); // 1st Sunday of November
+  const isDST = utcMs >= dstStart.getTime() && utcMs < dstEnd.getTime();
+  const offsetHours = isDST ? -6 : -7; // MDT vs MST
+  const local = new Date(utcMs + offsetHours * 3600000);
+  return { h: local.getUTCHours(), m: local.getUTCMinutes() };
+};
+
+// Parse any time string to Alberta-local minutes-since-midnight (see getEdmontonHM above)
 const localMinutes = (timeStr) => {
   if (!timeStr) return null;
   try {
-    // Handle short "HH:mm" strings (no date)
+    // Handle short "HH:mm" strings (no date) — already wall-clock, no conversion needed
     if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
       const [h, m] = timeStr.split(':').map(Number);
       return h * 60 + m;
     }
     const d = new Date(timeStr);
     if (isNaN(d)) return null;
-    return d.getHours() * 60 + d.getMinutes();
+    const { h, m } = getEdmontonHM(d);
+    return h * 60 + m;
   } catch {return null;}
 };
 
