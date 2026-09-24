@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RefreshCw, Plus, Edit, Trash2, Loader2, Clock, User, LayoutGrid, List, BarChart2, AlertCircle } from 'lucide-react';
-import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { parseISO, differenceInMinutes } from 'date-fns';
 
 const STATUS_COLORS = {
   on_duty: { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', label: 'On Duty' },
@@ -49,39 +49,51 @@ const totalOnDutyMinutes = (record) => {
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 
-// Extract {h, m} for a Date in Alberta local time (America/Edmonton), independent of
-// the browser/OS's own detected timezone. Some browsers/environments misreport or
-// fail to auto-detect the system zone (seen as Intl.DateTimeFormat().resolvedOptions()
-// .timeZone returning undefined on one PC, which throws off plain d.getHours()), so we
-// pin explicitly to America/Edmonton here rather than trusting the runtime's local zone.
-// Falls back to a manual DST calculation (2nd Sun Mar - 1st Sun Nov, matching Alberta's
-// MDT/MST rule) if Intl.DateTimeFormat itself is unavailable or throws.
-const getEdmontonHM = (date) => {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Edmonton',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).formatToParts(date);
-    const h = Number(parts.find((p) => p.type === 'hour')?.value);
-    const m = Number(parts.find((p) => p.type === 'minute')?.value);
-    if (!isNaN(h) && !isNaN(m)) return { h: h === 24 ? 0 : h, m };
-  } catch {/* fall through to manual DST calc below */}
+// Alberta (America/Edmonton) wall-clock math — 100% pure UTC arithmetic, NO Intl
+// and NO system-local Date getters involved anywhere. One PC in the fleet has a broken
+// browser timezone engine (Intl.DateTimeFormat().resolvedOptions().timeZone returns
+// undefined, and even explicit-timeZone Intl lookups return DST-ignorant results), which
+// silently skewed every system-tz rendering path by -1hr on that machine only. These
+// helpers compute the Alberta offset directly from the UTC instant + the legislated DST
+// rule (2nd Sunday of March 2:00 local -> 1st Sunday of November 2:00 local), so they
+// produce identical results on every device regardless of browser/OS tz health.
 
-  const utcMs = date.getTime();
-  const year = date.getUTCFullYear();
-  const nthSundayUtc = (y, monthIdx, n) => {
-    const first = new Date(Date.UTC(y, monthIdx, 1, 9, 0, 0)); // ~2am local = ~9am UTC
-    const firstSundayDate = 1 + ((7 - first.getUTCDay()) % 7);
-    return new Date(Date.UTC(y, monthIdx, firstSundayDate + (n - 1) * 7, 9, 0, 0));
-  };
-  const dstStart = nthSundayUtc(year, 2, 2); // 2nd Sunday of March
-  const dstEnd = nthSundayUtc(year, 10, 1); // 1st Sunday of November
-  const isDST = utcMs >= dstStart.getTime() && utcMs < dstEnd.getTime();
-  const offsetHours = isDST ? -6 : -7; // MDT vs MST
-  const local = new Date(utcMs + offsetHours * 3600000);
+// UTC instant -> Alberta offset (-6 MDT / -7 MST) for that instant
+const edmontonOffsetHoursAt = (utcMs) => {
+  const y = new Date(utcMs).getUTCFullYear();
+  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
+  const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);  // 2nd Sun Mar 2:00 MST = 09:00 UTC
+  const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);       // 1st Sun Nov 2:00 MDT = 08:00 UTC
+  return utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
+};
+
+// UTC instant -> {h, m} Alberta wall-clock
+const getEdmontonHM = (date) => {
+  const local = new Date(date.getTime() + edmontonOffsetHoursAt(date.getTime()) * 3600000);
   return { h: local.getUTCHours(), m: local.getUTCMinutes() };
+};
+
+// UTC ISO string -> Edmonton datetime-local input value "YYYY-MM-DDTHH:mm"
+const isoToEdmontonInput = (isoStr) => {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d)) return '';
+  const local = new Date(d.getTime() + edmontonOffsetHoursAt(d.getTime()) * 3600000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
+};
+
+// Edmonton datetime-local input value "YYYY-MM-DDTHH:mm" -> UTC ISO string
+const edmontonInputToIso = (inputVal) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(inputVal || '');
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m.map(Number);
+  // DST rule judged on the wall-clock date (2nd Sun Mar .. 1st Sun Nov, day granularity)
+  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
+  const afterMar = mo - 1 > 2 || (mo - 1 === 2 && d >= firstSundayDate(2) + 7);
+  const beforeNov = mo - 1 < 10 || (mo - 1 === 10 && d < firstSundayDate(10));
+  const offsetHours = afterMar && beforeNov ? -6 : -7;
+  return new Date(Date.UTC(y, mo - 1, d, h, mi) - offsetHours * 3600000).toISOString();
 };
 
 // Parse any time string to Alberta-local minutes-since-midnight (see getEdmontonHM above)
@@ -348,8 +360,8 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
 function SegmentDialog({ record, onSave, onClose }) {
   const [segments, setSegments] = useState(
     (record?.activity_segments || []).map((s) => ({
-      start_time: s.start_time ? format(parseISO(s.start_time), "yyyy-MM-dd'T'HH:mm") : '',
-      end_time: s.end_time ? format(parseISO(s.end_time), "yyyy-MM-dd'T'HH:mm") : '',
+      start_time: s.start_time ? isoToEdmontonInput(s.start_time) : '',
+      end_time: s.end_time ? isoToEdmontonInput(s.end_time) : '',
       tot: s.tot ?? ''
     }))
   );
@@ -365,8 +377,8 @@ function SegmentDialog({ record, onSave, onClose }) {
       const built = segments.
       filter((s) => s.start_time).
       map((s) => {
-        const start = new Date(s.start_time).toISOString();
-        const end = s.end_time ? new Date(s.end_time).toISOString() : null;
+        const start = edmontonInputToIso(s.start_time);
+        const end = s.end_time ? edmontonInputToIso(s.end_time) : null;
         const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
         return { start_time: start, end_time: end, tot };
       });
@@ -422,7 +434,7 @@ function SegmentDialog({ record, onSave, onClose }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DriverActivityTab({ appUsers = [], cities = [], stores = [] }) {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = isoToEdmontonInput(new Date().toISOString()).slice(0, 10);
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedCityId, setSelectedCityId] = useState('all');
@@ -556,8 +568,8 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
       const built = newSegments.
       filter((s) => s.start_time).
       map((s) => {
-        const start = new Date(s.start_time).toISOString();
-        const end = s.end_time ? new Date(s.end_time).toISOString() : null;
+        const start = edmontonInputToIso(s.start_time);
+        const end = s.end_time ? edmontonInputToIso(s.end_time) : null;
         const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
         return { start_time: start, end_time: end, tot };
       });
