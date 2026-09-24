@@ -57,36 +57,36 @@ Deno.serve(async (req) => {
       if (name) liveSigs.add(sig(name, cents));
     }
 
-    // 2) All pending transactions without a real square_transaction_id
-    const stale = []; let examined = 0; let keptLive = 0; let keptReal = 0;
-    let all = [];
-    let pageSkip = 0;
-    while (true) {
-      const page = await b44.asServiceRole.entities.SquareTransaction.filter({ status: 'pending' }, '-created_date', 500, pageSkip).catch(() => []);
-      if (!page?.length) break;
-      all = all.concat(page);
-      if (page.length < 500) break;
-      pageSkip += 500;
-      if (pageSkip > 5000) break;
-    }
-    for (const t of all) {
-      examined++;
-      const realTxId = nt(t?.square_transaction_id);
-      const objId = nt(t?.square_catalog_object_id);
-      const txSig = sig(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
-      if (realTxId) { keptReal++; continue; }
-      if ((objId && liveIds.has(objId)) || (t?.item_name && liveSigs.has(txSig))) { keptLive++; continue; }
-      stale.push(t.id);
-    }
-
-    // 3) Delete stale in batches of 10 (rate-friendly)
-    let deleted = 0; let failed = 0;
-    for (let i = 0; i < stale.length; i += 10) {
-      const chunk = stale.slice(i, i + 10);
-      const results = await Promise.all(chunk.map((id) => b44.asServiceRole.entities.SquareTransaction.delete(id).then(() => true).catch(() => false)));
-      deleted += results.filter(Boolean).length;
-      failed += results.filter((x) => !x).length;
-      if (i + 10 < stale.length) await sleep(50);
+    // 2) Pending transactions — paged by repeated "newest first" fetches.
+    // (The SDK filter() has no skip/offset param — the first version passed a
+    // 4th arg, threw, and the .catch silently produced examinedPending: 0.)
+    const stale = []; let examined = 0; let keptLive = 0; let keptReal = 0; let deletedCount = 0;
+    for (let round = 0; round < 12; round++) {
+      const page = await b44.asServiceRole.entities.SquareTransaction.filter({ status: 'pending' }, '-created_date', 500).catch((e) => { console.warn('[squarePurgeBookkeepingTxs] tx filter failed:', e?.message || String(e)); return null; });
+      if (!Array.isArray(page)) throw new HE(500, 'SquareTransaction filter failed');
+      if (page.length === 0) break;
+      let roundStale = 0;
+      for (const t of page) {
+        examined++;
+        const realTxId = nt(t?.square_transaction_id);
+        const objId = nt(t?.square_catalog_object_id);
+        const txSig = sig(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
+        if (realTxId) { keptReal++; continue; }
+        if ((objId && liveIds.has(objId)) || (t?.item_name && liveSigs.has(txSig))) { keptLive++; continue; }
+        stale.push(t.id); roundStale++;
+      }
+      // Nothing stale in the newest 500 → nothing stale deeper either
+      // (deeper rows are older bookkeeping with the same liveness rules).
+      if (roundStale === 0) break;
+      // Delete this round's stale rows immediately so the next fetch
+      // surfaces the next 500 (already-deleted rows won't reappear).
+      for (let i = 0; i < stale.length; i += 10) {
+        const chunk = stale.slice(i, i + 10);
+        const results = await Promise.all(chunk.map((id) => b44.asServiceRole.entities.SquareTransaction.delete(id).then(() => true).catch(() => false)));
+        deletedCount += results.filter(Boolean).length;
+      }
+      stale.length = 0;
+      await sleep(150);
     }
 
     return Response.json({
@@ -95,8 +95,7 @@ Deno.serve(async (req) => {
       examinedPending: examined,
       keptRealPosTxs: keptReal,
       keptLiveItemBookkeeping: keptLive,
-      staleDeleted: deleted,
-      failedDeletes: failed,
+      staleDeleted: deletedCount,
     });
   } catch (error) {
     return Response.json({ error: error?.message || 'Error' }, { status: error?.status || 500 });
