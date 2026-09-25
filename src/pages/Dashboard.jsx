@@ -377,7 +377,12 @@ function Dashboard() {
   // Sort-key fingerprint cache — only re-sort when sort-relevant fields change.
   const _dwsoSortKeyRef   = useRef('');
   const _dwsoCachedResult = useRef([]);
-
+  // Bumped when a routeDisplayOrderLock releases (routeOptimizationComplete or
+  // 95s TTL) — forces the memo below to recompute. Without it the last render
+  // that ran INSIDE the lock window caches the frozen card order, and because
+  // the sort fingerprint is unchanged after release, the memo early-returns
+  // and the clicking device keeps showing the pre-action order forever.
+  const [_orderLockVersion, setOrderLockVersion] = useState(0);
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || filteredDeliveries.length === 0) {
       _dwsoSortKeyRef.current = '';
@@ -488,7 +493,7 @@ function Dashboard() {
 
     _dwsoCachedResult.current = result;
     return result;
-  }, [filteredDeliveries]);
+  }, [filteredDeliveries, _orderLockVersion]);
 
   useEffect(() => {
     deliveriesWithStopOrderRef.current = deliveriesWithStopOrder;
@@ -512,12 +517,26 @@ function Dashboard() {
       const idx = new Map();
       ids.forEach((id, i) => idx.set(id, i));
       _routeOrderLockRef.current = { driverId, deliveryDate, idx, until: Date.now() + 95000 };
+      // TTL guard: if routeOptimizationComplete never fires (optimizer crash),
+      // release the lock when it expires and force a fresh re-sort.
+      setTimeout(() => {
+        if (_routeOrderLockRef.current && _routeOrderLockRef.current.driverId === driverId && _routeOrderLockRef.current.deliveryDate === deliveryDate) {
+          _routeOrderLockRef.current = null;
+          setOrderLockVersion((v) => v + 1);
+        }
+      }, 96000);
     };
     const completeHandler = (e) => {
       const lock = _routeOrderLockRef.current;
       if (!lock) return;
       const { driverId } = e?.detail || {};
-      if (!driverId || driverId === lock.driverId) _routeOrderLockRef.current = null;
+      if (!driverId || driverId === lock.driverId) {
+        _routeOrderLockRef.current = null;
+        // Force the sort memo to recompute now that the lock is gone — the
+        // fingerprint cache may otherwise keep the frozen order on screen.
+        _dwsoSortKeyRef.current = '';
+        setOrderLockVersion((v) => v + 1);
+      }
     };
     window.addEventListener('routeDisplayOrderLock', lockHandler);
     window.addEventListener('routeOptimizationComplete', completeHandler);

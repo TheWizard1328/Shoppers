@@ -603,6 +603,8 @@ export function useStopCardStartActions({
 
         if (_isNaturalNextStart) {
           console.log('[Start fast path] natural next stop — skipping HERE/Google optimization');
+          // TEMPORARY DIAGNOSTIC — "clicking device not updating after Start".
+          try { toast.info('[Start debug] fast-path (natural next)', { duration: 15000 }); } catch {}
           window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           Promise.resolve().then(async () => {
             try {
@@ -707,6 +709,11 @@ export function useStopCardStartActions({
             const refreshedList = coordResult?.freshDeliveries || null;
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
+            // TEMPORARY DIAGNOSTIC — "clicking device not updating after Start".
+            // REMOVE once the root cause is confirmed fixed.
+            try {
+              toast.info(`[Start debug] opt=${coordResult?.success === false ? 'FAILED' : 'ok'} skipped=${coordResult?.skipped || 'no'} fresh=${Array.isArray(refreshedList) ? refreshedList.length : 0} poly=${_refreshPolyCount}`, { duration: 20000 });
+            } catch { /* toast not mounted */ }
             // Diagnostic: log stop_order before and after optimization
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               const _before = _startFullDeliveries.filter(d => d?.status !== 'completed' && d?.status !== 'failed' && d?.status !== 'cancelled').sort((a, b) => (Number(a?.stop_order) || 999) - (Number(b?.stop_order) || 999)).map(d => `${d?.stop_order || '?'}:${d?.patient_id ? 'del' : 'pup'}`);
