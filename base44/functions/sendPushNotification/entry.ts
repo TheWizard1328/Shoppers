@@ -150,7 +150,12 @@ Deno.serve(async (req) => {
     console.log('[sendPush] Web Push subscriptions:', subscriptions?.filter(s => !s.endpoint?.startsWith('fcm://')).length || 0);
     if (!subscriptions || subscriptions.length === 0) return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
 
-    const notifData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
+    // STALE-PUSH GATE: every push carries its send time. The web push-sw.js drops
+    // notifications older than 10 minutes — when an offline device (laptop) comes
+    // back online, FCM delivers the whole queued backlog at once; other devices
+    // already showed/cleared those, so the device must not re-flood. The default
+    // tag also makes same-age pushes collapse to the newest one on screen.
+    const notifData = { title, body, url: url || '/', tag: tag || 'rxdeliver', timestamp: Date.now(), requireInteraction: !!requireInteraction };
     if (actions) notifData.actions = actions;
     if (data) notifData.data = data;
 
@@ -217,6 +222,7 @@ Deno.serve(async (req) => {
             Object.entries({
               url: url || '/',
               ...(data || {}),
+              timestamp: String(Date.now()),
               ...(isInteractive ? { title, body, actions: JSON.stringify(actions), __interactive: 'true' } : {}),
             }).map(([k, v]) => [k, String(v)])
           );
@@ -234,7 +240,7 @@ Deno.serve(async (req) => {
               // intent action name, not a URL. Capacitor's tap handler reads
               // the URL from notification.data.url instead.
               notification: {
-                tag: tag || undefined,
+                tag: tag || 'rxdeliver',
                 channel_id: 'default',
                 icon: 'ic_stat_notify',
                 color: '#22c55e',
