@@ -282,7 +282,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         armedRef.current = false;
         setArmed(false);
-        showChip('error', 'Mic blocked', 'Allow microphone access for Hey Doc.', 'Microphone access is blocked. Allow the microphone to use Hey Doc.');
+        showChip('error', 'Microphone blocked', 'Tap the lock/info icon next to the address bar, open Permissions, and set Microphone to Allow. Then tap the mic again.', 'The microphone is blocked. Open browser permissions, allow the microphone, then tap the mic again.');
       } else if (err === 'no-speech' || err === 'network' || err === 'aborted') {
         // handled by onend restart
       } else {
@@ -306,16 +306,50 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     stopRecognition();
   }, [stopRecognition]);
 
-  const toggle = useCallback(() => {
+  // Explicit mic-permission request baked into the toggle tap.
+  // getUserMedia from a user gesture triggers the real permission
+  // dialog (Chrome/Android PWA + APK WebView). We release the stream
+  // immediately — only the grant matters.
+  const ensureMicPermission = useCallback(async () => {
+    try {
+      if (navigator.permissions?.query) {
+        try {
+          const status = await navigator.permissions.query({ name: 'microphone' });
+          if (status.state === 'granted') return true;
+        } catch {}
+      }
+    } catch {}
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) return true; // older engine — let SpeechRecognition prompt itself
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      return true;
+    } catch (err) {
+      console.warn('[HeyDoc] mic permission denied:', err?.name, err?.message);
+      return false;
+    }
+  }, []);
+
+  const toggle = useCallback(async () => {
     try { window.speechSynthesis?.cancel?.(); } catch {}
     if (armedRef.current) {
       disarm();
       showChip('off', 'Hey Doc off', 'Voice commands disabled.', 'Hey Doc is off.');
-    } else {
-      arm();
-      showChip('on', 'Hey Doc on', 'Say "Hey Doc", then your command.', "Hey Doc is listening. Say Hey Doc, then your command.");
+      return;
     }
-  }, [arm, disarm, showChip]);
+    const granted = await ensureMicPermission();
+    if (!granted) {
+      showChip(
+        'error',
+        'Microphone blocked',
+        'Tap the lock/info icon next to the address bar, open Permissions, and set Microphone to Allow. Then tap the mic again.',
+        'The microphone is blocked. Open browser permissions, allow the microphone, then tap the mic again.'
+      );
+      return;
+    }
+    arm();
+    showChip('on', 'Hey Doc on', 'Say "Hey Doc", then your command.', "Hey Doc is listening. Say Hey Doc, then your command.");
+  }, [arm, disarm, showChip, ensureMicPermission]);
 
   // Restore persisted armed state — deferred until first user gesture
   // (mic permission/autoplay rules on iOS/Chrome).
