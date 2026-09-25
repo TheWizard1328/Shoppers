@@ -24,6 +24,7 @@ const STORE_WORDS = /^(store|pharmacy|shop|pickup|pickup store|drug store|drugst
  * @returns {{type:'none'}} nothing usable in the transcript
  * @returns {{type:'info', field:'name'|'address'|'phone'|'notes'|'all'}} stop info query
  * @returns {{type:'help'}} list available commands
+ * @returns {{type:'optimize_route'}} run the silent route re-optimization
  * @returns {{type:'call_store'}} call the current delivery's pickup store
  * @returns {{type:'call_name', name:string}} call a person/store by name
  * @returns {{type:'unknown'}} speech captured but no command recognized
@@ -40,6 +41,14 @@ export const parseHeyDocCommand = (rawText) => {
   // Checked first: these phrases must never bleed into info/call matching.
   if (/\bhelp\b|\bwhat can (i|you) (say|do)\b|\bwhat commands?\b|\bcommands? (are )?available\b|\bwhat are my options\b|\blist (the )?commands\b/.test(text)) {
     return { type: 'help', text: rawText };
+  }
+
+  // ── Route optimization intent ───────────────────────
+  // "optimize my route", "re-optimize", "replan the route", "recalculate my
+  // route", "reorder my stops" — all map to the same silent re-route pass the
+  // dashboard's FAB uses (source: silent_reoptimize via triggerReoptimizeRoute).
+  if (/\b(?:re-?)?optimi[sz]e\b|\breplan\b|\brecalculat(?:e|ing)\b|\bre-?order\b.*\b(?:stops?|route)\b/.test(text)) {
+    return { type: 'optimize_route', text: rawText };
   }
 
   // ── Call intents ──────────────────────────────────────────────

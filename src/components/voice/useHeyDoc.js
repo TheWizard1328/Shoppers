@@ -161,9 +161,46 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         'Notes — delivery notes',
         'Call the store — dials the pickup store',
         'Call [name] — dials a person or store',
+        'Optimize my route — best stop order',
       ].join('\n');
       showChip('info', 'Available commands', body,
-        'You can ask for the name, address, phone number, or notes of your current stop. Say call the store to dial the pickup store, or call, then a name, to dial anyone.');
+        'You can ask for the name, address, phone number, or notes of your current stop. Say call the store, or call, then a name, to dial anyone. Say optimize my route to re-order your stops for the shortest drive.');
+      return;
+    }
+
+    if (command.type === 'optimize_route') {
+      const active = (filteredDeliveries || []).filter(
+        (d) => d && (d.status === 'in_transit' || d.status === 'en_route')
+      );
+      if (active.length === 0) {
+        showChip('error', 'No active route', 'No in-transit stops to optimize. Accept your stops first.',
+          'You have no active route to optimize. Accept your stops first.');
+        return;
+      }
+      const driverId = active[0].driver_id || currentUser?.id;
+      const deliveryDate = active[0].delivery_date;
+      showChip('info', 'Optimizing', 'Working on the best stop order…', 'Optimizing your route. One moment.');
+      let done = false;
+      const cleanup = () => {
+        window.removeEventListener('triggerReoptimizeRouteDone', onDone);
+        clearTimeout(failTimer);
+      };
+      const onDone = (e) => {
+        if (done) return;
+        done = true;
+        cleanup();
+        const ok = e?.detail?.success !== false;
+        if (ok) {
+          showChip('info', 'Route optimized', 'Your stops are now in the best order.',
+            'Route optimized. Your stops are now in the best order.');
+        } else {
+          showChip('error', 'Optimization failed', e?.detail?.error || 'Something went wrong. Try again in a moment.',
+            'Sorry, the optimization failed. Try again in a moment.');
+        }
+      };
+      const failTimer = setTimeout(() => onDone({ detail: { success: false, error: 'Timed out' } }), 120000);
+      window.addEventListener('triggerReoptimizeRouteDone', onDone);
+      window.dispatchEvent(new CustomEvent('triggerReoptimizeRoute', { detail: { driverId, deliveryDate } }));
       return;
     }
 
