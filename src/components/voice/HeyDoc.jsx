@@ -1,20 +1,28 @@
 /**
- * Hey Doc — driver voice assistant, Phase 1 (stop info + calls).
+ * Hey Doc — driver voice assistant with OK-Google-style wake word.
  *
- * A floating mic FAB on the driver dashboard. Tap, ask a question:
- *   - "What's the name / address / phone / notes?" (current stop)
- *   - "Call the store" (current stop's pickup store)
- *   - "Call <any store, driver or admin name>"
+ * Tap the mic once to arm hands-free listening. While armed, the mic
+ * listens continuously for "Hey Doc" (plus common mishearings: dock,
+ * dog, doctor, talk). On wake it chimes, then the driver's next phrase
+ * is the command:
+ *   - "what's the name / address / phone / notes?" (current stop)
+ *   - "call the store" (current stop's pickup store)
+ *   - "call <any store, driver or admin name>"
  * Answers are spoken back (speechSynthesis) and shown as text.
  *
- * Uses the browser's built-in SpeechRecognition (Chrome/Safari PWAs).
- * The Android APK WebView needs a native mic layer — a later phase.
+ * Behavior notes:
+ *   - Continuous recognition sessions auto-restart (Android Chrome
+ *     ends sessions every few seconds) while armed and the app is
+ *     visible; suspended when backgrounded, resumed on focus.
+ *   - Armed state persists per driver (localStorage).
+ *   - Uses browser SpeechRecognition (PWA). The Android APK WebView
+ *     needs a native mic layer — a later phase.
  *
- * Phase 2: "optimize my route". Phase 3: wake word + confirm-gated
+ * Phase 2: "optimize my route". Phase 3: confirm-gated
  * complete/fail/return actions.
  */
 import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
-import { Mic, MicOff, Phone, Info, X } from 'lucide-react';
+import { Mic, MicOff, Phone, Info, Volume2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { parseHeyDocCommand, resolveCallTarget } from './heyDocParser';
 
@@ -24,6 +32,23 @@ const getSpeechRecognition = () =>
 const digitsOnly = (v) => String(v || '').replace(/\D/g, '');
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+
+const WAKE_PATTERNS = [
+  /\b(?:hey|hay|okay|ok)\s+(?:doc|dock|dog|doctor|dot|talk)\b/,
+  /\ba\s+(?:doc|dock|dog)\b/,
+];
+
+const WAKE_SPLIT = /\b(?:hey|hay|okay|ok)?\s*(?:doc|dock|dog|doctor|dot|talk)\b/;
+
+const findWake = (normText) => {
+  for (const re of WAKE_PATTERNS) {
+    const m = normText.match(re);
+    if (m) return m;
+  }
+  return null;
+};
+
+const armedStorageKey = (userId) => `heydoc_armed_${userId || 'default'}`;
 
 const speak = (text) => {
   try {
@@ -38,10 +63,25 @@ const speak = (text) => {
   }
 };
 
-/**
- * The driver's current stop: isNextDelivery first, else the lowest
- * stop_order among non-terminal en_route/in_transit stops.
- */
+// Short confirmation beep (Web Audio — quick feedback the wake word
+// was heard, without our own TTS being captured back as a command).
+let audioCtx = null;
+const chime = () => {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.15, audioCtx.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.3);
+  } catch {}
+};
+
 const findCurrentStop = (deliveries) => {
   const active = (deliveries || []).filter(
     (d) => !TERMINAL_STATUSES.includes(d?.status) && !['pending', 'staged'].includes(d?.status)
@@ -54,8 +94,6 @@ const findCurrentStop = (deliveries) => {
     null
   );
 };
-
-const FIELD_LABELS = { name: 'Name', address: 'Address', phone: 'Phone', notes: 'Notes' };
 
 function HeyDoc({
   currentUser,
@@ -71,14 +109,21 @@ function HeyDoc({
   stopCardsBaseHeight,
   fabPosition = 'absolute',
 }) {
-  const [isListening, setIsListening] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [awaitingCommand, setAwaitingCommand] = useState(false);
   const [chip, setChip] = useState(null); // { icon, title, body }
   const recognitionRef = useRef(null);
+  const armedRef = useRef(false);
+  const awaitingRef = useRef(false);
+  const wakeHeardRef = useRef(false);
+  const restartTimerRef = useRef(null);
+  const awaitTimeoutRef = useRef(null);
   const chipTimerRef = useRef(null);
 
   const SR = getSpeechRecognition();
   const enabled = !!(SR && isDriver && isMobile && currentUser);
 
+  // ── Chip helpers ────────────────────────────────────────────
   const showChip = useCallback((icon, title, body, speakText) => {
     if (chipTimerRef.current) clearTimeout(chipTimerRef.current);
     setChip({ icon, title, body });
@@ -86,27 +131,46 @@ function HeyDoc({
     chipTimerRef.current = setTimeout(() => setChip(null), 12000);
   }, []);
 
-  useEffect(() => () => {
-    if (chipTimerRef.current) clearTimeout(chipTimerRef.current);
-    try { recognitionRef.current?.abort?.(); } catch {}
-    try { window.speechSynthesis?.cancel?.(); } catch {}
+  const clearTimers = () => {
+    if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
+    if (awaitTimeoutRef.current) { clearTimeout(awaitTimeoutRef.current); awaitTimeoutRef.current = null; }
+  };
+
+  const setAwaiting = useCallback((value) => {
+    awaitingRef.current = value;
+    setAwaitingCommand(value);
+    if (awaitTimeoutRef.current) { clearTimeout(awaitTimeoutRef.current); awaitTimeoutRef.current = null; }
+    if (value) {
+      awaitTimeoutRef.current = setTimeout(() => {
+        awaitingRef.current = false;
+        setAwaitingCommand(false);
+      }, 10000);
+    }
   }, []);
 
-  const dial = useCallback((phone, who) => {
-    const num = digitsOnly(phone);
-    if (!num) {
-      showChip('error', 'No phone number', `No phone on file for ${who}`, `There's no phone number on file for ${who}.`);
-      return;
-    }
-    showChip('call', 'Calling', `${who}: ${phone}`, `Calling ${who}.`);
-    window.location.href = `tel:${num}`;
-  }, [showChip]);
+  const stopRecognition = useCallback(() => {
+    clearTimers();
+    try { recognitionRef.current?.abort?.(); } catch {}
+    recognitionRef.current = null;
+    wakeHeardRef.current = false;
+    awaitingRef.current = false;
+    setAwaitingCommand(false);
+  }, []);
 
   const handleCommand = useCallback((rawText) => {
     const command = parseHeyDocCommand(rawText);
     const stop = findCurrentStop(filteredDeliveries);
 
-    // ── Calls ─────────────────────────────────────────────────
+    const dial = (phone, who) => {
+      const num = digitsOnly(phone);
+      if (!num) {
+        showChip('error', 'No phone number', `No phone on file for ${who}`, `There's no phone number on file for ${who}.`);
+        return;
+      }
+      showChip('call', 'Calling', `${who}: ${phone}`, `Calling ${who}.`);
+      window.location.href = `tel:${num}`;
+    };
+
     if (command.type === 'call_store') {
       const store = (stores || []).find((s) => s?.id === stop?.store_id);
       if (!store) {
@@ -137,7 +201,6 @@ function HeyDoc({
       return;
     }
 
-    // ── Stop info ─────────────────────────────────────────────
     if (command.type === 'info') {
       if (!stop) {
         showChip('error', 'No current stop', 'You have no active stop right now.', 'You have no active stop right now.');
@@ -151,10 +214,7 @@ function HeyDoc({
       const phone = isPickup ? store?.phone : (patient?.phone || patient?.phone_secondary);
       const notes = stop.delivery_notes;
 
-      const fields = command.field === 'all'
-        ? ['name', 'address', 'phone']
-        : [command.field];
-
+      const fields = command.field === 'all' ? ['name', 'address', 'phone'] : [command.field];
       const parts = [];
       for (const f of fields) {
         if (f === 'name') parts.push(`Name: ${stopName}`);
@@ -162,7 +222,7 @@ function HeyDoc({
         else if (f === 'phone') parts.push(`Phone: ${phone || 'no phone on file'}`);
         else if (f === 'notes') parts.push(notes ? `Notes: ${notes}` : 'No notes on this stop');
       }
-      if (command.field === 'all') parts.push(notes ? `Notes: ${notes}` : '');
+      if (command.field === 'all' && notes) parts.push(`Notes: ${notes}`);
 
       const body = parts.filter(Boolean).join('\n');
       showChip('info', `Current stop — ${stopName}`, body, body);
@@ -180,79 +240,203 @@ function HeyDoc({
       `"${rawText}" — try "what's the address" or "call the store".`,
       "Sorry, I didn't understand that. You can ask for the name, address, phone or notes, or say call."
     );
-  }, [filteredDeliveries, patients, stores, appUsers, currentUser, dial, showChip]);
+  }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip]);
 
-  const startListening = useCallback(() => {
-    if (isListening) {
-      try { recognitionRef.current?.stop?.(); } catch {}
-      return;
-    }
-    try { window.speechSynthesis?.cancel?.(); } catch {}
+  // ── Continuous wake-word listening loop ─────────────────────
+  const startWakeSession = useCallback(() => {
+    if (!armedRef.current || recognitionRef.current) return;
+    let sessionFinal = '';
 
     const recognition = new SR();
     recognition.lang = 'en-CA';
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
 
-    let finalText = '';
     recognition.onresult = (event) => {
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
-        if (result.isFinal) finalText += result[0].transcript;
-        else interim += result[0].transcript;
+        if (result.isFinal) sessionFinal += ` ${result[0].transcript}`;
+        else interim += ` ${result[0].transcript}`;
       }
-      if (interim) setChip((c) => ({ icon: 'listening', title: 'Listening…', body: interim }));
+
+      const norm = (s) => ` ${String(s).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
+      const finalNorm = norm(sessionFinal);
+      const interimNorm = norm(interim);
+
+      if (awaitingRef.current) {
+        // Driver already said "Hey Doc" — this utterance is the command
+        if (sessionFinal.trim()) {
+          setAwaiting(false);
+          handleCommand(sessionFinal.trim());
+          sessionFinal = '';
+        } else if (interimNorm.trim()) {
+          setChip({ icon: 'listening', title: 'Listening…', body: interim.trim() });
+        }
+        return;
+      }
+
+      // Wake-word scanning
+      const wakeInFinal = findWake(finalNorm);
+      const wakeInInterim = findWake(interimNorm);
+      if (wakeInFinal) {
+        const after = finalNorm.slice(finalNorm.lastIndexOf(wakeInFinal[0]) + wakeInFinal[0].length).trim();
+        const before = finalNorm.slice(0, finalNorm.indexOf(wakeInFinal[0]));
+        if (before.split(' ').filter(Boolean).length > 6) {
+          // Wake phrase heard mid-sentence — likely conversation, ignore
+          sessionFinal = '';
+          return;
+        }
+        chime();
+        if (after.length > 1) {
+          handleCommand(after);
+          sessionFinal = '';
+        } else {
+          setAwaiting(true);
+          setChip({ icon: 'listening', title: 'Yes?', body: 'Listening for your command…' });
+        }
+        return;
+      }
+      if (wakeInInterim && !wakeHeardRef.current) {
+        wakeHeardRef.current = true; // chime early, avoid double-fire when final arrives
+        chime();
+      }
     };
+
     recognition.onend = () => {
-      setIsListening(false);
+      // Sessions end often (silence, engine limits) — restart while armed
       recognitionRef.current = null;
-      if (finalText.trim()) {
-        handleCommand(finalText.trim());
-      } else if (!chip) {
-        setChip(null);
+      if (armedRef.current && document.visibilityState === 'visible') {
+        restartTimerRef.current = setTimeout(() => {
+          if (armedRef.current && document.visibilityState === 'visible') startWakeSession();
+        }, 300);
       }
     };
+
     recognition.onerror = (event) => {
-      setIsListening(false);
-      recognitionRef.current = null;
       const err = event?.error;
-      if (err === 'no-speech') showChip('error', 'Nothing heard', 'No speech detected — tap and try again.', "I didn't hear anything. Tap the mic and try again.");
-      else if (err === 'not-allowed' || err === 'service-not-allowed') showChip('error', 'Mic blocked', 'Allow microphone access for voice commands.', 'Microphone access is blocked. Allow the microphone to use voice commands.');
-      else if (err !== 'aborted') console.warn('[HeyDoc] recognition error:', err);
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        armedRef.current = false;
+        setArmed(false);
+        showChip('error', 'Mic blocked', 'Allow microphone access for Hey Doc.', 'Microphone access is blocked. Allow the microphone to use Hey Doc.');
+      } else if (err === 'no-speech' || err === 'network' || err === 'aborted') {
+        // handled by onend restart
+      } else {
+        console.warn('[HeyDoc] recognition error:', err);
+      }
     };
 
     recognitionRef.current = recognition;
-    finalText = '';
-    setIsListening(true);
-    setChip({ icon: 'listening', title: 'Listening…', body: 'Ask about the stop or say call…' });
-    recognition.start();
-  }, [SR, isListening, handleCommand, showChip, chip]);
+    try { recognition.start(); } catch {}
+  }, [SR, handleCommand, setAwaiting, showChip]);
+
+  const arm = useCallback(() => {
+    armedRef.current = true;
+    setArmed(true);
+    startWakeSession();
+  }, [startWakeSession]);
+
+  const disarm = useCallback(() => {
+    armedRef.current = false;
+    setArmed(false);
+    stopRecognition();
+  }, [stopRecognition]);
+
+  const toggle = useCallback(() => {
+    try { window.speechSynthesis?.cancel?.(); } catch {}
+    if (armedRef.current) {
+      disarm();
+      showChip('off', 'Hey Doc off', 'Voice commands disabled.', 'Hey Doc is off.');
+    } else {
+      arm();
+      showChip('on', 'Hey Doc on', 'Say "Hey Doc", then your command.', "Hey Doc is listening. Say Hey Doc, then your command.");
+    }
+  }, [arm, disarm, showChip]);
+
+  // Restore persisted armed state (requires a user gesture first on
+  // many platforms, so we only restore the toggle visually and arm
+  // on the next tap if permission was never granted... simpler: if
+  // the key is set, arm immediately — permission persists per
+  // origin once granted).
+  useEffect(() => {
+    if (!enabled) return;
+    let stored = null;
+    try { stored = localStorage.getItem(armedStorageKey(currentUser?.id)); } catch {}
+    if (stored === 'true') {
+      // Defer until first user interaction to satisfy autoplay/mic
+      // gesture rules on iOS/Chrome
+      const onFirstGesture = () => {
+        window.removeEventListener('touchend', onFirstGesture);
+        window.removeEventListener('click', onFirstGesture);
+        if (!armedRef.current && localStorage.getItem(armedStorageKey(currentUser?.id)) === 'true') {
+          arm();
+        }
+      };
+      window.addEventListener('touchend', onFirstGesture, { once: false });
+      window.addEventListener('click', onFirstGesture, { once: false });
+      return () => {
+        window.removeEventListener('touchend', onFirstGesture);
+        window.removeEventListener('click', onFirstGesture);
+      };
+    }
+  }, [enabled, currentUser?.id, arm]);
+
+  // Persist armed state
+  useEffect(() => {
+    if (!enabled) return;
+    try { localStorage.setItem(armedStorageKey(currentUser?.id), armed ? 'true' : 'false'); } catch {}
+  }, [armed, enabled, currentUser?.id]);
+
+  // Suspend when backgrounded, resume when visible (Android suspends
+  // the mic anyway — mirrors the GPS tracker pattern)
+  useEffect(() => {
+    if (!enabled) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        try { recognitionRef.current?.abort?.(); } catch {}
+      } else if (armedRef.current && !recognitionRef.current) {
+        restartTimerRef.current = setTimeout(() => { if (armedRef.current) startWakeSession(); }, 400);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [enabled, startWakeSession]);
+
+  // Cleanup on unmount
+  useEffect(() => () => {
+    armedRef.current = false;
+    stopRecognition();
+    if (chipTimerRef.current) clearTimeout(chipTimerRef.current);
+    try { window.speechSynthesis?.cancel?.(); } catch {}
+  }, [stopRecognition]);
 
   if (!enabled) return null;
   if (immersiveHidden || hideForExpandedCard) return null;
 
-  const bottomPixels = (filteredDeliveries?.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10;
+  // Positioned one row ABOVE the bulk-select checkbox / API counter
+  // row (that row sits at stopCardsBaseHeight + 10, left side)
+  const bottomPixels = (filteredDeliveries?.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10 + 48;
 
   const chipIcon = chip?.icon === 'call' ? <Phone className="w-4 h-4" />
     : chip?.icon === 'info' ? <Info className="w-4 h-4" />
     : chip?.icon === 'listening' ? <Mic className="w-4 h-4 animate-pulse" />
-    : chip?.icon === 'error' ? <MicOff className="w-4 h-4" />
+    : chip?.icon === 'on' ? <Volume2 className="w-4 h-4" />
+    : chip?.icon === 'off' || chip?.icon === 'error' ? <MicOff className="w-4 h-4" />
     : null;
 
   return (
     <>
-      {/* Response / transcript chip */}
+      {/* Response / status chip */}
       <AnimatePresence>
-        {chip && !isListening && (
+        {chip && !awaitingCommand && (
           <motion.div
             key="heydoc-chip"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             className="fixed left-4 right-4 z-[10090] mx-auto max-w-sm rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-800/95"
-            style={{ bottom: `${bottomPixels + 64}px`, pointerEvents: 'auto' }}
+            style={{ bottom: `${bottomPixels + 52}px`, pointerEvents: 'auto' }}
           >
             <div className="flex items-start gap-2">
               <div className="mt-0.5 shrink-0 text-slate-600 dark:text-slate-300">{chipIcon}</div>
@@ -273,22 +457,22 @@ function HeyDoc({
         )}
       </AnimatePresence>
 
-      {/* Listening banner */}
+      {/* Awaiting command banner */}
       <AnimatePresence>
-        {isListening && (
+        {awaitingCommand && (
           <motion.div
-            key="heydoc-listening"
+            key="heydoc-awaiting"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             className="fixed left-4 right-4 z-[10090] mx-auto max-w-sm rounded-xl border border-red-300 bg-red-50/95 p-3 shadow-xl backdrop-blur dark:border-red-700 dark:bg-red-950/90"
-            style={{ bottom: `${bottomPixels + 64}px`, pointerEvents: 'auto' }}
+            style={{ bottom: `${bottomPixels + 52}px`, pointerEvents: 'auto' }}
           >
             <div className="flex items-start gap-2">
               <div className="mt-0.5 shrink-0 animate-pulse text-red-600 dark:text-red-400"><Mic className="w-4 h-4" /></div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Listening…</p>
-                <p className="whitespace-pre-line text-sm text-red-900 dark:text-red-100">{chip?.body || 'Ask about the stop or say call…'}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Yes? — listening…</p>
+                <p className="whitespace-pre-line text-sm text-red-900 dark:text-red-100">{chip?.body || 'Say your command…'}</p>
               </div>
             </div>
           </motion.div>
@@ -306,17 +490,17 @@ function HeyDoc({
       >
         <button
           type="button"
-          onClick={startListening}
-          title="Hey Doc — voice assistant"
+          onClick={toggle}
+          title={armed ? 'Hey Doc is listening — tap to turn off' : 'Hey Doc — tap to start hands-free listening'}
           aria-label="Hey Doc voice assistant"
           className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-md transition-colors ${
-            isListening
+            armed
               ? 'bg-red-500 text-white'
               : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:text-emerald-300'
           }`}
           style={{ touchAction: 'manipulation' }}
         >
-          {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          {armed ? <Mic className="w-5 h-5 animate-pulse" /> : <Mic className="w-5 h-5" />}
         </button>
       </motion.div>
     </>
