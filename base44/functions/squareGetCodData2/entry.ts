@@ -685,6 +685,11 @@ async function handleGetCodData(base44, payload={}) {
   let purgedTxRows = 0, purgedCatalogRows = 0;
   if (confirmedCollectedDeliveryIds.size > 0) {
     await Promise.all(Array.from(confirmedCollectedDeliveryIds).map(async (did) => {
+      // DURABLE EVIDENCE: stamp the Delivery itself. The tx/catalog rows below are
+      // being purged, so without this flag later runs (syncSquareCods create path,
+      // 5c auto-create, reconcile) see NO collection evidence and re-create the
+      // catalog item for an already-rung COD (the re-add churn bug).
+      await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch((e) => console.warn('[squareGetCodData2] flag stamp failed for', did, e?.message || e));
       const txs = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: did }).catch(() => []);
       for (const t of (txs || [])) { await base44.asServiceRole.entities.SquareTransaction.delete(t.id).catch(() => null); purgedTxRows++; }
       const cats = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: did }).catch(() => []);
@@ -716,6 +721,7 @@ async function handleGetCodData(base44, payload={}) {
   // existing SquareTransaction already linked by delivery_id.
   const deliveryNeedsCatalogItem = (d) => {
     if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
+    if (d?.cod_confirmed_collected) return false; // confirmed collected at the register — never re-create
     if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
     if (d?.delivery_date && d.delivery_date > formatLocalDate(new Date())) return false;
     const store = (safeStores || []).find((s) => s?.id === d?.store_id);

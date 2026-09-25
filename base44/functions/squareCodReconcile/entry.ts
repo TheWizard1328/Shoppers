@@ -57,6 +57,7 @@ const hasDirectPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments
 // desiredState: 'want' | 'remove' | 'ignore'
 const desiredState = (d) => {
   if (!d) return 'ignore';
+  if (d?.cod_confirmed_collected) return 'ignore'; // confirmed rung through Square — never want, never re-create
   const cod = Number(d.cod_total_amount_required || 0);
   const status = String(d.status || '').toLowerCase();
   if (REMOVE_STATUSES.includes(status)) return 'remove';

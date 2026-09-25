@@ -98,6 +98,10 @@ export async function runAcceptAllBatchPipeline({
     console.warn('[AcceptAll] offlineDB bulkSave failed:', e?.message || e);
   }
 
+  // Freeze the card order BEFORE the optimistic transition — the coordinator's
+  // freshDeliveries (with the real new order) release the lock when they land.
+  window.dispatchEvent(new CustomEvent('routeDisplayOrderLock', { detail: { driverId, deliveryDate } }));
+
   // Update UI IMMEDIATELY (optimistic) — don't wait for any backend writes.
   if (updateDeliveriesLocally && updatedDeliveries.length > 0) {
     updateDeliveriesLocally(updatedDeliveries, false);

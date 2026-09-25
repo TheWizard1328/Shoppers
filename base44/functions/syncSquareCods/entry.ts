@@ -132,6 +132,13 @@ async function handleCreateCodItem(b44, payload) {
   // bookkeeping record we created ourselves when the catalog item was first
   // created; it may be stale (the catalog item could have been deleted by a
   // prior sync cleanup). Don't let stale bookkeeping block re-creation.
+  // Durable collected evidence on the Delivery itself. The old completedTxs
+  // check reads the SquareTransaction rows that squareGetCodData2 5a PURGES
+  // once collection is confirmed — post-purge it finds nothing and re-creates
+  // the catalog item for an already-rung cash COD (the re-add churn bug).
+  if (dr?.cod_confirmed_collected) {
+    return { success: true, skipped: true, reason: 'cod_confirmed_collected' };
+  }
   const completedTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
   if (completedTxs?.length > 0) {
     return { success: true, skipped: true, reason: 'completed_transaction_exists', transactionId: completedTxs[0]?.id };

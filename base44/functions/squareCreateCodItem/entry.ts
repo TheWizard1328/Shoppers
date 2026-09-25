@@ -122,6 +122,8 @@ async function handleCreateCodItem(base44, payload) {
   const{deliveryId,patientName,storeAbbreviation,codAmount,deliveryDate,storeId}=payload||{};
   if(!deliveryId||codAmount==null||Number(codAmount)<=0)throw new HttpError(400,'Missing required fields: deliveryId, codAmount');
   const deliveryRecord=await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(()=>null);
+  // Confirmed collected at the register (SquareTransaction rows purged) — never re-create.
+  if(deliveryRecord?.cod_confirmed_collected){return{success:true,skipped:true,reason:'cod_confirmed_collected'};}
   const{patientById,patientByPid}=await buildPatientMaps(base44,deliveryRecord?[deliveryRecord]:[]);
   const patientRecord=deliveryRecord?await resolveDeliveryPatient(base44,deliveryRecord,patientById,patientByPid):null;
   const effectiveStoreId=storeId||deliveryRecord?.store_id;

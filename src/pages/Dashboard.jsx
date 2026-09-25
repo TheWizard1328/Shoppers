@@ -235,6 +235,11 @@ function Dashboard() {
   const driverLocationRef = useRef(null);
   const nextStopCoordinatesRef = useRef(null);
   const deliveriesWithStopOrderRef = useRef([]);
+  // Display-order lock: freezes stop-card order between an optimistic action
+  // (Accept All / Start / Accept Single) and the optimizer's freshDeliveries.
+  // Set via the 'routeDisplayOrderLock' window event; released on
+  // routeOptimizationComplete or by the 95s TTL.
+  const _routeOrderLockRef = useRef(null);
   const patientsRef = useRef([]);
   const storesRef = useRef([]);
   const allDriverLocationsRef = useRef([]);
@@ -434,7 +439,7 @@ function Dashboard() {
       const incomplete = stops.filter(d => d && !FINISHED.includes(d.status));
 
       // Finished: sort by actual_delivery_time ASC — cycling markers follow the same rule
-      const sortedFinished = [...finished].sort((a, b) => {
+      let sortedFinished = [...finished].sort((a, b) => {
         const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
         const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
         if (ta !== tb) return ta - tb;
@@ -443,7 +448,7 @@ function Dashboard() {
 
       // Incomplete: pending last; within non-pending sort by stop_order (preserves optimizer result)
       // Cycling markers (is_cycling_marker=true) are never treated as pending — sort like active stops
-      const sortedIncomplete = [...incomplete].sort((a, b) => {
+      let sortedIncomplete = [...incomplete].sort((a, b) => {
         const aPending = a.status === 'pending' && !a.is_cycling_marker;
         const bPending = b.status === 'pending' && !b.is_cycling_marker;
         if (aPending && !bPending) return 1;
@@ -460,6 +465,15 @@ function Dashboard() {
         const eb = b.delivery_time_eta || b.delivery_time_start || '99:99';
         return ea.localeCompare(eb);
       });
+
+      // ── Display-order lock: hold the pre-action card order until the optimizer lands ──
+      const _lock = _routeOrderLockRef.current;
+      if (_lock && _lock.until > Date.now() && _lock.driverId === dId
+          && stops.some((d) => d?.delivery_date === _lock.deliveryDate)) {
+        const _lockedIdx = (a, b) => ((_lock.idx.get(a?.id) ?? 1e9) - (_lock.idx.get(b?.id) ?? 1e9));
+        sortedFinished = sortedFinished.slice().sort(_lockedIdx);
+        sortedIncomplete = sortedIncomplete.slice().sort(_lockedIdx);
+      }
 
       // Merge finished-first then incomplete; assign display_stop_order 1..N sequentially
       const ordered = [...sortedFinished, ...sortedIncomplete];
@@ -479,6 +493,39 @@ function Dashboard() {
   useEffect(() => {
     deliveriesWithStopOrderRef.current = deliveriesWithStopOrder;
   }, [deliveriesWithStopOrder]);
+
+  // ── Route display-order lock listeners ─────────────────────────────────────
+  // Actions that trigger an optimistic transition + background optimization
+  // dispatch 'routeDisplayOrderLock' BEFORE their optimistic state writes.
+  // We snapshot the current card order and hold it until the coordinator
+  // reports completion (or TTL) — otherwise each intermediate local state
+  // (pending→in_transit flips, ETA re-stamps, freshDeliveries merges) re-sorts
+  // the cards 2-3 times before the KITT bar even shows.
+  useEffect(() => {
+    const lockHandler = (e) => {
+      const { driverId, deliveryDate } = e?.detail || {};
+      if (!driverId || !deliveryDate) return;
+      const ids = (deliveriesWithStopOrderRef.current || [])
+        .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate)
+        .map((d) => d.id);
+      if (!ids.length) return;
+      const idx = new Map();
+      ids.forEach((id, i) => idx.set(id, i));
+      _routeOrderLockRef.current = { driverId, deliveryDate, idx, until: Date.now() + 95000 };
+    };
+    const completeHandler = (e) => {
+      const lock = _routeOrderLockRef.current;
+      if (!lock) return;
+      const { driverId } = e?.detail || {};
+      if (!driverId || driverId === lock.driverId) _routeOrderLockRef.current = null;
+    };
+    window.addEventListener('routeDisplayOrderLock', lockHandler);
+    window.addEventListener('routeOptimizationComplete', completeHandler);
+    return () => {
+      window.removeEventListener('routeDisplayOrderLock', lockHandler);
+      window.removeEventListener('routeOptimizationComplete', completeHandler);
+    };
+  }, []);
 
   const stats = useMemo(() => {
     let rd = filteredDeliveries || [];

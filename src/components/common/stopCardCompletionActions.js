@@ -1296,6 +1296,8 @@ export function useStopCardCompletionActions({
         });
 
         // Broadcast the isNextDelivery=false updates + new pickup + updated delivery to UI
+        // Freeze card order first — the optimizer's freshDeliveries release the lock.
+        window.dispatchEvent(new CustomEvent('routeDisplayOrderLock', { detail: { driverId, deliveryDate } }));
         const allLocalUpdates = [...updatedDeliveries, newPickup, updatedDelivery];
         updateDeliveriesLocally?.(allLocalUpdates, false);
 

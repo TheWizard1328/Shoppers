@@ -440,6 +440,9 @@ export function useStopCardStartActions({
           }
         }
 
+        // Freeze the card order before the optimistic pending→active transition;
+        // the optimizer's freshDeliveries release the lock.
+        window.dispatchEvent(new CustomEvent('routeDisplayOrderLock', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         if (startedChangedDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
           updateDeliveriesLocally?.(startedChangedDeliveries.filter(Boolean), false);
