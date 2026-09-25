@@ -19,10 +19,17 @@ const BALLOON_WIDTH = 250;
  *   active:         update-available flag (balloon fires on the false→true
  *                   transition, or on mount if already true — once per mount)
  *   anchorSelector: CSS selector for the anchor button (must be visible)
- *   direction:      'up'   → balloon sits ABOVE the anchor (bottom nav, tail
- *                            points down at the button, expands upward)
- *                   'down' → balloon sits BELOW the anchor (header menu
- *                            button, tail points up, expands downward)
+ *   direction:      'up'     → balloon sits ABOVE the anchor (bottom nav, tail
+ *                              points down at the button, expands upward)
+ *                   'down'   → balloon sits BELOW the anchor (header menu
+ *                              button, tail points up, expands downward)
+ *                   'right'  → balloon sits to the RIGHT of the anchor
+ *                              (sidebar app icon, tail points left, expands
+ *                              rightward, vertically centered on the icon)
+ *   persistent:     when true the balloon NEVER auto-hides — it stays on
+ *                   screen (static) until the update flag clears or the
+ *                   user taps it. No hide timer, no re-show cycle. Used by
+ *                   the dispatcher desktop sidebar balloon.
  *   accent:         accent color (green #10b981 web / blue #2563EB apk)
  *   icon:           leading emoji/glyph for the title line
  *   title:           bold headline
@@ -33,7 +40,7 @@ const BALLOON_WIDTH = 250;
  * Rendering uses createPortal to document.body with z-index 11000 — outside
  * the nav/header stacking contexts, so nothing (stop cards included) covers it.
  */
-function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = '#2563EB', icon = '⬆️', title, message, cta, onClick }) {
+function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = '#2563EB', icon = '⬆️', title, message, cta, onClick, persistent = false }) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState(null); // { left, main (top|bottom), tailLeft }
   const shownRef = useRef(false);
@@ -49,6 +56,7 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
   useEffect(() => {
     if (!active) {
       shownRef.current = false; // next update flag starts fresh with a quick show
+      setVisible(false); // safety: a persistent balloon must hide when the update is done
       return;
     }
     let cancelled = false;
@@ -79,9 +87,10 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
           const TAIL_HALF = 6; // half of the 12px diamond
           let tailLeft = anchorCenterX - left - TAIL_HALF;
           tailLeft = Math.max(10, Math.min(tailLeft, BALLOON_WIDTH - 10 - TAIL_HALF * 2));
-          const main = direction === 'up'
-            ? { bottom: Math.max(window.innerHeight - r.top + 8, 8) }
-            : { top: r.bottom + 8 };
+          let main;
+          if (direction === 'up') main = { bottom: Math.max(window.innerHeight - r.top + 8, 8) };
+          else if (direction === 'right') main = { left: r.right + 8, top: r.top + r.height / 2 };
+          else main = { top: r.bottom + 8 };
           setPos({ left, main, tailLeft });
           setVisible(true);
           shownRef.current = true;
@@ -96,13 +105,15 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
     }
 
     // Visible → auto-hide after 10s, which hands control back to the branch
-    // above and re-arms the RESHOW_MS timer.
+    // above and re-arms the RESHOW_MS timer. Persistent balloons (dispatchers)
+    // stay on screen until the update flag clears — no hide timer at all.
+    if (persistent) return;
     const hideTimer = setTimeout(() => setVisible(false), AUTO_HIDE_MS);
     return () => {
       cancelled = true;
       clearTimeout(hideTimer);
     };
-  }, [active, visible, anchorSelector, direction]);
+  }, [active, visible, anchorSelector, direction, persistent]);
 
   if (!visible || !pos) return null;
 
@@ -112,7 +123,7 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
       onClick={(e) => { e.stopPropagation(); dismiss(true); }}
       className="update-info-balloon fixed cursor-pointer"
       style={{
-        left: `${pos.left}px`,
+        ...(direction === 'right' ? { top: `${pos.main.top}px` } : { left: `${pos.left}px` }),
         ...pos.main,
         width: `${BALLOON_WIDTH}px`,
         zIndex: 11000,
@@ -124,8 +135,8 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
         fontSize: '13px',
         lineHeight: 1.35,
         // Expand from the tail side so the balloon grows out of the button
-        transformOrigin: direction === 'up' ? 'center bottom' : 'center top',
-        animation: `update-balloon-expand-${direction === 'up' ? 'up' : 'down'} 0.45s cubic-bezier(0.16, 1, 0.3, 1) both`,
+        transformOrigin: direction === 'up' ? 'center bottom' : direction === 'right' ? 'center left' : 'center top',
+        animation: `update-balloon-expand-${direction} 0.45s cubic-bezier(0.16, 1, 0.3, 1) both`,
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -141,12 +152,18 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
       <div
         className="absolute"
         style={{
-          ...(direction === 'up' ? { bottom: '-6px' } : { top: '-6px' }),
-          left: `${pos.tailLeft}px`,
+          // 'right': tail on the balloon's left edge, vertically centered.
+          // 'up'/'down': tail pinned to the bottom/top edge at pos.tailLeft.
+          ...(direction === 'right'
+            ? { left: '-6px', top: '50%', transform: 'translateY(-50%) rotate(45deg)' }
+            : {
+              ...(direction === 'up' ? { bottom: '-6px' } : { top: '-6px' }),
+              left: `${pos.tailLeft}px`,
+              transform: 'rotate(45deg)',
+            }),
           width: '12px',
           height: '12px',
           background: '#1f2937',
-          transform: 'rotate(45deg)',
           borderRadius: '2px',
         }}
       />
@@ -161,6 +178,11 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
           0%   { opacity: 0; transform: translateY(-6px) scale(0.7); }
           70%  { opacity: 1; transform: translateY(0) scale(1.04); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes update-balloon-expand-right {
+          0%   { opacity: 0; transform: translate(-6px, -50%) scale(0.7); }
+          70%  { opacity: 1; transform: translate(0, -50%) scale(1.04); }
+          100% { opacity: 1; transform: translate(0, -50%) scale(1); }
         }
       `}</style>
     </div>,

@@ -30,6 +30,7 @@ import DriverStatusToggle from './DriverStatusToggle';
 import LocationTrackingToggle from './LocationTrackingToggle';
 import SidebarDivider from './SidebarDivider';
 import UpdateArrow from '../common/UpdateArrow';
+import UpdateInfoBalloon from '../common/UpdateInfoBalloon';
 import SidebarSectionLabel from './SidebarSectionLabel';
 import SidebarUserFooter from './SidebarUserFooter';
 import DriverAvailabilityPanel from './DriverAvailabilityPanel';
@@ -181,6 +182,10 @@ export default function AppSidebar({
           </button>
               }
 
+        {/* App icon — anchors the dispatcher web-update arrow + info balloon.
+            The arrow/balloon are dispatcher-only: admins/drivers get the
+            update indicator on their ⋮ menu button instead. */}
+        <div className="relative flex-shrink-0" data-update-logo-btn>
         {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
               <img
                 src={branding.logo_url}
@@ -199,6 +204,8 @@ export default function AppSidebar({
             <span className="text-white font-bold text-sm">Rx</span>
           </div>
               }
+          {isDispatcherOnly && !isMobile && !isTabletPortrait && hasWebUpdate && <UpdateArrow type="web" size={12} />}
+        </div>
 
         <div>
           <h2 className="font-bold text-lg text-body">
@@ -211,6 +218,28 @@ export default function AppSidebar({
           </div>
         </div>
       </div>
+
+      {/* Dispatcher web-update info balloon (desktop only) — expands to the
+          right of the app icon, STATIC (no hide timer, no re-show cycle):
+          it stays on screen until the update flag clears or it is tapped.
+          Tapping (or pressing F5) reloads the app to pick up the new build. */}
+      {isDispatcherOnly && !isMobile && !isTabletPortrait &&
+      <UpdateInfoBalloon
+        active={!!hasWebUpdate}
+        anchorSelector="[data-update-logo-btn]"
+        direction="right"
+        persistent
+        accent="#10b981"
+        icon="⬆️"
+        title="Update available"
+        message="A new version of RxDeliver is ready. Click here to refresh, or press F5."
+        cta="Click to update"
+        onClick={() => {
+          try { clearUserCache(); } catch (_) { /* silent — reload still picks up the build */ }
+          window.location.reload(true);
+        }}
+      />
+      }
 
       <div className="flex items-center gap-2">
         {/* Show controls in navigation panel when tablet landscape OR landscape mobile */}
