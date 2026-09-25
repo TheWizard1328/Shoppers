@@ -13,8 +13,8 @@ export default function HeyDocToggleButton({ armed, onToggle }) {
       onClick={onToggle}
       title={armed ? 'Hey Doc is listening — tap to turn off' : 'Hey Doc — tap to start hands-free listening'}
       aria-label="Hey Doc voice assistant"
-      className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
-        armed ? 'bg-emerald-500 text-white' : 'text-body'
+      className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 ${
+        armed ? 'bg-emerald-500 text-white shadow-lg' : 'text-body'
       }`}
       style={{ touchAction: 'manipulation' }}
     >
