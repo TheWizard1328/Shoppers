@@ -82,9 +82,16 @@ const WAKE_PATTERNS = [
   /\ba\s+(?:doc|dock|dog)\b/,
 ];
 
-const findWake = (normText) => {
+const findWake = (normText, loose) => {
   for (const re of WAKE_PATTERNS) {
     const m = normText.match(re);
+    if (m) return m;
+  }
+  // Loose mode (VAD-triggered sessions on mobile web): the speech burst
+  // opened the session mid-word, so the "Hey" half of the wake phrase is
+  // often clipped — accept the bare "Doc" call sign in these sessions only.
+  if (loose) {
+    const m = normText.match(/\b(?:doc|dock)\b/);
     if (m) return m;
   }
   return null;
@@ -169,6 +176,17 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   // up to 15s so an idle phone isn't bleeping every second. Any speech
   // resets it to 300ms so follow-up commands stay snappy.
   const wakeBackoffRef = useRef(300);
+  // ── Silent VAD standby (mobile web) ───────────────────────────────────
+  // Chrome/Android plays a bleep + mic indicator on EVERY recognition
+  // start, so an always-restarting wake listener bleeps all day. Instead
+  // the mic stays silently open (getUserMedia) and a tiny energy detector
+  // listens for a speech burst; only real speech opens a recognition
+  // session (the bleep lands mid-voice, masked by the driver talking).
+  const vadStreamRef = useRef(null);
+  const vadCtxRef = useRef(null);
+  const vadTimerRef = useRef(null);
+  const vadModeRef = useRef(false); // true = VAD standby engine (mobile web)
+  const startVadStandbyRef = useRef(null);
   const pendingActionRef = useRef(null); // { action, deliveryId, label, progressBody, progressSpeech }
   const pendingTimerRef = useRef(null);
 
@@ -186,6 +204,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
     if (awaitTimeoutRef.current) { clearTimeout(awaitTimeoutRef.current); awaitTimeoutRef.current = null; }
     if (cmdDebounceRef.current) { clearTimeout(cmdDebounceRef.current); cmdDebounceRef.current = null; }
+    if (vadTimerRef.current) { clearInterval(vadTimerRef.current); vadTimerRef.current = null; }
   };
 
   const setAwaiting = useCallback((value) => {
@@ -408,7 +427,8 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     }, 900);
   }, [handleCommand, setAwaiting]);
 
-  const startWakeSession = useCallback(() => {
+  const startWakeSession = useCallback((opts) => {
+    const vadMode = !!(opts && opts.vadMode);
     if (!armedRef.current || recognitionRef.current) return;
     let sessionFinal = '';
     let heardSpeech = false;
@@ -451,8 +471,8 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         return;
       }
 
-      const wakeInFinal = findWake(finalNorm);
-      const wakeInInterim = findWake(interimNorm);
+      const wakeInFinal = findWake(finalNorm, vadMode);
+      const wakeInInterim = findWake(interimNorm, vadMode);
       if (wakeInFinal) {
         const after = finalNorm.slice(finalNorm.lastIndexOf(wakeInFinal[0]) + wakeInFinal[0].length).trim();
         const before = finalNorm.slice(0, finalNorm.indexOf(wakeInFinal[0]));
@@ -480,6 +500,11 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
 
     recognition.onend = () => {
       recognitionRef.current = null;
+      if (vadModeRef.current && armedRef.current) {
+        // VAD engine: back to silent standby (respect visibility below)
+        if (document.visibilityState === 'visible') startVadStandbyRef.current?.();
+        return;
+      }
       if (armedRef.current && document.visibilityState === 'visible') {
         const delay = heardSpeech ? 300 : Math.min(wakeBackoffRef.current, 15000);
         if (!heardSpeech) {
@@ -514,18 +539,92 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     try { recognition.start(); } catch {}
   }, [SR, handleCommand, setAwaiting, showChip, runCommandDebounced]);
 
+  // ── VAD standby engine (mobile web) ──────────────────────────────────
+  const stopVad = useCallback(() => {
+    if (vadTimerRef.current) { clearInterval(vadTimerRef.current); vadTimerRef.current = null; }
+    if (vadStreamRef.current) {
+      try { vadStreamRef.current.getTracks().forEach((t) => t.stop()); } catch {}
+      vadStreamRef.current = null;
+    }
+    if (vadCtxRef.current) {
+      try { vadCtxRef.current.close(); } catch {}
+      vadCtxRef.current = null;
+    }
+  }, []);
+
+  const startVadStandby = useCallback(async () => {
+    if (!armedRef.current || vadTimerRef.current) return;
+    stopVad();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      if (!armedRef.current) {
+        try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+        return;
+      }
+      vadStreamRef.current = stream;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      vadCtxRef.current = ctx;
+      try { await ctx.resume(); } catch {}
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      const TRIGGER = 0.025, QUIET = 0.012;
+      let hot = 0;
+      let warmup = 0; // ignore first ~1.2s (mic pop / tail of prior session)
+      vadTimerRef.current = setInterval(() => {
+        if (document.visibilityState !== 'visible') return; // save battery hidden
+        analyser.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+        const rms = Math.sqrt(sum / buf.length);
+        if (warmup < 8) { warmup += 1; return; }
+        if (rms >= TRIGGER) hot += 1;
+        else if (rms < QUIET) hot = 0;
+        if (hot >= 2) {
+          // Real speech — release the mic silently, then open the
+          // recognition session (its OS bleep lands mid-voice, masked).
+          hot = 0;
+          stopVad();
+          vadModeRef.current = true;
+          startWakeSession({ vadMode: true });
+        }
+      }, 150);
+    } catch (err) {
+      console.warn('[HeyDoc] VAD standby failed:', err?.name || err);
+      // Fall back to the classic always-on wake loop for this arm cycle
+      vadModeRef.current = false;
+      if (armedRef.current) startWakeSession();
+    }
+  }, [stopVad, startWakeSession]);
+  startVadStandbyRef.current = startVadStandby;
+
   const arm = useCallback(() => {
     armedRef.current = true;
     setArmed(true);
     wakeBackoffRef.current = 300;
-    startWakeSession();
-  }, [startWakeSession]);
+    // Native APK: recognition sessions are silent on-device — keep the
+    // simple always-on wake loop. Mobile web (Chrome bleeps every start):
+    // silent VAD standby that only opens a session when speech is heard.
+    // Desktop web: no bleep either — always-on loop.
+    if (!isNativeApk() && /Android/i.test(navigator.userAgent || '') && navigator.mediaDevices?.getUserMedia) {
+      vadModeRef.current = true;
+      startVadStandby();
+    } else {
+      vadModeRef.current = false;
+      startWakeSession();
+    }
+  }, [startWakeSession, startVadStandby]);
 
   const disarm = useCallback(() => {
     armedRef.current = false;
     setArmed(false);
     stopRecognition();
-  }, [stopRecognition]);
+    stopVad();
+  }, [stopRecognition, stopVad]);
 
   // Explicit mic-permission request baked into the toggle tap.
   // getUserMedia from a user gesture triggers the real permission
@@ -606,7 +705,11 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       if (document.visibilityState === 'hidden') {
         try { recognitionRef.current?.abort?.(); } catch {}
       } else if (armedRef.current && !recognitionRef.current) {
-        restartTimerRef.current = setTimeout(() => { if (armedRef.current) startWakeSession(); }, 400);
+        if (vadModeRef.current) {
+          startVadStandbyRef.current?.();
+        } else {
+          restartTimerRef.current = setTimeout(() => { if (armedRef.current) startWakeSession(); }, 400);
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -616,6 +719,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   useEffect(() => () => {
     armedRef.current = false;
     stopRecognition();
+    stopVad();
     if (chipTimerRef.current) clearTimeout(chipTimerRef.current);
     try { window.speechSynthesis?.cancel?.(); } catch {}
   }, [stopRecognition]);
