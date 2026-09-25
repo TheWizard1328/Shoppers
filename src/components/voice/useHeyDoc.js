@@ -10,8 +10,68 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { parseHeyDocCommand, resolveCallTarget } from './heyDocParser';
 
-const getSpeechRecognition = () =>
-  typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+// ── Native APK speech shim ──────────────────────────────────────────────
+// The Android WebView does NOT implement the Web Speech API. When we're
+// running inside the APK wrapper (window.AndroidNative + hasNativeSpeech),
+// this class backs the same start/abort/onresult/onend contract the wake
+// session uses, forwarding to MainActivity's SpeechRecognizer bridge and
+// mapping its callbacks into the web SpeechRecognition event shapes.
+class NativeSpeechRecognition {
+  constructor() {
+    this.continuous = false;
+    this.interimResults = false;
+    this.lang = 'en-CA';
+    this.maxAlternatives = 1;
+    this.onresult = null;
+    this.onend = null;
+    this.onerror = null;
+    this.onstart = null;
+    this._aborted = false;
+    window.__nativeSpeech = {
+      onResult: (text, isFinal) => {
+        if (this._aborted || !this.onresult || typeof text !== 'string') return;
+        try {
+          this.onresult({
+            resultIndex: 0,
+            results: [{ isFinal: !!isFinal, length: 1, 0: { transcript: text } }],
+          });
+        } catch {}
+      },
+      onError: (err) => {
+        if (this._aborted || !this.onerror) return;
+        try { this.onerror({ error: err }); } catch {}
+      },
+      onEnd: () => {
+        if (this._aborted) return; // abort() already fired onend locally
+        try { this.onend?.(); } catch {}
+      },
+    };
+  }
+  start() {
+    this._aborted = false;
+    try {
+      window.AndroidNative.startVoiceRecognition();
+    } catch {
+      this.onerror?.({ error: 'service-not-allowed' });
+      this.onend?.();
+    }
+  }
+  abort() {
+    if (this._aborted) return;
+    this._aborted = true;
+    try { window.AndroidNative.stopVoiceRecognition(); } catch {}
+    try { this.onend?.(); } catch {}
+  }
+  stop() {
+    try { window.AndroidNative.stopVoiceRecognition(); } catch {}
+  }
+}
+
+const getSpeechRecognition = () => {
+  if (typeof window === 'undefined') return null;
+  if (window.AndroidNative?.hasNativeSpeech?.()) return NativeSpeechRecognition;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+};
 
 const digitsOnly = (v) => String(v || '').replace(/\D/g, '');
 
