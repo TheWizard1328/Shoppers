@@ -21,6 +21,9 @@ axios.defaults.timeout = 15000;
 // SDK builds gets a request interceptor that raises the timeout per request,
 // matched by function name in the URL. All other requests keep the 15s cap.
 const LONG_TIMEOUT_FUNCTIONS = new Set([
+  // Full-year payroll/metrics pull: computes a year of deliveries, payroll
+  // records and driver stats server-side — legitimately 20-60s on cold cache.
+  'getAdminMetricsAndPayrollData',
   'squareGetCodData2',
   'syncSquareCods',
   'squareCodReconcile',
