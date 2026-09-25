@@ -414,13 +414,14 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     );
   }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip, setAwaiting]);
 
-  const runCommandDebounced = useCallback((sessionFinalGetter, resetter) => {
+  const runCommandDebounced = useCallback((sessionFinalGetter, resetter, marker) => {
     if (cmdDebounceRef.current) clearTimeout(cmdDebounceRef.current);
     cmdDebounceRef.current = setTimeout(() => {
       cmdDebounceRef.current = null;
       const full = String(sessionFinalGetter() || '').trim();
       resetter?.();
       if (full) {
+        if (marker) marker.sawWake = true;
         setAwaiting(false);
         handleCommand(full);
       }
@@ -431,7 +432,11 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     const vadMode = !!(opts && opts.vadMode);
     if (!armedRef.current || recognitionRef.current) return;
     let sessionFinal = '';
-    let heardSpeech = false;
+    // Wake-word/command engagement marker — shared with the debounced command
+    // runner (which executes outside this onresult closure). Only real
+    // engagement fast-paths the restart pacing; flaky WebView engines emit
+    // junk transcripts constantly, and those must NOT reset the backoff.
+    const sawWake = { value: false };
 
     const recognition = new SR();
     recognition.lang = 'en-CA';
@@ -447,10 +452,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         else interim += ` ${result[0].transcript}`;
       }
 
-      if (sessionFinal.trim() || interim.trim()) {
-        heardSpeech = true;
-        wakeBackoffRef.current = 300; // driver is talking — re-arm fast
-      }
+
 
       const norm = (s) => ` ${String(s).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
       const finalNorm = norm(sessionFinal);
@@ -464,7 +466,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         if (gotFinal && sessionFinal.trim()) {
           // More finals may follow ("what" … "can I say") — debounce,
           // then execute the full accumulated sentence at once.
-          runCommandDebounced(() => sessionFinal, () => { sessionFinal = ''; });
+          runCommandDebounced(() => sessionFinal, () => { sessionFinal = ''; }, sawWake);
         } else if (interimNorm.trim()) {
           setChip({ icon: 'listening', title: 'Listening…', body: interim.trim() });
         }
@@ -481,6 +483,8 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
           return;
         }
         chime();
+        sawWake.value = true;
+        wakeBackoffRef.current = 300;
         // Enter command-collect mode either way. If words followed the wake
         // word in the same breath, seed them and start the debounce; the rest
         // of the sentence arrives as further finals and joins the same run.
@@ -488,7 +492,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         setAwaiting(true);
         setChip({ icon: 'listening', title: 'Yes?', body: 'Listening for your command…' });
         if (after.length > 1) {
-          runCommandDebounced(() => sessionFinal, () => { sessionFinal = ''; });
+          runCommandDebounced(() => sessionFinal, () => { sessionFinal = ''; }, sawWake);
         }
         return;
       }
@@ -506,13 +510,15 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         return;
       }
       if (armedRef.current && document.visibilityState === 'visible') {
-        const delay = heardSpeech ? 300 : Math.min(wakeBackoffRef.current, 15000);
-        if (!heardSpeech) {
-          // Silence (or an engine that died instantly): grow the gap so the
-          // OS listening bleep + mic indicator aren't firing every second.
-          wakeBackoffRef.current = Math.min(wakeBackoffRef.current * 2, 15000);
-        } else {
+        const engaged = sawWake.value;
+        const delay = engaged ? 300 : Math.min(wakeBackoffRef.current, 15000);
+        if (engaged) {
           wakeBackoffRef.current = 300;
+        } else {
+          // No wake word heard (silence, junk transcripts, or an engine that
+          // died instantly): grow the gap so the OS listening bleep + mic
+          // indicator aren't firing every second.
+          wakeBackoffRef.current = Math.min(wakeBackoffRef.current * 2, 15000);
         }
         restartTimerRef.current = setTimeout(() => {
           if (armedRef.current && document.visibilityState === 'visible') startWakeSession();
@@ -610,7 +616,12 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     // simple always-on wake loop. Mobile web (Chrome bleeps every start):
     // silent VAD standby that only opens a session when speech is heard.
     // Desktop web: no bleep either — always-on loop.
-    if (!isNativeApk() && /Android/i.test(navigator.userAgent || '') && navigator.mediaDevices?.getUserMedia) {
+    const nativeMicBridge = (() => {
+      try { return !!(window.AndroidNative && window.AndroidNative.hasNativeSpeech && window.AndroidNative.hasNativeSpeech()); } catch { return false; }
+    })();
+    if (!nativeMicBridge && /Android/i.test(navigator.userAgent || '') && navigator.mediaDevices?.getUserMedia) {
+      // Mobile web AND old APK builds (WebView engines bleep on every start
+      // and die instantly) — silent VAD standby until real speech.
       vadModeRef.current = true;
       startVadStandby();
     } else {

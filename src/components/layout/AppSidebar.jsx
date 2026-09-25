@@ -182,9 +182,9 @@ export default function AppSidebar({
           </button>
               }
 
-        {/* App icon — anchors the dispatcher web-update arrow + info balloon.
-            The arrow/balloon are dispatcher-only: admins/drivers get the
-            update indicator on their ⋮ menu button instead. */}
+        {/* App icon — anchors the desktop web-update arrow + info balloon
+            for ALL roles (dispatchers get the static version; drivers/admins
+            get the standard repeating balloon). */}
         <div className="relative flex-shrink-0" data-update-logo-btn>
         {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
               <img
@@ -204,7 +204,7 @@ export default function AppSidebar({
             <span className="text-white font-bold text-sm">Rx</span>
           </div>
               }
-          {isDispatcherOnly && !isMobile && !isTabletPortrait && hasWebUpdate && <UpdateArrow type="web" size={12} />}
+          {!isMobile && !isTabletPortrait && hasWebUpdate && <UpdateArrow type="web" size={12} />}
         </div>
 
         <div>
@@ -219,16 +219,16 @@ export default function AppSidebar({
         </div>
       </div>
 
-      {/* Dispatcher web-update info balloon (desktop only) — expands to the
-          right of the app icon, STATIC (no hide timer, no re-show cycle):
-          it stays on screen until the update flag clears or it is tapped.
+      {/* Web-update info balloon (desktop, all roles) — expands to the right
+          of the app icon. Dispatchers: STATIC (no hide timer). Drivers/admins:
+          standard auto-hide + 3-minute re-show so it reminds without camping.
           Tapping (or pressing F5) reloads the app to pick up the new build. */}
-      {isDispatcherOnly && !isMobile && !isTabletPortrait &&
+      {!isMobile && !isTabletPortrait &&
       <UpdateInfoBalloon
         active={!!hasWebUpdate}
         anchorSelector="[data-update-logo-btn]"
         direction="right"
-        persistent
+        persistent={isDispatcherOnly}
         accent="#10b981"
         icon="⬆️"
         title="Update available"
