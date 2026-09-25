@@ -24,6 +24,7 @@ const STORE_WORDS = /^(store|pharmacy|shop|pickup|pickup store|drug store|drugst
  * @returns {{type:'none'}} nothing usable in the transcript
  * @returns {{type:'info', field:'name'|'address'|'phone'|'notes'|'all'}} stop info query
  * @returns {{type:'help'}} list available commands
+ *  @returns {{type:'complete_stop'|'fail_stop'|'return_stop'}} stop actions (hook asks for a yes/no confirm first)
  * @returns {{type:'optimize_route'}} run the silent route re-optimization
  * @returns {{type:'call_store'}} call the current delivery's pickup store
  * @returns {{type:'call_name', name:string}} call a person/store by name
@@ -41,6 +42,25 @@ export const parseHeyDocCommand = (rawText) => {
   // Checked first: these phrases must never bleed into info/call matching.
   if (/\bhelp\b|\bwhat can (i|you) (say|do)\b|\bwhat commands?\b|\bcommands? (are )?available\b|\bwhat are my options\b|\blist (the )?commands\b/.test(text)) {
     return { type: 'help', text: rawText };
+  }
+
+  // ── Stop actions (with voice confirmation) ──────────────
+  // "complete this stop", "mark the stop failed", "return this delivery" —
+  // the hook then asks "say yes to confirm" before executing anything.
+  if (/\b(?:complete|completed|finish(?:ed)?|done)\b.*\b(?:stop|delivery|drop)\b/.test(text)
+    || /\b(?:stop|delivery|drop)\b.*\b(?:complete|completed|finished)\b/.test(text)
+    || /\bmark\b.*\bcomplete\b/.test(text)) {
+    return { type: 'complete_stop', text: rawText };
+  }
+  if (/\b(?:fail|failed|failing)\b.*\b(?:stop|delivery|drop)\b/.test(text)
+    || /\b(?:stop|delivery|drop)\b.*\bfail(?:ed|ed)?\b/.test(text)
+    || /\bmark\b.*\bfail/.test(text)) {
+    return { type: 'fail_stop', text: rawText };
+  }
+  if (/\breturn\b.*\b(?:stop|delivery|drop|package)\b/.test(text)
+    || /\b(?:stop|delivery|package)\b.*\breturn(?:ed|ing)?\b/.test(text)
+    || /\bmark\b.*\breturn/.test(text)) {
+    return { type: 'return_stop', text: rawText };
   }
 
   // ── Route optimization intent ───────────────────────

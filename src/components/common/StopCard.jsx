@@ -842,6 +842,41 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleReturnClickWithBle    = useCallback((e) => { dispatchBleReconnect(); return handleReturnClick(e);    }, [dispatchBleReconnect, handleReturnClick]);
   const restartWithBle              = useCallback((...args) => { dispatchBleReconnect(); return restartCurrentDelivery(...args); }, [dispatchBleReconnect, restartCurrentDelivery]);
 
+  // ── Hey Doc voice stop actions ─────────────────────────────────────
+  // The voice hook (useHeyDoc) asks "say yes to confirm"; only after the
+  // driver says yes does it fire 'heydoc:stopAction' with the resolved
+  // deliveryId. This card executes it if it's the targeted stop.
+  // 'return' runs in two hops: handleReturnClick resolves the return
+  // patient (needs a re-render for handleConfirmReturn's closure to see
+  // it), so a delayed 'return_confirm' event re-enters this listener
+  // after React has re-rendered with the fresh state.
+  useEffect(() => {
+    const handler = async (e) => {
+      const { deliveryId, action } = e.detail || {};
+      if (!delivery?.id || deliveryId !== delivery.id) return;
+      try {
+        if (action === 'complete') {
+          handleCompleteActionWithBle();
+        } else if (action === 'fail') {
+          setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+          handleFailureConfirmWithBle('');
+        } else if (action === 'return') {
+          await handleReturnClick();
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('heydoc:stopAction', { detail: { deliveryId, action: 'return_confirm' } }));
+          }, 150);
+        } else if (action === 'return_confirm') {
+          await handleConfirmReturn();
+          setShowReturnConfirm(false);
+        }
+      } catch (err) {
+        console.warn('[StopCard] Hey Doc action failed:', err?.message || err);
+      }
+    };
+    window.addEventListener('heydoc:stopAction', handler);
+    return () => window.removeEventListener('heydoc:stopAction', handler);
+  }, [delivery?.id, isPickup, handleCompleteActionWithBle, handleFailureConfirmWithBle, handleReturnClick, handleConfirmReturn]);
+
   if (!delivery) return null;
 
   const handleUpdateGPS = async (e) => {

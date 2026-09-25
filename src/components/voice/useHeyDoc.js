@@ -102,6 +102,8 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   const restartTimerRef = useRef(null);
   const awaitTimeoutRef = useRef(null);
   const chipTimerRef = useRef(null);
+  const pendingActionRef = useRef(null); // { action, deliveryId, label, progressBody, progressSpeech }
+  const pendingTimerRef = useRef(null);
 
   const SR = getSpeechRecognition();
   const canUse = !!(SR && enabled && currentUser);
@@ -140,6 +142,29 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   }, []);
 
   const handleCommand = useCallback((rawText) => {
+    // ── Voice confirmation gate ─────────────────────────────────────
+    // If a stop action is pending confirmation, the next utterance is
+    // read as yes / no. Anything else cancels the pending action and is
+    // processed as a brand-new command instead.
+    if (pendingActionRef.current) {
+      const pending = pendingActionRef.current;
+      pendingActionRef.current = null;
+      if (pendingTimerRef.current) { clearTimeout(pendingTimerRef.current); pendingTimerRef.current = null; }
+      const normCmd = ` ${String(rawText).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
+      const isYes = /\b(?:yes|yeah|yep|yup|confirm|confirmed|correct|sure|do it|go ahead)\b/.test(normCmd);
+      const isNo = /\b(?:no|nope|nah|cancel|cancelled|never mind|forget it|dont|don't)\b/.test(normCmd);
+      if (isYes) {
+        window.dispatchEvent(new CustomEvent('heydoc:stopAction', { detail: { deliveryId: pending.deliveryId, action: pending.action } }));
+        showChip('info', 'Working on it', pending.progressBody, pending.progressSpeech);
+        return;
+      }
+      if (isNo) {
+        showChip('off', 'Cancelled', `${pending.label} cancelled.`, `${pending.label} cancelled.`);
+        return;
+      }
+      // Neither yes nor no — fall through and parse it as a new command.
+    }
+
     const command = parseHeyDocCommand(rawText);
     const stop = findCurrentStop(filteredDeliveries);
 
@@ -162,9 +187,36 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         'Call the store — dials the pickup store',
         'Call [name] — dials a person or store',
         'Optimize my route — best stop order',
+        'Complete / fail / return stop — with a yes confirm',
       ].join('\n');
       showChip('info', 'Available commands', body,
-        'You can ask for the name, address, phone number, or notes of your current stop. Say call the store, or call, then a name, to dial anyone. Say optimize my route to re-order your stops for the shortest drive.');
+        'You can ask for the name, address, phone number, or notes of your current stop. Say call the store, or call, then a name, to dial anyone. Say optimize my route to re-order your stops for the shortest drive. Say complete, fail, or return stop to work a stop — I will always ask for a yes first.');
+      return;
+    }
+
+    if (command.type === 'complete_stop' || command.type === 'fail_stop' || command.type === 'return_stop') {
+      if (!stop) {
+        showChip('error', 'No current stop', 'You have no active stop right now.', 'You have no active stop right now.');
+        return;
+      }
+      const action = command.type === 'complete_stop' ? 'complete' : command.type === 'fail_stop' ? 'fail' : 'return';
+      const label = command.type === 'complete_stop' ? 'Complete' : command.type === 'fail_stop' ? 'Fail' : 'Return';
+      const patient = (patients || []).find((p) => p?.id === stop.patient_id);
+      const store = (stores || []).find((s) => s?.id === stop.store_id);
+      const stopName = stop.patient_id
+        ? (patient?.full_name || stop.patient_name || 'this stop')
+        : (store?.name || 'this stop');
+      pendingActionRef.current = {
+        action,
+        deliveryId: stop.id,
+        label,
+        progressBody: `${label}ing ${stopName}…`,
+        progressSpeech: `${label.toLowerCase() === 'return' ? 'Returning' : label.toLowerCase() === 'fail' ? 'Marking failed' : 'Completing'} ${stopName}.`,
+      };
+      pendingTimerRef.current = setTimeout(() => { pendingActionRef.current = null; }, 15000);
+      setAwaiting(true);
+      showChip('info', `${label} this stop?`, `${stopName} — say yes to confirm, or no to cancel.`,
+        `Do you want to ${label === 'Return' ? 'return' : label.toLowerCase()} the stop for ${stopName}? Say yes to confirm, or no to cancel.`);
       return;
     }
 
@@ -273,7 +325,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       `"${rawText}" — try "what's the address" or "call the store".`,
       "Sorry, I didn't understand that. Say what can I say for a list of commands."
     );
-  }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip]);
+  }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip, setAwaiting]);
 
   const startWakeSession = useCallback(() => {
     if (!armedRef.current || recognitionRef.current) return;
