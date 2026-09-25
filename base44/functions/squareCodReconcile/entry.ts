@@ -486,7 +486,12 @@ Deno.serve(async (req) => {
             // reconciles for the same batch replay the SAME create instead of
             // producing two catalog items. Different content or a later minute →
             // different key, so legitimate re-creates still work.
-            const _chunkIds = chunk.map((c) => `${c.delivery.id}:${c.amountCents}`).sort().join(',');
+            // NOTE: hash the toCreate WORK ENTRIES (they carry .delivery/.amountCents),
+            // NOT the `chunk` — chunk holds raw Square catalog objects with no
+            // .delivery field, and reading it threw a TypeError on every batch
+            // create (broke all reconcile COD creates AND finished-delivery
+            // deletes routed through this function).
+            const _chunkIds = toCreate.slice(i, i + 100).map((c) => `${c.delivery.id}:${c.amountCents}`).sort().join(',');
             let _bh = 5381;
             for (let _bi = 0; _bi < _chunkIds.length; _bi++) { _bh = ((_bh << 5) + _bh) ^ _chunkIds.charCodeAt(_bi); }
             const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: `codrecon-${(_bh >>> 0).toString(36)}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: chunk }] });
