@@ -11,6 +11,7 @@ import ConflictManager from '../dashboard/ConflictManager';
 import MessageNotificationBalloon from '../messaging/MessageNotificationBalloon';
 import WebSocketDiagnosticsCard from './WebSocketDiagnosticsCard';
 import { isAppOwner, userHasRole } from '../utils/userRoles';
+import { useSquareLedgerCacheGuard } from '../utils/squareLedgerOfflineManager';
 import { useDevice } from '../utils/DeviceContext';
 
 /**
@@ -40,6 +41,8 @@ export default function GlobalOverlays({
   setPendingBlinkConversationId,
 }) {
   const { isMobile, isTabletPortrait } = useDevice();
+  // Owner-only: Square finance-audit ledger IDB cache is purged for non-owner accounts
+  useSquareLedgerCacheGuard(currentUser);
   return (
     <>
       <ConnectionRecoveryBanner currentUser={currentUser} />
