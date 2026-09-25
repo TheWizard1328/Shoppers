@@ -32,6 +32,20 @@ const findWake = (normText) => {
 
 const armedStorageKey = (userId) => `heydoc_armed_${userId || 'default'}`;
 
+const isNativeApk = () => {
+  try { return !!(window.AndroidNative && window.AndroidNative.isNative && window.AndroidNative.isNative()); } catch { return false; }
+};
+
+const micBlockedMessage = () =>
+  isNativeApk()
+    ? 'Open Android Settings > Apps > RxDeliver > Permissions > Microphone, and set it to Allow. Then tap the mic again.'
+    : 'Tap the lock/info icon next to the address bar, open Permissions, and set Microphone to Allow. Then tap the mic again.';
+
+const micBlockedSpeech = () =>
+  isNativeApk()
+    ? 'The microphone is blocked. Open Android app settings, allow the microphone for this app, then tap the mic again.'
+    : 'The microphone is blocked. Open browser permissions, allow the microphone, then tap the mic again.';
+
 const speak = (text) => {
   try {
     if (!('speechSynthesis' in window) || !text) return;
@@ -282,7 +296,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         armedRef.current = false;
         setArmed(false);
-        showChip('error', 'Microphone blocked', 'Tap the lock/info icon next to the address bar, open Permissions, and set Microphone to Allow. Then tap the mic again.', 'The microphone is blocked. Open browser permissions, allow the microphone, then tap the mic again.');
+        showChip('error', 'Microphone blocked', micBlockedMessage(), micBlockedSpeech());
       } else if (err === 'no-speech' || err === 'network' || err === 'aborted') {
         // handled by onend restart
       } else {
@@ -342,8 +356,8 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       showChip(
         'error',
         'Microphone blocked',
-        'Tap the lock/info icon next to the address bar, open Permissions, and set Microphone to Allow. Then tap the mic again.',
-        'The microphone is blocked. Open browser permissions, allow the microphone, then tap the mic again.'
+        micBlockedMessage(),
+        micBlockedSpeech()
       );
       return;
     }

@@ -90,6 +90,10 @@
     <!-- Camera (barcode scanning, prescription label scanning, proof of delivery) -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Microphone (Hey Doc voice assistant — wake-word listening + commands) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- Wake lock (keep CPU alive for GPS + BLE during screen off) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
@@ -114,5 +118,6 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
 </manifest>
