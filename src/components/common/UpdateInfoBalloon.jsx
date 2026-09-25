@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 
 const AUTO_HIDE_MS = 10000;
+const RESHOW_MS = 3 * 60 * 1000; // repeat every 3 minutes until the update is done
 const BALLOON_WIDTH = 250;
 
 /**
@@ -9,7 +10,10 @@ const BALLOON_WIDTH = 250;
  *
  * Expands into view (scale + fade, transform-origin at the tail) the moment an
  * update flag turns true — in lockstep with the UpdateArrow badge on the same
- * button. Auto-hides after 10s (same rhythm as ShiftCoverageBalloon).
+ * button. Auto-hides after 10s (same rhythm as ShiftCoverageBalloon), then
+ * RE-SHOWS every 3 minutes while the flag stays true, so the driver is
+ * reminded until they actually run the update. Hides permanently the moment
+ * the flag flips false (update done / page reloaded into the new build).
  *
  * Props:
  *   active:         update-available flag (balloon fires on the false→true
@@ -39,52 +43,66 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
     if (act && onClick) onClick();
   }, [onClick]);
 
-  // Placement + show — fires once per mount when the update flag is/becomes true
+  // Placement + show/hide loop — repeats every RESHOW_MS while `active` stays true.
+  // shownRef tracks whether this is the first appearance for this update flag
+  // (first show is quick, ~400ms after the flag; repeats wait the full interval).
   useEffect(() => {
-    if (!active || shownRef.current) return;
-    shownRef.current = true;
+    if (!active) {
+      shownRef.current = false; // next update flag starts fresh with a quick show
+      return;
+    }
     let cancelled = false;
-    let attempts = 0;
-    let retryTimer = null;
-    const place = () => {
-      if (cancelled) return;
-      const anchor = document.querySelector(anchorSelector);
-      if (!anchor || !anchor.getBoundingClientRect) {
-        // Anchor not rendered yet (sidebar open / mid transition) — keep
-        // trying for up to ~6s, then give up quietly.
-        if (attempts++ < 20) retryTimer = setTimeout(place, 300);
-        return;
-      }
-      const r = anchor.getBoundingClientRect();
-      const anchorCenterX = r.left + r.width / 2;
-      let left = anchorCenterX - BALLOON_WIDTH / 2;
-      left = Math.max(8, Math.min(left, window.innerWidth - BALLOON_WIDTH - 8));
-      // Tail: anchor center minus the (possibly clamped) box left, re-clamped
-      // to stay inside the box — so the tail always points at the anchor.
-      const TAIL_HALF = 6; // half of the 12px diamond
-      let tailLeft = anchorCenterX - left - TAIL_HALF;
-      tailLeft = Math.max(10, Math.min(tailLeft, BALLOON_WIDTH - 10 - TAIL_HALF * 2));
-      const main = direction === 'up'
-        ? { bottom: Math.max(window.innerHeight - r.top + 8, 8) }
-        : { top: r.bottom + 8 };
-      setPos({ left, main, tailLeft });
-      setVisible(true);
-    };
-    // Small delay so the balloon expands in lockstep with the arrow's pulse-in
-    const t = setTimeout(place, 400);
+    let attemptTimer = null;
+
+    if (!visible) {
+      // Hidden → schedule the next appearance. First one rides in lockstep
+      // with the arrow's pulse-in; repeats come every RESHOW_MS.
+      const delay = shownRef.current ? RESHOW_MS : 400;
+      const showTimer = setTimeout(() => {
+        if (cancelled) return;
+        let attempts = 0;
+        const place = () => {
+          if (cancelled) return;
+          const anchor = document.querySelector(anchorSelector);
+          if (!anchor || !anchor.getBoundingClientRect) {
+            // Anchor not rendered yet (sidebar open / mid transition) — keep
+            // trying for up to ~6s, then give up quietly.
+            if (attempts++ < 20) attemptTimer = setTimeout(place, 300);
+            return;
+          }
+          const r = anchor.getBoundingClientRect();
+          const anchorCenterX = r.left + r.width / 2;
+          let left = anchorCenterX - BALLOON_WIDTH / 2;
+          left = Math.max(8, Math.min(left, window.innerWidth - BALLOON_WIDTH - 8));
+          // Tail: anchor center minus the (possibly clamped) box left, re-clamped
+          // to stay inside the box — so the tail always points at the anchor.
+          const TAIL_HALF = 6; // half of the 12px diamond
+          let tailLeft = anchorCenterX - left - TAIL_HALF;
+          tailLeft = Math.max(10, Math.min(tailLeft, BALLOON_WIDTH - 10 - TAIL_HALF * 2));
+          const main = direction === 'up'
+            ? { bottom: Math.max(window.innerHeight - r.top + 8, 8) }
+            : { top: r.bottom + 8 };
+          setPos({ left, main, tailLeft });
+          setVisible(true);
+          shownRef.current = true;
+        };
+        place();
+      }, delay);
+      return () => {
+        cancelled = true;
+        clearTimeout(showTimer);
+        if (attemptTimer) clearTimeout(attemptTimer);
+      };
+    }
+
+    // Visible → auto-hide after 10s, which hands control back to the branch
+    // above and re-arms the RESHOW_MS timer.
+    const hideTimer = setTimeout(() => setVisible(false), AUTO_HIDE_MS);
     return () => {
       cancelled = true;
-      clearTimeout(t);
-      if (retryTimer) clearTimeout(retryTimer);
+      clearTimeout(hideTimer);
     };
-  }, [active, anchorSelector, direction]);
-
-  // Auto-hide
-  useEffect(() => {
-    if (!visible) return;
-    const t = setTimeout(() => setVisible(false), AUTO_HIDE_MS);
-    return () => clearTimeout(t);
-  }, [visible]);
+  }, [active, visible, anchorSelector, direction]);
 
   if (!visible || !pos) return null;
 
