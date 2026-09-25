@@ -613,7 +613,7 @@ export default function DashboardView({
       {currentUser &&
         <FABControls
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
-          patients={patients} stores={stores} deliveriesWithStopOrder={deliveriesWithStopOrder} filteredDeliveries={filteredDeliveries}
+          patients={patients} stores={stores} appUsers={appUsers} deliveriesWithStopOrder={deliveriesWithStopOrder} filteredDeliveries={filteredDeliveries}
           selectedDate={selectedDate} selectedDriverId={selectedDriverId} isDateFinished={isDateFinished}
           mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked} setIsMapViewLocked={setIsMapViewLocked}
           driverLocation={driverLocation} cardsReadyForFAB={cardsReadyForFAB} stopCardsBaseHeight={stopCardsBaseHeight}
