@@ -161,6 +161,15 @@ const findCurrentStop = (deliveries) => {
 export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, appUsers, enabled }) {
   const [armed, setArmed] = useState(false);
   const [awaitingCommand, setAwaitingCommand] = useState(false);
+  // Live mic input level 0..1 while the VAD standby holds the mic. Published
+  // as a window event ('heydoc-miclevel') instead of state — the mic button's
+  // meter listens and updates its DOM directly, so a talking driver never
+  // re-renders the dashboard tree.
+  const micLevelRef = useRef(null);
+  const setMicLevel = useCallback((v) => {
+    micLevelRef.current = v;
+    try { window.dispatchEvent(new CustomEvent('heydoc-miclevel', { detail: v })); } catch {}
+  }, []);
   const [chip, setChip] = useState(null); // { icon, title, body }
   const recognitionRef = useRef(null);
   const armedRef = useRef(false);
@@ -556,7 +565,9 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       try { vadCtxRef.current.close(); } catch {}
       vadCtxRef.current = null;
     }
-  }, []);
+    micLevelRef.current = null;
+    setMicLevel(0);
+  }, [setMicLevel]);
 
   const startVadStandby = useCallback(async () => {
     if (!armedRef.current || vadTimerRef.current) return;
@@ -578,7 +589,10 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       analyser.fftSize = 1024;
       ctx.createMediaStreamSource(stream).connect(analyser);
       const buf = new Uint8Array(analyser.fftSize);
-      const TRIGGER = 0.025, QUIET = 0.012;
+      // Tuned for normal in-car voice: quiet speech sits ~0.008-0.03 RMS;
+      // 0.025 (old) only caught near-shouting. Road/driving noise with
+      // noiseSuppression stays under ~0.007.
+      const TRIGGER = 0.013, QUIET = 0.007;
       let hot = 0;
       let warmup = 0; // ignore first ~1.2s (mic pop / tail of prior session)
       vadTimerRef.current = setInterval(() => {
@@ -587,6 +601,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         let sum = 0;
         for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
         const rms = Math.sqrt(sum / buf.length);
+        setMicLevel(Math.min(1, rms * 10)); // live meter: quiet speech ~0.1-0.3, talking ~0.5-1
         if (warmup < 8) { warmup += 1; return; }
         if (rms >= TRIGGER) hot += 1;
         else if (rms < QUIET) hot = 0;

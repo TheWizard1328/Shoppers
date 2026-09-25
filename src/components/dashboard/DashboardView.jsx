@@ -544,9 +544,6 @@ function DashboardView({
         chip={heyDoc.chip}
         awaitingCommand={heyDoc.awaitingCommand}
         onDismiss={heyDoc.dismissChip}
-        cardsReadyForFAB={cardsReadyForFAB}
-        stopCardsBaseHeight={stopCardsBaseHeight}
-        hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0}
         immersiveHidden={immersiveHidden}
       />
 
