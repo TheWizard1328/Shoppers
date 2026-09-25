@@ -409,7 +409,10 @@ export function useStopCardStartActions({
         // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
         const startedRouteDeliveries = routeDeliveries.map((d) => {
           if (d?.id === delivery.id) {
-            return { ...d, status: expectedStartStatus, isNextDelivery: true };
+            // Stamp the start time to NOW: a stop carrying a later-today window
+            // otherwise keeps that future window as its sequencing/ETA anchor and
+            // gets sorted behind other stops even though the driver just started it.
+            return { ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime };
           }
           if (d?.isNextDelivery) {
             return { ...d, isNextDelivery: false };
@@ -451,8 +454,8 @@ export function useStopCardStartActions({
           // flag on the previous stop would cause duplicate next badges until refresh.
           for (const item of startedChangedDeliveries) {
             if (item?.isNextDelivery === true) {
-              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order'], 60000, {
-                status: expectedStartStatus, isNextDelivery: true,
+              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order', 'delivery_time_start'], 60000, {
+                status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime,
               });
             } else if (item?.isNextDelivery === false) {
               lockDeliveryFields(item.id, ['isNextDelivery'], 60000, {
@@ -473,6 +476,9 @@ export function useStopCardStartActions({
           if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
           if (item.id === delivery.id && existing.status !== expectedStartStatus) {
             updates.status = expectedStartStatus;
+          }
+          if (item.id === delivery.id && existing.delivery_time_start !== currentLocalTime) {
+            updates.delivery_time_start = currentLocalTime;
           }
           if (Object.keys(updates).length === 0) continue;
           updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }).catch(() => {});
