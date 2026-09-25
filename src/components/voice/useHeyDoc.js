@@ -163,6 +163,12 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   const awaitTimeoutRef = useRef(null);
   const chipTimerRef = useRef(null);
   const cmdDebounceRef = useRef(null);
+  // Wake-listen restart backoff (ms). Chrome/Android plays the listening
+  // bleep and flashes the "mic in use" indicator on EVERY recognition
+  // start; sessions that hear no speech back off 300 -> 600 -> 1200 ...
+  // up to 15s so an idle phone isn't bleeping every second. Any speech
+  // resets it to 300ms so follow-up commands stay snappy.
+  const wakeBackoffRef = useRef(300);
   const pendingActionRef = useRef(null); // { action, deliveryId, label, progressBody, progressSpeech }
   const pendingTimerRef = useRef(null);
 
@@ -405,6 +411,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   const startWakeSession = useCallback(() => {
     if (!armedRef.current || recognitionRef.current) return;
     let sessionFinal = '';
+    let heardSpeech = false;
 
     const recognition = new SR();
     recognition.lang = 'en-CA';
@@ -418,6 +425,11 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
         const result = event.results[i];
         if (result.isFinal) sessionFinal += ` ${result[0].transcript}`;
         else interim += ` ${result[0].transcript}`;
+      }
+
+      if (sessionFinal.trim() || interim.trim()) {
+        heardSpeech = true;
+        wakeBackoffRef.current = 300; // driver is talking — re-arm fast
       }
 
       const norm = (s) => ` ${String(s).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
@@ -469,9 +481,19 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     recognition.onend = () => {
       recognitionRef.current = null;
       if (armedRef.current && document.visibilityState === 'visible') {
+        const delay = heardSpeech ? 300 : Math.min(wakeBackoffRef.current, 15000);
+        if (!heardSpeech) {
+          // Silence (or an engine that died instantly): grow the gap so the
+          // OS listening bleep + mic indicator aren't firing every second.
+          wakeBackoffRef.current = Math.min(wakeBackoffRef.current * 2, 15000);
+        } else {
+          wakeBackoffRef.current = 300;
+        }
         restartTimerRef.current = setTimeout(() => {
           if (armedRef.current && document.visibilityState === 'visible') startWakeSession();
-        }, 300);
+        }, delay);
+      } else {
+        wakeBackoffRef.current = 300;
       }
     };
 
@@ -495,6 +517,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   const arm = useCallback(() => {
     armedRef.current = true;
     setArmed(true);
+    wakeBackoffRef.current = 300;
     startWakeSession();
   }, [startWakeSession]);
 

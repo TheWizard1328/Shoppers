@@ -425,6 +425,8 @@ export default function StatsPanel({
                 onClick={(e) => {
                   // Avoid double-trigger when user taps the sync button itself
                   if (e.target.closest('[data-offline-sync-button]')) return;
+                  // Mic toggle has its own handler — never a manual refresh
+                  if (e.target.closest('[data-heydoc-toggle]')) return;
                   const syncButton = document.querySelector('[data-offline-sync-button]');
                   if (syncButton) syncButton.click();
                 }}>

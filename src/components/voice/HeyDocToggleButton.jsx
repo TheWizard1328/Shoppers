@@ -10,7 +10,8 @@ export default function HeyDocToggleButton({ armed, onToggle }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
+      data-heydoc-toggle="true"
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle?.(e); }}
       title={armed ? 'Hey Doc is listening — tap to turn off' : 'Hey Doc — tap to start hands-free listening'}
       aria-label="Hey Doc voice assistant"
       className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 ${
