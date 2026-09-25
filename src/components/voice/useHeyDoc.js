@@ -153,6 +153,20 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       window.location.href = `tel:${num}`;
     };
 
+    if (command.type === 'help') {
+      const body = [
+        'Name — who the stop is for',
+        'Address — where to go',
+        'Phone — the phone number',
+        'Notes — delivery notes',
+        'Call the store — dials the pickup store',
+        'Call [name] — dials a person or store',
+      ].join('\n');
+      showChip('info', 'Available commands', body,
+        'You can ask for the name, address, phone number, or notes of your current stop. Say call the store to dial the pickup store, or call, then a name, to dial anyone.');
+      return;
+    }
+
     if (command.type === 'call_store') {
       const store = (stores || []).find((s) => s?.id === stop?.store_id);
       if (!store) {
@@ -220,7 +234,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       'error',
       'Not understood',
       `"${rawText}" — try "what's the address" or "call the store".`,
-      "Sorry, I didn't understand that. You can ask for the name, address, phone or notes, or say call."
+      "Sorry, I didn't understand that. Say what can I say for a list of commands."
     );
   }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip]);
 

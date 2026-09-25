@@ -23,6 +23,7 @@ const STORE_WORDS = /^(store|pharmacy|shop|pickup|pickup store|drug store|drugst
 /**
  * @returns {{type:'none'}} nothing usable in the transcript
  * @returns {{type:'info', field:'name'|'address'|'phone'|'notes'|'all'}} stop info query
+ * @returns {{type:'help'}} list available commands
  * @returns {{type:'call_store'}} call the current delivery's pickup store
  * @returns {{type:'call_name', name:string}} call a person/store by name
  * @returns {{type:'unknown'}} speech captured but no command recognized
@@ -33,6 +34,13 @@ export const parseHeyDocCommand = (rawText) => {
   // Strip a leading wake phrase if the engine caught it
   text = text.replace(/^(hey doc|hey talk|a doc|hey ,?doc)\s*/, '').trim();
   if (!text) return { type: 'none', text: rawText };
+
+  // ── Help intent ───────────────────────────────────────
+  // "what can I say", "what commands", "help", "what are my options"
+  // Checked first: these phrases must never bleed into info/call matching.
+  if (/\bhelp\b|\bwhat can (i|you) (say|do)\b|\bwhat commands?\b|\bcommands? (are )?available\b|\bwhat are my options\b|\blist (the )?commands\b/.test(text)) {
+    return { type: 'help', text: rawText };
+  }
 
   // ── Call intents ──────────────────────────────────────────────
   // Any sentence containing "call ..." routes to dialing. "call the
