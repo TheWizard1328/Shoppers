@@ -482,7 +482,14 @@ Deno.serve(async (req) => {
         for (let i = 0; i < objects.length; i += 100) {
           const chunk = objects.slice(i, i + 100);
           try {
-            const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: crypto.randomUUID(), batches: [{ objects: chunk }] });
+            // Deterministic idempotency key (content hash + 60s bucket): two racing
+            // reconciles for the same batch replay the SAME create instead of
+            // producing two catalog items. Different content or a later minute →
+            // different key, so legitimate re-creates still work.
+            const _chunkIds = chunk.map((c) => `${c.delivery.id}:${c.amountCents}`).sort().join(',');
+            let _bh = 5381;
+            for (let _bi = 0; _bi < _chunkIds.length; _bi++) { _bh = ((_bh << 5) + _bh) ^ _chunkIds.charCodeAt(_bi); }
+            const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: `codrecon-${(_bh >>> 0).toString(36)}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: chunk }] });
             const created = j?.objects || [];
             const byTmp = new Map(created.map((o) => [o.id, o]));
             for (const c of toCreate.slice(i, i + 100)) {

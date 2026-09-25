@@ -43,7 +43,7 @@ import PickupLocationMultiSelect from './PickupLocationMultiSelect';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
 import InterStoreFormContent from './InterStoreFormContent';
 import CyclingLocationSearch from './CyclingLocationSearch';
-import { syncDeliverySquareCod } from '../utils/squareCodSync';
+
 
 const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
 <div className="flex items-center space-x-2">
@@ -813,19 +813,12 @@ export default function DeliveryFormView({
                 smartRefreshManager.resume();
               }
 
-              // ONE Square reconcile from the just-saved form snapshot — the backend
-              // decides cash-stays / card-removes from the authoritative record.
-              if (_formDataSnapshot.patient_id && delivery?.id) {
-                syncDeliverySquareCod(delivery.id, {
-                  status: _formDataSnapshot.status,
-                  cod_total_amount_required: Number(_formDataSnapshot.cod_total_amount_required || 0) / 100,
-                  cod_payments: _formDataSnapshot.cod_payments,
-                  cod_payment_type: _formDataSnapshot.cod_payment_type,
-                  patient_name: _formDataSnapshot.patient_name,
-                  delivery_date: _formDataSnapshot.delivery_date,
-                  store_id: _formDataSnapshot.store_id
-                });
-              }
+              // NOTE: no Square reconcile here — DeliveryForm's handleSubmit already
+              // fires exactly ONE syncDeliverySquareCod per save. A second concurrent
+              // reconcile here raced it: both saw "no existing item" (Square catalog
+              // search lags) and both CREATED one → duplicate catalog items on every
+              // COD edit/add (the second item became a bookkeeping-less orphan the
+              // dedupe pass can't see).
 
               const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
               const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
@@ -2207,19 +2200,9 @@ export default function DeliveryFormView({
                         smartRefreshManager.resume();
                       }
 
-                      // ONE Square reconcile from the just-saved form snapshot — the backend
-                      // decides cash-stays / card-removes from the authoritative record.
-                      if (_formDataSnapshot.patient_id && delivery?.id) {
-                        syncDeliverySquareCod(delivery.id, {
-                          status: _formDataSnapshot.status,
-                          cod_total_amount_required: Number(_formDataSnapshot.cod_total_amount_required || 0) / 100,
-                          cod_payments: _formDataSnapshot.cod_payments,
-                          cod_payment_type: _formDataSnapshot.cod_payment_type,
-                          patient_name: _formDataSnapshot.patient_name,
-                          delivery_date: _formDataSnapshot.delivery_date,
-                          store_id: _formDataSnapshot.store_id
-                        });
-                      }
+                      // NOTE: no Square reconcile here — DeliveryForm's handleSubmit already
+                      // fires exactly ONE syncDeliverySquareCod per save (second concurrent
+                      // reconcile raced it and created duplicate catalog items).
 
                       // Client-side stop_order + isNextDelivery repair (replaces backend setNextDeliveryFlag)
                       const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;

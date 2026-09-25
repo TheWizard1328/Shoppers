@@ -40,7 +40,9 @@ function buildDeliveryList(deliveries, patientNameMap) {
   let list = '';
   for (const delivery of deliveries || []) {
     const patientName = patientNameMap?.get(delivery?.patient_id) || delivery?.patient_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, null);
+    // Icons only — the icon and the word duplicate the same information
+    // (matches the dispatcher-assigned notification format).
+    const badges = buildSpecialBadges(delivery, null, { iconsOnly: true });
     list += `\n• ${patientName}${badges}`;
   }
   return list;

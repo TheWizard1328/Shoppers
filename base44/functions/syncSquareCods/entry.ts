@@ -59,7 +59,7 @@ async function lc(token) {
 }
 
 async function createItem({ itemName, amountCents, locationId, deliveryId, patientName, token }) {
-  const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: crypto.randomUUID(), batches: [{ objects: [{ type: 'ITEM', id: `#item-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: itemName, description: `COD for ${patientName || 'patient'} | Delivery ${deliveryId}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: amountCents, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
+  const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: `coditem-${deliveryId}-${amountCents}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: [{ type: 'ITEM', id: `#item-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: itemName, description: `COD for ${patientName || 'patient'} | Delivery ${deliveryId}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: amountCents, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
   return (j.objects || []).find((o) => o.type === 'ITEM') || null;
 }
 
