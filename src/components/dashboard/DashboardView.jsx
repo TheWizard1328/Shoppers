@@ -15,6 +15,8 @@ import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditC
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
 import StopCardCheckboxToggle from "@/components/dashboard/StopCardCheckboxToggle";
 import FABControls from "@/components/dashboard/FABControls";
+import { useHeyDoc } from "@/components/voice/useHeyDoc";
+import HeyDocOverlay from "@/components/voice/HeyDocOverlay";
 import LiveTempBadge from "@/components/dashboard/LiveTempBadge";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
@@ -80,6 +82,11 @@ function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  const heyDoc = useHeyDoc({
+    currentUser, filteredDeliveries, patients, stores, appUsers,
+    enabled: isDriver && isMobile,
+  });
+
   // Driver-legend overlay state machine (active-only ↔ overlay ↔ Full Show All) for non-admin drivers.
   // Admins/dispatchers keep the legacy click → handleDriverChange behavior.
   const { overlayDriverId, setOverlayDriverId, handleDriverLegendClick } = useDriverOverlayLegend({
@@ -369,6 +376,7 @@ function DashboardView({
         >
         <DashboardStatsPanel
           currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
+          heyDocAvailable={heyDoc.available} heyDocArmed={heyDoc.armed} onToggleHeyDoc={heyDoc.toggle}
           deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
           calendarMonth={calendarMonth} setCalendarMonth={setCalendarMonth}
@@ -531,6 +539,16 @@ function DashboardView({
         )}
 
       </div>
+
+      <HeyDocOverlay
+        chip={heyDoc.chip}
+        awaitingCommand={heyDoc.awaitingCommand}
+        onDismiss={heyDoc.dismissChip}
+        cardsReadyForFAB={cardsReadyForFAB}
+        stopCardsBaseHeight={stopCardsBaseHeight}
+        hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0}
+        immersiveHidden={immersiveHidden}
+      />
 
       <StopCardCheckboxToggle
         checked={showStopCardCheckboxes}
