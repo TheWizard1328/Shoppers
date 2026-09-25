@@ -162,6 +162,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   const restartTimerRef = useRef(null);
   const awaitTimeoutRef = useRef(null);
   const chipTimerRef = useRef(null);
+  const cmdDebounceRef = useRef(null);
   const pendingActionRef = useRef(null); // { action, deliveryId, label, progressBody, progressSpeech }
   const pendingTimerRef = useRef(null);
 
@@ -178,6 +179,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
   const clearTimers = () => {
     if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
     if (awaitTimeoutRef.current) { clearTimeout(awaitTimeoutRef.current); awaitTimeoutRef.current = null; }
+    if (cmdDebounceRef.current) { clearTimeout(cmdDebounceRef.current); cmdDebounceRef.current = null; }
   };
 
   const setAwaiting = useCallback((value) => {
@@ -387,6 +389,19 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
     );
   }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip, setAwaiting]);
 
+  const runCommandDebounced = useCallback((sessionFinalGetter, resetter) => {
+    if (cmdDebounceRef.current) clearTimeout(cmdDebounceRef.current);
+    cmdDebounceRef.current = setTimeout(() => {
+      cmdDebounceRef.current = null;
+      const full = String(sessionFinalGetter() || '').trim();
+      resetter?.();
+      if (full) {
+        setAwaiting(false);
+        handleCommand(full);
+      }
+    }, 900);
+  }, [handleCommand, setAwaiting]);
+
   const startWakeSession = useCallback(() => {
     if (!armedRef.current || recognitionRef.current) return;
     let sessionFinal = '';
@@ -410,10 +425,14 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
       const interimNorm = norm(interim);
 
       if (awaitingRef.current) {
-        if (sessionFinal.trim()) {
-          setAwaiting(false);
-          handleCommand(sessionFinal.trim());
-          sessionFinal = '';
+        let gotFinal = false;
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) gotFinal = true;
+        }
+        if (gotFinal && sessionFinal.trim()) {
+          // More finals may follow ("what" … "can I say") — debounce,
+          // then execute the full accumulated sentence at once.
+          runCommandDebounced(() => sessionFinal, () => { sessionFinal = ''; });
         } else if (interimNorm.trim()) {
           setChip({ icon: 'listening', title: 'Listening…', body: interim.trim() });
         }
@@ -430,12 +449,14 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
           return;
         }
         chime();
+        // Enter command-collect mode either way. If words followed the wake
+        // word in the same breath, seed them and start the debounce; the rest
+        // of the sentence arrives as further finals and joins the same run.
+        sessionFinal = after.length > 1 ? ` ${after}` : '';
+        setAwaiting(true);
+        setChip({ icon: 'listening', title: 'Yes?', body: 'Listening for your command…' });
         if (after.length > 1) {
-          handleCommand(after);
-          sessionFinal = '';
-        } else {
-          setAwaiting(true);
-          setChip({ icon: 'listening', title: 'Yes?', body: 'Listening for your command…' });
+          runCommandDebounced(() => sessionFinal, () => { sessionFinal = ''; });
         }
         return;
       }
@@ -469,7 +490,7 @@ export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, a
 
     recognitionRef.current = recognition;
     try { recognition.start(); } catch {}
-  }, [SR, handleCommand, setAwaiting, showChip]);
+  }, [SR, handleCommand, setAwaiting, showChip, runCommandDebounced]);
 
   const arm = useCallback(() => {
     armedRef.current = true;
