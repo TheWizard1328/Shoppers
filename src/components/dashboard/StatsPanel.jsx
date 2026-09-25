@@ -22,6 +22,7 @@ import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import ConnectionIndicator from "@/components/dashboard/ConnectionIndicator";
 import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
+import HeyDocToggleButton from "@/components/voice/HeyDocToggleButton";
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import ActivePayStats from '@/components/dashboard/ActivePayStats';
@@ -42,6 +43,7 @@ export default function StatsPanel({
   driverLocation,
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
+  heyDocAvailable, heyDocArmed, onToggleHeyDoc,
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
   showAllDriverMarkers, setShowAllDriverMarkers, overlayDriverId, setOverlayDriverId, handleDriverLegendClick,
   showBreadcrumbs, setShowBreadcrumbs, setBreadcrumbsData,
@@ -436,6 +438,7 @@ export default function StatsPanel({
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
                 <ConnectionIndicator />
                 <ErrorFlagIndicator />
+                {heyDocAvailable && <HeyDocToggleButton armed={heyDocArmed} onToggle={onToggleHeyDoc} />}
               </div>}
             </div>
 

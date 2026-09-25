@@ -4,7 +4,6 @@ import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import { Phone, Navigation } from 'lucide-react';
-import HeyDoc from '@/components/voice/HeyDoc';
 import { motion } from 'framer-motion';
 
 export default function FABControls({
@@ -167,21 +166,6 @@ export default function FABControls({
           </button>
         </motion.div>
       )}
-      <HeyDoc
-        key="hey-doc-fab"
-        currentUser={currentUser}
-        filteredDeliveries={filteredDeliveries}
-        patients={patients}
-        stores={stores}
-        appUsers={appUsers}
-        isDriver={isDriver}
-        isMobile={isMobile}
-        immersiveHidden={immersiveHidden}
-        hideForExpandedCard={isStopCardExpanded}
-        cardsReadyForFAB={cardsReadyForFAB}
-        stopCardsBaseHeight={stopCardsBaseHeight}
-        fabPosition={fabPosition}
-      />
       <MapViewCycleFAB
         key="map-view-cycle-fab"
         currentUser={currentUser}

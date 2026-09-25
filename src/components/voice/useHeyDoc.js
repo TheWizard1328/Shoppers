@@ -1,29 +1,13 @@
 /**
- * Hey Doc — driver voice assistant with OK-Google-style wake word.
+ * Hey Doc — driver voice assistant logic, extracted as a hook so the
+ * on/off toggle button (stats panel) and the response overlay (chip
+ * / banner, rendered lower on the dashboard) can share one listening
+ * session without duplicating state.
  *
- * Tap the mic once to arm hands-free listening. While armed, the mic
- * listens continuously for "Hey Doc" (plus common mishearings: dock,
- * dog, doctor, talk). On wake it chimes, then the driver's next phrase
- * is the command:
- *   - "what's the name / address / phone / notes?" (current stop)
- *   - "call the store" (current stop's pickup store)
- *   - "call <any store, driver or admin name>"
- * Answers are spoken back (speechSynthesis) and shown as text.
- *
- * Behavior notes:
- *   - Continuous recognition sessions auto-restart (Android Chrome
- *     ends sessions every few seconds) while armed and the app is
- *     visible; suspended when backgrounded, resumed on focus.
- *   - Armed state persists per driver (localStorage).
- *   - Uses browser SpeechRecognition (PWA). The Android APK WebView
- *     needs a native mic layer — a later phase.
- *
- * Phase 2: "optimize my route". Phase 3: confirm-gated
- * complete/fail/return actions.
+ * See HeyDocToggleButton.jsx (the stats panel button) and
+ * HeyDocOverlay.jsx (the chip/banner) for the UI pieces.
  */
-import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
-import { Mic, MicOff, Phone, Info, Volume2, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { parseHeyDocCommand, resolveCallTarget } from './heyDocParser';
 
 const getSpeechRecognition = () =>
@@ -37,8 +21,6 @@ const WAKE_PATTERNS = [
   /\b(?:hey|hay|okay|ok)\s+(?:doc|dock|dog|doctor|dot|talk)\b/,
   /\ba\s+(?:doc|dock|dog)\b/,
 ];
-
-const WAKE_SPLIT = /\b(?:hey|hay|okay|ok)?\s*(?:doc|dock|dog|doctor|dot|talk)\b/;
 
 const findWake = (normText) => {
   for (const re of WAKE_PATTERNS) {
@@ -63,8 +45,8 @@ const speak = (text) => {
   }
 };
 
-// Short confirmation beep (Web Audio — quick feedback the wake word
-// was heard, without our own TTS being captured back as a command).
+// Short confirmation beep (Web Audio) — quick feedback the wake word
+// was heard, without our own TTS being captured back as a command.
 let audioCtx = null;
 const chime = () => {
   try {
@@ -95,20 +77,7 @@ const findCurrentStop = (deliveries) => {
   );
 };
 
-function HeyDoc({
-  currentUser,
-  filteredDeliveries,
-  patients,
-  stores,
-  appUsers,
-  isDriver,
-  isMobile,
-  immersiveHidden,
-  hideForExpandedCard,
-  cardsReadyForFAB,
-  stopCardsBaseHeight,
-  fabPosition = 'absolute',
-}) {
+export function useHeyDoc({ currentUser, filteredDeliveries, patients, stores, appUsers, enabled }) {
   const [armed, setArmed] = useState(false);
   const [awaitingCommand, setAwaitingCommand] = useState(false);
   const [chip, setChip] = useState(null); // { icon, title, body }
@@ -121,9 +90,8 @@ function HeyDoc({
   const chipTimerRef = useRef(null);
 
   const SR = getSpeechRecognition();
-  const enabled = !!(SR && isDriver && isMobile && currentUser);
+  const canUse = !!(SR && enabled && currentUser);
 
-  // ── Chip helpers ────────────────────────────────────────────
   const showChip = useCallback((icon, title, body, speakText) => {
     if (chipTimerRef.current) clearTimeout(chipTimerRef.current);
     setChip({ icon, title, body });
@@ -242,7 +210,6 @@ function HeyDoc({
     );
   }, [filteredDeliveries, patients, stores, appUsers, currentUser, showChip]);
 
-  // ── Continuous wake-word listening loop ─────────────────────
   const startWakeSession = useCallback(() => {
     if (!armedRef.current || recognitionRef.current) return;
     let sessionFinal = '';
@@ -266,7 +233,6 @@ function HeyDoc({
       const interimNorm = norm(interim);
 
       if (awaitingRef.current) {
-        // Driver already said "Hey Doc" — this utterance is the command
         if (sessionFinal.trim()) {
           setAwaiting(false);
           handleCommand(sessionFinal.trim());
@@ -277,14 +243,12 @@ function HeyDoc({
         return;
       }
 
-      // Wake-word scanning
       const wakeInFinal = findWake(finalNorm);
       const wakeInInterim = findWake(interimNorm);
       if (wakeInFinal) {
         const after = finalNorm.slice(finalNorm.lastIndexOf(wakeInFinal[0]) + wakeInFinal[0].length).trim();
         const before = finalNorm.slice(0, finalNorm.indexOf(wakeInFinal[0]));
         if (before.split(' ').filter(Boolean).length > 6) {
-          // Wake phrase heard mid-sentence — likely conversation, ignore
           sessionFinal = '';
           return;
         }
@@ -299,13 +263,12 @@ function HeyDoc({
         return;
       }
       if (wakeInInterim && !wakeHeardRef.current) {
-        wakeHeardRef.current = true; // chime early, avoid double-fire when final arrives
+        wakeHeardRef.current = true;
         chime();
       }
     };
 
     recognition.onend = () => {
-      // Sessions end often (silence, engine limits) — restart while armed
       recognitionRef.current = null;
       if (armedRef.current && document.visibilityState === 'visible') {
         restartTimerRef.current = setTimeout(() => {
@@ -354,18 +317,13 @@ function HeyDoc({
     }
   }, [arm, disarm, showChip]);
 
-  // Restore persisted armed state (requires a user gesture first on
-  // many platforms, so we only restore the toggle visually and arm
-  // on the next tap if permission was never granted... simpler: if
-  // the key is set, arm immediately — permission persists per
-  // origin once granted).
+  // Restore persisted armed state — deferred until first user gesture
+  // (mic permission/autoplay rules on iOS/Chrome).
   useEffect(() => {
-    if (!enabled) return;
+    if (!canUse) return;
     let stored = null;
     try { stored = localStorage.getItem(armedStorageKey(currentUser?.id)); } catch {}
     if (stored === 'true') {
-      // Defer until first user interaction to satisfy autoplay/mic
-      // gesture rules on iOS/Chrome
       const onFirstGesture = () => {
         window.removeEventListener('touchend', onFirstGesture);
         window.removeEventListener('click', onFirstGesture);
@@ -380,18 +338,15 @@ function HeyDoc({
         window.removeEventListener('click', onFirstGesture);
       };
     }
-  }, [enabled, currentUser?.id, arm]);
+  }, [canUse, currentUser?.id, arm]);
 
-  // Persist armed state
   useEffect(() => {
-    if (!enabled) return;
+    if (!canUse) return;
     try { localStorage.setItem(armedStorageKey(currentUser?.id), armed ? 'true' : 'false'); } catch {}
-  }, [armed, enabled, currentUser?.id]);
+  }, [armed, canUse, currentUser?.id]);
 
-  // Suspend when backgrounded, resume when visible (Android suspends
-  // the mic anyway — mirrors the GPS tracker pattern)
   useEffect(() => {
-    if (!enabled) return;
+    if (!canUse) return;
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         try { recognitionRef.current?.abort?.(); } catch {}
@@ -401,9 +356,8 @@ function HeyDoc({
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [enabled, startWakeSession]);
+  }, [canUse, startWakeSession]);
 
-  // Cleanup on unmount
   useEffect(() => () => {
     armedRef.current = false;
     stopRecognition();
@@ -411,100 +365,7 @@ function HeyDoc({
     try { window.speechSynthesis?.cancel?.(); } catch {}
   }, [stopRecognition]);
 
-  if (!enabled) return null;
-  if (immersiveHidden || hideForExpandedCard) return null;
+  const dismissChip = useCallback(() => setChip(null), []);
 
-  // Positioned one row ABOVE the bulk-select checkbox / API counter
-  // row (that row sits at stopCardsBaseHeight + 10, left side)
-  const bottomPixels = (filteredDeliveries?.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10 + 48;
-
-  const chipIcon = chip?.icon === 'call' ? <Phone className="w-4 h-4" />
-    : chip?.icon === 'info' ? <Info className="w-4 h-4" />
-    : chip?.icon === 'listening' ? <Mic className="w-4 h-4 animate-pulse" />
-    : chip?.icon === 'on' ? <Volume2 className="w-4 h-4" />
-    : chip?.icon === 'off' || chip?.icon === 'error' ? <MicOff className="w-4 h-4" />
-    : null;
-
-  return (
-    <>
-      {/* Response / status chip */}
-      <AnimatePresence>
-        {chip && !awaitingCommand && (
-          <motion.div
-            key="heydoc-chip"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="fixed left-4 right-4 z-[10090] mx-auto max-w-sm rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-800/95"
-            style={{ bottom: `${bottomPixels + 52}px`, pointerEvents: 'auto' }}
-          >
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 shrink-0 text-slate-600 dark:text-slate-300">{chipIcon}</div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{chip.title}</p>
-                <p className="whitespace-pre-line text-sm text-slate-800 dark:text-slate-100">{chip.body}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setChip(null)}
-                className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-                aria-label="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Awaiting command banner */}
-      <AnimatePresence>
-        {awaitingCommand && (
-          <motion.div
-            key="heydoc-awaiting"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="fixed left-4 right-4 z-[10090] mx-auto max-w-sm rounded-xl border border-red-300 bg-red-50/95 p-3 shadow-xl backdrop-blur dark:border-red-700 dark:bg-red-950/90"
-            style={{ bottom: `${bottomPixels + 52}px`, pointerEvents: 'auto' }}
-          >
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 shrink-0 animate-pulse text-red-600 dark:text-red-400"><Mic className="w-4 h-4" /></div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Yes? — listening…</p>
-                <p className="whitespace-pre-line text-sm text-red-900 dark:text-red-100">{chip?.body || 'Say your command…'}</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mic FAB */}
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-        className="z-[100]"
-        style={{ position: fabPosition, bottom: `${bottomPixels}px`, left: '16px', pointerEvents: 'auto' }}
-      >
-        <button
-          type="button"
-          onClick={toggle}
-          title={armed ? 'Hey Doc is listening — tap to turn off' : 'Hey Doc — tap to start hands-free listening'}
-          aria-label="Hey Doc voice assistant"
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-md transition-colors ${
-            armed
-              ? 'bg-red-500 text-white'
-              : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:text-emerald-300'
-          }`}
-          style={{ touchAction: 'manipulation' }}
-        >
-          {armed ? <Mic className="w-5 h-5 animate-pulse" /> : <Mic className="w-5 h-5" />}
-        </button>
-      </motion.div>
-    </>
-  );
+  return { available: canUse, armed, awaitingCommand, chip, toggle, dismissChip };
 }
-
-export default memo(HeyDoc);
