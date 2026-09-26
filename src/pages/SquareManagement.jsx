@@ -393,6 +393,10 @@ export default function SquareManagement() {
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
       toast.success(`Backfill complete — ${transactionRecords.length} transactions, history back to ${finalData.txRetentionFloor || 'floor'}`);
+
+      // Final step per owner spec: reconcile. The Catalog + Transaction pages now
+      // match against the full 6-month tx history in IDB.
+      await runReconcile();
     } catch (err) {
       console.error('[SquareManagement] Backfill failed:', err);
       setError(err?.message || 'Backfill failed');

@@ -885,6 +885,11 @@ async function handleGetCodData(base44, payload={}) {
   console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
 
   // ── 5c) Auto-create missing catalog items (drain the Reconcile backlog) ──
+  // Backfill runs NEVER create catalog items: their job is to backfill tx
+  // history into the IDB and refresh the Catalog/Transaction pages. Item
+  // creation happens afterwards via Reconcile, once the full tx data is in
+  // place (owner spec, Sep 26 2026).
+  const isBackfillRun = orderChunk !== null;
   // Each Sync run also backfills catalog items for COD deliveries that should
   // have one but never got one (the event-driven syncSquareCods trigger missed
   // the transition — pre-trigger imports, completions done outside the
@@ -893,6 +898,7 @@ async function handleGetCodData(base44, payload={}) {
   // card-only completion (cards bypass Square), and no live catalog item or
   // existing SquareTransaction already linked by delivery_id.
   const deliveryNeedsCatalogItem = (d) => {
+    if (isBackfillRun) return false;
     if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
     if (d?.cod_confirmed_collected) return false; // confirmed collected at the register — never re-create
     if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
