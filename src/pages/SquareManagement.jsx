@@ -42,6 +42,11 @@ export default function SquareManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState(null);
+
+  // A response is a complete DB mirror only when the new backend built it
+  // (txRetentionFloor present) and it actually carries rows. Empty/partial
+  // responses must never replace-save the IDB tx history.
+  const finalDataHasCompleteTxMirror = (res, rows) => Boolean(res?.txRetentionFloor) && Array.isArray(rows) && rows.length > 0;
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [locationIds, setLocationIds] = useState([]);
@@ -370,7 +375,7 @@ export default function SquareManagement() {
       // New-backend responses carry txRetentionFloor and are the COMPLETE retained
       // DB set — safe to replace-save. Old/partial responses (no floor field, e.g.
       // during deploy propagation) get MERGED instead so IDB history is never wiped.
-      if (finalData.txRetentionFloor) {
+      if (finalDataHasCompleteTxMirror(finalData, transactionRecords)) {
         await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
       } else {
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
@@ -463,7 +468,20 @@ export default function SquareManagement() {
 
         // Sync online → offline (IDB writes only, no UI state)
         await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
-        await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+        // Guard the IDB tx history: a replace-save only happens when the response
+        // is a COMPLETE DB mirror (new backend: txRetentionFloor present AND rows).
+        // Partial/empty responses (old backend mid-deploy, failed order fetch)
+        // would otherwise wipe 6 months of history on every device.
+        if (finalDataHasCompleteTxMirror(codData, transactionRecords)) {
+          await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+        } else {
+          const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
+          const existingTxs = (await offlineDB.getAll(offlineDB.STORES.PAYMENT_TRANSACTIONS)) || [];
+          const mergedTxs = new Map((existingTxs || []).map((t) => [keyOf(t), t]));
+          (transactionRecords || []).forEach((t) => { if (t) mergedTxs.set(keyOf(t), { ...mergedTxs.get(keyOf(t)), ...t }); });
+          await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(mergedTxs.values()));
+          console.warn('[SquareManagement] Partial/empty tx response — merged into IDB instead of replace-save', { rows: transactionRecords?.length, floor: codData?.txRetentionFloor });
+        }
 
         // Merge deliveries non-destructively — preserve local-only fields (delivery_notes,
         // encoded_polyline, etc.) that squareGetCodData2 doesn't return in its stripped payload.
