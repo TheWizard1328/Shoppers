@@ -1,0 +1,44 @@
+{
+  "name": "Square COD Pre-Briefing Sync",
+  "description": "Every evening at 8:50pm Edmonton (10 min before the 9pm COD briefing): calls the RxDeliver squareGetCodData2 sync via REST so catalog items, transactions, and confirmed-collected stamps are fresh for the briefing. Silent on success, alerts the owner only on failure.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "50 20 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_pre_briefing_sync": {
+          "call": "invoke_superagent_step",
+          "then": "end",
+          "with": {
+            "message": "It is 8:50pm \u2014 the pre-briefing Square COD sync is running now (10 minutes before the 9pm COD briefing). Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver Square COD sync, which pulls the latest catalog and transactions from Square, stamps confirmed-collected deliveries, purges collected records, and creates missing catalog items):\ncurl -s --max-time 480 -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/squareGetCodData2' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{\"daysBack\": 90, \"forceDeliveryRefresh\": true}'\n\n2. Check the JSON result. If it contains an error field or the curl failed, send the owner ONE short WhatsApp message via broadcast_message describing what failed, then stop.\n3. On success, do NOT message the owner \u2014 the sync is routine. Stop."
+          },
+          "x-base44": {
+            "description": "Run squareGetCodData2 sync before the 9pm COD briefing",
+            "title": "Pre-briefing Square COD sync"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "square_cod_pre_briefing_sync",
+      "namespace": "base44",
+      "version": "1.0.0"
+    }
+  }
+}
