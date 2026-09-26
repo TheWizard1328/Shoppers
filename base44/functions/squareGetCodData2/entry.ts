@@ -122,9 +122,9 @@ async function listActiveCatalogItems(accessToken) {
   do{const json=await squareFetch('/v2/catalog/search','POST',accessToken,{object_types:['ITEM'],include_deleted_objects:false,archived_state:'ARCHIVED_STATE_NOT_ARCHIVED',limit:1000,cursor});objects.push(...(json.objects||[]));cursor=json.cursor;if(cursor)await sleep(200);}while(cursor);
   return objects;
 }
-async function listOrders(locationIds, startAt, accessToken, maxOrders=2000, states=['COMPLETED','OPEN']) {
+async function listOrders(locationIds, startAt, accessToken, maxOrders=2000, states=['COMPLETED','OPEN'], sortOrder='DESC', endAt=null) {
   if(!locationIds.length)return[];const orders=[];let cursor=null;
-  do{const json=await squareFetch('/v2/orders/search','POST',accessToken,{location_ids:locationIds,cursor,limit:500,query:{filter:{state_filter:{states},date_time_filter:{created_at:{start_at:startAt}}},sort:{sort_field:'CREATED_AT',sort_order:'DESC'}}});orders.push(...(json.orders||[]));cursor=json.cursor||null;if(cursor&&orders.length<maxOrders)await sleep(200);}while(cursor&&orders.length<maxOrders);
+  do{const json=await squareFetch('/v2/orders/search','POST',accessToken,{location_ids:locationIds,cursor,limit:500,query:{filter:{state_filter:{states},date_time_filter:{created_at:{start_at:startAt,end_at:endAt||undefined}}},sort:{sort_field:'CREATED_AT',sort_order:sortOrder}}});orders.push(...(json.orders||[]));cursor=json.cursor||null;if(cursor&&orders.length<maxOrders)await sleep(200);}while(cursor&&orders.length<maxOrders);
   return orders.slice(0,maxOrders);
 }
 
@@ -251,10 +251,21 @@ async function handleGetCodData(base44, payload={}) {
 
   // ── 2) Fetch Square API: catalog + orders in parallel (ONE pass each) ─
   console.log('[squareGetCodData2] Fetching Square catalog + orders...');
-  const [liveCatalogItems, completedOrders] = await Promise.all([
+  const [liveCatalogItems, recentOrders] = await Promise.all([
     listActiveCatalogItems(accessToken),
     listOrders(locationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
   ]);
+  let completedOrders = recentOrders;
+  // Newest-first cap hit → the oldest part of the window was never fetched.
+  // Fetch the remainder oldest-first and merge (dedupe by order id) so the
+  // whole daysBack window is covered for collection matching.
+  if (recentOrders.length >= MAX_TRANSACTION_ORDERS) {
+    const boundary = new Date(new Date(recentOrders[recentOrders.length - 1].created_at).getTime() - 3600000).toISOString();
+    const olderOrders = await listOrders(locationIds, lookbackStartAt, accessToken, 8000, ['COMPLETED', 'OPEN'], 'ASC', boundary);
+    const seen = new Set(completedOrders.map((o) => o.id));
+    for (const o of olderOrders) if (!seen.has(o.id)) { completedOrders.push(o); seen.add(o.id); }
+    console.log('[squareGetCodData2] two-pass order fetch:', { recent: recentOrders.length, older: olderOrders.length, merged: completedOrders.length });
+  }
   console.log('[squareGetCodData2] Square API done:', {
     catalogItems: liveCatalogItems.length, orders: completedOrders.length,
     elapsed: Date.now() - t0
@@ -635,7 +646,7 @@ async function handleGetCodData(base44, payload={}) {
       const oldest = wideCandidates.map((d) => String(d.delivery_date)).sort()[0];
       const wideStartAt = new Date(new Date(`${oldest}T00:00:00`).getTime() - 3 * 86400000).toISOString();
       console.log('[squareGetCodData2] wide collected scan:', { candidates: wideCandidates.length, wideStartAt });
-      const wideOrders = await listOrders(locationIds, wideStartAt, accessToken, 4000, ['COMPLETED']);
+      const wideOrders = await listOrders(locationIds, wideStartAt, accessToken, 6000, ['COMPLETED']);
       const wideItems = flattenOrderItems(wideOrders);
       const wideSig = new Set(wideItems.map((it) => `${normalizeText(it.item_name)}::${toAmountCents(it.amount_cents)}`));
       for (const d of wideCandidates) {

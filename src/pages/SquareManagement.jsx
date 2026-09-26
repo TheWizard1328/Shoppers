@@ -451,11 +451,21 @@ export default function SquareManagement() {
         let autoFailedCount = 0;
         if (itemsToCreate.length > 0) {
           try {
-            const createRes = await invokeWithLongTimeout('syncSquareCods', {
-              items: itemsToCreate,
-              deletions: [],
-            });
-            const createResults = createRes?.data?.results || createRes?.results || [];
+            // Create in small sequential batches: one giant syncSquareCods call
+            // with 100+ items exceeds the 120s client timeout (throttled creates
+            // take ~1.4s each). Batches of 20 finish in ~30s each.
+            const BATCH = 20;
+            const createResults = [];
+            for (let bi = 0; bi < itemsToCreate.length; bi += BATCH) {
+              const batchItems = itemsToCreate.slice(bi, bi + BATCH);
+              const createRes = await invokeWithLongTimeout('syncSquareCods', {
+                items: batchItems,
+                deletions: [],
+              });
+              const batchResults = createRes?.data?.results || createRes?.results || [];
+              createResults.push(...batchResults);
+              console.log('[SquareManagement] Auto-create batch', Math.floor(bi / BATCH) + 1, 'done:', batchItems.length, 'items,', batchResults.filter((r) => r.status === 'error').length, 'errors');
+            }
             autoAddedCount = createResults.filter((r) => r.status === 'ok').length;
             autoFailedCount = createResults.filter((r) => r.status === 'error').length;
             if (autoFailedCount > 0) {
