@@ -433,6 +433,10 @@ export default function SquareManagement() {
             if (catalogDeliveryIds.has(d.id)) return false;
             if (_hasCardPayment(d)) return false;
             if (collectedTxDeliveryIds.has(d.id)) return false;
+            // Confirmed collected — its catalog item was already rung through
+            // Square and purged. Re-creating it re-adds junk the next sync
+            // deletes (churn). Mirrors the backend guard.
+            if (d?.cod_confirmed_collected) return false;
             return true;
           })
           .map((d) => ({

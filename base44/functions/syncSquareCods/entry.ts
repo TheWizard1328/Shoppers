@@ -27,9 +27,9 @@ async function sf(path, method, token, body) {
     try {
       const r = await fetch(`${SB}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Square-Version': SV }, body: body ? JSON.stringify(body) : undefined });
       const t = await r.text(); const j = t ? JSON.parse(t) : {};
-      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(RD * a); continue; } throw le; }
+      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(Number(r.status) === 429 ? 1500 * a : RD * a); continue; } throw le; }
       return j;
-    } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(RD * a); continue; } throw le; }
+    } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(Number(e?.status) === 429 ? 1500 * a : RD * a); continue; } throw le; }
   }
   throw le || new Error('Square API failed');
 }
@@ -287,7 +287,13 @@ Deno.serve(async (req) => {
         results.push({ deliveryId: del?.deliveryId, action: 'delete', status: 'error', error: error?.message || 'Delete failed' });
       }
     }
-    for (const item of items) {
+    for (let ii = 0; ii < items.length; ii++) {
+      const item = items[ii];
+      // Throttle: Square rate-limits bursts of catalog API calls. A 100+ item
+      // backlog fired hundreds of calls back-to-back and 429'd (the "Auto-create
+      // partial failure: 107 errors: Rate limit exceeded" flood). ~3/sec keeps
+      // us under the limit while finishing 107 items in ~40s.
+      if (ii > 0) await sleep(350);
       try {
         const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId });
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
