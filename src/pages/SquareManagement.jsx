@@ -1529,6 +1529,15 @@ export default function SquareManagement() {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+          // Retained tx history is 6 months deep: an old same-patient/same-amount
+          // tx is NOT this delivery's collection. A POS ring happens within days
+          // of the delivery — require date proximity for every fuzzy fallback path.
+          const txParsed = parseSquareItemName(String(tx.item_name || ''));
+          const txDateStr = txParsed?.deliveryDate || String(tx.raw_square_data?.payment_date || tx.raw_square_data?.order_created_at || '').slice(0, 10) || null;
+          if (txDateStr && delivery.delivery_date) {
+            const dayDiff = Math.abs(new Date(`${txDateStr.slice(0, 10)}T00:00:00`) - new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`)) / 86400000;
+            if (!Number.isFinite(dayDiff) || dayDiff > 10) return false;
+          }
           const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
           const nameMatches = !!(patientName && txSearchText && patientNamesMatch(patientName, txSearchText));
           const txAmountSet = getTransactionAmountSet(tx);
@@ -1882,6 +1891,15 @@ export default function SquareManagement() {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+          // Retained tx history is 6 months deep: an old same-patient/same-amount
+          // tx is NOT this delivery's collection. A POS ring happens within days
+          // of the delivery — require date proximity for every fuzzy fallback path.
+          const txParsed = parseSquareItemName(String(tx.item_name || ''));
+          const txDateStr = txParsed?.deliveryDate || String(tx.raw_square_data?.payment_date || tx.raw_square_data?.order_created_at || '').slice(0, 10) || null;
+          if (txDateStr && delivery.delivery_date) {
+            const dayDiff = Math.abs(new Date(`${txDateStr.slice(0, 10)}T00:00:00`) - new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`)) / 86400000;
+            if (!Number.isFinite(dayDiff) || dayDiff > 10) return false;
+          }
           const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
           const nameMatches = !!(patientName && txSearchText && patientNamesMatch(patientName, txSearchText));
           const txAmountSet = getTransactionAmountSet(tx);

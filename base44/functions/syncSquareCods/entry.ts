@@ -189,7 +189,12 @@ async function handleCreateCodItem(b44, payload) {
   catch (e) { console.log('[syncSquareCods] bookkeeping lookup FAILED — skipping DB write to avoid duplicate row for', deliveryId); return null; }
 
   const cp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, description: '', amount: Number(codAmount || 0), amount_cents: ac, delivery_id: deliveryId, delivery_date: rdd || null, patient_id: rpid, store_id: effStoreId || null, location_id: locationId, status: 'active' };
-  if (exCat.length > 0) await b44.asServiceRole.entities.SquareCatalogItems.update(exCat[0].id, cp);
+  if (exCat.length > 0) {
+    await b44.asServiceRole.entities.SquareCatalogItems.update(exCat[0].id, cp);
+    // Collapse duplicate bookkeeping rows from racing invocations (same delivery,
+    // same object) — they break UI delivery-link lookups.
+    for (let i = 1; i < exCat.length; i++) { await b44.asServiceRole.entities.SquareCatalogItems.delete(exCat[i].id).catch(() => null); }
+  }
   else await b44.asServiceRole.entities.SquareCatalogItems.create(cp);
   return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, transactionId: tx?.id || exTx[0]?.id };
 }

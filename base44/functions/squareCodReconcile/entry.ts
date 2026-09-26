@@ -428,6 +428,27 @@ Deno.serve(async (req) => {
     // orders — ONE cached fetch per invocation, only when such candidates exist —
     // and skip re-creating items for confirmed-collected deliveries. Without
     // this, reconciler creates and sync deletes loop forever (the churn bug).
+    // ── DB TX EVIDENCE GUARD (create path) ────────────────────────────────
+    // Tx history is now RETAINED (retention floor, Sep 26 2026): a completed
+    // SquareTransaction linked to this delivery is authoritative collected
+    // evidence. Never (re)create the catalog item for such deliveries.
+    if (toCreate.length > 0 && !dryRun) {
+      const txSkipIds = new Set();
+      for (const c of toCreate) {
+        const cts = await b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: c.delivery.id, status: 'completed' }).catch(() => []);
+        if (cts?.length > 0) txSkipIds.add(c.delivery.id);
+      }
+      if (txSkipIds.size > 0) {
+        for (const did of txSkipIds) { await removeBookkeeping(b, did, 'completed_transaction_exists', 'cancelled').catch(() => null); }
+        for (let i = toCreate.length - 1; i >= 0; i--) {
+          if (txSkipIds.has(toCreate[i].delivery.id)) {
+            results.push({ deliveryId: toCreate[i].delivery.id, action: 'create', status: 'skipped', reason: 'completed_transaction_exists' });
+            toCreate.splice(i, 1);
+          }
+        }
+        log(`completed-tx guard skipped ${txSkipIds.size} create(s)`);
+      }
+    }
     const completedCashCreates = toCreate.filter((c) => String(c.delivery?.status || '').toLowerCase() === 'completed' && hasCashPayment(c.delivery));
     if (completedCashCreates.length > 0 && !dryRun) {
       try {
