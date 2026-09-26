@@ -409,93 +409,18 @@ export default function SquareManagement() {
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-        // ── STEP 3.5: Auto-create missing catalog items for uncollected deliveries ──
-        // After the sync deletes collected items and mirrors the catalog, check if
-        // there are uncollected deliveries that still need catalog items created in
-        // Square. This merges the "Update Catalog" action into the Sync flow so one
-        // button reconciles in both directions (delete collected + create missing).
-        const catalogDeliveryIds = new Set((catalogRecords || []).map((r) => r?.delivery_id).filter(Boolean));
-        // Any delivery with a transaction record (pending OR completed) means the
-        // catalog item was already used in a Square sale — don't re-create it.
-        const collectedTxDeliveryIds = new Set(
-          (transactionRecords || [])
-            .filter((t) => t?.delivery_id && t?.square_transaction_id)
-            .map((t) => t?.delivery_id)
-            .filter(Boolean)
-        );
-        const _hasCardPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
-          .some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
-
-        const itemsToCreate = (strippedDeliveries || [])
-          .filter((d) => {
-            if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
-            if (d?.status === 'failed' || d?.status === 'cancelled') return false;
-            if (catalogDeliveryIds.has(d.id)) return false;
-            if (_hasCardPayment(d)) return false;
-            if (collectedTxDeliveryIds.has(d.id)) return false;
-            // Confirmed collected — its catalog item was already rung through
-            // Square and purged. Re-creating it re-adds junk the next sync
-            // deletes (churn). Mirrors the backend guard.
-            if (d?.cod_confirmed_collected) return false;
-            return true;
-          })
-          .map((d) => ({
-            deliveryId: d.id,
-            patientName: null,
-            storeId: d.store_id,
-            codAmount: d.cod_total_amount_required,
-            deliveryDate: d.delivery_date,
-          }));
-
+        // ── STEP 3.5 (REMOVED): the frontend used to fire its own auto-create
+        // pass (syncSquareCods with every delivery lacking a catalog/tx record).
+        // That pass ran WITHOUT the sync's collected checks and store-Square
+        // eligibility, so collected CODs and non-Square-store CODs got items
+        // re-created every Sync, then deleted again by the next one — the
+        // endless recreate/delete churn and Square rate-limit storms. Catalog
+        // creation is owned SOLELY by the sync's server-side 5c step, which runs
+        // AFTER 5a stamps + purges confirmed collections, so an item is only ever
+        // created for a delivery that survived all collected checks. Its
+        // creations are already inside catalogRecords above.
         let autoAddedCount = 0;
         let autoFailedCount = 0;
-        if (itemsToCreate.length > 0) {
-          try {
-            // Create in small sequential batches: one giant syncSquareCods call
-            // with 100+ items exceeds the 120s client timeout (throttled creates
-            // take ~1.4s each). Batches of 20 finish in ~30s each.
-            const BATCH = 20;
-            const createResults = [];
-            for (let bi = 0; bi < itemsToCreate.length; bi += BATCH) {
-              const batchItems = itemsToCreate.slice(bi, bi + BATCH);
-              const createRes = await invokeWithLongTimeout('syncSquareCods', {
-                items: batchItems,
-                deletions: [],
-              });
-              const batchResults = createRes?.data?.results || createRes?.results || [];
-              createResults.push(...batchResults);
-              console.log('[SquareManagement] Auto-create batch', Math.floor(bi / BATCH) + 1, 'done:', batchItems.length, 'items,', batchResults.filter((r) => r.status === 'error').length, 'errors');
-            }
-            autoAddedCount = createResults.filter((r) => r.status === 'ok').length;
-            autoFailedCount = createResults.filter((r) => r.status === 'error').length;
-            if (autoFailedCount > 0) {
-              const errs = createResults.filter((r) => r.status === 'error').map((r) => r.error).slice(0, 3).join('; ');
-              console.warn('[SquareManagement] Auto-create partial failure:', autoFailedCount, 'errors:', errs);
-            }
-
-            // Re-fetch catalog from Square to pick up the newly created items
-            if (autoAddedCount > 0) {
-              const refreshRes = await invokeWithLongTimeout('squareGetCodData2', {
-                forceDeliveryRefresh: false,
-                daysBack: 90,
-              });
-              const refreshData = refreshRes?.data || refreshRes || {};
-              const refreshedCatalog = refreshData.catalogRecords || [];
-              const refreshedTransactions = refreshData.transactionRecords || [];
-              await squareCODOfflineManager.saveCatalogItemsOffline(refreshedCatalog);
-              await squareCODOfflineManager.savePaymentTransactionsOffline(refreshedTransactions);
-              const [refreshedUiCatalog, refreshedUiTx] = await Promise.all([
-                squareCODOfflineManager.getCatalogItemsOffline(),
-                squareCODOfflineManager.getPaymentTransactionsOffline()
-              ]);
-              setCatalogItems([...(refreshedUiCatalog || [])]);
-              setAllTransactions([...(refreshedUiTx || [])]);
-              setSoldCatalogItems([...(refreshedUiTx || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-            }
-          } catch (createErr) {
-            console.error('[SquareManagement] Auto-create missing items failed:', createErr);
-          }
-        }
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];

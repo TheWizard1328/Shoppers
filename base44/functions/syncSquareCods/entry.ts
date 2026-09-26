@@ -147,6 +147,11 @@ async function handleCreateCodItem(b44, payload) {
   const pr = dr ? await resolvePatient(b44, dr, pById, pByPid) : null;
   const effStoreId = storeId || dr?.store_id;
   const { store, locationId } = await getStoreCtx(b44, effStoreId);
+  // Store not Square-configured — creating an item would float with no location
+  // and no register to ring it through. Never create for ineligible stores.
+  if (!locationId) {
+    return { success: true, skipped: true, reason: 'store_not_square_configured' };
+  }
   const rdd = deliveryDate || dr?.delivery_date;
   const looked = dr ? await resolvePatientName(b44, dr, pById, pByPid) : '';
   const usable = looked === 'Unknown Patient' ? '' : looked;
