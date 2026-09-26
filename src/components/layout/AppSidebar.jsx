@@ -253,7 +253,9 @@ export default function AppSidebar({
                   <DropdownMenuTrigger asChild>
                     <Button aria-label="More options" variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
                       <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      {hasWebUpdate && <UpdateArrow type="web" size={8} />}
+                      {/* Update indicator lives on the app icon + its balloon only (above) —
+                          showing it here too was a redundant second green arrow on the
+                          static/expanded sidebar. */}
                     </Button>
                   </DropdownMenuTrigger>
                   <SettingsMenu
