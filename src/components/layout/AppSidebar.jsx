@@ -96,6 +96,11 @@ export default function AppSidebar({
   // normal sidebar link.
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') &&
   !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
+  // The ⋮ menu button (navigation panel) is visible on tablet landscape OR for
+  // desktop admins/drivers with cities. When visible, the web update arrow +
+  // info balloon prefer the MENU BUTTON over the app icon.
+  const menuBtnVisible = (deviceType === 'Tablet' && !isTabletPortrait) ||
+    (!isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0);
   const handleLogoClick = (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
@@ -204,7 +209,7 @@ export default function AppSidebar({
             <span className="text-white font-bold text-sm">Rx</span>
           </div>
               }
-          {!isMobile && !isTabletPortrait && hasWebUpdate && <UpdateArrow type="web" size={12} />}
+          {!isMobile && !isTabletPortrait && hasWebUpdate && !menuBtnVisible && <UpdateArrow type="web" size={12} />}
         </div>
 
         <div>
@@ -226,7 +231,7 @@ export default function AppSidebar({
       {!isMobile && !isTabletPortrait &&
       <UpdateInfoBalloon
         active={!!hasWebUpdate}
-        anchorSelector="[data-update-logo-btn]"
+        anchorSelector={menuBtnVisible ? "[data-update-menu-btn]" : "[data-update-logo-btn]"}
         direction="right"
         persistent={isDispatcherOnly}
         accent="#10b981"
@@ -251,11 +256,11 @@ export default function AppSidebar({
               <div className="flex flex-col items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button aria-label="More options" variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
+                    <Button aria-label="More options" variant="ghost" size="sm" className="h-8 w-8 p-0 relative" data-update-menu-btn>
                       <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      {/* Update indicator lives on the app icon + its balloon only (above) —
-                          showing it here too was a redundant second green arrow on the
-                          static/expanded sidebar. */}
+                      {/* Web-update arrow + balloon anchor here (preferred) whenever this
+                          menu button is visible — the app icon copy is the fallback. */}
+                      {hasWebUpdate && <UpdateArrow type="web" size={8} />}
                     </Button>
                   </DropdownMenuTrigger>
                   <SettingsMenu
