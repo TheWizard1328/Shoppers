@@ -1308,6 +1308,11 @@ export default function SquareManagement() {
     items = items.filter((item) => {
       const linkedDelivery = deliveryById.get(item.delivery_id);
       if (linkedDelivery?.status === 'pending') return false;
+      // Durable collected stamp: purge-on-collection deleted the settled tx
+      // rows, so transactions can't prove collection for these — the Delivery
+      // flag is the authority. Without this, collected CODs with leftover
+      // catalog items show as uncollected forever.
+      if (linkedDelivery?.cod_confirmed_collected) return false;
       // Direct match by catalog object ID or delivery_id against settled transactions
       const catalogObjId = item.catalog_object_id || item.id;
       if (catalogObjId && settledTxCatalogIds.has(catalogObjId)) return false;

@@ -690,6 +690,23 @@ async function handleGetCodData(base44, payload={}) {
     if (sig && sig !== '::0') txSignatureSet.add(sig);
   }
 
+  // Pre-stamped collected deliveries: their leftover Square catalog items must be
+  // deleted too. Earlier runs' deletion missed them (the 5a evidence purge removed
+  // the tx links the toDelete match relied on), so they lingered in the live
+  // catalog forever and showed as "uncollected" in the app's Catalog Items list.
+  const allStampedIds = new Set([
+    ...collectedDeliveryIds,
+    ...(activeDeliveriesWithAmounts || []).filter((d) => d?.cod_confirmed_collected).map((d) => d.id),
+  ]);
+  const stampedItemNames = new Set();
+  for (const d of (activeDeliveriesWithAmounts || [])) {
+    if (!d?.cod_confirmed_collected && !collectedDeliveryIds.has(d.id)) continue;
+    const store = (safeStores || []).find((s) => s?.id === d.store_id) || null;
+    const pat = patientsById.get(d.patient_id);
+    const pn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
+    stampedItemNames.add(formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), pn));
+    stampedItemNames.add(formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), `Delivery ${d.id.slice(-6)}`));
+  }
   const toDelete = (liveCatalogItems || []).filter((item) => {
     if (!item?.id) return false;
     // Delete catalog items for failed deliveries (orphan cleanup)
@@ -708,7 +725,10 @@ async function handleGetCodData(base44, payload={}) {
     if (liveItemSig && liveItemSig !== '::0' && txSignatureSet.has(liveItemSig)) return true;
     // Recreated-item backlog: description → delivery_id → already collected
     const descDeliveryId = extractDeliveryIdFromCatalog(item);
-    if (descDeliveryId && collectedDeliveryIds.has(descDeliveryId)) return true;
+    if (descDeliveryId && allStampedIds.has(descDeliveryId)) return true;
+    // Pre-stamped collected delivery's item, matched by name (the durable
+    // evidence lives on the Delivery itself, not in purged tx rows)
+    if (liveItemName && stampedItemNames.has(normalizeText(liveItemName))) return true;
     return false;
   });
 
