@@ -533,7 +533,7 @@ async function handleBriefing(base44, params = {}) {
 
   return {
     success: true,
-    dry_run: dry_run,
+    dry_run: dryRun,
     owner_only: ownerOnly,
     briefing_date: today,
     generated_at: new Date().toISOString(),
