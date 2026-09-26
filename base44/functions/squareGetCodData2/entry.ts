@@ -603,6 +603,47 @@ async function handleGetCodData(base44, payload={}) {
       .map((t) => t.delivery_id)
   );
 
+  // ── WIDE-LOOKBACK COLLECTED-CONFIRMED SCAN (multi-line-item orders) ──
+  // The default order lookback (daysBack) can't see CODs collected weeks or
+  // months ago, especially when several CODs were rung through in ONE
+  // multi-item Square transaction (e.g. two COD line items on a single
+  // ticket). Those deliveries' original catalog objects were later recreated
+  // with new ids, and their DB tx evidence was purged on collection, so none
+  // of the in-window guards can see them — every Sync re-creates their
+  // catalog items (the "half the CODs keep coming back" churn). Re-scan
+  // COMPLETED orders back to the oldest out-of-window candidate and confirm
+  // by structured name+amount, matching EACH line item individually so
+  // multi-item transactions are handled.
+  const wideConfirmedIds = new Set();
+  try {
+    const isCashCod = (d) => d?.status === 'completed' && Number(d?.cod_total_amount_required || 0) > 0 &&
+      (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0);
+    const wideCandidates = (activeDeliveriesWithAmounts || []).filter((d) =>
+      d?.id && isCashCod(d) && !d?.cod_confirmed_collected &&
+      !collectedDeliveryIds.has(d.id) && !confirmedCollectedDeliveryIds.has(d.id) &&
+      d?.delivery_date && `${d.delivery_date}T00:00:00.000Z` < lookbackStartAt);
+    if (wideCandidates.length > 0) {
+      const oldest = wideCandidates.map((d) => String(d.delivery_date)).sort()[0];
+      const wideStartAt = new Date(new Date(`${oldest}T00:00:00`).getTime() - 3 * 86400000).toISOString();
+      console.log('[squareGetCodData2] wide collected scan:', { candidates: wideCandidates.length, wideStartAt });
+      const wideOrders = await listOrders(locationIds, wideStartAt, accessToken, 4000, ['COMPLETED']);
+      const wideItems = flattenOrderItems(wideOrders);
+      const wideSig = new Set(wideItems.map((it) => `${normalizeText(it.item_name)}::${toAmountCents(it.amount_cents)}`));
+      for (const d of wideCandidates) {
+        const store = (safeStores || []).find((s) => s?.id === d.store_id) || null;
+        const pat = patientsById.get(d.patient_id);
+        const pn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
+        const iname = formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), pn);
+        const ac = Math.round(Number(d.cod_total_amount_required || 0) * 100);
+        if (wideSig.has(`${normalizeText(iname)}::${ac}`)) wideConfirmedIds.add(d.id);
+      }
+      if (wideConfirmedIds.size > 0) {
+        for (const id of wideConfirmedIds) { collectedDeliveryIds.add(id); confirmedCollectedDeliveryIds.add(id); }
+        console.log('[squareGetCodData2] wide collected-confirmed:', wideConfirmedIds.size, 'delivery(ies):', [...wideConfirmedIds].join(','));
+      }
+    }
+  } catch (e) { console.warn('[squareGetCodData2] wide collected scan failed:', e?.message || e); }
+
   // Catalog items that are already linked to a SquareTransaction record (i.e. they
   // show a "Transaction ID" in the UI). The link is the same the catalog builder's
   // `mt` lookup uses: direct catalog_object_id match OR name+amount signature match.
