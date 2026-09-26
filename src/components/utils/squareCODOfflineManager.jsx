@@ -1,6 +1,7 @@
 import { offlineDB } from './offlineDatabase';
 
-const DEFAULT_LOOKBACK_DAYS = 90;
+// 190 days: covers the 6-month backfill history retained back to the oldest uncollected COD
+const DEFAULT_LOOKBACK_DAYS = 190;
 
 const getLookbackDays = () => DEFAULT_LOOKBACK_DAYS;
 const SQUARE_COD_STORES = {

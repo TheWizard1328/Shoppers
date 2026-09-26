@@ -41,6 +41,7 @@ export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState(null);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [locationIds, setLocationIds] = useState([]);
@@ -329,6 +330,78 @@ export default function SquareManagement() {
       setIsReconciling(false);
     }
   }, []);
+
+  // ── 6-month SquareTransaction backfill (AppOwner only) ──────────────────
+  // One-time scan: pulls 6 months of Square orders in monthly chunks (each
+  // call stays under the 120s client timeout), rebuilds the SquareTransaction
+  // history, stamps matched collections, and keeps everything back to the
+  // earliest uncollected COD (the retention floor). Collected tx rows older
+  // than the floor are purged. The final chunk's response is the complete
+  // DB-mirror set — saved to IDB so every list comparison has full history.
+  const runSixMonthBackfill = async () => {
+    if (isSyncing || backfillProgress) return;
+    setIsSyncing(true);
+    setError(null);
+    try {
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      const CHUNK = 30, TOTAL = 180;
+      let finalData = null;
+      for (let start = TOTAL; start > 0; start -= CHUNK) {
+        const end = Math.max(0, start - CHUNK);
+        setBackfillProgress(`Pulling Square orders ${start}-${end} days back...`);
+        const res = await invokeWithLongTimeout('squareGetCodData2', {
+          forceDeliveryRefresh: true,
+          daysBack: TOTAL,
+          orderChunk: { startDaysAgo: start, endDaysAgo: end },
+        });
+        finalData = res?.data || res || null;
+        console.log('[SquareManagement] Backfill chunk done:', { startDaysAgo: start, endDaysAgo: end, tx: finalData?.transactionRecords?.length, floor: finalData?.txRetentionFloor });
+      }
+      if (!finalData) throw new Error('Backfill returned no data');
+
+      // Final chunk's response = the complete retained set. Save to IDB + refresh
+      // UI exactly like the sync success path.
+      const transactionRecords = finalData.transactionRecords || [];
+      const catalogRecords = finalData.catalogRecords || [];
+      const strippedDeliveries = Array.isArray(finalData.deliveries) ?
+        finalData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
+        [];
+      await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
+      await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+
+      const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+      const existingMap = new Map(existing.map((r) => [r.id, r]));
+      (strippedDeliveries || []).forEach((r) => {
+        if (!r?.id) return;
+        const prev = existingMap.get(r.id);
+        if (prev) existingMap.set(r.id, { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' });
+        else existingMap.set(r.id, r);
+      });
+      await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
+
+      const [uiCatalog, uiTransactions] = await Promise.all([
+        squareCODOfflineManager.getCatalogItemsOffline(),
+        squareCODOfflineManager.getPaymentTransactionsOffline()
+      ]);
+      const { startDateStr, endDateStr } = getSourceWindow();
+      const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+      setDeliveries([...(windowedDeliveries.length > 0 ? windowedDeliveries : Array.from(existingMap.values()))]);
+      setCatalogItems([...(uiCatalog || [])]);
+      setAllTransactions([...(uiTransactions || [])]);
+      setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+
+      toast.success(`Backfill complete — ${transactionRecords.length} transactions, history back to ${finalData.txRetentionFloor || 'floor'}`);
+    } catch (err) {
+      console.error('[SquareManagement] Backfill failed:', err);
+      setError(err?.message || 'Backfill failed');
+      toast.error('Backfill failed: ' + (err?.message || 'unknown error'));
+    } finally {
+      setBackfillProgress(null);
+      setIsSyncing(false);
+    }
+  };
 
   const syncFromSquare = async () => {
     const now = Date.now();
@@ -2016,7 +2089,13 @@ export default function SquareManagement() {
           {currentUser && !isDriverView &&
           <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0">
             <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Sync'}
+            {isSyncing ? (backfillProgress ? 'Backfilling...' : 'Syncing...') : 'Sync'}
+          </Button>
+          }
+          {currentUser && isAppOwner(currentUser) &&
+          <Button onClick={runSixMonthBackfill} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0" title="One-time: pull 6 months of Square transactions and keep history back to the oldest uncollected COD">
+            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${backfillProgress ? 'animate-pulse' : ''}`} />
+            {backfillProgress ? 'Backfilling…' : '6-Month Backfill'}
           </Button>
           }
           {currentUser && isAppOwner(currentUser) &&

@@ -214,6 +214,15 @@ async function handleGetCodData(base44, payload={}) {
   const daysBack = Math.max(1, Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const refreshDeliveries = shouldRefreshDeliveries(payload?.lastDeliverySyncAt, payload?.forceDeliveryRefresh===true);
   const lookbackStartAt = new Date(Date.now() - daysBack * 86400000).toISOString();
+  // Backfill chunking: a 6-month order scan is fetched month-by-month so each
+  // call stays under the client timeout. Deliveries/threshold always span the
+  // full daysBack window; only the Square ORDER fetch is chunked.
+  const _oc = payload?.orderChunk || null;
+  const orderChunk = (_oc && Number.isFinite(Number(_oc.startDaysAgo)) && Number.isFinite(Number(_oc.endDaysAgo)))
+    ? { startDaysAgo: Math.max(1, Number(_oc.startDaysAgo)), endDaysAgo: Math.max(0, Number(_oc.endDaysAgo)) }
+    : null;
+  const orderWindowStartAt = orderChunk ? new Date(Date.now() - orderChunk.startDaysAgo * 86400000).toISOString() : lookbackStartAt;
+  const orderWindowEndAt = (orderChunk && orderChunk.endDaysAgo > 0) ? new Date(Date.now() - orderChunk.endDaysAgo * 86400000).toISOString() : null;
 
   // ── 1) Fetch ALL entity context in parallel ──────────────────────────
   console.log('[squareGetCodData2] Fetching entity context...');
@@ -253,7 +262,7 @@ async function handleGetCodData(base44, payload={}) {
   console.log('[squareGetCodData2] Fetching Square catalog + orders...');
   const [liveCatalogItems, recentOrders] = await Promise.all([
     listActiveCatalogItems(accessToken),
-    listOrders(locationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
+    listOrders(locationIds, orderWindowStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN'], 'DESC', orderWindowEndAt),
   ]);
   let completedOrders = recentOrders;
   // Newest-first cap hit → the oldest part of the window was never fetched.
@@ -261,7 +270,7 @@ async function handleGetCodData(base44, payload={}) {
   // whole daysBack window is covered for collection matching.
   if (recentOrders.length >= MAX_TRANSACTION_ORDERS) {
     const boundary = new Date(new Date(recentOrders[recentOrders.length - 1].created_at).getTime() - 3600000).toISOString();
-    const olderOrders = await listOrders(locationIds, lookbackStartAt, accessToken, 8000, ['COMPLETED', 'OPEN'], 'ASC', boundary);
+    const olderOrders = await listOrders(locationIds, orderWindowStartAt, accessToken, 8000, ['COMPLETED', 'OPEN'], 'ASC', boundary || orderWindowEndAt);
     const seen = new Set(completedOrders.map((o) => o.id));
     for (const o of olderOrders) if (!seen.has(o.id)) { completedOrders.push(o); seen.add(o.id); }
     console.log('[squareGetCodData2] two-pass order fetch:', { recent: recentOrders.length, older: olderOrders.length, merged: completedOrders.length });
@@ -277,7 +286,7 @@ async function handleGetCodData(base44, payload={}) {
     (completedOrders || []).filter((o) => !refundedOrderIds.has(o?.id))
   ).filter((item) => {
     const t = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
-    return Number.isFinite(t) && t >= getTransactionRetentionStartMs();
+    return Number.isFinite(t) && t >= new Date(orderWindowStartAt).getTime();
   });
   console.log('[squareGetCodData2] Paid order items:', paidOrderItems.length, 'elapsed:', Date.now() - t0);
 
@@ -763,40 +772,81 @@ async function handleGetCodData(base44, payload={}) {
   // every device on the next sync — keeping device storage lean. The Finance
   // Audit ledger (SquareLedgerEntry) and Square's own order history retain the
   // permanent record. OPEN-order (still-ringing) matches keep their tx row.
+  // ── Retention floor: earliest uncollected COD delivery date ────────────
+  // Owner directive (Sep 26 2026): SquareTransaction history is RETAINED back
+  // to the earliest uncollected COD as reference for delivery/catalog
+  // comparison. Only collected tx rows OLDER than this floor are purged; the
+  // Delivery's cod_confirmed_collected flag remains the primary authority for
+  // collected status. SquareCatalogItems rows for collected deliveries are
+  // still always purged (the live catalog mirrors only outstanding items).
+  const deliveryDateById = new Map((activeDeliveriesWithAmounts || []).map((d) => [d.id, d.delivery_date]));
+  const hasCardOrChequePayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
+    .some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
+  // Floor candidates span 180 days regardless of this run's window: an old
+  // uncollected COD outside the 90-day sync window (e.g. June 22) still anchors
+  // the retention floor. Oldest-first fetch so a cap keeps the oldest rows —
+  // if the oldest slice is all collected we simply over-retain (safe).
+  let floorDeliveryRows = [];
+  try {
+    const floorDays = Math.max(daysBack, 180);
+    const fStart = formatLocalDate(new Date(Date.now() - floorDays * 86400000));
+    const fEnd = formatLocalDate(new Date());
+    const rawFd = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: fStart, $lte: fEnd } }, 'delivery_date', 5000).catch(() => []);
+    const allFd = (Array.isArray(rawFd) ? rawFd : []).map(unwrapEntityRecord).filter(Boolean);
+    const floorEligibility = new Map();
+    for (const store of safeStores) {
+      const c = activeConfigById.get(store?.square_location_config_id);
+      if (!c?.square_location_id) continue;
+      const fh = Array.isArray(store.app_fee_history) ? store.app_fee_history : [];
+      const ae = fh.filter((e) => e?.pays_app_fees === true && e?.effective_date).sort((a, b) => String(a.effective_date).localeCompare(String(b.effective_date)));
+      floorEligibility.set(store.id, ae.length > 0 ? ae[0].effective_date : null);
+    }
+    floorDeliveryRows = allFd.filter((d) => {
+      if (!floorEligibility.has(d?.store_id)) return false;
+      const ef = floorEligibility.get(d.store_id);
+      return !(ef && d.delivery_date < ef);
+    });
+  } catch (e) { console.warn('[squareGetCodData2] floor delivery fetch failed:', e?.message || e); }
+  const uncollectedFloorCandidates = (floorDeliveryRows.length > 0 ? floorDeliveryRows : activeDeliveriesWithAmounts || []).filter((d) => {
+    if (Number(d?.cod_total_amount_required || 0) <= 0) return false;
+    if (d?.cod_confirmed_collected || confirmedCollectedDeliveryIds.has(d.id)) return false;
+    if (['failed', 'cancelled'].includes(d?.status)) return false;
+    if (d?.status === 'completed' && hasCardOrChequePayment(d)) return false; // card/cheque = collected by definition
+    return true;
+  });
+  const txRetentionFloor = uncollectedFloorCandidates.length > 0
+    ? uncollectedFloorCandidates.map((d) => String(d.delivery_date || '')).filter(Boolean).sort()[0]
+    : formatLocalDate(new Date(Date.now() - Math.max(daysBack, 180) * 86400000));
+  // Collected deliveries OLDER than the floor → purge their tx rows. Newer
+  // collected rows stay (reference history). Missing date → purge (safe default).
+  const isOlderThanFloor = (dateStr) => (!dateStr) || (String(dateStr) < txRetentionFloor);
+  const allCollectedIds = new Set([...confirmedCollectedDeliveryIds]);
+  for (const d of (activeDeliveriesWithAmounts || [])) {
+    if (d?.cod_confirmed_collected) allCollectedIds.add(d.id);
+  }
+  const collectedOldIds = new Set(Array.from(allCollectedIds).filter((did) => isOlderThanFloor(deliveryDateById.get(did))));
+  console.log('[squareGetCodData2] tx retention floor:', { floor: txRetentionFloor, uncollectedCandidates: uncollectedFloorCandidates.length, collectedTotal: allCollectedIds.size, collectedOld: collectedOldIds.size });
+
   let purgedTxRows = 0, purgedCatalogRows = 0;
-  if (confirmedCollectedDeliveryIds.size > 0) {
-    await Promise.all(Array.from(confirmedCollectedDeliveryIds).map(async (did) => {
-      // DURABLE EVIDENCE: stamp the Delivery itself. The tx/catalog rows below are
-      // being purged, so without this flag later runs (syncSquareCods create path,
-      // 5c auto-create, reconcile) see NO collection evidence and re-create the
-      // catalog item for an already-rung COD (the re-add churn bug).
-      await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch((e) => console.warn('[squareGetCodData2] flag stamp failed for', did, e?.message || e));
+  // Stamp THIS run's confirmed collections (durable evidence on the Delivery).
+  for (const did of confirmedCollectedDeliveryIds) {
+    await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch((e) => console.warn('[squareGetCodData2] flag stamp failed for', did, e?.message || e));
+  }
+  // Purge rows for collected deliveries: tx rows only when older than the
+  // floor; catalog mirror rows always (the live-catalog mirror replace in 5b
+  // rebuilds the outstanding set).
+  for (const did of allCollectedIds) {
+    const cats = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: did }).catch(() => []);
+    for (const c of (cats || [])) { await base44.asServiceRole.entities.SquareCatalogItems.delete(c.id).catch(() => null); purgedCatalogRows++; }
+    if (collectedOldIds.has(did)) {
       const txs = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: did }).catch(() => []);
       for (const t of (txs || [])) { await base44.asServiceRole.entities.SquareTransaction.delete(t.id).catch(() => null); purgedTxRows++; }
-      const cats = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: did }).catch(() => []);
-      for (const c of (cats || [])) { await base44.asServiceRole.entities.SquareCatalogItems.delete(c.id).catch(() => null); purgedCatalogRows++; }
-    }));
-    console.log('[squareGetCodData2] Purged collected-delivery DB records:', { deliveries: confirmedCollectedDeliveryIds.size, transactions: purgedTxRows, catalogRows: purgedCatalogRows });
+    }
   }
-
-  // Sweep deliveries that were stamped cod_confirmed_collected in EARLIER runs.
-  // 5a above only purges rows for this run's newly-confirmed matches; pre-stamped
-  // deliveries keep leftover rows (and 5b used to rebuild their tx rows from
-  // fetched Square orders every sync — the 1206-row tx bloat). Purge them too.
+  console.log('[squareGetCodData2] Collected-delivery DB purge (floor-scoped):', { collected: allCollectedIds.size, txRowsPurged: purgedTxRows, catalogRowsPurged: purgedCatalogRows });
   const preStampedIds = new Set((activeDeliveriesWithAmounts || [])
     .filter((d) => d?.cod_confirmed_collected && !confirmedCollectedDeliveryIds.has(d.id))
     .map((d) => d.id));
-  if (preStampedIds.size > 0) {
-    let sTx = 0, sCat = 0;
-    for (const did of preStampedIds) {
-      const txs = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: did }).catch(() => []);
-      for (const t of (txs || [])) { await base44.asServiceRole.entities.SquareTransaction.delete(t.id).catch(() => null); sTx++; }
-      const cats = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: did }).catch(() => []);
-      for (const c of (cats || [])) { await base44.asServiceRole.entities.SquareCatalogItems.delete(c.id).catch(() => null); sCat++; }
-    }
-    purgedTxRows += sTx; purgedCatalogRows += sCat;
-    console.log('[squareGetCodData2] Swept pre-stamped collected deliveries:', { deliveries: preStampedIds.size, transactions: sTx, catalogRows: sCat });
-  }
 
   // ── CRITICAL: strip deleted items out of catalogRecords ──────────────
   // catalogRecords was built in step 4 from the PRE-deletion liveCatalogItems
@@ -888,13 +938,11 @@ async function handleGetCodData(base44, payload={}) {
   // is secondary, used for cross-device visibility and admin queries.
   const dbWriteErrors = [];
   try {
-    // Collected deliveries (this run's confirmations AND earlier stamps): never
-    // (re)write their tx rows — they were purged in 5a/sweep and must stay purged.
-    // Without this, every sync rebuilt tx rows for old collected CODs from the
-    // fetched Square orders (the 1206-row tx bloat).
-    const allCollectedIds = new Set([...confirmedCollectedDeliveryIds, ...preStampedIds]);
-    const writableTxToCreate = txToCreate.filter((op) => !(op?.data?.delivery_id && allCollectedIds.has(op.data.delivery_id)));
-    const writableTxToUpdate = txToUpdate.filter((op) => !(op?.data?.delivery_id && allCollectedIds.has(op.data.delivery_id)));
+    // Floor-scoped: collected tx rows OLDER than the retention floor were purged
+    // in 5a and must not be rebuilt; collected rows NEWER than the floor are kept
+    // as reference history and ARE written.
+    const writableTxToCreate = txToCreate.filter((op) => !(op?.data?.delivery_id && collectedOldIds.has(op.data.delivery_id)));
+    const writableTxToUpdate = txToUpdate.filter((op) => !(op?.data?.delivery_id && collectedOldIds.has(op.data.delivery_id)));
     if (writableTxToCreate.length > 0) {
       await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, writableTxToCreate);
       console.log('[squareGetCodData2] DB: created', writableTxToCreate.length, 'transactions');
@@ -955,6 +1003,28 @@ async function handleGetCodData(base44, payload={}) {
   } catch (e) { dbWriteErrors.push({type:'catalog', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB catalog write failed:', e?.message); }
 
   // ── 6) Return everything in one response ────────────────────────────
+  // Full DB-mirror tx list: this run's built records PLUS retained DB rows
+  // back to the retention floor, minus purged ones. The frontend replace-saves
+  // its IDB from this list, so every device mirrors the DB exactly.
+  const txResponseKey = (t) => `${normalizeText(t?.square_transaction_id)}::${normalizeText(t?.raw_square_data?.line_item_uid)}`;
+  const mergedTxRecords = [];
+  const seenTxKeys = new Set();
+  for (const t of (transactionRecords || [])) {
+    if (t?.delivery_id && collectedOldIds.has(t.delivery_id)) continue;
+    const k = txResponseKey(t);
+    if (k !== '::' && seenTxKeys.has(k)) continue;
+    if (k !== '::') seenTxKeys.add(k);
+    mergedTxRecords.push(t);
+  }
+  for (const t of (existingTransactions || [])) {
+    if (!t || !normalizeText(t?.square_transaction_id)) continue; // bookkeeping rows stay DB-only
+    if (t?.delivery_id && collectedOldIds.has(t.delivery_id)) continue;
+    const k = txResponseKey(t);
+    if (seenTxKeys.has(k)) continue;
+    seenTxKeys.add(k);
+    mergedTxRecords.push(t);
+  }
+  console.log('[squareGetCodData2] merged tx response:', { built: transactionRecords.length, retainedDb: mergedTxRecords.length, floor: txRetentionFloor });
   // Failed deliveries are excluded from strippedDeliveries — they are exempt from
   // the Deliveries tab list, Reconcile flow, and Square Catalog update path.
   const strippedDeliveries = activeDeliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name, delivery_notes: d?.delivery_notes, cod_confirmed_collected: d?.cod_confirmed_collected || false }));
@@ -967,7 +1037,8 @@ async function handleGetCodData(base44, payload={}) {
     shouldRefreshDeliveries: refreshDeliveries,
     deliverySyncWindow: { startDate: formatLocalDate(new Date(Date.now() - daysBack * 86400000)), endDate: formatLocalDate(new Date()), daysBack, refreshedAt: refreshDeliveries ? new Date().toISOString() : null },
     catalogRecords: filteredCatalogRecords,
-    transactionRecords: transactionRecords.filter((t) => !(t?.delivery_id && (confirmedCollectedDeliveryIds.has(t.delivery_id) || preStampedIds.has(t.delivery_id)))),
+    transactionRecords: mergedTxRecords,
+    txRetentionFloor,
     deletedCatalogIds,
     cleanupDbCount,
     collectedPurge: { deliveries: confirmedCollectedDeliveryIds.size, transactions: purgedTxRows, catalogRows: purgedCatalogRows },
