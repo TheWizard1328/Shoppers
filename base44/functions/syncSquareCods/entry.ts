@@ -27,7 +27,7 @@ async function sf(path, method, token, body) {
     try {
       const r = await fetch(`${SB}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Square-Version': SV }, body: body ? JSON.stringify(body) : undefined });
       const t = await r.text(); const j = t ? JSON.parse(t) : {};
-      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(Number(r.status) === 429 ? 1500 * a : RD * a); continue; } throw le; }
+      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(Number(r.status) === 429 ? 2500 * a : RD * a); continue; } throw le; }
       return j;
     } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(Number(e?.status) === 429 ? 1500 * a : RD * a); continue; } throw le; }
   }
@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
       // backlog fired hundreds of calls back-to-back and 429'd (the "Auto-create
       // partial failure: 107 errors: Rate limit exceeded" flood). ~3/sec keeps
       // us under the limit while finishing 107 items in ~40s.
-      if (ii > 0) await sleep(350);
+      if (ii > 0) await sleep(600);
       try {
         const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId });
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
