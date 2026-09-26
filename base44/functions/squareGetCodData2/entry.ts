@@ -716,6 +716,21 @@ async function handleGetCodData(base44, payload={}) {
     stampedItemNames.add(formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), pn));
     stampedItemNames.add(formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), `Delivery ${d.id.slice(-6)}`));
   }
+  // Stale-item cutoff: POS items for CODs older than 30 days are junk — the store
+  // will never ring them (collected or not, the money is reconciled in the app).
+  const staleItemCutoff = formatLocalDate(new Date(Date.now() - 30 * 86400000));
+  const parseItemNameDateGuess = (name) => {
+    const m = /^(\d{1,2})\/(\d{1,2})[(-]/.exec(String(name || ''));
+    if (!m) return null;
+    const now = new Date();
+    for (const yr of [now.getFullYear(), now.getFullYear() - 1]) {
+      const iso = `${yr}-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+      const t = new Date(`${iso}T12:00:00Z`).getTime();
+      if (Number.isFinite(t) && t <= Date.now() + 45 * 86400000) return iso;
+    }
+    return null;
+  };
+  const liveItemDeliveryDateById = new Map((activeDeliveriesWithAmounts || []).map((d) => [d.id, d.delivery_date]));
   const toDelete = (liveCatalogItems || []).filter((item) => {
     if (!item?.id) return false;
     // Delete catalog items for failed deliveries (orphan cleanup)
@@ -738,6 +753,14 @@ async function handleGetCodData(base44, payload={}) {
     // Pre-stamped collected delivery's item, matched by name (the durable
     // evidence lives on the Delivery itself, not in purged tx rows)
     if (liveItemName && stampedItemNames.has(normalizeText(liveItemName))) return true;
+    // Stale-item cleanup: drain POS items for CODs older than 30 days — junk
+    // recreated by older sync versions for long-finished deliveries.
+    if (descDeliveryId) {
+      const dd = liveItemDeliveryDateById.get(descDeliveryId);
+      if (dd && String(dd) < staleItemCutoff) return true;
+    }
+    const nameDateGuess = parseItemNameDateGuess(liveItemName);
+    if (nameDateGuess && nameDateGuess < staleItemCutoff) return true;
     return false;
   });
 
@@ -874,6 +897,11 @@ async function handleGetCodData(base44, payload={}) {
     if (d?.cod_confirmed_collected) return false; // confirmed collected at the register — never re-create
     if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
     if (d?.delivery_date && d.delivery_date > formatLocalDate(new Date())) return false;
+    // Never create POS items for long-finished CODs: stores only ring items for
+    // current collections. Old completed cash CODs without Square evidence are
+    // reconciliation cases, not new-item cases — creating items for 6 months of
+    // them floods the live POS catalog with junk.
+    if (d?.status === 'completed' && d?.delivery_date && d.delivery_date < formatLocalDate(new Date(Date.now() - 30 * 86400000))) return false;
     const store = (safeStores || []).find((s) => s?.id === d?.store_id);
     if (!store?.square_location_config_id) return false;
     const cfg = activeConfigById.get(store.square_location_config_id);
