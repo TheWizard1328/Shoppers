@@ -91,15 +91,19 @@ export function DeviceProvider({ children }) {
     };
   }, [deviceType]);
 
-  // Chrome is decided by ORIENTATION alone — no width thresholds.
-  // A landscape screen qualifies for desktop chrome only when it is also TALL
-  // enough (foldables/tablets). Short landscape screens are phones — they keep
-  // the mobile chrome (rotated desktop layout for narrow screens was rejected).
+  // Chrome is decided by ORIENTATION + SHAPE — a landscape screen qualifies for
+  // desktop chrome only when it is TALL enough (foldables/tablets, >= 480px)
+  // AND WIDE enough: viewable width more than a 4:3 aspect ratio. Near-square
+  // landscape screens (Z Fold unfolded ~1.16) keep the mobile chrome — the
+  // desktop layout's persistent sidebar steals too much width there and map
+  // markers render behind the stats card.
   const LANDSCAPE_DESKTOP_MIN_HEIGHT = 480;
+  const LANDSCAPE_DESKTOP_MIN_ASPECT = 4 / 3;
   const isLandscape = !isPortrait;
   // Display hint only (battery-indicator placement in the sidebar) — NOT chrome
   const isWideScreenMobile = isPhysicalMobile && screenWidth >= 850;
-  const isLandscapeTall = isLandscape && screenHeight >= LANDSCAPE_DESKTOP_MIN_HEIGHT;
+  const isLandscapeWide = isLandscape && screenHeight > 0 && (screenWidth / screenHeight) > LANDSCAPE_DESKTOP_MIN_ASPECT;
+  const isLandscapeTall = isLandscapeWide && screenHeight >= LANDSCAPE_DESKTOP_MIN_HEIGHT;
 
   // The flag everything should use
   const isMobile = !isLandscapeTall;
