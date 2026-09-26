@@ -1523,7 +1523,10 @@ export default function SquareManagement() {
           return false;
         }) || null;
       }
-      const hasMatch = !!matchingTx;
+      // cod_confirmed_collected survives even after squareGetCodData2's 5a purge
+      // deletes the matching SquareTransaction row — without this, purged confirmed
+      // collections show as "Not Collected" here forever.
+      const hasMatch = !!matchingTx || !!delivery.cod_confirmed_collected;
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
@@ -1809,6 +1812,12 @@ export default function SquareManagement() {
       // The backend (squareGetCodData2) also excludes them from returned data
       // and cleans up orphaned catalog items for failed deliveries.
       if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
+      // Already confirmed collected — the purge-on-collection design (squareGetCodData2
+      // 5a) deletes this delivery's SquareTransaction + SquareCatalogItems rows once
+      // Square confirms the real order match, so matchingTx/linkedCatalog below can
+      // NEVER find them again. Without this check every confirmed-collected cash COD
+      // reappears here forever as a bogus "New Catalog Item" (missing transaction id).
+      if (delivery.cod_confirmed_collected) return false;
       // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       // Only show deliveries for stores that have a Square location config

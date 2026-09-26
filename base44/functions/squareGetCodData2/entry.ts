@@ -5,6 +5,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const normalizeText = (v) => String(v || '').trim();
 const toAmountCents = (v) => Math.max(0, Math.round(Number(v || 0)));
 const requireUser = async (b44) => { const u = await b44.auth.me().catch(() => null); if (!u) throw new HttpError(401, 'Unauthorized'); return u; };
+// Proceeds when unauthenticated (scheduled workflow via $BASE44_SERVICE_TOKEN —
+// same pattern as squarePruneCatalogDb / driverCodBriefing, both of which found
+// that token resolves as UNAUTHENTICATED in this app's auth context). A real
+// user session (normal page load) still must resolve via auth.me().
+const requireUserOrScheduled = async (b44) => {
+  const isAuth = await b44.auth.isAuthenticated().catch(() => false);
+  if (!isAuth) return null; // unauthenticated scheduled context — proceed
+  return requireUser(b44); // real session present — must resolve to a user
+};
 const ensureSquareToken = () => { const t = Deno.env.get('SQUARE_ACCESS_TOKEN'); if (!t) throw new HttpError(500, 'Square credentials not configured'); return t; };
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
@@ -200,7 +209,7 @@ function extractDeliveryIdFromCatalog(item) {
 async function handleGetCodData(base44, payload={}) {
   const t0 = Date.now();
   console.log('[squareGetCodData2] START');
-  const user = await requireUser(base44);
+  await requireUserOrScheduled(base44);
   const accessToken = ensureSquareToken();
   const daysBack = Math.max(1, Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const refreshDeliveries = shouldRefreshDeliveries(payload?.lastDeliverySyncAt, payload?.forceDeliveryRefresh===true);
