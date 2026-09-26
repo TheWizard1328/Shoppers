@@ -1,13 +1,13 @@
 {
   "name": "Driver Weather Briefing",
-  "description": "Daily 9am driver briefing: weather + day preview (stop count, first pickup, COD total) pushed to every driver scheduled or default for the day, plus drivers with routes today. Mirrors the COD briefing architecture.",
+  "description": "Daily 8am Edmonton driver briefing: weather + day preview (stop count, first pickup, COD total) pushed to every driver scheduled or default for the day, plus drivers with routes today. Runs the RxDeliver driverWeatherBriefing function via curl from an agent step (invoke_backend_function cannot reach the RxDeliver app from this workflow context), then the agent sends the owner a short WhatsApp summary.",
   "trigger": {
     "condition": null,
     "config": {
       "trigger_type": "scheduled",
       "events": [],
       "schedule_mode": "recurring",
-      "cron_expression": "0 9 * * *",
+      "cron_expression": "0 8 * * *",
       "one_time_date": null,
       "timezone": "America/Edmonton",
       "interval_value": null,
@@ -22,28 +22,14 @@
     "do": [
       {
         "brief_drivers": {
-          "call": "invoke_backend_function",
-          "then": "owner_summary",
-          "with": {
-            "args": {},
-            "function_name": "driverWeatherBriefing"
-          },
-          "x-base44": {
-            "description": "Push weather + day preview to scheduled/default drivers",
-            "title": "Send driver weather briefings"
-          }
-        }
-      },
-      {
-        "owner_summary": {
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "This is the daily 9am driver weather briefing run. Here is the result JSON from the driverWeatherBriefing backend function:\n\n${ .brief_drivers }\n\nSend the owner a SHORT WhatsApp message (he uses text-to-speech \u2014 keep it under ~350 characters, no markdown, no emoji reactions). Include only: how many drivers got the briefing pushed, today's weather summary (city, condition, temps), and any drivers where weather data failed or pushes errored. If zero drivers were briefed, say so in one sentence."
-          },
-          "x-base44": {
-            "description": "Brief WhatsApp summary of the briefing run",
-            "title": "Notify owner"
+            "message": "It is 8am — the daily driver weather briefing is running now. Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver briefing function, which pushes each scheduled/default/route driver today's weather + day preview and returns the full result JSON):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverWeatherBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, send the owner a SHORT WhatsApp message (he uses text-to-speech — keep it under ~350 characters, no markdown, no emoji). Include only: how many drivers got the briefing pushed, today's weather summary (city, condition, temps), and any drivers where weather data failed or pushes errored. Broadcast it via broadcast_message, then stop. If zero drivers were briefed, say so in one sentence.",
+            "x-base44": {
+              "description": "Push weather + day preview to scheduled/default drivers, brief the owner",
+              "title": "Send driver weather briefings"
+            }
           }
         }
       }
@@ -52,7 +38,7 @@
       "dsl": "1.0.0",
       "name": "driver_weather_briefing",
       "namespace": "base44",
-      "version": "1.0"
+      "version": "1.1"
     }
   }
 }

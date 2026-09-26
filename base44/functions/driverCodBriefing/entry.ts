@@ -1,12 +1,15 @@
-// driverCodBriefing — 9am driver COD briefing.
-// Reads SquareCatalogItems (source of truth for outstanding/uncollected CODs,
-// kept clean by the daily squarePruneCatalogDb 8:30am job), maps each item to
-// its driver via the linked Delivery, and:
-//   1. Sends each driver with outstanding CODs a push notification listing
-//      every outstanding item (amount, date, store, patient), total and count.
-//   2. Returns the full grouped breakdown (all drivers, all items) so the
-//      app-owner briefing can be composed and delivered (agent/WhatsApp).
+// driverCodBriefing — 9pm EVENING driver COD wrap-up (moved from 9am mornings).
+// Audience: ONLY drivers who worked today (>=1 non-cancelled, non-cycling
+// delivery today). Each such driver gets a push + in-app Message with the
+// day's COD summary: COLLECTED today (cash/debit/cheque, per-item amounts)
+// plus anything still outstanding (today's uncollected + older CODs from
+// the SquareCatalogItems source of truth). Returns the full grouped JSON so
+// the app-owner briefing can be composed and delivered (agent/WhatsApp).
+// At 9pm MDT, UTC has already rolled over — the briefing date is computed in
+// America/Edmonton, never from new Date().toISOString().
 //
+// Params: { dry_run?, owner_only?, test_driver_id? } — dry_run=true computes everything but does
+// NOT send pushes (used for test runs).
 // Params: { dry_run?, owner_only?, test_driver_id? } — dry_run=true computes everything but does
 // NOT send pushes (used for test runs).
 //
@@ -262,37 +265,72 @@ async function findOwner(base44) {
   return { id: OWNER_PLATFORM_USER_ID, full_name: 'App Owner' };
 }
 
+// Edmonton-local date — the briefing runs at 9pm MDT, when UTC has already
+// rolled to the next day, so new Date().toISOString() would give tomorrow.
+function edmontonToday() {
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
+  return fmt.format(new Date());
+}
+
 async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
-  // Optional: send a TEST push to a single driver only (targets a real driver's real data)
   const testDriverId = params?.test_driver_id || null;
-  // Optional: send ONLY the App Owner copy (full cross-driver briefing) and
-  // skip all driver pushes — used to test/demo the owner briefing without
-  // re-notifying every driver.
   const ownerOnly = !!params?.owner_only;
   const startedAt = Date.now();
 
-  // App Owner (Robert T): now receives the SAME treatment as drivers — in-app
-  // message + push notification — in addition to the full multi-driver briefing
-  // the owner workflow sends via WhatsApp (owner requested all channels).
-  // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
-  console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none');
+  const today = edmontonToday();
+
+  console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none', '| date:', today);
+
+  // 1. Today's deliveries — define who WORKED today and the day's COD activity.
+  const todaysDeliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: today }).catch((e) => {
+    console.log('[briefing] FATAL: today Delivery.filter failed:', e?.message || String(e));
+    return null;
+  });
+  if (todaysDeliveriesRaw === null) {
+    return { success: false, error: 'Today Delivery.filter failed — no briefing sent (cannot distinguish clean from broken).', duration_ms: Date.now() - startedAt };
+  }
+  const todaysDeliveries = (Array.isArray(todaysDeliveriesRaw) ? todaysDeliveriesRaw : []).map(unwrapEntityRecord).filter(Boolean);
+  console.log('[briefing] today\'s deliveries:', todaysDeliveries.length);
+
+  // Worked today = ≥1 non-cancelled, non-cycling-marker delivery today.
+  const worked = new Map(); // driverId -> { driver_id, driver_name, deliveries }
+  for (const d of todaysDeliveries) {
+    if (!d?.driver_id || d.status === 'cancelled' || d.is_cycling_marker) continue;
+    if (!worked.has(d.driver_id)) worked.set(d.driver_id, { driver_id: d.driver_id, driver_name: d.driver_name || 'Unknown driver', deliveries: 0 });
+    worked.get(d.driver_id).deliveries += 1;
+  }
+  if (testDriverId) {
+    if (!worked.has(testDriverId)) {
+      return { success: false, error: `Test driver ${testDriverId} did not work today (${today}) — no briefing data.`, duration_ms: Date.now() - startedAt };
+    }
+    for (const k of Array.from(worked.keys())) if (k !== testDriverId) worked.delete(k);
+  }
+  console.log('[briefing] worked-today drivers:', Array.from(worked.values()).map((w) => w.driver_name).join(', ') || 'none');
+
+  // 2. Day COD activity per worked driver (from today's deliveries).
+  const patientIds = new Set(); const storeIdsNeeded = new Set();
+  const codTodayByDriver = new Map(); // driverId -> [{ amount, collected, types, patient_id, store_id, delivery_id }]
+  for (const d of todaysDeliveries) {
+    if (!d?.driver_id || d.status === 'cancelled' || d.is_cycling_marker) continue;
+    const codAmt = Number(d.cod_total_amount_required) || 0;
+    if (codAmt <= 0) continue;
+    const pays = (Array.isArray(d.cod_payments) ? d.cod_payments : []).filter((p) => Number(p?.amount || 0) > 0);
+    const types = Array.from(new Set(pays.map((p) => String(p?.type || 'Unknown'))));
+    if (!codTodayByDriver.has(d.driver_id)) codTodayByDriver.set(d.driver_id, []);
+    codTodayByDriver.get(d.driver_id).push({ delivery_id: d.id, amount: codAmt, collected: pays.length > 0, types, patient_id: d.patient_id || null, store_id: d.store_id || null });
+    if (d.patient_id) patientIds.add(d.patient_id);
+    if (d.store_id) storeIdsNeeded.add(d.store_id);
+  }
+
+  // 3. OLDER outstanding CODs (SquareCatalogItems — source of truth, pruned daily).
   let catalogItems = [];
   try {
     catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
   } catch (err) {
-    // LOUD failure: never send a briefing based on a failed read. If the
-    // catalog list fails we cannot tell "clean" from "broken" — abort the
-    // whole run so no driver/owner gets a false briefing.
     console.log('[briefing] FATAL: SquareCatalogItems list failed:', err?.message || String(err));
     return { success: false, error: `SquareCatalogItems list failed: ${err?.message || String(err)}`, duration_ms: Date.now() - startedAt };
   }
-  console.log('[briefing] catalog items (raw):', catalogItems.length);
-  // Dedupe: the reconciler sweep's bookkeeping upsert can create duplicate rows
-  // for the same COD when its existence-check filter fails under platform strain
-  // (429/500 storms) — Sep 10 2026 every outstanding COD had 3-5 rows, which made
-  // every driver briefing (and the owner copy) list each COD 3-5 times. One row
-  // per delivery_id; rows without a delivery_id dedupe on name+amount+store.
   const seenCodKeys = new Set();
   catalogItems = catalogItems.filter((x) => {
     const key = x.delivery_id || `nodel:${x.item_name}|${x.amount}|${x.store_id}`;
@@ -301,116 +339,100 @@ async function handleBriefing(base44, params = {}) {
     return true;
   });
   console.log('[briefing] catalog items (deduped):', catalogItems.length);
-  if (!catalogItems.length) {
-    // Clean slate still reaches the owner in-app (same as the WhatsApp copy —
-    // "the COD slate is clean"). Drivers have nothing to collect, so no
-    // driver pushes go out.
-    let cleanOwnerPush = null;
-    if (!dryRun) {
-      try {
-        const owner = await findOwner(base44);
-        if (owner?.id) {
-          const today = new Date().toISOString().slice(0, 10);
-          const ownerName = owner.full_name || owner.name || 'App Owner';
-          const cleanBody = `${ownerOnly ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}\n\nNo outstanding CODs — the slate is clean.`;
-          let cleanMessageId = null;
-          try {
-            const created = await base44.asServiceRole.entities.Message.create({
-              sender_id: 'cod_briefing',
-              sender_name: 'COD Briefing',
-              receiver_id: owner.id,
-              receiver_name: ownerName,
-              conversation_id: ['cod_briefing', owner.id].sort().join('_'),
-              content: cleanBody,
-              read: false,
-              message_type: 'text',
-            });
-            cleanMessageId = created?.id || null;
-          } catch (err) {
-            console.log('[briefing] clean Message.create failed:', err?.message || String(err));
-          }
-          const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-          const result = await sendPushToUser(base44, owner.id, `${ownerOnly ? 'TEST — ' : ''}COD Briefing (All Drivers) — ${shortDate(today)}`, cleanBody, chatUrl, `cod-briefing-owner-${today}`);
-          cleanOwnerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: cleanMessageId, ...result };
-          console.log('[briefing] clean-slate owner push result:', JSON.stringify(result));
-        }
-      } catch (err) {
-        console.log('[briefing] clean-slate owner briefing failed:', err?.message || String(err));
-      }
-    }
-    return { success: true, dry_run: dryRun, owner_only: ownerOnly, drivers: [], totals: { drivers: 0, items: 0, amount: 0 }, pushes: [], owner_push: cleanOwnerPush, message: 'No outstanding CODs.', duration_ms: Date.now() - startedAt };
-  }
 
-  // 2. Map to deliveries (driver assignment)
-  const deliveryIds = catalogItems.map((x) => x.delivery_id);
-  const deliveries = await fetchByIds(base44, 'Delivery', deliveryIds);
-  const deliveryById = new Map(deliveries.map((d) => [d.id, d]));
-
-  // 3. Store names
-  const storeIds = catalogItems.map((x) => x.store_id);
-  const stores = await fetchByIds(base44, 'Store', storeIds);
-  const storeById = new Map(stores.map((s) => [s.id, s]));
-
-  // 4. Group by driver, items oldest first
-  const groups = new Map(); // driver_id -> { driver_id, driver_name, items: [], total, count, byStore }
+  // Map catalog items → deliveries (driver + date)
+  const deliveryIds = catalogItems.map((x) => x.delivery_id).filter(Boolean);
+  const olderDeliveries = await fetchByIds(base44, 'Delivery', deliveryIds);
+  const olderDeliveryById = new Map(olderDeliveries.map((d) => [d?.id, d]));
+  const olderByDriver = new Map(); // driverId -> [{ amount, patient_name, delivery_date }]
   const unassigned = [];
   for (const item of catalogItems) {
-    const delivery = item.delivery_id ? deliveryById.get(item.delivery_id) : null;
-    const store = storeById.get(item.store_id);
+    const del = item.delivery_id ? olderDeliveryById.get(item.delivery_id) : null;
     const entry = {
       item_name: item.item_name,
       amount: Number(item.amount) || 0,
-      delivery_date: item.delivery_date || delivery?.delivery_date || null,
+      delivery_date: item.delivery_date || del?.delivery_date || null,
       patient_name: extractPatientName(item.item_name),
-      store_name: store?.name || store?.abbreviation || null,
-      store_abbreviation: store?.abbreviation || null,
-      delivery_status: delivery?.status || null,
+      delivery_status: del?.status || null,
     };
-    if (!delivery?.driver_id) { unassigned.push(entry); continue; }
-    if (!groups.has(delivery.driver_id)) {
-      groups.set(delivery.driver_id, { driver_id: delivery.driver_id, driver_name: delivery.driver_name || 'Unknown driver', items: [], total: 0, count: 0, byStore: new Map() });
-    }
-    const g = groups.get(delivery.driver_id);
-    g.items.push(entry);
-    g.total += entry.amount;
-    g.count += 1;
-    g.byStore.set(entry.store_name || 'Unknown store', (g.byStore.get(entry.store_name || 'Unknown store') || 0) + entry.amount);
+    if (!del?.driver_id) { unassigned.push(entry); continue; }
+    // Only items from BEFORE today belong here (today's items are covered by
+    // the day section), and only for drivers who actually worked today.
+    if (!worked.has(del.driver_id)) continue;
+    if (String(entry.delivery_date || '') >= today) continue;
+    if (!olderByDriver.has(del.driver_id)) olderByDriver.set(del.driver_id, []);
+    olderByDriver.get(del.driver_id).push(entry);
   }
 
-  const driverBriefings = Array.from(groups.values()).map((g) => {
-    g.items.sort((a, b) => String(a.delivery_date || '').localeCompare(String(b.delivery_date || '')));
-    return {
-      ...g,
-      byStore: Array.from(g.byStore.entries()).map(([store, amount]) => ({ store, amount: Math.round(amount * 100) / 100 })),
-    };
-  }).sort((a, b) => b.total - a.total);
+  // 4. Patient + store lookups for compact line rendering.
+  const patients = await fetchByIds(base44, 'Patient', Array.from(patientIds));
+  const patientNameById = new Map(patients.map((p) => [p.id, p.full_name || p.name || 'Unknown']));
+  const stores = await fetchByIds(base44, 'Store', Array.from(storeIdsNeeded));
+  const storeAbbrById = new Map(stores.map((s) => [s.id, s.abbreviation || (s.name || '').slice(0, 2)]));
 
-  // 5. Send pushes (skip in dry-run)
+  // 5. Per-driver briefing objects (worked-today drivers only).
+  const driverBriefings = [];
+  for (const w of worked.values()) {
+    const cods = (codTodayByDriver.get(w.driver_id) || []).map((c) => ({
+      amount: c.amount,
+      collected: c.collected,
+      types: c.types,
+      patient_name: (c.patient_id && patientNameById.get(c.patient_id)) || 'Unknown',
+      store_abbreviation: c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—',
+    }));
+    const collected = cods.filter((c) => c.collected);
+    const uncollectedToday = cods.filter((c) => !c.collected);
+    const older = olderByDriver.get(w.driver_id) || [];
+    const outstandingTotal = uncollectedToday.reduce((s, c) => s + c.amount, 0) + older.reduce((s, c) => s + c.amount, 0);
+    driverBriefings.push({
+      driver_id: w.driver_id,
+      driver_name: w.driver_name,
+      deliveries_today: w.deliveries,
+      collected_today: { count: collected.length, amount: Math.round(collected.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: collected },
+      uncollected_today: { count: uncollectedToday.length, amount: Math.round(uncollectedToday.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: uncollectedToday },
+      older_outstanding: { count: older.length, amount: Math.round(older.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: older.sort((a, b) => String(a.delivery_date || '').localeCompare(String(b.delivery_date || ''))) },
+      outstanding_total: Math.round(outstandingTotal * 100) / 100,
+    });
+  }
+  driverBriefings.sort((a, b) => (b.collected_today.amount + b.outstanding_total) - (a.collected_today.amount + a.outstanding_total));
+
+  // 6. Driver pushes (skip in dry-run / owner_only) — only drivers with
+  // something to report (collected, uncollected, or older outstanding).
   const pushes = [];
   if (!dryRun && !ownerOnly) {
-    const today = new Date().toISOString().slice(0, 10);
     for (const g of driverBriefings) {
-      if (testDriverId && g.driver_id !== testDriverId) continue;
-      // Money column alignment: pad every amount (incl. the total) to the same
-      // width so the $ signs and decimals line up down the list.
-      const moneyStrs = g.items.map((it) => (Number(it.amount) || 0).toFixed(2));
-      const totalStr = (Math.round(g.total * 100) / 100).toFixed(2);
-      const moneyWidth = Math.max(totalStr.length, ...moneyStrs.map((m) => m.length));
-      const lines = g.items.map((it, idx) => `$ ${moneyStrs[idx].padStart(moneyWidth)} · ${shortDate(it.delivery_date)}(${it.store_abbreviation || (it.store_name || '').slice(0, 12)})-${it.patient_name}`);
+      const hasCollected = g.collected_today.count > 0;
+      const outstandingItems = [
+        ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
+        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.patient_name})` })),
+      ];
+      const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
+      if (!hasCollected && outstandingCount === 0) continue; // worked today, zero COD activity — no push
+      const moneyStrs = [
+        ...g.collected_today.items.map((c) => c.amount.toFixed(2)),
+        ...outstandingItems.map((c) => c.amount.toFixed(2)),
+      ];
+      const biggestStr = Math.max(g.collected_today.amount, g.outstanding_total).toFixed(2);
+      const mw = Math.max(biggestStr.length, ...(moneyStrs.length ? moneyStrs : ['0']));
+      const lines = [];
+      if (hasCollected) {
+        lines.push(`Collected today: ${g.collected_today.count} COD${g.collected_today.count === 1 ? '' : 's'}, $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
+        for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
+        lines.push('');
+      }
+      if (outstandingCount > 0) {
+        lines.push(`Still to collect: ${outstandingCount} COD${outstandingCount === 1 ? '' : 's'}, $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
+        for (const c of outstandingItems) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.label}`);
+      } else {
+        lines.push('Nothing outstanding — clean slate.');
+      }
       const body = [
-        `${g.count} uncollected COD${g.count === 1 ? '' : 's'} totaling $${totalStr}.`,
+        `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up — ${shortDate(today)}`,
         '',
         ...lines,
-        '',
-        'Collect at your earliest convenience.',
       ].join('\n');
-      const title = `${testDriverId ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`;
-      // In-app message: create a Message record from the system 'COD Briefing'
-      // sender so the driver also gets the briefing inside the app's messaging
-      // section. The push's deep link opens that exact thread on tap.
-      // Thread shape mirrors the existing system_updates pattern:
-      // conversation_id = sorted([senderId, driverId]).join('_'), display name
-      // comes from the denormalized sender_name (no user record needed).
+      const title = `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up — ${shortDate(today)}`;
+      // In-app Message copy in the same system 'COD Briefing' thread shape.
       let inAppMessageId = null;
       try {
         const created = await base44.asServiceRole.entities.Message.create({
@@ -435,44 +457,41 @@ async function handleBriefing(base44, params = {}) {
     }
   }
 
-  // ── App Owner copy (Sep 15 2026): the owner asked to receive the FULL
-  // cross-driver briefing as an in-app push + in-app Message (previously the
-  // only push they got was their own driver-specific one when they drive; the
-  // full version only went out via the WhatsApp workflow broadcast). The
-  // owner is identified by platform User.role === 'admin' — the same check
-  // the frontend isAppOwner() uses. Sent as the same 'COD Briefing' system
-  // thread shape drivers get.
+  // ── App Owner copy: full per-driver breakdown of the day's COD wrap-up ──
   let ownerPush = null;
   if (!dryRun) {
     try {
       const owner = await findOwner(base44);
       if (owner?.id) {
-        const today = new Date().toISOString().slice(0, 10);
         const ownerName = owner.full_name || owner.name || 'App Owner';
-        // Compose full per-driver breakdown with aligned money columns
-        const moneyStrsAll = driverBriefings.flatMap((g) => g.items.map((it) => (Number(it.amount) || 0).toFixed(2)));
-        const totalAll = (Math.round(driverBriefings.reduce((sm, g) => sm + g.total, 0) * 100) / 100).toFixed(2);
-        const moneyWidth = Math.max(totalAll.length, ...(moneyStrsAll.length ? moneyStrsAll : ['0']));
+        const allC = driverBriefings.flatMap((g) => g.collected_today.items);
+        const allO = driverBriefings.flatMap((g) => [
+          ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
+          ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.patient_name})` })),
+        ]);
+        const moneyStrsAll = [...allC.map((c) => c.amount.toFixed(2)), ...allO.map((c) => c.amount.toFixed(2))];
+        const cTotal = Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100;
+        const oTotal = Math.round(driverBriefings.reduce((s, g) => s + g.outstanding_total, 0) * 100) / 100;
+        const mw = Math.max(cTotal.toFixed(2).length, oTotal.toFixed(2).length, ...(moneyStrsAll.length ? moneyStrsAll : ['0']));
         const lines = [];
         for (const g of driverBriefings) {
-          const gTotal = (Math.round(g.total * 100) / 100).toFixed(2);
-          lines.push(`${String(g.driver_name).toUpperCase()} — ${g.count} COD${g.count === 1 ? '' : 's'}, $ ${gTotal.padStart(moneyWidth)}`);
-          g.items.forEach((it, idx) => {
-            const amt = (Number(it.amount) || 0).toFixed(2);
-            lines.push(`$ ${amt.padStart(moneyWidth)} · ${shortDate(it.delivery_date)}(${(it.store_abbreviation || it.store_name || '—').slice(0, 12)})-${it.patient_name}`);
-          });
+          const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
+          if (!hadCods) { lines.push(`${String(g.driver_name).toUpperCase()} — worked today (${g.deliveries_today} stops), no COD activity`); lines.push(''); continue; }
+          lines.push(`${String(g.driver_name).toUpperCase()} — collected $ ${g.collected_today.amount.toFixed(2).padStart(mw)} (${g.collected_today.count}) · outstanding $ ${g.outstanding_total.toFixed(2).padStart(mw)} (${g.uncollected_today.count + g.older_outstanding.count})`);
+          for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
+          for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · OUTSTANDING · ${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
+          for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · OUTSTANDING · ${shortDate(c.delivery_date)}(${c.patient_name})`);
           lines.push('');
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
-        lines.push(`OVERALL TOTAL: ${catalogItems.length} COD${catalogItems.length === 1 ? '' : 's'}, $ ${totalAll}`);
+        lines.push(`DAY TOTALS — collected: $ ${cTotal.toFixed(2).padStart(mw)} (${allC.length}) · outstanding: $ ${oTotal.toFixed(2).padStart(mw)} (${allO.length})`);
         const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
         if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
         const ownerBody = [
-          `${ownerOnly ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`,
+          `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers) — ${shortDate(today)}`,
           '',
           ...lines,
         ].join('\n');
-        // In-app Message: same system-thread shape as the driver copies
         let ownerMessageId = null;
         try {
           const created = await base44.asServiceRole.entities.Message.create({
@@ -490,7 +509,7 @@ async function handleBriefing(base44, params = {}) {
           console.log('[briefing] owner Message.create failed:', err?.message || String(err));
         }
         const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-        const title = `${ownerOnly ? 'TEST — ' : ''}COD Briefing (All Drivers) — ${shortDate(today)}`;
+        const title = `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers) — ${shortDate(today)}`;
         const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
         ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
         console.log('[briefing] owner push result:', JSON.stringify(result));
@@ -505,15 +524,18 @@ async function handleBriefing(base44, params = {}) {
   }
 
   const totals = {
-    drivers: driverBriefings.length,
-    items: catalogItems.length,
-    amount: Math.round(driverBriefings.reduce((s, g) => s + g.total, 0) * 100) / 100,
+    worked_drivers: driverBriefings.length,
+    collected_count: driverBriefings.reduce((s, g) => s + g.collected_today.count, 0),
+    collected_amount: Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100,
+    outstanding_count: driverBriefings.reduce((s, g) => s + g.uncollected_today.count + g.older_outstanding.count, 0),
+    outstanding_amount: Math.round(driverBriefings.reduce((s, g) => s + g.outstanding_total, 0) * 100) / 100,
   };
 
   return {
     success: true,
-    dry_run: dryRun,
+    dry_run: dry_run,
     owner_only: ownerOnly,
+    briefing_date: today,
     generated_at: new Date().toISOString(),
     totals,
     drivers: driverBriefings,
@@ -523,6 +545,7 @@ async function handleBriefing(base44, params = {}) {
     duration_ms: Date.now() - startedAt,
   };
 }
+
 
 Deno.serve(async (req) => {
   try {
