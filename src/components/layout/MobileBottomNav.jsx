@@ -90,11 +90,15 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
             const isMessagingItem = item.action === 'messaging';
             const isActive = !isMessagingItem && activeTab === item.tabKey;
             const Icon = item.icon;
-            const visibleTabs = Math.min(navItems.length, 4);
+            // Even distribution: every tab grows equally to fill the row width, so
+            // wider screens show MORE tabs. The 76px floor keeps them from
+            // crowding — when even the floored tabs don't fit (narrow phones),
+            // the row keeps its horizontal scroll instead of squishing.
             const sharedProps = {
-              className: 'flex min-h-14 flex-col items-center justify-center px-2 py-2 flex-shrink-0 transition-colors',
+              className: 'flex min-h-14 flex-col items-center justify-center px-2 py-2 transition-colors',
               style: {
-                minWidth: `calc((100vw - 56px) / ${visibleTabs})`,
+                flex: '1 1 0',
+                minWidth: '76px',
                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
               },
             };
