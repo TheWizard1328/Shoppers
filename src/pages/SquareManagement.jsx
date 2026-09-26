@@ -367,7 +367,19 @@ export default function SquareManagement() {
         finalData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
         [];
       await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
-      await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+      // New-backend responses carry txRetentionFloor and are the COMPLETE retained
+      // DB set — safe to replace-save. Old/partial responses (no floor field, e.g.
+      // during deploy propagation) get MERGED instead so IDB history is never wiped.
+      if (finalData.txRetentionFloor) {
+        await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+      } else {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
+        const existing = await offlineDB.getAll(offlineDB.STORES.PAYMENT_TRANSACTIONS) || [];
+        const merged = new Map((existing || []).map((t) => [keyOf(t), t]));
+        (transactionRecords || []).forEach((t) => { if (t) merged.set(keyOf(t), { ...merged.get(keyOf(t)), ...t }); });
+        await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(merged.values()));
+      }
 
       const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
       const existingMap = new Map(existing.map((r) => [r.id, r]));
