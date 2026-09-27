@@ -83,6 +83,7 @@ function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  const mapAreaRef = useRef(null);
   const heyDoc = useHeyDoc({
     currentUser, filteredDeliveries, patients, stores, appUsers,
     enabled: isDriver && isMobile,
@@ -366,7 +367,7 @@ function DashboardView({
 
 
 
-      <div className="flex-1 w-full relative min-h-0 overflow-hidden">
+      <div ref={mapAreaRef} className="flex-1 w-full relative min-h-0 overflow-hidden">
         <div
           className="absolute top-0 left-0 right-0 z-[230] transition-transform duration-500 ease-in-out"
           style={{
@@ -422,6 +423,7 @@ function DashboardView({
           immersiveHidden={immersiveHidden}
           statsContainerRef={statsContainerRef}
           horizontalStopCardsRef={horizontalStopCardsRef}
+          mapAreaRef={mapAreaRef}
         />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}

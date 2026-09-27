@@ -34,7 +34,7 @@
  * City selection: the user's own city first; a single stored city still shows;
  * otherwise hide (never show the wrong city's weather).
  */
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getDashboardWeather } from '@/components/utils/dashboardWeatherSettings';
 
 const WEATHER_ICONS = Object.freeze({
@@ -62,39 +62,73 @@ function pickCityWeather(weather, currentUser) {
 
 function DashboardWeatherBar({
   currentUser, statsContainerBaseHeight, stopCardsBaseHeight, immersiveHidden,
-  statsContainerRef, horizontalStopCardsRef,
+  statsContainerRef, horizontalStopCardsRef, mapAreaRef,
 }) {
   const [entry, setEntry] = useState(null);
-  const [vh, setVh] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
   const userRef = useRef(currentUser);
   userRef.current = currentUser;
 
-  // Live DOM heights — same pattern as Dashboard.jsx's getMapPadding(): the
-  // "base" height props are frozen while a stop card is EXPANDED (see
-  // useStopCardsBaseHeight's comment: "Never updates the height while a card
-  // is expanded"), so relying on them alone let the bar's bottom anchor stay
-  // at the old, smaller collapsed height while the actual card grew — the
-  // bar then rendered well past the real safe zone, appearing to span nearly
-  // the whole map. Reading offsetHeight/offsetTop directly on every
-  // measurable change (ResizeObserver) keeps the bar's anchors accurate at
-  // all times; the *BaseHeight props remain the fallback for the first paint
-  // before refs are attached.
-  const [liveStatsHeight, setLiveStatsHeight] = useState(0);
-  const [liveStopCardsHeight, setLiveStopCardsHeight] = useState(0);
+  // ── EMPIRICAL GEOMETRY ────────────────────────────────────────────────────
+  // Earlier formula-based anchors (window.innerHeight minus prop heights)
+  // kept drifting from reality: window.innerHeight includes UI outside the
+  // map area, and the base-height props stay frozen while a stop card is
+  // expanded. Instead we measure the real elements every time anything can
+  // move:
+  //   • bar height  = mapArea (this bar's positioned parent) clientHeight
+  //   • top anchor  = live stats panel bottom (offsetTop + offsetHeight)
+  //   • bottom edge = just ABOVE the bulk-select checkbox row
+  //     ([data-bulk-select-toggle]); fallback: 10px above the stop-cards strip
+  // The bar never computes from window.innerHeight and never reads frozen
+  // base-height props except as a first-paint fallback.
+  const [geo, setGeo] = useState({ parentH: 0, top: 0, bottomGap: 0 });
+
+  const measureGeo = useCallback(() => {
+    const parent = mapAreaRef?.current;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+
+    // Top: live stats panel bottom
+    let top = 0;
+    const statsEl = statsContainerRef?.current;
+    if (statsEl) {
+      top = Math.max(0, statsEl.getBoundingClientRect().bottom - parentRect.top) + 12;
+    }
+    if (!top) top = (Number(statsContainerBaseHeight) || 0) + 12;
+
+    // Bottom: just above the bulk-select checkbox row; fall back to the
+    // stop-cards strip top, then to the base-height formula.
+    let bottomGap = 0;
+    const cb = document.querySelector('[data-bulk-select-toggle]');
+    const cbRect = cb && cb.offsetParent !== null ? cb.getBoundingClientRect() : null;
+    const strip = horizontalStopCardsRef?.current;
+    const stripRect = strip && strip.offsetParent !== null ? strip.getBoundingClientRect() : null;
+    if (cbRect) {
+      bottomGap = Math.max(0, parentRect.bottom - cbRect.top) + 8;
+    } else if (stripRect) {
+      bottomGap = Math.max(0, parentRect.bottom - stripRect.top) + 10;
+    } else {
+      let navH = 0;
+      try { navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0; } catch { /* noop */ }
+      bottomGap = (Number(stopCardsBaseHeight) || 0) + navH + 10;
+    }
+
+    setGeo({ parentH: parent.clientHeight || 0, top, bottomGap });
+  }, [mapAreaRef, statsContainerRef, horizontalStopCardsRef, statsContainerBaseHeight, stopCardsBaseHeight]);
 
   useLayoutEffect(() => {
-    const statsEl = statsContainerRef?.current;
-    const cardsEl = horizontalStopCardsRef?.current;
-    const measure = () => {
-      if (statsEl) setLiveStatsHeight((statsEl.offsetTop || 0) + (statsEl.offsetHeight || 0));
-      if (cardsEl) setLiveStopCardsHeight(cardsEl.offsetHeight || 0);
-    };
-    measure();
+    measureGeo();
     const observers = [];
-    if (statsEl) { const ro = new ResizeObserver(measure); ro.observe(statsEl); observers.push(ro); }
-    if (cardsEl) { const ro = new ResizeObserver(measure); ro.observe(cardsEl); observers.push(ro); }
-    return () => observers.forEach((ro) => ro.disconnect());
-  }, [statsContainerRef, horizontalStopCardsRef]);
+    const obs = (el) => { if (!el) return; const ro = new ResizeObserver(() => measureGeo()); ro.observe(el); observers.push(ro); };
+    obs(mapAreaRef?.current);
+    obs(statsContainerRef?.current);
+    obs(horizontalStopCardsRef?.current);
+    const onResize = () => measureGeo();
+    window.addEventListener('resize', onResize);
+    return () => {
+      observers.forEach((ro) => ro.disconnect());
+      window.removeEventListener('resize', onResize);
+    };
+  }, [measureGeo, entry, immersiveHidden]);
 
   useEffect(() => {
     let alive = true;
@@ -105,19 +139,16 @@ function DashboardWeatherBar({
     load(false);
     // Poll pushes land as AppSettings entity writes → realtimeSync dispatches
     // this event on every subscribed device — force a fresh read each time.
-    const onSettings = () => load(true);
+    const onSettings = () => { load(true); measureGeo(); };
     window.addEventListener('appSettingsUpdated', onSettings);
-    const onResize = () => setVh(window.innerHeight);
-    window.addEventListener('resize', onResize);
     // While the dashboard is open, re-read every 5 minutes. If the stored
     // snapshot is stale by then, the getter's stale-trigger fires a background
     // poll (dashboardWeatherPoll) and the fresh data lands here — this keeps
     // the bar live even if this device never receives the WS broadcast.
-    const interval = setInterval(() => load(true), 5 * 60 * 1000);
+    const interval = setInterval(() => { load(true); measureGeo(); }, 5 * 60 * 1000);
     return () => {
       alive = false;
       window.removeEventListener('appSettingsUpdated', onSettings);
-      window.removeEventListener('resize', onResize);
       clearInterval(interval);
     };
   }, []);
@@ -132,15 +163,8 @@ function DashboardWeatherBar({
   const span = Math.max(1, scaleTop - scaleBottom);
   const frac = (v) => Math.min(0.98, Math.max(0.02, (v - scaleBottom) / span));
 
-  // Bottom anchor — identical baseline to FABControls / bulk-edit pill so the
-  // bar always starts just above the multi-select checkbox row.
-  let bottomNavHeight = 0;
-  try {
-    bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
-  } catch { /* default 0 */ }
-  const topAnchor = (liveStatsHeight || Number(statsContainerBaseHeight) || 0) + 12;
-  const bottomAnchor = (liveStopCardsHeight || Number(stopCardsBaseHeight) || 0) + bottomNavHeight + 10;
-  const barHeight = vh - topAnchor - bottomAnchor;
+  const topAnchor = geo.top || (Number(statsContainerBaseHeight) || 0) + 12;
+  const barHeight = geo.parentH - topAnchor - geo.bottomGap;
   if (barHeight < 150) return null; // no room — hide instead of cluttering
 
   // Pixel offsets from the BOTTOM of the (explicit-height) bar box.
