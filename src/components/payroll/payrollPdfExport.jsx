@@ -301,11 +301,13 @@ export async function exportPayrollPdf({
     const edit = driverEdits?.[driverData.driver.id] || {};
     const deductions = edit.deductions || driverData.deductionsArray || [];
     const bonusPay = edit.bonusPay || 0;
+    const appFeePercent = Number(edit.appFeePercent || 0);
     const appFeeAmount = isPeriodEndOfMonth ? (edit.appFeeAmount || calculateAppFeeAmount(driverData.driver.id, edit.appFeePercent || 0)) : 0;
     return {
       deductions,
       deductionsTotal: sumDeductionAmounts(deductions),
       bonusPay,
+      appFeePercent,
       appFeeAmount,
       netPay: getPeriodNetAmount({
         grandTotal: driverData.grandTotal || 0,
@@ -491,7 +493,7 @@ export async function exportPayrollPdf({
         y += lineHeight;
       }
       if (periodValues.appFeeAmount > 0) {
-        doc.text('App Fee Cut:', col1_rowTitles, y);
+        doc.text(periodValues.appFeePercent > 0 ? `App Fee Cut (${periodValues.appFeePercent.toFixed(1).replace(/\.0$/, '')}%):` : 'App Fee Cut:', col1_rowTitles, y);
         doc.text('+$', col3_calcTotals, y);
         doc.text(periodValues.appFeeAmount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
         y += lineHeight;
@@ -595,9 +597,20 @@ export async function exportPayrollPdf({
     doc.text('Gross:', rightCol - 40, y - 14); doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
     doc.text('Tax:', rightCol - 40, y - 9); doc.text(`$${(data.taxAmount || 0).toFixed(2)}`, rightCol, y - 9, { align: 'right' });
     doc.text('Deductions:', rightCol - 40, y - 4); doc.text(`-$${periodValues.deductionsTotal.toFixed(2)}`, rightCol, y - 4, { align: 'right' });
+    let detailY = y + 1;
+    doc.setFontSize(8);
+    if (periodValues.bonusPay > 0) {
+      doc.text('Bonus:', rightCol - 40, detailY); doc.text(`+$${periodValues.bonusPay.toFixed(2)}`, rightCol, detailY, { align: 'right' });
+      detailY += 5;
+    }
+    if (periodValues.appFeeAmount > 0) {
+      const pctLabel = periodValues.appFeePercent > 0 ? ` (${periodValues.appFeePercent.toFixed(1).replace(/\.0$/, '')}%)` : '';
+      doc.text(`App Fee Cut${pctLabel}:`, rightCol - 40, detailY); doc.text(`+$${periodValues.appFeeAmount.toFixed(2)}`, rightCol, detailY, { align: 'right' });
+      detailY += 5;
+    }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text('Net:', rightCol - 40, y + 2); doc.text(`$${periodValues.netPay.toFixed(2)}`, rightCol, y + 2, { align: 'right' });
-    y += 8;
+    doc.text('Net:', rightCol - 40, detailY); doc.text(`$${periodValues.netPay.toFixed(2)}`, rightCol, detailY, { align: 'right' });
+    y = detailY + 6;
     doc.setDrawColor(200, 200, 200); doc.line(14, y, portraitWidth - 14, y); y += 8;
   });
 
@@ -609,7 +622,11 @@ export async function exportPayrollPdf({
     doc.setFontSize(10); doc.setFont('helvetica', 'normal');
     doc.text(`Gross: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 5;
     doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 5;
-    doc.text(`Deductions: $${grandTotalDeductions.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 6;
+    doc.text(`Deductions: $${grandTotalDeductions.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 5;
+    const totalBonus = driversWithDeliveries.reduce((sum, d) => sum + getDriverPeriodValues(d).bonusPay, 0);
+    const totalAppFee = driversWithDeliveries.reduce((sum, d) => sum + getDriverPeriodValues(d).appFeeAmount, 0);
+    if (totalBonus > 0) { doc.text(`Bonus: $${totalBonus.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 5; }
+    if (totalAppFee > 0) { doc.text(`App Fee Cut: $${totalAppFee.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 6; }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
     doc.text(`Net: $${driversWithDeliveries.reduce((sum, d) => sum + getDriverPeriodValues(d).netPay, 0).toFixed(2)}`, rightCol, y, { align: 'right' });
   }
