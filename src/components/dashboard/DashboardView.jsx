@@ -7,6 +7,7 @@ import { isAppOwner } from '@/components/utils/userRoles';
 import { useInterStoreLocation, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import WinterModeBanner from "@/components/dashboard/WinterModeBanner";
+import DashboardWeatherBar from "@/components/dashboard/DashboardWeatherBar";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import { useDriverOverlayLegend } from "@/components/dashboard/useDriverOverlayLegend";
@@ -408,6 +409,18 @@ function DashboardView({
           setMapStyle={setMapStyle}
         />
         </div>
+
+        {/* Minimal semi-transparent weather thermometer — far-left edge,
+            between the stats panel and the bulk-edit checkbox strip.
+            Anchored on BASE heights so panel/card expansion never moves it.
+            Data: shared AppSettings 'dashboard_weather' record, pushed by the
+            5-minute dashboardWeatherPoll workflow via the AppSettings WS. */}
+        <DashboardWeatherBar
+          currentUser={currentUser}
+          statsContainerBaseHeight={statsContainerBaseHeight}
+          stopCardsBaseHeight={stopCardsBaseHeight}
+          immersiveHidden={immersiveHidden}
+        />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers} cities={cities}
