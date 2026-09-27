@@ -158,8 +158,12 @@ function DashboardWeatherBar({
   const temp = Number(entry.temp);
   const high = Number.isFinite(Number(entry.high)) ? Number(entry.high) : temp + 5;
   const low = Number.isFinite(Number(entry.low)) ? Number(entry.low) : temp - 5;
-  const scaleTop = high + 10;   // upper limit = projected high + 10
-  const scaleBottom = low - 10; // lower limit = projected low - 10
+  // Scale limits (owner spec, Sep 27 v3): 5° above the top marker / 5° below
+  // the bottom one — but if the CURRENT temp sits outside the projected
+  // high..low band, the scale stretches to 5° past the current temp instead.
+  // The projected high/low markers always stay visible.
+  const scaleTop = Math.max(high, temp) + 5;
+  const scaleBottom = Math.min(low, temp) - 5;
   const span = Math.max(1, scaleTop - scaleBottom);
   const frac = (v) => Math.min(0.98, Math.max(0.02, (v - scaleBottom) / span));
 
