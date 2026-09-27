@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
@@ -269,6 +269,59 @@ export default function ResetPolylinesButton({
   const driverIds = useMemo(() => {
     return Array.from(new Set((selectedDriverIds || []).filter(Boolean).filter(id => id !== "all")));
   }, [selectedDriverIds]);
+
+  // ── Breadcrumb coverage badge (sealed/total stops) ─────────────────────────
+  // Shows "16/20" under the button — how many of the route's stops already have
+  // a sealed breadcrumb path (saved_to_route = true) vs. the total stop count.
+  // Full coverage means a regenerate run applies only breadcrumb paths.
+  const [coverage, setCoverage] = useState(null); // { sealed, total }
+  const driverIdsKey = driverIds.join(',');
+
+  const loadCoverage = useCallback(async () => {
+    if (selectedPolylineOption !== 'polylines' || !selectedDate || !driverIdsKey) {
+      setCoverage(null);
+      return;
+    }
+    let sealed = 0;
+    let total = 0;
+    for (const driverId of driverIdsKey.split(',').filter(Boolean)) {
+      try {
+        const [rawDeliveries, segments] = await Promise.all([
+          base44.entities.Delivery.filter(
+            { driver_id: driverId, delivery_date: selectedDate },
+            'stop_order',
+            5000
+          ).catch(() => []),
+          (async () => {
+            // Offline DB first for speed, API fallback
+            try {
+              const offlineSegs = await offlineDB.getByCompoundIndex(
+                offlineDB.STORES.DELIVERY_BREADCRUMBS,
+                'date_driver',
+                [selectedDate, driverId]
+              );
+              if (offlineSegs && offlineSegs.length) return offlineSegs;
+            } catch (_) {}
+            return await base44.entities.DeliveryBreadcrumbs.filter({
+              driver_id: driverId,
+              delivery_date: selectedDate,
+            }).catch(() => []);
+          })(),
+        ]);
+        const stops = (rawDeliveries || []).filter(d => d && d.status !== 'cancelled');
+        total += stops.length;
+        const sealedOrders = new Set(
+          (segments || [])
+            .filter(seg => seg && seg.encoded_polyline && seg.stop_order !== -1 && seg.saved_to_route === true)
+            .map(seg => Number(seg.stop_order))
+        );
+        sealed += stops.filter(d => sealedOrders.has(Number(d.stop_order))).length;
+      } catch (_) {}
+    }
+    setCoverage({ sealed, total });
+  }, [selectedPolylineOption, selectedDate, driverIdsKey]);
+
+  useEffect(() => { loadCoverage(); }, [loadCoverage]);
 
   // ── MODE B: Breadcrumb slicing ────────────────────────────────────────────
   const runBreadcrumbMode = async (driverId) => {
@@ -675,6 +728,7 @@ export default function ResetPolylinesButton({
       smartRefreshManager.restart();
       setIsResetting(false);
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'reset_polylines' } }));
+      loadCoverage(); // refresh the sealed/total badge
     }
   };
 
@@ -695,19 +749,34 @@ export default function ResetPolylinesButton({
     );
   }
 
+  const showCoverage = selectedPolylineOption === 'polylines' && coverage && coverage.total > 0;
+  const coverageComplete = coverage && coverage.sealed === coverage.total;
+
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={handleReset}
-      disabled={disabled || isResetting || driverIds.length === 0}
-      className={`h-8 gap-2 ${className} text-body bg-surface`} style={{ borderColor: "var(--border-slate-300)" }}
-      title="Refresh polylines"
-    >
-      {isResetting
-        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        : <RotateCcw className="w-3.5 h-3.5" />}
-    </Button>
+    <div className="flex flex-col items-center select-none">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleReset}
+        disabled={disabled || isResetting || driverIds.length === 0}
+        className={`h-8 gap-2 ${className} text-body bg-surface`} style={{ borderColor: "var(--border-slate-300)" }}
+        title={showCoverage
+          ? `Refresh polylines — ${coverage.sealed}/${coverage.total} stops saved from breadcrumbs`
+          : "Refresh polylines"}
+      >
+        {isResetting
+          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          : <RotateCcw className="w-3.5 h-3.5" />}
+      </Button>
+      {showCoverage && (
+        <span
+          className={`text-[9px] leading-none font-medium mt-0.5 whitespace-nowrap ${coverageComplete ? 'text-emerald-600' : 'text-slate-400'}`}
+          title={`${coverage.sealed} of ${coverage.total} route stops saved from breadcrumbs`}
+        >
+          {coverage.sealed}/{coverage.total}
+        </span>
+      )}
+    </div>
   );
 }
