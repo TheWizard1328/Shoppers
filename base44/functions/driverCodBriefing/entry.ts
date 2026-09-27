@@ -168,7 +168,7 @@ const extractPatientName = (itemName) => {
   return m ? m[1].trim() : (String(itemName || '').trim() || 'Unknown');
 };
 // MM/DD from a YYYY-MM-DD date for compact display
-const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[1]}` : (iso || ''); };
+const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[3]}` : (iso || ''); };
 
 async function listAll(base44, entityName, sortField, limit = 2000) {
   const out = [];
@@ -333,7 +333,11 @@ async function handleBriefing(base44, params = {}) {
   }
   const seenCodKeys = new Set();
   catalogItems = catalogItems.filter((x) => {
-    const key = x.delivery_id || `nodel:${x.item_name}|${x.amount}|${x.store_id}`;
+    // Include item_name + amount even when delivery_id is present — a single
+    // delivery can legitimately carry TWO distinct catalog line items (a
+    // multi-item Square order). Keying on delivery_id alone collapsed those
+    // into one, silently dropping the second item from the briefing.
+    const key = `${x.delivery_id || 'nodel'}|${x.item_name}|${x.amount}|${x.store_id}`;
     if (seenCodKeys.has(key)) return false;
     seenCodKeys.add(key);
     return true;
@@ -344,7 +348,7 @@ async function handleBriefing(base44, params = {}) {
   const deliveryIds = catalogItems.map((x) => x.delivery_id).filter(Boolean);
   const olderDeliveries = await fetchByIds(base44, 'Delivery', deliveryIds);
   const olderDeliveryById = new Map(olderDeliveries.map((d) => [d?.id, d]));
-  const olderByDriver = new Map(); // driverId -> [{ amount, patient_name, delivery_date }]
+  const olderByDriver = new Map(); // driverId -> [{ amount, patient_name, delivery_date, store_id }]
   const unassigned = [];
   for (const item of catalogItems) {
     const del = item.delivery_id ? olderDeliveryById.get(item.delivery_id) : null;
@@ -354,12 +358,14 @@ async function handleBriefing(base44, params = {}) {
       delivery_date: item.delivery_date || del?.delivery_date || null,
       patient_name: extractPatientName(item.item_name),
       delivery_status: del?.status || null,
+      store_id: del?.store_id || null,
     };
     if (!del?.driver_id) { unassigned.push(entry); continue; }
     // Only items from BEFORE today belong here (today's items are covered by
     // the day section), and only for drivers who actually worked today.
     if (!worked.has(del.driver_id)) continue;
     if (String(entry.delivery_date || '') >= today) continue;
+    if (entry.store_id) storeIdsNeeded.add(entry.store_id);
     if (!olderByDriver.has(del.driver_id)) olderByDriver.set(del.driver_id, []);
     olderByDriver.get(del.driver_id).push(entry);
   }
@@ -390,7 +396,13 @@ async function handleBriefing(base44, params = {}) {
       deliveries_today: w.deliveries,
       collected_today: { count: collected.length, amount: Math.round(collected.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: collected },
       uncollected_today: { count: uncollectedToday.length, amount: Math.round(uncollectedToday.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: uncollectedToday },
-      older_outstanding: { count: older.length, amount: Math.round(older.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: older.sort((a, b) => String(a.delivery_date || '').localeCompare(String(b.delivery_date || ''))) },
+      older_outstanding: {
+        count: older.length,
+        amount: Math.round(older.reduce((s, c) => s + c.amount, 0) * 100) / 100,
+        items: older
+          .map((c) => ({ ...c, store_abbreviation: c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—' }))
+          .sort((a, b) => String(a.delivery_date || '').localeCompare(String(b.delivery_date || ''))),
+      },
       outstanding_total: Math.round(outstandingTotal * 100) / 100,
     });
   }
@@ -404,7 +416,7 @@ async function handleBriefing(base44, params = {}) {
       const hasCollected = g.collected_today.count > 0;
       const outstandingItems = [
         ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
-        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.patient_name})` })),
+        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}` })),
       ];
       const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
       if (!hasCollected && outstandingCount === 0) continue; // worked today, zero COD activity — no push
@@ -467,7 +479,7 @@ async function handleBriefing(base44, params = {}) {
         const allC = driverBriefings.flatMap((g) => g.collected_today.items);
         const allO = driverBriefings.flatMap((g) => [
           ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
-          ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.patient_name})` })),
+          ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}` })),
         ]);
         const moneyStrsAll = [...allC.map((c) => c.amount.toFixed(2)), ...allO.map((c) => c.amount.toFixed(2))];
         const cTotal = Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100;
@@ -477,14 +489,19 @@ async function handleBriefing(base44, params = {}) {
         for (const g of driverBriefings) {
           const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
           if (!hadCods) { lines.push(`${String(g.driver_name).toUpperCase()} — worked today (${g.deliveries_today} stops), no COD activity`); lines.push(''); continue; }
-          lines.push(`${String(g.driver_name).toUpperCase()} — collected $ ${g.collected_today.amount.toFixed(2).padStart(mw)} (${g.collected_today.count}) · outstanding $ ${g.outstanding_total.toFixed(2).padStart(mw)} (${g.uncollected_today.count + g.older_outstanding.count})`);
+          const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
+          // Each driver gets its own Collected section (header + items) and its
+          // own Outstanding section (header + items) — kept separate rather
+          // than interleaved, so each section is self-contained.
+          lines.push(String(g.driver_name).toUpperCase());
+          lines.push(`Collected (${g.collected_today.count}) $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
           for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
-          for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · OUTSTANDING · ${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
-          for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · OUTSTANDING · ${shortDate(c.delivery_date)}(${c.patient_name})`);
+          lines.push(`Outstanding (${outstandingCount}) $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
+          for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
+          for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}`);
           lines.push('');
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
-        lines.push(`DAY TOTALS — collected: $ ${cTotal.toFixed(2).padStart(mw)} (${allC.length}) · outstanding: $ ${oTotal.toFixed(2).padStart(mw)} (${allO.length})`);
         const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
         if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
         const ownerBody = [
