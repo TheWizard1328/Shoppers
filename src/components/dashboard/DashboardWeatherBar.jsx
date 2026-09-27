@@ -193,7 +193,7 @@ function DashboardWeatherBar({
   // the reversed order parses on desktop Chrome but the fleet's Android WebView
   // rejects it and silently drops the whole gradient, leaving the fallback blue.
   const stops = [`${rgba(colorFor(low), 0.92)} 0%`];
-  if (zeroInside && pZeroInFill > 1 && pZeroInFill < 99) stops.push(`${rgba(MID_RGB, 0.92)} ${pZeroInFill.toFixed(1)}%`);
+  if (low < 0 && high > 0 && pZeroInFill > 1 && pZeroInFill < 99) stops.push(`${rgba(MID_RGB, 0.92)} ${pZeroInFill.toFixed(1)}%`);
   stops.push(`${rgba(colorFor(high), 0.92)} 100%`);
   const fillGradient = `linear-gradient(to top, ${stops.join(', ')})`;
 
