@@ -328,6 +328,7 @@ export default function DriverPayroll() {
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
 
   const contentRef = useRef(null);
+  const payrollScrollRef = useRef(null);
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
   const triedPreviousPeriodRef = useRef(false);
@@ -871,6 +872,16 @@ export default function DriverPayroll() {
       const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
       notesSections.forEach((el) => {el.style.display = 'none';});
 
+      // Unclip the scroll area so html2canvas renders the FULL page, not just
+      // the visible viewport portion (the flex-1 min-h-0 overflow container was
+      // cropping the capture to one screen's worth of driver cards).
+      const scrollEl = payrollScrollRef.current;
+      if (scrollEl) {
+        scrollEl.style.overflow = 'visible';
+        scrollEl.style.maxHeight = 'none';
+        scrollEl.style.flex = 'none';
+      }
+
       // Small delay to ensure UI updates
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -923,6 +934,12 @@ export default function DriverPayroll() {
         controlsElement.style.display = 'flex';
       }
     } finally {
+      const scrollEl = payrollScrollRef.current;
+      if (scrollEl) {
+        scrollEl.style.overflow = '';
+        scrollEl.style.maxHeight = '';
+        scrollEl.style.flex = '';
+      }
       setIsCapturingScreenshot(false);
     }
   }, []);
@@ -1590,7 +1607,7 @@ export default function DriverPayroll() {
       
 
         {/* Content Area for Screenshot */}
-        <div className="pb- min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
+        <div ref={payrollScrollRef} className="pb- min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
           {/* Grid (mobile collapsible) */}
           <div className="lg:hidden mb-3">
             <Button size="sm" variant="outline" className="bg-background px-2 text-xs font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
