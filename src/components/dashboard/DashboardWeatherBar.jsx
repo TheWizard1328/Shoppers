@@ -173,15 +173,26 @@ function DashboardWeatherBar({
   const yTemp = Math.round(frac(temp) * barHeight);
   const yZero = frac(0) * barHeight;
 
-  // Tube gradient (as fractions of the tube's own height, top→bottom in CSS
-  // gradient terms means we build "to top" stops using bottom-relative fractions).
-  const pLow = (yLow / barHeight) * 100;
-  const pHigh = (yHigh / barHeight) * 100;
-  const pZero = (yZero / barHeight) * 100;
-  const stops = [`0% ${rgba(COLD_RGB, 0.9)}`, `${pLow.toFixed(1)}% ${rgba(COLD_RGB, 0.9)}`];
-  if (pZero > pLow && pZero < pHigh) stops.push(`${pZero.toFixed(1)}% ${rgba(blendRgb(COLD_RGB, HOT_RGB, 0.5), 0.9)}`);
-  stops.push(`${pHigh.toFixed(1)}% ${rgba(HOT_RGB, 0.9)}`, `100% ${rgba(HOT_RGB, 0.9)}`);
-  const tubeGradient = `linear-gradient(to top, ${stops.join(', ')})`;
+  // ── Colored fill: ONLY the segment between the projected LOW and HIGH ──
+  // (owner spec, Sep 27: the +10/-10° buffer zones above/below stay empty
+  // frosted track). The gradient is temperature-anchored: the orange↔blue
+  // switch is pinned to the 0 °C position when 0 falls strictly inside the
+  // low..high range, with a distinct white 0° line drawn there.
+  const MID_RGB = blendRgb(COLD_RGB, HOT_RGB, 0.5);
+  const colorFor = (t) => (t >= 0
+    ? blendRgb(MID_RGB, HOT_RGB, Math.min(1, high > 0 ? t / high : 1))
+    : blendRgb(MID_RGB, COLD_RGB, Math.min(1, low < 0 ? t / low : 1)));
+  const fillTopPx = barHeight - yHigh;           // px from bar top down to the HIGH line
+  const fillHeight = Math.max(0, yHigh - yLow);  // colored segment height
+  const zeroInside = low < 0 && high > 0;
+  const pZeroInFill = fillHeight > 0 ? ((yZero - yLow) / fillHeight) * 100 : 50;
+  // NOTE canonical stop order — "<color> <position>" (NOT "<position> <color>"):
+  // the reversed order parses on desktop Chrome but the fleet's Android WebView
+  // rejects it and silently drops the whole gradient, leaving the fallback blue.
+  const stops = [`${rgba(colorFor(low), 0.92)} 0%`];
+  if (zeroInside && pZeroInFill > 1 && pZeroInFill < 99) stops.push(`${rgba(MID_RGB, 0.92)} ${pZeroInFill.toFixed(1)}%`);
+  stops.push(`${rgba(colorFor(high), 0.92)} 100%`);
+  const fillGradient = `linear-gradient(to top, ${stops.join(', ')})`;
 
   const icon = WEATHER_ICONS[entry.icon] || '☁️';
 
@@ -207,21 +218,37 @@ function DashboardWeatherBar({
       className="pointer-events-none absolute z-[220]"
       style={{ left: 6, top: topAnchor, height: barHeight, width: 60 }}
     >
-      {/* Frosted tube — the gradient IS the scale (blue low → 0 °C → orange high).
-          EXPLICIT pixel height (not top+bottom stretch): some Android WebView
-          builds on this fleet render top+bottom-only absolute boxes at zero
-          height — the tube silently vanished, leaving only the badge visible.
-          backgroundColor = fallback if the gradient string is ever dropped. */}
+      {/* Frosted TRACK — full scale incl. the +10/-10° buffer zones; the zones
+          above the high and below the low stay empty (translucent track only).
+          EXPLICIT pixel height everywhere: some Android WebView builds on this
+          fleet render top+bottom-only absolute boxes at zero height. */}
       <div
         style={{
           position: 'absolute', top: 0, left: 0, width: 12, height: barHeight,
           borderRadius: 999,
-          backgroundColor: rgba(COLD_RGB, 0.9),
-          backgroundImage: tubeGradient,
-          border: '1px solid rgba(148,163,184,0.4)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          background: 'rgba(255,255,255,0.10)',
+          border: '1px solid rgba(148,163,184,0.35)',
         }}
       />
+
+      {/* Colored FILL — only between the projected low and high; gradient
+          switches orange↔blue at 0 °C. backgroundColor = mid fallback. */}
+      {fillHeight >= 2 && (
+        <div
+          style={{
+            position: 'absolute', top: fillTopPx, left: 0, width: 12, height: fillHeight,
+            borderRadius: 999,
+            backgroundColor: rgba(MID_RGB, 0.92),
+            backgroundImage: fillGradient,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        />
+      )}
+
+      {/* Distinct 0 °C line — only when 0 falls inside the low..high range */}
+      {zeroInside && (
+        <div style={{ position: 'absolute', top: barHeight - yZero, left: 0, width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.9)' }} />
+      )}
 
       {/* Projected HIGH line + temp */}
       <div style={markerStyle(yHigh)}>
