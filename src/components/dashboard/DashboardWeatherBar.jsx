@@ -208,7 +208,6 @@ function DashboardWeatherBar({
     alignItems: 'center',
     gap: 4,
   });
-  const lineStyle = { width: 12, height: 2, background: 'rgba(248,250,252,0.95)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.7)' };
   const labelStyle = {
     fontSize: 9, lineHeight: '10px', fontWeight: 700,
     color: 'rgba(248,250,252,0.98)', textShadow: '0 1px 2px rgba(0,0,0,0.95)',
@@ -254,15 +253,15 @@ function DashboardWeatherBar({
         <div style={{ position: 'absolute', top: barHeight - yZero, left: 0, width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.9)' }} />
       )}
 
-      {/* Projected HIGH line + temp */}
-      <div style={markerStyle(yHigh)}>
-        <div style={lineStyle} />
+      {/* Projected HIGH line (label sits ON the bar, just below the line) */}
+      <div style={{ position: 'absolute', bottom: `${yHigh}px`, left: 0, width: 12, height: 2, background: 'rgba(248,250,252,0.95)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.7)' }} />
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 15)}px`, left: 0, width: 12, textAlign: 'center' }}>
         <span style={labelStyle}>{`${high}°`}</span>
       </div>
 
-      {/* Projected LOW line + temp */}
-      <div style={markerStyle(yLow)}>
-        <div style={lineStyle} />
+      {/* Projected LOW line (label sits ON the bar, just above the line) */}
+      <div style={{ position: 'absolute', bottom: `${yLow}px`, left: 0, width: 12, height: 2, background: 'rgba(248,250,252,0.95)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.7)' }} />
+      <div style={{ position: 'absolute', bottom: `${yLow + 3}px`, left: 0, width: 12, textAlign: 'center' }}>
         <span style={labelStyle}>{`${low}°`}</span>
       </div>
 
