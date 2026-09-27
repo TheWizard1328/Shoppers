@@ -188,7 +188,6 @@ function DashboardWeatherBar({
     : blendRgb(MID_RGB, COLD_RGB, Math.min(1, low < 0 ? t / low : 1)));
   const fillTopPx = barHeight - yHigh;           // px from bar top down to the HIGH line
   const fillHeight = Math.max(0, yHigh - yLow);  // colored segment height
-  const zeroInside = low < 0 && high > 0;
   const pZeroInFill = fillHeight > 0 ? ((yZero - yLow) / fillHeight) * 100 : 50;
   // NOTE canonical stop order — "<color> <position>" (NOT "<position> <color>"):
   // the reversed order parses on desktop Chrome but the fleet's Android WebView
@@ -200,14 +199,6 @@ function DashboardWeatherBar({
 
   const icon = WEATHER_ICONS[entry.icon] || '☁️';
 
-  const markerStyle = (yPx) => ({
-    position: 'absolute',
-    bottom: `${yPx}px`,
-    left: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-  });
   const labelStyle = {
     fontSize: 9, lineHeight: '10px', fontWeight: 700,
     color: 'rgba(248,250,252,0.98)', textShadow: '0 1px 2px rgba(0,0,0,0.95)',
@@ -248,25 +239,18 @@ function DashboardWeatherBar({
         />
       )}
 
-      {/* Distinct 0 °C line — only when 0 falls inside the low..high range */}
-      {zeroInside && (
-        <div style={{ position: 'absolute', top: barHeight - yZero, left: 0, width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.9)' }} />
-      )}
-
-      {/* Projected HIGH line (label sits ON the bar, just below the line) */}
-      <div style={{ position: 'absolute', bottom: `${yHigh}px`, left: 0, width: 12, height: 2, background: 'rgba(248,250,252,0.95)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.7)' }} />
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 15)}px`, left: 0, width: 12, textAlign: 'center' }}>
-        <span style={labelStyle}>{`${high}°`}</span>
+      {/* Projected HIGH — rotated 90° CCW, on the bar just below the high position */}
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 8)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+        <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${high}°`}</span>
       </div>
 
-      {/* Projected LOW line (label sits ON the bar, just above the line) */}
-      <div style={{ position: 'absolute', bottom: `${yLow}px`, left: 0, width: 12, height: 2, background: 'rgba(248,250,252,0.95)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.7)' }} />
-      <div style={{ position: 'absolute', bottom: `${yLow + 3}px`, left: 0, width: 12, textAlign: 'center' }}>
-        <span style={labelStyle}>{`${low}°`}</span>
+      {/* Projected LOW — rotated 90° CCW, on the bar just above the low position */}
+      <div style={{ position: 'absolute', bottom: `${yLow + 3}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+        <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${low}°`}</span>
       </div>
 
-      {/* Current temp — badge aligned exactly at the current temp position */}
-      <div style={markerStyle(yTemp)}>
+      {/* Current temp — badge BESIDE the tube, aligned to the current temp position */}
+      <div style={{ position: 'absolute', bottom: `${yTemp}px`, left: 16, display: 'flex', alignItems: 'center' }}>
         <span
           style={{
             display: 'flex', alignItems: 'center', gap: 3,
