@@ -18,6 +18,16 @@
  *     temp) aligned EXACTLY at the current temp position on the scale.
  *   • pointer-events: none — purely informational, never blocks the map or UI.
  *
+ * NOTE on layout math: the whole bar box gets an EXPLICIT pixel height (computed
+ * in JS from the viewport height minus the top/bottom anchors) instead of
+ * relying on the browser to derive height implicitly from top+bottom-only
+ * absolute positioning. Child marker offsets are plain pixel values derived
+ * from that same explicit height (not CSS percentages of an implicit parent
+ * height). Some Android WebView builds render top+bottom-only absolute boxes
+ * (and percentage-of-implicit-height children) unreliably — explicit pixel
+ * math avoids that class of bug entirely. No backdrop-filter (same reason —
+ * inconsistent support in older WebViews); plain semi-transparent colors only.
+ *
  * Data: shared AppSettings 'dashboard_weather' record (see
  * dashboardWeatherSettings.js), refreshed via 'appSettingsUpdated' WebSocket
  * events from the 5-minute dashboardWeatherPoll workflow.
@@ -81,10 +91,10 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
   const temp = Number(entry.temp);
   const high = Number.isFinite(Number(entry.high)) ? Number(entry.high) : temp + 5;
   const low = Number.isFinite(Number(entry.low)) ? Number(entry.low) : temp - 5;
-  const scaleTop = Math.max(high, temp) + 10;   // upper limit = high + 10
-  const scaleBottom = Math.min(low, temp) - 10; // lower limit = low - 10
+  const scaleTop = high + 10;   // upper limit = projected high + 10
+  const scaleBottom = low - 10; // lower limit = projected low - 10
   const span = Math.max(1, scaleTop - scaleBottom);
-  const pct = (v) => Math.min(98, Math.max(2, ((v - scaleBottom) / span) * 100));
+  const frac = (v) => Math.min(0.98, Math.max(0.02, (v - scaleBottom) / span));
 
   // Bottom anchor — identical baseline to FABControls / bulk-edit pill so the
   // bar always starts just above the multi-select checkbox row.
@@ -94,33 +104,39 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
   } catch { /* default 0 */ }
   const topAnchor = (Number(statsContainerBaseHeight) || 0) + 12;
   const bottomAnchor = (Number(stopCardsBaseHeight) || 0) + bottomNavHeight + 10;
-  const available = vh - topAnchor - bottomAnchor;
-  if (available < 150) return null; // no room — hide instead of cluttering
+  const barHeight = vh - topAnchor - bottomAnchor;
+  if (barHeight < 150) return null; // no room — hide instead of cluttering
 
-  // Tube gradient: dark blue at the low line → crossing at 0 °C → dark orange
-  // at the high line; end colors extend to the tube ends.
-  const pLow = pct(low), pHigh = pct(high), pZero = ((0 - scaleBottom) / span) * 100;
-  const stops = [`0% ${rgba(COLD_RGB, 0.9)}`, `${pLow}% ${rgba(COLD_RGB, 0.9)}`];
+  // Pixel offsets from the BOTTOM of the (explicit-height) bar box.
+  const yLow = Math.round(frac(low) * barHeight);
+  const yHigh = Math.round(frac(high) * barHeight);
+  const yTemp = Math.round(frac(temp) * barHeight);
+  const yZero = frac(0) * barHeight;
+
+  // Tube gradient (as fractions of the tube's own height, top→bottom in CSS
+  // gradient terms means we build "to top" stops using bottom-relative fractions).
+  const pLow = (yLow / barHeight) * 100;
+  const pHigh = (yHigh / barHeight) * 100;
+  const pZero = (yZero / barHeight) * 100;
+  const stops = [`0% ${rgba(COLD_RGB, 0.9)}`, `${pLow.toFixed(1)}% ${rgba(COLD_RGB, 0.9)}`];
   if (pZero > pLow && pZero < pHigh) stops.push(`${pZero.toFixed(1)}% ${rgba(blendRgb(COLD_RGB, HOT_RGB, 0.5), 0.9)}`);
-  stops.push(`${pHigh}% ${rgba(HOT_RGB, 0.9)}`, `100% ${rgba(HOT_RGB, 0.9)}`);
+  stops.push(`${pHigh.toFixed(1)}% ${rgba(HOT_RGB, 0.9)}`, `100% ${rgba(HOT_RGB, 0.9)}`);
   const tubeGradient = `linear-gradient(to top, ${stops.join(', ')})`;
 
   const icon = WEATHER_ICONS[entry.icon] || '☁️';
 
-  // Marker-line + label row (line across the tube, temp label to its right)
-  const markerStyle = (p) => ({
+  const markerStyle = (yPx) => ({
     position: 'absolute',
-    bottom: `${p}%`,
-    transform: 'translateY(50%)',
+    bottom: `${yPx}px`,
     left: 0,
     display: 'flex',
     alignItems: 'center',
     gap: 4,
   });
-  const lineStyle = { width: 12, height: 2, background: 'rgba(248,250,252,0.9)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.6)' };
+  const lineStyle = { width: 12, height: 2, background: 'rgba(248,250,252,0.95)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.7)' };
   const labelStyle = {
     fontSize: 9, lineHeight: '10px', fontWeight: 700,
-    color: 'rgba(248,250,252,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+    color: 'rgba(248,250,252,0.98)', textShadow: '0 1px 2px rgba(0,0,0,0.95)',
     whiteSpace: 'nowrap',
   };
 
@@ -129,7 +145,7 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
       data-testid="dashboard-weather-bar"
       aria-label={`Current temperature ${temp} degrees, high ${high}, low ${low}`}
       className="pointer-events-none absolute z-[220]"
-      style={{ left: 6, top: topAnchor, bottom: bottomAnchor }}
+      style={{ left: 6, top: topAnchor, height: barHeight, width: 60 }}
     >
       {/* Frosted tube — the gradient IS the scale (blue low → 0 °C → orange high) */}
       <div
@@ -137,38 +153,36 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
           position: 'absolute', top: 0, bottom: 0, left: 0, width: 12,
           borderRadius: 999,
           background: tubeGradient,
-          border: '1px solid rgba(148,163,184,0.35)',
-          backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          border: '1px solid rgba(148,163,184,0.4)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}
       />
 
       {/* Projected HIGH line + temp */}
-      <div style={markerStyle(pHigh)}>
+      <div style={markerStyle(yHigh)}>
         <div style={lineStyle} />
         <span style={labelStyle}>{`${high}°`}</span>
       </div>
 
       {/* Projected LOW line + temp */}
-      <div style={markerStyle(pLow)}>
+      <div style={markerStyle(yLow)}>
         <div style={lineStyle} />
         <span style={labelStyle}>{`${low}°`}</span>
       </div>
 
       {/* Current temp — line + badge aligned exactly at the current temp position */}
-      <div style={markerStyle(pct(temp))}>
-        <div style={{ width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.8)' }} />
+      <div style={markerStyle(yTemp)}>
+        <div style={{ width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.9)' }} />
         <span
           style={{
             display: 'flex', alignItems: 'center', gap: 3,
             padding: '2px 6px', borderRadius: 8,
-            background: 'rgba(15,23,42,0.75)',
-            border: '1px solid rgba(148,163,184,0.45)',
-            backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)',
+            background: 'rgba(15,23,42,0.85)',
+            border: '1px solid rgba(148,163,184,0.5)',
             fontSize: 11, fontWeight: 700, color: '#f8fafc',
-            textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+            textShadow: '0 1px 2px rgba(0,0,0,0.9)',
             whiteSpace: 'nowrap',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
           }}
         >
           <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
