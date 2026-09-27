@@ -494,9 +494,14 @@ async function handleBriefing(base44, params = {}) {
           // own Outstanding section (header + items) — kept separate rather
           // than interleaved, so each section is self-contained.
           lines.push(String(g.driver_name).toUpperCase());
-          lines.push(`Collected (${g.collected_today.count}) $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
+          // Pad the section labels to a common width so the $ amounts on the
+          // Collected and Outstanding header rows line up vertically.
+          const collectedLabel = `Collected (${g.collected_today.count})`;
+          const outstandingLabel = `Outstanding (${outstandingCount})`;
+          const lw = Math.max(collectedLabel.length, outstandingLabel.length);
+          lines.push(`${collectedLabel.padEnd(lw)} $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
           for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
-          lines.push(`Outstanding (${outstandingCount}) $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
+          lines.push(`${outstandingLabel.padEnd(lw)} $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
           for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
           for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}`);
           lines.push('');
