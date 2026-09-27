@@ -221,7 +221,8 @@ function DashboardWeatherBar({
           position: 'absolute', top: 0, left: 0, width: 12, height: barHeight,
           borderRadius: 999,
           background: 'rgba(255,255,255,0.10)',
-          border: '1px solid rgba(148,163,184,0.35)',
+          border: '1.5px solid rgba(15,23,42,0.55)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
         }}
       />
 
@@ -240,7 +241,7 @@ function DashboardWeatherBar({
       )}
 
       {/* Projected HIGH — rotated 90° CCW, on the bar just below the high position */}
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 8)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 14)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${high}°`}</span>
       </div>
 
