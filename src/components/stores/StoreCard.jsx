@@ -492,7 +492,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {timeStr && <div className="text-xs text-soft">{timeStr}</div>}
                         </> :
                         <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
-                          {!isEnabled ? 'Disabled' : 'No driver'}
+                          {!isEnabled ? 'Unassigned' : 'No driver'}
                         </div>
                       }
                     </div>
