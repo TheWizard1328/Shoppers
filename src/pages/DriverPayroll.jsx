@@ -424,6 +424,31 @@ export default function DriverPayroll() {
     return filtered;
   }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod]);
 
+  // Screenshot/share "Save" file name: pay-period date range + selected driver
+  // ("All Drivers" when no driver is filtered), mirroring the PDF export naming.
+  const screenshotFilename = useMemo(() => {
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let datePart = selectedYear;
+    if (currentPeriod?.start && currentPeriod?.end) {
+      const start = new Date(currentPeriod.start);
+      const end = new Date(currentPeriod.end);
+      const year = end.getFullYear();
+      const sm = MONTHS[start.getMonth()];
+      const em = MONTHS[end.getMonth()];
+      const sd = String(start.getDate()).padStart(2, '0');
+      const ed = String(end.getDate()).padStart(2, '0');
+      datePart = start.getMonth() === end.getMonth()
+        ? `${year} ${sm} ${sd}-${ed}`
+        : `${year} ${sm} ${sd}-${em} ${ed}`;
+    }
+    let context = 'All Drivers';
+    if (selectedDriverId && selectedDriverId !== 'all') {
+      const d = (payrollData?.drivers || []).find((dr) => (dr?.user_id || dr?.id) === selectedDriverId);
+      context = d?.user_name || d?.full_name || 'Driver';
+    }
+    return `payroll ${datePart} - ${context}.png`;
+  }, [currentPeriod, selectedDriverId, payrollData?.drivers, selectedYear]);
+
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers || !payrollData?.appUsers) return [];
 
@@ -1648,7 +1673,7 @@ export default function DriverPayroll() {
         isOpen={showScreenshotModal}
         onClose={() => setShowScreenshotModal(false)}
         imageDataUrl={screenshotDataUrl}
-        filename={`driver-payroll-${selectedYear}.png`} />
+        filename={screenshotFilename} />
 
         {eTransDialog}
       
