@@ -326,6 +326,57 @@ export default function ResetPolylinesButton({
       throw new Error('No route stops found for this driver and date');
     }
 
+    // Sort deliveries by stop_order (already fetched sorted, but be explicit)
+    const sorted = [...deliveries].sort((a, b) =>
+      (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0)
+    );
+
+    // ── Breadcrumb coverage check ──────────────────────────────────────────
+    // Fetch breadcrumb segments FIRST. If EVERY stop on this driver's route
+    // already has a sealed breadcrumb segment (saved_to_route = true with a
+    // polyline), the actual driven path IS the route — apply only the
+    // breadcrumb polylines and skip HERE polyline regeneration entirely.
+    let breadcrumbSegments = [];
+    try {
+      // Try offline DB first for speed
+      const offlineSegs = await offlineDB.getByCompoundIndex(
+        offlineDB.STORES.DELIVERY_BREADCRUMBS,
+        'date_driver',
+        [selectedDate, driverId]
+      );
+      breadcrumbSegments = offlineSegs || [];
+    } catch (_) {
+      // Fallback to API
+      try {
+        breadcrumbSegments = await base44.entities.DeliveryBreadcrumbs.filter({
+          driver_id: driverId,
+          delivery_date: selectedDate,
+        });
+      } catch (_2) {}
+    }
+
+    // Sealed = non-master-timeline segments confirmed as the authoritative
+    // driven path for a stop (they override any regenerated polyline).
+    const masterStopOrder = -1;
+    const sealedBreadcrumbs = (breadcrumbSegments || []).filter(seg =>
+      seg &&
+      seg.encoded_polyline &&
+      seg.stop_order !== masterStopOrder &&
+      seg.saved_to_route === true
+    );
+    const sealedByStopOrder = new Map(sealedBreadcrumbs.map(seg => [Number(seg.stop_order), seg]));
+    // Route stops needing a polyline: every non-cancelled stop on the route.
+    const routeStops = sorted.filter(d => d.status !== 'cancelled');
+    const allStopsSealed = routeStops.length > 0 && routeStops.every(d =>
+      sealedByStopOrder.has(Number(d.stop_order))
+    );
+    if (allStopsSealed) {
+      console.log(`[ResetPolylinesButton] all ${routeStops.length} route stops have sealed breadcrumb segments — breadcrumb-only mode`);
+    } else {
+      const sealedCount = routeStops.filter(d => sealedByStopOrder.has(Number(d.stop_order))).length;
+      console.log(`[ResetPolylinesButton] breadcrumb coverage ${sealedCount}/${routeStops.length} stops — full polyline regeneration`);
+    }
+
     // Gather all patient_ids and store_ids we need
     const patientIds = [...new Set(deliveries.map(d => d.patient_id).filter(Boolean))];
     const storeIds = [...new Set(deliveries.map(d => d.store_id).filter(Boolean))];
@@ -354,14 +405,11 @@ export default function ResetPolylinesButton({
       return null;
     })();
 
-    // Get HERE API key
+    // Get HERE API key (skipped in breadcrumb-only mode)
     let hereApiKey = null;
-    try { hereApiKey = await getOrFetchHereApiKey(); } catch (_) {}
-
-    // Sort deliveries by stop_order (already fetched sorted, but be explicit)
-    const sorted = [...deliveries].sort((a, b) =>
-      (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0)
-    );
+    if (!allStopsSealed) {
+      try { hereApiKey = await getOrFetchHereApiKey(); } catch (_) {}
+    }
 
     // Collect updates — we'll batch-write at the end of each pass
     const pendingUpdates = new Map(); // deliveryId → partial update object
@@ -370,12 +418,29 @@ export default function ResetPolylinesButton({
       pendingUpdates.set(id, { ...(pendingUpdates.get(id) || {}), ...fields });
     };
 
+    // Full breadcrumb coverage — apply ONLY the sealed driven paths.
+    if (allStopsSealed) {
+      for (const seg of sealedBreadcrumbs) {
+        const matchingDelivery = sorted.find(d => Number(d.stop_order) === Number(seg.stop_order));
+        if (!matchingDelivery) continue;
+        mergeUpdate(matchingDelivery.id, {
+          encoded_polyline: seg.encoded_polyline,
+          ...(seg.transport_mode ? { transport_mode: seg.transport_mode } : {}),
+        });
+      }
+    }
+
     // ── PASS 1: Driving baseline — SINGLE multi-waypoint HERE call ──────────
     // Build ordered point list: home (if set) + all stops in stop_order.
     // One API call covers every leg. Cycling legs will be overwritten in Pass 2.
-    console.log(`[ResetPolylinesButton] PASS 1 — driving baseline, ${sorted.length} stops (1 API call)`);
+    // SKIPPED in breadcrumb-only mode (all stops already sealed).
+    if (allStopsSealed) {
+      console.log(`[ResetPolylinesButton] skipping PASS 1 — all stops sealed with breadcrumbs`);
+    } else {
+      console.log(`[ResetPolylinesButton] PASS 1 — driving baseline, ${sorted.length} stops (1 API call)`);
+    }
 
-    if (hereApiKey) {
+    if (!allStopsSealed && hereApiKey) {
       // Build waypoint list: origin first, then each stop in order
       const originPoint = homePosition
         ? { lat: homePosition.latitude, lon: homePosition.longitude }
@@ -415,7 +480,7 @@ export default function ResetPolylinesButton({
     // Find Start/End marker pairs and re-polyline each loop in a single HERE call (bicycle mode).
     const cyclingMarkers = sorted.filter(d => d.is_cycling_marker);
 
-    if (cyclingMarkers.length >= 2 && hereApiKey) {
+    if (!allStopsSealed && cyclingMarkers.length >= 2 && hereApiKey) {
       const startMarkers = cyclingMarkers.filter(m =>
         (m.delivery_notes || '').toLowerCase().includes('start')
       );
@@ -473,35 +538,11 @@ export default function ResetPolylinesButton({
     // and mark saved_to_route = true on the breadcrumb record.
     console.log(`[ResetPolylinesButton] PASS 3 — breadcrumb override`);
 
-    let breadcrumbSegments = [];
-    try {
-      // Try offline DB first for speed
-      const offlineSegs = await offlineDB.getByCompoundIndex(
-        offlineDB.STORES.DELIVERY_BREADCRUMBS,
-        'date_driver',
-        [selectedDate, driverId]
-      );
-      breadcrumbSegments = offlineSegs || [];
-    } catch (_) {
-      // Fallback to API
-      try {
-        breadcrumbSegments = await base44.entities.DeliveryBreadcrumbs.filter({
-          driver_id: driverId,
-          delivery_date: selectedDate,
-        });
-      } catch (_2) {}
-    }
-
-    // Filter to only saved_to_route=true, non-master-timeline segments that have a polyline.
-    // These are breadcrumbs already confirmed as the authoritative path for a stop —
-    // they override the driving baseline polyline written in Pass 1.
-    const masterStopOrder = -1;
-    const pendingBreadcrumbs = (breadcrumbSegments || []).filter(seg =>
-      seg &&
-      seg.encoded_polyline &&
-      seg.stop_order !== masterStopOrder &&
-      seg.saved_to_route === true
-    );
+    // Breadcrumb segments were fetched up front for the coverage check — reuse.
+    // pendingBreadcrumbs = sealed, non-master-timeline segments with a polyline.
+    // These are breadcrumbs already confirmed as the authoritative path for a
+    // stop — they override the driving baseline polyline written in Pass 1.
+    const pendingBreadcrumbs = sealedBreadcrumbs;
 
     console.log(`[ResetPolylinesButton] Pass 3 — ${pendingBreadcrumbs.length} unsaved breadcrumb segments to apply`);
 
