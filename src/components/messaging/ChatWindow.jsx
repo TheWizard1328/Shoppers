@@ -362,7 +362,7 @@ function ChatWindow({
                       {msg.sender_name || 'Unknown'}
                     </p>
                   )}
-                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  <p className="whitespace-pre-wrap break-words" style={{ fontFamily: "'Courier New', Courier, monospace" }}>{msg.content}</p>
                   <p className="text-xs mt-1" style={{ color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'var(--text-slate-400)' }}>
                     {msg.created_date && format(parseEntityTimestamp(msg.created_date), 'h:mm a')}
                     {isOwnMessage && isGroupMode && msg.read_by && msg.read_by.length > 1 && ` • Read by ${msg.read_by.length - 1}`}
