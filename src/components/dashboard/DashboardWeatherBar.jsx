@@ -265,9 +265,8 @@ function DashboardWeatherBar({
         <span style={labelStyle}>{`${low}°`}</span>
       </div>
 
-      {/* Current temp — line + badge aligned exactly at the current temp position */}
+      {/* Current temp — badge aligned exactly at the current temp position */}
       <div style={markerStyle(yTemp)}>
-        <div style={{ width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.9)' }} />
         <span
           style={{
             display: 'flex', alignItems: 'center', gap: 3,
