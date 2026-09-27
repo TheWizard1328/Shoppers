@@ -105,8 +105,12 @@ export function DeviceProvider({ children }) {
   const isLandscapeWide = isLandscape && screenHeight > 0 && (screenWidth / screenHeight) > LANDSCAPE_DESKTOP_MIN_ASPECT;
   const isLandscapeTall = isLandscapeWide && screenHeight >= LANDSCAPE_DESKTOP_MIN_HEIGHT;
 
-  // The flag everything should use
-  const isMobile = !isLandscapeTall;
+  // The flag everything should use. The 4:3 aspect + height rule applies
+  // ONLY to Mobile and Tablet devices (foldables, tablets). Real desktops /
+  // laptops / PCs ALWAYS get desktop chrome regardless of screen ratio — a
+  // near-square monitor (e.g. 4:3 or 5:4) must never fall into the mobile
+  // bottom-nav layout.
+  const isMobile = deviceType === 'Desktop' ? false : !isLandscapeTall;
   const isDesktop = !isMobile;
 
   const value = {
