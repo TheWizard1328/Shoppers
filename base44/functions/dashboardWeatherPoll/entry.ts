@@ -240,10 +240,22 @@ async function handlePoll(base44, params) {
     newCities[c.id] = entry;
   }
 
-  // A city that WAS stored but has no on-duty drivers now is dropped on the
-  // next actual write; we don't write just to prune (no change, no broadcast).
+  // Weather unchanged → still touch the record's fetched_at (merged cities,
+  // never dropping a city just because its fetch failed) so the freshness
+  // guard and the client staleness checks know the data was JUST verified.
+  // Without this, unchanged weather would leave fetched_at stale forever and
+  // every app load would re-poll the weather providers.
   if (!changed) {
-    return { success: true, dry_run: dryRun, active_cities: Object.keys(newCities).length || usableCities.length, changed: false, weather_failures: failures, duration_ms: Date.now() - startedAt };
+    const merged = { ...prevCities, ...newCities };
+    if (!dryRun && Object.keys(merged).length > 0) {
+      const touch = { cities: merged, fetched_at: new Date().toISOString() };
+      if (rec?.id) {
+        await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: touch }).catch(() => {});
+      } else {
+        await base44.asServiceRole.entities.AppSettings.create({ setting_key: SETTINGS_KEY, setting_value: touch }).catch(() => {});
+      }
+    }
+    return { success: true, dry_run: dryRun, active_cities: Object.keys(newCities).length || usableCities.length, changed: false, touched: !dryRun, weather_failures: failures, duration_ms: Date.now() - startedAt };
   }
 
   const payload = {
@@ -254,6 +266,8 @@ async function handlePoll(base44, params) {
   if (dryRun) {
     return { success: true, dry_run: true, changed: true, would_write: payload, weather_failures: failures, duration_ms: Date.now() - startedAt };
   }
+
+  payload.cities = { ...prevCities, ...newCities };
 
   if (rec?.id) {
     await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: payload, description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min while drivers are on duty' });
