@@ -142,16 +142,25 @@ export async function exportPayrollPdf({
     ? `${year} ${startMonth} ${startDay}-${endDay}`
     : `${year} ${startMonth} ${startDay}-${endMonth} ${endDay}`;
 
+  // Human-friendly pay-cycle label for the filename (weekly → 'Weekly', etc.)
+  const CYCLE_LABELS = { weekly: 'Weekly', biweekly: 'Bi-Weekly', semimonthly: 'Semi-Monthly', monthly: 'Monthly' };
+  const cycleLabel = CYCLE_LABELS[String(payPeriod || '').toLowerCase()] || 'Weekly';
+
   let filenameContext = '';
   if (selectedDriverId && selectedDriverId !== 'all') {
     const driver = payrollData.find((d) => d.driver.id === selectedDriverId)?.driver;
     filenameContext = driver?.user_name || driver?.full_name || 'Driver';
+  } else if (driversWithDeliveries?.length === 1) {
+    // 'All Drivers' selected but only one driver actually has deliveries —
+    // name the file after that driver instead of the city.
+    const d = driversWithDeliveries[0].driver;
+    filenameContext = d?.user_name || d?.full_name || 'Driver';
   } else {
     const city = cities?.find((c) => c.id === selectedCityId);
     filenameContext = city?.name || 'All';
   }
 
-  const filename = `${datePart}-${filenameContext}.pdf`;
+  const filename = `${datePart}-${cycleLabel}-${filenameContext}.pdf`;
   const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
 
   // Helper: build store data maps
