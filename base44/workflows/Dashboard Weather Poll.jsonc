@@ -1,0 +1,45 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "dashboard_weather_poll",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "poll_weather": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "dashboardWeatherPoll",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Poll dashboard weather",
+            "description": "Fetch weather for cities with on-duty drivers; write shared AppSettings record only on change (broadcasts to all devices)"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Dashboard Weather Poll",
+  "description": "Every 5 minutes: fetch weather for cities with on-duty drivers. Diffs against the shared AppSettings 'dashboard_weather' record and writes ONLY on change, so every online device gets the update pushed over WebSocket. Zero integration credits (plain web fetches, self-hosted backend function).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/5 * * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
