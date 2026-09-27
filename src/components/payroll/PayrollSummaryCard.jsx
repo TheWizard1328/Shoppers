@@ -101,6 +101,7 @@ export default function PayrollSummaryCard({
   onFinalizePayroll,
   onPayrollRecordsChange,
   payrollRecords: externalPayrollRecords,
+  allPayrollRecords = [],
   refreshPayrollRecords,
   driverStats = {}
 }) {
@@ -875,6 +876,21 @@ export default function PayrollSummaryCard({
 
   const driversWithDeliveries = useMemo(() => payrollData.filter((d) => d.graphDeliveryCount > 0), [payrollData]);
   const isPeriodEndOfMonth = useMemo(() => {if (!currentPeriod?.end) return false;const d = new Date(currentPeriod.end);const n = new Date(d);n.setDate(n.getDate() + 1);return n.getMonth() !== d.getMonth();}, [currentPeriod?.end]);
+
+  // True when the pay period ends on OR spans across a month's last day
+  // (Sep 26-Oct 9 crosses Sep 30; Oct 17-31 ends on Oct 31). These periods
+  // settle the App Fee, so the App Fee % auto-fills on them.
+  const periodSpansMonthEnd = useMemo(() => {
+    if (!currentPeriod?.start || !currentPeriod?.end) return false;
+    const start = new Date(currentPeriod.start); start.setHours(12, 0, 0, 0);
+    const end = new Date(currentPeriod.end); end.setHours(12, 0, 0, 0);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return false;
+    for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+      const n = new Date(t); n.setDate(n.getDate() + 1);
+      if (n.getMonth() !== new Date(t).getMonth()) return true;
+    }
+    return false;
+  }, [currentPeriod?.start, currentPeriod?.end]);
   const driversWithDeliveriesIds = useMemo(() => driversWithDeliveries.map((d) => d.driver.id), [driversWithDeliveries]);
   const finalizedDriversCount = useMemo(() => driversWithDeliveriesIds.filter((id) => {const r = getDriverPayrollRecord(id);return r?.status === 'driver_finalized' || r?.status === 'admin_finalized' || r?.status === 'paid';}).length, [driversWithDeliveriesIds, payrollRecords]);
   const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
@@ -991,6 +1007,31 @@ export default function PayrollSummaryCard({
   useEffect(() => {
     setDriverEdits((prev) => {
       const next = {};
+      // ── Month-end App Fee % auto-fill ──
+      // For periods ending on / crossing a month's last day, each driver's
+      // App Fee % auto-fills from their SAVED percentage: the current period's
+      // payroll record first, then carried forward from their most recent prior
+      // record. When NO driver has any saved percentage anywhere, the AppOwner
+      // driver takes 100% of the fee pool.
+      const autoFillFees = periodSpansMonthEnd;
+      const savedPercentByDriver = {};
+      if (autoFillFees) {
+        payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
+          const k = data.driver.id;
+          let pct = Number(getDriverPayrollRecord(k)?.app_fee_percentage) || 0;
+          if (pct <= 0) {
+            const hist = (allPayrollRecords || [])
+              .filter((r) => r?.driver_id === k && (Number(r?.app_fee_percentage) || 0) > 0)
+              .sort((a, b) => String(b?.pay_period_start || '').localeCompare(String(a?.pay_period_start || '')));
+            pct = Number(hist[0]?.app_fee_percentage) || 0;
+          }
+          savedPercentByDriver[k] = pct;
+        });
+        const anySaved = Object.values(savedPercentByDriver).some((v) => v > 0);
+        if (!anySaved && isAppOwner(currentUser) && savedPercentByDriver[currentUser?.id] !== undefined) {
+          savedPercentByDriver[currentUser.id] = 100;
+        }
+      }
       payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
         const k = data.driver.id;
         const pr = getDriverPayrollRecord(k);
@@ -1013,8 +1054,8 @@ export default function PayrollSummaryCard({
           ...(data.deductionsArray || []),
           ...((pr?.deductions || []).filter((d) => d?.is_one_time))],
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
-          appFeePercent: pr?.app_fee_percentage ?? 0,
-          appFeeAmount: pr?.app_fee_amount ?? 0,
+          appFeePercent: autoFillFees ? (savedPercentByDriver[k] || 0) : (pr?.app_fee_percentage ?? 0),
+          appFeeAmount: pr?.app_fee_amount ?? (autoFillFees && savedPercentByDriver[k] > 0 ? calculateAppFeeAmount(k, savedPercentByDriver[k]) : 0),
           paidAmount,
           showDeductionManager: false,
           newDeductionName: '',
@@ -1035,7 +1076,7 @@ export default function PayrollSummaryCard({
       });
       return next;
     });
-  }, [payrollData, payrollRecords, calculateAppFeeAmount]);
+  }, [payrollData, payrollRecords, calculateAppFeeAmount, allPayrollRecords, periodSpansMonthEnd, currentUser]);
 
   // Auto-sync payroll entity records with live-calculated data whenever payrollData or records change
   const syncInProgressRef = useRef(false);

@@ -1628,6 +1628,7 @@ export default function DriverPayroll() {
               });
             }}
             payrollRecords={payrollRecords}
+            allPayrollRecords={payrollData?.payrollRecords || []}
             refreshPayrollRecords={refreshPayrollRecords}
             storeStats={payrollData?.storeStats || {}} />
           
