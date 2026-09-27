@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,7 +86,7 @@ const parsePaidAmount = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-export default function PayrollSummaryCard({
+const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   deliveries,
   drivers,
   appUsers,
@@ -103,8 +103,9 @@ export default function PayrollSummaryCard({
   payrollRecords: externalPayrollRecords,
   allPayrollRecords = [],
   refreshPayrollRecords,
-  driverStats = {}
-}) {
+  driverStats = {},
+  onExportingChange
+}, ref) {
   const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
@@ -841,6 +842,7 @@ export default function PayrollSummaryCard({
   const handleExport = async (storesList = []) => {
     if (isExportingPdf) return;
     setIsExportingPdf(true);
+    onExportingChange?.(true);
     try {
       await exportPayrollPdf({
         currentPeriod, selectedDriverId, selectedCityId, payPeriod, payrollData,
@@ -854,8 +856,16 @@ export default function PayrollSummaryCard({
       toast.error('Could not create the payroll PDF. Please try again.');
     } finally {
       setIsExportingPdf(false);
+      onExportingChange?.(false);
     }
   };
+
+  // Let the parent page trigger the full-data PDF export (used by the Share
+  // buttons — a real PDF replaces the old screen-snapshot approach, which
+  // could never reliably capture the whole scrollable page).
+  useImperativeHandle(ref, () => ({
+    exportPdf: () => handleExport(stores || [])
+  }), [handleExport, stores]);
 
   const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
   const formatPayrollAmount = (amount) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
@@ -2302,4 +2312,6 @@ export default function PayrollSummaryCard({
                   </Card>
         </>);
 
-}
+})
+
+export default PayrollSummaryCard;

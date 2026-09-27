@@ -328,6 +328,8 @@ export default function DriverPayroll() {
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
 
   const contentRef = useRef(null);
+  const summaryCardRef = useRef(null);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
   const payrollScrollRef = useRef(null);
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
@@ -1404,6 +1406,13 @@ export default function DriverPayroll() {
     };
   }, [currentPeriod]);
 
+  // Share now produces the full payroll PDF (complete data document) instead
+  // of a screen snapshot — snapshots could not reliably capture the whole
+  // scrollable page on mobile.
+  const handleSharePayroll = useCallback(() => {
+    summaryCardRef.current?.exportPdf();
+  }, []);
+
   // Conditional rendering without early return to maintain hook order
   if (!isPayrollPageActive) return null;
 
@@ -1466,7 +1475,7 @@ export default function DriverPayroll() {
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
- onClick={handleCaptureScreenshot}
+ onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}
  size="sm"
  variant="ghost"
@@ -1580,7 +1589,7 @@ export default function DriverPayroll() {
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
- onClick={handleCaptureScreenshot}
+ onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}
  size="sm"
  variant="ghost"
@@ -1669,6 +1678,8 @@ export default function DriverPayroll() {
                 return next;
               });
             }}
+            ref={summaryCardRef}
+            onExportingChange={setIsSharingPdf}
             payrollRecords={payrollRecords}
             allPayrollRecords={payrollData?.payrollRecords || []}
             refreshPayrollRecords={refreshPayrollRecords}
@@ -1679,10 +1690,10 @@ export default function DriverPayroll() {
         
         <MobileBottomActions
         onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        onShare={handleCaptureScreenshot}
+        onShare={handleSharePayroll}
         onRefresh={handleManualRefresh}
         refreshing={isRefreshing || isLoadingPayroll}
-        capturing={isCapturingScreenshot} />
+        capturing={isSharingPdf || isCapturingScreenshot} />
       
 
         {/* Screenshot Share Modal */}
