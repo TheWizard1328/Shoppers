@@ -908,12 +908,22 @@ function DeliveryMap({
       if (FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).complete += 1;
       else if (stop.status !== "pending") byDriver.get(stop.driver_id).incomplete += 1;
     });
+    // Normalize BOTH id forms into the set: Delivery.driver_id stores the
+    // platform user id (AppUser.user_id — verified live: Sharuk's deliveries
+    // carry 696825d8...), while home-marker driverKey uses AppUser.id
+    // (6968265f...). Without both forms the home marker's isRouteComplete
+    // never matched, so a driver's own "Go Home" button never appeared.
     const result = new Set();
     byDriver.forEach((value, key) => {
-      if (value.incomplete === 0 && value.complete > 0) result.add(key);
+      if (value.incomplete === 0 && value.complete > 0) {
+        result.add(key);
+        const u = driverLookupMap.get(key);
+        if (u?.id && u.id !== key) result.add(u.id);
+        if (u?.user_id && u.user_id !== key) result.add(u.user_id);
+      }
     });
     return result;
-  }, [deliveryMarkers, pickupMarkers]);
+  }, [deliveryMarkers, pickupMarkers, driverLookupMap]);
 
   const driverHomeVisibilityById = useMemo(() => {
     const byDriver = new Map();
