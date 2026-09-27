@@ -451,11 +451,11 @@ async function handleBriefing(base44, params = {}) {
         lines.push('Nothing outstanding — clean slate.');
       }
       const body = [
-        `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up — ${shortDate(today)}`,
+        `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up: ${shortDate(today)}`,
         '',
         ...lines,
       ].join('\n');
-      const title = `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up — ${shortDate(today)}`;
+      const title = `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up: ${shortDate(today)}`;
       // In-app Message copy in the same system 'COD Briefing' thread shape.
       let inAppMessageId = null;
       try {
@@ -540,7 +540,7 @@ async function handleBriefing(base44, params = {}) {
         const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
         if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
         const ownerBody = [
-          `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers) — ${shortDate(today)}`,
+          `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers): ${shortDate(today)}`,
           '',
           ...lines,
         ].join('\n');
@@ -561,7 +561,7 @@ async function handleBriefing(base44, params = {}) {
           console.log('[briefing] owner Message.create failed:', err?.message || String(err));
         }
         const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-        const title = `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers) — ${shortDate(today)}`;
+        const title = `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers): ${shortDate(today)}`;
         const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
         ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
         console.log('[briefing] owner push result:', JSON.stringify(result));
