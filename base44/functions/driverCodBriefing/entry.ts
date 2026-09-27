@@ -349,6 +349,7 @@ async function handleBriefing(base44, params = {}) {
   const olderDeliveries = await fetchByIds(base44, 'Delivery', deliveryIds);
   const olderDeliveryById = new Map(olderDeliveries.map((d) => [d?.id, d]));
   const olderByDriver = new Map(); // driverId -> [{ amount, patient_name, delivery_date, store_id }]
+  const driverNameById = new Map(); // driverId -> driver_name (for non-worked driver sections)
   const unassigned = [];
   for (const item of catalogItems) {
     const del = item.delivery_id ? olderDeliveryById.get(item.delivery_id) : null;
@@ -361,10 +362,13 @@ async function handleBriefing(base44, params = {}) {
       store_id: del?.store_id || null,
     };
     if (!del?.driver_id) { unassigned.push(entry); continue; }
-    // Only items from BEFORE today belong here (today's items are covered by
-    // the day section), and only for drivers who actually worked today.
-    if (!worked.has(del.driver_id)) continue;
-    if (String(entry.delivery_date || '') >= today) continue;
+    // Track driver names for the owner copy (non-worked drivers too).
+    if (del.driver_name) driverNameById.set(del.driver_id, del.driver_name);
+    // For drivers who WORKED today, only pre-today items belong here (today's
+    // items are covered by the day section). For non-worked drivers, keep
+    // every item — the owner copy reports ALL uncollected CODs across the
+    // fleet, not just today's drivers.
+    if (worked.has(del.driver_id) && String(entry.delivery_date || '') >= today) continue;
     if (entry.store_id) storeIdsNeeded.add(entry.store_id);
     if (!olderByDriver.has(del.driver_id)) olderByDriver.set(del.driver_id, []);
     olderByDriver.get(del.driver_id).push(entry);
@@ -408,11 +412,19 @@ async function handleBriefing(base44, params = {}) {
   }
   driverBriefings.sort((a, b) => (b.collected_today.amount + b.outstanding_total) - (a.collected_today.amount + a.outstanding_total));
 
+  // Resolve the App Owner once — used both to skip his individual driver
+  // briefing (he gets the All Drivers copy instead) and to deliver it.
+  let ownerUser = null;
+  if (!dryRun) ownerUser = await findOwner(base44);
+
   // 6. Driver pushes (skip in dry-run / owner_only) — only drivers with
   // something to report (collected, uncollected, or older outstanding).
   const pushes = [];
   if (!dryRun && !ownerOnly) {
     for (const g of driverBriefings) {
+      // The App Owner does NOT get an individual driver briefing on days he
+      // drives — the All Drivers owner copy already covers him.
+      if (ownerUser?.id && g.driver_id === ownerUser.id) continue;
       const hasCollected = g.collected_today.count > 0;
       const outstandingItems = [
         ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
@@ -473,7 +485,7 @@ async function handleBriefing(base44, params = {}) {
   let ownerPush = null;
   if (!dryRun) {
     try {
-      const owner = await findOwner(base44);
+      const owner = ownerUser;
       if (owner?.id) {
         const ownerName = owner.full_name || owner.name || 'App Owner';
         const allC = driverBriefings.flatMap((g) => g.collected_today.items);
@@ -485,6 +497,10 @@ async function handleBriefing(base44, params = {}) {
         const cTotal = Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100;
         const oTotal = Math.round(driverBriefings.reduce((s, g) => s + g.outstanding_total, 0) * 100) / 100;
         const mw = Math.max(cTotal.toFixed(2).length, oTotal.toFixed(2).length, ...(moneyStrsAll.length ? moneyStrsAll.map((x) => x.length) : [0]));
+        // Unified label width so Collected/Outstanding amounts align across
+        // ALL sections in the owner copy (word + " (NN)" room).
+        const wordW = Math.max('Collected'.length, 'Outstanding'.length);
+        const labelW = wordW + 6;
         const lines = [];
         for (const g of driverBriefings) {
           const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
@@ -494,18 +510,30 @@ async function handleBriefing(base44, params = {}) {
           // own Outstanding section (header + items) — kept separate rather
           // than interleaved, so each section is self-contained.
           lines.push(String(g.driver_name).toUpperCase());
-          // Align BOTH the (count) and the $ amount: pad the word itself to a
-          // common width so "(n)" starts in the same column, then pad the
-          // full label so multi-digit counts don't shift the amounts.
-          const wordW = Math.max('Collected'.length, 'Outstanding'.length);
-          const collectedLabel = 'Collected'.padEnd(wordW) + ` (${g.collected_today.count})`;
-          const outstandingLabel = 'Outstanding'.padEnd(wordW) + ` (${outstandingCount})`;
-          const lw = Math.max(collectedLabel.length, outstandingLabel.length);
-          lines.push(`${collectedLabel.padEnd(lw)} $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
+          const collectedLabel = ('Collected'.padEnd(wordW) + ` (${g.collected_today.count})`).padEnd(labelW);
+          const outstandingLabel = ('Outstanding'.padEnd(wordW) + ` (${outstandingCount})`).padEnd(labelW);
+          lines.push(`${collectedLabel} $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
           for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.types.join('/')}-${c.patient_name}`);
-          lines.push(`${outstandingLabel.padEnd(lw)} $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
+          lines.push(`${outstandingLabel} $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
           for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
           for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}`);
+          lines.push('');
+        }
+        // Non-worked drivers with outstanding CODs — the owner copy shows
+        // ALL uncollected CODs across the fleet. Individual driver pushes
+        // still follow the worked-today rule.
+        const workedIds = new Set(driverBriefings.map((g) => g.driver_id));
+        for (const [driverId, items] of olderByDriver.entries()) {
+          if (workedIds.has(driverId) || !items.length) continue;
+          const drvName = driverNameById.get(driverId) || 'Unknown driver';
+          const total = Math.round(items.reduce((acc, c) => acc + c.amount, 0) * 100) / 100;
+          const outLabel = ('Outstanding'.padEnd(wordW) + ` (${items.length})`).padEnd(labelW);
+          lines.push(`${String(drvName).toUpperCase()} (no stops today)`);
+          lines.push(`${outLabel} $ ${total.toFixed(2).padStart(mw)}`);
+          for (const c of items) {
+            const abbr = c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—';
+            lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(c.delivery_date)}(${abbr})-${c.patient_name}`);
+          }
           lines.push('');
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
