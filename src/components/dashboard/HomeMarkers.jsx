@@ -50,12 +50,10 @@ export default function HomeMarkers({ driverHomeMarkers, map, isMobile, onMarker
             </div>
             <p className="text-[11px] text-gray-600 dark:text-slate-400 mt-1">Driver Home</p>
             {isSelf ? (
-              home.isRouteComplete && (
-                <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${home.latitude},${home.longitude}`, '_blank')}
-                  className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white driver-popup-action text-xs rounded flex items-center justify-center gap-2 transition-colors">
-                  <Navigation className="w-3.5 h-3.5" />Go Home
-                </button>
-              )
+              <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${home.latitude},${home.longitude}`, '_blank')}
+                className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white driver-popup-action text-xs rounded flex items-center justify-center gap-2 transition-colors">
+                <Navigation className="w-3.5 h-3.5" />Go Home
+              </button>
             ) : (
               <div className="flex gap-1.5 mt-3">
                 <button
