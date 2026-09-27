@@ -56,12 +56,76 @@ function encodeGooglePolyline(points) {
   return encoded;
 }
 
+/** Decode a standard 1e5 Google-encoded polyline to [lat, lng] pairs. */
+function decodeGooglePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < encoded.length) {
+    let shift = 0, result = 0, b;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+/** Concatenate two encoded polylines into one (dropping the shared joint point). */
+function mergeEncodedPolylines(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const ca = decodeGooglePolyline(a);
+  const cb = decodeGooglePolyline(b);
+  if (!ca.length) return cb.length ? b : null;
+  if (!cb.length) return a;
+  const last = ca[ca.length - 1];
+  const rest = (Math.abs(cb[0][0] - last[0]) < 1e-7 && Math.abs(cb[0][1] - last[1]) < 1e-7) ? cb.slice(1) : cb;
+  return encodeGooglePolyline(ca.concat(rest));
+}
+
+// ── Deviation waypoints (parity with routePolylineGenerator) ────────────────
+// Stops may carry `deviation_waypoints` — GPS points recorded by the
+// current-leg deviation regen when the driver strayed off the planned leg.
+// They are inserted as via waypoints on that stop's inbound leg so the
+// Regenerate Polylines button keeps legs snapped to the path actually
+// driven. Capped at the 3 most recent points per stop.
+const DEVIATION_WAYPOINT_CAP = 3;
+function getDeviationWaypoints(delivery) {
+  const raw = Array.isArray(delivery?.deviation_waypoints) ? delivery.deviation_waypoints : [];
+  return raw
+    .filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
+    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+    .map(p => ({ lat: Number(p.lat), lon: Number(p.lng) }))
+    .slice(-DEVIATION_WAYPOINT_CAP);
+}
+
+/** Build a routing point list with per-stop deviation via chains. */
+function buildPointChain(fromPoint, stops) {
+  const points = [{ lat: fromPoint.lat, lon: fromPoint.lon }];
+  const stopIdxs = [];
+  const viaCounts = [];
+  const deliveryIds = [];
+  stops.forEach(sp => {
+    const vias = getDeviationWaypoints(sp.delivery);
+    vias.forEach(v => points.push(v));
+    viaCounts.push(vias.length);
+    stopIdxs.push(points.length);
+    deliveryIds.push(sp.deliveryId);
+    points.push({ lat: sp.lat, lon: sp.lon });
+  });
+  return { points, info: { stopIdxs, viaCounts, deliveryIds } };
+}
+
 /**
  * Single multi-waypoint HERE Router v8 call.
  * Returns an array of { encoded_polyline, estimated_distance_km, estimated_duration_minutes }
  * — one entry per leg (N points → N-1 legs).
  */
-async function callHereMultiStop(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
+async function callHereMultiStop(points, transportMode, hereApiKey, logCtx = {}, chainInfo = null) {
+  const { driverId = null, userName = null } = logCtx || {};
   const valid = (points || []).filter(p => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (valid.length < 2) return [];
 
@@ -93,7 +157,8 @@ async function callHereMultiStop(points, transportMode, hereApiKey, { driverId =
     metadata: { provider: 'HERE', source: 'reset_polylines', call_count: 1 },
   }).catch(() => {});
 
-  return valid.slice(0, -1).map((fromPt, i) => {
+  // Per-leg results: one entry per consecutive point pair, with fallbacks.
+  const perLeg = valid.slice(0, -1).map((fromPt, i) => {
     const sec = sections[i] || {};
     let polyline = null;
     if (typeof sec.polyline === 'string') {
@@ -110,6 +175,32 @@ async function callHereMultiStop(points, transportMode, hereApiKey, { driverId =
       encoded_polyline: polyline,
       estimated_distance_km: summary.length ? Number((summary.length / 1000).toFixed(3)) : null,
       estimated_duration_minutes: summary.duration ? Math.ceil(summary.duration / 60) : null,
+    };
+  });
+
+  // Legacy mapping (no chain info): caller consumes per-leg entries directly.
+  if (!chainInfo) return perLeg;
+
+  // Chain mode: merge each stop's inbound via-chain (deviation waypoints) into
+  // a single polyline with summed metrics, so regenerated legs on completed
+  // routes respect the path actually driven.
+  const { stopIdxs = [], viaCounts = [], deliveryIds = [] } = chainInfo;
+  return stopIdxs.map((stopIdx, j) => {
+    const viaCount = Number(viaCounts[j]) || 0;
+    const chain = perLeg.slice(Math.max(0, stopIdx - 1 - viaCount), stopIdx).filter(Boolean);
+    if (!chain.length) {
+      return { deliveryId: deliveryIds[j], encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null };
+    }
+    const encoded = chain.length === 1
+      ? (chain[0].encoded_polyline || null)
+      : chain.reduce((acc, sec) => mergeEncodedPolylines(acc, sec?.encoded_polyline || null), null);
+    const dist = chain.reduce((sum, sec) => sum + (Number(sec?.estimated_distance_km) || 0), 0);
+    const dur = chain.reduce((sum, sec) => sum + (Number(sec?.estimated_duration_minutes) || 0), 0);
+    return {
+      deliveryId: deliveryIds[j],
+      encoded_polyline: encoded,
+      estimated_distance_km: chain.some(sec => sec?.estimated_distance_km != null) ? Number(dist.toFixed(3)) : null,
+      estimated_duration_minutes: chain.some(sec => sec?.estimated_duration_minutes != null) ? Math.ceil(dur) : null,
     };
   });
 }
@@ -292,27 +383,26 @@ export default function ResetPolylinesButton({
 
       const stopPoints = (await Promise.all(sorted.map(async d => {
         const c = await resolveStopCoords(d, patientMap, storeMap);
-        return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id } : null;
+        return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id, delivery: d } : null;
       }))).filter(Boolean);
 
-      // Prepend origin if we have it; we need at least 2 points to route
-      const allPoints = originPoint ? [originPoint, ...stopPoints] : stopPoints;
-
-      if (allPoints.length >= 2) {
+      if (stopPoints.length >= 2) {
+        // Insert each stop's deviation_waypoints as vias on its inbound leg so
+        // the regenerated polylines keep the path actually driven.
+        const chain = originPoint
+          ? buildPointChain(originPoint, stopPoints)
+          : buildPointChain(stopPoints[0], stopPoints.slice(1));
+        const deviaTotal = chain.info.viaCounts.reduce((sum, n) => sum + n, 0);
+        console.log(`[ResetPolylinesButton] Pass 1 — ${chain.points.length} routing points (${deviaTotal} deviation via(s))`);
         try {
-          const sections = await callHereMultiStop(allPoints, 'driving', hereApiKey, polylineLogCtx);
-          // sections[i] covers the leg arriving at allPoints[i+1]
-          // allPoints[0] is origin (home), so sections[i] → stopPoints[i]
-          const offset = originPoint ? 0 : 1; // when no origin, sections[i] → stopPoints[i+1]
-          sections.forEach((sec, i) => {
-            const targetIdx = originPoint ? i : i + 1;
-            const sp = stopPoints[targetIdx];
-            if (!sp || !sec?.encoded_polyline) return;
-            mergeUpdate(sp.deliveryId, {
-              encoded_polyline: sec.encoded_polyline,
+          const results = await callHereMultiStop(chain.points, 'driving', hereApiKey, polylineLogCtx, chain.info);
+          results.forEach(r => {
+            if (!r?.deliveryId || !r?.encoded_polyline) return;
+            mergeUpdate(r.deliveryId, {
+              encoded_polyline: r.encoded_polyline,
               transport_mode: 'driving',
-              ...(sec.estimated_distance_km != null ? { estimated_distance_km: sec.estimated_distance_km } : {}),
-              ...(sec.estimated_duration_minutes != null ? { estimated_duration_minutes: sec.estimated_duration_minutes } : {}),
+              ...(r.estimated_distance_km != null ? { estimated_distance_km: r.estimated_distance_km } : {}),
+              ...(r.estimated_duration_minutes != null ? { estimated_duration_minutes: r.estimated_duration_minutes } : {}),
             });
           });
         } catch (err) {
@@ -353,19 +443,19 @@ export default function ResetPolylinesButton({
         // Build waypoints for this loop: stop[0] → stop[1] → ... → stop[N-1]
         const loopPoints = (await Promise.all(loopStops.map(async d => {
           const c = await resolveStopCoords(d, patientMap, storeMap);
-          return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id } : null;
+          return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id, delivery: d } : null;
         }))).filter(Boolean);
 
         if (loopPoints.length < 2) continue;
 
+        // Deviation-aware loop chain: stop[0] → (deviation vias) → stop[1] → ...
+        const chain = buildPointChain(loopPoints[0], loopPoints.slice(1));
         try {
-          const sections = await callHereMultiStop(loopPoints, 'cycling', hereApiKey, polylineLogCtx);
-          // sections[i] covers the leg arriving at loopPoints[i+1]
-          sections.forEach((sec, i) => {
-            const targetPt = loopPoints[i + 1];
-            if (!targetPt || !sec?.encoded_polyline) return;
-            mergeUpdate(targetPt.deliveryId, {
-              encoded_polyline: sec.encoded_polyline,
+          const results = await callHereMultiStop(chain.points, 'cycling', hereApiKey, polylineLogCtx, chain.info);
+          results.forEach(r => {
+            if (!r?.deliveryId || !r?.encoded_polyline) return;
+            mergeUpdate(r.deliveryId, {
+              encoded_polyline: r.encoded_polyline,
               transport_mode: 'cycling',
             });
           });
