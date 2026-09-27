@@ -323,6 +323,23 @@ export default function ResetPolylinesButton({
 
   useEffect(() => { loadCoverage(); }, [loadCoverage]);
 
+  // Live-refresh the coverage badge when a breadcrumb gets sealed to a stop
+  // (PolylineViewer's "auto-save" / manual save actions) — only when the
+  // saved crumb's driver + date match what this button is currently showing,
+  // so an admin sealing a crumb on the Admin Utilities page immediately
+  // bumps the dashboard's sealed/total count without a manual refresh.
+  useEffect(() => {
+    const handler = (e) => {
+      const detail = e?.detail || {};
+      if (!detail.driverId || !detail.deliveryDate) return;
+      const driverMatch = driverIdsKey.split(',').filter(Boolean).includes(detail.driverId);
+      const dateMatch = detail.deliveryDate === selectedDate;
+      if (driverMatch && dateMatch) loadCoverage();
+    };
+    window.addEventListener('breadcrumbSavedToDelivery', handler);
+    return () => window.removeEventListener('breadcrumbSavedToDelivery', handler);
+  }, [driverIdsKey, selectedDate, loadCoverage]);
+
   // ── MODE B: Breadcrumb slicing ────────────────────────────────────────────
   const runBreadcrumbMode = async (driverId) => {
     // 1. Pull fresh records so consolidateBreadcrumbs sees the latest master timeline
