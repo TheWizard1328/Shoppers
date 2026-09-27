@@ -2,25 +2,27 @@
  * DashboardWeatherBar — minimal semi-transparent vertical thermometer pinned
  * to the far-left edge of the dashboard (owner spec, Sep 27 2026 mock-ups).
  *
- * Design (per approved mock-up + red-line placement):
- *   • Slim frosted tube (~12px wide) on the far-left edge only, floating in
- *     the open map space between the stats panel (top) and the bulk-edit
- *     checkbox / stop cards strip (bottom).
- *   • Anchored with BASE heights (statsContainerBaseHeight / stopCardsBaseHeight)
- *     so expanding the stats card panel or a stop card does NOT move the bar.
+ * Design (owner spec v2):
+ *   • Slim frosted tube (~12px) on the far-left edge, floating in the open map
+ *     space between the stats panel (top) and the FABs / multi-select checkbox
+ *     strip (bottom). Bottom anchor uses the SAME baseline as FABControls /
+ *     DashboardBulkEditControls (stopCardsBaseHeight + bottom-nav-height + 10)
+ *     so the bar always starts just above the multi-select checkbox. Top anchor
+ *     uses the stats panel BASE height so panel/card expansion never moves it.
  *   • Scale: top = projected high + 10, bottom = projected low - 10.
- *   • Mercury fill: warm amber→red for positive temps, blue for negative.
- *   • Tiny current-temp badge at the mercury level with a condition icon
- *     (sun / partly / cloud / fog / rain / snow / storm).
- *   • Micro "H" / "L" labels at the tube ends.
+ *   • The tube itself fades darker orange (at the projected high) to darker
+ *     blue (at the projected low), with the orange→blue crossing pinned to the
+ *     0 °C position on the bar.
+ *   • Thin marker lines at the projected high and low with the temps labelled
+ *     next to them, and a current-temp marker line + badge (condition icon +
+ *     temp) aligned EXACTLY at the current temp position on the scale.
  *   • pointer-events: none — purely informational, never blocks the map or UI.
  *
  * Data: shared AppSettings 'dashboard_weather' record (see
- * dashboardWeatherSettings.js). Updates arrive via the existing AppSettings
- * WebSocket subscription → 'appSettingsUpdated' → forced re-read.
- * City selection: the user's own city first; if absent, a single stored city
- * still shows; multiple stored cities with no own-city match hides the bar
- * (never show the wrong city's weather).
+ * dashboardWeatherSettings.js), refreshed via 'appSettingsUpdated' WebSocket
+ * events from the 5-minute dashboardWeatherPoll workflow.
+ * City selection: the user's own city first; a single stored city still shows;
+ * otherwise hide (never show the wrong city's weather).
  */
 import { memo, useEffect, useRef, useState } from 'react';
 import { getDashboardWeather } from '@/components/utils/dashboardWeatherSettings';
@@ -29,6 +31,15 @@ const WEATHER_ICONS = Object.freeze({
   sun: '☀️', partly: '🌤️', cloud: '☁️', fog: '🌫️',
   rain: '🌧️', snow: '🌨️', storm: '⛈️',
 });
+
+// Darker orange (hot end) / darker blue (cold end) with the 0 °C crossing blend
+const HOT_RGB = [194, 65, 12];    // #c2410c
+const COLD_RGB = [30, 58, 138];   // #1e3a8a
+
+function rgba(rgb, a) { return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`; }
+function blendRgb(a, b, t) {
+  return [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * t));
+}
 
 function pickCityWeather(weather, currentUser) {
   if (!weather?.cities || typeof weather.cities !== 'object') return null;
@@ -73,18 +84,45 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
   const scaleTop = Math.max(high, temp) + 10;   // upper limit = high + 10
   const scaleBottom = Math.min(low, temp) - 10; // lower limit = low - 10
   const span = Math.max(1, scaleTop - scaleBottom);
-  const pos = Math.min(1, Math.max(0.02, (temp - scaleBottom) / span));
-  const warm = temp >= 0;
+  const pct = (v) => Math.min(98, Math.max(2, ((v - scaleBottom) / span) * 100));
 
+  // Bottom anchor — identical baseline to FABControls / bulk-edit pill so the
+  // bar always starts just above the multi-select checkbox row.
+  let bottomNavHeight = 0;
+  try {
+    bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
+  } catch { /* default 0 */ }
   const topAnchor = (Number(statsContainerBaseHeight) || 0) + 12;
-  const bottomAnchor = (Number(stopCardsBaseHeight) || 0) + 14;
+  const bottomAnchor = (Number(stopCardsBaseHeight) || 0) + bottomNavHeight + 10;
   const available = vh - topAnchor - bottomAnchor;
   if (available < 150) return null; // no room — hide instead of cluttering
 
-  const mercuryColor = warm
-    ? 'linear-gradient(to top, rgba(251,146,60,0.85), rgba(239,68,68,0.95))'
-    : 'linear-gradient(to top, rgba(147,197,253,0.85), rgba(59,130,246,0.95))';
+  // Tube gradient: dark blue at the low line → crossing at 0 °C → dark orange
+  // at the high line; end colors extend to the tube ends.
+  const pLow = pct(low), pHigh = pct(high), pZero = ((0 - scaleBottom) / span) * 100;
+  const stops = [`0% ${rgba(COLD_RGB, 0.9)}`, `${pLow}% ${rgba(COLD_RGB, 0.9)}`];
+  if (pZero > pLow && pZero < pHigh) stops.push(`${pZero.toFixed(1)}% ${rgba(blendRgb(COLD_RGB, HOT_RGB, 0.5), 0.9)}`);
+  stops.push(`${pHigh}% ${rgba(HOT_RGB, 0.9)}`, `100% ${rgba(HOT_RGB, 0.9)}`);
+  const tubeGradient = `linear-gradient(to top, ${stops.join(', ')})`;
+
   const icon = WEATHER_ICONS[entry.icon] || '☁️';
+
+  // Marker-line + label row (line across the tube, temp label to its right)
+  const markerStyle = (p) => ({
+    position: 'absolute',
+    bottom: `${p}%`,
+    transform: 'translateY(50%)',
+    left: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  });
+  const lineStyle = { width: 12, height: 2, background: 'rgba(248,250,252,0.9)', borderRadius: 2, boxShadow: '0 0 2px rgba(0,0,0,0.6)' };
+  const labelStyle = {
+    fontSize: 9, lineHeight: '10px', fontWeight: 700,
+    color: 'rgba(248,250,252,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+    whiteSpace: 'nowrap',
+  };
 
   return (
     <div
@@ -93,72 +131,49 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
       className="pointer-events-none absolute z-[220]"
       style={{ left: 6, top: topAnchor, bottom: bottomAnchor }}
     >
-      {/* Micro high label */}
+      {/* Frosted tube — the gradient IS the scale (blue low → 0 °C → orange high) */}
       <div
         style={{
-          position: 'absolute', top: -4, left: 16,
-          fontSize: 9, lineHeight: '10px', fontWeight: 600,
-          color: 'rgba(248,250,252,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {`H ${high}°`}
-      </div>
-
-      {/* Frosted tube */}
-      <div
-        style={{
-          position: 'absolute', top: 10, bottom: 10, left: 0, width: 12,
+          position: 'absolute', top: 0, bottom: 0, left: 0, width: 12,
           borderRadius: 999,
-          background: 'rgba(15,23,42,0.45)',
+          background: tubeGradient,
           border: '1px solid rgba(148,163,184,0.35)',
           backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)',
           boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-          overflow: 'hidden',
         }}
-      >
-        {/* Mercury fill */}
-        <div
+      />
+
+      {/* Projected HIGH line + temp */}
+      <div style={markerStyle(pHigh)}>
+        <div style={lineStyle} />
+        <span style={labelStyle}>{`${high}°`}</span>
+      </div>
+
+      {/* Projected LOW line + temp */}
+      <div style={markerStyle(pLow)}>
+        <div style={lineStyle} />
+        <span style={labelStyle}>{`${low}°`}</span>
+      </div>
+
+      {/* Current temp — line + badge aligned exactly at the current temp position */}
+      <div style={markerStyle(pct(temp))}>
+        <div style={{ width: 12, height: 2, background: '#ffffff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.8)' }} />
+        <span
           style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            height: `${Math.round(pos * 100)}%`,
-            background: mercuryColor,
-            borderRadius: 999,
+            display: 'flex', alignItems: 'center', gap: 3,
+            padding: '2px 6px', borderRadius: 8,
+            background: 'rgba(15,23,42,0.75)',
+            border: '1px solid rgba(148,163,184,0.45)',
+            backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)',
+            fontSize: 11, fontWeight: 700, color: '#f8fafc',
+            textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
           }}
-        />
-      </div>
-
-      {/* Current temp badge at mercury level */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: `calc(${Math.round(pos * 100)}% * 0.82 + 10px)`,
-          left: 16,
-          display: 'flex', alignItems: 'center', gap: 3,
-          padding: '2px 6px', borderRadius: 8,
-          background: 'rgba(15,23,42,0.65)',
-          border: '1px solid rgba(148,163,184,0.4)',
-          backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)',
-          fontSize: 11, fontWeight: 700, color: '#f8fafc',
-          textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-          whiteSpace: 'nowrap',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-        }}
-      >
-        <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
-        {`${temp}°`}
-      </div>
-
-      {/* Micro low label */}
-      <div
-        style={{
-          position: 'absolute', bottom: -4, left: 16,
-          fontSize: 9, lineHeight: '10px', fontWeight: 600,
-          color: 'rgba(248,250,252,0.85)', textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {`L ${low}°`}
+        >
+          <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
+          {`${temp}°`}
+        </span>
       </div>
     </div>
   );
