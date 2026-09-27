@@ -91,9 +91,9 @@ function DashboardWeatherBar({
     let top = 0;
     const statsEl = statsContainerRef?.current;
     if (statsEl) {
-      top = Math.max(0, statsEl.getBoundingClientRect().bottom - parentRect.top) + 12;
+      top = Math.max(0, statsEl.getBoundingClientRect().bottom - parentRect.top) + 6;
     }
-    if (!top) top = (Number(statsContainerBaseHeight) || 0) + 12;
+    if (!top) top = (Number(statsContainerBaseHeight) || 0) + 6;
 
     // Bottom: just above the bulk-select checkbox row; fall back to the
     // stop-cards strip top, then to the base-height formula.
@@ -103,13 +103,13 @@ function DashboardWeatherBar({
     const strip = horizontalStopCardsRef?.current;
     const stripRect = strip && strip.offsetParent !== null ? strip.getBoundingClientRect() : null;
     if (cbRect) {
-      bottomGap = Math.max(0, parentRect.bottom - cbRect.top) + 8;
+      bottomGap = Math.max(0, parentRect.bottom - cbRect.top) + 4;
     } else if (stripRect) {
-      bottomGap = Math.max(0, parentRect.bottom - stripRect.top) + 10;
+      bottomGap = Math.max(0, parentRect.bottom - stripRect.top) + 5;
     } else {
       let navH = 0;
       try { navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0; } catch { /* noop */ }
-      bottomGap = (Number(stopCardsBaseHeight) || 0) + navH + 10;
+      bottomGap = (Number(stopCardsBaseHeight) || 0) + navH + 5;
     }
 
     setGeo({ parentH: parent.clientHeight || 0, top, bottomGap });
