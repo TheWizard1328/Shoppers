@@ -429,12 +429,12 @@ async function handleBriefing(base44, params = {}) {
       const lines = [];
       if (hasCollected) {
         lines.push(`Collected today: ${g.collected_today.count} COD${g.collected_today.count === 1 ? '' : 's'}, $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
-        for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
+        for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.types.join('/')}-${c.patient_name}`);
         lines.push('');
       }
       if (outstandingCount > 0) {
         lines.push(`Still to collect: ${outstandingCount} COD${outstandingCount === 1 ? '' : 's'}, $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
-        for (const c of outstandingItems) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.label}`);
+        for (const c of outstandingItems) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.label}`);
       } else {
         lines.push('Nothing outstanding — clean slate.');
       }
@@ -502,10 +502,10 @@ async function handleBriefing(base44, params = {}) {
           const outstandingLabel = 'Outstanding'.padEnd(wordW) + ` (${outstandingCount})`;
           const lw = Math.max(collectedLabel.length, outstandingLabel.length);
           lines.push(`${collectedLabel.padEnd(lw)} $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
-          for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
+          for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.types.join('/')}-${c.patient_name}`);
           lines.push(`${outstandingLabel.padEnd(lw)} $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
-          for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
-          for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}`);
+          for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
+          for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}`);
           lines.push('');
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
