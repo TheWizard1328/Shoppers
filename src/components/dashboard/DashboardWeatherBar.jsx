@@ -207,12 +207,17 @@ function DashboardWeatherBar({
       className="pointer-events-none absolute z-[220]"
       style={{ left: 6, top: topAnchor, height: barHeight, width: 60 }}
     >
-      {/* Frosted tube — the gradient IS the scale (blue low → 0 °C → orange high) */}
+      {/* Frosted tube — the gradient IS the scale (blue low → 0 °C → orange high).
+          EXPLICIT pixel height (not top+bottom stretch): some Android WebView
+          builds on this fleet render top+bottom-only absolute boxes at zero
+          height — the tube silently vanished, leaving only the badge visible.
+          backgroundColor = fallback if the gradient string is ever dropped. */}
       <div
         style={{
-          position: 'absolute', top: 0, bottom: 0, left: 0, width: 12,
+          position: 'absolute', top: 0, left: 0, width: 12, height: barHeight,
           borderRadius: 999,
-          background: tubeGradient,
+          backgroundColor: rgba(COLD_RGB, 0.9),
+          backgroundImage: tubeGradient,
           border: '1px solid rgba(148,163,184,0.4)',
           boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}
