@@ -34,7 +34,7 @@
  * City selection: the user's own city first; a single stored city still shows;
  * otherwise hide (never show the wrong city's weather).
  */
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getDashboardWeather } from '@/components/utils/dashboardWeatherSettings';
 
 const WEATHER_ICONS = Object.freeze({
@@ -60,11 +60,41 @@ function pickCityWeather(weather, currentUser) {
   return null; // ambiguous — hide rather than show a wrong-city reading
 }
 
-function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsBaseHeight, immersiveHidden }) {
+function DashboardWeatherBar({
+  currentUser, statsContainerBaseHeight, stopCardsBaseHeight, immersiveHidden,
+  statsContainerRef, horizontalStopCardsRef,
+}) {
   const [entry, setEntry] = useState(null);
   const [vh, setVh] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
   const userRef = useRef(currentUser);
   userRef.current = currentUser;
+
+  // Live DOM heights — same pattern as Dashboard.jsx's getMapPadding(): the
+  // "base" height props are frozen while a stop card is EXPANDED (see
+  // useStopCardsBaseHeight's comment: "Never updates the height while a card
+  // is expanded"), so relying on them alone let the bar's bottom anchor stay
+  // at the old, smaller collapsed height while the actual card grew — the
+  // bar then rendered well past the real safe zone, appearing to span nearly
+  // the whole map. Reading offsetHeight/offsetTop directly on every
+  // measurable change (ResizeObserver) keeps the bar's anchors accurate at
+  // all times; the *BaseHeight props remain the fallback for the first paint
+  // before refs are attached.
+  const [liveStatsHeight, setLiveStatsHeight] = useState(0);
+  const [liveStopCardsHeight, setLiveStopCardsHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const statsEl = statsContainerRef?.current;
+    const cardsEl = horizontalStopCardsRef?.current;
+    const measure = () => {
+      if (statsEl) setLiveStatsHeight((statsEl.offsetTop || 0) + (statsEl.offsetHeight || 0));
+      if (cardsEl) setLiveStopCardsHeight(cardsEl.offsetHeight || 0);
+    };
+    measure();
+    const observers = [];
+    if (statsEl) { const ro = new ResizeObserver(measure); ro.observe(statsEl); observers.push(ro); }
+    if (cardsEl) { const ro = new ResizeObserver(measure); ro.observe(cardsEl); observers.push(ro); }
+    return () => observers.forEach((ro) => ro.disconnect());
+  }, [statsContainerRef, horizontalStopCardsRef]);
 
   useEffect(() => {
     let alive = true;
@@ -108,8 +138,8 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
   try {
     bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
   } catch { /* default 0 */ }
-  const topAnchor = (Number(statsContainerBaseHeight) || 0) + 12;
-  const bottomAnchor = (Number(stopCardsBaseHeight) || 0) + bottomNavHeight + 10;
+  const topAnchor = (liveStatsHeight || Number(statsContainerBaseHeight) || 0) + 12;
+  const bottomAnchor = (liveStopCardsHeight || Number(stopCardsBaseHeight) || 0) + bottomNavHeight + 10;
   const barHeight = vh - topAnchor - bottomAnchor;
   if (barHeight < 150) return null; // no room — hide instead of cluttering
 

@@ -420,6 +420,8 @@ function DashboardView({
           statsContainerBaseHeight={statsContainerBaseHeight}
           stopCardsBaseHeight={stopCardsBaseHeight}
           immersiveHidden={immersiveHidden}
+          statsContainerRef={statsContainerRef}
+          horizontalStopCardsRef={horizontalStopCardsRef}
         />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
