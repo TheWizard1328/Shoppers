@@ -77,30 +77,42 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
       }
     }
 
-    // Sync the deductions snapshot to AppUser.deductions (period-overlap filtered)
-    // for any record that isn't 'paid'. Frozen totals on finalized records aren't
-    // touched — only the deduction list mirrors AppUser.
+    // Sync the RECURRING deductions snapshot to AppUser.deductions (period-overlap
+    // filtered) for any record that isn't 'paid'. One-time extras (is_one_time: true)
+    // live ONLY on the Payroll record — they don't exist on AppUser at all, so they
+    // can never appear in `data.deductionsArray` (the live-calculated recurring set).
+    // BUG FIX: comparing the full stored list (recurring + one-time) against the
+    // recurring-only live list always flagged one-time entries as "missing from
+    // live" and wholesale-replaced `record.deductions` with the recurring set,
+    // silently deleting every one-time deduction the moment this effect re-ran
+    // (e.g. right after adding one). Now the drift check + rebuild only ever
+    // touch the recurring subset and always re-append the preserved one-time ones.
     if (canSyncDeductions) {
       const liveDeductions = Array.isArray(data.deductionsArray) ? data.deductionsArray : [];
       const storedDeductions = Array.isArray(record.deductions) ? record.deductions : [];
+      const storedOneTime = storedDeductions.filter((d) => d?.is_one_time);
+      const storedRecurring = storedDeductions.filter((d) => !d?.is_one_time);
       const sameDeduction = (a, b) =>
         (a?.name || '') === (b?.name || '') && (round2(a?.amount) === round2(b?.amount)) &&
         (a?.start_date || '') === (b?.start_date || '') && (a?.end_date || '') === (b?.end_date || '');
       const liveHasNew =
-        liveDeductions.some((d) => !storedDeductions.some((s) => sameDeduction(d, s)));
+        liveDeductions.some((d) => !storedRecurring.some((s) => sameDeduction(d, s)));
       const storedMissingLive =
-        storedDeductions.some((s) => !liveDeductions.some((d) => sameDeduction(s, d)));
-      const liveTotal = round2(sumDeductionAmounts(liveDeductions));
+        storedRecurring.some((s) => !liveDeductions.some((d) => sameDeduction(s, d)));
+      const combinedLive = [...liveDeductions, ...storedOneTime];
+      const liveTotal = round2(sumDeductionAmounts(combinedLive));
       const storedTotal = round2(record.total_deductions || 0);
       if (liveDeductions.length > 0 && (liveHasNew || storedMissingLive)) {
-        updates.deductions = liveDeductions;
+        updates.deductions = combinedLive;
         if (storedTotal !== liveTotal) {
           updates.total_deductions = liveTotal;
         }
         hasDrift = true;
-      } else if (liveDeductions.length === 0 && storedDeductions.length > 0) {
-        updates.deductions = [];
-        if (storedTotal !== 0) updates.total_deductions = 0;
+      } else if (liveDeductions.length === 0 && storedRecurring.length > 0) {
+        updates.deductions = storedOneTime;
+        if (storedTotal !== round2(sumDeductionAmounts(storedOneTime))) {
+          updates.total_deductions = round2(sumDeductionAmounts(storedOneTime));
+        }
         hasDrift = true;
       } else if (liveDeductions.length > 0 && storedTotal !== liveTotal) {
         updates.total_deductions = liveTotal;
