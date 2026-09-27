@@ -79,10 +79,16 @@ function DashboardWeatherBar({ currentUser, statsContainerBaseHeight, stopCardsB
     window.addEventListener('appSettingsUpdated', onSettings);
     const onResize = () => setVh(window.innerHeight);
     window.addEventListener('resize', onResize);
+    // While the dashboard is open, re-read every 5 minutes. If the stored
+    // snapshot is stale by then, the getter's stale-trigger fires a background
+    // poll (dashboardWeatherPoll) and the fresh data lands here — this keeps
+    // the bar live even if this device never receives the WS broadcast.
+    const interval = setInterval(() => load(true), 5 * 60 * 1000);
     return () => {
       alive = false;
       window.removeEventListener('appSettingsUpdated', onSettings);
       window.removeEventListener('resize', onResize);
+      clearInterval(interval);
     };
   }, []);
 

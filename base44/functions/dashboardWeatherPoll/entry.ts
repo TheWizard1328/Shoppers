@@ -18,7 +18,11 @@
 // Devices that come online later just read the stored record — they never hit
 // the weather services themselves.
 //
-// Params: { dry_run?: boolean }
+// Params: { dry_run?: boolean, client_refresh?: boolean, force_refresh?: boolean }
+//  client_refresh — set by the app when it loads and the stored snapshot is
+//    >5 min old: also re-fetches previously stored cities (works with no
+//    drivers on duty). Still subject to the 4-minute freshness guard.
+//  force_refresh — bypasses the freshness guard (admin/testing).
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const SETTINGS_KEY = 'dashboard_weather';
@@ -175,6 +179,25 @@ function buildCityEntry(city, w) {
 async function handlePoll(base44, params) {
   const startedAt = Date.now();
   const dryRun = !!params?.dry_run;
+  const clientRefresh = !!params?.client_refresh;
+  const forceRefresh = !!params?.force_refresh;
+
+  // 0. Stored snapshot — read EARLY: staleness guard + (on client-triggered
+  //    refresh) the union of previously stored cities so the bar can refresh
+  //    even when nobody is currently on duty.
+  const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: SETTINGS_KEY }).catch(() => []);
+  const rec = settings?.[0] || null;
+  const prevCities = (rec?.setting_value?.cities) || {};
+  const fetchedAtRaw = rec?.setting_value?.fetched_at;
+  const storedAgeMs = fetchedAtRaw ? Date.now() - new Date(fetchedAtRaw).getTime() : Infinity;
+
+  // Freshness guard: if the stored snapshot is younger than 4 minutes, skip.
+  // The */5 workflow and simultaneous app loads from many devices all funnel
+  // through here — this makes extra invocations cheap no-ops instead of
+  // hammering the weather providers.
+  if (!dryRun && !forceRefresh && Number.isFinite(storedAgeMs) && storedAgeMs < 4 * 60 * 1000 && Object.keys(prevCities).length > 0) {
+    return { success: true, changed: false, skipped_reason: 'fresh', age_ms: Math.round(storedAgeMs), duration_ms: Date.now() - startedAt };
+  }
 
   // 1. Cities with on-duty drivers (on_duty or on_break = mid-shift)
   const appUsers = await base44.asServiceRole.entities.AppUser.list('-updated_date', 500).catch(() => []);
@@ -189,6 +212,11 @@ async function handlePoll(base44, params) {
     else if (d.city_id) activeCityIds.add(d.city_id);
   }
 
+  // Client-triggered refresh (app load with stale data) also re-fetches the
+  // cities already stored in the snapshot, so the bar works on days where no
+  // driver is currently on duty but there IS a last-known reading.
+  if (clientRefresh) Object.keys(prevCities).forEach((id) => activeCityIds.add(id));
+
   if (activeCityIds.size === 0) {
     return { success: true, dry_run: dryRun, active_cities: 0, changed: false, skipped_reason: 'no on-duty drivers', duration_ms: Date.now() - startedAt };
   }
@@ -198,12 +226,7 @@ async function handlePoll(base44, params) {
   const cities = await base44.asServiceRole.entities.City.filter({ id: { $in: cityIds } }).catch(() => []);
   const usableCities = (cities || []).filter((c) => Number.isFinite(Number(c.latitude)) && Number.isFinite(Number(c.longitude)));
 
-  // 3. Stored snapshot
-  const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: SETTINGS_KEY }).catch(() => []);
-  const rec = settings?.[0] || null;
-  const prevCities = (rec?.setting_value?.cities) || {};
-
-  // 4. Fetch + diff
+  // 3. Fetch + diff
   const newCities = {};
   let changed = false;
   const failures = [];
@@ -220,7 +243,7 @@ async function handlePoll(base44, params) {
   // A city that WAS stored but has no on-duty drivers now is dropped on the
   // next actual write; we don't write just to prune (no change, no broadcast).
   if (!changed) {
-    return { success: true, dry_run: dryRun, active_cities: newCities.length ? Object.keys(newCities).length : usableCities.length, changed: false, weather_failures: failures, duration_ms: Date.now() - startedAt };
+    return { success: true, dry_run: dryRun, active_cities: Object.keys(newCities).length || usableCities.length, changed: false, weather_failures: failures, duration_ms: Date.now() - startedAt };
   }
 
   const payload = {
