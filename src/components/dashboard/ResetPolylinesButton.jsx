@@ -340,6 +340,32 @@ export default function ResetPolylinesButton({
     return () => window.removeEventListener('breadcrumbSavedToDelivery', handler);
   }, [driverIdsKey, selectedDate, loadCoverage]);
 
+  // ── WebSocket-driven refresh (OTHER devices) ─────────────────────────────
+  // realtimeSync subscribes to DeliveryBreadcrumbs and re-dispatches each WS
+  // event as 'realtimeUpdate_DeliveryBreadcrumbs'. When a breadcrumb seal
+  // (saved_to_route) lands from ANOTHER device, refresh the coverage badge
+  // here too — debounced so a bulk seal pass (one event per stop) coalesces
+  // into a single coverage reload.
+  useEffect(() => {
+    let timer = null;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; loadCoverage(); }, 750);
+    };
+    const handler = (e) => {
+      const d = e?.detail?.data || {};
+      const drivers = driverIdsKey.split(',').filter(Boolean);
+      const driverMatch = d.driver_id && drivers.includes(d.driver_id);
+      const dateMatch = d.delivery_date === selectedDate;
+      if (driverMatch && dateMatch) schedule();
+    };
+    window.addEventListener('realtimeUpdate_DeliveryBreadcrumbs', handler);
+    return () => {
+      window.removeEventListener('realtimeUpdate_DeliveryBreadcrumbs', handler);
+      if (timer) clearTimeout(timer);
+    };
+  }, [driverIdsKey, selectedDate, loadCoverage]);
+
   // ── MODE B: Breadcrumb slicing ────────────────────────────────────────────
   const runBreadcrumbMode = async (driverId) => {
     // 1. Pull fresh records so consolidateBreadcrumbs sees the latest master timeline
