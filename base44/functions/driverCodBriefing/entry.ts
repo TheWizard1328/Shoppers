@@ -494,10 +494,12 @@ async function handleBriefing(base44, params = {}) {
           // own Outstanding section (header + items) — kept separate rather
           // than interleaved, so each section is self-contained.
           lines.push(String(g.driver_name).toUpperCase());
-          // Pad the section labels to a common width so the $ amounts on the
-          // Collected and Outstanding header rows line up vertically.
-          const collectedLabel = `Collected (${g.collected_today.count})`;
-          const outstandingLabel = `Outstanding (${outstandingCount})`;
+          // Align BOTH the (count) and the $ amount: pad the word itself to a
+          // common width so "(n)" starts in the same column, then pad the
+          // full label so multi-digit counts don't shift the amounts.
+          const wordW = Math.max('Collected'.length, 'Outstanding'.length);
+          const collectedLabel = 'Collected'.padEnd(wordW) + ` (${g.collected_today.count})`;
+          const outstandingLabel = 'Outstanding'.padEnd(wordW) + ` (${outstandingCount})`;
           const lw = Math.max(collectedLabel.length, outstandingLabel.length);
           lines.push(`${collectedLabel.padEnd(lw)} $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
           for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)} · ${c.types.join('/')} · ${c.patient_name}`);
