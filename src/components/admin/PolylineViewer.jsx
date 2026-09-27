@@ -484,10 +484,23 @@ export default function PolylineViewer({ users = [] }) {
     setFocusedItem(null);
     try {
       if (dataSource === 'online') {
-        // Always load both so combined overlay works without re-fetching
+        // Always load both so combined overlay works without re-fetching.
+        // Server-side date filtering: the previous blind "-delivery_date, 500"
+        // fetch silently dropped older records once newer days filled the
+        // 500 cap (e.g. Sept 22 crumbs stopped loading while newer days
+        // filled the window). The selected date range now drives the query,
+        // and reloads whenever the range changes.
+        const dateQuery = {};
+        if (dateFrom) dateQuery.$gte = dateFrom;
+        if (dateTo) dateQuery.$lte = dateTo;
+        const hasDate = !!(dateFrom || dateTo);
         const [dels, crumbs] = await Promise.all([
-          base44.entities.Delivery.list('-delivery_date', 500),
-          base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 500),
+          hasDate
+            ? base44.entities.Delivery.filter({ delivery_date: dateQuery }, '-delivery_date', 500)
+            : base44.entities.Delivery.list('-delivery_date', 500),
+          hasDate
+            ? base44.entities.DeliveryBreadcrumbs.filter({ delivery_date: dateQuery }, '-delivery_date', 500)
+            : base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 500),
         ]);
         setDeliveries(dels || []);
         setBreadcrumbs(crumbs || []);
@@ -509,7 +522,7 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  useEffect(() => { loadData(); }, [dataSource]);
+  useEffect(() => { loadData(); }, [dataSource, dateFrom, dateTo]);
 
   // ── Load all AppUsers (incl. inactive) for name resolution ────────────────
   useEffect(() => {
