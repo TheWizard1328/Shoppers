@@ -425,7 +425,7 @@ async function handleBriefing(base44, params = {}) {
         ...outstandingItems.map((c) => c.amount.toFixed(2)),
       ];
       const biggestStr = Math.max(g.collected_today.amount, g.outstanding_total).toFixed(2);
-      const mw = Math.max(biggestStr.length, ...(moneyStrs.length ? moneyStrs : ['0']));
+      const mw = Math.max(biggestStr.length, ...(moneyStrs.length ? moneyStrs.map((x) => x.length) : [0]));
       const lines = [];
       if (hasCollected) {
         lines.push(`Collected today: ${g.collected_today.count} COD${g.collected_today.count === 1 ? '' : 's'}, $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
@@ -484,7 +484,7 @@ async function handleBriefing(base44, params = {}) {
         const moneyStrsAll = [...allC.map((c) => c.amount.toFixed(2)), ...allO.map((c) => c.amount.toFixed(2))];
         const cTotal = Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100;
         const oTotal = Math.round(driverBriefings.reduce((s, g) => s + g.outstanding_total, 0) * 100) / 100;
-        const mw = Math.max(cTotal.toFixed(2).length, oTotal.toFixed(2).length, ...(moneyStrsAll.length ? moneyStrsAll : ['0']));
+        const mw = Math.max(cTotal.toFixed(2).length, oTotal.toFixed(2).length, ...(moneyStrsAll.length ? moneyStrsAll.map((x) => x.length) : [0]));
         const lines = [];
         for (const g of driverBriefings) {
           const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
