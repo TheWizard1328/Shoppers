@@ -141,9 +141,25 @@ async function handleMirrorCatalogFromSquare(base44) {
   }));
   let upserted = 0;
   for (const record of liveRecords) {
+    // Recover the delivery link from the item description when possible
+    // ('COD for <name> | Delivery <24-hex-id>') — the live catalog itself
+    // carries no delivery_id field.
+    const dm = String(record.description || '').match(/delivery\s+([a-f0-9]{24})/i);
+    const descDeliveryId = dm ? dm[1] : null;
+    record.delivery_id = descDeliveryId || record.delivery_id || null;
     const existing = existingByObjectId.get(record.square_catalog_object_id);
     if (existing) {
-      await base44.asServiceRole.entities.SquareCatalogItems.update(existing.id, record).catch(() => null);
+      // NEVER wipe link fields the mirror can't derive: preserve the existing
+      // row's delivery/patient ids when the live record has none (owner report,
+      // Sep 27 — the mirror blanked delivery_id on every row, breaking the UI's
+      // catalog-to-delivery linking and resurrecting 'New Catalog Items').
+      const merged = {
+        ...record,
+        delivery_id: record.delivery_id || existing.delivery_id || existing?.data?.delivery_id || null,
+        patient_id: record.patient_id || existing.patient_id || existing?.data?.patient_id || null,
+        store_id: record.store_id || existing.store_id || existing?.data?.store_id || null,
+      };
+      await base44.asServiceRole.entities.SquareCatalogItems.update(existing.id, merged).catch(() => null);
     } else {
       await base44.asServiceRole.entities.SquareCatalogItems.create(record).catch(() => null);
     }

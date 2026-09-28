@@ -177,7 +177,19 @@ async function handleCreateCodItem(b44, payload) {
     // Either no pending tx, or name+amount already match. Always verify the live catalog
     // item exists; if it was deleted by a prior sync cleanup, recreate it.
     const live = await lc(token);
-    const ex = live.find((i) => nt(i?.item_data?.description || '').toLowerCase().includes(`delivery ${deliveryId}`) || nt(i?.item_data?.description || '').toLowerCase().includes(deliveryId));
+    // Match by description delivery-id first, then fall back to exact name +
+    // amount. Items whose description lost the delivery id (older creators,
+    // historical edits) otherwise fail this lookup and every push CREATES A
+    // DUPLICATE instead of updating the existing object (owner report, Sep 27:
+    // items pushed to the DBs but the Square catalog kept getting new/duplicate
+    // objects while the original lingered).
+    const ex = live.find((i) => {
+      const desc = nt(i?.item_data?.description || '').toLowerCase();
+      if (desc.includes(`delivery ${deliveryId}`) || desc.includes(deliveryId)) return true;
+      if (nt(i?.item_data?.name) !== iname) return false;
+      const v = (i?.item_data?.variations || [])[0];
+      return Number(v?.item_variation_data?.price_money?.amount || 0) === ac;
+    });
     if (ex) { const u = await updateItem({ catalogObjectId: ex.id, catalogVersion: ex.version, itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = u?.id || ex.id; catVer = u?.version || ex.version; }
     else { const ci = await createItem({ itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = ci?.id || null; catVer = ci?.version || null; if (!catId) throw new Error(`Square did not return catalog item for ${deliveryId}`); }
   }
