@@ -574,10 +574,16 @@ export default function SquareManagement() {
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // ── STEP 1: Load from offline DB immediately (no UI changes yet) ──
-      // The mount effect already loaded offline data; just ensure isLoading is off
+      // ── STEP 1: Load from the offline catalog & transaction DB, update the UI
+      const [step1Catalog, step1Txs] = await Promise.all([
+        squareCODOfflineManager.getCatalogItemsOffline(),
+        squareCODOfflineManager.getPaymentTransactionsOffline(),
+      ]);
       setIsLoading(false);
-      console.log('[SquareManagement] SYNC STEP 1: offline load (skipped — mount hydration)');
+      setCatalogItems([...(step1Catalog || [])]);
+      setAllTransactions([...(step1Txs || [])]);
+      setSoldCatalogItems([...(step1Txs || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
+      console.log(`[SquareManagement] SYNC STEP 1: offline load — ${(step1Catalog || []).length} catalog, ${(step1Txs || []).length} txs → UI`);
 
       // ── STEP 2: Single API call — catalog + transactions + cleanup in one pass ──
       // squareGetCodData2 now fetches catalog + orders once, builds transaction records,
@@ -641,57 +647,47 @@ export default function SquareManagement() {
         await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
         console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted`);
 
-        // ── STEP 3: One UI update from offline DB ──────────────────────
-        const [uiCatalog, uiTransactions] = await Promise.all([
-          squareCODOfflineManager.getCatalogItemsOffline(),
-          squareCODOfflineManager.getPaymentTransactionsOffline()
-        ]);
-        const { startDateStr, endDateStr } = getSourceWindow();
-        const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+        // ── STEP 3: run the reconcile system (rebuilds every list from the
+        // freshly synced offline DB and updates the UI state) ────────────
+        await runReconcile();
+        console.log('[SquareManagement] SYNC STEP 3: reconcile complete — lists + UI rebuilt from offline DB');
 
-        setDeliveries([...(windowedDeliveries.length > 0 ? windowedDeliveries : Array.from(existingMap.values()))]);
-        setCatalogItems([...(uiCatalog || [])]);
-        setAllTransactions([...(uiTransactions || [])]);
-        setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-
+        // ── STEP 4: update the UI from the rebuilt state ────────────────
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+        console.log('[SquareManagement] SYNC STEP 4: UI updated');
 
-        // ── STEP 4 (FINAL): auto-trigger Update Catalog when New Catalog Items
-        // exist (owner spec, Sep 27 2026). If the sync's server-side pass left
-        // any New Catalog Items (or created none), hand them to the Update
-        // Catalog push path (syncSquareCods → Square Catalog API + both DBs),
-        // which is the same code the button runs. The refs update on the
-        // re-render after the setState calls above, so check them shortly.
-        // 15s breather: the sync just made a burst of Square API calls. The
-        // push now shares ONE catalog fetch across the batch (big call-count
-        // cut), so a short recovery gap is enough for the rate window.
-        setTimeout(() => {
-          try {
-            const catalogDeliveryIds = new Set(
-              (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
-            );
-            const hasNewItems = (reconciliationRowsRef.current || []).some((row) => {
-              if (row.catalogId && row.catalogId !== '--') return false;
-              const deliveryId = row.rawDelivery?.id || row.id;
-              if (deliveryId && catalogDeliveryIds.has(deliveryId)) return false;
-              const delivery = row.rawDelivery;
-              return !!(delivery && Number(delivery.cod_total_amount_required) > 0);
-            });
-            console.log(`[SquareManagement] SYNC STEP 4 (post-sync check, 15s after sync): New Catalog Items present = ${hasNewItems}`);
-            const g4 = globalThis;
-            const lastAuto = g4.__squareCodAutoUpdateAt || 0;
-            if (hasNewItems && lastAuto > Date.now() - 60000) {
-              console.log('[SquareManagement] SYNC STEP 4: auto-click skipped — another Update Catalog run started <60s ago');
-            } else if (hasNewItems) {
-              g4.__squareCodAutoUpdateAt = Date.now();
-              console.log('[SquareManagement] SYNC STEP 4: auto-clicking Update Catalog');
-              updateCatalogRef.current?.('auto');
-            }
-          } catch (e) {
-            console.warn('[SquareManagement] Post-sync Update Catalog trigger failed:', e?.message);
+        // ── STEP 5 (FINAL): run the Update Catalog path for everything the
+        // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). Runs
+        // directly in sequence — no more 15s delayed auto-click. A short
+        // settle lets the reconcile refs flush through the render so the
+        // push reads the fresh list, and gives the rate window a breather.
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const catalogDeliveryIds = new Set(
+            (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
+          );
+          const hasNewItems = (reconciliationRowsRef.current || []).some((row) => {
+            if (row.catalogId && row.catalogId !== '--') return false;
+            const deliveryId = row.rawDelivery?.id || row.id;
+            if (deliveryId && catalogDeliveryIds.has(deliveryId)) return false;
+            const delivery = row.rawDelivery;
+            return !!(delivery && Number(delivery.cod_total_amount_required) > 0);
+          });
+          console.log(`[SquareManagement] SYNC STEP 5: New Catalog Items present = ${hasNewItems}`);
+          if (hasNewItems) {
+            // Release the sync guards so updateCatalog's own guard lets it run
+            g.__squareCodSyncInFlight = false;
+            syncInFlightRef.current = false;
+            setIsSyncing(false);
+            console.log('[SquareManagement] SYNC STEP 5: running Update Catalog path');
+            await updateCatalogRef.current?.('auto');
+          } else {
+            console.log('[SquareManagement] SYNC STEP 5: no New Catalog Items — skipping Update Catalog');
           }
-        }, 15000);
+        } catch (e) {
+          console.warn('[SquareManagement] SYNC STEP 5: Update Catalog trigger failed:', e?.message);
+        }
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];
