@@ -9,8 +9,11 @@ import { createClientFromRequest } from "https://cdn.jsdelivr.net/npm/@base44/sd
 Deno.serve(async (req) => {
   try {
     const b = createClientFromRequest(req);
-    const { requireUser } = await import("https://cdn.jsdelivr.net/npm/@base44/sdk@0.8.31/+esm");
-    await requireUser(b);
+    // NOTE: the SDK does NOT export requireUser — b.auth.me() is the auth check
+    // (same pattern as syncSquareCods). The requireUser import made every
+    // mirror call fail instantly (owner report, Sep 28).
+    const u = await b.auth.me().catch(() => null);
+    if (!u) return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     const payload = await req.json().catch(() => ({}));
     const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
     const txRecords = Array.isArray(payload?.txRecords) ? payload.txRecords.filter(Boolean) : [];

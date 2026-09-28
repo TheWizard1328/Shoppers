@@ -647,10 +647,18 @@ async function handleGetCodData(base44, payload={}) {
   try {
     const isCashCod = (d) => d?.status === 'completed' && Number(d?.cod_total_amount_required || 0) > 0 &&
       (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0);
+    // IN-WINDOW INCLUDED (owner report, Sep 28: 139 already-collected CODs since
+    // Jun 30 flooded the reconcile list). The old `< lookbackStartAt` filter
+    // excluded in-window candidates from the name+amount signature scan — their
+    // bookkeeping txs were purged on collection and real Square orders carry no
+    // delivery_id, so nothing ever stamped them and they reappeared as "New
+    // Catalog Items" forever. Now EVERY unstamped completed cash COD candidate
+    // (in-window or not) is scanned against completed Square orders by exact
+    // name+amount signature and stamped cod_confirmed_collected on match.
     const wideCandidates = (activeDeliveriesWithAmounts || []).filter((d) =>
       d?.id && isCashCod(d) && !d?.cod_confirmed_collected &&
       !collectedDeliveryIds.has(d.id) && !confirmedCollectedDeliveryIds.has(d.id) &&
-      d?.delivery_date && `${d.delivery_date}T00:00:00.000Z` < lookbackStartAt);
+      d?.delivery_date);
     if (wideCandidates.length > 0) {
       const oldest = wideCandidates.map((d) => String(d.delivery_date)).sort()[0];
       const wideStartAt = new Date(new Date(`${oldest}T00:00:00`).getTime() - 3 * 86400000).toISOString();
