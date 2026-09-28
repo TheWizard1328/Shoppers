@@ -526,8 +526,10 @@ export default function SquareManagement() {
         // AFTER 5a stamps + purges confirmed collections, so an item is only ever
         // created for a delivery that survived all collected checks. Its
         // creations are already inside catalogRecords above.
-        let autoAddedCount = 0;
-        let autoFailedCount = 0;
+        // Items auto-created by the sync itself (mid-run 5c pass + final 5d
+        // drain pass for CODs that appeared while the sync was running).
+        const autoAddedCount = Number(codData.autoCreatedCount || 0);
+        const autoFailedCount = 0;
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];

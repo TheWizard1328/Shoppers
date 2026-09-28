@@ -917,6 +917,28 @@ async function handleGetCodData(base44, payload={}) {
     const did = normalizeText(record?.delivery_id);
     if (did) liveCatalogDeliveryIds.add(did);
   }
+  // Shared creator for both the mid-run (5c) and final (5d) drain passes.
+  const createCatalogItemForDelivery = async (d) => {
+    const store = (safeStores || []).find((s) => s?.id === d?.store_id);
+    const cfg = activeConfigById.get(store?.square_location_config_id);
+    const locationId = cfg?.square_location_id || null;
+    const pat = patientsById.get(d.patient_id);
+    const epn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
+    const rsa = getPreferredStoreAbbreviation(store);
+    const ac = Math.round(Number(d.cod_total_amount_required) * 100);
+    const iname = formatItemName(d.delivery_date, rsa, epn);
+    const catItem = await squareFetch('/v2/catalog/batch-upsert', 'POST', accessToken, { idempotency_key: `codauto-${d.id}-${ac}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: [{ type: 'ITEM', id: `#item-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: iname, description: `COD for ${epn} | Delivery ${d.id}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: ac, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
+    const createdItem = (catItem.objects || []).find((o) => o.type === 'ITEM') || null;
+    if (!createdItem?.id) return null;
+    return {
+      id: createdItem.id, square_catalog_object_id: createdItem.id, square_catalog_version: createdItem.version || null,
+      item_name: iname, description: `COD for ${epn} | Delivery ${d.id}`, amount: ac / 100, amount_cents: ac,
+      delivery_id: d.id, delivery_date: d.delivery_date, patient_id: pat?.id || d.patient_id || null,
+      store_id: d.store_id, location_id: locationId, status: 'active',
+    };
+  };
+
+  let autoCreatedCount = 0;
   const createdCatalogRecords = [];
   for (const d of (activeDeliveriesWithAmounts || [])) {
     if (!deliveryNeedsCatalogItem(d)) continue;
@@ -924,28 +946,13 @@ async function handleGetCodData(base44, payload={}) {
     if (liveCatalogDeliveryIds.has(d.id)) continue;
     if (collectedDeliveryIds.has(d.id)) continue; // collected this run (real order/card)
     try {
-      const store = (safeStores || []).find((s) => s?.id === d?.store_id);
-      const cfg = activeConfigById.get(store?.square_location_config_id);
-      const locationId = cfg?.square_location_id || null;
-      const pat = patientsById.get(d.patient_id);
-      const epn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
-      const rsa = getPreferredStoreAbbreviation(store);
-      const ac = Math.round(Number(d.cod_total_amount_required) * 100);
-      const iname = formatItemName(d.delivery_date, rsa, epn);
-      const catItem = await squareFetch('/v2/catalog/batch-upsert', 'POST', accessToken, { idempotency_key: `codauto-${d.id}-${ac}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: [{ type: 'ITEM', id: `#item-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: iname, description: `COD for ${epn} | Delivery ${d.id}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: ac, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
-      const createdItem = (catItem.objects || []).find((o) => o.type === 'ITEM') || null;
-      if (createdItem?.id) {
-        createdCatalogRecords.push({
-          id: createdItem.id, square_catalog_object_id: createdItem.id, square_catalog_version: createdItem.version || null,
-          item_name: iname, description: `COD for ${epn} | Delivery ${d.id}`, amount: ac / 100, amount_cents: ac,
-          delivery_id: d.id, delivery_date: d.delivery_date, patient_id: pat?.id || d.patient_id || null,
-          store_id: d.store_id, location_id: locationId, status: 'active',
-        });
-      }
+      const rec = await createCatalogItemForDelivery(d);
+      if (rec) createdCatalogRecords.push(rec);
     } catch (e) { console.warn('[squareGetCodData2] auto-create failed for', d.id, ':', e?.message); }
   }
   if (createdCatalogRecords.length > 0) {
     filteredCatalogRecords = [...filteredCatalogRecords, ...createdCatalogRecords];
+    autoCreatedCount += createdCatalogRecords.length;
     console.log('[squareGetCodData2] auto-created', createdCatalogRecords.length, 'missing catalog items, elapsed:', Date.now() - t0);
   }
 
@@ -1019,6 +1026,47 @@ async function handleGetCodData(base44, payload={}) {
     }
   } catch (e) { dbWriteErrors.push({type:'catalog', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB catalog write failed:', e?.message); }
 
+  // ── 5d) FINAL drain pass (owner spec, Sep 27 2026) ────────────────────
+  // A sync run takes 30-60s. COD deliveries completed (or edited) DURING the
+  // run — after the early delivery fetch at the top — were invisible to 5c,
+  // so their catalog items didn't exist until the NEXT sync ran, and the UI
+  // kept listing them as "New Catalog Items". As the FINAL step, re-fetch the
+  // delivery set fresh and drain anything the mid-run pass could not see.
+  // Re-evaluating every delivery is safe: all skip conditions are
+  // deterministic, and 5c's own creations are already in liveCatalogDeliveryIds.
+  // Created items go to Square, straight into the DB (5b's mirror-replace has
+  // already run), and into the response so the UI updates immediately.
+  if (!isBackfillRun) {
+    try {
+      const startDateStr2 = formatLocalDate(new Date(Date.now() - daysBack * 86400000));
+      const endDateStr2 = formatLocalDate(new Date());
+      const rawDeliveries2 = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDateStr2, $lte: endDateStr2 } }, '-updated_date', 5000).catch(() => []);
+      const freshDeliveries = (Array.isArray(rawDeliveries2) ? rawDeliveries2 : []).map(unwrapEntityRecord).filter(Boolean).filter((d) => d?.status !== 'failed' && d?.status !== 'cancelled');
+      const finalCreatedRecords = [];
+      for (const d of freshDeliveries) {
+        if (!deliveryNeedsCatalogItem(d)) continue;
+        if (existingTxDeliveryIds.has(d.id)) continue;
+        if (liveCatalogDeliveryIds.has(d.id)) continue;
+        if (collectedDeliveryIds.has(d.id) || confirmedCollectedDeliveryIds.has(d.id)) continue;
+        if (d?.cod_confirmed_collected) continue;
+        try {
+          const rec = await createCatalogItemForDelivery(d);
+          if (rec) finalCreatedRecords.push(rec);
+        } catch (e) { console.warn('[squareGetCodData2] final-pass auto-create failed for', d.id, ':', e?.message); }
+      }
+      if (finalCreatedRecords.length > 0) {
+        for (const rec of finalCreatedRecords) {
+          await base44.asServiceRole.entities.SquareCatalogItems.create(rec).catch(() => null);
+        }
+        filteredCatalogRecords = [...filteredCatalogRecords, ...finalCreatedRecords];
+        autoCreatedCount += finalCreatedRecords.length;
+        console.log('[squareGetCodData2] FINAL drain pass created', finalCreatedRecords.length, 'items (appeared during this run), elapsed:', Date.now() - t0);
+      } else {
+        console.log('[squareGetCodData2] FINAL drain pass: nothing new to create, elapsed:', Date.now() - t0);
+      }
+    } catch (e) { console.warn('[squareGetCodData2] final drain pass failed:', e?.message); }
+  }
+
   // ── 6) Return everything in one response ────────────────────────────
   // Full DB-mirror tx list: this run's built records PLUS retained DB rows
   // back to the retention floor, minus purged ones. The frontend replace-saves
@@ -1055,6 +1103,7 @@ async function handleGetCodData(base44, payload={}) {
     deliverySyncWindow: { startDate: formatLocalDate(new Date(Date.now() - daysBack * 86400000)), endDate: formatLocalDate(new Date()), daysBack, refreshedAt: refreshDeliveries ? new Date().toISOString() : null },
     catalogRecords: filteredCatalogRecords,
     transactionRecords: mergedTxRecords,
+    autoCreatedCount,
     txRetentionFloor,
     deletedCatalogIds,
     cleanupDbCount,
