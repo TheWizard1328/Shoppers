@@ -533,6 +533,10 @@ export default function SquareManagement() {
         // Catalog push path (syncSquareCods → Square Catalog API + both DBs),
         // which is the same code the button runs. The refs update on the
         // re-render after the setState calls above, so check them shortly.
+        // 45s delay: the sync just made a burst of Square API calls — firing
+        // the push immediately after trips Square's per-minute rate limit
+        // right before the UI/DB updates (owner report, Sep 27). Wait for the
+        // rate window to recover first.
         setTimeout(() => {
           try {
             const catalogDeliveryIds = new Set(
@@ -552,7 +556,7 @@ export default function SquareManagement() {
           } catch (e) {
             console.warn('[SquareManagement] Post-sync Update Catalog trigger failed:', e?.message);
           }
-        }, 150);
+        }, 45000);
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];

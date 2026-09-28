@@ -4,7 +4,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const SB = 'https://connect.squareup.com';
 const SV = '2025-01-23';
-const MR = 3; const RD = 400;
+const MR = 5; const RD = 400;
 class HE extends Error { constructor(s, m) { super(m); this.status = s; } }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const nt = (v) => String(v || '').trim();
@@ -27,9 +27,9 @@ async function sf(path, method, token, body) {
     try {
       const r = await fetch(`${SB}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Square-Version': SV }, body: body ? JSON.stringify(body) : undefined });
       const t = await r.text(); const j = t ? JSON.parse(t) : {};
-      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(Number(r.status) === 429 ? 2500 * a : RD * a); continue; } throw le; }
+      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(Number(r.status) === 429 ? 5000 * a : RD * a); continue; } throw le; }
       return j;
-    } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(Number(e?.status) === 429 ? 1500 * a : RD * a); continue; } throw le; }
+    } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(Number(e?.status) === 429 ? 5000 * a : RD * a); continue; } throw le; }
   }
   throw le || new Error('Square API failed');
 }
