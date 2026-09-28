@@ -68,6 +68,27 @@ function pickCityWeather(weather, currentUser) {
   return null; // ambiguous — hide rather than show a wrong-city reading
 }
 
+// ── H/L LATCH (owner request, Sep 28 2026) ──────────────────────────────────
+// Within a city+day, the displayed Max may ONLY go UP and the displayed Min
+// may ONLY go DOWN. Forecast services nudge the projected high/low up and
+// down every poll; on the bar that made the H/L marker lines and their labels
+// jitter 0.5-1° every 5 minutes. The latch watermarks the extremes per
+// city+date and never regresses toward milder values. New day or new city →
+// fresh latch seeded from the first reading.
+function latchExtremes(prev, w) {
+  const key = `${w.city_id || w.city_name || '?'}|${w.date || ''}`;
+  const high = Number.isFinite(Number(w.high)) ? Number(w.high) : null;
+  const low = Number.isFinite(Number(w.low)) ? Number(w.low) : null;
+  if (!prev || prev.key !== key) {
+    return { key, high, low };
+  }
+  return {
+    key,
+    high: (high != null && (prev.high == null || high > prev.high)) ? high : prev.high,
+    low: (low != null && (prev.low == null || low < prev.low)) ? low : prev.low,
+  };
+}
+
 function DashboardWeatherBar({
   currentUser, statsContainerBaseHeight, stopCardsBaseHeight, immersiveHidden,
   statsContainerRef, horizontalStopCardsRef, mapAreaRef,
@@ -75,6 +96,12 @@ function DashboardWeatherBar({
   const [entry, setEntry] = useState(null);
   const userRef = useRef(currentUser);
   userRef.current = currentUser;
+  const latchRef = useRef(null);
+  const setEntryLatched = useCallback((w) => {
+    if (!w) { setEntry(null); return; }
+    latchRef.current = latchExtremes(latchRef.current, w);
+    setEntry({ ...w, high: latchRef.current.high, low: latchRef.current.low });
+  }, []);
 
   // ── EMPIRICAL GEOMETRY ────────────────────────────────────────────────────
   // Earlier formula-based anchors (window.innerHeight minus prop heights)
@@ -167,7 +194,7 @@ function DashboardWeatherBar({
     let alive = true;
     const load = (force) =>
       getDashboardWeather({ force })
-        .then((w) => { if (alive) setEntry(pickCityWeather(w, userRef.current)); })
+        .then((w) => { if (alive) setEntryLatched(pickCityWeather(w, userRef.current)); })
         .catch(() => {});
     load(false);
     // Poll pushes land as AppSettings entity writes → realtimeSync dispatches
