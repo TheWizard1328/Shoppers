@@ -259,16 +259,39 @@ async function handleGetCodData(base44, payload={}) {
   });
 
   // ── 2) Fetch Square API: catalog + orders in parallel (ONE pass each) ─
-  console.log('[squareGetCodData2] Fetching Square catalog + orders...');
-  const [liveCatalogItems, recentOrders] = await Promise.all([
-    listActiveCatalogItems(accessToken),
-    listOrders(locationIds, orderWindowStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN'], 'DESC', orderWindowEndAt),
-  ]);
+  // ── 2b) Incremental order fetch (owner speed spec, Sep 28) ─────────────
+  // The 90-day full-window order pull is the slowest part of the sync. When the
+  // frontend passes orderFetchSince (its last successful fetch minus a 7-day
+  // overlap), only COMPLETED orders created since then are pulled — older ones
+  // are already mirrored in the retained DB rows, which step 6 merges into the
+  // response anyway. OPEN orders keep the full window: they can sit created for
+  // days before being rung up, and there are only ever a handful. No marker
+  // (or stale >14d) → the original full-window fetch runs, unchanged.
+  const _ofsRaw = payload?.orderFetchSince || null;
+  const _ofsMs = _ofsRaw ? new Date(_ofsRaw).getTime() : 0;
+  const orderFetchSince = (Number.isFinite(_ofsMs) && _ofsMs > 0 && Date.now() - _ofsMs < 14 * 86400000 && _ofsMs <= Date.now()) ? new Date(_ofsMs).toISOString() : null;
+
+  console.log('[squareGetCodData2] Fetching Square catalog + orders...', orderFetchSince ? { incremental: true, since: orderFetchSince } : { incremental: false });
+  let liveCatalogItems; let recentOrders;
+  if (orderFetchSince) {
+    const [catalog, openOrders, completedSince] = await Promise.all([
+      listActiveCatalogItems(accessToken),
+      listOrders(locationIds, orderWindowStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['OPEN'], 'DESC', orderWindowEndAt),
+      listOrders(locationIds, orderFetchSince, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED'], 'DESC'),
+    ]);
+    liveCatalogItems = catalog;
+    recentOrders = [...completedSince, ...openOrders];
+  } else {
+    [liveCatalogItems, recentOrders] = await Promise.all([
+      listActiveCatalogItems(accessToken),
+      listOrders(locationIds, orderWindowStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN'], 'DESC', orderWindowEndAt),
+    ]);
+  }
   let completedOrders = recentOrders;
   // Newest-first cap hit → the oldest part of the window was never fetched.
   // Fetch the remainder oldest-first and merge (dedupe by order id) so the
   // whole daysBack window is covered for collection matching.
-  if (recentOrders.length >= MAX_TRANSACTION_ORDERS) {
+  if (!orderFetchSince && recentOrders.length >= MAX_TRANSACTION_ORDERS) {
     const boundary = new Date(new Date(recentOrders[recentOrders.length - 1].created_at).getTime() - 3600000).toISOString();
     const olderOrders = await listOrders(locationIds, orderWindowStartAt, accessToken, 8000, ['COMPLETED', 'OPEN'], 'ASC', boundary || orderWindowEndAt);
     const seen = new Set(completedOrders.map((o) => o.id));
@@ -664,10 +687,20 @@ async function handleGetCodData(base44, payload={}) {
     // Catalog Items" forever. Now EVERY unstamped completed cash COD candidate
     // (in-window or not) is scanned against completed Square orders by exact
     // name+amount signature and stamped cod_confirmed_collected on match.
+    // Skip candidates scanned within the last 14 days (owner speed spec, Sep 28):
+    // this scan re-fetches MONTHS of Square orders every single sync while even
+    // one old unmatched candidate exists. Scanned-but-unmatched candidates are
+    // negative-stamped below (cod_scan_at) so steady-state syncs skip the scan
+    // entirely; the 14-day TTL gives new/late-rung orders a periodic retry.
+    const WIDE_SCAN_TTL_MS = 14 * 86400000;
+    const scanIsFresh = (d) => {
+      const v = d?.cod_scan_at ? new Date(d.cod_scan_at).getTime() : 0;
+      return Number.isFinite(v) && v > 0 && Date.now() - v < WIDE_SCAN_TTL_MS;
+    };
     const wideCandidates = (activeDeliveriesWithAmounts || []).filter((d) =>
       d?.id && isCashCod(d) && !d?.cod_confirmed_collected &&
       !collectedDeliveryIds.has(d.id) && !confirmedCollectedDeliveryIds.has(d.id) &&
-      d?.delivery_date);
+      !scanIsFresh(d) && d?.delivery_date);
     if (wideCandidates.length > 0) {
       const oldest = wideCandidates.map((d) => String(d.delivery_date)).sort()[0];
       const wideStartAt = new Date(new Date(`${oldest}T00:00:00`).getTime() - 3 * 86400000).toISOString();
@@ -687,6 +720,16 @@ async function handleGetCodData(base44, payload={}) {
         for (const id of wideConfirmedIds) { collectedDeliveryIds.add(id); confirmedCollectedDeliveryIds.add(id); }
         console.log('[squareGetCodData2] wide collected-confirmed:', wideConfirmedIds.size, 'delivery(ies):', [...wideConfirmedIds].join(','));
       }
+      // Negative-stamp every scanned candidate that did NOT match, so the next
+      // sync skips it (and skips the whole months-wide order re-fetch) for 14
+      // days. Batched to avoid a per-row API storm.
+      const scanStamp = new Date().toISOString();
+      const unmatchedIds = wideCandidates.map((d) => d.id).filter((id) => !wideConfirmedIds.has(id));
+      for (let i = 0; i < unmatchedIds.length; i += 50) {
+        await Promise.all(unmatchedIds.slice(i, i + 50).map((id) =>
+          base44.asServiceRole.entities.Delivery.update(id, { cod_scan_at: scanStamp }).catch(() => null)));
+      }
+      if (unmatchedIds.length > 0) console.log('[squareGetCodData2] wide scan negative-stamped:', unmatchedIds.length, 'candidate(s) — skipped for 14 days');
     }
   } catch (e) { console.warn('[squareGetCodData2] wide collected scan failed:', e?.message || e); }
 

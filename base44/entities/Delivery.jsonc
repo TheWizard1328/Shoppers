@@ -155,6 +155,12 @@
       "type": "string",
       "description": "ISO timestamp when COD collection was confirmed via Square POS"
     },
+    "cod_scan_at": {
+      "title": "COD wide-scan timestamp",
+      "type": "string",
+      "format": "date-time",
+      "description": "Last wide collected-scan that found NO matching Square order for this delivery; sync skips re-scanning it for 14 days"
+    },
     "cp_envelopes": {
       "type": "number",
       "default": 0,

@@ -618,12 +618,26 @@ export default function SquareManagement() {
       let syncError = null;
       let codData = null;
       try {
-        console.log('[SquareManagement] SYNC STEP 2: Square API fetch starting (squareGetCodData2, daysBack=90)');
+        // Incremental order fetch (owner speed spec, Sep 28): pass the last
+        // successful fetch minus a 7-day overlap so the backend only pulls
+        // COMPLETED Square orders created since then instead of the whole
+        // 90-day window. Older orders are already mirrored in the retained DB
+        // rows the response merges in. No marker / stale marker (14d) → full
+        // window, same as before. Marker is only stamped on SUCCESS, so a
+        // failed sync can never leave a coverage gap.
+        const LS_ORDER_SINCE = 'squareCod_lastOrderFetchAt';
+        const lastOrderFetch = Number(localStorage.getItem(LS_ORDER_SINCE) || 0);
+        const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
+          ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
+          : null;
+        console.log(`[SquareManagement] SYNC STEP 2: Square API fetch starting (squareGetCodData2, daysBack=90${orderFetchSince ? ', incremental since ' + orderFetchSince : ', full window'} )`);
         const codResponse = await invokeWithLongTimeout('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: 90,
+          ...(orderFetchSince ? { orderFetchSince } : {}),
         });
         codData = codResponse?.data || codResponse || {};
+        localStorage.setItem(LS_ORDER_SINCE, String(Date.now()));
         console.log(`[SquareManagement] SYNC STEP 2: Square API fetch done — ${(codData.transactions || codData.transactionRecords || []).length} txs, ${(codData.catalog || codData.catalogRecords || []).length} catalog, ${(codData.deletedCatalogIds || []).length} deleted`);
       } catch (err) {
         syncError = err;
