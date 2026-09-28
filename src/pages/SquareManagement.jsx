@@ -661,10 +661,12 @@ export default function SquareManagement() {
         console.log('[SquareManagement] SYNC STEP 4: UI updated');
 
         // ── STEP 5 (FINAL): run the Update Catalog path for everything the
-        // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). Runs
-        // directly in sequence — no more 15s delayed auto-click. A short
-        // push reads the fresh list. (Sep 28: 15s→2s settle removed — the 1s
-        // render flush below is enough; refs flush within it.)
+        // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). The
+        // 1s render flush comes FIRST: runReconcile's setStates haven't
+        // re-rendered yet, so reading the refs synchronously saw the
+        // PRE-sync list — that's why Update Catalog only ever ran after the
+        // SECOND sync (owner report, Sep 28).
+        await new Promise((r) => setTimeout(r, 1000));
         try {
           const catalogDeliveryIds = new Set(
             (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
@@ -678,13 +680,12 @@ export default function SquareManagement() {
           });
           console.log(`[SquareManagement] SYNC STEP 5: New Catalog Items present = ${hasNewItems}`);
           if (hasNewItems) {
-            // Release the sync guards so updateCatalog's own guard lets it run.
-            // The flush wait is required: setIsSyncing(false) re-renders and
-            // re-binds updateCatalogRef.current — calling the ref immediately
-            // still hit the OLD callback whose isSyncing closure was true and
-            // returned early (the "sync never starts Update Catalog" bug).
-            g.__squareCodSyncInFlight = false;
-            syncInFlightRef.current = false;
+            // Only the isSyncing STATE is released (updateCatalog guards on
+            // it) — the in-flight refs/global stay held until the sync's
+            // finally, so no second sync trigger can start mid-STEP-5 and
+            // double-run the Square API burst into a rate limit (owner
+            // report, Sep 28). The 1s flush re-binds updateCatalogRef to the
+            // re-rendered callback whose isSyncing closure is now false.
             setIsSyncing(false);
             await new Promise((r) => setTimeout(r, 1000));
             console.log('[SquareManagement] SYNC STEP 5: running Update Catalog path');
@@ -749,6 +750,11 @@ export default function SquareManagement() {
     } finally {
       syncInFlightRef.current = false;
       globalThis.__squareCodSyncInFlight = false;
+      // Stamp the cooldown at sync END — stamping it at sync START let a
+      // slow first sync (30s+) immediately re-trigger a duplicate sync when
+      // a page-load trigger landed right after the cooldown elapsed (owner
+      // report, Sep 28).
+      globalThis.__squareCodLastSyncAt = Date.now();
       setIsSyncing(false);
       setIsLoading(false);
       await loadSyncStatus();
