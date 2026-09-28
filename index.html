@@ -14,6 +14,26 @@
     <!-- trigger redeploy -->
     <title>RxDeliver</title>
       <script>
+    // Early dark-mode apply (owner fix, Sep 28): the loading screen flashed
+    // LIGHT for ~1-2s before the app mounted and useAutoThemeSync's effect
+    // ran, even for users on dark mode — that effect only fires after React
+    // renders, so there's a visible flash of the wrong theme every load.
+    // This runs synchronously in <head>, before <div id="root"> exists, so
+    // the 'dark' class lands on <html> before the loading screen's first
+    // paint. Preference source, in order: cached explicit choice
+    // (localStorage 'rxdeliver_theme_preference', written by
+    // useAutoThemeSync whenever the real preference resolves) → OS/browser
+    // dark-mode media query. Matches useAutoThemeSync's own logic exactly so
+    // there is no mismatch once React takes over.
+    (function() {
+      try {
+        var pref = localStorage.getItem('rxdeliver_theme_preference');
+        var isDark = pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) document.documentElement.classList.add('dark');
+      } catch(e) {}
+    })();
+    </script>
+    <script>
     // Native OAuth redirect: if we land on the PWA with an access_token
     // (from Base44's OAuth callback) on a mobile browser, redirect to the
     // native app via custom scheme BEFORE any modules load. This runs

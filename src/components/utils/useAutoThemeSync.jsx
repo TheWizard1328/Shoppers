@@ -22,6 +22,10 @@ export default function useAutoThemeSync(themePreference) {
 
   useEffect(() => {
     const root = document.documentElement;
+    // Cache the RESOLVED preference (owner fix, Sep 28) so index.html's
+    // pre-React head script can apply the correct theme on the very next
+    // load before any JS/React runs — eliminates the light-flash on load.
+    try { localStorage.setItem('rxdeliver_theme_preference', themePreference || 'auto'); } catch { /* non-fatal */ }
 
     if (themePreference === 'dark') {
       root.classList.remove('auto-theme', 'light-theme');
