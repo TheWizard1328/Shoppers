@@ -83,15 +83,25 @@ export default function Login() {
           <Link to="/register" className="text-primary font-medium hover:underline">
             Create one
           </Link>
-          <div className="mt-4 pt-4 border-t border-border">
-            <Link to="/patient-login" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-1.5">
-              <HeartPulse className="w-3.5 h-3.5" />
-              Are you a patient? Access the Patient Portal
-            </Link>
-          </div>
         </>
       }
     >
+      {/* Patient Portal entry — promoted to a full-width button ABOVE the
+          OAuth options (owner request, Sep 28 2026). It used to be a small
+          text link buried at the very bottom of the page and patients kept
+          missing it. Button styling + placement makes it stand out on both
+          web and the native APK. */}
+      <Link to="/patient-login" className="block mb-5 no-underline">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full h-12 text-sm font-semibold border-primary/50 text-primary hover:bg-primary/10 hover:text-primary gap-2"
+        >
+          <HeartPulse className="w-5 h-5" />
+          I'm a Patient — Open the Patient Portal
+        </Button>
+      </Link>
+
       {/* OAuth provider buttons — hidden inside Capacitor APK/IPA builds */}
       <div className="space-y-3 mb-6">
         <Button variant="outline" className="w-full h-12 text-sm font-medium" onClick={handleGoogle}>
