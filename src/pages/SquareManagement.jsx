@@ -450,6 +450,11 @@ export default function SquareManagement() {
       setSoldCatalogItems([...(offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
 
       toast.success('Reconciliation list updated');
+      console.log('[SquareManagement] RECONCILE list rebuilt from IDB:', {
+        deliveries: allOfflineDeliveries?.length || 0,
+        catalogItems: offlineCatalog?.length || 0,
+        transactions: offlineTransactions?.length || 0,
+      });
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
     } finally {

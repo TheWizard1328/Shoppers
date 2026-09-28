@@ -109,11 +109,11 @@ async function buildPMaps(b44, deliveries) {
 }
 
 // ── INLINE COD ITEM CREATION ──
-async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipBookkeeping = false) {
+async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipBookkeeping = false, prefetched = null) {
   const token = et();
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
-  const dr = await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
+  const dr = (prefetched?.drById?.get(deliveryId) !== undefined) ? prefetched.drById.get(deliveryId) : await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
   // Skip terminal-status deliveries, and completed deliveries paid by card or
   // check (Debit/Credit/Check are treated as collected directly — no Square
   // catalog item is needed for those, Check is treated like a card payment).
@@ -139,14 +139,24 @@ async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipB
   if (dr?.cod_confirmed_collected) {
     return { success: true, skipped: true, reason: 'cod_confirmed_collected' };
   }
-  const completedTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
+  const completedTxs = prefetched ? (prefetched.completedByDelivery.get(deliveryId) || []) : await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
   if (completedTxs?.length > 0) {
     return { success: true, skipped: true, reason: 'completed_transaction_exists', transactionId: completedTxs[0]?.id };
   }
-  const { pById, pByPid } = await buildPMaps(b44, dr ? [dr] : []);
+  const pMaps = prefetched?.pById ? prefetched : (await buildPMaps(b44, dr ? [dr] : []));
+  const pById = pMaps.pById, pByPid = pMaps.pByPid;
   const pr = dr ? await resolvePatient(b44, dr, pById, pByPid) : null;
   const effStoreId = storeId || dr?.store_id;
-  const { store, locationId } = await getStoreCtx(b44, effStoreId);
+  let store, locationId;
+  if (prefetched) {
+    store = prefetched.storeById.get(effStoreId) || null;
+    if (!store) throw new HE(400, `Store not found: ${effStoreId}`);
+    if (!store.square_location_config_id) throw new HE(400, `Store "${store.name}" not configured for Square COD`);
+    const cfg = prefetched.cfgById.get(store.square_location_config_id);
+    if (!cfg) throw new HE(400, `Square config not found for store "${store.name}"`);
+    if (cfg.status !== 'active') throw new HE(400, `Square location "${cfg.name}" inactive for store "${store.name}"`);
+    locationId = cfg.square_location_id;
+  } else ({ store, locationId } = await getStoreCtx(b44, effStoreId));
   // Store not Square-configured — creating an item would float with no location
   // and no register to ring it through. Never create for ineligible stores.
   if (!locationId) {
@@ -166,7 +176,7 @@ async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipB
   // NOTE: Do NOT skip even if a pending tx already references a catalog object —
   // that reference may be stale (the Square object could have been deleted by a
   // prior sync cleanup). Fall through to verify against the live catalog.
-  const ep = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
+  const ep = prefetched ? (prefetched.pendingByDelivery.get(deliveryId) || []) : await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
   let catId, catVer;
   if (ep?.length && ep[0]?.square_catalog_object_id && (ep[0]?.item_name !== iname || ep[0]?.amount_cents !== ac)) {
     // Existing pending tx with different name/amount — update the live item.
@@ -203,7 +213,7 @@ async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipB
   // catalog to the online DB in ONE bulk call (squareBulkSaveBookkeeping).
   // Per-item online create/update calls were the suspected rate-limit driver.
   if (skipBookkeeping) {
-    const exTx = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
+    const exTx = prefetched ? (prefetched.pendingByDelivery.get(deliveryId) || []) : await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
     return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, locationId, patientName: epn, deliveryDate: rdd,
       catPayload: cp, txPayload: { ...cp, type: 'collection', status: 'pending', delivery_id: deliveryId }, txExistingId: exTx[0]?.id || null };
   }
@@ -319,6 +329,42 @@ Deno.serve(async (req) => {
     if (items.length > 0) {
       try { batchLiveCatalog = await lc(et()); } catch (e) { console.warn('[syncSquareCods] Batch catalog prefetch failed, falling back to per-item fetches:', e?.message); }
     }
+    // ── BATCH PREFETCH (owner report, Sep 27: per-item "Rate limit exceeded"
+    // right after the sync). Each item used to make ~6 service-role entity
+    // reads (delivery, completed/pending txs, store, config, patients) — that
+    // multiplied by the sync's own entity-write storm tripped the platform
+    // throttle. Everything for the WHOLE batch is now prefetched with $in
+    // filters in a handful of calls; per-item entity reads are gone.
+    let prefetched = null;
+    if (items.length > 0) {
+      try {
+        const ids = items.map((i) => i?.deliveryId).filter(Boolean);
+        const storeIds = Array.from(new Set(items.map((i) => i?.storeId).filter(Boolean)));
+        const [drRows, completedTxs, pendingTxs, storeRows] = await Promise.all([
+          b.asServiceRole.entities.Delivery.filter({ id: { $in: ids } }, '-updated_date', ids.length + 10).catch(() => []),
+          b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: { $in: ids }, status: 'completed' }, '-updated_date', 500).catch(() => []),
+          b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: { $in: ids }, status: 'pending' }, '-updated_date', 500).catch(() => []),
+          b.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }).catch(() => []),
+        ]);
+        const cfgIds = Array.from(new Set((storeRows || []).map((st) => st?.square_location_config_id).filter(Boolean)));
+        const cfgRows = await b.asServiceRole.entities.SquareLocationConfig.filter({ id: { $in: cfgIds } }).catch(() => []);
+        const pMaps = await buildPMaps(b, (drRows || []));
+        prefetched = {
+          drById: new Map((drRows || []).map((d) => [d.id, d])),
+          completedByDelivery: new Map(),
+          pendingByDelivery: new Map(),
+          storeById: new Map((storeRows || []).map((st) => [st.id, st])),
+          cfgById: new Map((cfgRows || []).map((c) => [c.id, c])),
+          pById: pMaps.pById,
+          pByPid: pMaps.pByPid,
+        };
+        (completedTxs || []).forEach((t) => { if (t?.delivery_id) { const a = prefetched.completedByDelivery.get(t.delivery_id) || []; a.push(t); prefetched.completedByDelivery.set(t.delivery_id, a); } });
+        (pendingTxs || []).forEach((t) => { if (t?.delivery_id) { const a = prefetched.pendingByDelivery.get(t.delivery_id) || []; a.push(t); prefetched.pendingByDelivery.set(t.delivery_id, a); } });
+      } catch (e) {
+        console.warn('[syncSquareCods] Batch prefetch failed — falling back to per-item entity reads:', e?.message);
+        prefetched = null;
+      }
+    }
     for (const del of deletions) {
       try {
         const r = await handleDeleteCodItem(b, { deliveryId: del?.deliveryId, catalogObjectId: del?.catalogObjectId, transactionId: del?.transactionId, reason: del?.status === 'failed' ? 'failed' : del?.reason });
@@ -336,7 +382,7 @@ Deno.serve(async (req) => {
       // us under the limit while finishing 107 items in ~40s.
       if (ii > 0) await sleep(600);
       try {
-        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog, skipBookkeeping);
+        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog, skipBookkeeping, prefetched);
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
       } catch (error) {
         console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message, error?.status ? `(status ${error.status})` : '');
