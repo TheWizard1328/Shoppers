@@ -569,17 +569,26 @@ export default function SquareManagement() {
 
   const syncFromSquare = async () => {
     const now = Date.now();
-    // GLOBAL guards (window-level): page load was firing the sync TWICE —
-    // two component/module instances (stale hot-reload module + fresh one)
-    // each passed their own per-instance ref guards and ran full Square API
-    // bursts 4s apart (owner log, Sep 27). These globals dedupe across every
-    // instance on the device.
-    const g = globalThis;
-    if (g.__squareCodSyncInFlight || syncInFlightRef.current || now - (g.__squareCodLastSyncAt || 0) < 30000 || now - lastSyncAtRef.current < 30000) {
+    // SHARED guards (localStorage-level): page load fired the sync TWICE even
+    // with window-global guards (owner log 12:24 AM, Sep 28) — the builder
+    // bridge hot-swaps a NEW module version (builder-bridge.js?t=...276)
+    // while the OLD one (t=...236) is still mid-run, and each version runs in
+    // its own realm where globalThis flags never meet. localStorage is shared
+    // by every instance/iframe of this origin, so the lock and cooldown live
+    // there. The lease (4 min) self-expires if a sync dies without a finally,
+    // so a crashed run can't deadlock the page.
+    const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
+    const LS_START = 'squareCodSync_lastStartAt';
+    const leaseUntil = Number(localStorage.getItem(LS_INFLIGHT) || 0);
+    const lastStart = Number(localStorage.getItem(LS_START) || 0);
+    if (leaseUntil > now || lastStart > 0 && now - lastStart < 30000 || syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
       console.log('[SquareManagement] SYNC SKIPPED — already running or cooling down');
       return;
     }
+    localStorage.setItem(LS_INFLIGHT, String(now + 240000));
+    localStorage.setItem(LS_START, String(now));
 
+    const g = globalThis;
     g.__squareCodSyncInFlight = true;
     g.__squareCodLastSyncAt = now;
     syncInFlightRef.current = true;
@@ -764,10 +773,12 @@ export default function SquareManagement() {
     } finally {
       syncInFlightRef.current = false;
       globalThis.__squareCodSyncInFlight = false;
-      // Stamp the cooldown at sync END — stamping it at sync START let a
-      // slow first sync (30s+) immediately re-trigger a duplicate sync when
-      // a page-load trigger landed right after the cooldown elapsed (owner
-      // report, Sep 28).
+      // Release the cross-instance lock and stamp the cooldown at sync END —
+      // stamping it at sync START let a slow first sync (30s+) immediately
+      // re-trigger a duplicate sync when a page-load trigger landed right
+      // after the cooldown elapsed (owner report, Sep 28).
+      localStorage.setItem('squareCodSync_inFlightUntil', '0');
+      localStorage.setItem('squareCodSync_lastStartAt', String(Date.now()));
       globalThis.__squareCodLastSyncAt = Date.now();
       setIsSyncing(false);
       setIsLoading(false);
