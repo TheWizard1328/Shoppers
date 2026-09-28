@@ -36,6 +36,7 @@
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getDashboardWeather, pollDashboardWeatherNow } from '@/components/utils/dashboardWeatherSettings';
+import { edmontonWallString } from '@/components/utils/albertaTime';
 
 const WEATHER_ICONS = Object.freeze({
   sun: '☀️', partly: '🌤️', cloud: '☁️', fog: '🌫️',
@@ -68,25 +69,34 @@ function pickCityWeather(weather, currentUser) {
   return null; // ambiguous — hide rather than show a wrong-city reading
 }
 
-// ── H/L LATCH (owner request, Sep 28 2026) ──────────────────────────────────
-// Within a city+day, the displayed Max may ONLY go UP and the displayed Min
-// may ONLY go DOWN. Forecast services nudge the projected high/low up and
-// down every poll; on the bar that made the H/L marker lines and their labels
-// jitter 0.5-1° every 5 minutes. The latch watermarks the extremes per
-// city+date and never regresses toward milder values. New day or new city →
-// fresh latch seeded from the first reading.
-function latchExtremes(prev, w) {
-  const key = `${w.city_id || w.city_name || '?'}|${w.date || ''}`;
+// ── H/L FREEZE AT BEGINNING OF DAY (owner request, Sep 28 2026) ─────────────
+// The displayed Max/Min are LOCKED to the first reading captured for each
+// city at the start of the Edmonton day and never move for the rest of that
+// day. Forecast services nudge the projected high/low up and down every
+// poll; the bar now shows the day's ORIGINAL forecast instead of chasing it.
+// Persisted in localStorage so app restarts / reloads keep the same values
+// (a reload mid-day must NOT re-seed from the current forecast). New
+// Edmonton day or new city → fresh seed from the next reading.
+const HL_FREEZE_KEY = 'rxdeliver_weather_hl_day_freeze';
+function dayFreezeKey(w) {
+  const city = w.city_id || w.city_name || '?';
+  let day = '';
+  try { day = edmontonWallString(new Date()).slice(0, 10); } catch { day = ''; }
+  return `${city}|${day}`;
+}
+function readFreeze() {
+  try { return JSON.parse(localStorage.getItem(HL_FREEZE_KEY) || 'null'); } catch { return null; }
+}
+function freezeExtremes(w) {
+  const key = dayFreezeKey(w);
+  let freeze = readFreeze();
   const high = Number.isFinite(Number(w.high)) ? Number(w.high) : null;
   const low = Number.isFinite(Number(w.low)) ? Number(w.low) : null;
-  if (!prev || prev.key !== key) {
-    return { key, high, low };
+  if (!freeze || freeze.key !== key) {
+    freeze = { key, high, low };
+    try { localStorage.setItem(HL_FREEZE_KEY, JSON.stringify(freeze)); } catch { /* non-fatal */ }
   }
-  return {
-    key,
-    high: (high != null && (prev.high == null || high > prev.high)) ? high : prev.high,
-    low: (low != null && (prev.low == null || low < prev.low)) ? low : prev.low,
-  };
+  return freeze;
 }
 
 function DashboardWeatherBar({
@@ -96,11 +106,10 @@ function DashboardWeatherBar({
   const [entry, setEntry] = useState(null);
   const userRef = useRef(currentUser);
   userRef.current = currentUser;
-  const latchRef = useRef(null);
   const setEntryLatched = useCallback((w) => {
     if (!w) { setEntry(null); return; }
-    latchRef.current = latchExtremes(latchRef.current, w);
-    setEntry({ ...w, high: latchRef.current.high, low: latchRef.current.low });
+    const freeze = freezeExtremes(w);
+    setEntry({ ...w, high: freeze.high, low: freeze.low });
   }, []);
 
   // ── EMPIRICAL GEOMETRY ────────────────────────────────────────────────────
