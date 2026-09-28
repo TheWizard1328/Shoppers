@@ -95,11 +95,23 @@ function DashboardWeatherBar({
     if (!parent) return;
     const parentRect = parent.getBoundingClientRect();
 
-    // Top: live stats panel bottom
+    // Top: the stats card's LAST ALWAYS-VISIBLE row ([data-stats-base-end]
+    // — the ActivePayStats/chevron row). Anchoring here (instead of the
+    // container bottom) means expanding the stats card does NOT move or
+    // resize the bar: the expanded AnimatePresence content grows BELOW this
+    // row (owner request, Sep 28 2026 — bar height must be unaffected by
+    // stats-card expansion). Fallback chain keeps old behavior for
+    // first-paint / layouts without the marker.
     let top = 0;
-    const statsEl = statsContainerRef?.current;
-    if (statsEl) {
-      top = Math.max(0, statsEl.getBoundingClientRect().bottom - parentRect.top) + 6;
+    const baseEnd = document.querySelector('[data-stats-base-end]');
+    const baseEndRect = baseEnd && baseEnd.offsetParent !== null ? baseEnd.getBoundingClientRect() : null;
+    if (baseEndRect) {
+      top = Math.max(0, baseEndRect.bottom - parentRect.top) + 8;
+    } else {
+      const statsEl = statsContainerRef?.current;
+      if (statsEl) {
+        top = Math.max(0, statsEl.getBoundingClientRect().bottom - parentRect.top) + 6;
+      }
     }
     if (!top) top = (Number(statsContainerBaseHeight) || 0) + 6;
 

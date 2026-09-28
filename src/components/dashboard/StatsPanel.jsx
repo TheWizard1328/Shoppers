@@ -559,7 +559,12 @@ export default function StatsPanel({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-1.5">
+          {/* data-stats-base-end: marks the last ALWAYS-VISIBLE row of the
+              stats card — everything below (the AnimatePresence expanded
+              content) grows below it. DashboardWeatherBar anchors its top to
+              THIS row's bottom so the temp bar's height/position never change
+              when the stats card expands (owner request, Sep 28 2026). */}
+          <div data-stats-base-end="true" className="flex items-center justify-between gap-1.5">
             <ActivePayStats
                 deliveryStats={deliveryStats}
                 localStats={stats}
