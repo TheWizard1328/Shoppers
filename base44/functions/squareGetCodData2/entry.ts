@@ -303,7 +303,16 @@ async function handleGetCodData(base44, payload={}) {
       const ae = fh.filter((e) => e?.pays_app_fees === true && e?.effective_date).sort((a, b) => String(a.effective_date).localeCompare(String(b.effective_date)));
       storeSquareEligibility.set(store.id, ae.length > 0 ? ae[0].effective_date : null);
     }
-    const rawDeliveries = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDateStr, $lte: endDateStr } }, '-updated_date', 5000).catch(() => []);
+    // COD-only at query level (owner speed spec, Sep 28): the unfiltered 90-day
+    // window pulled every delivery (~thousands of rows) and discarded the non-COD
+    // ones after download. The $gt filter does that in the database. A [] result
+    // falls back to the old unfiltered query once, in case the platform ever
+    // rejects the numeric comparison (an honest empty set is confirmed, not
+    // mistaken for a filter failure — the fallback returns [] too).
+    let rawDeliveries = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDateStr, $lte: endDateStr }, cod_total_amount_required: { $gt: 0 } }, '-updated_date', 5000).catch(() => []);
+    if (!rawDeliveries || rawDeliveries.length === 0) {
+      rawDeliveries = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDateStr, $lte: endDateStr } }, '-updated_date', 5000).catch(() => []);
+    }
     const all = (Array.isArray(rawDeliveries) ? rawDeliveries : []).map(unwrapEntityRecord).filter(Boolean);
     return all.filter((d) => { if (!storeSquareEligibility.has(d?.store_id)) return false; const ef = storeSquareEligibility.get(d.store_id); return !(ef && d.delivery_date < ef); });
   })());
@@ -809,7 +818,14 @@ async function handleGetCodData(base44, payload={}) {
     const floorDays = Math.max(daysBack, 180);
     const fStart = formatLocalDate(new Date(Date.now() - floorDays * 86400000));
     const fEnd = formatLocalDate(new Date());
-    const rawFd = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: fStart, $lte: fEnd } }, 'delivery_date', 5000).catch(() => []);
+    // COD-only at query level too — the uncollected-floor candidates below filter
+    // cod>0 anyway, so the query filter only removes rows that were downloaded
+    // and immediately discarded. This fetch spans up to 180 days, so the win is
+    // even bigger than the main fetch. Same [] fallback guard as above.
+    let rawFd = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: fStart, $lte: fEnd }, cod_total_amount_required: { $gt: 0 } }, 'delivery_date', 5000).catch(() => []);
+    if (!rawFd || rawFd.length === 0) {
+      rawFd = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: fStart, $lte: fEnd } }, 'delivery_date', 5000).catch(() => []);
+    }
     const allFd = (Array.isArray(rawFd) ? rawFd : []).map(unwrapEntityRecord).filter(Boolean);
     const floorEligibility = new Map();
     for (const store of safeStores) {
