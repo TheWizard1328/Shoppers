@@ -35,7 +35,7 @@
  * otherwise hide (never show the wrong city's weather).
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getDashboardWeather } from '@/components/utils/dashboardWeatherSettings';
+import { getDashboardWeather, pollDashboardWeatherNow } from '@/components/utils/dashboardWeatherSettings';
 
 const WEATHER_ICONS = Object.freeze({
   sun: '☀️', partly: '🌤️', cloud: '☁️', fog: '🌫️',
@@ -141,11 +141,15 @@ function DashboardWeatherBar({
     // this event on every subscribed device — force a fresh read each time.
     const onSettings = () => { load(true); measureGeo(); };
     window.addEventListener('appSettingsUpdated', onSettings);
-    // While the dashboard is open, re-read every 5 minutes. If the stored
-    // snapshot is stale by then, the getter's stale-trigger fires a background
-    // poll (dashboardWeatherPoll) and the fresh data lands here — this keeps
-    // the bar live even if this device never receives the WS broadcast.
-    const interval = setInterval(() => { load(true); measureGeo(); }, 5 * 60 * 1000);
+    // While the dashboard is open, POLL every 5 minutes (owner request, Sep 28)
+    // — not just re-read. The poll runs even with no drivers on duty (backend
+    // fetches ALL cities) and pushes fresh data to every open device. Then a
+    // local re-read covers the case where this device misses the broadcast.
+    const interval = setInterval(() => {
+      pollDashboardWeatherNow().catch(() => {});
+      load(true);
+      measureGeo();
+    }, 5 * 60 * 1000);
     return () => {
       alive = false;
       window.removeEventListener('appSettingsUpdated', onSettings);

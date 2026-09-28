@@ -34,18 +34,36 @@ let _lastClientPoll = 0;
  * re-read and re-broadcast so the bar updates even if the WebSocket event
  * from the entity write never arrives on this device.
  */
-function triggerClientPollIfStale(payload) {
-  const fetchedAtMs = payload?.fetched_at ? new Date(payload.fetched_at).getTime() : NaN;
-  const ageMs = Number.isFinite(fetchedAtMs) ? Date.now() - fetchedAtMs : Infinity;
-  if (ageMs < STALE_MS) return; // fresh enough — nothing to do
-  if (Date.now() - _lastClientPoll < STALE_MS) return; // already tried recently
+function fireClientPoll() {
   _lastClientPoll = Date.now();
-  base44.functions.invoke('dashboardWeatherPoll', { client_refresh: true })
+  return base44.functions.invoke('dashboardWeatherPoll', { client_refresh: true })
     .then(() => getDashboardWeather({ force: true }))
     .then(() => {
       try { window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: { key: 'dashboard_weather' } })); } catch { /* non-fatal */ }
     })
     .catch(() => { /* stale data beats a broken dashboard */ });
+}
+
+function triggerClientPollIfStale(payload) {
+  const fetchedAtMs = payload?.fetched_at ? new Date(payload.fetched_at).getTime() : NaN;
+  const ageMs = Number.isFinite(fetchedAtMs) ? Date.now() - fetchedAtMs : Infinity;
+  if (ageMs < STALE_MS) return; // fresh enough — nothing to do
+  if (Date.now() - _lastClientPoll < STALE_MS) return; // already tried recently
+  fireClientPoll();
+}
+
+/**
+ * Scheduled 5-minute poll (owner request, Sep 28): the weather bar calls this
+ * on EVERY 5-minute tick while the dashboard is open — NOT gated on staleness.
+ * The old flow (re-read the record, poll only when >5 min old) raced the
+ * backend's 4-minute freshness guard, so real polls could slip to 10+ minutes
+ * apart and the bar showed stale temps as "current". The 1-minute mini-throttle
+ * only collapses rapid re-mounts/simultaneous loads; the backend's own 4-minute
+ * guard dedupes devices that share the work.
+ */
+export async function pollDashboardWeatherNow() {
+  if (Date.now() - _lastClientPoll < 60 * 1000) return;
+  return fireClientPoll();
 }
 
 export function invalidateDashboardWeatherCache() {

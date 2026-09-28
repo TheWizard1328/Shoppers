@@ -4,8 +4,8 @@
 // platform-managed service calls.
 //
 // Logic:
-//   1. Find cities with at least one ON-DUTY (or on-break) driver.
-//      No active drivers anywhere → no weather fetch, no write (early exit).
+//   1. Fetch weather for EVERY configured city (owner request, Sep 28 —
+//      the bar updates every 5 minutes even when no driver is on duty).
 //   2. Fetch current + daily weather per active city
 //      (Open-Meteo → wttr.in → met.no, same 3-provider fallback as the
 //      morning briefing).
@@ -199,31 +199,22 @@ async function handlePoll(base44, params) {
     return { success: true, changed: false, skipped_reason: 'fresh', age_ms: Math.round(storedAgeMs), duration_ms: Date.now() - startedAt };
   }
 
-  // 1. Cities with on-duty drivers (on_duty or on_break = mid-shift)
-  const appUsers = await base44.asServiceRole.entities.AppUser.list('-updated_date', 500).catch(() => []);
-  const drivers = (appUsers || []).filter((u) => {
-    const roles = u?.app_roles || [];
-    const isDriver = Array.isArray(roles) && roles.includes('driver');
-    return isDriver && (u.driver_status === 'on_duty' || u.driver_status === 'on_break');
-  });
-  const activeCityIds = new Set();
-  for (const d of drivers) {
-    if (Array.isArray(d.city_ids) && d.city_ids.length) d.city_ids.forEach((c) => activeCityIds.add(c));
-    else if (d.city_id) activeCityIds.add(d.city_id);
-  }
-
-  // Client-triggered refresh (app load with stale data) also re-fetches the
-  // cities already stored in the snapshot, so the bar works on days where no
-  // driver is currently on duty but there IS a last-known reading.
+  // 1. ALL cities (owner request, Sep 28): the bar must update every 5 minutes
+  // even when NO driver is on duty. The City set is tiny (3 cities), so every
+  // poll fetches every city with usable coords — no on-duty-driver query at
+  // all. Previously the poll skipped entirely with no drivers on duty, and
+  // client_refresh only patched it up on app loads with stale data, which made
+  // updates irregular (the stale-on-load trigger + 5-min read interval raced
+  // the 4-min freshness guard, so real polls could land 10+ minutes apart).
+  const cities = await base44.asServiceRole.entities.City.list('name', 500).catch(() => []);
+  const activeCityIds = new Set((cities || []).map((c) => c?.id).filter(Boolean));
   if (clientRefresh) Object.keys(prevCities).forEach((id) => activeCityIds.add(id));
 
   if (activeCityIds.size === 0) {
-    return { success: true, dry_run: dryRun, active_cities: 0, changed: false, skipped_reason: 'no on-duty drivers', duration_ms: Date.now() - startedAt };
+    return { success: true, dry_run: dryRun, active_cities: 0, changed: false, skipped_reason: 'no cities configured', duration_ms: Date.now() - startedAt };
   }
 
   // 2. City coords
-  const cityIds = [...activeCityIds];
-  const cities = await base44.asServiceRole.entities.City.filter({ id: { $in: cityIds } }).catch(() => []);
   const usableCities = (cities || []).filter((c) => Number.isFinite(Number(c.latitude)) && Number.isFinite(Number(c.longitude)));
 
   // 3. Fetch + diff
@@ -270,12 +261,12 @@ async function handlePoll(base44, params) {
   payload.cities = { ...prevCities, ...newCities };
 
   if (rec?.id) {
-    await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: payload, description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min while drivers are on duty' });
+    await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: payload, description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min for all cities' });
   } else {
     await base44.asServiceRole.entities.AppSettings.create({
       setting_key: SETTINGS_KEY,
       setting_value: payload,
-      description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min while drivers are on duty',
+      description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min for all cities',
     });
   }
 
