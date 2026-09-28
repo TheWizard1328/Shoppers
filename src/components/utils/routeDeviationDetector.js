@@ -15,6 +15,22 @@
 import { decodeGooglePolyline } from '@/components/utils/routePolylineGenerator';
 
 // ── Settings (same storage the admin panel writes) ─────────────────────────
+// NOTE (owner-reported bug, Sep 28 2026): getDeviationSettings() is called
+// synchronously on every GPS tick, so it reads localStorage ONLY — it can't
+// await a server fetch in that hot path. That's correct for speed, but it
+// means each driver's device only picks up an admin-changed threshold if
+// THAT device's own localStorage cache gets updated. Before this fix nothing
+// ever refreshed a driver device's cache from the shared AppSettings record,
+// so every device except the one the admin actually used to change the
+// setting kept running the stale default (200m/5min) forever — the admin's
+// own phone showed 100m because saving there also updates that phone's
+// localStorage; the desktop (and every driver phone) never got that update.
+// Fix: syncDeviationSettingsFromServer() below pulls the shared AppSettings
+// 'route_optimization' record into this SAME localStorage key. Call it once
+// on dashboard mount (all roles) and again on every 'appSettingsUpdated' WS
+// event, so the synchronous hot-path read always reflects the current global
+// value within seconds of an admin change — no per-device manual re-save
+// needed.
 const SETTINGS_KEY = 'rxdeliver_route_optimization_settings';
 export const DEFAULT_DEVIATION_SETTINGS = {
   enableRouteDeviationDetection: true,
@@ -31,6 +47,46 @@ export function getDeviationSettings() {
     }
   } catch (_) { /* corrupted settings — fall back to defaults */ }
   return { ...DEFAULT_DEVIATION_SETTINGS };
+}
+
+// Admin-only fields that live in the shared AppSettings 'route_optimization'
+// record — these are the ones that must be identical across every device.
+const SERVER_SYNCED_KEYS = [
+  'enableRouteDeviationDetection',
+  'routeDeviationThresholdMeters',
+  'routeDeviationCooldownMinutes',
+  'locationUpdateIntervalSeconds',
+  'minMovementDistanceMeters',
+];
+
+let _lastServerSyncedJson = null;
+
+/**
+ * Pulls the shared AppSettings 'route_optimization' record and merges its
+ * admin-only fields into this device's localStorage cache, so the very next
+ * synchronous getDeviationSettings() call (on the next GPS tick) reflects the
+ * true global value. Safe to call often — no-ops if nothing changed.
+ */
+export async function syncDeviationSettingsFromServer(base44) {
+  try {
+    const rows = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+    const serverValue = rows?.[0]?.setting_value;
+    if (!serverValue || typeof serverValue !== 'object') return false;
+    const serverJson = JSON.stringify(serverValue);
+    if (serverJson === _lastServerSyncedJson) return false; // unchanged — skip the write
+    const current = (() => {
+      try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch (_) { return {}; }
+    })();
+    const merged = { ...current };
+    for (const key of SERVER_SYNCED_KEYS) {
+      if (serverValue[key] !== undefined) merged[key] = serverValue[key];
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged));
+    _lastServerSyncedJson = serverJson;
+    return true;
+  } catch (_) {
+    return false; // offline / fetch failed — keep using whatever's cached locally
+  }
 }
 
 // ── Geometry ────────────────────────────────────────────────────────────────

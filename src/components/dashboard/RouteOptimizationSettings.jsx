@@ -84,6 +84,27 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
   const [isLoadingBreadcrumbsSettings, setIsLoadingBreadcrumbsSettings] = useState(true);
 
+  // Owner-reported bug (Sep 28 2026): this panel used to show whatever was
+  // cached in THIS device's localStorage, which only gets updated when a
+  // save happens ON that device — so a second device (e.g. the admin's
+  // desktop) kept showing the OLD threshold/cooldown even after the admin
+  // changed and saved it on their phone. AppSettings 'route_optimization'
+  // is the actual shared source of truth; pull it in on mount and overwrite
+  // the admin-only fields (leaving personal fields like driver home
+  // location untouched) so every device's panel always reflects reality.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+        const serverValue = rows?.[0]?.setting_value;
+        if (cancelled || !serverValue || typeof serverValue !== 'object') return;
+        setSettings((prev) => ({ ...prev, ...serverValue }));
+      } catch (_) { /* offline or fetch failed — keep showing the local cache */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleSettingChange = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setHasUnsavedChanges(true);

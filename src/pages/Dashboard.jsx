@@ -91,6 +91,25 @@ function Dashboard() {
     window.addEventListener('openInterStoreAddRoute', handler);
     return () => window.removeEventListener('openInterStoreAddRoute', handler);
   }, []);
+  // Route deviation / location tracking admin settings are ADMIN-ONLY to edit
+  // but must apply to EVERY driver device (owner-reported bug, Sep 28 2026:
+  // only the device that saved the setting picked it up — every other device
+  // kept using the localStorage default forever). Pull the shared AppSettings
+  // value into this device's localStorage cache on mount, then again whenever
+  // an admin change broadcasts, so useRouteDeviationMonitor's synchronous
+  // getDeviationSettings() reads reflect the true global value within seconds.
+  useEffect(() => {
+    let cancelled = false;
+    let syncFn = null;
+    import('@/components/utils/routeDeviationDetector').then(({ syncDeviationSettingsFromServer }) => {
+      if (cancelled) return;
+      syncFn = syncDeviationSettingsFromServer;
+      syncFn(base44);
+    }).catch(() => {});
+    const onSettingsUpdated = () => { if (syncFn) syncFn(base44); };
+    window.addEventListener('appSettingsUpdated', onSettingsUpdated);
+    return () => { cancelled = true; window.removeEventListener('appSettingsUpdated', onSettingsUpdated); };
+  }, []);
   useEffect(() => { if (!showDeliveryForm) setInterstorePrefill(null); }, [showDeliveryForm]);
   const [mapCenter, setMapCenter] = useState([53.5461, -113.4938]);
   const [mapZoom, setMapZoom] = useState(11);
