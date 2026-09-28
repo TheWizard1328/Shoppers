@@ -543,6 +543,20 @@ export default function SquareManagement() {
       // Final step per owner spec: reconcile. The Catalog + Transaction pages now
       // match against the full 6-month tx history in IDB.
       await runReconcile();
+
+      // ── Owner spec (Sep 28 2026): after comparing 6 months of COD deliveries
+      // against the Square Transaction API, every UNCOLLECTED COD must be
+      // added to the offline Square Catalog Items DB, the UI updated, and the
+      // items pushed to the Square Catalog API. After runReconcile those
+      // deliveries surface as NEW CATALOG ITEMS in the reconcile list, so the
+      // proven Update Catalog path performs the remaining steps: push to
+      // Square → merge created records into the offline DB → UI update.
+      // (isSyncing released + 1s render flush — same re-bind pattern as the
+      // sync's STEP 5.)
+      setIsSyncing(false);
+      await new Promise((r) => setTimeout(r, 1000));
+      console.log('[SquareManagement] Backfill: running Update Catalog path for uncollected items');
+      await updateCatalogRef.current?.('auto');
     } catch (err) {
       console.error('[SquareManagement] Backfill failed:', err);
       setError(err?.message || 'Backfill failed');
