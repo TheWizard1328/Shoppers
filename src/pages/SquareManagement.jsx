@@ -663,9 +663,8 @@ export default function SquareManagement() {
         // ── STEP 5 (FINAL): run the Update Catalog path for everything the
         // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). Runs
         // directly in sequence — no more 15s delayed auto-click. A short
-        // settle lets the reconcile refs flush through the render so the
-        // push reads the fresh list, and gives the rate window a breather.
-        await new Promise((r) => setTimeout(r, 2000));
+        // push reads the fresh list. (Sep 28: 15s→2s settle removed — the 1s
+        // render flush below is enough; refs flush within it.)
         try {
           const catalogDeliveryIds = new Set(
             (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
