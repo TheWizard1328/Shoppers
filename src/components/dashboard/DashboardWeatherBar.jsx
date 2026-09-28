@@ -102,18 +102,31 @@ function DashboardWeatherBar({
     // row (owner request, Sep 28 2026 — bar height must be unaffected by
     // stats-card expansion). Fallback chain keeps old behavior for
     // first-paint / layouts without the marker.
+    // Legend adhesion (owner request, Sep 28 2026): some devices show the
+    // driver legend AND the store legend rows below the stats card. The bar
+    // must start BELOW those rows when present. We use the legend's HEIGHT
+    // (not its live bottom edge) because the legend sits below the stats
+    // card's expandable section — its bottom moves during expansion but its
+    // height doesn't, so adding the height to the expansion-invariant
+    // base-end anchor keeps the bar stable in BOTH dimensions: it never
+    // moves when the stats card expands, and it still respects the extra
+    // legend rows on devices that show them.
     let top = 0;
+    let legendHeight = 0;
+    const legend = document.querySelector('[data-stats-legend]');
+    const legendRect = legend && legend.offsetParent !== null ? legend.getBoundingClientRect() : null;
+    if (legendRect) legendHeight = Math.max(0, legendRect.height) + 6;
     const baseEnd = document.querySelector('[data-stats-base-end]');
     const baseEndRect = baseEnd && baseEnd.offsetParent !== null ? baseEnd.getBoundingClientRect() : null;
     if (baseEndRect) {
-      top = Math.max(0, baseEndRect.bottom - parentRect.top) + 8;
+      top = Math.max(0, baseEndRect.bottom - parentRect.top) + 8 + legendHeight;
     } else {
       const statsEl = statsContainerRef?.current;
       if (statsEl) {
         top = Math.max(0, statsEl.getBoundingClientRect().bottom - parentRect.top) + 6;
       }
     }
-    if (!top) top = (Number(statsContainerBaseHeight) || 0) + 6;
+    if (!top) top = (Number(statsContainerBaseHeight) || 0) + 6 + legendHeight;
 
     // Bottom: just above the bulk-select checkbox row; fall back to the
     // stop-cards strip top, then to the base-height formula.

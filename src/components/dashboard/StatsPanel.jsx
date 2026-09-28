@@ -875,7 +875,7 @@ export default function StatsPanel({
               const showStoreRow = showStoreStatusRow && storeStatusData.length > 0;
               if (!showDriverLegendRow && !showStoreRow) return null;
               return (
-                <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full bg-surface border-surface" style={{ opacity: 1 }}
+                <div data-stats-legend="true" className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full bg-surface border-surface" style={{ opacity: 1 }}
                 onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
                   {showDriverLegendRow &&
                   <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
