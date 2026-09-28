@@ -207,10 +207,17 @@ function wmoText(code) {
   return m[code] || 'Mixed';
 }
 
-// ── Weather: Open-Meteo → wttr.in → met.no (3-provider fallback) ─────────
-// NOTE: Open-Meteo free tier is rate-limited per egress IP; the shared
-// function-runtime IP can exhaust its daily quota (429). Fallbacks keep the
-// 9am briefing reliable. All providers normalize to the same entry shape:
+// ── Weather: Open-Meteo → met.no → wttr.in (3-provider fallback) ─────────
+// NOTE (updated Sep 28 2026 — same root cause as the dashboard weather bar
+// bug): Open-Meteo free tier is rate-limited per egress IP; the shared
+// function-runtime IP can occasionally 429. When that happened, the OLD
+// order fell to wttr.in next — but wttr.in serves a stale CACHED "current"
+// reading (confirmed live: showed 9°C in the 8am briefing when the real temp
+// was ~3-4°C all morning per Open-Meteo's own hourly actuals). met.no is a
+// live forecast API with no such staleness issue, so it's now the FIRST
+// fallback; wttr.in is demoted to last resort. Open-Meteo also gets one retry
+// on a transient failure before falling through, so brief blips don't
+// silently drop to a worse source. All providers normalize to the same shape:
 // { current: { temp, feels, text, wind }, daily: { high, low, precipProb, snowCm, text }, source }
 const _weatherCache = new Map(); // cityId -> entry (10-min TTL)
 
@@ -299,8 +306,18 @@ async function getWeatherForCity(cityId, lat, lon) {
   const cached = _weatherCache.get(cityId);
   if (cached && Date.now() - cached.fetchedAt < 10 * 60 * 1000) return cached;
   let entry = await fetchOpenMeteo(lat, lon);
-  if (!entry) entry = await fetchWttr(lat, lon);
-  if (!entry) entry = await fetchMetNo(lat, lon);
+  if (!entry) {
+    console.warn(`[driverWeatherBriefing] Open-Meteo failed for city ${cityId}, retrying once...`);
+    entry = await fetchOpenMeteo(lat, lon);
+  }
+  if (!entry) {
+    console.warn(`[driverWeatherBriefing] Open-Meteo retry failed for city ${cityId}, falling to met.no`);
+    entry = await fetchMetNo(lat, lon);
+  }
+  if (!entry) {
+    console.warn(`[driverWeatherBriefing] met.no failed for city ${cityId}, falling to wttr.in (last resort — may be stale)`);
+    entry = await fetchWttr(lat, lon);
+  }
   if (entry) { entry.fetchedAt = Date.now(); _weatherCache.set(cityId, entry); }
   return entry;
 }
