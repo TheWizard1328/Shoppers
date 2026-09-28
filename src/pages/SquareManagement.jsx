@@ -241,6 +241,8 @@ export default function SquareManagement() {
   const visibleStoreIdsRef = useRef(new Set());
   const selectedDriverUserIdsRef = useRef(new Set());
 
+  const updateCatalogRef = useRef(null);
+
   const updateCatalog = useCallback(async () => {
     if (isUpdatingCatalog || isSyncing) return;
     setIsUpdatingCatalog(true);
@@ -318,6 +320,7 @@ export default function SquareManagement() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isUpdatingCatalog, isSyncing, patients]);
+  updateCatalogRef.current = updateCatalog;
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
@@ -524,89 +527,36 @@ export default function SquareManagement() {
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-        // ── STEP 4 (FINAL): push the New Catalog Items into Square ──────
-        // The sync itself has done all its data work (match, stamp, purge,
-        // catalog mirror). The New Catalog Items list is now fully known: cash
-        // CODs that survived every collected check, have a Square-configured
-        // store, and still have NO live catalog item and NO real Square
-        // transaction. As the FINAL step, push exactly that list into the
-        // Square Catalog API + both DBs via the same path the Update Catalog
-        // button uses (syncSquareCods), then merge the created items into the
-        // UI so they stop showing as New immediately. No pass when the list
-        // is empty — the sync's own creations are already in catalogRecords.
-        // (owner spec, Sep 27 2026)
-        const syncCatalogDeliveryIds = new Set((catalogRecords || []).map((c) => c?.delivery_id).filter(Boolean));
-        const syncTxDeliveryIds = new Set((transactionRecords || [])
-          .filter((t) => t?.delivery_id && t?.square_transaction_id)
-          .map((t) => t.delivery_id));
-        const newItems = (strippedDeliveries || []).filter((d) => {
-          if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
-          if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
-          if (d?.cod_confirmed_collected) return false;
-          if (d?.delivery_date && d.delivery_date > todayDateString) return false;
-          const cps = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-          if (!cps.some((p) => p?.type === 'Cash')) return false;
-          if (syncCatalogDeliveryIds.has(d.id) || syncTxDeliveryIds.has(d.id)) return false;
-          const store = stores.find((s) => s?.id === d?.store_id);
-          const config = getConfigForStore(store);
-          return !!(config?.id && visibleSquareLocationConfigIds.has(config.id));
-        }).map((d) => ({
-          deliveryId: d.id,
-          patientName: null,
-          storeId: d.store_id,
-          codAmount: d.cod_total_amount_required,
-          deliveryDate: d.delivery_date,
-        }));
-
-        let autoAddedCount = 0;
-        let autoFailedCount = 0;
-        if (newItems.length > 0) {
+        // ── STEP 4 (FINAL): auto-trigger Update Catalog when New Catalog Items
+        // exist (owner spec, Sep 27 2026). If the sync's server-side pass left
+        // any New Catalog Items (or created none), hand them to the Update
+        // Catalog push path (syncSquareCods → Square Catalog API + both DBs),
+        // which is the same code the button runs. The refs update on the
+        // re-render after the setState calls above, so check them shortly.
+        setTimeout(() => {
           try {
-            const res = await invokeWithLongTimeout('syncSquareCods', { items: newItems, deletions: [] });
-            const results = res?.data?.results || res?.results || [];
-            const okResults = results.filter((r) => r?.status === 'ok');
-            autoFailedCount = results.filter((r) => r?.status === 'error').length;
-            autoAddedCount = okResults.length;
-            // Merge the created items into the offline DB + UI state so they
-            // link to their deliveries right away (next sync returns them in
-            // catalogRecords as usual).
-            const deliveryById = new Map((strippedDeliveries || []).map((d) => [d.id, d]));
-            const createdRecords = okResults.map((r) => {
-              const d = deliveryById.get(r.deliveryId);
-              const store = stores.find((s) => s?.id === d?.store_id);
-              const config = getConfigForStore(store);
-              const amt = Number(d?.cod_total_amount_required || 0);
-              return {
-                square_catalog_object_id: r.result?.catalogObjectId || null,
-                square_catalog_version: r.result?.catalogVersion || null,
-                item_name: r.result?.itemName || null,
-                description: '',
-                amount: amt,
-                amount_cents: Math.round(amt * 100),
-                delivery_id: r.deliveryId,
-                delivery_date: d?.delivery_date || null,
-                patient_id: d?.patient_id || null,
-                store_id: d?.store_id || null,
-                location_id: config?.square_location_id || null,
-                status: 'active',
-              };
-            }).filter((c) => c.square_catalog_object_id);
-            if (createdRecords.length > 0) {
-              await squareCODOfflineManager.saveCatalogItemsOffline([...(catalogRecords || []).filter(Boolean), ...createdRecords]);
-              const uiCatalog2 = await squareCODOfflineManager.getCatalogItemsOffline();
-              setCatalogItems([...(uiCatalog2 || [])]);
+            const catalogDeliveryIds = new Set(
+              (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
+            );
+            const hasNewItems = (reconciliationRowsRef.current || []).some((row) => {
+              if (row.catalogId && row.catalogId !== '--') return false;
+              const deliveryId = row.rawDelivery?.id || row.id;
+              if (deliveryId && catalogDeliveryIds.has(deliveryId)) return false;
+              const delivery = row.rawDelivery;
+              return !!(delivery && Number(delivery.cod_total_amount_required) > 0);
+            });
+            if (hasNewItems) {
+              console.log('[SquareManagement] New Catalog Items detected after sync — auto-running Update Catalog');
+              updateCatalogRef.current?.();
             }
-          } catch (err) {
-            console.warn('[SquareManagement] Final New Catalog Items push failed:', err?.message);
-            autoFailedCount = newItems.length;
+          } catch (e) {
+            console.warn('[SquareManagement] Post-sync Update Catalog trigger failed:', e?.message);
           }
-        }
+        }, 150);
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];
-        if (autoAddedCount > 0) parts.push(`${autoAddedCount} item(s) created`);
         if (deletedCount > 0) parts.push(`removed ${deletedCount} collected item(s)`);
-        if (autoFailedCount > 0) parts.push(`${autoFailedCount} failed`);
         toast.success(`Sync complete — ${parts.join(', ')}`);
       } else if (syncError) {
         console.error('[SquareManagement] Sync failed', { error: syncError?.message });
