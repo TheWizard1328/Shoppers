@@ -165,7 +165,10 @@ function DashboardWeatherBar({
     };
   }, []);
 
-  if (immersiveHidden || !entry || !Number.isFinite(Number(entry.temp))) return null;
+  if (!entry || !Number.isFinite(Number(entry.temp))) return null;
+  // Immersive mode (owner request, Sep 28): the bar STAYS visible — the badge
+  // is replaced by the bare weather symbol sitting on the tube at the current
+  // temp position (see the badge render below).
 
   const temp = Number(entry.temp);
   // Decimal temp for badge alignment (owner request, Sep 28): the badge flows
@@ -296,10 +299,24 @@ function DashboardWeatherBar({
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${low}°`}</span>
       </div>
 
-      {/* Current temp — badge BESIDE the tube, VERTICALLY CENTERED on the
-          current temp position (owner request, Sep 28): bottom-anchored at the
-          temp line then translated down by half its own height, so the badge's
-          middle — not its bottom edge — tracks the exact temp position. */}
+      {/* Current temp — immersive mode (owner request, Sep 28): the badge
+          disappears entirely; ONLY the weather symbol shows, sitting directly
+          ON the tube at the exact current temp position (centered on it),
+          sized to cover the tube width with a dark outline for readability
+          over the gradient fill. */}
+      {immersiveHidden ? (
+        <div
+          style={{
+            position: 'absolute', bottom: `${yTemp}px`, left: -3, width: 18,
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            transform: 'translateY(50%)',
+            fontSize: 11, lineHeight: 1,
+            textShadow: '0 0 2px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)',
+          }}
+        >
+          <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
+        </div>
+      ) : (
       <div style={{ position: 'absolute', bottom: `${yTemp}px`, left: 16, display: 'flex', alignItems: 'center', transform: 'translateY(50%)' }}>
         <span
           style={{
@@ -317,6 +334,7 @@ function DashboardWeatherBar({
           {`${temp}°`}
         </span>
       </div>
+      )}
     </div>
   );
 }
