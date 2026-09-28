@@ -66,20 +66,12 @@ export default function StoresPage() {
     return stores.filter((store) => store.status !== 'inactive');
   }, [stores, isPureDriverViewer]);
 
-  // ----- Dispatcher limited view for OTHER stores -----
-  // Dispatchers get full cards only for their own stores. Every other store
-  // shows: basic header info, who is on duty for the selected date, the
-  // projected pickup window (or actual pickup time once picked up), and a
-  // call button only (no navigate).
+  // ----- Dispatcher limited view for ALL stores -----
+  // Dispatchers see every store card in the limited format: basic header
+  // info, who is on duty for the selected date, the projected pickup window
+  // (or actual pickup time once picked up), and a call button only (no
+  // navigate). Applies to their own stores too (owner directive Sep 27).
   const isDispatcherViewer = !!(currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin'));
-
-  const dispatcherOwnsStore = React.useCallback((store) => {
-    if (!currentUser || !store) return false;
-    const myIds = [currentUser.id, currentUser.user_id].filter(Boolean);
-    if (store.dispatcher_id && myIds.includes(store.dispatcher_id)) return true;
-    const myStoreIds = currentUser.store_ids || [];
-    return !!store.id && myStoreIds.includes(store.id);
-  }, [currentUser]);
 
   const dispatcherSummaries = React.useMemo(() => {
     if (!isDispatcherViewer) return {};
@@ -434,7 +426,7 @@ export default function StoresPage() {
               drivers={drivers}
               isLimitedView={currentUser && !userHasRole(currentUser, 'admin')}
               hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')}
-              isDispatcherOtherStore={isDispatcherViewer && !dispatcherOwnsStore(store)}
+              isDispatcherOtherStore={isDispatcherViewer}
               dispatcherSummary={dispatcherSummaries[store.id]} />
 
             )}
