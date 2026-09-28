@@ -92,6 +92,14 @@ function mapMetNoSymbol(s) {
   return 'Mixed';
 }
 
+// Day/night flag for the badge icon (owner request, Sep 28): open-meteo gives
+// a real is_day; the fallback providers don't, so approximate by Edmonton local
+// hour (7:00-19:00 = day). Icons differ night vs day (moon instead of sun).
+function isDayEdmonton() {
+  const h = Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', hour: 'numeric', hour12: false }).format(new Date()));
+  return h >= 7 && h < 19;
+}
+
 // ── Weather providers (same normalization as driverWeatherBriefing) ─────────
 async function fetchOpenMeteo(lat, lon, attempt = 1) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
@@ -108,7 +116,7 @@ async function fetchOpenMeteo(lat, lon, attempt = 1) {
   if (!j?.current || !j?.daily) { console.warn('[dashboardWeatherPoll] open-meteo OK HTTP but malformed payload'); return null; }
   const code = j.current.weather_code;
   return {
-    current: { temp: Math.round(j.current.temperature_2m), tempPrecise: Math.round(j.current.temperature_2m * 10) / 10, feels: Math.round(j.current.apparent_temperature), text: wmoText(code), icon: wmoIcon(code), wind: Math.round(j.current.wind_speed_10m) },
+    current: { temp: Math.round(j.current.temperature_2m), tempPrecise: Math.round(j.current.temperature_2m * 10) / 10, feels: Math.round(j.current.apparent_temperature), text: wmoText(code), icon: wmoIcon(code), wind: Math.round(j.current.wind_speed_10m), isDay: Number(j.current.is_day) === 1 },
     daily: { high: Math.round(j.daily.temperature_2m_max?.[0]), low: Math.round(j.daily.temperature_2m_min?.[0]), precipProb: j.daily.precipitation_probability_max?.[0] ?? null, snowCm: j.daily.snowfall_sum?.[0] ?? 0, text: wmoText(j.daily.weather_code?.[0]) },
     source: 'open-meteo',
   };
@@ -124,7 +132,7 @@ async function fetchWttr(lat, lon) {
   for (const h of (today.hourly || [])) precipProb = Math.max(precipProb, Number(h?.chanceofrain) || 0, Number(h?.chanceofsnow) || 0);
   const text = mapWttrDesc(cur.weatherDesc?.[0]?.value);
   return {
-    current: { temp: Math.round(Number(cur.temp_C)), tempPrecise: Math.round(Number(cur.temp_C) * 10) / 10, feels: Math.round(Number(cur.FeelsLikeC)), text, icon: iconFromText(text), wind: Math.round(Number(cur.windspeedKmph) || 0) },
+    current: { temp: Math.round(Number(cur.temp_C)), tempPrecise: Math.round(Number(cur.temp_C) * 10) / 10, isDay: isDayEdmonton(), feels: Math.round(Number(cur.FeelsLikeC)), text, icon: iconFromText(text), wind: Math.round(Number(cur.windspeedKmph) || 0) },
     daily: { high: Math.round(Number(today.maxtempC)), low: Math.round(Number(today.mintempC)), precipProb: precipProb || null, snowCm: Number(today.totalSnow_cm) || 0, text },
     source: 'wttr.in',
   };
@@ -150,7 +158,7 @@ async function fetchMetNo(lat, lon) {
   if (hi === -999) { hi = inst.air_temperature; lo = inst.air_temperature; }
   const text = mapMetNoSymbol(sym);
   return {
-    current: { temp: Math.round(inst.air_temperature || 0), tempPrecise: Math.round((inst.air_temperature || 0) * 10) / 10, feels: Math.round(inst.air_temperature || 0), text, icon: iconFromText(text), wind: Math.round((inst.wind_speed || 0) * 3.6) },
+    current: { temp: Math.round(inst.air_temperature || 0), tempPrecise: Math.round((inst.air_temperature || 0) * 10) / 10, isDay: isDayEdmonton(), feels: Math.round(inst.air_temperature || 0), text, icon: iconFromText(text), wind: Math.round((inst.wind_speed || 0) * 3.6) },
     daily: { high: Math.round(hi), low: Math.round(lo), precipProb: null, snowCm: 0, text },
     source: 'met.no',
   };
@@ -173,6 +181,7 @@ function buildCityEntry(city, w) {
     city_name: city.name || null,
     temp: w.current.temp,
     temp_precise: Number.isFinite(w.current.tempPrecise) ? w.current.tempPrecise : w.current.temp,
+    is_day: w.current.isDay === true,
     feels: w.current.feels,
     text: w.current.text,
     icon: w.current.icon || iconFromText(w.current.text),

@@ -42,6 +42,14 @@ const WEATHER_ICONS = Object.freeze({
   rain: '🌧️', snow: '🌨️', storm: '⛈️',
 });
 
+// Night variants (owner request, Sep 28): moon instead of sun, and the other
+// weather types keep their icon alongside the moon (moon+cloud for partly
+// cloudy nights, etc.). Full-cover conditions look the same day or night.
+const WEATHER_ICONS_NIGHT = Object.freeze({
+  sun: '🌙', partly: '🌙☁️', cloud: '☁️', fog: '🌫️',
+  rain: '🌧️', snow: '🌨️', storm: '⛈️',
+});
+
 // Darker orange (hot end) / darker blue (cold end) with the 0 °C crossing blend
 const HOT_RGB = [194, 65, 12];    // #c2410c
 const COLD_RGB = [30, 58, 138];   // #1e3a8a
@@ -204,7 +212,10 @@ function DashboardWeatherBar({
   stops.push(`${rgba(colorFor(high), 0.92)} 100%`);
   const fillGradient = `linear-gradient(to top, ${stops.join(', ')})`;
 
-  const icon = WEATHER_ICONS[entry.icon] || '☁️';
+  // Day vs night icon set — is_day comes from the poll (open-meteo real flag,
+  // Edmonton-hour approximation on fallback providers).
+  const iconSet = entry.is_day === false ? WEATHER_ICONS_NIGHT : WEATHER_ICONS;
+  const icon = iconSet[entry.icon] || '☁️';
 
   const labelStyle = {
     fontSize: 9, lineHeight: '10px', fontWeight: 700,
