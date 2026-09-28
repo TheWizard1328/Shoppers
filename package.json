@@ -13,8 +13,8 @@
     "prebuild": "node scripts/generate-version.mjs"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.51",
-    "@base44/vite-plugin": "^1.0.42",
+    "@base44/sdk": "^0.8.52",
+    "@base44/vite-plugin": "^1.0.44",
     "@capacitor-community/bluetooth-le": "^8.3.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
