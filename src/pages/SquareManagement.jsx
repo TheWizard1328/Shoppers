@@ -275,6 +275,7 @@ export default function SquareManagement() {
 
       let addedCount = 0;
       let failedCount = 0;
+      let pushResults = [];
       if (itemsToAdd.length > 0) {
         // Wait for the batch to fully complete — syncSquareCods creates the items
         // in Square AND persists SquareCatalogItems + SquareTransaction records.
@@ -283,6 +284,7 @@ export default function SquareManagement() {
           deletions: [],
         });
         const results = res?.data?.results || res?.results || [];
+        pushResults = results;
         // Only 'ok' counts as added — 'skipped' means the backend refused
         // (collected, unconfigured store, etc.). Counting skips as added made
         // the button claim success while creating nothing (owner report, Sep 27).
@@ -299,12 +301,54 @@ export default function SquareManagement() {
         }
       }
 
-      // ── Run authoritative sync (same as page load) ──────────────────
-      // Resets the 30s cooldown guard so it runs immediately even if a sync
-      // just happened. This pulls the freshly-created catalog items from Square,
-      // cleans up collected items, and fully reconciles UI state.
-      lastSyncAtRef.current = 0;
-      await syncFromSquare();
+      // ── Merge created items locally — NO follow-up Square sync ─────────
+      // The push (syncSquareCods) already created the items in the Square
+      // Catalog API AND wrote both DBs (online bookkeeping + IDB). Running a
+      // full re-sync right after duplicated the whole Square API burst and
+      // tripped rate limits (owner spec, Sep 27 2026: the DBs are already
+      // updated; the next sync pulls transactions/cleanups as usual).
+      if (addedCount > 0) {
+        const okResults = pushResults.filter((r) => r?.status === 'ok');
+        const deliveryById = new Map(
+          (reconciliationRowsRef.current || [])
+            .map((row) => row.rawDelivery)
+            .filter(Boolean)
+            .map((d) => [d.id, d])
+        );
+        const createdRecords = okResults.map((r) => {
+          const d = deliveryById.get(r.deliveryId);
+          const store = (stores || []).find((st) => st?.id === d?.store_id);
+          const config = getConfigForStore(store);
+          const amt = Number(d?.cod_total_amount_required || 0);
+          return {
+            square_catalog_object_id: r.result?.catalogObjectId || null,
+            square_catalog_version: r.result?.catalogVersion || null,
+            item_name: r.result?.itemName || null,
+            description: '',
+            amount: amt,
+            amount_cents: Math.round(amt * 100),
+            delivery_id: r.deliveryId,
+            delivery_date: d?.delivery_date || null,
+            patient_id: d?.patient_id || null,
+            store_id: d?.store_id || null,
+            location_id: config?.square_location_id || null,
+            status: 'active',
+          };
+        }).filter((c) => c.square_catalog_object_id);
+        if (createdRecords.length > 0) {
+          const createdDeliveryIds = new Set(createdRecords.map((c) => c.delivery_id));
+          const { offlineDB } = await import('@/components/utils/offlineDatabase');
+          const currentRecords = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+          // Replace any stale records for the same deliveries with the fresh ones
+          await squareCODOfflineManager.saveCatalogItemsOffline([
+            ...(currentRecords || []).filter(Boolean).filter((rec) => !createdDeliveryIds.has(rec.delivery_id)),
+            ...createdRecords,
+          ]);
+          const uiCatalog2 = await squareCODOfflineManager.getCatalogItemsOffline();
+          setCatalogItems([...(uiCatalog2 || [])]);
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+      }
 
       if (addedCount > 0) {
         toast.success(`Catalog updated: ${addedCount} item(s) added to Square`);
