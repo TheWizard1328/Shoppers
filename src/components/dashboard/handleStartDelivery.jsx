@@ -83,36 +83,78 @@ export async function handleStartDelivery({
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
 
+    // ── STEP 2b: Renumber — the started stop takes the current next position ──
+    // (owner directive, Sep 28 2026 — reverses the Sep 21 frozen-number policy).
+    // The frozen-number policy kept the started stop's OLD stop_order, so the
+    // isNextDelivery flag moved it to "next" on the map/banner while the card
+    // list kept sorting it by its stale number — the stop sat in its old slot
+    // with a mismatched number. Now Start renumbers the route in one pass:
+    //   - finished stops: 1..K, ordered by actual_delivery_time ASC
+    //     (same rule as repair passes — values only change if stale)
+    //   - the started stop: K+1 (the current next position)
+    //   - remaining incomplete stops (cycling markers INCLUDED): K+2..N,
+    //     preserving their existing relative order (stop_order, ETA tie-break,
+    //     pending last)
+    const finishedStopsLocal = driverLocalDeliveries
+      .filter((d) => d && finishedStatuses.has(String(d.status || '')));
+    const finishedSorted = [...finishedStopsLocal].sort((a, b) => {
+      const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+      const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+      if (ta !== tb) return ta - tb;
+      return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+    });
+    const remainingIncomplete = driverLocalDeliveries
+      .filter((d) => d && !finishedStatuses.has(String(d.status || '')) && d.id !== deliveryId)
+      .sort((a, b) => {
+        const aPending = a.status === 'pending' && !a.is_cycling_marker;
+        const bPending = b.status === 'pending' && !b.is_cycling_marker;
+        if (aPending !== bPending) return aPending ? 1 : -1;
+        const ao = Number(a.stop_order) || 0;
+        const bo = Number(b.stop_order) || 0;
+        if (ao > 0 && bo > 0 && ao !== bo) return ao - bo;
+        const ea = a.delivery_time_eta || a.delivery_time_start || '';
+        const eb = b.delivery_time_eta || b.delivery_time_start || '';
+        if (ea !== eb) return String(ea).localeCompare(String(eb));
+        return String(a.created_date || '').localeCompare(String(b.created_date || ''));
+      });
+    const newOrderMap = new Map();
+    finishedSorted.forEach((d, i) => newOrderMap.set(d.id, i + 1));
+    const newTargetStopOrder = finishedSorted.length + 1;
+    newOrderMap.set(deliveryId, newTargetStopOrder);
+    remainingIncomplete.forEach((d, i) => newOrderMap.set(d.id, finishedSorted.length + 2 + i));
+    const renumberedIds = new Set();
+
     // Build the full mutated set we'll write to IndexedDB in one go
     const mutatedDeliveries = driverLocalDeliveries.map((d) => {
       if (!d) return d;
 
-      // Clear stale isNextDelivery from every other stop
-      if (d.id !== deliveryId && d.isNextDelivery) {
-        transitionedIds.add(d.id);
-        return { ...d, isNextDelivery: false, updated_date: new Date().toISOString() };
-      }
+      const nextOrder = newOrderMap.get(d.id);
+      const orderChanged = nextOrder != null && Number(d.stop_order) !== nextOrder;
+      if (orderChanged) { transitionedIds.add(d.id); renumberedIds.add(d.id); }
 
-      // Transition the target stop
-      // FROZEN-NUMBER POLICY (Sep 21, 2026): do NOT renumber the started stop.
-      // The old code assigned stop_order = completedCount + 1, which assumed
-      // finished stops occupy a contiguous 1..K block. On out-of-sequence
-      // routes that assumption is false, so Start visibly reshuffled the stop
-      // into a wrong position. The stop keeps its existing route number; the
-      // coordinator/engine assigns numbers for stops that have none yet.
+      // Transition the target stop (renumbered to K+1 — see STEP 2b above)
       if (d.id === deliveryId) {
         transitionedIds.add(d.id);
         return {
           ...d,
           isNextDelivery: true,
           status: newStatus,
+          stop_order: nextOrder,
           delivery_time_start: etaString,
           delivery_time_eta: etaString,
           updated_date: new Date().toISOString(),
         };
       }
 
-      return d;
+      // Clear stale isNextDelivery from every other stop + apply renumbers
+      if (d.isNextDelivery) transitionedIds.add(d.id);
+      if (!d.isNextDelivery && !orderChanged) return d;
+      return {
+        ...d,
+        ...(d.isNextDelivery ? { isNextDelivery: false } : {}),
+        ...(orderChanged ? { stop_order: nextOrder } : {}),
+        updated_date: new Date().toISOString(),
+      };
     });
 
     // Write ALL mutations to offlineDB atomically
@@ -148,12 +190,36 @@ export async function handleStartDelivery({
     // Phase 3: promote the target to isNextDelivery=true LAST.
     await base44.entities.Delivery.update(deliveryId, {
       status: newStatus,
+      stop_order: newTargetStopOrder,
       delivery_time_start: etaString,
       delivery_time_eta: etaString,
     }).catch((err) => {
       console.warn(`⚠️ [handleStartDelivery] Status sync failed for ${deliveryId}:`, err?.message);
     });
-    console.log(`✅ [handleStartDelivery] Step 4a complete — target status/stop_order/ETA synced`);
+    console.log(`✅ [handleStartDelivery] Step 4a complete — target status/stop_order/ETA synced (order ${newTargetStopOrder})`);
+
+    // ── STEP 4a.5: Persist the renumbered stop_order values for the OTHER stops.
+    // The coordinator writes stop_order again (atomically with polylines) for every
+    // stop on the route, but this guarantees the numbers land on the server even
+    // if optimization degrades or fails. Fire-and-forget — the 1.5s pause below
+    // gives it time to land before the optimizer reads the delivery list.
+    try {
+      const renumberUpdates = [];
+      for (const id of renumberedIds) {
+        if (id === deliveryId) continue; // already synced in Step 4a
+        const d = mutatedDeliveries.find((x) => x?.id === id);
+        if (d && Number.isFinite(Number(d.stop_order))) {
+          renumberUpdates.push({ id, data: { stop_order: Number(d.stop_order) } });
+        }
+      }
+      if (renumberUpdates.length > 0) {
+        base44.functions.invoke('bulkUpdateDeliveries', { updates: renumberUpdates })
+          .then(() => console.log(`✅ [handleStartDelivery] Step 4a.5 complete — ${renumberUpdates.length} renumbered stop_order(s) synced`))
+          .catch((err) => console.warn(`⚠️ [handleStartDelivery] Step 4a.5 renumber sync failed:`, err?.message));
+      }
+    } catch (err) {
+      console.warn(`⚠️ [handleStartDelivery] Step 4a.5 renumber sync failed:`, err?.message);
+    }
 
     // Authoritative server-side clear-all-then-promote (asServiceRole, primary read):
     // clears every stale isNextDelivery=true on this driver+date route EXCEPT the
@@ -210,6 +276,31 @@ export async function handleStartDelivery({
         usedFallbackPolyline: coordResult?.usedFallbackPolyline,
       });
       toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
+    }
+
+    // ─── STEP 6.5: Apply the optimized result to the UI immediately (pass 2) ───
+    // Accept-All-parity UI choreography (owner directive, Sep 28 2026): the
+    // start flow re-sorts the stop cards MULTIPLE times before settling —
+    // pass 1 was the local renumber flush in Step 3; THIS pass applies the
+    // HERE-optimized order/ETAs the coordinator just produced; Step 8 then
+    // settles with the final merged state + scroll. The visible multi-pass
+    // rearrange gives the driver the same "optimization is working" feedback
+    // the Accept All button provides.
+    if (coordResult?.success && Array.isArray(coordResult.freshDeliveries) && coordResult.freshDeliveries.length > 0 && updateDeliveriesLocally) {
+      const otherDeliveriesOpt = (deliveries || []).filter(
+        (d) => d && !(d.driver_id === driverId && d.delivery_date === deliveryDate)
+      );
+      updateDeliveriesLocally([...otherDeliveriesOpt, ...coordResult.freshDeliveries], true);
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId,
+          deliveryDate,
+          triggeredBy: 'startDelivery_optimized',
+          freshDeliveries: coordResult.freshDeliveries,
+          fullReplacement: false,
+        },
+      }));
+      console.log('✅ [handleStartDelivery] Step 6.5 complete — UI pass 2 applied (optimized order)');
     }
 
     // ─── STEP 7: Remaining processes ─────────────────────────────────────

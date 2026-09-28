@@ -151,12 +151,12 @@ export async function initNativePushNotifications(userId) {
             title: notifTitle,
             body: notifBody,
             extra: extraData,
-            // Colorized large icon — shown in the expanded notification shade
-            // next to the title/body. Android's resource system auto-selects
-            // drawable-night/ variant for dark theme.
-            largeIcon: 'ic_notification_large',
-            // Small status-bar icon — monochrome silhouette (required by
-            // Android Lollipop+, OS discards RGB and only uses alpha). Tinted brand green via iconColor.
+            // Large icon REMOVED (owner directive, Sep 28 2026): the OS already
+            // shows the app icon on the left of every card, so the large icon
+            // rendered as a SECOND duplicate app icon on the right side of the
+            // card. Cards drawn by this JS path had it; OS-drawn (killed-app)
+            // pushes didn't — that was the some-do/some-don't inconsistency.
+            // Small status-bar icon stays — monochrome silhouette, tinted brand green.
             smallIcon: 'ic_stat_notify',
             iconColor: '#22c55e',
           };
