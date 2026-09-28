@@ -109,7 +109,7 @@ async function buildPMaps(b44, deliveries) {
 }
 
 // ── INLINE COD ITEM CREATION ──
-async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null) {
+async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipBookkeeping = false) {
   const token = et();
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
@@ -195,14 +195,24 @@ async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null) {
     if (ex) { const u = await updateItem({ catalogObjectId: ex.id, catalogVersion: ex.version, itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = u?.id || ex.id; catVer = u?.version || ex.version; }
     else { const ci = await createItem({ itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = ci?.id || null; catVer = ci?.version || null; if (!catId) throw new Error(`Square did not return catalog item for ${deliveryId}`); }
   }
+  const cp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, description: '', amount: Number(codAmount || 0), amount_cents: ac, delivery_id: deliveryId, delivery_date: rdd || null, patient_id: rpid, store_id: effStoreId || null, location_id: locationId, status: 'active' };
+  // OFFLINE-FIRST (owner spec, Sep 27 2026): when the caller passes
+  // skipBookkeeping, NO online DB writes happen here — the Square create/
+  // update above is the only mutation. The bookkeeping payloads travel back
+  // to the client, which writes its OFFLINE DB first, then mirrors the whole
+  // catalog to the online DB in ONE bulk call (squareBulkSaveBookkeeping).
+  // Per-item online create/update calls were the suspected rate-limit driver.
+  if (skipBookkeeping) {
+    const exTx = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
+    return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, locationId, patientName: epn, deliveryDate: rdd,
+      catPayload: cp, txPayload: { ...cp, type: 'collection', status: 'pending', delivery_id: deliveryId }, txExistingId: exTx[0]?.id || null };
+  }
   const exTx = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
   const tp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, amount: Number(codAmount), amount_cents: ac, patient_id: rpid, store_id: effStoreId, location_id: locationId };
   const tx = exTx.length > 0 ? await b44.asServiceRole.entities.SquareTransaction.update(exTx[0].id, tp) : await b44.asServiceRole.entities.SquareTransaction.create({ ...tp, type: 'collection', status: 'pending', delivery_id: deliveryId });
   let exCat;
   try { exCat = await b44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }); }
   catch (e) { console.log('[syncSquareCods] bookkeeping lookup FAILED — skipping DB write to avoid duplicate row for', deliveryId); return null; }
-
-  const cp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, description: '', amount: Number(codAmount || 0), amount_cents: ac, delivery_id: deliveryId, delivery_date: rdd || null, patient_id: rpid, store_id: effStoreId || null, location_id: locationId, status: 'active' };
   if (exCat.length > 0) {
     await b44.asServiceRole.entities.SquareCatalogItems.update(exCat[0].id, cp);
     // Collapse duplicate bookkeeping rows from racing invocations (same delivery,
@@ -304,6 +314,7 @@ Deno.serve(async (req) => {
     const results = [];
     // ONE live-catalog fetch shared by every item in the batch (per-item
     // catalog searches were the main Square rate-limit driver).
+    const skipBookkeeping = !!payload?.skipBookkeeping;
     let batchLiveCatalog = null;
     if (items.length > 0) {
       try { batchLiveCatalog = await lc(et()); } catch (e) { console.warn('[syncSquareCods] Batch catalog prefetch failed, falling back to per-item fetches:', e?.message); }
@@ -325,7 +336,7 @@ Deno.serve(async (req) => {
       // us under the limit while finishing 107 items in ~40s.
       if (ii > 0) await sleep(600);
       try {
-        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog);
+        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog, skipBookkeeping);
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
       } catch (error) {
         console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message, error?.status ? `(status ${error.status})` : '');

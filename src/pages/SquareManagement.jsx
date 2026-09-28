@@ -287,6 +287,7 @@ export default function SquareManagement() {
         const res = await invokeWithLongTimeout('syncSquareCods', {
           items: itemsToAdd,
           deletions: [],
+          skipBookkeeping: true, // offline-first: client writes IDB, then ONE bulk online mirror
         });
         const results = res?.data?.results || res?.results || [];
         pushResults = results;
@@ -322,6 +323,8 @@ export default function SquareManagement() {
             .map((d) => [d.id, d])
         );
         const createdRecords = okResults.map((r) => {
+          // Backend offline-first mode returns the exact bookkeeping payloads
+          if (r.result?.catPayload) return { ...r.result.catPayload };
           const d = deliveryById.get(r.deliveryId);
           const store = (stores || []).find((st) => st?.id === (d?.store_id || r.result?.storeId));
           const config = getConfigForStore(store);
@@ -341,24 +344,62 @@ export default function SquareManagement() {
             status: 'active',
           };
         }).filter((c) => c.square_catalog_object_id);
+        const createdTxRecords = okResults
+          .filter((r) => r.result?.txPayload)
+          .map((r) => ({ id: `bookkeeping_${r.deliveryId}`, ...r.result.txPayload }));
         console.log('[SquareManagement] UPDATE CATALOG merging created records into IDB:', createdRecords);
         if (createdRecords.length > 0) {
-          const createdDeliveryIds = new Set(createdRecords.map((c) => c.delivery_id));
-          const { offlineDB } = await import('@/components/utils/offlineDatabase');
-          const currentRecords = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
-          // Replace any stale records for the same deliveries with the fresh ones
-          await squareCODOfflineManager.saveCatalogItemsOffline([
-            ...(currentRecords || []).filter(Boolean).filter((rec) => !createdDeliveryIds.has(rec.delivery_id)),
-            ...createdRecords,
-          ]);
-          const uiCatalog2 = await squareCODOfflineManager.getCatalogItemsOffline();
-          setCatalogItems([...(uiCatalog2 || [])]);
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          // Rebuild the reconcile/reconciliation state straight from IDB (no
-          // Square API) so the delivery↔catalog links settle completely.
-          // The earlier symptom: both items created in Square but only ONE
-          // left the "New Catalog Items" list (owner report, Sep 27).
-          await runReconcile();
+          // Serialize IDB mutations so two rapid runs (auto + retry, double
+          // click) can't interleave clearStore/bulkSave cycles.
+          const prevLock = globalThis.__squareCatalogIdbLock || Promise.resolve();
+          await prevLock.catch(() => {});
+          let releaseLock;
+          globalThis.__squareCatalogIdbLock = new Promise((res) => { releaseLock = res; });
+          let fullIdbCatalog = [];
+          try {
+            const { offlineDB } = await import('@/components/utils/offlineDatabase');
+            const currentRecords = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+            // Replace any stale records for the same deliveries with the fresh ones
+            // Merge by delivery_id (one bookkeeping row per delivery);
+            // freshly created records win over any stale rows.
+            const mergedCatalog = new Map();
+            (currentRecords || []).filter(Boolean).forEach((rec) => { if (!mergedCatalog.has(rec.delivery_id)) mergedCatalog.set(rec.delivery_id, rec); });
+            createdRecords.forEach((c) => mergedCatalog.set(c.delivery_id, c));
+            fullIdbCatalog = Array.from(mergedCatalog.values());
+            await squareCODOfflineManager.saveCatalogItemsOffline(fullIdbCatalog);
+            // Pending bookkeeping txs go into IDB too — the reconcile list
+            // reads them, and skipping them left the UI half-updated.
+            const existingTxs = (await offlineDB.getAll(offlineDB.STORES.PAYMENT_TRANSACTIONS)) || [];
+            const txMap = new Map(existingTxs.filter(Boolean).map((t) => [t.id, t]));
+            createdTxRecords.forEach((t) => txMap.set(t.id, t));
+            await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(txMap.values()));
+
+            // UI updates ONLY after every IDB write resolved (the "too soon" bug)
+            const [uiCatalog2, uiTxs2] = await Promise.all([
+              squareCODOfflineManager.getCatalogItemsOffline(),
+              squareCODOfflineManager.getPaymentTransactionsOffline(),
+            ]);
+            setCatalogItems([...(uiCatalog2 || [])]);
+            setAllTransactions([...(uiTxs2 || [])]);
+            setSoldCatalogItems([...(uiTxs2 || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
+            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+            // Rebuild the reconcile state straight from IDB (no Square API) so
+            // the delivery↔catalog links settle completely.
+            await runReconcile();
+          } finally {
+            releaseLock?.();
+          }
+          // ONE background bulk call mirrors the ENTIRE offline catalog to
+          // the online DB (owner spec, Sep 27 2026). No per-item writes.
+          invokeWithLongTimeout('squareBulkSaveBookkeeping', {
+            catalogRecords: fullIdbCatalog,
+            txRecords: createdTxRecords,
+          }).then((r2) => {
+            const d2 = r2?.data || r2 || {};
+            console.log('[SquareManagement] Bulk online mirror done:', d2);
+          }).catch((e2) => {
+            console.warn('[SquareManagement] Bulk online mirror failed (next sync will rebuild):', e2?.message);
+          });
         }
       }
 
