@@ -120,44 +120,45 @@ const DRIVER_COLOR_PALETTE = [
     '#16A34A', // Green
 ];
 
-// Square location config color palette — distinct hues that stay legible on both
-// light and dark card surfaces. Each square_location_config_id hashes to one of
-// these, so every store sharing the same Square config shows the same badge color.
-const SQUARE_CONFIG_COLOR_PALETTE = [
-  '#2563EB', // Blue
-  '#D97706', // Amber
-  '#DC2626', // Red
-  '#7C3AED', // Violet
+const usedDriverColors = new Map();
+
+// Square location badge colors — distinct, solid, higher-contrast palette so
+// stores tied to different Square location IDs are visually distinguishable
+// on the store card (previously every store with a Square link used the same
+// green outline badge, giving no signal about WHICH location it maps to).
+const SQUARE_LOCATION_COLOR_PALETTE = [
+  '#0EA5E9', // Sky
+  '#F59E0B', // Amber
+  '#8B5CF6', // Violet
+  '#10B981', // Emerald
+  '#EC4899', // Pink
+  '#EF4444', // Red
+  '#14B8A6', // Teal
+  '#F97316', // Orange
+  '#6366F1', // Indigo
+  '#84CC16', // Lime
+  '#D946EF', // Fuchsia
   '#0891B2', // Cyan
-  '#DB2777', // Pink
-  '#16A34A', // Green
-  '#EA580C', // Orange
-  '#9333EA', // Purple
-  '#0F766E', // Teal
-  '#CA8A04', // Gold
-  '#B91C1C', // Dark Red
 ];
 
-const usedSquareConfigColors = new Map();
+const usedSquareLocationColors = new Map();
 
-export const generateSquareConfigColor = (squareConfigId) => {
-  if (!squareConfigId) return '#059669'; // default emerald when no config
-  if (usedSquareConfigColors.has(squareConfigId)) {
-    return usedSquareConfigColors.get(squareConfigId);
+export const getSquareLocationColor = (squareLocationConfigId) => {
+  if (!squareLocationConfigId) return '#71717A'; // Default gray — no Square link
+  if (usedSquareLocationColors.has(squareLocationConfigId)) {
+    return usedSquareLocationColors.get(squareLocationConfigId);
   }
   let hash = 0;
-  const str = String(squareConfigId);
+  const str = String(squareLocationConfigId);
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) - hash) + str.charCodeAt(i);
     hash = hash & hash;
   }
-  const index = Math.abs(hash) % SQUARE_CONFIG_COLOR_PALETTE.length;
-  const color = SQUARE_CONFIG_COLOR_PALETTE[index];
-  usedSquareConfigColors.set(squareConfigId, color);
+  const index = Math.abs(hash) % SQUARE_LOCATION_COLOR_PALETTE.length;
+  const color = SQUARE_LOCATION_COLOR_PALETTE[index];
+  usedSquareLocationColors.set(squareLocationConfigId, color);
   return color;
 };
-
-const usedDriverColors = new Map();
 
 export const generateDriverColor = (driverName) => {
     // If we already generated a color for this driver, return it
