@@ -567,7 +567,7 @@ export default function SquareManagement() {
     }
   };
 
-  const syncFromSquare = async () => {
+  const syncFromSquare = async ({ force = false } = {}) => {
     const now = Date.now();
     // SHARED guards (localStorage-level): page load fired the sync TWICE even
     // with window-global guards (owner log 12:24 AM, Sep 28) — the builder
@@ -577,11 +577,23 @@ export default function SquareManagement() {
     // by every instance/iframe of this origin, so the lock and cooldown live
     // there. The lease (4 min) self-expires if a sync dies without a finally,
     // so a crashed run can't deadlock the page.
+    // force = MANUAL SYNC BUTTON: overrides the lock/cooldown and re-syncs the
+    // FULL 90-day window (owner request, Sep 28) — the incremental order-fetch
+    // marker is cleared so step 2 pulls every order again. A sync already in
+    // flight is still respected (a double-run would be worse than the wait).
     const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
     const LS_START = 'squareCodSync_lastStartAt';
     const leaseUntil = Number(localStorage.getItem(LS_INFLIGHT) || 0);
     const lastStart = Number(localStorage.getItem(LS_START) || 0);
-    if (leaseUntil > now || lastStart > 0 && now - lastStart < 30000 || syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
+    if (force) {
+      localStorage.removeItem('squareCod_lastOrderFetchAt');
+      if (syncInFlightRef.current || leaseUntil > now) {
+        console.log('[SquareManagement] SYNC SKIPPED — another sync is already running');
+        toast.info('A sync is already running — it will finish shortly');
+        return;
+      }
+      console.log('[SquareManagement] SYNC STARTED (manual, cooldown overridden, full 90-day window)');
+    } else if (leaseUntil > now || lastStart > 0 && now - lastStart < 30000 || syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
       console.log('[SquareManagement] SYNC SKIPPED — already running or cooling down');
       return;
     }
@@ -2351,7 +2363,7 @@ export default function SquareManagement() {
             </SelectContent>
           </Select>
           {currentUser && !isDriverView &&
-          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0">
+          <Button onClick={() => syncFromSquare({ force: true })} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0">
             <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
             {isSyncing ? (backfillProgress ? 'Backfilling...' : 'Syncing...') : 'Sync'}
           </Button>
