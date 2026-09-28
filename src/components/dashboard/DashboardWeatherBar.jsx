@@ -160,14 +160,17 @@ function DashboardWeatherBar({
   if (immersiveHidden || !entry || !Number.isFinite(Number(entry.temp))) return null;
 
   const temp = Number(entry.temp);
+  // Decimal temp for badge alignment (owner request, Sep 28): the badge flows
+  // smoothly with sub-degree changes instead of jumping whole degrees.
+  const tempPrecise = Number.isFinite(Number(entry.temp_precise)) ? Number(entry.temp_precise) : temp;
   const high = Number.isFinite(Number(entry.high)) ? Number(entry.high) : temp + 5;
   const low = Number.isFinite(Number(entry.low)) ? Number(entry.low) : temp - 5;
   // Scale limits (owner spec, Sep 27 v4): 2° above the top marker / 2° below
   // the bottom one — but if the CURRENT temp sits outside the projected
   // high..low band, the scale stretches to 2° past the current temp instead.
   // The projected high/low markers always stay visible.
-  const scaleTop = Math.max(high, temp) + 2;
-  const scaleBottom = Math.min(low, temp) - 2;
+  const scaleTop = Math.max(high, tempPrecise) + 2;
+  const scaleBottom = Math.min(low, tempPrecise) - 2;
   const span = Math.max(1, scaleTop - scaleBottom);
   const frac = (v) => Math.min(0.98, Math.max(0.02, (v - scaleBottom) / span));
 
@@ -178,7 +181,7 @@ function DashboardWeatherBar({
   // Pixel offsets from the BOTTOM of the (explicit-height) bar box.
   const yLow = Math.round(frac(low) * barHeight);
   const yHigh = Math.round(frac(high) * barHeight);
-  const yTemp = Math.round(frac(temp) * barHeight);
+  const yTemp = Math.round(frac(tempPrecise) * barHeight);
   const yZero = frac(0) * barHeight;
 
   // ── Colored fill: ONLY the segment between the projected LOW and HIGH ──
@@ -282,8 +285,11 @@ function DashboardWeatherBar({
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${low}°`}</span>
       </div>
 
-      {/* Current temp — badge BESIDE the tube, aligned to the current temp position */}
-      <div style={{ position: 'absolute', bottom: `${yTemp}px`, left: 16, display: 'flex', alignItems: 'center' }}>
+      {/* Current temp — badge BESIDE the tube, VERTICALLY CENTERED on the
+          current temp position (owner request, Sep 28): bottom-anchored at the
+          temp line then translated down by half its own height, so the badge's
+          middle — not its bottom edge — tracks the exact temp position. */}
+      <div style={{ position: 'absolute', bottom: `${yTemp}px`, left: 16, display: 'flex', alignItems: 'center', transform: 'translateY(50%)' }}>
         <span
           style={{
             display: 'flex', alignItems: 'center', gap: 3,
