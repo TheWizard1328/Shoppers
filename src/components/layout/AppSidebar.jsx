@@ -467,7 +467,7 @@ export default function AppSidebar({
             }
 
 
-            {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
+            {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
             <Link
               to={constructUrlWithParams(createPageUrl('Stores'))}
               onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);else {/* prevent navigation */}}}
