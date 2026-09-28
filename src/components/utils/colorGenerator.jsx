@@ -126,6 +126,17 @@ const usedDriverColors = new Map();
 // stores tied to different Square location IDs are visually distinguishable
 // on the store card (previously every store with a Square link used the same
 // green outline badge, giving no signal about WHICH location it maps to).
+// Fixed color assignments for the ACTIVE Square location configs. The pure
+// hash below collided (2 of 3 active configs landed on the same green), which
+// made every badge look identical. Pinned here so each active config is
+// guaranteed a distinct, stable color on every device. New/unknown config IDs
+// fall through to the hashed palette below.
+const SQUARE_LOCATION_COLOR_OVERRIDES = {
+  '696d96b764781afc5b8cb0d8': '#0EA5E9', // sky blue
+  '696d98fc84ff1729bc0192ca': '#F59E0B', // amber
+  '696d991da39d7e9f2448528a': '#8B5CF6', // violet
+};
+
 const SQUARE_LOCATION_COLOR_PALETTE = [
   '#0EA5E9', // Sky
   '#F59E0B', // Amber
@@ -145,6 +156,7 @@ const usedSquareLocationColors = new Map();
 
 export const getSquareLocationColor = (squareLocationConfigId) => {
   if (!squareLocationConfigId) return '#71717A'; // Default gray — no Square link
+  if (SQUARE_LOCATION_COLOR_OVERRIDES[squareLocationConfigId]) return SQUARE_LOCATION_COLOR_OVERRIDES[squareLocationConfigId];
   if (usedSquareLocationColors.has(squareLocationConfigId)) {
     return usedSquareLocationColors.get(squareLocationConfigId);
   }
