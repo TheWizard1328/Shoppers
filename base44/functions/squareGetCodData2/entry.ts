@@ -663,6 +663,21 @@ async function handleGetCodData(base44, payload={}) {
       .filter((t) => t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed')
       .map((t) => t.delivery_id)
   );
+  // Incremental-fetch safety (owner concern, Sep 28): retained DB tx rows are
+  // AUTHORITATIVE collected evidence — a completed row with a real Square
+  // transaction id means some previous sync saw the store ring that COD
+  // through. Fold them in so the reconcile/delete logic NEVER depends on which
+  // orders this particular run happened to download. Without this, a device
+  // running an incremental order fetch could miss collections proven only by
+  // orders fetched before its since-window, leaving the matching catalog item
+  // alive. Stamping these deliveries collected is correct — same rule the
+  // squareCodReconcile create path already uses (retained rows = proof).
+  for (const t of (existingTransactions || [])) {
+    if (t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed' &&
+        normalizeText(t?.square_transaction_id) !== '') {
+      confirmedCollectedDeliveryIds.add(t.delivery_id);
+    }
+  }
 
   // ── WIDE-LOOKBACK COLLECTED-CONFIRMED SCAN (multi-line-item orders) ──
   // The default order lookback (daysBack) can't see CODs collected weeks or
