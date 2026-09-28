@@ -210,7 +210,7 @@ async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null) {
     for (let i = 1; i < exCat.length; i++) { await b44.asServiceRole.entities.SquareCatalogItems.delete(exCat[i].id).catch(() => null); }
   }
   else await b44.asServiceRole.entities.SquareCatalogItems.create(cp);
-  return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, transactionId: tx?.id || exTx[0]?.id };
+  return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, locationId, patientName: epn, deliveryDate: rdd, transactionId: tx?.id || exTx[0]?.id };
 }
 
 // ── INLINE COD ITEM DELETION ──
@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
         const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog);
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
       } catch (error) {
-        console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message);
+        console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message, error?.status ? `(status ${error.status})` : '');
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: 'error', error: error?.message || 'Upsert failed' });
       }
     }

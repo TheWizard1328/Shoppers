@@ -323,7 +323,7 @@ export default function SquareManagement() {
         );
         const createdRecords = okResults.map((r) => {
           const d = deliveryById.get(r.deliveryId);
-          const store = (stores || []).find((st) => st?.id === d?.store_id);
+          const store = (stores || []).find((st) => st?.id === (d?.store_id || r.result?.storeId));
           const config = getConfigForStore(store);
           const amt = Number(d?.cod_total_amount_required || 0);
           return {
@@ -334,13 +334,14 @@ export default function SquareManagement() {
             amount: amt,
             amount_cents: Math.round(amt * 100),
             delivery_id: r.deliveryId,
-            delivery_date: d?.delivery_date || null,
+            delivery_date: d?.delivery_date || r.result?.deliveryDate || null,
             patient_id: d?.patient_id || null,
-            store_id: d?.store_id || null,
-            location_id: config?.square_location_id || null,
+            store_id: d?.store_id || r.result?.storeId || null,
+            location_id: r.result?.locationId || config?.square_location_id || null,
             status: 'active',
           };
         }).filter((c) => c.square_catalog_object_id);
+        console.log('[SquareManagement] UPDATE CATALOG merging created records into IDB:', createdRecords);
         if (createdRecords.length > 0) {
           const createdDeliveryIds = new Set(createdRecords.map((c) => c.delivery_id));
           const { offlineDB } = await import('@/components/utils/offlineDatabase');
@@ -353,6 +354,11 @@ export default function SquareManagement() {
           const uiCatalog2 = await squareCODOfflineManager.getCatalogItemsOffline();
           setCatalogItems([...(uiCatalog2 || [])]);
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          // Rebuild the reconcile/reconciliation state straight from IDB (no
+          // Square API) so the delivery↔catalog links settle completely.
+          // The earlier symptom: both items created in Square but only ONE
+          // left the "New Catalog Items" list (owner report, Sep 27).
+          await runReconcile();
         }
       }
 
@@ -363,9 +369,21 @@ export default function SquareManagement() {
       }
       console.log(`[SquareManagement] UPDATE CATALOG COMPLETE (${trigger} click, ${Date.now() - ucStart}ms) — ${addedCount} added`);
     } catch (err) {
-      console.error(`[SquareManagement] UPDATE CATALOG FAILED (${trigger} click, ${Date.now() - ucStart}ms):`, err?.message);
+      console.error(`[SquareManagement] UPDATE CATALOG FAILED (${trigger} click, ${Date.now() - ucStart}ms):`, err?.message, err?.status ? `(status ${err.status})` : '', err?.response?.status ? `(http ${err.response.status})` : '');
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
+      // Rate-limit failures on the AUTO trigger get ONE delayed retry —
+      // manual-sync runs kept 429ing right after the sync's Square burst
+      // (owner report, Sep 27). 60s gives the Square rate window time to
+      // fully recover, and the retry logs itself so we can see whether the
+      // limit is Square-side or platform-side.
+      if (trigger === 'auto' && /rate limit/i.test(String(err?.message || ''))) {
+        setTimeout(() => {
+          console.log('[SquareManagement] UPDATE CATALOG auto-retry after rate limit (60s later)');
+          globalThis.__squareCodAutoUpdateAt = 0;
+          updateCatalogRef.current?.('auto-retry');
+        }, 60000);
+      }
     } finally {
       setIsUpdatingCatalog(false);
     }
