@@ -244,6 +244,34 @@ function DashboardWeatherBar({
         />
       )}
 
+      {/* Integer-degree dots (owner request, Sep 28): one small dot per whole
+          degree position on the scale — no numbers. Covers the FULL scale
+          INCLUDING the buffer zones above the high and below the low; the
+          projected high/low positions are skipped (their rotated labels
+          already mark those spots). Rendered after the fill so they're
+          visible on both the colored segment and the empty frosted track. */}
+      {(() => {
+        const dots = [];
+        const first = Math.ceil(scaleBottom);
+        const last = Math.floor(scaleTop);
+        for (let v = first; v <= last; v++) {
+          if (v === high || v === low) continue;
+          const yDot = Math.round(frac(v) * barHeight);
+          dots.push(
+            <div
+              key={v}
+              style={{
+                position: 'absolute', bottom: yDot - 1.5, left: 4.5,
+                width: 3, height: 3, borderRadius: 999,
+                background: 'rgba(255,255,255,0.92)',
+                boxShadow: '0 0 0 1px rgba(15,23,42,0.45), 0 1px 2px rgba(0,0,0,0.5)',
+              }}
+            />
+          );
+        }
+        return dots;
+      })()}
+
       {/* Projected HIGH — rotated 90° CCW, on the bar just below the high position */}
       <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 14)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${high}°`}</span>
