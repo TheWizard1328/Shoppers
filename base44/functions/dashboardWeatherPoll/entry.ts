@@ -93,15 +93,19 @@ function mapMetNoSymbol(s) {
 }
 
 // ── Weather providers (same normalization as driverWeatherBriefing) ─────────
-async function fetchOpenMeteo(lat, lon) {
+async function fetchOpenMeteo(lat, lon, attempt = 1) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,snowfall_sum,weather_code` +
     `&timezone=America%2FEdmonton&forecast_days=1`;
-  const res = await fetch(url).catch(() => null);
-  if (!res || !res.ok) return null;
+  let res = await fetch(url).catch((e) => { console.warn('[dashboardWeatherPoll] open-meteo attempt', attempt, 'network error:', e?.message || e); return null; });
+  if (!res || !res.ok) {
+    if (res) console.warn('[dashboardWeatherPoll] open-meteo attempt', attempt, 'HTTP', res.status);
+    if (attempt < 2) { await new Promise((r) => setTimeout(r, 1500)); return fetchOpenMeteo(lat, lon, attempt + 1); }
+    return null;
+  }
   const j = await res.json().catch(() => null);
-  if (!j?.current || !j?.daily) return null;
+  if (!j?.current || !j?.daily) { console.warn('[dashboardWeatherPoll] open-meteo OK HTTP but malformed payload'); return null; }
   const code = j.current.weather_code;
   return {
     current: { temp: Math.round(j.current.temperature_2m), feels: Math.round(j.current.apparent_temperature), text: wmoText(code), icon: wmoIcon(code), wind: Math.round(j.current.wind_speed_10m) },
@@ -151,8 +155,13 @@ async function fetchMetNo(lat, lon) {
     source: 'met.no',
   };
 }
+// Provider order (owner fix, Sep 28): open-meteo FIRST (fresh current temp,
+// matches the driver's phone), met.no SECOND (live observation model), wttr.in
+// LAST — wttr.in serves cached "current" conditions that can lag hours behind
+// reality (it reported 10C at 02:12 MDT when the actual temp was ~5C), so it's
+// only a last-resort fallback now.
 async function getWeatherForCity(lat, lon) {
-  return (await fetchOpenMeteo(lat, lon)) || (await fetchWttr(lat, lon)) || (await fetchMetNo(lat, lon));
+  return (await fetchOpenMeteo(lat, lon)) || (await fetchMetNo(lat, lon)) || (await fetchWttr(lat, lon));
 }
 
 // Fields that count as a "real change" (source flapping alone is not a change)
