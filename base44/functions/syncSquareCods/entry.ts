@@ -274,7 +274,72 @@ Deno.serve(async (req) => {
     const b = createClientFromRequest(req);
     await ru(b);
     const payload = await req.json().catch(() => ({}));
-    console.log('[syncSquareCods] invoked — mode:', payload?.event ? 'event' : 'batch', 'items:', payload?.items?.length || 0);
+    console.log('[syncSquareCods] invoked — mode:', payload?.event ? 'event' : (payload?.mode || 'batch'), 'items:', payload?.items?.length || 0);
+
+    // ── BULK ONLINE MIRROR MODE (offline-first client writes IDB first, then
+    // hands the complete catalog set + this push's pending tx payloads here in
+    // ONE call). Lives in this already-deployed function because NEW function
+    // directories do not register via git push (owner 404 report, Sep 28).
+    if (payload?.mode === 'bulkSaveBookkeeping') {
+      const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
+      const txRecords = Array.isArray(payload?.txRecords) ? payload.txRecords.filter(Boolean) : [];
+      let created = 0, updated = 0, deleted = 0, txCreated = 0, txUpdated = 0;
+      if (catalogRecords.length > 0) {
+        const existing = await b.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
+        const byDelivery = new Map();
+        for (const ex of (existing || [])) {
+          const prev = byDelivery.get(ex.delivery_id);
+          if (!prev) byDelivery.set(ex.delivery_id, [ex]); else prev.push(ex);
+        }
+        const toCreate = [];
+        for (const rec of catalogRecords) {
+          if (!rec?.delivery_id) continue;
+          const rows = byDelivery.get(rec.delivery_id) || [];
+          const primary = rows.find((r) => r.square_catalog_object_id === rec.square_catalog_object_id) || rows[0];
+          if (primary) {
+            const changed = primary.item_name !== rec.item_name
+              || Number(primary.amount_cents) !== Number(rec.amount_cents)
+              || primary.square_catalog_version !== rec.square_catalog_version
+              || primary.square_catalog_object_id !== rec.square_catalog_object_id
+              || (primary.status || 'active') !== (rec.status || 'active')
+              || primary.location_id !== rec.location_id;
+            if (changed) {
+              const { id, created_date, updated_date, created_by, ...clean } = rec;
+              await b.asServiceRole.entities.SquareCatalogItems.update(primary.id, clean).catch(() => null);
+              updated++;
+            }
+            for (let i = 0; i < rows.length; i++) {
+              if (rows[i] && rows[i].id !== primary.id) {
+                await b.asServiceRole.entities.SquareCatalogItems.delete(rows[i].id).catch(() => null);
+                deleted++;
+              }
+            }
+          } else {
+            const { id, created_date, updated_date, created_by, ...clean } = rec;
+            toCreate.push(clean);
+          }
+        }
+        for (let i = 0; i < toCreate.length; i += 100) {
+          const chunk = toCreate.slice(i, i + 100);
+          await b.asServiceRole.entities.SquareCatalogItems.bulkCreate(chunk).catch(() => null);
+          created += chunk.length;
+        }
+      }
+      for (const txp of txRecords) {
+        if (!txp?.delivery_id) continue;
+        const exTx = await b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: txp.delivery_id, status: 'pending' }).catch(() => []);
+        const { id, created_date, updated_date, created_by, ...clean } = txp;
+        if (exTx?.length > 0) {
+          await b.asServiceRole.entities.SquareTransaction.update(exTx[0].id, clean).catch(() => null);
+          txUpdated++;
+        } else {
+          await b.asServiceRole.entities.SquareTransaction.create(clean).catch(() => null);
+          txCreated++;
+        }
+      }
+      console.log('[syncSquareCods] bulk mirror done:', { catalogCreated: created, catalogUpdated: updated, duplicatesRemoved: deleted, txCreated, txUpdated });
+      return Response.json({ success: true, catalogCreated: created, catalogUpdated: updated, catalogDuplicatesRemoved: deleted, txCreated, txUpdated });
+    }
 
     // Event-driven sync (from entity trigger)
     const event = payload?.event;

@@ -367,12 +367,14 @@ export default function SquareManagement() {
             createdRecords.forEach((c) => mergedCatalog.set(c.delivery_id, c));
             fullIdbCatalog = Array.from(mergedCatalog.values());
             await squareCODOfflineManager.saveCatalogItemsOffline(fullIdbCatalog);
-            // Pending bookkeeping txs go into IDB too — the reconcile list
-            // reads them, and skipping them left the UI half-updated.
-            const existingTxs = (await offlineDB.getAll(offlineDB.STORES.PAYMENT_TRANSACTIONS)) || [];
-            const txMap = new Map(existingTxs.filter(Boolean).map((t) => [t.id, t]));
-            createdTxRecords.forEach((t) => txMap.set(t.id, t));
-            await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(txMap.values()));
+            // Pending bookkeeping txs are UPSERTED into the correct store
+            // (SQUARE_TRANSACTIONS). NEVER replace-save here: the old code read
+            // the undefined PAYMENT_TRANSACTIONS store (always []), then
+            // replace-saved that empty set — wiping ALL 714 retained txs, which
+            // flooded the reconcile list with 139 collected CODs (Sep 28).
+            if (createdTxRecords.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, createdTxRecords);
+            }
 
             // UI updates ONLY after every IDB write resolved (the "too soon" bug)
             const [uiCatalog2, uiTxs2] = await Promise.all([
@@ -391,7 +393,8 @@ export default function SquareManagement() {
           }
           // ONE background bulk call mirrors the ENTIRE offline catalog to
           // the online DB (owner spec, Sep 27 2026). No per-item writes.
-          invokeWithLongTimeout('squareBulkSaveBookkeeping', {
+          invokeWithLongTimeout('syncSquareCods', {
+            mode: 'bulkSaveBookkeeping',
             catalogRecords: fullIdbCatalog,
             txRecords: createdTxRecords,
           }).then((r2) => {
@@ -676,10 +679,15 @@ export default function SquareManagement() {
           });
           console.log(`[SquareManagement] SYNC STEP 5: New Catalog Items present = ${hasNewItems}`);
           if (hasNewItems) {
-            // Release the sync guards so updateCatalog's own guard lets it run
+            // Release the sync guards so updateCatalog's own guard lets it run.
+            // The flush wait is required: setIsSyncing(false) re-renders and
+            // re-binds updateCatalogRef.current — calling the ref immediately
+            // still hit the OLD callback whose isSyncing closure was true and
+            // returned early (the "sync never starts Update Catalog" bug).
             g.__squareCodSyncInFlight = false;
             syncInFlightRef.current = false;
             setIsSyncing(false);
+            await new Promise((r) => setTimeout(r, 1000));
             console.log('[SquareManagement] SYNC STEP 5: running Update Catalog path');
             await updateCatalogRef.current?.('auto');
           } else {
