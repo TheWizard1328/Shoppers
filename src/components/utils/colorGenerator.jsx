@@ -120,6 +120,43 @@ const DRIVER_COLOR_PALETTE = [
     '#16A34A', // Green
 ];
 
+// Square location config color palette — distinct hues that stay legible on both
+// light and dark card surfaces. Each square_location_config_id hashes to one of
+// these, so every store sharing the same Square config shows the same badge color.
+const SQUARE_CONFIG_COLOR_PALETTE = [
+  '#2563EB', // Blue
+  '#D97706', // Amber
+  '#DC2626', // Red
+  '#7C3AED', // Violet
+  '#0891B2', // Cyan
+  '#DB2777', // Pink
+  '#16A34A', // Green
+  '#EA580C', // Orange
+  '#9333EA', // Purple
+  '#0F766E', // Teal
+  '#CA8A04', // Gold
+  '#B91C1C', // Dark Red
+];
+
+const usedSquareConfigColors = new Map();
+
+export const generateSquareConfigColor = (squareConfigId) => {
+  if (!squareConfigId) return '#059669'; // default emerald when no config
+  if (usedSquareConfigColors.has(squareConfigId)) {
+    return usedSquareConfigColors.get(squareConfigId);
+  }
+  let hash = 0;
+  const str = String(squareConfigId);
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  const index = Math.abs(hash) % SQUARE_CONFIG_COLOR_PALETTE.length;
+  const color = SQUARE_CONFIG_COLOR_PALETTE[index];
+  usedSquareConfigColors.set(squareConfigId, color);
+  return color;
+};
+
 const usedDriverColors = new Map();
 
 export const generateDriverColor = (driverName) => {

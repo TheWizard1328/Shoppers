@@ -141,12 +141,12 @@ export default function RouteActionButtons({
       if (driverId !== selectedDriverId) return;
       await new Promise((resolve) => setTimeout(resolve, 800));
       if (isReoptimizing) return;
+      const date = deliveryDate || format(selectedDate, 'yyyy-MM-dd');
       try {
         setIsReoptimizing(true);
         setIsEntityUpdating(true);
         pauseOfflineMutations();
         pauseOfflineSync();
-        const date = deliveryDate || format(selectedDate, 'yyyy-MM-dd');
         const driverAppUser = appUsers?.find(
           (au) => au.id === selectedDriverId || au.user_id === selectedDriverId
         );

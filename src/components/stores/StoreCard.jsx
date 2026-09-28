@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger } from
 "@/components/ui/alert-dialog";
-import { getStoreColor } from "../utils/colorGenerator";
+import { getStoreColor, generateSquareConfigColor } from "../utils/colorGenerator";
 import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
 import { updateStoreLocal } from "@/components/utils/offlineMutations";
@@ -41,6 +41,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
   // Generate color locally if missing (don't auto-save to avoid infinite loops)
   const displayColor = store.color || getStoreColor(store);
+
+  // Square config badge color — same config ID always maps to the same hue so
+  // stores sharing a Square location visually match.
+  const squareBadgeColor = generateSquareConfigColor(store.square_location_config_id);
 
   useEffect(() => {
     setEditableStore({ ...store });
@@ -177,7 +181,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </Badge>
                   }
                   {store.square_location_config_id &&
-                  <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1" style={{ borderColor: '#10b981', color: '#059669' }}>
+                  <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1" style={{ borderColor: squareBadgeColor, color: squareBadgeColor }}>
                       <CreditCard className="w-3 h-3" />
                     </Badge>
                   }
