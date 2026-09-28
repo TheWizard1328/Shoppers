@@ -281,11 +281,19 @@ export default function SquareManagement() {
           deletions: [],
         });
         const results = res?.data?.results || res?.results || [];
-        addedCount = results.filter((r) => r.status === 'ok' || r.status === 'skipped').length;
+        // Only 'ok' counts as added — 'skipped' means the backend refused
+        // (collected, unconfigured store, etc.). Counting skips as added made
+        // the button claim success while creating nothing (owner report, Sep 27).
+        addedCount = results.filter((r) => r.status === 'ok').length;
+        const skipped = results.filter((r) => r.status === 'skipped');
         failedCount = results.filter((r) => r.status === 'error').length;
         if (failedCount > 0) {
           const errs = results.filter((r) => r.status === 'error').map((r) => r.error).slice(0, 3).join('; ');
           throw new Error(`${failedCount} item(s) failed: ${errs}`);
+        }
+        if (skipped.length > 0) {
+          const reasons = Array.from(new Set(skipped.map((r) => r?.result?.reason || r?.reason || 'skipped'))).slice(0, 3).join(', ');
+          toast.info(`${skipped.length} item(s) skipped (${reasons})`);
         }
       }
 
@@ -516,18 +524,83 @@ export default function SquareManagement() {
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-        // ── STEP 3.5 (REMOVED): the frontend used to fire its own auto-create
-        // pass (syncSquareCods with every delivery lacking a catalog/tx record).
-        // That pass ran WITHOUT the sync's collected checks and store-Square
-        // eligibility, so collected CODs and non-Square-store CODs got items
-        // re-created every Sync, then deleted again by the next one — the
-        // endless recreate/delete churn and Square rate-limit storms. Catalog
-        // creation is owned SOLELY by the sync's server-side 5c step, which runs
-        // AFTER 5a stamps + purges confirmed collections, so an item is only ever
-        // created for a delivery that survived all collected checks. Its
-        // creations are already inside catalogRecords above.
+        // ── STEP 4 (FINAL): push the New Catalog Items into Square ──────
+        // The sync itself has done all its data work (match, stamp, purge,
+        // catalog mirror). The New Catalog Items list is now fully known: cash
+        // CODs that survived every collected check, have a Square-configured
+        // store, and still have NO live catalog item and NO real Square
+        // transaction. As the FINAL step, push exactly that list into the
+        // Square Catalog API + both DBs via the same path the Update Catalog
+        // button uses (syncSquareCods), then merge the created items into the
+        // UI so they stop showing as New immediately. No pass when the list
+        // is empty — the sync's own creations are already in catalogRecords.
+        // (owner spec, Sep 27 2026)
+        const syncCatalogDeliveryIds = new Set((catalogRecords || []).map((c) => c?.delivery_id).filter(Boolean));
+        const syncTxDeliveryIds = new Set((transactionRecords || [])
+          .filter((t) => t?.delivery_id && t?.square_transaction_id)
+          .map((t) => t.delivery_id));
+        const newItems = (strippedDeliveries || []).filter((d) => {
+          if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
+          if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
+          if (d?.cod_confirmed_collected) return false;
+          if (d?.delivery_date && d.delivery_date > todayDateString) return false;
+          const cps = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+          if (!cps.some((p) => p?.type === 'Cash')) return false;
+          if (syncCatalogDeliveryIds.has(d.id) || syncTxDeliveryIds.has(d.id)) return false;
+          const store = stores.find((s) => s?.id === d?.store_id);
+          const config = getConfigForStore(store);
+          return !!(config?.id && visibleSquareLocationConfigIds.has(config.id));
+        }).map((d) => ({
+          deliveryId: d.id,
+          patientName: null,
+          storeId: d.store_id,
+          codAmount: d.cod_total_amount_required,
+          deliveryDate: d.delivery_date,
+        }));
+
         let autoAddedCount = 0;
         let autoFailedCount = 0;
+        if (newItems.length > 0) {
+          try {
+            const res = await invokeWithLongTimeout('syncSquareCods', { items: newItems, deletions: [] });
+            const results = res?.data?.results || res?.results || [];
+            const okResults = results.filter((r) => r?.status === 'ok');
+            autoFailedCount = results.filter((r) => r?.status === 'error').length;
+            autoAddedCount = okResults.length;
+            // Merge the created items into the offline DB + UI state so they
+            // link to their deliveries right away (next sync returns them in
+            // catalogRecords as usual).
+            const deliveryById = new Map((strippedDeliveries || []).map((d) => [d.id, d]));
+            const createdRecords = okResults.map((r) => {
+              const d = deliveryById.get(r.deliveryId);
+              const store = stores.find((s) => s?.id === d?.store_id);
+              const config = getConfigForStore(store);
+              const amt = Number(d?.cod_total_amount_required || 0);
+              return {
+                square_catalog_object_id: r.result?.catalogObjectId || null,
+                square_catalog_version: r.result?.catalogVersion || null,
+                item_name: r.result?.itemName || null,
+                description: '',
+                amount: amt,
+                amount_cents: Math.round(amt * 100),
+                delivery_id: r.deliveryId,
+                delivery_date: d?.delivery_date || null,
+                patient_id: d?.patient_id || null,
+                store_id: d?.store_id || null,
+                location_id: config?.square_location_id || null,
+                status: 'active',
+              };
+            }).filter((c) => c.square_catalog_object_id);
+            if (createdRecords.length > 0) {
+              await squareCODOfflineManager.saveCatalogItemsOffline([...(catalogRecords || []).filter(Boolean), ...createdRecords]);
+              const uiCatalog2 = await squareCODOfflineManager.getCatalogItemsOffline();
+              setCatalogItems([...(uiCatalog2 || [])]);
+            }
+          } catch (err) {
+            console.warn('[SquareManagement] Final New Catalog Items push failed:', err?.message);
+            autoFailedCount = newItems.length;
+          }
+        }
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];
