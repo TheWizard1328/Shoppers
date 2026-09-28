@@ -109,7 +109,7 @@ async function buildPMaps(b44, deliveries) {
 }
 
 // ── INLINE COD ITEM CREATION ──
-async function handleCreateCodItem(b44, payload) {
+async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null) {
   const token = et();
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
@@ -176,7 +176,9 @@ async function handleCreateCodItem(b44, payload) {
   } else {
     // Either no pending tx, or name+amount already match. Always verify the live catalog
     // item exists; if it was deleted by a prior sync cleanup, recreate it.
-    const live = await lc(token);
+    // A batch shares ONE catalog fetch — a full catalog search per item was
+    // multiplying Square API calls and tripping rate limits (owner report, Sep 27).
+    const live = sharedLiveCatalog || await lc(token);
     // Match by description delivery-id first, then fall back to exact name +
     // amount. Items whose description lost the delivery id (older creators,
     // historical edits) otherwise fail this lookup and every push CREATES A
@@ -300,6 +302,12 @@ Deno.serve(async (req) => {
     if (!items.length && !deletions.length) return Response.json({ success: true, processed: 0, results: [] });
 
     const results = [];
+    // ONE live-catalog fetch shared by every item in the batch (per-item
+    // catalog searches were the main Square rate-limit driver).
+    let batchLiveCatalog = null;
+    if (items.length > 0) {
+      try { batchLiveCatalog = await lc(et()); } catch (e) { console.warn('[syncSquareCods] Batch catalog prefetch failed, falling back to per-item fetches:', e?.message); }
+    }
     for (const del of deletions) {
       try {
         const r = await handleDeleteCodItem(b, { deliveryId: del?.deliveryId, catalogObjectId: del?.catalogObjectId, transactionId: del?.transactionId, reason: del?.status === 'failed' ? 'failed' : del?.reason });
@@ -317,7 +325,7 @@ Deno.serve(async (req) => {
       // us under the limit while finishing 107 items in ~40s.
       if (ii > 0) await sleep(600);
       try {
-        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId });
+        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog);
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
       } catch (error) {
         console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message);
