@@ -243,10 +243,14 @@ export default function SquareManagement() {
 
   const updateCatalogRef = useRef(null);
 
-  const updateCatalog = useCallback(async () => {
+  const updateCatalog = useCallback(async (trigger = 'manual') => {
     if (isUpdatingCatalog || isSyncing) return;
+    const ucStart = Date.now();
     setIsUpdatingCatalog(true);
     setError(null);
+    // 'manual' = the button was clicked by a person; 'auto' = the post-sync
+    // trigger fired it. Either way the button shows the same working state.
+    console.log(`[SquareManagement] UPDATE CATALOG STARTED (${trigger} click) at ${new Date().toLocaleTimeString()}`);
     try {
       // ── Add all reconciliation items (no catalog ID yet) to Square ───
       // Deletions are handled by the authoritative sync that follows.
@@ -299,6 +303,7 @@ export default function SquareManagement() {
           const reasons = Array.from(new Set(skipped.map((r) => r?.result?.reason || r?.reason || 'skipped'))).slice(0, 3).join(', ');
           toast.info(`${skipped.length} item(s) skipped (${reasons})`);
         }
+        console.log(`[SquareManagement] UPDATE CATALOG push done (${Date.now() - ucStart}ms): ${addedCount} ok, ${skipped.length} skipped, ${failedCount} errors`, results);
       }
 
       // ── Merge created items locally — NO follow-up Square sync ─────────
@@ -355,8 +360,9 @@ export default function SquareManagement() {
       } else {
         toast.success('Catalog synced — no new items to add');
       }
+      console.log(`[SquareManagement] UPDATE CATALOG COMPLETE (${trigger} click, ${Date.now() - ucStart}ms) — ${addedCount} added`);
     } catch (err) {
-      console.error('[SquareManagement] Update Catalog failed:', err);
+      console.error(`[SquareManagement] UPDATE CATALOG FAILED (${trigger} click, ${Date.now() - ucStart}ms):`, err?.message);
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
     } finally {
@@ -489,6 +495,7 @@ export default function SquareManagement() {
     lastSyncAtRef.current = now;
     setIsSyncing(true);
     setError(null);
+    console.log(`[SquareManagement] SYNC STARTED at ${new Date().toLocaleTimeString()}`);
 
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
@@ -496,6 +503,7 @@ export default function SquareManagement() {
       // ── STEP 1: Load from offline DB immediately (no UI changes yet) ──
       // The mount effect already loaded offline data; just ensure isLoading is off
       setIsLoading(false);
+      console.log('[SquareManagement] SYNC STEP 1: offline load (skipped — mount hydration)');
 
       // ── STEP 2: Single API call — catalog + transactions + cleanup in one pass ──
       // squareGetCodData2 now fetches catalog + orders once, builds transaction records,
@@ -504,13 +512,16 @@ export default function SquareManagement() {
       let syncError = null;
       let codData = null;
       try {
+        console.log('[SquareManagement] SYNC STEP 2: Square API fetch starting (squareGetCodData2, daysBack=90)');
         const codResponse = await invokeWithLongTimeout('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: 90,
         });
         codData = codResponse?.data || codResponse || {};
+        console.log(`[SquareManagement] SYNC STEP 2: Square API fetch done — ${(codData.transactions || codData.transactionRecords || []).length} txs, ${(codData.catalog || codData.catalogRecords || []).length} catalog, ${(codData.deletedCatalogIds || []).length} deleted`);
       } catch (err) {
         syncError = err;
+        console.error('[SquareManagement] SYNC STEP 2: Square API fetch FAILED:', err?.message, err?.status || '');
       }
 
       if (!syncError && codData) {
@@ -554,6 +565,7 @@ export default function SquareManagement() {
           }
         });
         await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
+        console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted`);
 
         // ── STEP 3: One UI update from offline DB ──────────────────────
         const [uiCatalog, uiTransactions] = await Promise.all([
@@ -592,9 +604,10 @@ export default function SquareManagement() {
               const delivery = row.rawDelivery;
               return !!(delivery && Number(delivery.cod_total_amount_required) > 0);
             });
+            console.log(`[SquareManagement] SYNC STEP 4 (post-sync check, 15s after sync): New Catalog Items present = ${hasNewItems}`);
             if (hasNewItems) {
-              console.log('[SquareManagement] New Catalog Items detected after sync — auto-running Update Catalog');
-              updateCatalogRef.current?.();
+              console.log('[SquareManagement] SYNC STEP 4: auto-clicking Update Catalog');
+              updateCatalogRef.current?.('auto');
             }
           } catch (e) {
             console.warn('[SquareManagement] Post-sync Update Catalog trigger failed:', e?.message);
@@ -605,8 +618,9 @@ export default function SquareManagement() {
         const parts = [`${transactionRecords.length} transactions`];
         if (deletedCount > 0) parts.push(`removed ${deletedCount} collected item(s)`);
         toast.success(`Sync complete — ${parts.join(', ')}`);
+        console.log(`[SquareManagement] SYNC COMPLETE at ${new Date().toLocaleTimeString()} — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted`);
       } else if (syncError) {
-        console.error('[SquareManagement] Sync failed', { error: syncError?.message });
+        console.error('[SquareManagement] SYNC FAILED — falling back to entity API', { error: syncError?.message });
         setError(syncError.message);
         // Fallback: try loading transactions + catalog from online DB entity API
         // The admin's sync populates these entities; drivers can read them directly.
@@ -2498,7 +2512,7 @@ export default function SquareManagement() {
               onClick={updateCatalog}
               disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
               className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-spin' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
             </> :
@@ -2535,7 +2549,7 @@ export default function SquareManagement() {
             onClick={updateCatalog}
             disabled={isLoading || isUpdatingCatalog || isSyncing}
             className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
-              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-spin' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
             </Button>
           ) : undefined} />
