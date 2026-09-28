@@ -250,6 +250,7 @@ export default function SquareManagement() {
     setError(null);
     // 'manual' = the button was clicked by a person; 'auto' = the post-sync
     // trigger fired it. Either way the button shows the same working state.
+    globalThis.__squareCodAutoUpdateAt = Date.now();
     console.log(`[SquareManagement] UPDATE CATALOG STARTED (${trigger} click) at ${new Date().toLocaleTimeString()}`);
     try {
       // ── Add all reconciliation items (no catalog ID yet) to Square ───
@@ -487,10 +488,19 @@ export default function SquareManagement() {
 
   const syncFromSquare = async () => {
     const now = Date.now();
-    if (syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
+    // GLOBAL guards (window-level): page load was firing the sync TWICE —
+    // two component/module instances (stale hot-reload module + fresh one)
+    // each passed their own per-instance ref guards and ran full Square API
+    // bursts 4s apart (owner log, Sep 27). These globals dedupe across every
+    // instance on the device.
+    const g = globalThis;
+    if (g.__squareCodSyncInFlight || syncInFlightRef.current || now - (g.__squareCodLastSyncAt || 0) < 30000 || now - lastSyncAtRef.current < 30000) {
+      console.log('[SquareManagement] SYNC SKIPPED — already running or cooling down');
       return;
     }
 
+    g.__squareCodSyncInFlight = true;
+    g.__squareCodLastSyncAt = now;
     syncInFlightRef.current = true;
     lastSyncAtRef.current = now;
     setIsSyncing(true);
@@ -605,7 +615,12 @@ export default function SquareManagement() {
               return !!(delivery && Number(delivery.cod_total_amount_required) > 0);
             });
             console.log(`[SquareManagement] SYNC STEP 4 (post-sync check, 15s after sync): New Catalog Items present = ${hasNewItems}`);
-            if (hasNewItems) {
+            const g4 = globalThis;
+            const lastAuto = g4.__squareCodAutoUpdateAt || 0;
+            if (hasNewItems && lastAuto > Date.now() - 60000) {
+              console.log('[SquareManagement] SYNC STEP 4: auto-click skipped — another Update Catalog run started <60s ago');
+            } else if (hasNewItems) {
+              g4.__squareCodAutoUpdateAt = Date.now();
               console.log('[SquareManagement] SYNC STEP 4: auto-clicking Update Catalog');
               updateCatalogRef.current?.('auto');
             }
@@ -666,6 +681,7 @@ export default function SquareManagement() {
       toast.error('Failed to sync: ' + err.message);
     } finally {
       syncInFlightRef.current = false;
+      globalThis.__squareCodSyncInFlight = false;
       setIsSyncing(false);
       setIsLoading(false);
       await loadSyncStatus();
