@@ -54,11 +54,21 @@ function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
   });
 }
 
+// Balloon-knob tail (owner request, Sep 29 2026): a small triangle at the
+// bottom of the circle points the TIP at the driver's exact GPS spot on the
+// road. The icon anchor is the tip (bottom-center of the tail), so the circle
+// body rides visibly ABOVE the driving line instead of straddling it — making
+// it obvious which point along the road the driver actually is.
+const DRIVER_MARKER_HTML = (inner) => `<div style="position:relative;width:36px;height:46px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+  <div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid white;box-sizing:border-box;">${inner}</div>
+  <div style="position:absolute;left:50%;top:35px;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:11px solid #16a34a;"></div>
+</div>`;
+
 const driverIcon = L.divIcon({
-  html: `<div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">🚚</div>`,
+  html: DRIVER_MARKER_HTML('🚚'),
   className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
+  iconSize: [36, 46],
+  iconAnchor: [18, 46],
 });
 
 // Cycling-mode driver icon: bicycle with a rider wearing a backpack.
@@ -83,10 +93,10 @@ const CYCLIST_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
 </svg>`;
 
 const cyclingDriverIcon = L.divIcon({
-  html: `<div style="background:#16a34a;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${CYCLIST_SVG}</div>`,
+  html: DRIVER_MARKER_HTML(CYCLIST_SVG),
   className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
+  iconSize: [36, 46],
+  iconAnchor: [18, 46],
 });
 
 // Smoothly animated driver marker — mirrors the shared-location glide used for
