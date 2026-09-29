@@ -9,6 +9,7 @@ import { PatientSessionManager } from '@/components/patient-portal/PatientSessio
 import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import { format } from 'date-fns';
+import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 
 // Fix default Leaflet icon paths
 delete L.Icon.Default.prototype._getIconUrl;
@@ -59,6 +60,89 @@ const driverIcon = L.divIcon({
   iconSize: [36, 36],
   iconAnchor: [18, 36],
 });
+
+// Cycling-mode driver icon: bicycle with a rider wearing a backpack.
+const CYCLIST_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="5.5" cy="17.5" r="3.2"/>
+  <circle cx="18.5" cy="17.5" r="3.2"/>
+  <path d="M5.5 17.5 L12 17.5"/>
+  <path d="M12 17.5 L9 10.5"/>
+  <path d="M9 10.5 L5.5 17.5"/>
+  <path d="M9 10.5 L16 10"/>
+  <path d="M12 17.5 L16 10 L18.5 17.5"/>
+  <path d="M8 10.1 L10 10.1"/>
+  <path d="M15.4 10 L16.6 9.2"/>
+  <path d="M9 10 L12.4 13.4 L12 17.3"/>
+  <path d="M13.8 6.6 L9 10"/>
+  <path d="M13.8 6.6 L16.2 9.6"/>
+  <circle cx="15" cy="5.1" r="1.6" fill="#ffffff" stroke="none"/>
+  <g transform="translate(9.4,5.4) rotate(-35)">
+    <rect x="-2.1" y="-3.2" width="4.2" height="6.4" rx="1.4" fill="#ffffff" stroke="none"/>
+    <path d="M-1.2 1.4 H1.2" stroke="#16a34a" stroke-width="0.8" opacity="0.5"/>
+  </g>
+</svg>`;
+
+const cyclingDriverIcon = L.divIcon({
+  html: `<div style="background:#16a34a;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${CYCLIST_SVG}</div>`,
+  className: '',
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+});
+
+// Smoothly animated driver marker — mirrors the shared-location glide used for
+// driver dots on dispatcher devices (LiveDriverLocationInterpolator trail mode).
+// The declarative position is seeded ONCE; every 15s AppUser fix is handed to
+// the interpolator and the rAF loop moves the marker imperatively via
+// setLatLng so Leaflet never tears down/rebuilds its DOM on each update.
+function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
+  const markerRef = useRef(null);
+  const interpRef = useRef(null);
+  const initialPosRef = useRef(null);
+  const rafRef = useRef(0);
+  const lastPaintRef = useRef(0);
+
+  if (!interpRef.current) interpRef.current = createLiveMarkerInterpolator({ mode: 'trail' });
+
+  // Seed the stable React position once — later movement is imperative only
+  if (!initialPosRef.current && driverLocation) {
+    initialPosRef.current = [Number(driverLocation.lat), Number(driverLocation.lng)];
+  }
+
+  // Feed each new 15s fix to the interpolator, along with the current-leg
+  // road geometry so the glide follows the route instead of cutting corners.
+  useEffect(() => {
+    if (!driverLocation) return;
+    const la = Number(driverLocation.lat);
+    const lng = Number(driverLocation.lng);
+    if (!Number.isFinite(la) || !Number.isFinite(lng)) return;
+    if (!initialPosRef.current) initialPosRef.current = [la, lng];
+    interpRef.current.setPath(Array.isArray(legCoords) && legCoords.length > 1 ? legCoords : null);
+    interpRef.current.onFix(la, lng, Date.now());
+  }, [driverLocation?.lat, driverLocation?.lng, legCoords]);
+
+  // rAF glide loop (~20fps) — same paint cadence as the dashboard trail dots
+  useEffect(() => {
+    const loop = () => {
+      rafRef.current = window.requestAnimationFrame(loop);
+      const now = Date.now();
+      if (now - lastPaintRef.current < 50) return;
+      lastPaintRef.current = now;
+      const marker = markerRef.current;
+      if (!marker?.setLatLng) return;
+      const p = interpRef.current.getDisplayPosition(now);
+      if (p) marker.setLatLng([p.latitude, p.longitude]);
+    };
+    rafRef.current = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  if (!driverLocation) return null;
+  return (
+    <Marker ref={markerRef} position={initialPosRef.current} icon={icon}>
+      {children}
+    </Marker>
+  );
+}
 
 // Fits the map to patient + store on load (once both are available).
 // If the driver is live, fits driver + patient instead.
@@ -252,7 +336,7 @@ export default function PatientPortal({ embedded = false } = {}) {
           const driver = appUsers?.[0];
           if (driver?.driver_status) setDriverStatus(driver.driver_status);
           if (driver?.current_latitude && driver?.current_longitude) {
-            setDriverLocation({ lat: driver.current_latitude, lng: driver.current_longitude, name: driver.user_name });
+            setDriverLocation({ lat: driver.current_latitude, lng: driver.current_longitude, name: driver.user_name, cycling: driver.preferred_travel_mode === 'cycling' });
           }
         } catch (_) {}
       }
@@ -382,11 +466,14 @@ export default function PatientPortal({ embedded = false } = {}) {
         if (updated.driver_status) setDriverStatus(updated.driver_status);
 
         if (updated.current_latitude && updated.current_longitude) {
-          setDriverLocation({
+          setDriverLocation((prev) => ({
             lat: updated.current_latitude,
             lng: updated.current_longitude,
             name: updated.user_name,
-          });
+            cycling: updated.preferred_travel_mode != null
+              ? updated.preferred_travel_mode === 'cycling'
+              : (prev?.cycling ?? false),
+          }));
         }
       });
     } catch (err) {
@@ -418,6 +505,15 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Store marker: green bg when pickup is done (driver has left the store = in_transit/en_route/completed)
   const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
   const storeIcon = makeStoreIcon(pickupDone);
+
+  // Cycling mode: AppUser preferred_travel_mode flag on the driver location,
+  // or any active stop on today's route carrying a cycling transport_mode.
+  const driverIsCycling = useMemo(() => {
+    if (driverLocation?.cycling === true) return true;
+    return routeDeliveries.some((d) =>
+      !['completed', 'failed', 'cancelled'].includes(d.status) && d.transport_mode === 'cycling');
+  }, [driverLocation?.cycling, routeDeliveries]);
+  const driverMapIcon = useMemo(() => (driverIsCycling ? cyclingDriverIcon : driverIcon), [driverIsCycling]);
 
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
@@ -652,27 +748,27 @@ export default function PatientPortal({ embedded = false } = {}) {
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Static polyline — all legs except first stop and current leg — always visible */}
+              {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
               {staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
-                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.8 }}
                 />
               )}
 
-              {/* First stop leg — hidden when off duty or before 9:30 AM */}
+              {/* First stop leg (store → first stop) — solid green — hidden when off duty or before 9:30 AM */}
               {showLiveTracking && firstLegCoords.length > 1 && (
                 <Polyline
                   positions={firstLegCoords}
-                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.8 }}
                 />
               )}
 
-              {/* Current leg (isNextDelivery stop) — hidden when off duty or before 9:30 AM */}
+              {/* Current leg (driver → isNextDelivery stop) — solid blue like the driver dashboard */}
               {showLiveTracking && currentLegCoords.length > 1 && (
                 <Polyline
                   positions={currentLegCoords}
-                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.75, dashArray: '8, 6' }}
+                  pathOptions={{ color: '#2563EB', weight: 5, opacity: 0.9 }}
                 />
               )}
 
@@ -690,11 +786,13 @@ export default function PatientPortal({ embedded = false } = {}) {
                 </Marker>
               )}
 
-              {/* Driver marker — only when live tracking is enabled */}
+              {/* Driver marker — only when live tracking is enabled. Glides smoothly
+                  between 15s location updates (same trail interpolation as the shared
+                  driver dots on dispatcher maps) instead of teleporting. */}
               {showLiveTracking && driverLocation && (
-                <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}>
+                <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
-                </Marker>
+                </AnimatedDriverMarker>
               )}
             </MapContainer>
           </div>
