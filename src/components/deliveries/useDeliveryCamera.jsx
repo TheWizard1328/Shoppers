@@ -66,11 +66,54 @@ const listCameras = async () => {
   } catch { return []; }
 };
 
+// True if a stream is front-facing (selfie). facingMode is authoritative when
+// present; otherwise fall back to the track label (Android WebView often omits
+// facingMode in getSettings). No front markers → treated as rear/desktop cam.
+const isFrontStream = (stream) => {
+  try {
+    const track = stream?.getVideoTracks?.()?.[0];
+    if (!track) return false;
+    const st = track.getSettings?.() || {};
+    const label = (track.label || '').toLowerCase();
+    if (st.facingMode === 'environment') return false;
+    if (st.facingMode === 'user') return true;
+    return label.includes('front') || label.includes('selfie');
+  } catch { return false; }
+};
+
+// Open the best REAR camera by enumerating devices (label-scored). Returns a
+// stream or null. Used to self-heal when getUserMedia hands us the selfie cam
+// (Android WebView ignores facingMode and defaults to camera index 0).
+const openRearCamera = async () => {
+  try {
+    const cams = await listCameras();
+    const score = (c) => {
+      const l = (c.label || '').toLowerCase();
+      if (l.includes('back') || l.includes('rear') || l.includes('environment')) return 2;
+      if (l.includes('front') || l.includes('selfie')) return 0;
+      return 1;
+    };
+    for (const cam of cams) {
+      if (score(cam) === 0) continue; // skip known front/selfie cameras
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: cam.deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+          audio: false
+        });
+        return s;
+      } catch { /* try next */ }
+    }
+  } catch {}
+  return null;
+};
+
 // Open a stream. If deviceId provided, try exact first, then ideal, then facingMode.
 // Does NOT clear saved ID on failure — that's handled by caller.
 const tryOpenStream = async (deviceId) => {
-  // Return cached stream if still alive and same device
-  if (isStreamAlive(_cachedStream) && (!_cachedDeviceId || _cachedDeviceId === deviceId)) {
+  // Return cached stream if still alive and same device AND not a selfie cam.
+  // A front-facing cached stream is never a deliberate choice (cycleRearCamera
+  // skips front cameras), so treat it as the WebView-default bug and heal it.
+  if (isStreamAlive(_cachedStream) && (!_cachedDeviceId || _cachedDeviceId === deviceId) && !isFrontStream(_cachedStream)) {
     console.log('[camera] Reusing cached stream');
     return _cachedStream;
   }
@@ -119,6 +162,25 @@ const tryOpenStream = async (deviceId) => {
       }
     }
   }
+  // SELFIE SELF-HEAL (owner fix, Sep 29 2026): the camera kept resetting to the
+  // selfie cam because this function saved WHATEVER device the WebView handed
+  // over — including the front camera Android WebView defaults to when it
+  // ignores facingMode. Once a selfie id landed in localStorage it was reopened
+  // forever. Now: if the stream we just opened is front-facing (and it isn't the
+  // device's only camera), swap to the best rear camera before returning, and
+  // persist the REAR id as preferred.
+  if (isFrontStream(stream)) {
+    console.warn('[camera] Opened stream is FRONT-facing — attempting rear-camera swap');
+    const rear = await openRearCamera().catch(() => null);
+    if (rear) {
+      try { stream.getTracks().forEach(t => t.stop()); } catch {}
+      stream = rear;
+      console.log('[camera] Swapped to rear camera');
+    } else {
+      console.warn('[camera] No rear camera available — keeping front camera');
+    }
+  }
+
   // CRITICAL: Save the deviceId to localStorage so the same camera is used next time.
   // Previously only cycleRearCamera saved the ID — the initial open never persisted it,
   // so the APK would default to selfie on every fresh boot.

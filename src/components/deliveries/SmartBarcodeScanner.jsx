@@ -12,7 +12,16 @@ import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import BarcodeThumb from './BarcodeThumb';
 import { openStream, cycleRearCamera, getSavedCameraId, listCameras, getCachedStream, isStreamAlive, detachStream } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
-import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
+
+
+// iOS detection (module-level, stable): the thin center scan strip is an iOS
+// aiming aid only — Android full-frame detection needs no strip guidance.
+const isIOSDevice = (() => {
+  try {
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+  } catch { return false; }
+})();
 
 const classifyBarcode = (value) => {
   const raw = String(value || '').trim();
@@ -470,9 +479,16 @@ export default function SmartBarcodeScanner({
       setIsStartingCamera(false);
 
       // ── Try native BarcodeDetector (5-10x faster on Chrome/Android) ──
-      // In Capacitor APK (Android WebView), BarcodeDetector may exist but silently fail.
-      // Skip it entirely in native apps and use the ZXing canvas-based fallback.
-      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window && !isCapacitorNativeApp();
+      // Owner fix (Sep 29 2026): the APK skip is REMOVED — Android WebView is
+      // Chromium and normally ships a working BarcodeDetector; skipping it
+      // forced the APK onto the ZXing fallback, whose weaker full-frame decode
+      // made barcodes only register when held big/close inside the thin strip.
+      // Native detect() scans the WHOLE frame at full resolution and returns
+      // every barcode in view (old Android behavior). The existing failure
+      // guards cover WebViews where it exists but silently fails: 5s of empty
+      // results starts the ZXing backup alongside; 10 consecutive detect()
+      // errors cut over to ZXing entirely.
+      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
       if (hasNative) {
         try {
           // Use getSupportedFormats() to avoid constructor throwing on unsupported formats.
@@ -790,8 +806,11 @@ export default function SmartBarcodeScanner({
                 </div>
               )}
 
-              {/* Alignment laser bar — horizontal strip for barcode aiming */}
-              {!flashHit && !cameraError && (
+              {/* Alignment laser bar — iOS-only aiming aid.
+                  Android/desktop scan the ENTIRE frame (native detector or ZXing
+                  full-frame), so no strip guide is shown there — it misled users
+                  into thinking only the strip area could detect (owner Sep 29). */}
+              {!flashHit && !cameraError && isIOSDevice && (
                 <>
                   {/* Crop zone outline — center 60% × 15% */}
                   <div
