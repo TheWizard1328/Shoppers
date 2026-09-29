@@ -169,6 +169,12 @@ const extractPatientName = (itemName) => {
 };
 // MM/DD from a YYYY-MM-DD date for compact display
 const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[3]}` : (iso || ''); };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthDay = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}` : (iso || ''); };
+// v2 wrap-up classification (owner spec, Sep 28 2026): cash collected is NOT
+// yet processed through Square — it renders under Outstanding until processed.
+const isCashItem = (c) => (c.types || []).some((t) => String(t).toLowerCase() === 'cash');
+const firstNameUpper = (nm) => String(nm || '').trim().split(/\s+/)[0].toUpperCase();
 
 async function listAll(base44, entityName, sortField, limit = 2000) {
   const out = [];
@@ -488,62 +494,81 @@ async function handleBriefing(base44, params = {}) {
       const owner = ownerUser;
       if (owner?.id) {
         const ownerName = owner.full_name || owner.name || 'App Owner';
-        const allC = driverBriefings.flatMap((g) => g.collected_today.items);
-        const allO = driverBriefings.flatMap((g) => [
-          ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
-          ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}` })),
-        ]);
-        const moneyStrsAll = [...allC.map((c) => c.amount.toFixed(2)), ...allO.map((c) => c.amount.toFixed(2))];
-        const cTotal = Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100;
-        const oTotal = Math.round(driverBriefings.reduce((s, g) => s + g.outstanding_total, 0) * 100) / 100;
-        const mw = Math.max(cTotal.toFixed(2).length, oTotal.toFixed(2).length, ...(moneyStrsAll.length ? moneyStrsAll.map((x) => x.length) : [0]));
-        // Unified label width so Collected/Outstanding amounts align across
-        // ALL sections in the owner copy (word + " (NN)" room).
-        const wordW = Math.max('Collected'.length, 'Outstanding'.length);
-        const labelW = wordW + 6;
-        const lines = [];
+        // ── v2 owner wrap-up format (Sep 28 2026) ──
+        // TOTAL block up top, blank-line-separated driver blocks (first-name
+        // headers), cash-collected CODs reclassified into Outstanding (they
+        // are collected but not yet processed through Square), Pushes footer.
+        const sections = [];
         for (const g of driverBriefings) {
           const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
-          if (!hadCods) { lines.push(`${String(g.driver_name).toUpperCase()} — worked today (${g.deliveries_today} stops), no COD activity`); lines.push(''); continue; }
-          const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
-          // Each driver gets its own Collected section (header + items) and its
-          // own Outstanding section (header + items) — kept separate rather
-          // than interleaved, so each section is self-contained.
-          lines.push(String(g.driver_name).toUpperCase());
-          const collectedLabel = ('Collected'.padEnd(wordW) + ` (${g.collected_today.count})`).padEnd(labelW);
-          const outstandingLabel = ('Outstanding'.padEnd(wordW) + ` (${outstandingCount})`).padEnd(labelW);
-          lines.push(`${collectedLabel} $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
-          for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.types.join('/')}-${c.patient_name}`);
-          lines.push(`${outstandingLabel} $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
-          for (const c of g.uncollected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}`);
-          for (const c of g.older_outstanding.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}`);
+          if (!hadCods) { sections.push({ name: firstNameUpper(g.driver_name), noActivity: true, deliveries: g.deliveries_today }); continue; }
+          const sq = g.collected_today.items.filter((c) => !isCashItem(c));
+          const cash = g.collected_today.items.filter(isCashItem);
+          const out = [
+            ...cash.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
+            ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
+            ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}` })),
+          ];
+          sections.push({
+            name: firstNameUpper(g.driver_name),
+            sq,
+            sqAmt: Math.round(sq.reduce((acc, c) => acc + c.amount, 0) * 100) / 100,
+            out,
+            outAmt: Math.round(out.reduce((acc, c) => acc + c.amount, 0) * 100) / 100,
+          });
+        }
+        // Non-worked drivers with outstanding CODs — fleet-wide completeness.
+        const workedIds2 = new Set(driverBriefings.map((g) => g.driver_id));
+        const noStopSections = [];
+        for (const [driverId, items] of olderByDriver.entries()) {
+          if (workedIds2.has(driverId) || !items.length) continue;
+          const drvName = driverNameById.get(driverId) || 'Unknown driver';
+          const out = items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—'})-${c.patient_name}` }));
+          noStopSections.push({ name: `${firstNameUpper(drvName)} (NO STOPS TODAY)`, out, outAmt: Math.round(out.reduce((acc, c) => acc + c.amount, 0) * 100) / 100 });
+        }
+        // Fleet totals across everything rendered.
+        let cTotal = 0, cCount = 0, oTotal = 0, oCount = 0;
+        const amtStrs = [];
+        for (const sec of sections) {
+          if (sec.noActivity) continue;
+          cTotal += sec.sqAmt; cCount += sec.sq.length; oTotal += sec.outAmt; oCount += sec.out.length;
+          amtStrs.push(sec.sqAmt.toFixed(2), ...sec.sq.map((c) => c.amount.toFixed(2)), sec.outAmt.toFixed(2), ...sec.out.map((c) => c.amount.toFixed(2)));
+        }
+        for (const sec of noStopSections) { oTotal += sec.outAmt; oCount += sec.out.length; amtStrs.push(sec.outAmt.toFixed(2), ...sec.out.map((c) => c.amount.toFixed(2))); }
+        cTotal = Math.round(cTotal * 100) / 100; oTotal = Math.round(oTotal * 100) / 100;
+        amtStrs.push(cTotal.toFixed(2), oTotal.toFixed(2));
+        const mw = Math.max(...amtStrs.map((x) => x.length), 5);
+        const money = (amt) => `$ ${amt.toFixed(2).padStart(mw)}`;
+        const lines = [];
+        lines.push('TOTAL:');
+        lines.push(`Collected ${money(cTotal)} (${cCount})`);
+        lines.push(`Outstanding ${money(oTotal)} (${oCount})`);
+        lines.push('');
+        for (const sec of sections) {
+          if (sec.noActivity) { lines.push(`${sec.name} — worked today (${sec.deliveries} stops), no COD activity`); lines.push(''); continue; }
+          lines.push(sec.name);
+          lines.push(`Collected: ${money(sec.sqAmt)} (${sec.sq.length})`);
+          for (const c of sec.sq) lines.push(`${money(c.amount)} · ${c.types.join('/')} · ${c.patient_name}`);
+          lines.push(`Outstanding: ${money(sec.outAmt)} (${sec.out.length})`);
+          for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
           lines.push('');
         }
-        // Non-worked drivers with outstanding CODs — the owner copy shows
-        // ALL uncollected CODs across the fleet. Individual driver pushes
-        // still follow the worked-today rule.
-        const workedIds = new Set(driverBriefings.map((g) => g.driver_id));
-        for (const [driverId, items] of olderByDriver.entries()) {
-          if (workedIds.has(driverId) || !items.length) continue;
-          const drvName = driverNameById.get(driverId) || 'Unknown driver';
-          const total = Math.round(items.reduce((acc, c) => acc + c.amount, 0) * 100) / 100;
-          const outLabel = ('Outstanding'.padEnd(wordW) + ` (${items.length})`).padEnd(labelW);
-          lines.push(`${String(drvName).toUpperCase()} (no stops today)`);
-          lines.push(`${outLabel} $ ${total.toFixed(2).padStart(mw)}`);
-          for (const c of items) {
-            const abbr = c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—';
-            lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${shortDate(c.delivery_date)}(${abbr})-${c.patient_name}`);
-          }
+        for (const sec of noStopSections) {
+          lines.push(sec.name);
+          lines.push(`Outstanding: ${money(sec.outAmt)} (${sec.out.length})`);
+          for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
           lines.push('');
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
-        const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
-        if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
-        const ownerBody = [
-          `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers): ${shortDate(today)}`,
-          '',
-          ...lines,
-        ].join('\n');
+        lines.push('Pushes:');
+        lines.push(pushes.map((pr) => {
+          const nm = firstNameUpper(pr.driver_name);
+          if (pr.sent > 0) return `${nm} ${pr.sent} sent`;
+          const why = pr.errors && pr.errors.length ? String(pr.errors[0]).slice(0, 40) : 'no active subscription';
+          return `${nm} 0 (${why})`;
+        }).join(', ') + '.');
+        const title = `${ownerOnly ? 'TEST — ' : ''}COD WRAP-UP: ${monthDay(today)}`;
+        const ownerBody = [title, '', ...lines].join('\n');
         let ownerMessageId = null;
         try {
           const created = await base44.asServiceRole.entities.Message.create({
@@ -561,7 +586,6 @@ async function handleBriefing(base44, params = {}) {
           console.log('[briefing] owner Message.create failed:', err?.message || String(err));
         }
         const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-        const title = `${ownerOnly ? 'TEST — ' : ''}COD Wrap-Up (All Drivers): ${shortDate(today)}`;
         const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
         ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
         console.log('[briefing] owner push result:', JSON.stringify(result));
@@ -575,12 +599,23 @@ async function handleBriefing(base44, params = {}) {
     }
   }
 
+  // v2 semantics: Collected = Square-processed tenders only; Outstanding
+  // includes reclassified cash (not yet processed through Square).
+  let tcCount = 0, tcAmt = 0, toCount = 0, toAmt = 0;
+  for (const g of driverBriefings) {
+    const sq = g.collected_today.items.filter((c) => !isCashItem(c));
+    const cash = g.collected_today.items.filter(isCashItem);
+    tcCount += sq.length;
+    tcAmt += sq.reduce((acc, c) => acc + c.amount, 0);
+    toCount += g.uncollected_today.count + g.older_outstanding.count + cash.length;
+    toAmt += g.uncollected_today.amount + g.older_outstanding.amount + cash.reduce((acc, c) => acc + c.amount, 0);
+  }
   const totals = {
     worked_drivers: driverBriefings.length,
-    collected_count: driverBriefings.reduce((s, g) => s + g.collected_today.count, 0),
-    collected_amount: Math.round(driverBriefings.reduce((s, g) => s + g.collected_today.amount, 0) * 100) / 100,
-    outstanding_count: driverBriefings.reduce((s, g) => s + g.uncollected_today.count + g.older_outstanding.count, 0),
-    outstanding_amount: Math.round(driverBriefings.reduce((s, g) => s + g.outstanding_total, 0) * 100) / 100,
+    collected_count: tcCount,
+    collected_amount: Math.round(tcAmt * 100) / 100,
+    outstanding_count: toCount,
+    outstanding_amount: Math.round(toAmt * 100) / 100,
   };
 
   return {
