@@ -13,6 +13,7 @@ import { remoteLogger } from "../utils/remoteLogger";
 import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 import RestartConfirmDialog from "./RestartConfirmDialog";
 import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -78,6 +79,13 @@ export default function StopCardActionButtons(props) {
     codPayments,
     codTotalRequired,
     codTotalCollected,
+    showCODCollection,
+    onCODUpdate,
+    setIsCompleting,
+    FINISHED_STATUSES,
+    onSelectionChange,
+    onClick,
+    codFooterSwapActive,
   } = props;
 
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -387,19 +395,60 @@ export default function StopCardActionButtons(props) {
         {/* On the isNextDelivery card the stop is already started — show Complete regardless
             of stop type (patient delivery, store pickup, or inter-store). Only future dates,
             already-finished stops, and terminal statuses are excluded. */}
-        {isNextDelivery &&
-         !isFutureDate &&
-         !isFinishedDelivery &&
-         driverOnDutyOrBreak &&
-         delivery.status !== 'completed' &&
-         delivery.status !== 'cancelled' &&
-         delivery.status !== 'failed' &&
-         handleCompleteAction &&
-        <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Complete this delivery">
-            {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-            <span className="text-white">Complete</span>
-          </Button>
-        }
+        {(() => {
+          const isCompleteEligible =
+            isNextDelivery &&
+            !isFutureDate &&
+            !isFinishedDelivery &&
+            driverOnDutyOrBreak &&
+            delivery.status !== 'completed' &&
+            delivery.status !== 'cancelled' &&
+            delivery.status !== 'failed' &&
+            !!handleCompleteAction;
+
+          // OWNER DIRECTIVE (Sep 29 2026): once the driver opens COD collection —
+          // via the "Collect" link or by tapping the Square POS button (both set
+          // showCODCollection true) — swap this exact footer slot from Complete
+          // to Save & Complete, so the COD amount gets saved in the same tap that
+          // finishes the stop. Complete is hidden while the panel is open; it
+          // reappears if the driver collapses the COD panel without saving.
+          // codFooterSwapActive is computed ONCE in StopCard.jsx and shared with
+          // the in-panel button (so exactly one Save & Complete shows at a time);
+          // it already implies isCompleteEligible + panel open + COD uncollected.
+          const isCodSwapActive = isCompleteEligible && (codFooterSwapActive === true || (codFooterSwapActive === undefined && hasCODRequired && !isCODComplete && !!showCODCollection));
+
+          if (isCodSwapActive) {
+            return (
+              <Button data-stopcard-action="save-and-complete-cod" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                performSaveAndCompleteCOD({
+                  delivery,
+                  codPayments,
+                  allDeliveries,
+                  FINISHED_STATUSES,
+                  onCODUpdate,
+                  setShowCODCollection,
+                  setIsCompleting,
+                  onSelectionChange,
+                  onClick,
+                });
+              }} size="sm" disabled={(codPayments?.length || 0) === 0 || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Save COD payment and complete this delivery">
+                {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                <span className="text-white">Save & Complete</span>
+              </Button>
+            );
+          }
+
+          if (!isCompleteEligible) return null;
+
+          return (
+            <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Complete this delivery">
+              {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+              <span className="text-white">Complete</span>
+            </Button>
+          );
+        })()}
         {delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted &&
         <Button data-stopcard-action="restart" type="button" onPointerDownCapture={handleRestartClick} onPointerDown={blockCardToggle} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
             {isRestarting || isProcessingBackground || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}

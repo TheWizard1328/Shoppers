@@ -389,6 +389,23 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const showCompletedRouteCenteredCondensed = shouldCondenseCompletedRouteForDriver;
   const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;
   const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;
+  // ── COD footer-swap flag (owner directive, Sep 29 2026) ──────────────────────
+  // True when the driver opened COD collection (Collect link or Square POS tap)
+  // on the current next-delivery card whose Complete button would show. While
+  // true: the footer swaps Complete → Save & Complete, and the in-panel Save &
+  // Complete button hides (no duplicate). Single source of truth here — the
+  // footer (StopCardActionButtons) and the panel (StopCardCODCollection) both
+  // consume this flag instead of recomputing eligibility themselves.
+  const codFooterSwapActive = !!(
+    hasCODRequired &&
+    !isCODComplete &&
+    showCODCollection &&
+    isNextDelivery &&
+    !isFinishedDelivery &&
+    !FINISHED_STATUSES.includes(delivery?.status) &&
+    comparisonRouteDateStr <= localDeviceTodayStr &&
+    (currentDriverAppUser?.driver_status === 'on_duty' || currentDriverAppUser?.driver_status === 'on_break')
+  );
   const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;
   const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher && !isExpanded;
   const forceCompactCollapsed = compact && !isExpanded;
@@ -1282,6 +1299,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             setCodPayments={setCodPayments}
             showCODCollection={showCODCollection}
             setShowCODCollection={setShowCODCollection}
+            codFooterSwapActive={codFooterSwapActive}
             handleAddCODPayment={handleAddCODPayment}
             isStrippedForDriver={isStrippedForDriver}
             currentUser={currentUser}
@@ -1396,7 +1414,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             setCodPayments={setCodPayments}
             codPayments={codPayments}
             codTotalRequired={codTotalRequired}
-            codTotalCollected={codTotalCollected} />
+            codTotalCollected={codTotalCollected}
+            showCODCollection={showCODCollection}
+            onCODUpdate={onCODUpdate}
+            setIsCompleting={setIsCompleting}
+            FINISHED_STATUSES={FINISHED_STATUSES}
+            onSelectionChange={onSelectionChange}
+            onClick={onClick}
+            codFooterSwapActive={codFooterSwapActive} />
           
         </CardContent>
       </Card>

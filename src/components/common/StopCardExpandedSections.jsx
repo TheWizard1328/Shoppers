@@ -52,7 +52,8 @@ export function StopCardCodSection(props) {
     setIsCompleting,
     onSelectionChange,
     onClick,
-    isCODComplete
+    isCODComplete,
+    codFooterSwapActive
   } = props;
 
   if (!hasCODRequired || isPickup) return null;
@@ -127,7 +128,8 @@ export function StopCardCodSection(props) {
         isCompleting={isCompleting}
         setIsCompleting={setIsCompleting}
         onSelectionChange={onSelectionChange}
-        onClick={onClick} />
+        onClick={onClick}
+        hideSaveButtonForFooterSwap={codFooterSwapActive} />
       
     </>);
 
