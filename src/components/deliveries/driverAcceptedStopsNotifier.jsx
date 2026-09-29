@@ -70,10 +70,16 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
   // actingUserId and resolvedDriverId are used only for self-action
   // suppression and recipient resolution, never for display.
 
+  // {{storeName}} was always blank — this key was never added to the context
+  // object below (the template referenced it but nothing populated it). The
+  // `store` param is the pickup store resolved by the caller for this batch.
+  const storeName = store?.name || store?.store_name || '';
+
   return {
     eventName: 'Driver Accepted',
     driverName: driver?.user_name || driver?.full_name || 'Driver',
     adminName,
+    storeName,
     pendingCount: String(pendingCount != null ? pendingCount : (deliveries || []).length),
     deliveryList: buildDeliveryList(deliveries, patientNameMap),
     patientName: patientName || (patientNameMap?.get(deliveries?.[0]?.patient_id) || deliveries?.[0]?.patient_name || ''),

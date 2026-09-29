@@ -369,7 +369,8 @@ export async function notifyDriverAccepted({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, pendingCount, patientName };
+  const storeName = store?.name || store?.store_name || '';
+  const messageData = { driverName, pendingCount, patientName, storeName };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue; // Don't notify self
