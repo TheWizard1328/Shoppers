@@ -254,6 +254,31 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
       // isn't ours.
       finalDeliveries = finalDeliveries.filter((d) => d?.id === tempId || d?.id === realReturn?.id || !String(d?.id || '').startsWith('temp_'));
 
+      // ── STEP 4a — Commit the STEP 2 flag sweep to the SERVER ──────────────
+      // OWNER BUG (Sep 29 2026): the sweep only cleared IDB + the optimizer's
+      // input. The optimizer's writeBatch covers NON-TERMINAL stops only — the
+      // failed stop this return was created from is terminal and never appears
+      // in the writeBatch, so the server kept its isNextDelivery=true while the
+      // optimizer crowned the return stop as the new next → TWO flagged stops
+      // after any server re-pull. Explicitly write isNextDelivery:false to the
+      // server for every swept flag the optimizer's commit does NOT cover.
+      const _writeBatchIds = new Set((coordResult?.optimizeData?.writeBatch || []).map((w) => w?.id));
+      const sweptServerPatches = sweptFlags
+        .filter((d) => d?.id && !_writeBatchIds.has(d.id) && d.id !== realReturn?.id && d.id !== tempId)
+        .map((d) => ({ id: d.id, data: { isNextDelivery: false } }));
+      if (sweptServerPatches.length > 0) {
+        console.log(`[CREATE RETURN] committing ${sweptServerPatches.length} swept flag(s) to server (not covered by optimizer writeBatch)`);
+        base44.functions.invoke('bulkUpdateDeliveries', { updates: sweptServerPatches }).catch(() => {
+          for (const { id } of sweptServerPatches) {
+            base44.entities.Delivery.update(id, { isNextDelivery: false }).catch(() => {});
+          }
+        });
+        for (const { id } of sweptServerPatches) {
+          const snap = sweptFlags.find((d) => d.id === id);
+          if (snap) broadcastMutation('Delivery', 'update', id, { ...snap, isNextDelivery: false }).catch(() => {});
+        }
+      }
+
       // Server writes for the re-sequenced stops (return excluded — created above
       // with its final stop_order/polyline already attached)
       const writeBatch = (coordResult?.optimizeData?.writeBatch || []).filter((w) => w && w.id !== tempId && (!realReturn?.id || w.id !== realReturn.id));
