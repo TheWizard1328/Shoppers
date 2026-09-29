@@ -259,6 +259,8 @@ export default function MobileHeader({
           refresh (cache clear + reload), which is what picks up a web build. */}
       <UpdateInfoBalloon
         active={!!hasWebUpdate || !!autoUpdatedNotice}
+        // "Just updated automatically" notice stays on screen until acknowledged
+        persistent={!hasWebUpdate && !!autoUpdatedNotice}
         anchorSelector="[data-update-menu-btn]"
         direction="down"
         accent="#10b981"

@@ -235,7 +235,10 @@ export default function AppSidebar({
         active={!!hasWebUpdate || !!autoUpdatedNotice}
         anchorSelector={menuBtnVisible ? "[data-update-menu-btn]" : "[data-update-logo-btn]"}
         direction="right"
-        persistent={isDispatcherOnly}
+        // "Just updated automatically" notice stays on screen until the user
+        // acknowledges it (owner request, Sep 28 2026) — no 10s auto-hide,
+        // no re-show cycle. Pending-update balloons keep their normal rhythm.
+        persistent={isDispatcherOnly || (!hasWebUpdate && !!autoUpdatedNotice)}
         accent="#10b981"
         icon={hasWebUpdate ? "⬆️" : "✅"}
         title={hasWebUpdate ? "Update available" : "Update installed"}
