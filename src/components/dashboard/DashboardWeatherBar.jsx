@@ -333,23 +333,26 @@ function DashboardWeatherBar({
 
       {/* Integer-degree dots (owner request, Sep 28): one small dot per whole
           degree position on the scale — no numbers. Covers the FULL scale
-          INCLUDING the buffer zones above the high and below the low; the
-          projected high/low positions are skipped (their rotated labels
-          already mark those spots). Rendered after the fill so they're
-          visible on both the colored segment and the empty frosted track. */}
+          INCLUDING the buffer zones above the high and below the low, and the
+          dots at the exact high/low positions are INCLUDED too (owner request,
+          Sep 28 v2) so the buffer zones line up tightly with the ranges — no
+          gap around the marker lines. 5°-multiple positions get a larger dot.
+          Rendered after the fill so they're visible on both the colored
+          segment and the empty frosted track. */}
       {(() => {
         const dots = [];
         const first = Math.ceil(scaleBottom);
         const last = Math.floor(scaleTop);
         for (let v = first; v <= last; v++) {
-          if (v === high || v === low) continue;
           const yDot = Math.round(frac(v) * barHeight);
+          const big = v % 5 === 0; // larger dots at 5° multiples
+          const size = big ? 5 : 3;
           dots.push(
             <div
               key={v}
               style={{
-                position: 'absolute', bottom: yDot - 1.5, left: 4.5,
-                width: 3, height: 3, borderRadius: 999,
+                position: 'absolute', bottom: yDot - size / 2, left: 6 - size / 2,
+                width: size, height: size, borderRadius: 999,
                 background: 'rgba(255,255,255,0.92)',
                 boxShadow: '0 0 0 1px rgba(15,23,42,0.45), 0 1px 2px rgba(0,0,0,0.5)',
               }}
@@ -359,13 +362,15 @@ function DashboardWeatherBar({
         return dots;
       })()}
 
-      {/* Projected HIGH — rotated 90° CCW, on the bar just below the high position */}
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 14)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+      {/* Projected HIGH — rotated 90° CCW, CENTERED on the high marker line
+          (owner request, Sep 28 v2: the label marks the exact position; the
+          degree dots above/below it stay visible and evenly spaced). */}
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 5)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${high}°`}</span>
       </div>
 
-      {/* Projected LOW — rotated 90° CCW, on the bar just above the low position */}
-      <div style={{ position: 'absolute', bottom: `${yLow + 3}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+      {/* Projected LOW — rotated 90° CCW, CENTERED on the low marker line */}
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yLow - 5)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${low}°`}</span>
       </div>
 
