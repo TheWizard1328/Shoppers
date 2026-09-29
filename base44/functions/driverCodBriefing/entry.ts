@@ -1,4 +1,5 @@
 // driverCodBriefing — 9pm EVENING driver COD wrap-up (moved from 9am mornings).
+// v2 owner wrap-up format (Sep 28 2026) — cash collected reclassified to Outstanding.
 // Audience: ONLY drivers who worked today (>=1 non-cancelled, non-cycling
 // delivery today). Each such driver gets a push + in-app Message with the
 // day's COD summary: COLLECTED today (cash/debit/cheque, per-item amounts)
