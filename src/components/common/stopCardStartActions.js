@@ -904,16 +904,19 @@ export function useStopCardStartActions({
 
     // 6. ETA cascade — fire-and-forget so it never blocks the lock or races the flag
     if (actedOnNextDelivery && shouldRecalculateEtas && incompleteDeliveries.length > 0) {
-      // Use etaBaseTime (retro actual_delivery_time) when available, otherwise use current clock
+      // Owner bug report (Sep 29 2026): the cascade MUST anchor to the actual
+      // completion time (or a FRESH clock) — never localNowParts.time, which is
+      // the StopCard MOUNT time (useMemo with [] deps). After a long door stop
+      // (signature + COD) that value was minutes stale, projecting the next
+      // stop's ETA into the PAST (stop 14 ETA 13:56 when completed at 14:00).
       let currentLocalTime;
-      if (etaBaseTime) {
-        // Parse the retro actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
-        const parsedBase = parseLocalTimestamp(etaBaseTime);
-        currentLocalTime = parsedBase
-          ? `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`
-          : (getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString());
+      const etaAnchorTime = etaBaseTime || criticalUpdate?.actual_delivery_time || null;
+      const parsedBase = etaAnchorTime ? parseLocalTimestamp(etaAnchorTime) : null;
+      if (parsedBase) {
+        // Parse the actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
+        currentLocalTime = `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`;
       } else {
-        currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+        currentLocalTime = getCurrentLocalTime?.() || getCurrentLocalTimeString();
       }
       const [hrs, mins] = currentLocalTime.split(':').map(Number);
       // Start from the actual completion time of the just-finished stop.
