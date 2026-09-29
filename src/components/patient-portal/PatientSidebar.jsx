@@ -40,7 +40,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
         {/* Header */}
         <div
           className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
-          style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
+          style={{ paddingTop: 'calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center flex-shrink-0">
@@ -126,7 +126,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
         {/* Footer */}
         <div
           className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
-          style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+          style={{ paddingBottom: 'calc(0.75rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
           <button
             onClick={handleLogout}

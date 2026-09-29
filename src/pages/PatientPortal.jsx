@@ -522,7 +522,7 @@ export default function PatientPortal() {
         {/* Top Bar */}
         <div
           className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10"
-          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+          style={{ paddingTop: 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}
         >
           <button
             onClick={() => setSidebarOpen(true)}
@@ -617,7 +617,7 @@ export default function PatientPortal() {
         {/* Map */}
         <div
           className="flex-1 px-4 overflow-hidden relative"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+          style={{ paddingBottom: 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
