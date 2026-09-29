@@ -112,9 +112,20 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
             .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
           baseMinutes += 2; // dwell at the next stop (completion-cascade parity)
           const etaUpdates = [];
+          const toWindowMinutes = (t) => {
+            const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+            return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+          };
           for (const stop of remainingStops) {
             const legMinutes = Number(stop.estimated_duration_minutes);
             baseMinutes += Number.isFinite(legMinutes) && legMinutes > 0 ? Math.ceil(legMinutes) : 5;
+            // OWNER REQUEST (Sep 29 2026): window floor (matches the completion
+            // cascade) — a mathematically earlier ETA never displays before the
+            // stop's delivery start window; clamp up and cascade from there.
+            const windowStartMin = toWindowMinutes(stop.delivery_time_start || stop.time_window_start);
+            if (windowStartMin != null && baseMinutes < windowStartMin) {
+              baseMinutes = windowStartMin;
+            }
             const eta = `${String(Math.floor((baseMinutes % 1440) / 60)).padStart(2, '0')}:${String(baseMinutes % 60).padStart(2, '0')}`;
             baseMinutes += 2;
             if (eta !== stop.delivery_time_eta) etaUpdates.push({ ...stop, delivery_time_eta: eta });

@@ -923,9 +923,23 @@ export function useStopCardStartActions({
       // For each remaining stop, add its own travel duration to arrive, then
       // a 2-minute dwell before moving to the next stop.
       let currentEtaMinutes = hrs * 60 + mins;
+      // HH:MM → minutes-past-midnight parser (regex only — never Date-parse
+      // naive time strings, device tz engines are not trusted).
+      const toWindowMinutes = (t) => {
+        const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+        return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+      };
       const updatedRemainingWithEtas = incompleteDeliveries.map((stop) => {
         // ETA for this stop = base time + travel time to reach it
         currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
+        // OWNER REQUEST (Sep 29 2026): window floor — the mathematical ETA must
+        // never display before the stop's delivery start window. If the chain
+        // arrives earlier, clamp the ETA UP to the window start and CONTINUE the
+        // cascade from that window time (later stops inherit the wait).
+        const windowStartMin = toWindowMinutes(stop.delivery_time_start || stop.time_window_start);
+        if (windowStartMin != null && currentEtaMinutes < windowStartMin) {
+          currentEtaMinutes = windowStartMin;
+        }
         const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
         const newEtaMins = currentEtaMinutes % 60;
         // Add 2-min dwell so the next stop's travel time starts after completion
