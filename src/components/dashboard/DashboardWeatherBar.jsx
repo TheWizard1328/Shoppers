@@ -13,7 +13,8 @@
  *   • The tube itself fades darker orange (at the projected high) to darker
  *     blue (at the projected low), with the orange→blue crossing pinned to the
  *     0 °C position on the bar.
- *   • Thin marker lines at the projected high and low with the temps labelled
+ *   • Thin marker lines
+ *   • Integer-degree dots (5° multiples enlarged, dots run through H/L) at the projected high and low with the temps labelled
  *     next to them, and a current-temp marker line + badge (condition icon +
  *     temp) aligned EXACTLY at the current temp position on the scale.
  *   • pointer-events: none — purely informational, never blocks the map or UI.
