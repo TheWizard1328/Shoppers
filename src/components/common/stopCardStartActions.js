@@ -30,7 +30,7 @@ import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { notifyDriverStarted, notifyDriverRetry } from "../utils/deliveryMessaging";
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
-import { lockDeliveryFields } from '../utils/completionLockout';
+import { lockDeliveryFields, unlockDeliveryFields } from '../utils/completionLockout';
 import { START_ACTION_NAME } from './stopCardActionStatusHelpers';
 
 export function useStopCardStartActions({
@@ -724,6 +724,20 @@ export function useStopCardStartActions({
             }
 
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+              // OWNER BUG (Sep 29 2026): the optimistic Start path armed a 60s
+              // completionLockout on the started stop with 'stop_order' in the
+              // field list — carrying the PRE-optimization number (e.g. 24).
+              // The optimizer's fresh result (renumbered 23) then arrived through
+              // the deliveriesUpdated listener's applyRealtimeMergeWithLockout,
+              // whose stop_order guard keeps LOCAL whenever incoming differs —
+              // so the card badge showed 24 (position 23 via isNextDelivery
+              // pinning) until an app refresh cleared the in-memory lockout.
+              // The coordinator's result is authoritative, not a stale echo:
+              // release the locks for every refreshed route delivery BEFORE
+              // dispatching so the fresh stop_order/isNextDelivery apply.
+              for (const _fd of refreshedList) {
+                if (_fd?.id) unlockDeliveryFields(_fd.id);
+              }
               // OPTIMIZATION: Coordinator already wrote freshDeliveries to IDB (line 337 of
               // routeOptimizationCoordinator.jsx) and the engine already sets isNextDelivery
               // in the writeBatch. No redundant bulkSave or updateDeliveriesLocally needed —
