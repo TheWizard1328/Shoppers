@@ -30,6 +30,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { emitGatedEvent, isUIHidden } from '@/components/utils/uiGate';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
+import { parseTimeToMinutes } from '@/components/utils/fuzzyMatching';
 import { locationTracker } from '@/components/utils/locationTracker';
 
 const CHECK_THROTTLE_MS = 10_000;          // min time between deviation CHECKS
@@ -90,6 +91,46 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
       // Belt-and-suspenders local state sync (updateDelivery already pushed the
       // optimistic record through the mutation subscription).
       updateDeliveriesLocally?.([result.updatedDelivery], false);
+
+      // ── Mathematical ETA cascade for the REMAINING stops (owner request, Sep 29 2026) ──
+      // The deviation regen re-anchored the NEXT stop's ETA from live GPS, but the
+      // stops after it kept their pre-deviation ETAs. Chain them from the next
+      // stop's new ETA using the SAME math as the completion cascade (each stop:
+      // + its estimated leg travel, fallback 5 min, then a 2-min dwell) so the
+      // whole remaining route shifts with the deviation instantly, instead of
+      // waiting for the 2-min locationTracker poll cycle to catch up.
+      try {
+        const newEtaStr = String(result.updatedDelivery?.delivery_time_eta || nextStop.delivery_time_eta || '');
+        let baseMinutes = parseTimeToMinutes(newEtaStr);
+        if (Number.isFinite(baseMinutes)) {
+          const TERMINAL = ['completed', 'failed', 'cancelled'];
+          const remainingStops = todayDeliveries
+            .filter((d) => d && d.id !== nextStop.id
+              && !TERMINAL.includes(String(d.status || '').toLowerCase())
+              && String(d.status || '').toLowerCase() !== 'pending'
+              && (d.stop_order || 0) > (nextStop.stop_order || 0))
+            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          baseMinutes += 2; // dwell at the next stop (completion-cascade parity)
+          const etaUpdates = [];
+          for (const stop of remainingStops) {
+            const legMinutes = Number(stop.estimated_duration_minutes);
+            baseMinutes += Number.isFinite(legMinutes) && legMinutes > 0 ? Math.ceil(legMinutes) : 5;
+            const eta = `${String(Math.floor((baseMinutes % 1440) / 60)).padStart(2, '0')}:${String(baseMinutes % 60).padStart(2, '0')}`;
+            baseMinutes += 2;
+            if (eta !== stop.delivery_time_eta) etaUpdates.push({ ...stop, delivery_time_eta: eta });
+          }
+          if (etaUpdates.length > 0) {
+            const { updateDelivery: cascadeUpdateDelivery } = await import('@/components/utils/entityMutations');
+            etaUpdates.forEach((stop) => {
+              cascadeUpdateDelivery(stop.id, { delivery_time_eta: stop.delivery_time_eta }).catch(() => {});
+            });
+            updateDeliveriesLocally?.(etaUpdates, false);
+            console.log(`[RouteDeviation] remaining-stop ETA cascade: ${etaUpdates.length} stop(s) re-anchored from next-stop ETA ${newEtaStr}`);
+          }
+        }
+      } catch (cascadeErr) {
+        console.warn('[RouteDeviation] remaining-stop ETA cascade failed:', cascadeErr?.message || cascadeErr);
+      }
     } else {
       console.log(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
     }
