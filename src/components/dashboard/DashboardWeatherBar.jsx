@@ -410,7 +410,13 @@ function DashboardWeatherBar({
           }}
         >
           <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
-          {`${temp}°`}
+          {/* Badge label now matches tempPrecise (owner report, Sep 29 2026):
+              the badge was positioned at the sub-degree tempPrecise line but
+              LABELED with the rounded whole-degree temp — e.g. showing "9°"
+              while sitting at the 8.5 line, a visible mismatch. The label now
+              shows tempPrecise itself (1 decimal only when not a whole
+              number) so the printed number always matches its position. */}
+          {`${Number.isInteger(tempPrecise) ? tempPrecise : tempPrecise.toFixed(1)}°`}
         </span>
       </div>
     </div>
