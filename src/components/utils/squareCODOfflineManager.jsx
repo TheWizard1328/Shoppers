@@ -108,15 +108,34 @@ const pruneStoredCatalogItems = async () => {
   return items || [];
 };
 
+// Chunked bulkSave — each chunk gets its own IDB_OPERATION_TIMEOUT window.
+// A single 8s window over 900+ encrypted records aborted too often on phone
+// hardware; chunking makes the big 6-month backfill set durable.
+const BULK_CHUNK_SIZE = 150;
+const bulkSaveChunked = async (storeName, records) => {
+  const all = records || [];
+  let saved = 0;
+  for (let i = 0; i < all.length; i += BULK_CHUNK_SIZE) {
+    const chunk = all.slice(i, i + BULK_CHUNK_SIZE);
+    const result = await offlineDB.bulkSave(storeName, chunk);
+    if (!result?.success) {
+      return { success: false, error: result?.error || `bulkSave chunk ${Math.floor(i / BULK_CHUNK_SIZE)} failed`, saved };
+    }
+    saved += result.count || chunk.length;
+  }
+  return { success: true, count: saved };
+};
+
 const pruneStoredSquareTransactions = async () => {
   const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
   const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
 
-  if (recentTransactions.length !== (transactions || []).length) {
-    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-    if (recentTransactions.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, recentTransactions);
-    }
+  // DELETE-ONLY prune (owner fix, Sep 29 2026): never clearStore-then-resave
+  // on the read path — the clear commits in its own IDB transaction and a
+  // failed save afterwards leaves the store empty (the backfill IDB wipe).
+  const stale = (transactions || []).filter((t) => t?.id && !isRecentSquareTransaction(t));
+  if (stale.length > 0) {
+    await Promise.all(stale.map((t) => offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, t.id).catch(() => null)));
   }
 
   await updateTransactionSyncStatus();
@@ -127,10 +146,21 @@ export const saveCatalogItemsOffline = async (items) => {
   try {
     // Catalog items have NO date filter â€” we store ALL active items from Square.
     const normalizedItems = (items || []).filter(Boolean).map(normalizeCatalogEntityRecord);
-    await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
-
+    // UPSERT-FIRST (owner fix, Sep 29 2026): save BEFORE pruning, and never
+    // clear the store first — clearStore+bulkSave ran as two separate IDB
+    // transactions, so a failed/timed-out save left the store wiped.
     if (normalizedItems.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedItems);
+      const saveResult = await bulkSaveChunked(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedItems);
+      if (!saveResult?.success) {
+        console.error('[SquareCODOffline] Catalog bulkSave failed — keeping existing IDB rows:', saveResult?.error);
+        return { success: false, error: saveResult?.error };
+      }
+      const incomingIds = new Set(normalizedItems.map((r) => r?.id).filter(Boolean));
+      const existingItems = (await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS)) || [];
+      const toDelete = existingItems.filter((r) => r?.id && !incomingIds.has(r.id));
+      if (toDelete.length > 0) {
+        await Promise.all(toDelete.map((r) => offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, r.id).catch(() => null)));
+      }
     }
 
     await updateCatalogSyncStatus();
@@ -146,10 +176,36 @@ export const savePaymentTransactionsOffline = async (transactions) => {
     // Do NOT filter by date here â€” the online DB was just cleared and rebuilt from
     // the Square API. Trust the source completely. Filter out only non-collected types.
     const normalizedTransactions = (transactions || []).filter(Boolean).filter(isActualCollectedTransaction);
-    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
 
-    if (normalizedTransactions.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, normalizedTransactions);
+    // UPSERT-FIRST (owner fix, Sep 29 2026): the old code did clearStore() then
+    // bulkSave() — TWO separate IDB transactions. The clear committed first;
+    // when the bulkSave then hit the 8s operation timeout (900+ records on the
+    // 6-month backfill, AES-GCM encrypted as a PHI store) it aborted, leaving
+    // the store EMPTY with the failure silently ignored — every backfill
+    // wiped the entire Square Transaction history in IDB, so all collected
+    // CODs looked uncollected. Now: save first (chunked, each chunk gets its
+    // own timeout window); prune stale rows only after a CONFIRMED successful
+    // save; never touch existing rows on failure or empty input.
+    if (normalizedTransactions.length === 0) {
+      console.warn('[SquareCODOffline] Empty transaction set — keeping existing IDB tx history untouched');
+      await updateTransactionSyncStatus();
+      return { success: true, count: 0, skipped: true };
+    }
+
+    const saveResult = await bulkSaveChunked(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, normalizedTransactions);
+    if (!saveResult?.success) {
+      console.error('[SquareCODOffline] Tx bulkSave failed — KEEPING existing IDB rows:', saveResult?.error);
+      await updateTransactionSyncStatus();
+      return { success: false, error: saveResult?.error };
+    }
+
+    // Prune rows not in the incoming mirror set (purged collected rows must
+    // leave IDB so the DB mirror stays exact) — only after a confirmed save.
+    const incomingIds = new Set(normalizedTransactions.map((r) => r?.id).filter(Boolean));
+    const existingTxs = (await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS)) || [];
+    const toDelete = existingTxs.filter((r) => r?.id && !incomingIds.has(r.id));
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map((r) => offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, r.id).catch(() => null)));
     }
 
     await updateTransactionSyncStatus();

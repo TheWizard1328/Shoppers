@@ -46,7 +46,12 @@ export default function SquareManagement() {
   // A response is a complete DB mirror only when the new backend built it
   // (txRetentionFloor present) and it actually carries rows. Empty/partial
   // responses must never replace-save the IDB tx history.
-  const finalDataHasCompleteTxMirror = (res, rows) => Boolean(res?.txRetentionFloor) && Array.isArray(rows) && rows.length > 0;
+  // A response is the COMPLETE DB tx mirror only when the backend loaded its
+// SquareTransaction table successfully (txListLoaded !== false) AND reports a
+// retention floor with rows. A hollow response from a failed DB list (the
+// backfill "tx: 0" chunks) must MERGE, never replace-save.
+const finalDataHasCompleteTxMirror = (res, rows) =>
+  res?.txListLoaded !== false && Boolean(res?.txRetentionFloor) && Array.isArray(rows) && rows.length > 0;
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [locationIds, setLocationIds] = useState([]);
@@ -480,6 +485,8 @@ export default function SquareManagement() {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
       const CHUNK = 30, TOTAL = 180;
       let finalData = null;
+      const txUnion = new Map();
+      const txUnionKeyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
       for (let start = TOTAL; start > 0; start -= CHUNK) {
         const end = Math.max(0, start - CHUNK);
         setBackfillProgress(`Pulling Square orders ${start}-${end} days back...`);
@@ -489,13 +496,23 @@ export default function SquareManagement() {
           orderChunk: { startDaysAgo: start, endDaysAgo: end },
         });
         finalData = res?.data || res || null;
-        console.log('[SquareManagement] Backfill chunk done:', { startDaysAgo: start, endDaysAgo: end, tx: finalData?.transactionRecords?.length, floor: finalData?.txRetentionFloor });
+        // UNION the tx records from every chunk (owner fix, Sep 29 2026): the
+        // old code trusted ONLY the final chunk's response, but chunk calls can
+        // return hollow sets (rate-limit/DB-list failure mid-run produced
+        // "tx: 0" for every chunk after the first) — replace-saving the hollow
+        // final response wiped IDB even though chunk 1 returned the full
+        // 716-row mirror. The union keeps every row any chunk produced;
+        // the save prunes rows no chunk reported.
+        (finalData?.transactionRecords || []).forEach((t) => {
+          if (t) txUnion.set(txUnionKeyOf(t), t);
+        });
+        console.log('[SquareManagement] Backfill chunk done:', { startDaysAgo: start, endDaysAgo: end, tx: finalData?.transactionRecords?.length, floor: finalData?.txRetentionFloor, union: txUnion.size });
       }
       if (!finalData) throw new Error('Backfill returned no data');
 
-      // Final chunk's response = the complete retained set. Save to IDB + refresh
-      // UI exactly like the sync success path.
-      const transactionRecords = finalData.transactionRecords || [];
+      // Union of ALL chunks = the retained set. Save to IDB + refresh UI
+      // exactly like the sync success path.
+      const transactionRecords = Array.from(txUnion.values());
       const catalogRecords = finalData.catalogRecords || [];
       const strippedDeliveries = Array.isArray(finalData.deliveries) ?
         finalData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
@@ -505,11 +522,15 @@ export default function SquareManagement() {
       // DB set — safe to replace-save. Old/partial responses (no floor field, e.g.
       // during deploy propagation) get MERGED instead so IDB history is never wiped.
       if (finalDataHasCompleteTxMirror(finalData, transactionRecords)) {
-        await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+        const txSave = await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+        if (!txSave?.success) {
+          console.error('[SquareManagement] Backfill: IDB tx save FAILED — history untouched:', txSave?.error);
+          toast.error('Tx history save failed — existing data kept: ' + (txSave?.error || 'unknown'));
+        }
       } else {
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
         const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
-        const existing = await offlineDB.getAll(offlineDB.STORES.PAYMENT_TRANSACTIONS) || [];
+        const existing = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS) || [];
         const merged = new Map((existing || []).map((t) => [keyOf(t), t]));
         (transactionRecords || []).forEach((t) => { if (t) merged.set(keyOf(t), { ...merged.get(keyOf(t)), ...t }); });
         await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(merged.values()));
@@ -671,10 +692,13 @@ export default function SquareManagement() {
         // Partial/empty responses (old backend mid-deploy, failed order fetch)
         // would otherwise wipe 6 months of history on every device.
         if (finalDataHasCompleteTxMirror(codData, transactionRecords)) {
-          await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+          const txSave = await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+          if (!txSave?.success) {
+            console.error('[SquareManagement] Sync: IDB tx save FAILED — history untouched:', txSave?.error);
+          }
         } else {
           const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
-          const existingTxs = (await offlineDB.getAll(offlineDB.STORES.PAYMENT_TRANSACTIONS)) || [];
+          const existingTxs = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
           const mergedTxs = new Map((existingTxs || []).map((t) => [keyOf(t), t]));
           (transactionRecords || []).forEach((t) => { if (t) mergedTxs.set(keyOf(t), { ...mergedTxs.get(keyOf(t)), ...t }); });
           await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(mergedTxs.values()));

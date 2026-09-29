@@ -226,12 +226,18 @@ async function handleGetCodData(base44, payload={}) {
 
   // ── 1) Fetch ALL entity context in parallel ──────────────────────────
   console.log('[squareGetCodData2] Fetching entity context...');
+  // txListLoaded: if the SquareTransaction list call FAILS (rate-limit/timeout
+  // mid-backfill), the response cannot contain the retained DB mirror. The
+  // frontend must MERGE such a response, never replace-save from it (the Sep
+  // 28 backfill wipe: every chunk after the first returned "tx: 0" because
+  // this list failed, and the hollow final response replaced 716 good rows).
+  let txListLoaded = true;
   const [allLocationConfigs, stores, appUsers, patients, existingTransactionsRaw, existingCatalogDb] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.AppUser.list('-updated_date', 2000).catch(() => []),
     base44.asServiceRole.entities.Patient.list('-updated_date', 5000).catch(() => []),
-    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => { txListLoaded = false; return []; }),
     base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
   ]);
 
@@ -927,13 +933,25 @@ async function handleGetCodData(base44, payload={}) {
   // Purge rows for collected deliveries: tx rows only when older than the
   // floor; catalog mirror rows always (the live-catalog mirror replace in 5b
   // rebuilds the outstanding set).
-  for (const did of allCollectedIds) {
-    const cats = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: did }).catch(() => []);
-    for (const c of (cats || [])) { await base44.asServiceRole.entities.SquareCatalogItems.delete(c.id).catch(() => null); purgedCatalogRows++; }
-    if (collectedOldIds.has(did)) {
-      const txs = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: did }).catch(() => []);
-      for (const t of (txs || [])) { await base44.asServiceRole.entities.SquareTransaction.delete(t.id).catch(() => null); purgedTxRows++; }
-    }
+  // OWNER FIX (Sep 29 2026): purge from the IN-MEMORY row sets instead of a
+  // filter() call PER delivery — hundreds of per-delivery entity calls in one
+  // chunk exhausted the entity API rate budget, so every LATER backfill chunk
+  // failed its SquareTransaction.list call and returned a hollow "tx: 0"
+  // response. Row snapshots are already in memory (existingTransactions,
+  // existingCatalogDb), so resolve ids locally and issue deletes only.
+  const txIdsToPurge = new Set((existingTransactions || [])
+    .filter((t) => t?.delivery_id && collectedOldIds.has(t.delivery_id) && t?.id)
+    .map((t) => t.id));
+  const catalogIdsToPurge = new Set((Array.isArray(existingCatalogDb) ? existingCatalogDb : [])
+    .map(unwrapEntityRecord).filter((r) => r?.delivery_id && allCollectedIds.has(r.delivery_id) && r?.id)
+    .map((r) => r.id));
+  for (const id of txIdsToPurge) {
+    await base44.asServiceRole.entities.SquareTransaction.delete(id).catch(() => null);
+    purgedTxRows++;
+  }
+  for (const id of catalogIdsToPurge) {
+    await base44.asServiceRole.entities.SquareCatalogItems.delete(id).catch(() => null);
+    purgedCatalogRows++;
   }
   console.log('[squareGetCodData2] Collected-delivery DB purge (floor-scoped):', { collected: allCollectedIds.size, txRowsPurged: purgedTxRows, catalogRowsPurged: purgedCatalogRows });
   const preStampedIds = new Set((activeDeliveriesWithAmounts || [])
@@ -1138,6 +1156,7 @@ async function handleGetCodData(base44, payload={}) {
     catalogRecords: filteredCatalogRecords,
     transactionRecords: mergedTxRecords,
     txRetentionFloor,
+    txListLoaded,
     deletedCatalogIds,
     cleanupDbCount,
     collectedPurge: { deliveries: confirmedCollectedDeliveryIds.size, transactions: purgedTxRows, catalogRows: purgedCatalogRows },
