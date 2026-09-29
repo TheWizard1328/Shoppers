@@ -322,12 +322,7 @@ export default function PatientPortal({ embedded = false } = {}) {
           });
           routeDeliveriesRef.current = routeDeliveries;
           setRouteDeliveries(routeDeliveries);
-          const countBefore = routeDeliveries.filter((d) =>
-            d.id !== activeToday.id &&
-            Number(d.stop_order) < Number(activeToday.stop_order) &&
-            !['completed', 'failed', 'cancelled'].includes(d.status)
-          ).length;
-          setStopsBeforePatient(countBefore);
+          setStopsBeforePatient(countStopsBeforePatient(routeDeliveries, activeToday));
         } catch (_) {
           setStopsBeforePatient(null);
         }
@@ -373,16 +368,44 @@ export default function PatientPortal({ embedded = false } = {}) {
     ? { driver_id: todayDelivery.driver_id, stop_order: todayDelivery.stop_order, id: todayDelivery.id }
     : null;
 
+  // HH:MM → minutes-past-midnight (regex only — naive strings are never Date-parsed)
+  const hhmmToMinutes = (t) => {
+    const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+  };
+
+  // OWNER REQUEST (Sep 29 2026): count PENDING stops in the "stops before you"
+  // badge. Pending stops get a temporary optimized route order (the engine
+  // sequences them with the active route and assigns cumulative ETAs), but
+  // delivery edits renumber pending stops to the END of the incomplete block
+  // (handleSaveDelivery: "pending last"), so stop_order alone undercounts them.
+  // Rule: a non-terminal stop counts when its stop_order precedes the patient's;
+  // a PENDING stop ALSO counts when its engine-assigned ETA precedes the
+  // patient's ETA — the ETAs are cumulative along the optimized sequence, so
+  // an earlier ETA = a temporary route position before the patient.
+  const countStopsBeforePatient = useCallback((routeDeliveries, patientDelivery) => {
+    if (!patientDelivery) return 0;
+    const TERMINAL = ['completed', 'failed', 'cancelled'];
+    const patientOrder = patientDelivery.stop_order != null ? Number(patientDelivery.stop_order) : NaN;
+    const patientEtaMin = hhmmToMinutes(patientDelivery?.delivery_time_eta);
+    return routeDeliveries.filter((d) => {
+      if (!d || d.id === patientDelivery.id) return false;
+      if (TERMINAL.includes(d.status)) return false;
+      const ord = d.stop_order != null ? Number(d.stop_order) : NaN;
+      if (Number.isFinite(ord) && Number.isFinite(patientOrder) && ord < patientOrder) return true;
+      if (String(d.status) === 'pending' && patientEtaMin != null) {
+        const etaMin = hhmmToMinutes(d.delivery_time_eta);
+        return etaMin != null && etaMin < patientEtaMin;
+      }
+      return false;
+    }).length;
+  }, []);
+
   // Helper: recount stops before patient from a given route deliveries array
   const recountStopsBefore = useCallback((routeDeliveries, patientDelivery) => {
-    if (!patientDelivery?.stop_order == null) return;
-    const count = routeDeliveries.filter((d) =>
-      d.id !== patientDelivery.id &&
-      Number(d.stop_order) < Number(patientDelivery.stop_order) &&
-      !['completed', 'failed', 'cancelled'].includes(d.status)
-    ).length;
-    setStopsBeforePatient(count);
-  }, []);
+    if (patientDelivery?.stop_order == null && patientDelivery?.delivery_time_eta == null) return;
+    setStopsBeforePatient(countStopsBeforePatient(routeDeliveries, patientDelivery));
+  }, [countStopsBeforePatient]);
 
   // ── WebSocket: Delivery subscription ─────────────────────────────
   // Listens for any Delivery change. Filters to this patient's records for
