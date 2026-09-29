@@ -21,6 +21,11 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
   // If the completion happens within that window, the server's master trail is
   // missing the last 1-2 points. Force-flushing ensures the slicing function
   // has the absolute latest GPS data.
+  //
+  // The sync lock now covers the flush AND the slice call, so back-to-back
+  // completions (multi-arrival dialog) queue behind each other instead of
+  // racing two slicing runs against the same records.
+  let releaseSliceLock = null;
   try {
     const { offlineDB } = await import('../utils/offlineDatabase');
     const offlineKey = `${driverId}__TODAY__${deliveryDate}`;
@@ -30,19 +35,15 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
       // Acquire mutex lock — prevents concurrent syncPendingBreadcrumbs calls
       // from the routine GPS sync loop and this pre-slice flush racing to create
       // duplicate master records (stop_order = -1).
-      const releaseLock = await acquireBreadcrumbSyncLock();
-      try {
-        await base44.functions.invoke('syncPendingBreadcrumbs', {
-          driver_id: driverId,
-          delivery_date: deliveryDate,
-          encoded_polyline: masterRecord.encoded_polyline,
-          timestamps: masterRecord.timestamps,
-          point_count: masterRecord.point_count,
-        });
-        console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
-      } finally {
-        releaseLock();
-      }
+      releaseSliceLock = await acquireBreadcrumbSyncLock();
+      await base44.functions.invoke('syncPendingBreadcrumbs', {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        encoded_polyline: masterRecord.encoded_polyline,
+        timestamps: masterRecord.timestamps,
+        point_count: masterRecord.point_count,
+      });
+      console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
     }
   } catch (flushErr) {
     console.warn('⚠️ [Breadcrumbs] Pre-slice flush failed:', flushErr?.message || flushErr);
@@ -50,14 +51,24 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
   }
 
   try {
-    // Incremental tail cut: only the just-finished stop's leg is cut, anchored
-    // at the final point of the previous finished stop's segment. Earlier legs
-    // are never re-cut (the full home-anchored walk is the resnip scissors' job).
+    // FULL home-anchored walk (owner fix, Sep 29 2026): the previous
+    // 'incremental' tail cut anchored each new leg on the PREVIOUS leg's saved
+    // segment record, matched by stop_order — but stop_orders now get
+    // renumbered constantly (Start renumbering + repair passes renumber
+    // finished stops 1..K by completion time), so the record lookup kept
+    // missing and legs collapsed to 1-2 point stubs (owner report Sep 29:
+    // "most stops set to 1 or 2 points"; preview of the full walk on the same
+    // trail projected 275/119/230-point legs where incremental had written
+    // 1-2). The full walk is the same proven algorithm as the Route Viewer
+    // "reclip" scissors — home-anchored, time-primary boundaries — and it
+    // re-slices EVERY finished leg on every completion, so earlier bad legs
+    // self-heal as the day progresses. Manual saved_to_route legs are still
+    // never overwritten (backend skips them), and orphaned/stale-numbered
+    // segment records are cleaned up on each pass.
     const result = await consolidateBreadcrumbSegment({
       driver_id: driverId,
       delivery_date: deliveryDate,
       delivery_id: deliveryId,
-      mode: 'incremental',
     });
     if (result?.success) {
       console.log(`✅ [Breadcrumbs] Proximity slicing complete: ${result.total_segments} segments, ${result.master_point_count} master points`);
@@ -66,6 +77,8 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
     }
   } catch (error) {
     console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
+  } finally {
+    if (releaseSliceLock) releaseSliceLock();
   }
 };
 
