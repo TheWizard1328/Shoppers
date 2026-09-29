@@ -756,6 +756,21 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     return () => window.removeEventListener('triggerOffDutyFromNotification', handler);
   }, [status, handleStatusChange]);
 
+  // ── Continue Route from the long-break idle push (owner request, Sep 28 2026) ──
+  // The notification's Continue Route button dispatches this event; run the FULL
+  // on-duty flow so tracking resumes and FAB phase is restored exactly like a
+  // manual toggle. Guarded to on_break so a stale notification can't start duty
+  // after the driver already went off duty.
+  useEffect(() => {
+    const handler = () => {
+      if (status === 'on_break') {
+        handleStatusChange('on_duty');
+      }
+    };
+    window.addEventListener('triggerOnDutyFromNotification', handler);
+    return () => window.removeEventListener('triggerOnDutyFromNotification', handler);
+  }, [status, handleStatusChange]);
+
   // ── Update tracking notification when delivery status changes ──
   // Shows remaining stop count so the notification is a useful progress indicator
   useEffect(() => {

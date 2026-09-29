@@ -91,6 +91,20 @@ export async function initNativePushNotifications(userId) {
                 { id: 'availability_no', title: 'Unavailable' },
               ],
             },
+            // Idle alerts (owner request, Sep 28 2026)
+            {
+              id: 'OFFDUTY_IDLE_ACTIONS',
+              actions: [
+                { id: 'offduty_force_close', title: 'Force Close' },
+              ],
+            },
+            {
+              id: 'ONBREAK_IDLE_ACTIONS',
+              actions: [
+                { id: 'onbreak_acknowledge', title: 'Acknowledge' },
+                { id: 'onbreak_continue', title: 'Continue Route' },
+              ],
+            },
           ],
         });
         console.log('[NativePush] Action types registered');
@@ -204,6 +218,29 @@ export async function initNativePushNotifications(userId) {
             // Both "Yes" and "No" are intentionally silent — the driver just wants
             // to submit their response without the app popping open, reloading, or
             // navigating to the chat. The backend call above already handles it.
+            return;
+          }
+
+          // ── Idle alert actions (owner request, Sep 28 2026) ──
+          if (actionId === 'offduty_force_close' && extra.__idle_alert === 'offduty') {
+            // Driver acknowledged the off-duty running alert — force close the app
+            // (same path the idle-kill uses: stop tracking + App.exitApp()).
+            try {
+              const { locationTracker } = await import('./locationTracker');
+              await locationTracker._forceCloseApp('App closed from notification to save battery.');
+            } catch (err) {
+              console.error('[NativePush] Idle-alert force close failed:', err?.message);
+            }
+            return;
+          }
+          if (extra.__idle_alert === 'onbreak') {
+            // Acknowledge = dismiss only (Android auto-dismisses on action tap).
+            if (actionId === 'onbreak_continue') {
+              // Continue Route = toggle the driver back on duty. DriverStatusToggle
+              // runs its full on-duty flow (tracker upgrade, FAB phase restore) —
+              // the component is mounted whenever the app process is alive.
+              window.dispatchEvent(new CustomEvent('triggerOnDutyFromNotification'));
+            }
             return;
           }
 

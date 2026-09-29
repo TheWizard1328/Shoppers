@@ -22,6 +22,7 @@ import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCa
 import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
 import { connectionMonitor } from './connectionMonitor';
 import { markNativeHidden } from './uiGate';
+import * as driverIdleAlerts from './driverIdleAlerts';
 
 class LocationTracker {
     constructor() {
@@ -179,6 +180,9 @@ class LocationTracker {
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
     this.driverStatus = status;
+    // Idle alerts (owner request, Sep 28 2026): break watcher starts/stops
+    // here, and the off-duty heartbeat clock resets when duty resumes.
+    try { driverIdleAlerts.noteDutyStatus(status, this.currentUser?.id); } catch { }
     // CRITICAL: Keep currentUser.driver_status in sync so heartbeat broadcasts
     // include the correct status. Without this, every 15s heartbeat spreads
     // a stale driver_status (e.g. off_duty) to all connected devices via
@@ -1924,6 +1928,13 @@ class LocationTracker {
     this._clearHeartbeat();
     this.heartbeatInterval = setInterval(async () => {
       if (!this.isTracking || !this._webOnlyMode) return;
+      // Off-duty idle alert (owner request, Sep 28 2026): the heartbeat itself
+      // proves the app is alive and consuming battery while off duty. Guarded to
+      // off_duty — on-duty/on-break drivers can legitimately land in web-only mode
+      // (startTracking fallback) and must NOT get "you're off duty" alerts.
+      if (this.driverStatus === 'off_duty') {
+        try { driverIdleAlerts.noteOffDutyHeartbeat(); } catch { }
+      }
       try {
         const provider = getLocationProvider();
         if (provider.isAvailable()) {
@@ -1974,7 +1985,15 @@ class LocationTracker {
       if (!this._offDutyBackgroundedAt || !this._webOnlyMode) return;
 
       const elapsed = Date.now() - this._offDutyBackgroundedAt;
-      if (elapsed < 30 * 60 * 1000) return; // 30 min threshold
+      if (elapsed < 30 * 60 * 1000) return; // 30 min notification threshold
+
+      // 30-min threshold reached (owner request, Sep 28 2026): notify the
+      // driver FIRST (Force Close button) instead of silently closing. The
+      // silent force-close now only fires as a 90-min safety net if the
+      // driver ignored the notification and hasn't moved.
+      if (elapsed < 90 * 60 * 1000) {
+        try { driverIdleAlerts.notifyOffDutyIdleKill(elapsed); } catch { }
+      }
 
       // Threshold reached — check if driver has moved
       let hasMoved = false;
@@ -2004,7 +2023,7 @@ class LocationTracker {
 
       if (hasMoved) {
         this._offDutyBackgroundedAt = Date.now();
-      } else {
+      } else if (elapsed >= 90 * 60 * 1000) {
         const mins = Math.round(elapsed / 60000);
         this._forceCloseApp(`App closed after ${mins} min off duty in background to save battery.`);
       }
