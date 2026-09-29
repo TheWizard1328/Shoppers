@@ -1236,8 +1236,50 @@ function Dashboard() {
         }
         const shouldIncludeBlueDot = isMobile && isDriver && isViewingToday && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude && (selectedDriverId === currentUser?.id || selectedDriverIdRef.current === 'all');
 
-        // 2. SHARED DRIVER LOCATIONS: Skip when a specific driver is selected — their location was already added above.
-        const shouldIncludeSharedLocations = !(selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all') && (shouldShowAllMarkersForBounds || isDispatcher || isAdmin);
+        // 3. Add delivery/pickup markers based on mode FIRST so live-driver detection
+        // only considers drivers with actual visible stops — hoisted ABOVE the shared
+        // driver-location gate because that gate now needs to know whether OTHER
+        // drivers' stops are actually visible in the current view (All Drivers / Show
+        // All on a driver-own view still only has the driver's own stops in scope).
+        // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
+        let deliveriesToMap = [];
+
+        if (shouldShowAllMarkersForBounds) {
+          let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr);
+
+          if (isDispatcher && !isAdmin) {
+            const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+            const driversWithStoreDeliveries = new Set(
+              allDateDeliveries
+                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
+                .map((d) => d.driver_id)
+                .filter(Boolean)
+            );
+            deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
+          } else {
+            deliveriesToMap = allDateDeliveries;
+          }
+        } else {
+          deliveriesToMap = deliveriesWithStopOrderRef.current.length > 0 ? deliveriesWithStopOrderRef.current : deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr && (!selectedDriverId || selectedDriverIdRef.current === 'all' || d.driver_id === selectedDriverIdRef.current));
+        }
+
+        // 2. SHARED DRIVER LOCATIONS (owner directive, Sep 29 2026): every on-duty
+        // driver's GPS dot may only enter Phase 1 bounds in All Drivers mode or Show
+        // All mode — never in single-driver mode. The old gate ALSO included them for
+        // admins/dispatchers whenever NO specific driver was selected (selectedDriverId
+        // ''/null — the store-default state) and for driver-own views where
+        // selectedDriverId defaults to 'all' (a driver's map is always their own route
+        // even when the selector reads 'all', so the whole city's on-duty dots
+        // stretched the fit). Multi-driver stop visibility is derived from
+        // deliveriesToMap below — on a driver's own view only their stops are in
+        // scope, so shared markers stay out of bounds there.
+        const isSpecificDriverSelected = !!selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all';
+        const otherDriversHaveStopsInView = (deliveriesToMap || []).some((d) => d && d.driver_id && String(d.driver_id) !== String(currentUser?.id));
+        const shouldIncludeSharedLocations =
+          !isSpecificDriverSelected &&
+          (isDispatcher || isAdmin) &&
+          (selectedDriverIdRef.current === 'all' || showAllDriverMarkersRef.current) &&
+          otherDriversHaveStopsInView;
 
         // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
@@ -1299,29 +1341,6 @@ function Dashboard() {
             hasDriverMarkers = true;
             addedCount++;
           });
-        }
-
-        // 3. Add delivery/pickup markers based on mode FIRST so live-driver detection only considers drivers with actual visible stops
-        // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
-        let deliveriesToMap = [];
-
-        if (shouldShowAllMarkersForBounds) {
-          let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr);
-
-          if (isDispatcher && !isAdmin) {
-            const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
-            const driversWithStoreDeliveries = new Set(
-              allDateDeliveries
-                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
-                .map((d) => d.driver_id)
-                .filter(Boolean)
-            );
-            deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
-          } else {
-            deliveriesToMap = allDateDeliveries;
-          }
-        } else {
-          deliveriesToMap = deliveriesWithStopOrderRef.current.length > 0 ? deliveriesWithStopOrderRef.current : deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr && (!selectedDriverId || selectedDriverIdRef.current === 'all' || d.driver_id === selectedDriverIdRef.current));
         }
 
         let coordsAdded = 0;
