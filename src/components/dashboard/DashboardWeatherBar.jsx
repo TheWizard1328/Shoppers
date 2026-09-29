@@ -341,40 +341,6 @@ function DashboardWeatherBar({
         />
       )}
 
-      {/* Integer-degree dots (owner request, Sep 28): one small dot per whole
-          degree position on the scale — no numbers. Covers the FULL scale
-          INCLUDING the buffer zones above the high and below the low, and the
-          dots at the exact high/low positions are INCLUDED too (owner request,
-          Sep 28 v2) so the buffer zones line up tightly with the ranges — no
-          gap around the marker lines. 5°-multiple positions get a larger dot.
-          Rendered after the fill so they're visible on both the colored
-          segment and the empty frosted track. */}
-      {(() => {
-        const dots = [];
-        const first = Math.ceil(scaleBottom);
-        const last = Math.floor(scaleTop);
-        const BUFFER_PULL_PX = 6; // owner request, Sep 28 v4: pull buffer dots toward the tube
-        for (let v = first; v <= last; v++) {
-          let yDot = Math.round(scaleFrac(v) * barHeight);
-          if (v > high) yDot = Math.max(yHigh + 2, yDot - BUFFER_PULL_PX); // above fill: pull down, never past the fill edge
-          else if (v < low) yDot = Math.min(yLow - 2, yDot + BUFFER_PULL_PX); // below fill: pull up, never past the fill edge
-          const big = v % 5 === 0; // larger dots at 5° multiples
-          const size = big ? 5 : 3;
-          dots.push(
-            <div
-              key={v}
-              style={{
-                position: 'absolute', bottom: yDot - size / 2, left: 6 - size / 2,
-                width: size, height: size, borderRadius: 999,
-                background: 'rgba(255,255,255,0.92)',
-                boxShadow: '0 0 0 1px rgba(15,23,42,0.45), 0 1px 2px rgba(0,0,0,0.5)',
-              }}
-            />
-          );
-        }
-        return dots;
-      })()}
-
       {/* Projected HIGH — rotated 90° CCW, CENTERED exactly on the high
           marker line (owner request, Sep 28 v3): a zero-height flex wrapper
           at bottom:yHigh with alignItems:center puts the wrapper's vertical
@@ -391,10 +357,12 @@ function DashboardWeatherBar({
       </div>
 
       {/* Current temp — badge BESIDE the tube, VERTICALLY CENTERED on the
-          current temp position (owner request, Sep 28): bottom-anchored at the
-          temp line then translated down by half its own height, so the badge's
-          middle — not its bottom edge — tracks the exact temp position. */}
-      <div style={{ position: 'absolute', bottom: `${yTemp}px`, left: 16, display: 'flex', alignItems: 'center', transform: 'translateY(50%)' }}>
+          current temp position (owner request, Sep 28 v5): a zero-height
+          flex-centered wrapper at bottom:yTemp — same technique as the H/L
+          labels — so the badge's visual middle sits exactly on the temp line
+          regardless of the emoji icon's own font-metric height (translateY(50%)
+          depended on the box's OWN measured height, which was inconsistent). */}
+      <div style={{ position: 'absolute', bottom: `${yTemp}px`, left: 16, height: 0, display: 'flex', alignItems: 'center' }}>
         <span
           style={{
             display: 'flex', alignItems: 'center', gap: 3,
