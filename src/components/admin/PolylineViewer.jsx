@@ -161,12 +161,32 @@ const buildHereLightTileUrl = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x
 const buildHereDarkTileUrl  = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${k}`;
 
 // ── Marker icons ────────────────────────────────────────────────────────────
-const createNumberedIcon = (color, label) => L.divIcon({
-  className: '',
-  html: `<div style="width:28px;height:28px;border-radius:9999px;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700">${label}</div>`,
-  iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
-});
-const getMarkerIcon = (color, label) => createNumberedIcon(color, label ?? '');
+// nudge (owner fix, Sep 29 2026): a leg's END point and the NEXT leg's START
+// point are always the exact same physical location (one leg's destination
+// IS the next leg's origin) — two identical 28px circles stacked dead-center
+// on each other. Leaflet always let the higher zIndexOffset one (the green
+// Start marker, 1400) win every click/drag, permanently burying the red End
+// marker (1100) underneath — it could never be clicked or moved.
+//
+// Fix uses a TRUE pixel-space anchor shift (not a cosmetic CSS transform on
+// inner content) so the actual clickable/draggable Leaflet element itself
+// moves apart — a transform on inner HTML only shifts what's drawn, not the
+// hit-test box, so it would not have fixed dragging. `nudge` is [dx, dy] in
+// screen pixels (the direction to shift the drawn circle); the marker's real
+// `position` prop (lat/lng) is completely untouched, so popup coordinates
+// and drag drop-points stay exact — only iconAnchor/popupAnchor are derived
+// from the nudge so the popup tip still points at the shifted circle's top.
+const createNumberedIcon = (color, label, nudge = null) => {
+  const [dx, dy] = nudge || [0, 0];
+  const iconAnchor = [14 - dx, 14 - dy];
+  const popupAnchor = [dx, dy - 14];
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:28px;height:28px;border-radius:9999px;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700">${label}</div>`,
+    iconSize: [28, 28], iconAnchor, popupAnchor
+  });
+};
+const getMarkerIcon = (color, label, nudge = null) => createNumberedIcon(color, label ?? '', nudge);
 
 // ── Map auto-fit ────────────────────────────────────────────────────────────
 // Only fits bounds when the set of selected/focused item IDs changes — not on every point edit.
@@ -2136,7 +2156,7 @@ export default function PolylineViewer({ users = [] }) {
                           {first && (
                             <Marker
                               position={first}
-                              icon={getMarkerIcon('#16a34a', startLabel)}
+                              icon={getMarkerIcon('#16a34a', startLabel, [-7, -7])}
                               zIndexOffset={1400}
                               draggable={isActiveCleaning}
                               eventHandlers={isActiveCleaning ? {
@@ -2163,7 +2183,7 @@ export default function PolylineViewer({ users = [] }) {
                           {last && last !== first && (
                             <Marker
                               position={last}
-                              icon={getMarkerIcon(seg.isBreadcrumb ? '#16a34a' : '#dc2626', endLabel)}
+                              icon={getMarkerIcon(seg.isBreadcrumb ? '#16a34a' : '#dc2626', endLabel, [7, 7])}
                               zIndexOffset={1100}
                               draggable={isActiveCleaning}
                               eventHandlers={isActiveCleaning ? {
