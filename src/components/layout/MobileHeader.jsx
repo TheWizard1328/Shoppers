@@ -34,7 +34,9 @@ export default function MobileHeader({
   isOverlayOpen,
   appUsers,
   users,
-  hasWebUpdate
+  hasWebUpdate,
+  autoUpdatedNotice,
+  onAutoUpdatedDismiss
 }) {
   const { canGoBack: canGoBackInTab, goBack } = useMobileNavigation();
 
@@ -256,20 +258,26 @@ export default function MobileHeader({
           the green web UpdateArrow appears. Tapping it performs the full app
           refresh (cache clear + reload), which is what picks up a web build. */}
       <UpdateInfoBalloon
-        active={!!hasWebUpdate}
+        active={!!hasWebUpdate || !!autoUpdatedNotice}
         anchorSelector="[data-update-menu-btn]"
         direction="down"
         accent="#10b981"
-        icon="⬆️"
-        title="Update available"
-        message="A new version of the app is ready. Tap to refresh and pick it up."
-        cta="Tap to update"
+        icon={hasWebUpdate ? "⬆️" : "✅"}
+        title={hasWebUpdate ? "Update available" : "Update installed"}
+        message={hasWebUpdate
+          ? "A new version of the app is ready. Tap to refresh and pick it up."
+          : "Your app was just updated automatically while it was in the background."}
+        cta={hasWebUpdate ? "Tap to update" : "Got it"}
         onClick={async () => {
-          try {
-            clearUserCache();
-            clearSettingsCache();
-          } catch (_) { /* silent fail — reload still picks up the build */ }
-          window.location.reload(true);
+          if (hasWebUpdate) {
+            try {
+              clearUserCache();
+              clearSettingsCache();
+            } catch (_) { /* silent fail — reload still picks up the build */ }
+            window.location.reload(true);
+            return;
+          }
+          if (onAutoUpdatedDismiss) onAutoUpdatedDismiss();
         }}
       />
       {/* Background GPS nudge — shown to drivers on Android after going on duty */}

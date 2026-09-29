@@ -75,7 +75,9 @@ export default function AppSidebar({
   onlineCounts,
   totalRoutesCount,
   latestBuildNumber,
-  hasWebUpdate
+  hasWebUpdate,
+  autoUpdatedNotice,
+  onAutoUpdatedDismiss
 }) {
   const { isMobile, isTabletPortrait, isWideScreenMobile, deviceType } = useDevice();
   const navigate = useNavigate();
@@ -230,18 +232,26 @@ export default function AppSidebar({
           Tapping (or pressing F5) reloads the app to pick up the new build. */}
       {!isMobile && !isTabletPortrait &&
       <UpdateInfoBalloon
-        active={!!hasWebUpdate}
+        active={!!hasWebUpdate || !!autoUpdatedNotice}
         anchorSelector={menuBtnVisible ? "[data-update-menu-btn]" : "[data-update-logo-btn]"}
         direction="right"
         persistent={isDispatcherOnly}
         accent="#10b981"
-        icon="⬆️"
-        title="Update available"
-        message="A new version of RxDeliver is ready. Click here to refresh, or press F5."
-        cta="Click to update"
+        icon={hasWebUpdate ? "⬆️" : "✅"}
+        title={hasWebUpdate ? "Update available" : "Update installed"}
+        message={hasWebUpdate
+          ? "A new version of RxDeliver is ready. Click here to refresh, or press F5."
+          : "Your app was just updated automatically while it was in the background."}
+        cta={hasWebUpdate ? "Click to update" : "Got it"}
         onClick={() => {
-          try { clearUserCache(); } catch (_) { /* silent — reload still picks up the build */ }
-          window.location.reload(true);
+          // Fresh update still pending = the normal refresh path wins.
+          if (hasWebUpdate) {
+            try { clearUserCache(); } catch (_) { /* silent — reload still picks up the build */ }
+            window.location.reload(true);
+            return;
+          }
+          // Just the "we auto-updated you" confirmation — dismiss the balloon.
+          if (onAutoUpdatedDismiss) onAutoUpdatedDismiss();
         }}
       />
       }

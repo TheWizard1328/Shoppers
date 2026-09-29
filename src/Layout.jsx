@@ -240,6 +240,60 @@ export default function Layout({ children, currentPageName }) {
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
+
+  // ── Auto-update while backgrounded (owner request, Sep 28 2026) ────────────
+  // When an update bubble is showing and the app stays backgrounded/minimized
+  // for 10+ minutes, clear the user cache and reload so the new build loads
+  // WITHOUT the driver having to tap anything. A one-shot localStorage flag
+  // then makes the update balloon reappear on next foreground with a
+  // "your app was just updated automatically" message instead of the
+  // "update available" prompt.
+  const [autoUpdatedNotice, setAutoUpdatedNotice] = useState(false);
+
+  useEffect(() => {
+    // Boot side: if a recent background auto-reload happened, surface the
+    // "just updated" balloon once the app is foregrounded.
+    try {
+      const ts = Number(localStorage.getItem('rxdeliver_auto_updated_at')) || 0;
+      if (ts && Date.now() - ts < 15 * 60 * 1000) {
+        localStorage.removeItem('rxdeliver_auto_updated_at');
+        if (document.hidden) {
+          const onVis = () => {
+            if (!document.hidden) {
+              document.removeEventListener('visibilitychange', onVis);
+              setAutoUpdatedNotice(true);
+            }
+          };
+          document.addEventListener('visibilitychange', onVis);
+          return () => document.removeEventListener('visibilitychange', onVis);
+        }
+        setAutoUpdatedNotice(true);
+      }
+    } catch { /* storage unavailable — skip notice */ }
+  }, []);
+
+  useEffect(() => {
+    if (!hasWebUpdate) return; // no pending update — nothing to auto-apply
+    const BACKGROUND_THRESHOLD_MS = 10 * 60 * 1000;
+    let backgroundedAt = document.hidden ? Date.now() : null;
+    const tick = () => {
+      if (!document.hidden) { backgroundedAt = null; return; }
+      if (backgroundedAt == null) backgroundedAt = Date.now();
+      if (Date.now() - backgroundedAt < BACKGROUND_THRESHOLD_MS) return;
+      // Threshold reached — apply the update ourselves so the driver never
+      // returns to a stale app. Same refresh path as the bubble's own tap.
+      try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { }
+      try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
+      window.location.reload(true);
+    };
+    const iv = setInterval(tick, 60 * 1000);
+    const onVis = () => { backgroundedAt = document.hidden ? Date.now() : null; };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [hasWebUpdate]);
   // APK update detection — compares installed build vs latest GitHub Actions build
   const { updateAvailable: hasApkUpdate } = useAndroidAppUpdateCheck(latestBuild?.buildNumber ?? null);
 
@@ -1435,6 +1489,8 @@ export default function Layout({ children, currentPageName }) {
                   appVersion={sidebarVersion}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}
+                  autoUpdatedNotice={autoUpdatedNotice}
+                  onAutoUpdatedDismiss={() => setAutoUpdatedNotice(false)}
                   currentUser={effectiveCurrentUser}
                   setCurrentUser={setCurrentUser}
                   currentPageName={currentPageName}
@@ -1509,7 +1565,9 @@ export default function Layout({ children, currentPageName }) {
                   }
                 }}
                 isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen}
-                hasWebUpdate={hasWebUpdate} />
+                hasWebUpdate={hasWebUpdate}
+                autoUpdatedNotice={autoUpdatedNotice}
+                onAutoUpdatedDismiss={() => setAutoUpdatedNotice(false)} />
               }
 
                     <main className="flex-1 overflow-hidden relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
