@@ -471,6 +471,7 @@ async function handleBriefing(base44, params = {}) {
       driver_id: driverId,
       driver_name: driverName,
       city: city?.name || null,
+      city_id: city?.id || null,
       weather: weather ? { ...weather.current, high: weather.daily.high, low: weather.daily.low, precip: weather.daily.precipProb, snowCm: weather.daily.snowCm, forecast: weather.daily.text, source: weather.source } : null,
       stop_count: stopCount,
       first_pickup: firstPickup,
@@ -486,8 +487,77 @@ async function handleBriefing(base44, params = {}) {
   if (!dryRun) {
     for (const b of briefings) {
       const title = `Morning Briefing — ${today.slice(5).replace('-', '/')}`;
-      const push = await sendPushToUser(base44, b.driver_id, title, b.push_body, '/', `morning-briefing-${today}`);
-      pushes.push({ driver_id: b.driver_id, driver_name: b.driver_name, sent: push.sent, skipped: push.skipped, removed: push.removed, errors: push.errors });
+      // In-app Message copy in a 'Weather Briefing' system thread (owner
+      // request, Sep 28 2026) — same shape as the COD Briefing thread.
+      let inAppMessageId = null;
+      try {
+        const created = await base44.asServiceRole.entities.Message.create({
+          sender_id: 'weather_briefing',
+          sender_name: 'Weather Briefing',
+          receiver_id: b.driver_id,
+          receiver_name: b.driver_name,
+          conversation_id: ['weather_briefing', b.driver_id].sort().join('_'),
+          content: b.push_body,
+          read: false,
+          message_type: 'text',
+        });
+        inAppMessageId = created?.id || null;
+      } catch (err) {
+        console.log('[weather-briefing] Message.create failed:', err?.message || String(err));
+      }
+      const chatUrl = `/?openChat=weather_briefing&openChatName=${encodeURIComponent('Weather Briefing')}`;
+      const push = await sendPushToUser(base44, b.driver_id, title, b.push_body, chatUrl, `morning-briefing-${today}`);
+      pushes.push({ driver_id: b.driver_id, driver_name: b.driver_name, in_app_message_id: inAppMessageId, sent: push.sent, skipped: push.skipped, removed: push.removed, errors: push.errors });
+      await sleep(150);
+    }
+  }
+
+  // 6. Seed the dashboard_weather day High/Low from this briefing (owner
+  // request, Sep 28 2026): the morning briefing's forecast high/low becomes
+  // the day H/L for every device (kept in the AppSettings record — never
+  // localStorage, which can get cleared). Monotonic blend with any
+  // same-day values already tracked by the 5-min poll: the High can only
+  // RAISE, the Low can only DROP.
+  const weatherSettings = { updated: false, cities: [] };
+  if (!dryRun) {
+    try {
+      const rows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'dashboard_weather' }).catch(() => []);
+      const rec = rows?.[0] || null;
+      const value = rec?.setting_value ? { ...rec.setting_value, cities: { ...(rec.setting_value.cities || {}) } } : { cities: {} };
+      const seenCityIds = new Set();
+      let touched = false;
+      for (const b of briefings) {
+        if (!b.weather || !b.city_id || seenCityIds.has(b.city_id)) continue;
+        const high = Number(b.weather.high);
+        const low = Number(b.weather.low);
+        if (!Number.isFinite(high) || !Number.isFinite(low)) continue;
+        seenCityIds.add(b.city_id);
+        const entry = { ...(value.cities[b.city_id] || {}) };
+        const prevSameDay = entry.hl_day === today ? entry : null;
+        entry.city_id = b.city_id;
+        entry.city_name = entry.city_name || b.city || null;
+        entry.hl_day = today;
+        entry.day_high = Math.max(high, Number.isFinite(Number(prevSameDay?.day_high)) ? Number(prevSameDay.day_high) : -Infinity);
+        entry.day_low = Math.min(low, Number.isFinite(Number(prevSameDay?.day_low)) ? Number(prevSameDay.day_low) : Infinity);
+        value.cities[b.city_id] = entry;
+        touched = true;
+        weatherSettings.cities.push(`${entry.city_name}: H ${entry.day_high} / L ${entry.day_low}`);
+      }
+      if (touched) {
+        if (rec?.id) {
+          await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: value });
+        } else {
+          await base44.asServiceRole.entities.AppSettings.create({
+            setting_key: 'dashboard_weather',
+            setting_value: value,
+            description: 'Dashboard weather thermometer bar — per-city current/high/low + server-tracked day_high/day_low (High only raises, Low only drops)',
+          });
+        }
+        weatherSettings.updated = true;
+      }
+    } catch (err) {
+      console.log('[weather-briefing] dashboard_weather seeding failed:', err?.message || String(err));
+      weatherSettings.error = err?.message || String(err);
     }
   }
 
@@ -500,6 +570,7 @@ async function handleBriefing(base44, params = {}) {
     weather_failures: weatherFailures,
     drivers: briefings,
     pushes,
+    dashboard_weather_seeding: weatherSettings,
     duration_ms: Date.now() - startedAt,
   };
 }
