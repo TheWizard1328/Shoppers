@@ -41,6 +41,17 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
     ? format(new Date(pickupTime), 'h:mm a')
     : null;
 
+  // Small timestamp shown under the status badge on the collapsed card:
+  // current delivery → ETA, past deliveries → delivered / attempted time.
+  let subBadge = null;
+  if (delivery.status === 'completed' && actualTime) {
+    subBadge = { text: `Delivered ${actualTime}`, color: 'text-green-600 dark:text-green-400' };
+  } else if (delivery.status === 'failed' && actualTime) {
+    subBadge = { text: `Attempted ${actualTime}`, color: 'text-red-600 dark:text-red-400' };
+  } else if (['in_transit', 'en_route'].includes(delivery.status) && delivery.delivery_time_eta) {
+    subBadge = { text: `ETA ${delivery.delivery_time_eta}`, color: 'text-blue-600 dark:text-blue-400' };
+  }
+
   const codTotal = delivery.cod_total_amount_required || 0;
   const codPayments = delivery.cod_payments || [];
   const hasCod = codTotal > 0;
@@ -70,17 +81,24 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               </p>
             )}
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
-              expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`
-            }`}>
-              <Icon className="w-3 h-3" />
-              {config.label}
-            </span>
-            {expanded
-              ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
-              : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
-            }
+          <div className="flex flex-col items-end flex-shrink-0">
+            <div className="flex items-center gap-1">
+              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
+                expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`
+              }`}>
+                <Icon className="w-3 h-3" />
+                {config.label}
+              </span>
+              {expanded
+                ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+              }
+            </div>
+            {subBadge && (
+              <p className={`text-[11px] font-medium mt-0.5 ${expanded ? 'text-slate-300' : subBadge.color}`}>
+                {subBadge.text}
+              </p>
+            )}
           </div>
         </div>
       </button>

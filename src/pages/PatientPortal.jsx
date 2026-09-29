@@ -228,15 +228,6 @@ function decodePolyline(encoded) {
   return coords;
 }
 
-const STATUS_CONFIG = {
-  completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 dark:bg-green-950 border-green-200',  Icon: CheckCircle },
-  failed:    { label: 'Attempted',  color: 'text-red-700 bg-red-50 dark:bg-red-950 border-red-200',         Icon: X },
-  cancelled: { label: 'Cancelled',  color: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700',   Icon: X },
-  in_transit:{ label: 'In Transit', color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
-  en_route:  { label: 'En Route',   color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
-  pending:   { label: 'Scheduled',  color: 'text-amber-700 bg-amber-50 dark:bg-amber-950 border-amber-200',   Icon: Clock },
-};
-
 export default function PatientPortal({ embedded = false } = {}) {
   const patient = PatientSessionManager.getPatient();
   const [sidebarOpen, setSidebarOpen]       = useState(false);
@@ -500,7 +491,6 @@ export default function PatientPortal({ embedded = false } = {}) {
   stores.forEach((s) => { storeMap[s.id] = s; });
 
   const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : (patient?.store_id ? storeMap[patient.store_id] : null);
-  const statusConfig  = todayDelivery ? STATUS_CONFIG[todayDelivery.status] || STATUS_CONFIG.pending : null;
 
   // Store marker: green bg when pickup is done (driver has left the store = in_transit/en_route/completed)
   const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
@@ -652,67 +642,9 @@ export default function PatientPortal({ embedded = false } = {}) {
           </div>
         </div>
 
-        {/* Today's Status Card */}
-        <div className="px-4 pt-4 pb-2 flex-shrink-0">
-          {loading ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 animate-pulse">
-              <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/3 mb-2" />
-              <div className="h-6 bg-slate-100 dark:bg-slate-800 rounded w-2/3" />
-            </div>
-          ) : todayDelivery ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide mb-2">Today's Delivery</p>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    {storeMap[todayDelivery.store_id]?.name || 'Pharmacy'}
-                  </p>
-                  {todayDelivery.delivery_time_start && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Window: {todayDelivery.delivery_time_start}
-                      {todayDelivery.delivery_time_end ? ` – ${todayDelivery.delivery_time_end}` : ''}
-                    </p>
-                  )}
-                  {todayDelivery.status === 'completed' && todayDelivery.actual_delivery_time ? (
-                    <p className="text-xs text-emerald-600 font-medium mt-1">
-                      Delivered: {todayDelivery.actual_delivery_time.substring(11, 16)}
-                    </p>
-                  ) : todayDelivery.delivery_time_eta && !['completed', 'failed', 'cancelled'].includes(todayDelivery.status) ? (
-                    <p className="text-xs text-blue-600 font-medium mt-1">
-                      ETA: {todayDelivery.delivery_time_eta}
-                    </p>
-                  ) : null}
-                </div>
-                {statusConfig && (
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusConfig.color}`}>
-                    <statusConfig.Icon className="w-3 h-3" />
-                    {statusConfig.label}
-                  </span>
-                )}
-              </div>
-              {showLiveTracking && driverLocation && (
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-green-700">
-                  <Wifi className="w-3.5 h-3.5" />
-                  Driver location updating live
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-slate-400 dark:text-slate-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No delivery scheduled today</p>
-                <p className="text-xs text-slate-400 dark:text-slate-400">Check your delivery history in the sidebar.</p>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Map */}
         <div
-          className="flex-1 px-4 overflow-hidden relative"
+          className="flex-1 px-4 pt-3 overflow-hidden relative"
           style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
           {showLiveTracking && driverLocation && (
