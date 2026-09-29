@@ -933,6 +933,16 @@ export function useStopCardStartActions({
         return { ...stop, delivery_time_eta: `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}` };
       });
 
+      // OWNER REQUEST (Sep 29 2026): push the cascaded ETAs into React state
+      // IMMEDIATELY so every remaining stop card re-renders with its new ETA the
+      // moment Complete/Fail is tapped. Previously the cards only showed the new
+      // ETAs after refreshDriverRoute completed the full IDB+server write cycle,
+      // leaving stale ETAs on screen for up to a minute. updateDeliveriesLocally
+      // merges by id in-memory and re-renders the card rail instantly; the IDB,
+      // server, and broadcast writes below then settle in the background (the
+      // committed values are identical, so no bounce is possible).
+      updateDeliveriesLocally?.(updatedRemainingWithEtas, false);
+
       Promise.resolve().then(async () => {
         try {
           await Promise.all(updatedRemainingWithEtas.map((stop) => Promise.all([
