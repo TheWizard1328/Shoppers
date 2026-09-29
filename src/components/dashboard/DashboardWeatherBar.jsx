@@ -254,17 +254,26 @@ function DashboardWeatherBar({
   const scaleTop = Math.max(high, tempPrecise) + 2;
   const scaleBottom = Math.min(low, tempPrecise) - 2;
   const span = Math.max(1, scaleTop - scaleBottom);
-  const frac = (v) => Math.min(0.98, Math.max(0.02, (v - scaleBottom) / span));
+  // scaleFrac is the pure linear mapping — used for the fill edges, the H/L
+  // markers, and every degree dot so they all sit on EXACTLY the same scale
+  // with no distortion (owner request, Sep 28 v3: the previous 0.02/0.98
+  // safety clamp squeezed values near the scale extremes toward the clamp
+  // bound instead of their true linear position, throwing off spacing for
+  // the buffer-zone dots above the high / below the low). The clamp is kept
+  // ONLY for the current-temp badge (frac below) so a temp sitting exactly
+  // at a scale extreme can never render fully off the bar.
+  const scaleFrac = (v) => (v - scaleBottom) / span;
+  const frac = (v) => Math.min(0.98, Math.max(0.02, scaleFrac(v)));
 
   const topAnchor = geo.top || (Number(statsContainerBaseHeight) || 0) + 12;
   const barHeight = geo.parentH - topAnchor - geo.bottomGap;
   if (barHeight < 150) return null; // no room — hide instead of cluttering
 
   // Pixel offsets from the BOTTOM of the (explicit-height) bar box.
-  const yLow = Math.round(frac(low) * barHeight);
-  const yHigh = Math.round(frac(high) * barHeight);
+  const yLow = Math.round(scaleFrac(low) * barHeight);
+  const yHigh = Math.round(scaleFrac(high) * barHeight);
   const yTemp = Math.round(frac(tempPrecise) * barHeight);
-  const yZero = frac(0) * barHeight;
+  const yZero = scaleFrac(0) * barHeight;
 
   // ── Colored fill: ONLY the segment between the projected LOW and HIGH ──
   // (owner spec, Sep 27: the +10/-10° buffer zones above/below stay empty
@@ -345,7 +354,7 @@ function DashboardWeatherBar({
         const first = Math.ceil(scaleBottom);
         const last = Math.floor(scaleTop);
         for (let v = first; v <= last; v++) {
-          const yDot = Math.round(frac(v) * barHeight);
+          const yDot = Math.round(scaleFrac(v) * barHeight);
           const big = v % 5 === 0; // larger dots at 5° multiples
           const size = big ? 5 : 3;
           dots.push(
@@ -363,15 +372,18 @@ function DashboardWeatherBar({
         return dots;
       })()}
 
-      {/* Projected HIGH — rotated 90° CCW, CENTERED on the high marker line
-          (owner request, Sep 28 v2: the label marks the exact position; the
-          degree dots above/below it stay visible and evenly spaced). */}
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 5)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+      {/* Projected HIGH — rotated 90° CCW, CENTERED exactly on the high
+          marker line (owner request, Sep 28 v3): a zero-height flex wrapper
+          at bottom:yHigh with alignItems:center puts the wrapper's vertical
+          CENTER — not an estimated offset — exactly on the line, so the
+          label lines up with the fill edge regardless of how wide "17°" vs
+          "7°" renders before rotation. */}
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh)}px`, left: 0, width: 12, height: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${high}°`}</span>
       </div>
 
-      {/* Projected LOW — rotated 90° CCW, CENTERED on the low marker line */}
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yLow - 5)}px`, left: 0, width: 12, display: 'flex', justifyContent: 'center' }}>
+      {/* Projected LOW — rotated 90° CCW, CENTERED exactly on the low marker line */}
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yLow)}px`, left: 0, width: 12, height: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${low}°`}</span>
       </div>
 
