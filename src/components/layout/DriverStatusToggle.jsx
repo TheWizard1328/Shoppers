@@ -563,6 +563,56 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
                 console.warn('[DriverStatusToggle] on-duty deviation check failed:', devErr?.message || devErr);
               }
             }
+
+            // ── Immediate ETA refresh on break return (owner rule, Sep 29 2026) ──
+            // While on break the ETAs froze (locationTracker only refreshes ETAs
+            // while on_duty AND after enough movement). Returning from a break
+            // must immediately re-anchor the next stop's ETA to now + travel time
+            // from the driver's current position, then mathematically chain the
+            // remaining stops' ETAs from each leg's estimated travel time.
+            // The backend HERE projection handles both; the force flag bypasses
+            // the movement / drift / cooldown guards that would skip it.
+            if (previousStatus === 'on_break') {
+              try {
+                const etaResult = await base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
+                  driverId: effectiveUser.id,
+                  deliveryDate: optimizerDate,
+                  routeChangeSource: 'break_return',
+                  forceEtaRefresh: true,
+                });
+                const etaUpdated = Number(etaResult?.total_updated_deliveries || 0);
+                console.log(`[DriverStatusToggle] break-return ETA refresh: ${etaUpdated} stop${etaUpdated !== 1 ? 's' : ''} updated`);
+                if (etaUpdated > 0) {
+                  // The backend writes are service-role (no WebSocket echo), so
+                  // pull the fresh ETAs into local state + IDB right away instead
+                  // of waiting for the next smart-refresh cycle.
+                  const freshEtaDeliveries = await base44.entities.Delivery.filter({
+                    driver_id: effectiveUser.id,
+                    delivery_date: optimizerDate,
+                  });
+                  if (freshEtaDeliveries?.length > 0) {
+                    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshEtaDeliveries).catch(() => {});
+                    if (appDataContext?.applyDeliveryChangesLocally) {
+                      appDataContext.applyDeliveryChangesLocally({ upserts: freshEtaDeliveries });
+                    } else if (appDataContext?.updateDeliveriesLocally) {
+                      appDataContext.updateDeliveriesLocally(freshEtaDeliveries, false);
+                    }
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: {
+                        triggeredBy: 'breakReturnEtaRefresh',
+                        deliveryDate: optimizerDate,
+                        driverId: effectiveUser.id,
+                        freshDeliveries: freshEtaDeliveries,
+                        fullReplacement: false,
+                        preserveLocalState: true,
+                      }
+                    }));
+                  }
+                }
+              } catch (etaErr) {
+                console.warn('[DriverStatusToggle] break-return ETA refresh failed:', etaErr?.message || etaErr);
+              }
+            }
           }
         } catch (e) {
           console.warn('[DriverStatusToggle] Could not sync isNextDelivery after on_duty:', e?.message);
