@@ -173,7 +173,13 @@ async function getWeatherForCity(lat, lon) {
 }
 
 // Fields that count as a "real change" (source flapping alone is not a change)
-const COMPARE_FIELDS = ['temp', 'feels', 'text', 'icon', 'high', 'low', 'precipProb', 'snowCm'];
+// Edmonton wall date (pure math — Alberta stays on permanent UTC-6; DST in
+// 2026 is also UTC-6). Never trust device/system timezone.
+function edmontonDayKey() {
+  return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+const COMPARE_FIELDS = ['temp', 'feels', 'text', 'icon', 'high', 'low', 'precipProb', 'snowCm', 'day_high', 'day_low'];
 
 function buildCityEntry(city, w) {
   return {
@@ -245,6 +251,22 @@ async function handlePoll(base44, params) {
     if (!w) { failures.push(c.name || c.id); continue; }
     const entry = buildCityEntry(c, w);
     const prev = prevCities[c.id] || null;
+    // ── Day High/Low tracking (owner request, Sep 28 2026) ──
+    // The day's High and Low are tracked SERVER-SIDE in this record so every
+    // device shows identical values all day (localStorage could be cleared
+    // mid-day and a device would otherwise re-seed wrong values). Rule: the
+    // displayed High only ever RAISES and the Low only ever DROPS — new
+    // Edmonton day → fresh seed from that day's first reading.
+    const todayKey = edmontonDayKey();
+    const prevSameDay = prev && prev.hl_day === todayKey ? prev : null;
+    const fHigh = Number.isFinite(Number(entry.high)) ? Number(entry.high) : null;
+    const fLow = Number.isFinite(Number(entry.low)) ? Number(entry.low) : null;
+    const cur = Number.isFinite(Number(entry.temp)) ? Number(entry.temp) : null;
+    const highCands = [prevSameDay?.day_high, fHigh, cur].filter(Number.isFinite);
+    const lowCands = [prevSameDay?.day_low, fLow, cur].filter(Number.isFinite);
+    entry.hl_day = todayKey;
+    entry.day_high = highCands.length ? Math.max(...highCands) : null;
+    entry.day_low = lowCands.length ? Math.min(...lowCands) : null;
     const isChanged = !prev || COMPARE_FIELDS.some((f) => entry[f] !== prev[f]);
     if (isChanged) changed = true;
     newCities[c.id] = entry;
@@ -280,12 +302,12 @@ async function handlePoll(base44, params) {
   payload.cities = { ...prevCities, ...newCities };
 
   if (rec?.id) {
-    await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: payload, description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min for all cities' });
+    await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: payload, description: 'Dashboard weather thermometer bar — per-city current/high/low + server-tracked day_high/day_low (High only raises, Low only drops), refreshed every 5 min for all cities' });
   } else {
     await base44.asServiceRole.entities.AppSettings.create({
       setting_key: SETTINGS_KEY,
       setting_value: payload,
-      description: 'Dashboard weather thermometer bar — per-city current/high/low, refreshed every 5 min for all cities',
+      description: 'Dashboard weather thermometer bar — per-city current/high/low + server-tracked day_high/day_low (High only raises, Low only drops), refreshed every 5 min for all cities',
     });
   }
 

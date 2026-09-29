@@ -74,9 +74,10 @@ function pickCityWeather(weather, currentUser) {
 // city at the start of the Edmonton day and never move for the rest of that
 // day. Forecast services nudge the projected high/low up and down every
 // poll; the bar now shows the day's ORIGINAL forecast instead of chasing it.
-// Persisted in localStorage so app restarts / reloads keep the same values
-// (a reload mid-day must NOT re-seed from the current forecast). New
-// Edmonton day or new city → fresh seed from the next reading.
+// SUPERSEDED (Sep 28 2026) by server-tracked day_high/day_low in the
+// AppSettings record (High only raises, Low only drops — survives cleared
+// localStorage and is identical on all devices). Kept ONLY as a fallback
+// for records that predate the server fields.
 const HL_FREEZE_KEY = 'rxdeliver_weather_hl_day_freeze';
 function dayFreezeKey(w) {
   const city = w.city_id || w.city_name || '?';
@@ -108,6 +109,17 @@ function DashboardWeatherBar({
   userRef.current = currentUser;
   const setEntryLatched = useCallback((w) => {
     if (!w) { setEntry(null); return; }
+    // Server-tracked day High/Low (owner request, Sep 28 2026): the poll
+    // keeps day_high/day_low in the AppSettings record — High only raises,
+    // Low only drops, identical on every device all day, immune to a cleared
+    // localStorage. The localStorage freeze below is only a fallback for the
+    // transition moment when the record predates the server fields.
+    const srvHigh = Number.isFinite(Number(w.day_high)) ? Number(w.day_high) : null;
+    const srvLow = Number.isFinite(Number(w.day_low)) ? Number(w.day_low) : null;
+    if (srvHigh !== null && srvLow !== null) {
+      setEntry({ ...w, high: srvHigh, low: srvLow });
+      return;
+    }
     const freeze = freezeExtremes(w);
     setEntry({ ...w, high: freeze.high, low: freeze.low });
   }, []);
