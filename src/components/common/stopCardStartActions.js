@@ -32,6 +32,7 @@ import { notifyDriverStarted, notifyDriverRetry } from "../utils/deliveryMessagi
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields, unlockDeliveryFields } from '../utils/completionLockout';
 import { START_ACTION_NAME } from './stopCardActionStatusHelpers';
+import { getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
 
 export function useStopCardStartActions({
   // ── Route / context ──
@@ -305,6 +306,38 @@ export function useStopCardStartActions({
           const { offlineDB } = await import('../utils/offlineDatabase');
           const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
 
+          // ── OWNER DIRECTIVE (Sep 29 2026): cycling END marker start ──────
+          // When the driver starts the cycling route END marker, the cycling
+          // phase is over — every remaining stop on the route still tagged
+          // transport_mode='cycling' must be flipped to 'driving' BEFORE the
+          // route optimizer runs, so the post-cycling legs route as driving
+          // legs (no bicycle polyline/routing for the remaining stops).
+          // Applies to ALL unfinished, non-marker stops (pending included —
+          // pending stops joining the route later must not stay cycling).
+          let optimizationDeliveries = allDeliveries;
+          if (getCyclingMarkerDisplayInfo(delivery).isCyclingEnd) {
+            const finishedSetForCycling = new Set(FINISHED_STATUSES);
+            const remainingCyclingStops = routeDeliveries.filter((d) =>
+              d &&
+              !d.is_cycling_marker &&
+              !finishedSetForCycling.has(d.status) &&
+              String(d.transport_mode || '').toLowerCase() === 'cycling'
+            );
+            if (remainingCyclingStops.length > 0) {
+              const convertedCyclingStops = remainingCyclingStops.map((d) => ({ ...d, transport_mode: 'driving' }));
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, convertedCyclingStops);
+              updateDeliveriesLocally?.(convertedCyclingStops, false);
+              await Promise.all(convertedCyclingStops.map((item) =>
+                base44.entities.Delivery.update(item.id, { transport_mode: 'driving' }).catch(() => null)
+              ));
+              const convertedIds = new Set(convertedCyclingStops.map((d) => d.id));
+              optimizationDeliveries = allDeliveries.map((d) =>
+                convertedIds.has(d?.id) ? { ...d, transport_mode: 'driving' } : d
+              );
+              toast.info(`${convertedCyclingStops.length} cycling stop${convertedCyclingStops.length > 1 ? 's' : ''} switched to driving`);
+            }
+          }
+
           // 1. Update isNextDelivery locally
           const updatedDeliveries = routeDeliveries.map((d) => ({
             ...d,
@@ -361,7 +394,7 @@ export function useStopCardStartActions({
               await performRouteOptimization({
                 driverId: delivery.driver_id,
                 deliveryDate: delivery.delivery_date,
-                deliveries: allDeliveries,
+                deliveries: optimizationDeliveries,
                 patients,
                 stores,
                 appUsers,
