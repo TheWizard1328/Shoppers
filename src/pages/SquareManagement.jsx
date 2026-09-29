@@ -483,13 +483,25 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     setError(null);
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
-      const CHUNK = 30, TOTAL = 180;
+      // Owner spec (Sep 29 2026): months 1-3 (0-90 days) are already collected
+      // by the regular sync, so the backfill only re-fetches Square orders for
+      // months 4-6 (90-180 days). The final response still carries the FULL
+      // DB tx mirror (all 6 months) via the server-side merge, so IDB ends up
+      // with the complete history either way. 7-day chunks: each call returns
+      // faster so progress moves visibly.
+      const CHUNK = 7, TOTAL = 180, MIN_DAYS = 90;
       let finalData = null;
       const txUnion = new Map();
       const txUnionKeyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
-      for (let start = TOTAL; start > 0; start -= CHUNK) {
-        const end = Math.max(0, start - CHUNK);
-        setBackfillProgress(`Pulling Square orders ${start}-${end} days back...`);
+      const backfillT0 = Date.now();
+      const chunkCount = Math.ceil((TOTAL - MIN_DAYS) / CHUNK);
+      let chunkIdx = 0;
+      console.log(`[SquareManagement] BACKFILL START at ${new Date().toLocaleTimeString()} — ${chunkCount} chunks, days ${TOTAL}->${MIN_DAYS} (${CHUNK}-day sets)`);
+      for (let start = TOTAL; start > MIN_DAYS; start -= CHUNK) {
+        const end = Math.max(MIN_DAYS, start - CHUNK);
+        chunkIdx += 1;
+        const chunkT0 = Date.now();
+        setBackfillProgress(`Chunk ${chunkIdx}/${chunkCount}: pulling Square orders ${start}-${end} days back...`);
         const res = await invokeWithLongTimeout('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: TOTAL,
@@ -506,8 +518,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         (finalData?.transactionRecords || []).forEach((t) => {
           if (t) txUnion.set(txUnionKeyOf(t), t);
         });
-        console.log('[SquareManagement] Backfill chunk done:', { startDaysAgo: start, endDaysAgo: end, tx: finalData?.transactionRecords?.length, floor: finalData?.txRetentionFloor, union: txUnion.size });
+        console.log(`[SquareManagement] Backfill chunk ${chunkIdx}/${chunkCount} done in ${((Date.now() - chunkT0) / 1000).toFixed(1)}s at ${new Date().toLocaleTimeString()}`, { startDaysAgo: start, endDaysAgo: end, tx: finalData?.transactionRecords?.length, floor: finalData?.txRetentionFloor, union: txUnion.size });
       }
+      console.log(`[SquareManagement] BACKFILL LOOP COMPLETE — ${chunkIdx} chunks in ${((Date.now() - backfillT0) / 1000).toFixed(1)}s at ${new Date().toLocaleTimeString()}`);
       if (!finalData) throw new Error('Backfill returned no data');
 
       // Final chunk's response = the complete retained set when it loaded
@@ -566,6 +579,17 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
       toast.success(`Backfill complete — ${transactionRecords.length} transactions, history back to ${finalData.txRetentionFloor || 'floor'}`);
+
+      // The reconcile list only shows deliveries inside the selected Days Range
+      // (default 90). Backfilled history spans 180 days, and uncollected CODs
+      // past 90 days (Susan Gillie's $35 on Jun 22 — 99 days back) would never
+      // surface as New Catalog Items, so no item was ever created for them.
+      // Widen the window to 180 before reconciling so the auto Update Catalog
+      // pass sees every uncollected COD in the backfilled period.
+      if (Number(selectedDaysRange || 90) < 180) {
+        console.log('[SquareManagement] Backfill: widening reconcile Days Range to 180 so pre-90-day CODs surface');
+        setSelectedDaysRange('180');
+      }
 
       // Final step per owner spec: reconcile. The Catalog + Transaction pages now
       // match against the full 6-month tx history in IDB.
@@ -2390,6 +2414,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
               <SelectItem value="45">45 Days</SelectItem>
               <SelectItem value="60">60 Days</SelectItem>
               <SelectItem value="90">90 Days</SelectItem>
+              <SelectItem value="180">180 Days</SelectItem>
             </SelectContent>
           </Select>
           {currentUser && !isDriverView &&
