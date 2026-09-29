@@ -510,9 +510,15 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       }
       if (!finalData) throw new Error('Backfill returned no data');
 
-      // Union of ALL chunks = the retained set. Save to IDB + refresh UI
-      // exactly like the sync success path.
-      const transactionRecords = Array.from(txUnion.values());
+      // Final chunk's response = the complete retained set when it loaded
+      // successfully (txListLoaded + floor + rows); the union is only the
+      // fallback when the final chunk came back hollow — the union can also
+      // hold rows that later chunks purged as collected-old, so a COMPLETE
+      // final mirror always wins.
+      const finalChunkRows = finalData.transactionRecords || [];
+      const finalChunkIsMirror = finalDataHasCompleteTxMirror(finalData, finalChunkRows);
+      const transactionRecords = finalChunkIsMirror ? finalChunkRows : Array.from(txUnion.values());
+      console.log('[SquareManagement] Backfill final tx set:', { source: finalChunkIsMirror ? 'final-mirror' : 'chunk-union', rows: transactionRecords.length });
       const catalogRecords = finalData.catalogRecords || [];
       const strippedDeliveries = Array.isArray(finalData.deliveries) ?
         finalData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :

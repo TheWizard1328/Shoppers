@@ -223,6 +223,11 @@ async function handleGetCodData(base44, payload={}) {
     : null;
   const orderWindowStartAt = orderChunk ? new Date(Date.now() - orderChunk.startDaysAgo * 86400000).toISOString() : lookbackStartAt;
   const orderWindowEndAt = (orderChunk && orderChunk.endDaysAgo > 0) ? new Date(Date.now() - orderChunk.endDaysAgo * 86400000).toISOString() : null;
+  // Backfill (chunked) runs are tx-history jobs (owner spec): they skip the
+  // Square catalog mirror, catalog DB writes, and OPEN-order fetching — the
+  // regular sync owns those. This keeps each 30-day chunk fast and stops the
+  // per-chunk catalog churn.
+  const isBackfillRun = orderChunk !== null;
 
   // ── 1) Fetch ALL entity context in parallel ──────────────────────────
   console.log('[squareGetCodData2] Fetching entity context...');
@@ -287,6 +292,12 @@ async function handleGetCodData(base44, payload={}) {
     ]);
     liveCatalogItems = catalog;
     recentOrders = [...completedSince, ...openOrders];
+  } else if (isBackfillRun) {
+    // Backfill chunk: COMPLETED orders for this window only. The Square catalog
+    // fetch is skipped (the DB catalog mirror below serves the response) and
+    // OPEN orders are skipped (the sync owns ringing-item cleanup).
+    liveCatalogItems = [];
+    recentOrders = await listOrders(locationIds, orderWindowStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED'], 'DESC', orderWindowEndAt);
   } else {
     [liveCatalogItems, recentOrders] = await Promise.all([
       listActiveCatalogItems(accessToken),
@@ -965,9 +976,27 @@ async function handleGetCodData(base44, payload={}) {
   // and returned to the frontend — undoing the deletion within the same
   // sync call. Filter by attempted deletion (not just confirmed deletedCatalogIds)
   // since a 404 during delete already means the object is gone in Square.
-  let filteredCatalogRecords = attemptedDeleteObjectIds.size > 0 ?
-    catalogRecords.filter((cr) => !attemptedDeleteObjectIds.has(cr?.square_catalog_object_id)) :
-    catalogRecords;
+  let filteredCatalogRecords;
+  if (isBackfillRun) {
+    // Backfill chunks skip the Square catalog fetch entirely — return the
+    // existing DB catalog mirror (minus anything deleted this run) so the
+    // frontend's catalog replace stays a no-op rewrite of identical rows.
+    const dbRows = (Array.isArray(existingCatalogDb) ? existingCatalogDb : []).map(unwrapEntityRecord).filter(Boolean);
+    const seenObjIds = new Set();
+    filteredCatalogRecords = [];
+    for (const r of dbRows) {
+      const objId = r?.square_catalog_object_id;
+      if (attemptedDeleteObjectIds.has(objId)) continue;
+      if (objId && seenObjIds.has(objId)) continue; // duplicate bookkeeping rows
+      if (objId) seenObjIds.add(objId);
+      filteredCatalogRecords.push(r);
+    }
+    console.log('[squareGetCodData2] Backfill run: catalog served from DB mirror (', filteredCatalogRecords.length, 'rows) — Square catalog fetch skipped');
+  } else {
+    filteredCatalogRecords = attemptedDeleteObjectIds.size > 0 ?
+      catalogRecords.filter((cr) => !attemptedDeleteObjectIds.has(cr?.square_catalog_object_id)) :
+      catalogRecords;
+  }
 
   console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
 
@@ -976,7 +1005,6 @@ async function handleGetCodData(base44, payload={}) {
   // history into the IDB and refresh the Catalog/Transaction pages. Item
   // creation happens afterwards via Reconcile, once the full tx data is in
   // place (owner spec, Sep 26 2026).
-  const isBackfillRun = orderChunk !== null;
   // Each Sync run also backfills catalog items for COD deliveries that should
   // have one but never got one (the event-driven syncSquareCods trigger missed
   // the transition — pre-trigger imports, completions done outside the
@@ -1070,7 +1098,9 @@ async function handleGetCodData(base44, payload={}) {
     }
   } catch (e) { dbWriteErrors.push({type:'transactions', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB transaction write failed:', e?.message); }
 
-  try {
+  if (isBackfillRun) {
+    console.log('[squareGetCodData2] Backfill run: catalog DB mirror writes skipped (no changes to apply)');
+  } else try {
     // Build catalog upsert operations: update existing, create new
     const existingCatalogByObjId = new Map();
     for (const r of (Array.isArray(existingCatalogDb) ? existingCatalogDb : []).map(unwrapEntityRecord).filter(Boolean)) {
