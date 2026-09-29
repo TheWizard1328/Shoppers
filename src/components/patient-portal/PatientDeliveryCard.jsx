@@ -49,7 +49,24 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
   } else if (delivery.status === 'failed' && actualTime) {
     subBadge = { text: `Attempted ${actualTime}`, color: 'text-red-600 dark:text-red-400' };
   } else if (['in_transit', 'en_route'].includes(delivery.status) && delivery.delivery_time_eta) {
-    subBadge = { text: `ETA ${delivery.delivery_time_eta}`, color: 'text-blue-600 dark:text-blue-400' };
+    // Owner request (Sep 29 2026): when the ETA equals the delivery window START
+    // (the optimizer clamps arrival up to the window floor, e.g. 17:30), the
+    // patient should see it as an approximate floor, not a projected arrival —
+    // render "ETA: ~17:30" for the clamped case, plain "ETA 17:30" otherwise.
+    const toMin = (t) => {
+      const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+      return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+    };
+    const windowStart = delivery.delivery_time_start || delivery.time_window_start || null;
+    const etaMin = toMin(delivery.delivery_time_eta);
+    const winMin = toMin(windowStart);
+    const isWindowClamped = etaMin != null && winMin != null && etaMin === winMin;
+    subBadge = {
+      text: isWindowClamped
+        ? `ETA: ~${delivery.delivery_time_eta}`
+        : `ETA ${delivery.delivery_time_eta}`,
+      color: 'text-blue-600 dark:text-blue-400'
+    };
   }
 
   const codTotal = delivery.cod_total_amount_required || 0;
