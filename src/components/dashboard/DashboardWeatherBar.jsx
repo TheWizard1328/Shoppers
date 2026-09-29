@@ -353,8 +353,11 @@ function DashboardWeatherBar({
         const dots = [];
         const first = Math.ceil(scaleBottom);
         const last = Math.floor(scaleTop);
+        const BUFFER_PULL_PX = 6; // owner request, Sep 28 v4: pull buffer dots toward the tube
         for (let v = first; v <= last; v++) {
-          const yDot = Math.round(scaleFrac(v) * barHeight);
+          let yDot = Math.round(scaleFrac(v) * barHeight);
+          if (v > high) yDot = Math.max(yHigh + 2, yDot - BUFFER_PULL_PX); // above fill: pull down, never past the fill edge
+          else if (v < low) yDot = Math.min(yLow - 2, yDot + BUFFER_PULL_PX); // below fill: pull up, never past the fill edge
           const big = v % 5 === 0; // larger dots at 5° multiples
           const size = big ? 5 : 3;
           dots.push(
@@ -378,12 +381,12 @@ function DashboardWeatherBar({
           CENTER — not an estimated offset — exactly on the line, so the
           label lines up with the fill edge regardless of how wide "17°" vs
           "7°" renders before rotation. */}
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh)}px`, left: 0, width: 12, height: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ position: 'absolute', bottom: `${Math.max(0, yHigh - 11)}px`, left: 0, width: 12, height: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${high}°`}</span>
       </div>
 
-      {/* Projected LOW — rotated 90° CCW, CENTERED exactly on the low marker line */}
-      <div style={{ position: 'absolute', bottom: `${Math.max(0, yLow)}px`, left: 0, width: 12, height: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      {/* Projected LOW — rotated 90° CCW, inset UP so it sits fully inside the fill */}
+      <div style={{ position: 'absolute', bottom: `${yLow + 11}px`, left: 0, width: 12, height: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <span style={{ ...labelStyle, display: 'inline-block', transform: 'rotate(-90deg)' }}>{`${low}°`}</span>
       </div>
 
