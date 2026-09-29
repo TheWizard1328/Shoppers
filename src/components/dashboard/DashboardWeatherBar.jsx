@@ -9,7 +9,9 @@
  *     DashboardBulkEditControls (stopCardsBaseHeight + bottom-nav-height + 10)
  *     so the bar always starts just above the multi-select checkbox. Top anchor
  *     uses the stats panel BASE height so panel/card expansion never moves it.
- *   • Scale: top = projected high + 10, bottom = projected low - 10.
+ *   • Scale: top = projected high + 2, bottom = projected low - 2. If the current temp
+ *     runs past the projected band, the scale pins to 2° past the current temp
+ *     (max rounded up, min rounded down to whole degrees).
  *   • The tube itself fades darker orange (at the projected high) to darker
  *     blue (at the projected low), with the orange→blue crossing pinned to the
  *     0 °C position on the bar.
@@ -247,12 +249,17 @@ function DashboardWeatherBar({
   const tempPrecise = Number.isFinite(Number(entry.temp_precise)) ? Number(entry.temp_precise) : temp;
   const high = Number.isFinite(Number(entry.high)) ? Number(entry.high) : temp + 5;
   const low = Number.isFinite(Number(entry.low)) ? Number(entry.low) : temp - 5;
-  // Scale limits (owner spec, Sep 27 v4): 2° above the top marker / 2° below
-  // the bottom one — but if the CURRENT temp sits outside the projected
-  // high..low band, the scale stretches to 2° past the current temp instead.
-  // The projected high/low markers always stay visible.
-  const scaleTop = Math.max(high, tempPrecise) + 2;
-  const scaleBottom = Math.min(low, tempPrecise) - 2;
+  // Scale limits (owner spec, Sep 27 v4; updated Sep 29): 2° above the top
+  // marker / 2° below the bottom one. If the CURRENT temp sits outside the
+  // projected high..low band, the scale stretches to 2° past the CURRENT temp
+  // instead of 2° past the projected band — max rounded UP to the next whole
+  // degree, min rounded DOWN. The projected high/low markers always stay visible.
+  const scaleTop = tempPrecise > high
+    ? Math.ceil(tempPrecise + 2)
+    : high + 2;
+  const scaleBottom = tempPrecise < low
+    ? Math.floor(tempPrecise - 2)
+    : low - 2;
   const span = Math.max(1, scaleTop - scaleBottom);
   // scaleFrac is the pure linear mapping — used for the fill edges, the H/L
   // markers, and every degree dot so they all sit on EXACTLY the same scale
