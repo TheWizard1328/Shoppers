@@ -481,7 +481,15 @@ export function useStopCardStartActions({
             updates.delivery_time_start = currentLocalTime;
           }
           if (Object.keys(updates).length === 0) continue;
-          updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }).catch(() => {});
+          // OWNER BUG (Sep 29 2026): updateDeliveryLocal re-saved IDB and fired
+          // notifyMutation PER STOP right after updateDeliveriesLocally already
+          // rendered the same optimistic values — N redundant card/marker repaints
+          // during the optimization window (the 5-flicker Start bug). IDB + React
+          // state already hold these values (bulkSave + updateDeliveriesLocally
+          // above), so this is a SERVER-ONLY fire-and-forget write. The optimizer's
+          // bulkUpdateDeliveries and the handleStartDelivery backend re-confirm
+          // these fields authoritatively moments later.
+          base44.entities.Delivery.update(item.id, updates).catch(() => {});
         }
 
         if (!isPickup && patient?.id && patient?.status === 'inactive') {
@@ -603,8 +611,6 @@ export function useStopCardStartActions({
 
         if (_isNaturalNextStart) {
           console.log('[Start fast path] natural next stop — skipping HERE/Google optimization');
-          // TEMPORARY DIAGNOSTIC — "clicking device not updating after Start".
-          try { toast.info('[Start debug] fast-path (natural next)', { duration: 15000 }); } catch {}
           window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           Promise.resolve().then(async () => {
             try {
@@ -709,11 +715,7 @@ export function useStopCardStartActions({
             const refreshedList = coordResult?.freshDeliveries || null;
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
-            // TEMPORARY DIAGNOSTIC — "clicking device not updating after Start".
-            // REMOVE once the root cause is confirmed fixed.
-            try {
-              toast.info(`[Start debug] opt=${coordResult?.success === false ? 'FAILED' : 'ok'} skipped=${coordResult?.skipped || 'no'} fresh=${Array.isArray(refreshedList) ? refreshedList.length : 0} poly=${_refreshPolyCount}`, { duration: 20000 });
-            } catch { /* toast not mounted */ }
+
             // Diagnostic: log stop_order before and after optimization
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               const _before = _startFullDeliveries.filter(d => d?.status !== 'completed' && d?.status !== 'failed' && d?.status !== 'cancelled').sort((a, b) => (Number(a?.stop_order) || 999) - (Number(b?.stop_order) || 999)).map(d => `${d?.stop_order || '?'}:${d?.patient_id ? 'del' : 'pup'}`);
@@ -742,6 +744,13 @@ export function useStopCardStartActions({
               // routeOptimizationCoordinator.jsx) and the engine already sets isNextDelivery
               // in the writeBatch. No redundant bulkSave or updateDeliveriesLocally needed —
               // just dispatch the UI event with the coordinator's fresh data.
+              // OWNER BUG (Sep 29 2026): releasing the order lock AFTER this value
+              // merge produced a visible intermediate paint — renumbered stop_order
+              // values inside the FROZEN pre-optimization card order — before the
+              // lock release re-sorted everything again. Release the lock FIRST so
+              // the re-sort and the fresh-value merge land in the same React batch
+              // (one paint, correct order + numbers together).
+              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button_values', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: refreshedList } }));
               // Broadcast mutations ONLY for non-terminal deliveries (fire-and-forget)
               const _terminalSet = new Set(['completed', 'failed', 'cancelled']);
@@ -750,13 +759,15 @@ export function useStopCardStartActions({
                 Promise.all(_activeForBroadcast.map((item) => broadcastMutation('Delivery', 'update', item.id, item))).catch(() => {});
               }).catch(() => {});
             } else {
+              // Empty-result path: release the order lock BEFORE the merge too
+              // (same one-paint contract as the success branch above).
+              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button_values', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
             }
 
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
             window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_button' } }));
-            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           } catch (bgErr) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
