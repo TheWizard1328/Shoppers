@@ -87,6 +87,7 @@ import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
+import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
 import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
@@ -273,25 +274,77 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   useEffect(() => {
+    // Idle clock must start counting from app boot, not from when the update
+    // is detected — this is what detects "already idle 10+ min" at the moment
+    // the update becomes ready.
+    initInteractionIdleTracker();
+  }, []);
+
+  useEffect(() => {
     if (!hasWebUpdate) return; // no pending update — nothing to auto-apply
+
+    // Case 1 (backgrounded/minimized): apply after 10 min away.
     const BACKGROUND_THRESHOLD_MS = 10 * 60 * 1000;
-    let backgroundedAt = document.hidden ? Date.now() : null;
-    const tick = () => {
-      if (!document.hidden) { backgroundedAt = null; return; }
-      if (backgroundedAt == null) backgroundedAt = Date.now();
-      if (Date.now() - backgroundedAt < BACKGROUND_THRESHOLD_MS) return;
-      // Threshold reached — apply the update ourselves so the driver never
-      // returns to a stale app. Same refresh path as the bubble's own tap.
+    // Case 2 (foreground but idle 10+ min when the update appears): the update
+    // bubble is already showing to nobody — give it its 1 minute of visibility,
+    // then restart onto the new build. Any tap/key/scroll during that minute
+    // cancels the restart (someone is watching; they can tap the bubble
+    // themselves) and re-arms later if they idle out again.
+    const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
+    const IDLE_RESTART_DELAY_MS = 60 * 1000;
+
+    const applyUpdate = () => {
       try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { }
       try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
       window.location.reload(true);
     };
+
+    let backgroundedAt = document.hidden ? Date.now() : null;
+    let idleRestartTimer = null;
+    const armIdleRestart = () => {
+      if (idleRestartTimer) return;
+      idleRestartTimer = setTimeout(() => {
+        if (document.hidden) return; // background path owns that case
+        applyUpdate();
+      }, IDLE_RESTART_DELAY_MS);
+    };
+    const disarmIdleRestart = () => {
+      if (idleRestartTimer) { clearTimeout(idleRestartTimer); idleRestartTimer = null; }
+    };
+
+    // Update just became ready — if the device is already foreground-idle past
+    // the threshold, arm the 1-minute restart right away.
+    if (!document.hidden && getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+
+    const tick = () => {
+      if (document.hidden) {
+        disarmIdleRestart();
+        if (backgroundedAt == null) backgroundedAt = Date.now();
+        if (Date.now() - backgroundedAt >= BACKGROUND_THRESHOLD_MS) {
+          applyUpdate(); // same refresh path as the bubble's own tap
+        }
+      } else {
+        backgroundedAt = null;
+        if (getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+      }
+    };
     const iv = setInterval(tick, 60 * 1000);
-    const onVis = () => { backgroundedAt = document.hidden ? Date.now() : null; };
-    document.addEventListener('visibilitychange', onVis);
+    const onVis = () => {
+      backgroundedAt = document.hidden ? Date.now() : null;
+      if (document.hidden) disarmIdleRestart();
+    };
+    // A user coming back cancels a pending idle restart mid-countdown.
+    const onActivity = () => disarmIdleRestart();
+    window.addEventListener('pointerdown', onActivity, { capture: true, passive: true });
+    window.addEventListener('keydown', onActivity, { capture: true, passive: true });
+    window.addEventListener('touchstart', onActivity, { capture: true, passive: true });
     return () => {
       clearInterval(iv);
+      disarmIdleRestart();
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pointerdown', onActivity, { capture: true });
+      window.removeEventListener('keydown', onActivity, { capture: true });
+      window.removeEventListener('touchstart', onActivity, { capture: true });
     };
   }, [hasWebUpdate]);
   // APK update detection — compares installed build vs latest GitHub Actions build

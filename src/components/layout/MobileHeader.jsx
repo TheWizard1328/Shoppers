@@ -266,7 +266,7 @@ export default function MobileHeader({
         title={hasWebUpdate ? "Update available" : "Update installed"}
         message={hasWebUpdate
           ? "A new version of the app is ready. Tap to refresh and pick it up."
-          : "Your app was just updated automatically while it was in the background."}
+          : "Your app was just updated automatically to the latest version."}
         cta={hasWebUpdate ? "Tap to update" : "Got it"}
         onClick={async () => {
           if (hasWebUpdate) {

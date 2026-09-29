@@ -241,7 +241,7 @@ export default function AppSidebar({
         title={hasWebUpdate ? "Update available" : "Update installed"}
         message={hasWebUpdate
           ? "A new version of RxDeliver is ready. Click here to refresh, or press F5."
-          : "Your app was just updated automatically while it was in the background."}
+          : "Your app was just updated automatically to the latest version."}
         cta={hasWebUpdate ? "Click to update" : "Got it"}
         onClick={() => {
           // Fresh update still pending = the normal refresh path wins.
