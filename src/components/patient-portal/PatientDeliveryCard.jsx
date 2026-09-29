@@ -81,7 +81,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               </p>
             )}
           </div>
-          <div className="flex flex-col items-end flex-shrink-0">
+          <div className="flex flex-col items-center flex-shrink-0">
             <div className="flex items-center gap-1">
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
                 expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`
@@ -95,7 +95,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               }
             </div>
             {subBadge && (
-              <p className={`text-[11px] font-medium mt-0.5 ${expanded ? 'text-slate-300' : subBadge.color}`}>
+              <p className={`text-sm font-medium mt-0.5 leading-tight ${expanded ? 'text-slate-300' : subBadge.color}`}>
                 {subBadge.text}
               </p>
             )}

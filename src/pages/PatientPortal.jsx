@@ -59,9 +59,15 @@ function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
 // road. The icon anchor is the tip (bottom-center of the tail), so the circle
 // body rides visibly ABOVE the driving line instead of straddling it — making
 // it obvious which point along the road the driver actually is.
+// v2 (owner request, Sep 29 2026): the tail is drawn as an EXTENSION of the
+// white ring border — an SVG triangle with a 3px white stroke and green fill,
+// tucked 5px up behind the circle so the ring visually flows down into the
+// tail (speech-balloon knob) instead of a detached green wedge.
 const DRIVER_MARKER_HTML = (inner) => `<div style="position:relative;width:36px;height:46px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
   <div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid white;box-sizing:border-box;">${inner}</div>
-  <div style="position:absolute;left:50%;top:35px;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:11px solid #16a34a;"></div>
+  <svg style="position:absolute;left:0;top:31px;overflow:visible;" width="36" height="15" viewBox="0 0 36 15">
+    <path d="M13 0 L18 15 L23 0 Z" fill="#16a34a" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  </svg>
 </div>`;
 
 const driverIcon = L.divIcon({
