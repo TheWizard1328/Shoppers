@@ -28,8 +28,25 @@
     (function() {
       try {
         var pref = localStorage.getItem('rxdeliver_theme_preference');
-        var isDark = pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        if (isDark) document.documentElement.classList.add('dark');
+        var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = pref === 'dark' || (pref !== 'light' && systemDark);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          // FIX (Sep 29 2026): this early script only ever added Tailwind's
+          // 'dark' class, which flips dark: utility classes immediately —
+          // but the app's CSS-variable theme (layoutStyles.jsx: --bg-white,
+          // --bg-slate-50, --card, etc., used by inline styles like
+          // Layout.jsx's <main> background) only responds to 'dark-theme'
+          // or 'auto-theme', which useAutoThemeSync only adds AFTER React
+          // mounts. Result: a real white flash on every load/page (worst on
+          // slower devices/pages) where dark: utility elements were already
+          // dark but CSS-var-styled elements (e.g. the main content
+          // background) stayed light until React's effect caught up.
+          // Mirror useAutoThemeSync's class exactly so both systems agree
+          // from the very first paint, matching whichever branch produced
+          // isDark (explicit 'dark' pref vs system/auto dark).
+          document.documentElement.classList.add(pref === 'dark' ? 'dark-theme' : 'auto-theme');
+        }
       } catch(e) {}
     })();
     </script>
