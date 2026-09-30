@@ -701,7 +701,8 @@ export default function SmartBarcodeScanner({
           placeholder="Scan or type barcode and press Enter..." className="px-3 py-2 text-sm font-mono rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm flex-1 h-9"
 
           disabled={disabled}
-          autoComplete="off" />
+          autoComplete="off"
+          data-keyboard-safe-scan="true" />
         
         <input
           ref={hiddenInputRef}
@@ -714,7 +715,8 @@ export default function SmartBarcodeScanner({
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
-          inputMode="none" />
+          inputMode="none"
+          data-keyboard-safe-scan="true" />
         
         {isMobile &&
         <Button

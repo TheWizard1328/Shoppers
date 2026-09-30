@@ -604,19 +604,32 @@ export default function DeliveryFormView({
     const NATIVE_PICKER_TYPES = new Set(['time', 'date', 'datetime-local', 'month', 'week']);
     const isNativePickerInput = (el) => el?.tagName === 'INPUT' && NATIVE_PICKER_TYPES.has(el?.type);
 
+    // The SmartBarcodeScanner's visible + hidden inputs (marked data-keyboard-safe-scan)
+    // get refocused programmatically after every camera scan and focusTrigger bump so
+    // the field is ready for the next scan — with NO real soft keyboard involved (the
+    // hidden input is inputMode="none"; the visible one is refocused by code, not a
+    // user tap). That refocus was firing signal 3 below and setting the flag true, but
+    // since no keyboard actually opened there was never a real resize (signals 1/2) to
+    // flip it back — leaving the safe-area top/bottom padding collapsed to 0px
+    // permanently after scanning barcodes/labels in the APK. These inputs are excluded
+    // from signal 3 entirely; a genuine manual tap-to-type in the visible field still
+    // gets caught correctly by signals 1/2 (the real viewport shrink from an actual
+    // keyboard opening).
+    const isKeyboardSafeScanInput = (el) => !!el?.closest?.('[data-keyboard-safe-scan="true"]');
+
     // Signal 3: input focus — immediate response (no waiting for resize event).
     // The "done/enter key doesn't fire blur" problem from Take 2 is handled
     // because signals 1 and 2 will flip the flag back to false when the
     // keyboard actually closes and the viewport restores.
     const handleFocusIn = (e) => {
-      if (isNativePickerInput(e.target)) return;
+      if (isNativePickerInput(e.target) || isKeyboardSafeScanInput(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         setIsKeyboardLikelyOpen(true);
       }
     };
     const handleFocusOut = (e) => {
-      if (isNativePickerInput(e.target)) return;
+      if (isNativePickerInput(e.target) || isKeyboardSafeScanInput(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         // Delay to allow focus to move to another input (keyboard stays open)
