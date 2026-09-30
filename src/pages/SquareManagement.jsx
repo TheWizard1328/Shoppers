@@ -2134,7 +2134,17 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           const catalogItemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
           const txEffDateForGuard = getTransactionEffectiveDateString(tx);
           const txOnOrAfterItem = !txEffDateForGuard || !catalogItemDateStr || txEffDateForGuard >= catalogItemDateStr;
-          if (amountsMatch && txNameMatches && txOnOrAfterItem) return true;
+          // Date-PROXIMITY guard (owner report, Sep 30 2026): a recurring patient
+          // (e.g. Therese/Emile Brochu — same $13.72 COD amount on many different
+          // dates) has MULTIPLE real completed Square transactions with the exact
+          // same name+amount. "On or after" alone matched the Apr 6 catalog item
+          // to a Sep 24 transaction — 171 days later, a totally different
+          // delivery's payment — showing the Apr 6 item as falsely "Collected".
+          // Require the tx to fall within +/-10 days of the item's date (same
+          // proximity rule the Deliveries tab and reconcile paths already use).
+          const withinProximity = !txEffDateForGuard || !catalogItemDateStr ||
+            Math.abs(new Date(`${txEffDateForGuard.slice(0, 10)}T00:00:00`) - new Date(`${catalogItemDateStr.slice(0, 10)}T00:00:00`)) / 86400000 <= 10;
+          if (amountsMatch && txNameMatches && txOnOrAfterItem && withinProximity) return true;
           if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
           const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
           const txDateStr = getTransactionEffectiveDateString(tx);
