@@ -89,18 +89,28 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
   return `${String(Number(parts[0]) || 0).padStart(2, '0')}:${String(Number(parts[1]) || 0).padStart(2, '0')}:${String(Number(parts[2]) || 0).padStart(2, '0')}`;
 };
 
-// Patient time windows take priority over delivery_time_start (which is set
-// from the store/pickup time window rules at creation time). If a patient has
-// their own time_window_start/end, use those — the delivery's delivery_time_start
-// is a fallback for patients without specific time constraints.
+// THE DELIVERY'S OWN WINDOW IS AUTHORITATIVE (fixed Sep 30 2026, owner report).
+// Previously the patient's stored time_window_start/end (a general standing
+// preference on the Patient profile, e.g. "usually after 3pm") ALWAYS won over
+// the delivery's own delivery_time_start/time_window_start — even when a
+// dispatcher had explicitly edited THIS delivery's window for today (e.g. to
+// 18:00). getEffectiveWindowStart kept reverting to the patient's stale 15:00
+// default on every optimization pass, banding the stop into the SAME 2-hour
+// window as much-earlier stops and permanently mis-sequencing it near the
+// front of the route — no Start/manual-optimize/Accept-All action could fix
+// it because each pass re-derived the same wrong window from the patient
+// record. The delivery's own window (when set) now wins; the patient's
+// default is only a FALLBACK for deliveries with no window of their own.
 const getEffectiveWindowStart = (delivery, patient = null) => {
-  if (patient?.time_window_start) return patient.time_window_start;
-  return delivery?.delivery_time_start || delivery?.time_window_start || null;
+  const ownStart = delivery?.delivery_time_start || delivery?.time_window_start || null;
+  if (ownStart) return ownStart;
+  return patient?.time_window_start || null;
 };
 
 const getEffectiveWindowEnd = (delivery, patient = null) => {
-  if (patient?.time_window_end) return patient.time_window_end;
-  return delivery?.delivery_time_end || delivery?.time_window_end || null;
+  const ownEnd = delivery?.delivery_time_end || delivery?.time_window_end || null;
+  if (ownEnd) return ownEnd;
+  return patient?.time_window_end || null;
 };
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
