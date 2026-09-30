@@ -396,9 +396,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // Complete button hides (no duplicate). Single source of truth here — the
   // footer (StopCardActionButtons) and the panel (StopCardCODCollection) both
   // consume this flag instead of recomputing eligibility themselves.
+  // NOTE (bug fix, Sep 29 2026): must NOT gate on !isCODComplete. isCODComplete
+  // flips true as soon as the DRAFT codPayments total matches codTotalRequired —
+  // before the driver has hit Save. Gating on it made the swap disappear the
+  // instant the typed amount matched, which is exactly when it needs to show.
+  // The real "already done" gate is delivery.status/isFinishedDelivery below.
   const codFooterSwapActive = !!(
     hasCODRequired &&
-    !isCODComplete &&
     showCODCollection &&
     isNextDelivery &&
     !isFinishedDelivery &&
