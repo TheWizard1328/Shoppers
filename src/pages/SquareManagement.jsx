@@ -1557,11 +1557,50 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         console.error('Failed to write collection note to IDB:', idbErr);
       }
 
-      toast.success('Marked as collected — running sync...');
+      // Owner fix (Sep 29 2026): a manual Collect used to fire a FULL syncFromSquare()
+      // (Square API fetch + IDB replace-saves) every single time. But squareMarkDebit
+      // already did everything server-side — cod_payments + note on the delivery, the
+      // Square catalog item deleted (squareDeleteCodItem), bookkeeping rows cleaned.
+      // The only missing piece is mirroring that cleanup in local IDB; then
+      // runReconcile() (IDB-only) rebuilds every list with ZERO Square API calls.
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const nowIso = new Date().toISOString();
+        const catRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
+        const staleCat = catRecords.filter((r) => r && (
+          (itemToDelete.delivery_id && r.delivery_id === itemToDelete.delivery_id) ||
+          (itemToDelete.catalog_object_id && (r.id === itemToDelete.catalog_object_id || r.square_catalog_object_id === itemToDelete.catalog_object_id))
+        ));
+        if (staleCat.length > 0) {
+          await Promise.all(staleCat.map((r) => offlineDB.deleteRecord(offlineDB.STORES.SQUARE_CATALOG_ITEMS, r.id).catch(() => null)));
+          console.log(`[SquareManagement] Collect: removed ${staleCat.length} local catalog bookkeeping row(s)`);
+        }
+        // Mirror squareDeleteCodItem's tx marking (status 'cancelled' for collected_debit)
+        // so the row settles as Collected exactly like a full sync left it.
+        const txRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
+        const relatedTxs = txRecords.filter((t) => t && (
+          (itemToDelete.delivery_id && t.delivery_id === itemToDelete.delivery_id) ||
+          (itemToDelete.catalog_object_id && t.square_catalog_object_id === itemToDelete.catalog_object_id) ||
+          (itemToDelete.transaction_id && t.id === itemToDelete.transaction_id)
+        ));
+        if (relatedTxs.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, relatedTxs.map((t) => ({
+            ...t,
+            status: 'cancelled',
+            raw_square_data: { ...(t.raw_square_data || {}), deleted_at: nowIso, deleted_reason: 'collected_debit' },
+          })));
+          console.log(`[SquareManagement] Collect: marked ${relatedTxs.length} related tx row(s) cancelled locally`);
+        }
+      } catch (idbCleanupErr) {
+        console.error('Collect: local IDB cleanup failed (lists will settle on next regular sync):', idbCleanupErr);
+      }
+
+      toast.success('Marked as collected');
       setItemToDelete(null);
       setCollectNote('');
       setDeletingId(null);
-      await syncFromSquare();
+      // IDB-only list rebuild — no Square API fetch, no full sync cycle
+      await runReconcile();
     } catch (err) {
       console.error('Collect failed:', err);
       toast.error('Failed to mark collected: ' + err.message);
