@@ -1346,18 +1346,21 @@ let _inheritedWindowCount = 0;
       stop.delivery_time_start = pendingStartTime;
     }
 
-    // Apply patient time windows to the delivery record — ONLY for pending stops
-    // transitioning to in_transit. Once a stop is in_transit or en_route, the
-    // delivery's own delivery_time_start/end are authoritative and must NOT be
-    // overwritten by patient windows (the driver may have manually changed them).
+    // Apply patient time windows to the delivery record — ONLY as FALLBACK
+    // (owner rule, restated 6th time Sep 30 2026): patient windows are
+    // creation-time DEFAULTS. Once a delivery exists, its own
+    // delivery_time_start/end take precedence; the patient window is stamped
+    // ONLY when the delivery's own field is blank. The old version stamped the
+    // patient window unconditionally for pending stops, overwriting per-
+    // delivery windows a dispatcher had explicitly set.
     if (stop.patient_id && isPending) {
       const patient = patientMap.get(stop.patient_id);
       if (patient) {
-        if (patient.time_window_start) {
+        if (patient.time_window_start && !stop.delivery_time_start) {
           updateData.delivery_time_start = patient.time_window_start;
           stop.delivery_time_start = patient.time_window_start;
         }
-        if (patient.time_window_end) {
+        if (patient.time_window_end && !stop.delivery_time_end) {
           updateData.delivery_time_end = patient.time_window_end;
           stop.delivery_time_end = patient.time_window_end;
         }
