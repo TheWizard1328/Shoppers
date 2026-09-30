@@ -401,13 +401,21 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // before the driver has hit Save. Gating on it made the swap disappear the
   // instant the typed amount matched, which is exactly when it needs to show.
   // The real "already done" gate is delivery.status/isFinishedDelivery below.
+  // LIVE today string, recomputed every render — localNowParts is memoized with
+  // [] deps, so its date is captured ONCE at card mount. A device kept open
+  // across midnight (driver's APK runs all day) keeps comparing against
+  // YESTERDAY: comparisonRouteDateStr <= localDeviceTodayStr went false for
+  // today's stops while the footer's own live-rendered date check still showed
+  // Complete — the COD footer swap silently never activated (Sep 30 2026).
+  const _liveNow = new Date();
+  const liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
   const codFooterSwapActive = !!(
     hasCODRequired &&
     showCODCollection &&
     isNextDelivery &&
     !isFinishedDelivery &&
     !FINISHED_STATUSES.includes(delivery?.status) &&
-    comparisonRouteDateStr <= localDeviceTodayStr &&
+    comparisonRouteDateStr <= liveTodayStr &&
     (currentDriverAppUser?.driver_status === 'on_duty' || currentDriverAppUser?.driver_status === 'on_break')
   );
   const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;
