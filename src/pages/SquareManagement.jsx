@@ -1631,7 +1631,15 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (s?.id) storeById.set(s.id, s);
     }
 
-    // Transaction lookups: by delivery_id, by catalog_object_id, by order::line key
+    // Transaction lookups: by delivery_id, by catalog_object_id, by order::line key.
+    // REAL-tx guard (owner report, Sep 30 2026): rows WITHOUT a square_transaction_id
+    // are our own BOOKKEEPING pending records written at catalog-item creation
+    // (they carry the item's exact id/name/amount + delivery_id). They are not
+    // Square transactions and must never satisfy a "collected?" lookup — that was
+    // the 04/06(BD)-Therese/Emile Brochu false "Collected": its bookkeeping row
+    // matched by delivery_id with zero date/amount checks. OPEN-order matches
+    // (store ringing now) DO carry a square_transaction_id, so they still count.
+    const isRealSquareTx = (tx) => !!(tx?.square_transaction_id && String(tx.square_transaction_id).trim());
     const txByDeliveryId = new Map();
     const txByCatalogObjId = new Map();
     const txByKey = new Map();
@@ -1642,8 +1650,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     const txByAmountName = new Map(); // key: amountCents::lowercaseitemName → tx
     for (const tx of (allTransactions || [])) {
       if (!tx) continue;
-      if (tx.delivery_id) txByDeliveryId.set(tx.delivery_id, tx);
-      if (tx.square_catalog_object_id) {
+      const realTx = isRealSquareTx(tx);
+      if (tx.delivery_id && realTx) txByDeliveryId.set(tx.delivery_id, tx);
+      if (tx.square_catalog_object_id && realTx) {
         txByCatalogObjId.set(tx.square_catalog_object_id, tx);
         if (['completed', 'refunded'].includes(tx.status)) {
           settledTxCatalogIds.add(tx.square_catalog_object_id);
@@ -1875,6 +1884,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (!isRealSquareTx(tx)) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
           // Retained tx history is 6 months deep: an old same-patient/same-amount
           // tx is NOT this delivery's collection. A POS ring happens within days
@@ -2113,6 +2123,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (!matchingTx) {
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx) return false;
+          if (!isRealSquareTx(tx)) return false; // bookkeeping pending rows are NOT Square transactions
           if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
           if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
           const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
@@ -2237,6 +2248,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (!isRealSquareTx(tx)) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
           // Retained tx history is 6 months deep: an old same-patient/same-amount
           // tx is NOT this delivery's collection. A POS ring happens within days
