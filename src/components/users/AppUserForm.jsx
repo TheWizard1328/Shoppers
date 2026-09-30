@@ -345,7 +345,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                           <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                           </span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 dark:text-slate-400 whitespace-nowrap font-medium">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 whitespace-nowrap font-medium">
                             {(() => {
                               const c = entry.pay_cycle_type || 'monthly';
                               return c === 'semimonthly' ? 'Semi-Mo' : c === 'biweekly' ? 'Bi-Wk' : c === 'weekly' ? 'Wkly' : c.charAt(0).toUpperCase() + c.slice(1);
@@ -359,7 +359,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
+                          className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
