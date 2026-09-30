@@ -39,7 +39,7 @@
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getDashboardWeather, pollDashboardWeatherNow } from '@/components/utils/dashboardWeatherSettings';
-import { edmontonWallString } from '@/components/utils/albertaTime';
+import { edmontonWallString, toEdmontonWall } from '@/components/utils/albertaTime';
 
 const WEATHER_ICONS = Object.freeze({
   sun: '☀️', partly: '🌤️', cloud: '☁️', fog: '🌫️',
@@ -247,8 +247,25 @@ function DashboardWeatherBar({
   // Decimal temp for badge alignment (owner request, Sep 28): the badge flows
   // smoothly with sub-degree changes instead of jumping whole degrees.
   const tempPrecise = Number.isFinite(Number(entry.temp_precise)) ? Number(entry.temp_precise) : temp;
-  const high = Number.isFinite(Number(entry.high)) ? Number(entry.high) : temp + 5;
-  const low = Number.isFinite(Number(entry.low)) ? Number(entry.low) : temp - 5;
+
+  // ── OVERNIGHT NEXT-DAY WINDOW (owner request, Sep 30 2026) ──────────────
+  // Between 9pm and 8am Edmonton time the bar switches to the NEXT day's
+  // projected high/low. 9pm–midnight: tomorrow's forecast (entry.next_high/
+  // next_low from the poll's forecast_days=2 fetch). After midnight the
+  // calendar day has rolled over, so the regular day high/low IS the new
+  // day's projection. The current-temp badge stays on the live temp in both
+  // windows, but its fill turns blue for the whole 9pm–8am window.
+  const edmontonHour = toEdmontonWall(new Date()).h;
+  const nightWindow = edmontonHour >= 21 || edmontonHour < 8;
+  const nextHigh = Number.isFinite(Number(entry.next_high)) ? Number(entry.next_high) : null;
+  const nextLow = Number.isFinite(Number(entry.next_low)) ? Number(entry.next_low) : null;
+  // 9pm–midnight: prefer tomorrow's numbers; fall back to today's if the
+  // record predates the next-day fields.
+  const useNextDay = nightWindow && edmontonHour >= 21 && nextHigh !== null && nextLow !== null;
+  const fallbackHigh = Number.isFinite(Number(entry.high)) ? Number(entry.high) : temp + 5;
+  const fallbackLow = Number.isFinite(Number(entry.low)) ? Number(entry.low) : temp - 5;
+  const high = useNextDay ? nextHigh : fallbackHigh;
+  const low = useNextDay ? nextLow : fallbackLow;
   // Scale limits (owner spec, Sep 27 v4; updated Sep 29): 2° above the top
   // marker / 2° below the bottom one. If the CURRENT temp sits outside the
   // projected high..low band, the scale stretches to 2° past the CURRENT temp
@@ -316,7 +333,7 @@ function DashboardWeatherBar({
   return (
     <div
       data-testid="dashboard-weather-bar"
-      aria-label={`Current temperature ${temp} degrees, high ${high}, low ${low}`}
+      aria-label={`Current temperature ${temp} degrees, ${useNextDay ? 'next day projected' : 'projected'} high ${high}, low ${low}`}
       className="pointer-events-none absolute z-[220]"
       style={{ left: 6, top: topAnchor, height: barHeight, width: 60 }}
     >
@@ -408,8 +425,11 @@ function DashboardWeatherBar({
           style={{
             display: 'flex', alignItems: 'center', gap: 3,
             padding: '2px 6px', borderRadius: 8,
-            background: 'rgba(15,23,42,0.85)',
-            border: '1px solid rgba(148,163,184,0.5)',
+            // Overnight window (9pm–8am, owner request Sep 30): fill turns
+            // blue so the overnight badge is visually distinct from the
+            // daytime slate pill.
+            background: nightWindow ? 'rgba(37,99,235,0.88)' : 'rgba(15,23,42,0.85)',
+            border: nightWindow ? '1px solid rgba(147,197,253,0.65)' : '1px solid rgba(148,163,184,0.5)',
             fontSize: 11, fontWeight: 700, color: '#f8fafc',
             textShadow: '0 1px 2px rgba(0,0,0,0.9)',
             whiteSpace: 'nowrap',

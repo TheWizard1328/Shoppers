@@ -27,9 +27,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const SETTINGS_KEY = 'dashboard_weather';
 
-function edmontonToday() {
+function edmontonToday(date = new Date()) {
   const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-  return fmt.format(new Date());
+  return fmt.format(date);
 }
 
 // WMO weather interpretation codes → short text
@@ -105,7 +105,7 @@ async function fetchOpenMeteo(lat, lon, attempt = 1) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,snowfall_sum,weather_code` +
-    `&timezone=America%2FEdmonton&forecast_days=1`;
+    `&timezone=America%2FEdmonton&forecast_days=2`;
   let res = await fetch(url).catch((e) => { console.warn('[dashboardWeatherPoll] open-meteo attempt', attempt, 'network error:', e?.message || e); return null; });
   if (!res || !res.ok) {
     if (res) console.warn('[dashboardWeatherPoll] open-meteo attempt', attempt, 'HTTP', res.status);
@@ -117,7 +117,7 @@ async function fetchOpenMeteo(lat, lon, attempt = 1) {
   const code = j.current.weather_code;
   return {
     current: { temp: Math.round(j.current.temperature_2m), tempPrecise: Math.round(j.current.temperature_2m * 10) / 10, feels: Math.round(j.current.apparent_temperature), text: wmoText(code), icon: wmoIcon(code), wind: Math.round(j.current.wind_speed_10m), isDay: Number(j.current.is_day) === 1 },
-    daily: { high: Math.round(j.daily.temperature_2m_max?.[0]), low: Math.round(j.daily.temperature_2m_min?.[0]), precipProb: j.daily.precipitation_probability_max?.[0] ?? null, snowCm: j.daily.snowfall_sum?.[0] ?? 0, text: wmoText(j.daily.weather_code?.[0]) },
+    daily: { high: Math.round(j.daily.temperature_2m_max?.[0]), low: Math.round(j.daily.temperature_2m_min?.[0]), precipProb: j.daily.precipitation_probability_max?.[0] ?? null, snowCm: j.daily.snowfall_sum?.[0] ?? 0, text: wmoText(j.daily.weather_code?.[0]), nextHigh: Number.isFinite(Number(j.daily.temperature_2m_max?.[1])) ? Math.round(j.daily.temperature_2m_max[1]) : null, nextLow: Number.isFinite(Number(j.daily.temperature_2m_min?.[1])) ? Math.round(j.daily.temperature_2m_min[1]) : null },
     source: 'open-meteo',
   };
 }
@@ -127,13 +127,14 @@ async function fetchWttr(lat, lon) {
   const j = await res.json().catch(() => null);
   const cur = j?.current_condition?.[0];
   const today = j?.weather?.[0];
+  const tomorrow = j?.weather?.[1] || null;
   if (!cur || !today) return null;
   let precipProb = 0;
   for (const h of (today.hourly || [])) precipProb = Math.max(precipProb, Number(h?.chanceofrain) || 0, Number(h?.chanceofsnow) || 0);
   const text = mapWttrDesc(cur.weatherDesc?.[0]?.value);
   return {
     current: { temp: Math.round(Number(cur.temp_C)), tempPrecise: Math.round(Number(cur.temp_C) * 10) / 10, isDay: isDayEdmonton(), feels: Math.round(Number(cur.FeelsLikeC)), text, icon: iconFromText(text), wind: Math.round(Number(cur.windspeedKmph) || 0) },
-    daily: { high: Math.round(Number(today.maxtempC)), low: Math.round(Number(today.mintempC)), precipProb: precipProb || null, snowCm: Number(today.totalSnow_cm) || 0, text },
+    daily: { high: Math.round(Number(today.maxtempC)), low: Math.round(Number(today.mintempC)), precipProb: precipProb || null, snowCm: Number(today.totalSnow_cm) || 0, text, nextHigh: tomorrow && Number.isFinite(Number(tomorrow.maxtempC)) ? Math.round(Number(tomorrow.maxtempC)) : null, nextLow: tomorrow && Number.isFinite(Number(tomorrow.mintempC)) ? Math.round(Number(tomorrow.mintempC)) : null },
     source: 'wttr.in',
   };
 }
@@ -149,17 +150,22 @@ async function fetchMetNo(lat, lon) {
   const inst = first.instant?.details || {};
   const sym = first.next_1_hours?.summary?.symbol_code || first.next_6_hours?.summary?.symbol_code || first.next_12_hours?.summary?.symbol_code || '';
   const todayStr = edmontonToday();
+  const tomorrowStr = edmontonToday(Date.now() + 86400000);
   let hi = -999, lo = 999;
+  let nHi = -999, nLo = 999;
   for (const t of ts) {
-    if (!String(t.time || '').startsWith(todayStr)) continue;
+    const tstr = String(t.time || '');
     const temp = t?.data?.instant?.details?.air_temperature;
-    if (Number.isFinite(temp)) { if (temp > hi) hi = temp; if (temp < lo) lo = temp; }
+    if (!Number.isFinite(temp)) continue;
+    if (tstr.startsWith(todayStr)) { if (temp > hi) hi = temp; if (temp < lo) lo = temp; }
+    if (tstr.startsWith(tomorrowStr)) { if (temp > nHi) nHi = temp; if (temp < nLo) nLo = temp; }
   }
   if (hi === -999) { hi = inst.air_temperature; lo = inst.air_temperature; }
+  if (nHi === -999) { nHi = null; nLo = null; } else { nHi = Math.round(nHi); nLo = Math.round(nLo); }
   const text = mapMetNoSymbol(sym);
   return {
     current: { temp: Math.round(inst.air_temperature || 0), tempPrecise: Math.round((inst.air_temperature || 0) * 10) / 10, isDay: isDayEdmonton(), feels: Math.round(inst.air_temperature || 0), text, icon: iconFromText(text), wind: Math.round((inst.wind_speed || 0) * 3.6) },
-    daily: { high: Math.round(hi), low: Math.round(lo), precipProb: null, snowCm: 0, text },
+    daily: { high: Math.round(hi), low: Math.round(lo), precipProb: null, snowCm: 0, text, nextHigh: nHi, nextLow: nLo },
     source: 'met.no',
   };
 }
@@ -179,7 +185,7 @@ function edmontonDayKey() {
   return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-const COMPARE_FIELDS = ['temp', 'feels', 'text', 'icon', 'high', 'low', 'precipProb', 'snowCm', 'day_high', 'day_low'];
+const COMPARE_FIELDS = ['temp', 'feels', 'text', 'icon', 'high', 'low', 'precipProb', 'snowCm', 'day_high', 'day_low', 'next_high', 'next_low'];
 
 function buildCityEntry(city, w) {
   return {
@@ -195,6 +201,8 @@ function buildCityEntry(city, w) {
     low: w.daily.low,
     precipProb: w.daily.precipProb,
     snowCm: w.daily.snowCm,
+    next_high: Number.isFinite(Number(w.daily.nextHigh)) ? w.daily.nextHigh : null,
+    next_low: Number.isFinite(Number(w.daily.nextLow)) ? w.daily.nextLow : null,
     wind: w.current.wind,
     forecast: w.daily.text,
     source: w.source,
