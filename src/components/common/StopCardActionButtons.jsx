@@ -419,20 +419,29 @@ export default function StopCardActionButtons(props) {
 
           if (isCodSwapActive) {
             return (
-              <Button data-stopcard-action="save-and-complete-cod" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {
+              <Button data-stopcard-action="save-and-complete-cod" type="button"
+                // TOUCH FIX (Sep 30 2026): the action fires on POINTERDOWN, exactly like
+                // the regular Complete button. It previously fired in onClick, but this
+                // button's onTouchStart preventDefault() suppresses the synthetic click
+                // event on Android touch devices (the driver APK) — so tapping it did
+                // nothing on phones while working fine on desktop. Pointerdown fires
+                // on both mouse and touch, and the (suppressed) click handler below is a
+                // pure no-op so the action can never double-fire.
+                onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation();
+                  performSaveAndCompleteCOD({
+                    delivery,
+                    codPayments,
+                    allDeliveries,
+                    FINISHED_STATUSES,
+                    onCODUpdate,
+                    setShowCODCollection,
+                    setIsCompleting,
+                    onSelectionChange,
+                    onClick,
+                  });
+                }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                performSaveAndCompleteCOD({
-                  delivery,
-                  codPayments,
-                  allDeliveries,
-                  FINISHED_STATUSES,
-                  onCODUpdate,
-                  setShowCODCollection,
-                  setIsCompleting,
-                  onSelectionChange,
-                  onClick,
-                });
               }} size="sm" disabled={(codPayments?.length || 0) === 0 || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Save COD payment and complete this delivery">
                 {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                 <span className="text-white">Save & Complete</span>
