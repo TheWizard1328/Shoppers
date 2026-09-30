@@ -191,7 +191,7 @@ export default function AppUsers() {
               <p className="text-slate-600 dark:text-slate-400 mt-1">Manage application-specific user data and roles</p>
             </div>
             <Button onClick={() => { setEditingAppUser(null); setShowForm(true); }} className="bg-emerald-500 hover:bg-emerald-600">
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-1" />
               Add User
             </Button>
           </div>
