@@ -196,6 +196,20 @@ export default function Layout({ children, currentPageName }) {
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
   useAutoThemeSync(themePreference);
+
+  // FIX (Sep 29 2026): the Settings > Appearance dialog dispatches
+  // 'themePreferenceChanged' after saving a new theme, but NOTHING listened for
+  // it — the saved theme only took effect after a full page reload (and on
+  // desktop it never took effect at all, see useLayoutInit). Listen here and
+  // apply immediately so a theme switch is live everywhere, on every device.
+  useEffect(() => {
+    const onThemePreferenceChanged = (e) => {
+      const nextTheme = e?.detail?.theme;
+      if (nextTheme) setThemePreference(nextTheme);
+    };
+    window.addEventListener('themePreferenceChanged', onThemePreferenceChanged);
+    return () => window.removeEventListener('themePreferenceChanged', onThemePreferenceChanged);
+  }, []);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
   const [branding, setBranding] = useState({
     // Default to the actual App Logo served by the platform so freshly-installed /

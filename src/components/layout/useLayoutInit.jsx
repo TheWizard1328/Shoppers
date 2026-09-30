@@ -10,7 +10,6 @@ import { base44 } from '@/api/base44Client';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { userHasRole } from '../utils/userRoles';
 import { loadUserSettings, clearSettingsCache, getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager';
-import { isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { getCompanyBranding, getCachedBranding } from '../utils/brandingManager';
 import { offlineDB } from '../utils/offlineDatabase';
 import { initializeGlobalFilters } from './initializeGlobalFilters';
@@ -177,7 +176,12 @@ export function useLayoutInit({
             10000, 'loadUserSettings'
           );
           if (s.sidebar_width) setSidebarWidth(s.sidebar_width);
-          if (s.theme_preference && isMobileDeviceForTheme()) setThemePreference(s.theme_preference);else setThemePreference('light');
+          // FIX (Sep 29 2026): theme_preference was only honored on mobile UAs —
+          // every desktop was force-flipped to 'light' on each load even when the
+          // user had chosen Dark in Settings (owner saw the wrong theme in desktop
+          // Chrome preview). Now every device honors its own saved preference;
+          // devices with no saved preference fall back to following the system.
+          setThemePreference(s.theme_preference || 'auto');
           if (s.data_source) setDataSource(s.data_source);
           if (s.fab_map_cycle_phase && setInitialFabPhase) setInitialFabPhase(Number(s.fab_map_cycle_phase) || 1);
           initializeGlobalFilters(fetchedUser, s);

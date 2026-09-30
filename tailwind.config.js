@@ -1,6 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    darkMode: ["class"],
+    // FIX (Sep 29 2026): the app has TWO dark systems that must stay in sync —
+// Tailwind dark: utilities (class 'dark' on <html>) and the app's CSS-variable
+// theme (class 'dark-theme' on <html>, from layoutStyles.jsx). JS is supposed
+// to add both together (useAutoThemeSync), but owner devices were observed in
+// a mismatched state (vars dark, utilities light → white page bg behind dark
+// cards). Custom variant makes EITHER class trigger dark: utilities, so the
+// two systems can never disagree again.
+darkMode: ["variant", "&:where(.dark, .dark *, .dark-theme, .dark-theme *)"],
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {

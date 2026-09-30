@@ -30,7 +30,9 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           }
 
           html.dark-theme,
-          html.dark-theme body {
+          html.dark-theme body,
+          html.dark,
+          html.dark body {
             --bg-white: #0f172a;
             --bg-slate-50: #1e293b;
             --bg-slate-100: #334155;
@@ -74,7 +76,9 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
 
           @media (prefers-color-scheme: dark) {
             html.auto-theme,
-            html.auto-theme body {
+            html.auto-theme body,
+            html.dark,
+            html.dark body {
               --bg-white: #0f172a;
               --bg-slate-50: #1e293b;
               --bg-slate-100: #334155;
