@@ -36,6 +36,7 @@ import { createLiveLocationDot, bucketZoom } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
 import { getInterStoreLocationSync, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
 import { countLegendStops } from "./legendStopCounter";
+import { getCurrentDevice } from "../utils/deviceManager";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -821,8 +822,48 @@ function DeliveryMap({
     }
   }, []);
 
+  // ── PRIMARY-DEVICE RESOLUTION (Sep 30 2026 owner directive) ─────────────────
+  // The driver's OWN blue dot renders on the registered PRIMARY device ONLY —
+  // phone, tablet, foldable inner/outer screen, portrait or landscape are all
+  // irrelevant; only primary-device status decides. Mirrors Dashboard.jsx's
+  // canonical rule exactly: null device record => primary (unregistered =
+  // assume primary); inactive or explicit is_primary_tracker === false =>
+  // non-primary. Non-primary devices see the driver through the shared
+  // DriverLocationMarkers self marker (server-synced coords from the primary
+  // phone), which is exactly what they should show. Initialized from
+  // window.__isPrimaryDevice (set by Dashboard.jsx / locationTracker when
+  // known) so the dot never flickers in on a non-primary device.
+  const [isPrimaryTrackerDevice, setIsPrimaryTrackerDevice] = useState(() =>
+    typeof window !== "undefined" ? window.__isPrimaryDevice === true : false
+  );
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+    let retryTimer = null;
+    const resolvePrimary = (attempt = 1) => {
+      getCurrentDevice(currentUser.id).then((device) => {
+        if (cancelled) return;
+        if (device === null && attempt === 1) {
+          // null on first attempt could be a stale cache hit — retry once after 5s
+          retryTimer = setTimeout(() => resolvePrimary(2), 5000);
+          return;
+        }
+        const primary = device === null
+          || (device.status !== "inactive" && device.is_primary_tracker !== false);
+        setIsPrimaryTrackerDevice(primary);
+      }).catch(() => {
+        if (!cancelled) setIsPrimaryTrackerDevice(true);
+      });
+    };
+    resolvePrimary(1);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [currentUser?.id]);
+
   const currentDriverMarker = useMemo(() => {
-    if (!isHandheldDevice || !currentUser) return null;
+    if (!currentUser) return null;
     const today = getEdmDate();
     if (selectedDate && selectedDate < today) return null;
 
@@ -831,6 +872,15 @@ function DeliveryMap({
     const isCurrentUserDispatcher = userHasRole(currentUser, "dispatcher");
     const isPureDispatcher = isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin;
     if (!(isCurrentUserDriver || isCurrentUserAdmin) || isPureDispatcher) return null;
+
+    // Drivers: PRIMARY-device gate ONLY (owner directive Sep 30 2026). Screen
+    // size, fold state, and orientation are irrelevant — the blue self-dot
+    // shows on the driver's primary device and nowhere else. Secondary
+    // devices follow the driver via the shared server-synced marker.
+    if (isCurrentUserDriver && !isPrimaryTrackerDevice) return null;
+    // Admins (non-driver): keep the handheld gate — desktop admin browsers
+    // stay excluded; an admin's own location rarely exists anyway.
+    if (!isCurrentUserDriver && !isHandheldDevice) return null;
 
     let locationData = currentDriverLocation;
     if (!locationData?.latitude || !locationData?.longitude) {
@@ -845,7 +895,7 @@ function DeliveryMap({
     }
 
     return { ...locationData, driver: currentUser, driverId: currentUser.id, driver_id: currentUser.id };
-  }, [currentDriverLocation, safeUsers, currentUser, isHandheldDevice, selectedDate]);
+  }, [currentDriverLocation, safeUsers, currentUser, isHandheldDevice, isPrimaryTrackerDevice, selectedDate]);
 
   // ── Road geometry for the self-marker polyline-follow interpolation ──────────
   // The next stop's leg polyline (origin → stop, including the live-GPS via
