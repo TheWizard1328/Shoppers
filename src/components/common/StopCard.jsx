@@ -153,7 +153,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const [isProcessingBackground, setIsProcessingBackground] = useState(false);
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
-  const { setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally } = useAppData();
+  const { setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally, appUsers: liveAppUsers } = useAppData();
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState(null);
@@ -401,14 +401,26 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // before the driver has hit Save. Gating on it made the swap disappear the
   // instant the typed amount matched, which is exactly when it needs to show.
   // The real "already done" gate is delivery.status/isFinishedDelivery below.
-  // LIVE today string, recomputed every render — localNowParts is memoized with
-  // [] deps, so its date is captured ONCE at card mount. A device kept open
-  // across midnight (driver's APK runs all day) keeps comparing against
-  // YESTERDAY: comparisonRouteDateStr <= localDeviceTodayStr went false for
-  // today's stops while the footer's own live-rendered date check still showed
-  // Complete — the COD footer swap silently never activated (Sep 30 2026).
+  // LIVE today string, recomputed every render (see note above localNowParts).
   const _liveNow = new Date();
   const liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+  // Driver-status source for the swap MUST match the footer's own check exactly
+  // (StopCardActionButtons.jsx computes driverOnDutyOrBreak from useAppData()'s
+  // LIVE appUsers, read directly via context inside that component — not from
+  // the appUsers PROP threaded down through Dashboard -> DashboardView ->
+  // StopCardsSection -> StopCard). That prop can lag a beat behind the live
+  // context value, so codFooterSwapActive's own driver_status read (via the
+  // prop-sourced currentDriverAppUser) could evaluate on_duty=false for an
+  // instant where the footer's live context read already says on_duty=true —
+  // Complete stays eligible in the footer while the swap fails to activate
+  // (root cause of the Sep 30 2026 report: panel open, totals matched, footer
+  // still showing Complete). Recompute driver status here from the SAME live
+  // context array the footer uses, keyed identically (delivery.driver_id only,
+  // no currentUser fallback) so the two checks can never disagree.
+  const liveAssignedDriverAppUser = useMemo(() => {
+    if (!Array.isArray(liveAppUsers)) return null;
+    return liveAppUsers.find((u) => u?.user_id === delivery?.driver_id) || null;
+  }, [liveAppUsers, delivery?.driver_id]);
   const codFooterSwapActive = !!(
     hasCODRequired &&
     showCODCollection &&
@@ -416,7 +428,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     !isFinishedDelivery &&
     !FINISHED_STATUSES.includes(delivery?.status) &&
     comparisonRouteDateStr <= liveTodayStr &&
-    (currentDriverAppUser?.driver_status === 'on_duty' || currentDriverAppUser?.driver_status === 'on_break')
+    (liveAssignedDriverAppUser?.driver_status === 'on_duty' || liveAssignedDriverAppUser?.driver_status === 'on_break')
   );
   const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;
   const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher && !isExpanded;
