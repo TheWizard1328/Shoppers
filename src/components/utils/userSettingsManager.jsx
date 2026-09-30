@@ -98,7 +98,13 @@ const DEFAULT_SETTINGS = getInitialDefaultSettings();
  * Defines which settings are global (synced across devices) vs device-specific
  */
 const GLOBAL_SETTINGS = [
-  'units_of_measurement'
+  'units_of_measurement',
+  // FIX (Sep 29 2026): theme_preference is now GLOBAL. It used to be
+  // device-specific, which meant choosing Dark on one device left every other
+  // device (phone, tablet, desktop) in light or auto mode — the root cause of
+  // the owner seeing a white Users page on devices where Dark was never set.
+  // One choice now applies everywhere.
+  'theme_preference'
 ];
 
 // CRITICAL: These settings are NEVER synced across devices
@@ -107,7 +113,6 @@ const DEVICE_SPECIFIC_SETTINGS = [
   'fab_map_cycle_phase',
   'sidebar_width',
   'right_panel_width',
-  'theme_preference',
   'admin_utilities_year',
   'admin_utilities_month',
   'admin_utilities_driver',
@@ -205,6 +210,49 @@ async function loadGlobalSettings(userId) {
  * @param {string} userId - The user's ID
  * @returns {Promise<object>} - The merged settings object for current device
  */
+/**
+ * Background refresh of GLOBAL settings (currently: units_of_measurement,
+ * theme_preference) so a choice made on ONE device propagates to every other
+ * device. loadUserSettings short-circuits on the per-device IDB cache, which
+ * is correct for device-specific settings but would otherwise freeze global
+ * values at whatever this device cached last. Runs fire-and-forget: the app
+ * renders from cache immediately, then applies the fresh global values and
+ * dispatches 'themePreferenceChanged' (Layout.jsx listens) when the theme
+ * changed. Skips while offline and never touches keys with a pending save.
+ */
+async function refreshGlobalSettings(userId) {
+  try {
+    if (!offlineManager.getOnlineStatus()) return;
+    const deviceIdentifier = getDeviceIdentifier();
+
+    const userSettingsRecords = await UserSettings.filter({ user_id: userId }, '-updated', 1);
+    if (!userSettingsRecords || userSettingsRecords.length === 0) return;
+    const rawGlobalSettings = userSettingsRecords[0].global_settings || {};
+
+    const updates = {};
+    GLOBAL_SETTINGS.forEach(key => {
+      const serverValue = rawGlobalSettings[key];
+      if (serverValue === undefined) return;
+      // Don't race a save that is still inside its debounce window for this key
+      if (userSettingsSaveTimeouts.has(`${userId}:${deviceIdentifier}:${key}`)) return;
+      if (cachedSettings && cachedSettings[key] !== serverValue) updates[key] = serverValue;
+    });
+    if (Object.keys(updates).length === 0) return;
+
+    cachedSettings = { ...(cachedSettings || DEFAULT_SETTINGS), ...updates };
+    cachedGlobalSettings = { ...(cachedGlobalSettings || {}), ...updates };
+    lastFetchTime = Date.now();
+    await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
+
+    if (updates.theme_preference !== undefined) {
+      window.dispatchEvent(new CustomEvent('themePreferenceChanged', {
+        detail: { theme: updates.theme_preference }
+      }));
+    }
+    console.log(`🔄 [UserSettings] Global settings refreshed from server:`, updates);
+  } catch (_) { /* non-critical background refresh */ }
+}
+
 export async function loadUserSettings(userId) {
   if (!userId) {
     console.warn('⚠️ [UserSettings] No userId provided, returning defaults');
@@ -237,6 +285,10 @@ export async function loadUserSettings(userId) {
     if (cachedSettings.theme_preference === 'auto') {
       initializeAutoDarkMode();
     }
+
+    // Global settings (e.g. theme chosen on another device) must not be frozen
+    // at this device's last cached values — refresh them in the background.
+    refreshGlobalSettings(userId).catch(() => {});
 
     return cachedSettings;
   }
@@ -281,6 +333,13 @@ export async function loadUserSettings(userId) {
       GLOBAL_SETTINGS.forEach(key => {
         if (rawGlobalSettings[key] !== undefined) globalSettings[key] = rawGlobalSettings[key];
       });
+      // theme_preference is GLOBAL now — once a global choice exists it must
+      // win over this device's stale profile value left from the
+      // device-specific era. Before any global choice exists, the device's
+      // own value (or the per-device default) still applies.
+      if (globalSettings.theme_preference !== undefined) {
+        delete deviceProfile.theme_preference;
+      }
       
       cachedSettings = {
          ...DEFAULT_SETTINGS,

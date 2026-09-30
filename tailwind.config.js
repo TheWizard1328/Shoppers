@@ -1,13 +1,18 @@
 /** @type {import('tailwindcss').Config} */
+const plugin = require('tailwindcss/plugin');
+
 module.exports = {
-    // FIX (Sep 29 2026): the app has TWO dark systems that must stay in sync —
-// Tailwind dark: utilities (class 'dark' on <html>) and the app's CSS-variable
-// theme (class 'dark-theme' on <html>, from layoutStyles.jsx). JS is supposed
-// to add both together (useAutoThemeSync), but owner devices were observed in
-// a mismatched state (vars dark, utilities light → white page bg behind dark
-// cards). Custom variant makes EITHER class trigger dark: utilities, so the
-// two systems can never disagree again.
-darkMode: ["variant", "&:where(.dark, .dark *, .dark-theme, .dark-theme *)"],
+    // FIX (Sep 29 2026, v2): the app has TWO dark systems — Tailwind dark: utilities
+// and the CSS-variable theme (layoutStyles.jsx). v1 keyed utilities on
+// .dark/.dark-theme, but owner devices STILL rendered dark cards on a white
+// page after v1 deployed, meaning their <html> can also end up with ONLY
+// 'auto-theme' while the system is dark (vars go dark via the CSS media query,
+// utilities stayed light). v2 uses a plugin variant with TWO selectors so the
+// utilities follow every path the vars can possibly take:
+//   1. .dark or .dark-theme present (explicit choice) → utilities dark
+//   2. auto-theme + @media (prefers-color-scheme: dark) → utilities dark
+//      (pure CSS, does NOT depend on JS matchMedia agreeing)
+// Whichever mechanism flips the vars now flips the utilities identically.
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
@@ -92,5 +97,13 @@ darkMode: ["variant", "&:where(.dark, .dark *, .dark-theme, .dark-theme *)"],
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    plugin(({ addVariant }) => {
+      addVariant("dark", [
+        "&:where(.dark, .dark *, .dark-theme, .dark-theme *)",
+        '@media (prefers-color-scheme: dark) { &:where(.auto-theme, .auto-theme *) }',
+      ]);
+    }),
+  ],
 }
