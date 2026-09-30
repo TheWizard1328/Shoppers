@@ -856,6 +856,7 @@ async function handleGetCodData(base44, payload={}) {
   // lingering catalog items too. Uncollected out-of-window items are NEVER
   // touched (stamp required).
   let outOfWindowStampedIds = new Set();
+  const outOfWindowDeliveryRows = new Map(); // id → row (stamped OR not) — reused by the order-search pass below
   try {
     const inWindowIds = new Set((activeDeliveriesWithAmounts || []).map((d) => d?.id).filter(Boolean));
     const alreadySelected = new Set(toDelete.map((i) => i?.id).filter(Boolean));
@@ -874,7 +875,11 @@ async function handleGetCodData(base44, payload={}) {
         const chunk = idsToFetch.slice(i, i + 10);
         const rows = await Promise.all(chunk.map((id) =>
           base44.asServiceRole.entities.Delivery.get(id).then(unwrapEntityRecord).catch(() => null)));
-        for (const d of rows) if (d?.id && d?.cod_confirmed_collected === true) stampedRows.push(d);
+        for (const d of rows) {
+          if (!d?.id) continue;
+          outOfWindowDeliveryRows.set(d.id, d);
+          if (d?.cod_confirmed_collected === true) stampedRows.push(d);
+        }
         if (i + 10 < idsToFetch.length) await new Promise((r) => setTimeout(r, 100));
       }
       if (stampedRows.length > 0) {
@@ -906,6 +911,100 @@ async function handleGetCodData(base44, payload={}) {
       }
     }
   } catch (e) { console.warn('[squareGetCodData2] out-of-window stamped cleanup failed:', e?.message || e); }
+
+  // ── OUT-OF-WINDOW SQUARE-ORDER SEARCH (owner direction, Sep 30 2026) ──
+  // Any lingering catalog item still unselected whose linked delivery is NOT
+  // stamped collected gets one more AUTHORITATIVE check: search the Square
+  // ORDERS API itself for a matching completed line item (exact item name +
+  // amount, ring date within ±10 days of the delivery — same proximity rule
+  // as the app UI). A match means the store already rang the COD through, so
+  // the catalog item is deleted and the delivery is stamped
+  // cod_confirmed_collected so future syncs skip the search entirely.
+  // Bounded per sync: 100 candidates, and the orders fetch window is clamped
+  // to a 60-day span (oldest candidates first — a big backlog drains over a
+  // few syncs instead of one unbounded API pull).
+  try {
+    const selectedNow = new Set(toDelete.map((i) => i?.id).filter(Boolean));
+    const PROXIMITY_MS = 10 * 86400000;
+    const clampDate = (str) => new Date(`${String(str).slice(0, 10)}T00:00:00`).getTime();
+    // Resolve each lingering out-of-window catalog item's delivery date:
+    // desc-linked delivery row first, then the MM/DD date encoded in the item
+    // name itself ("04/06(BD)-Name" → that year's April 6, resolved to the
+    // recent past).
+    const nameDateMs = (name) => {
+      const m = String(name || '').match(/^(\d{2})\/(\d{2})\(/);
+      if (!m) return null;
+      const now = new Date();
+      for (const yr of [now.getFullYear(), now.getFullYear() - 1]) {
+        const t = Date.UTC(yr, Number(m[1]) - 1, Number(m[2]));
+        if (Number.isFinite(t) && t <= Date.now() + 30 * 86400000) return t;
+      }
+      return null;
+    };
+    const searchCandidates = [];
+    for (const item of (liveCatalogItems || [])) {
+      if (!item?.id || selectedNow.has(item.id)) continue;
+      const descDeliveryId = extractDeliveryIdFromCatalog(item);
+      const row = descDeliveryId ? outOfWindowDeliveryRows.get(descDeliveryId) || null : null;
+      if (descDeliveryId && row?.cod_confirmed_collected) continue; // handled by the pass above
+      const dateMs = row?.delivery_date ? clampDate(row.delivery_date) : nameDateMs(item?.item_data?.name);
+      if (!dateMs) continue;
+      searchCandidates.push({ item, deliveryId: descDeliveryId || null, dateMs });
+    }
+    if (searchCandidates.length > 0) {
+      searchCandidates.sort((a, b) => a.dateMs - b.dateMs);
+      const capped = searchCandidates.slice(0, 100);
+      const oldest = capped[0].dateMs - PROXIMITY_MS;
+      let newest = capped[capped.length - 1].dateMs + PROXIMITY_MS + 4 * 86400000;
+      let work = capped;
+      // Clamp the orders-fetch span to 60 days — anything outside it retries
+      // on a later sync (the backlog drains oldest-first).
+      if (newest - oldest > 60 * 86400000) {
+        newest = oldest + 60 * 86400000;
+        work = capped.filter((c) => c.dateMs - PROXIMITY_MS <= newest);
+      }
+      const searchStartAt = new Date(oldest).toISOString();
+      const searchEndAt = new Date(newest).toISOString();
+      console.log('[squareGetCodData2] out-of-window order search:', { candidates: work.length, searchStartAt, searchEndAt });
+      const searchOrders = await listOrders(locationIds, searchStartAt, accessToken, 6000, ['COMPLETED'], 'DESC', searchEndAt);
+      const refundedIds = buildRefundedOrderIdSet(searchOrders);
+      // sig → array of ring timestamps (for the ±10-day proximity check)
+      const sigRings = new Map();
+      for (const it of flattenOrderItems((searchOrders || []).filter((o) => !refundedIds.has(o?.id)))) {
+        const payT = new Date(it?.payment_date || it?.order_created_at || 0).getTime();
+        if (!Number.isFinite(payT) || payT <= 0) continue;
+        const key = `${normalizeText(it.item_name)}::${toAmountCents(it.amount_cents)}`;
+        if (!sigRings.has(key)) sigRings.set(key, []);
+        sigRings.get(key).push(payT);
+      }
+      const matchedItems = [];
+      const matchedDeliveryStamps = new Set();
+      for (const c of work) {
+        const sig = `${normalizeText(c.item?.item_data?.name)}::${getCatalogItemAmountCents(c.item)}`;
+        const rings = sigRings.get(sig) || [];
+        const hit = rings.some((payT) => Math.abs(payT - c.dateMs) <= PROXIMITY_MS);
+        if (!hit) continue;
+        matchedItems.push(c.item);
+        if (c.deliveryId) matchedDeliveryStamps.add(c.deliveryId);
+      }
+      if (matchedItems.length > 0) {
+        for (const it of matchedItems) toDelete.push(it);
+        console.log('[squareGetCodData2] out-of-window order-search cleanup:', matchedItems.length, 'item(s):', matchedItems.map((i) => i?.item_data?.name).join(' | '));
+        // Stamp the matched deliveries (durable collected authority) so the
+        // next sync deletes any future-recreated item instantly via the
+        // stamp pass — no second orders search needed.
+        const stampIso = new Date().toISOString();
+        let stampedCount = 0;
+        for (const did of matchedDeliveryStamps) {
+          if (await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: stampIso }).catch(() => null)) stampedCount++;
+          outOfWindowStampedIds.add(did); // 5a purges their DB mirror rows this run
+        }
+        console.log('[squareGetCodData2] order-search stamped', stampedCount, 'delivery(ies) cod_confirmed_collected');
+      } else {
+        console.log('[squareGetCodData2] out-of-window order search: no matches among', work.length, 'candidate(s)');
+      }
+    }
+  } catch (e) { console.warn('[squareGetCodData2] out-of-window order search failed:', e?.message || e); }
 
   let deletedCatalogIds = [];
   let cleanupDbCount = 0;
