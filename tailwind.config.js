@@ -1,18 +1,31 @@
 /** @type {import('tailwindcss').Config} */
-const plugin = require('tailwindcss/plugin');
 
 module.exports = {
-    // FIX (Sep 29 2026, v2): the app has TWO dark systems — Tailwind dark: utilities
-// and the CSS-variable theme (layoutStyles.jsx). v1 keyed utilities on
-// .dark/.dark-theme, but owner devices STILL rendered dark cards on a white
-// page after v1 deployed, meaning their <html> can also end up with ONLY
-// 'auto-theme' while the system is dark (vars go dark via the CSS media query,
-// utilities stayed light). v2 uses a plugin variant with TWO selectors so the
-// utilities follow every path the vars can possibly take:
-//   1. .dark or .dark-theme present (explicit choice) → utilities dark
-//   2. auto-theme + @media (prefers-color-scheme: dark) → utilities dark
-//      (pure CSS, does NOT depend on JS matchMedia agreeing)
-// Whichever mechanism flips the vars now flips the utilities identically.
+    // FIX (Sep 29 2026, v3): v1/v2 both tried to make Tailwind's `dark:` utilities
+// follow the app's theme via a custom `addVariant("dark", ...)` plugin call.
+// ROOT CAUSE FOUND: Tailwind CORE always registers its own built-in `dark`
+// variant from the top-level `darkMode` option (default 'media', i.e. the
+// DEVICE'S OS-level light/dark switch) — a plugin re-registering the SAME
+// variant name via addVariant is silently overridden by core, confirmed by
+// compiling this exact plugin in isolation and inspecting the output: every
+// `dark:` utility still compiled wrapped in `@media (prefers-color-scheme:
+// dark)`, with NO trace of the plugin's .dark/.dark-theme selector at all.
+// This is why the owner saw a split page: components using the app's OWN CSS
+// variables (layoutStyles.jsx, --bg-white etc — driven by html.dark/.dark-theme
+// classes, unrelated to Tailwind core) rendered dark correctly, while any
+// component using a literal Tailwind `dark:bg-slate-800` / `dark:text-...`
+// utility (the App Users header/search Card, etc.) rendered by the PHONE'S
+// system theme instead of the in-app Dark choice — e.g. an owner device set
+// to iOS/Android system Light while the app's own setting is Dark shows a
+// half-dark, half-white page. useAutoThemeSync always adds the 'dark' class
+// to <html> in BOTH cases that should render dark (explicit dark theme, or
+// auto + system-dark) and removes it otherwise — so 'dark' is already the
+// single unified signal. Using the top-level `darkMode: 'class'` config (the
+// correct/supported way to point Tailwind's dark variant at a class instead
+// of the OS) makes core generate `.dark\:bg-slate-800:is(.dark *)` — every
+// dark: utility now follows the SAME <html class="dark"> our own vars use,
+// with zero dependency on the device's OS appearance setting.
+    darkMode: 'class',
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
@@ -99,11 +112,5 @@ module.exports = {
   },
   plugins: [
     require("tailwindcss-animate"),
-    plugin(({ addVariant }) => {
-      addVariant("dark", [
-        "&:where(.dark, .dark *, .dark-theme, .dark-theme *)",
-        '@media (prefers-color-scheme: dark) { &:where(.auto-theme, .auto-theme *) }',
-      ]);
-    }),
   ],
 }
