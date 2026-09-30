@@ -1,5 +1,4 @@
 import { getStoreAssignedTimeSlotForDriver } from '../utils/ampmUtils';
-import { base44 } from '@/api/base44Client';
 import { resolvePickupPuid } from './deliveryAddHelpers';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
@@ -33,9 +32,16 @@ export async function buildInTransitDirectSaveData({
 
       // Only resolve puid if it's not already set — puid is immutable after creation
       if (!dataToSave.puid) {
-        // Manual In Transit: always attach to an existing pickup for this store/date/driver
-        // (first En Route, else most recent Completed regardless of how long ago) rather than
-        // creating a brand-new pickup — the driver already has the item in hand right now.
+        // Manual In Transit: attach to an existing pickup for this store/date/driver
+        // (staged, first En Route, else most recent Completed, else any reusable) — but
+        // NEVER create a brand-new pickup (owner rule, permanent, Sep 30 2026): a delivery
+        // manually set to in_transit before Add/Done is almost always already pre-attached
+        // to an earlier pickup that may or may not be complete yet. The old
+        // ensureMissingPickup fallback called ensurePickupForDelivery with
+        // allowCreateIfMissing: true, which minted a fresh pickup container whenever no
+        // candidate was found — creating phantom pickups on already-running routes.
+        // With no ensureMissingPickup passed, resolvePickupPuid resolves from existing
+        // pickups only (lookup fallback, zero creation).
         dataToSave.puid = await resolvePickupPuid({
           stagedDeliveries,
           allDeliveries,
@@ -43,15 +49,7 @@ export async function buildInTransitDirectSaveData({
           deliveryDate: dataToSave.delivery_date,
           driverId: dataToSave.driver_id,
           timeSlot,
-          forceAttachToExisting: true,
-          ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
-            storeId: patientStoreId,
-            deliveryDate: dataToSave.delivery_date,
-            driverId: dataToSave.driver_id,
-            ampmDeliveries: timeSlot,
-            allowCreateIfMissing: true,
-            forceAttachIfInTransit: true
-          })
+          forceAttachToExisting: true
         });
       }
     }

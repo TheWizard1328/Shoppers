@@ -229,6 +229,18 @@ export async function handleBatchSave({
       patientDeliveriesNeedingPickupEnsure.forEach((delivery) => {
         if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
 
+        // OWNER RULE (permanent, Sep 30 2026): if a staged/pending delivery's status was
+        // MANUALLY set to in_transit by the user before Add/Done was clicked, skip pickup
+        // creation for it. These deliveries are almost always already pre-attached to an
+        // earlier pickup (which may or may not be complete yet). The stagedDeliveriesWithResolvedIds
+        // pass below already preserves in_transit deliveries' own puid, so
+        // excluding them here only prevents a brand-new pickup container being created
+        // on their behalf. Pending/Staged deliveries sharing the same store/driver/slot
+        // key still trigger the ensure normally (the key is grouped from them).
+        if (delivery?.status === 'in_transit') {
+          return;
+        }
+
         const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
         if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { delivery });
 
