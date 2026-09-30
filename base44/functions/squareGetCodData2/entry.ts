@@ -843,6 +843,70 @@ async function handleGetCodData(base44, payload={}) {
     return false;
   });
 
+  // ── OUT-OF-WINDOW STAMPED-DELIVERY CLEANUP (owner report, Sep 30 2026) ──
+  // A lingering catalog item whose Delivery sits OUTSIDE this run's daysBack
+  // delivery window (e.g. an April COD synced through the frontend's 90-day
+  // window) was invisible to EVERY toDelete path above: allStampedIds /
+  // stampedItemNames only see in-window deliveries, its Square order is older
+  // than the Square order fetch, and its SquareTransaction rows were purged by
+  // the retention floor — so the item survived every sync even though the app
+  // showed the delivery as Collected (e.g. 04/06(BD)-Therese/Emile Brochu).
+  // The Delivery's cod_confirmed_collected stamp is the durable collected
+  // authority — fetch those out-of-window deliveries BY ID and delete their
+  // lingering catalog items too. Uncollected out-of-window items are NEVER
+  // touched (stamp required).
+  let outOfWindowStampedIds = new Set();
+  try {
+    const inWindowIds = new Set((activeDeliveriesWithAmounts || []).map((d) => d?.id).filter(Boolean));
+    const alreadySelected = new Set(toDelete.map((i) => i?.id).filter(Boolean));
+    const candidates = new Set();
+    for (const item of (liveCatalogItems || [])) {
+      if (!item?.id || alreadySelected.has(item.id)) continue;
+      const descDeliveryId = extractDeliveryIdFromCatalog(item);
+      if (!descDeliveryId || inWindowIds.has(descDeliveryId)) continue; // in-window handled above
+      candidates.add(descDeliveryId);
+    }
+    const idsToFetch = Array.from(candidates).slice(0, 100); // cap per sync — rate safety
+    if (idsToFetch.length > 0) {
+      console.log('[squareGetCodData2] out-of-window delivery lookup:', idsToFetch.length, 'desc-linked item delivery id(s)');
+      const stampedRows = [];
+      for (let i = 0; i < idsToFetch.length; i += 10) {
+        const chunk = idsToFetch.slice(i, i + 10);
+        const rows = await Promise.all(chunk.map((id) =>
+          base44.asServiceRole.entities.Delivery.get(id).then(unwrapEntityRecord).catch(() => null)));
+        for (const d of rows) if (d?.id && d?.cod_confirmed_collected === true) stampedRows.push(d);
+        if (i + 10 < idsToFetch.length) await new Promise((r) => setTimeout(r, 100));
+      }
+      if (stampedRows.length > 0) {
+        outOfWindowStampedIds = new Set(stampedRows.map((d) => d.id));
+        // Name-based fallback (same double-format set as stampedItemNames): the
+        // desc delivery-id link is authoritative, but older items sometimes
+        // carry a stale/absent description — the formatted name still matches.
+        const stampedRowNames = new Set();
+        for (const d of stampedRows) {
+          const store = (safeStores || []).find((s) => s?.id === d.store_id) || null;
+          const pat = patientsById.get(d.patient_id);
+          const pn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${String(d.id).slice(-6)}`;
+          stampedRowNames.add(formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), pn));
+          stampedRowNames.add(formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), `Delivery ${String(d.id).slice(-6)}`));
+        }
+        const extraItems = (liveCatalogItems || []).filter((item) => {
+          if (!item?.id || alreadySelected.has(item.id)) return false;
+          const descDeliveryId = extractDeliveryIdFromCatalog(item);
+          if (descDeliveryId && outOfWindowStampedIds.has(descDeliveryId)) return true;
+          const nm = normalizeText(item?.item_data?.name || '');
+          return !!(nm && stampedRowNames.has(nm));
+        });
+        if (extraItems.length > 0) {
+          for (const it of extraItems) toDelete.push(it);
+          console.log('[squareGetCodData2] out-of-window stamped cleanup:', extraItems.length, 'item(s):', extraItems.map((i) => i?.item_data?.name).join(' | '));
+        } else {
+          console.log('[squareGetCodData2] out-of-window lookup found', outOfWindowStampedIds.size, 'stamped delivery(ies) but no lingering catalog items matched');
+        }
+      }
+    }
+  } catch (e) { console.warn('[squareGetCodData2] out-of-window stamped cleanup failed:', e?.message || e); }
+
   let deletedCatalogIds = [];
   let cleanupDbCount = 0;
   let attemptedDeleteObjectIds = new Set();
@@ -933,6 +997,9 @@ async function handleGetCodData(base44, payload={}) {
   for (const d of (activeDeliveriesWithAmounts || [])) {
     if (d?.cod_confirmed_collected) allCollectedIds.add(d.id);
   }
+  // Out-of-window stamped deliveries found by the catalog cleanup pass above —
+  // their SquareCatalogItems DB mirror rows purge exactly like in-window ones.
+  for (const id of outOfWindowStampedIds) allCollectedIds.add(id);
   const collectedOldIds = new Set(Array.from(allCollectedIds).filter((did) => isOlderThanFloor(deliveryDateById.get(did))));
   console.log('[squareGetCodData2] tx retention floor:', { floor: txRetentionFloor, uncollectedCandidates: uncollectedFloorCandidates.length, collectedTotal: allCollectedIds.size, collectedOld: collectedOldIds.size });
 
