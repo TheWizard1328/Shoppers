@@ -12,7 +12,7 @@ const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z
 const buildHereSatelliteTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
 const buildHereHybridBaseTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
 const buildHereHybridOverlayTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=hybrid.day&size=512&apiKey=${apiKey}`;
-import { isMobileDevice } from "../utils/deviceUtils";
+import { isMobileDevice, getUserAgentInfo } from "../utils/deviceUtils";
 import { getHereApiKey } from "../utils/hereApiKeyStore";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole, isAppOwner } from "../utils/userRoles";
@@ -802,8 +802,27 @@ function DeliveryMap({
     return prevDriverLocationMarkersRef.current;
   }, [safeUsers, currentUser, deliveriesForLocationFilter, selectedDate, isMobile, driverNameLookupMap, overlayDriverId, selectedDriverId, showOtherDriverDeliveries]);
 
+  // FOLDABLE FIX (Sep 30 2026): getUserAgentInfo() classifies Android by
+  // innerWidth (>768px => 'Tablet'), so a Z Fold opened to its inner screen
+  // is 'Tablet', not 'Mobile'. isMobileDevice() === (deviceType === 'Mobile')
+  // is memoized ONCE per module load, and this component memoizes it again
+  // with [] deps — so the app booted while unfolded kept isMobile=false for
+  // the whole session and the driver's OWN blue dot (this marker) vanished,
+  // even after folding closed, until the app was restarted on the outer
+  // screen. The dot's visibility must follow the PHYSICAL device (any
+  // handheld: phone OR tablet), never the viewport-width classification —
+  // only real desktop browsers should be excluded.
+  const isHandheldDevice = useMemo(() => {
+    try {
+      const { deviceType } = getUserAgentInfo();
+      return deviceType === 'Mobile' || deviceType === 'Tablet';
+    } catch (_) {
+      return isMobileDevice();
+    }
+  }, []);
+
   const currentDriverMarker = useMemo(() => {
-    if (!isMobile || !currentUser) return null;
+    if (!isHandheldDevice || !currentUser) return null;
     const today = getEdmDate();
     if (selectedDate && selectedDate < today) return null;
 
@@ -826,7 +845,7 @@ function DeliveryMap({
     }
 
     return { ...locationData, driver: currentUser, driverId: currentUser.id, driver_id: currentUser.id };
-  }, [currentDriverLocation, safeUsers, currentUser, isMobile, selectedDate]);
+  }, [currentDriverLocation, safeUsers, currentUser, isHandheldDevice, selectedDate]);
 
   // ── Road geometry for the self-marker polyline-follow interpolation ──────────
   // The next stop's leg polyline (origin → stop, including the live-GPS via
