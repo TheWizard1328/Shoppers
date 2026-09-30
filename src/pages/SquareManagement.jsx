@@ -1884,7 +1884,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
-          if (!isRealSquareTx(tx)) return false; // bookkeeping pending rows are NOT Square transactions
+          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
           // Retained tx history is 6 months deep: an old same-patient/same-amount
           // tx is NOT this delivery's collection. A POS ring happens within days
@@ -2123,7 +2123,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (!matchingTx) {
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx) return false;
-          if (!isRealSquareTx(tx)) return false; // bookkeeping pending rows are NOT Square transactions
+          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
           if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
           const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
@@ -2248,7 +2248,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
-          if (!isRealSquareTx(tx)) return false; // bookkeeping pending rows are NOT Square transactions
+          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
           // Retained tx history is 6 months deep: an old same-patient/same-amount
           // tx is NOT this delivery's collection. A POS ring happens within days
