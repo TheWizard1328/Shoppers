@@ -1358,6 +1358,24 @@ async function handleGetCodData(base44, payload={}) {
   mark('complete');
   console.log('[squareGetCodData2] COMPLETE, elapsed:', Date.now() - t0, 'ms');
 
+  // Diagnostic mode (speed spec, Sep 30 2026): timingsOnly runs the ENTIRE sync
+  // pipeline (Square fetches, matching, cleanup, DB writes) but returns just
+  // the stage timings + row counts — so one direct call shows exactly where the
+  // sync minute goes without transferring the multi-hundred-KB data payload.
+  if (payload?.timingsOnly === true) {
+    return {
+      success: true,
+      timings,
+      counts: {
+        deliveries: (strippedDeliveries || []).length,
+        catalogRecords: (filteredCatalogRecords || []).length,
+        transactionRecords: (mergedTxRecords || []).length,
+        deletedCatalogIds: (deletedCatalogIds || []).length,
+        retainedTxDbRows: (existingTransactions || []).length,
+      },
+    };
+  }
+
   return {
     success: true,
     timings,
