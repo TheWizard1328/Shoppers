@@ -705,30 +705,38 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     lastSyncAtRef.current = now;
     setIsSyncing(true);
     setError(null);
+    const syncStartMs = Date.now(); // total sync duration for the completion toast (speed spec, Sep 30 2026)
     console.log(`[SquareManagement] SYNC STARTED at ${new Date().toLocaleTimeString()}`);
 
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // ── STEP 1: Load from the offline catalog & transaction DB, update the UI
-      const [step1Catalog, step1Txs] = await Promise.all([
+      // ── STEP 1: Load from the offline catalog & transaction DB, update the UI.
+      // Speed spec (Sep 30 2026): these IDB reads (catalog + tx decrypt) used to
+      // run to completion BEFORE the server call started, serializing device
+      // storage time in front of the whole sync. They only update the "while
+      // you wait" lists, so they now run in PARALLEL with STEP 2 — the total
+      // is now max(step1, server) instead of step1 + server.
+      const step1Promise = Promise.all([
         squareCODOfflineManager.getCatalogItemsOffline(),
         squareCODOfflineManager.getPaymentTransactionsOffline(),
-      ]);
+      ]).then(([step1Catalog, step1Txs]) => {
+        setIsLoading(false);
+        // null = IDB read FAILED (timeout/stall), NOT an empty store (owner report,
+        // Sep 30 2026: the tablet's reads right after a big sync timed out and
+        // zeroed every list). Keep the current on-screen state instead.
+        if (step1Catalog !== null) setCatalogItems([...(step1Catalog || [])]);
+        if (step1Txs !== null) {
+          setAllTransactions([...(step1Txs || [])]);
+          setSoldCatalogItems([...(step1Txs || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+        }
+        if (step1Catalog === null || step1Txs === null) {
+          console.warn('[SquareManagement] SYNC STEP 1: offline read FAILED (kept current lists) — catalog:', step1Catalog === null ? 'FAILED' : 'ok', 'txs:', step1Txs === null ? 'FAILED' : 'ok');
+        } else {
+          console.log(`[SquareManagement] SYNC STEP 1: offline load — ${(step1Catalog || []).length} catalog, ${(step1Txs || []).length} txs → UI`);
+        }
+      }).catch(() => setIsLoading(false));
       setIsLoading(false);
-      // null = IDB read FAILED (timeout/stall), NOT an empty store (owner report,
-      // Sep 30 2026: the tablet's reads right after a big sync timed out and
-      // zeroed every list). Keep the current on-screen state instead.
-      if (step1Catalog !== null) setCatalogItems([...(step1Catalog || [])]);
-      if (step1Txs !== null) {
-        setAllTransactions([...(step1Txs || [])]);
-        setSoldCatalogItems([...(step1Txs || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
-      }
-      if (step1Catalog === null || step1Txs === null) {
-        console.warn('[SquareManagement] SYNC STEP 1: offline read FAILED (kept current lists) — catalog:', step1Catalog === null ? 'FAILED' : 'ok', 'txs:', step1Txs === null ? 'FAILED' : 'ok');
-      } else {
-        console.log(`[SquareManagement] SYNC STEP 1: offline load — ${(step1Catalog || []).length} catalog, ${(step1Txs || []).length} txs → UI`);
-      }
 
       // ── STEP 2: Single API call — catalog + transactions + cleanup in one pass ──
       // squareGetCodData2 now fetches catalog + orders once, builds transaction records,
@@ -757,7 +765,10 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         });
         codData = codResponse?.data || codResponse || {};
         localStorage.setItem(LS_ORDER_SINCE, String(Date.now()));
-        console.log(`[SquareManagement] SYNC STEP 2: Square API fetch done — ${(codData.transactions || codData.transactionRecords || []).length} txs, ${(codData.catalog || codData.catalogRecords || []).length} catalog, ${(codData.deletedCatalogIds || []).length} deleted`);
+        console.log(`[SquareManagement] SYNC STEP 2: Square API fetch done — ${(codData.transactions || codData.transactionRecords || []).length} txs, ${(codData.catalog || codData.catalogRecords || []).length} catalog, ${(codData.deletedCatalogIds || []).length} deleted`, 'server timings:', codData?.timings);
+        // Let the parallel STEP 1 UI load settle (it never blocks the server call;
+        // by now it has almost always finished long ago).
+        await step1Promise;
       } catch (err) {
         syncError = err;
         console.error('[SquareManagement] SYNC STEP 2: Square API fetch FAILED:', err?.message, err?.status || '');
@@ -918,6 +929,10 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];
         if (deletedCount > 0) parts.push(`removed ${deletedCount} collected item(s)`);
+        const serverMs = Number(codData?.timings?.[codData.timings.length - 1]?.ms || 0);
+        const totalSec = Math.round((Date.now() - syncStartMs) / 1000);
+        parts.push(`${totalSec}s total (server ${Math.round((serverMs || totalSec * 1000) / 1000)}s + device ${Math.max(0, totalSec - Math.round((serverMs || 0) / 1000))}s)`);
+        console.log('[SquareManagement] SYNC STAGE TIMINGS (server):', codData?.timings);
         toast.success(`Sync complete — ${parts.join(', ')}`);
         console.log(`[SquareManagement] SYNC COMPLETE at ${new Date().toLocaleTimeString()} — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted`);
       } else if (syncError) {

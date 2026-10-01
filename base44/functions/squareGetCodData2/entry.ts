@@ -209,6 +209,10 @@ function extractDeliveryIdFromCatalog(item) {
 async function handleGetCodData(base44, payload={}) {
   const t0 = Date.now();
   console.log('[squareGetCodData2] START');
+  // Stage timing (speed spec, Sep 30 2026): returned in the response as `timings`
+  // so one call shows exactly where the ~60s sync minute goes.
+  const timings = [];
+  const mark = (label) => timings.push({ label, ms: Date.now() - t0 });
   await requireUserOrScheduled(base44);
   const accessToken = ensureSquareToken();
   const daysBack = Math.max(1, Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
@@ -263,6 +267,7 @@ async function handleGetCodData(base44, payload={}) {
     existingTxIndex.set(key, t);
   }
 
+  mark('context_loaded');
   console.log('[squareGetCodData2] Context loaded:', {
     stores: safeStores.length, configs: safeAllConfigs.length, locationIds: locationIds.length,
     existingTx: existingTransactions.length, patients: patientsById.size, drivers: drivers.length,
@@ -328,6 +333,7 @@ async function handleGetCodData(base44, payload={}) {
     const t = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
     return Number.isFinite(t) && t >= new Date(orderWindowStartAt).getTime();
   });
+  mark('square_api_fetch');
   console.log('[squareGetCodData2] Paid order items:', paidOrderItems.length, 'elapsed:', Date.now() - t0);
 
   // Delivery matching context
@@ -369,6 +375,7 @@ async function handleGetCodData(base44, payload={}) {
   // and the returned strippedDeliveries payload.
   const activeDeliveriesWithAmounts = deliveriesWithAmounts.filter((d) => d?.status !== 'failed');
 
+  mark('deliveries_loaded');
   console.log('[squareGetCodData2] Deliveries loaded:', deliveriesWithAmounts.length, 'elapsed:', Date.now() - t0);
 
   // Pre-build delivery index by store_id for faster matching (active deliveries only)
@@ -736,7 +743,8 @@ async function handleGetCodData(base44, payload={}) {
     if (wideCandidates.length > 0) {
       const oldest = wideCandidates.map((d) => String(d.delivery_date)).sort()[0];
       const wideStartAt = new Date(new Date(`${oldest}T00:00:00`).getTime() - 3 * 86400000).toISOString();
-      console.log('[squareGetCodData2] wide collected scan:', { candidates: wideCandidates.length, wideStartAt });
+      mark('before_wide_scan');
+  console.log('[squareGetCodData2] wide collected scan:', { candidates: wideCandidates.length, wideStartAt });
       const wideOrders = await listOrders(locationIds, wideStartAt, accessToken, 6000, ['COMPLETED']);
       const wideItems = flattenOrderItems(wideOrders);
       const wideSig = new Set(wideItems.map((it) => `${normalizeText(it.item_name)}::${toAmountCents(it.amount_cents)}`));
@@ -965,7 +973,8 @@ async function handleGetCodData(base44, payload={}) {
       }
       const searchStartAt = new Date(oldest).toISOString();
       const searchEndAt = new Date(newest).toISOString();
-      console.log('[squareGetCodData2] out-of-window order search:', { candidates: work.length, searchStartAt, searchEndAt });
+      mark('before_out_of_window_search');
+  console.log('[squareGetCodData2] out-of-window order search:', { candidates: work.length, searchStartAt, searchEndAt });
       const searchOrders = await listOrders(locationIds, searchStartAt, accessToken, 6000, ['COMPLETED'], 'DESC', searchEndAt);
       const refundedIds = buildRefundedOrderIdSet(searchOrders);
       // sig → array of ring timestamps (for the ±10-day proximity check)
@@ -1164,6 +1173,7 @@ async function handleGetCodData(base44, payload={}) {
       catalogRecords;
   }
 
+  mark('catalog_cleanup_done');
   console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
 
   // ── 5c) Auto-create missing catalog items (drain the Reconcile backlog) ──
@@ -1256,6 +1266,7 @@ async function handleGetCodData(base44, payload={}) {
     const writableTxToUpdate = txToUpdate.filter((op) => !(op?.data?.delivery_id && collectedOldIds.has(op.data.delivery_id)));
     if (writableTxToCreate.length > 0) {
       await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, writableTxToCreate);
+      mark('tx_db_written');
       console.log('[squareGetCodData2] DB: created', writableTxToCreate.length, 'transactions');
     }
     if (writableTxToUpdate.length > 0) {
@@ -1311,6 +1322,7 @@ async function handleGetCodData(base44, payload={}) {
     }
     if (catalogOps.length > 0) {
       await batchWriteEntities(base44.asServiceRole.entities.SquareCatalogItems, catalogOps);
+      mark('catalog_db_written');
       console.log('[squareGetCodData2] DB: wrote', catalogOps.length, 'catalog items');
     }
   } catch (e) { dbWriteErrors.push({type:'catalog', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB catalog write failed:', e?.message); }
@@ -1337,15 +1349,18 @@ async function handleGetCodData(base44, payload={}) {
     seenTxKeys.add(k);
     mergedTxRecords.push(t);
   }
+  mark('tx_mirror_built');
   console.log('[squareGetCodData2] merged tx response:', { built: transactionRecords.length, retainedDb: mergedTxRecords.length, floor: txRetentionFloor });
   // Failed deliveries are excluded from strippedDeliveries — they are exempt from
   // the Deliveries tab list, Reconcile flow, and Square Catalog update path.
   const strippedDeliveries = activeDeliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name, delivery_notes: d?.delivery_notes, cod_confirmed_collected: d?.cod_confirmed_collected || false }));
 
+  mark('complete');
   console.log('[squareGetCodData2] COMPLETE, elapsed:', Date.now() - t0, 'ms');
 
   return {
     success: true,
+    timings,
     deliveries: strippedDeliveries,
     shouldRefreshDeliveries: refreshDeliveries,
     deliverySyncWindow: { startDate: formatLocalDate(new Date(Date.now() - daysBack * 86400000)), endDate: formatLocalDate(new Date()), daysBack, refreshedAt: refreshDeliveries ? new Date().toISOString() : null },
