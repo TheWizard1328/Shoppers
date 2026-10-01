@@ -147,7 +147,7 @@ export default function AppSidebar({
   const sqIsAdmin = userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
   const sqIsDriver = !sqIsAdmin && userHasRole(currentUser, 'driver');
   const sqIsDispatcher = !sqIsAdmin && !sqIsDriver && userHasRole(currentUser, 'dispatcher');
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames } = useSquareBalancesSummary(!!currentUser);
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames, dailyRemainingByStore: sqDailyRemaining } = useSquareBalancesSummary(!!currentUser);
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let storeIds = null;
@@ -183,6 +183,16 @@ export default function AppSidebar({
       for (const sid of storeIds) avg += Number(sqWeeklyByStore?.get(String(sid)) || 0) / 7;
     }
     if (!found) return null;
+    // Dispatcher balloon: today's remaining CODs (count + total) across their stores
+    let remaining = null;
+    if (sqIsDispatcher && storeIds && storeIds.length) {
+      let c = 0, t = 0;
+      for (const sid of storeIds) {
+        const r = sqDailyRemaining?.get(String(sid));
+        if (r) { c += Number(r.count || 0); t += Number(r.total || 0); }
+      }
+      remaining = { count: c, total: t };
+    }
     // Hover-balloon lines: one per store (the user's stores), showing the balance of
     // that store's card, colored by the card's level.
     const balloonStoreIds = sqIsAdmin
@@ -202,8 +212,8 @@ export default function AppSidebar({
       })
       .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name));
-    return { total, avg, level: getBalanceLevel(total, avg), lines };
-  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
+    return { total, avg, level: getBalanceLevel(total, avg), lines, remaining };
+  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
   const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge.total).toLocaleString()}`;
   const sqBadgeStyle = sqBadge == null ? { background: 'var(--bg-slate-200)' } : BALANCE_LEVELS[sqBadge.level] ? { background: BALANCE_LEVELS[sqBadge.level].chipBg, color: BALANCE_LEVELS[sqBadge.level].chipText } : { background: 'var(--bg-slate-200)' };
 
@@ -532,6 +542,27 @@ export default function AppSidebar({
           route's cards); dispatchers get a read-only badge (single card at their store). */}
       {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
         const sqActive = currentPageName === 'SquareBalances';
+        const dispatcherExtra = sqIsDispatcher && sqBadge && (
+          <>
+            <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
+            <div className="space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.green.border }} /> more than $20 above avg</div>
+              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.yellow.border }} /> within $20 of avg</div>
+              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.red.border }} /> more than $20 below avg</div>
+            </div>
+            <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
+            <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
+              <span className="text-slate-600 dark:text-slate-300">7-day avg CODs/day</span>
+              <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`$${Math.round(sqBadge.avg).toLocaleString()}`}</span>
+            </div>
+            {sqBadge.remaining && sqBadge.remaining.count > 0 && (
+              <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
+                <span className="text-slate-600 dark:text-slate-300">CODs left today</span>
+                <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`${sqBadge.remaining.count} · $${Math.round(sqBadge.remaining.total).toLocaleString()}`}</span>
+              </div>
+            )}
+          </>
+        );
         const balloon = sqBadge?.lines?.length > 0 && (
           <div className="hidden group-hover:block absolute left-full top-0 ml-2 z-[70] pointer-events-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 min-w-[210px]">
             <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Store · card balance</div>
@@ -543,6 +574,7 @@ export default function AppSidebar({
                 </div>
               ))}
             </div>
+            {dispatcherExtra}
           </div>
         );
         const inner = (

@@ -147,6 +147,37 @@ export async function computeWeeklyCodTotalsByStore() {
   }
 }
 
+// Today's remaining CODs per STORE: count + total still to collect (pending/
+// in-transit/en-route dated today, minus non-cash payments, not confirmed collected).
+export async function computeDailyCodRemainingByStore() {
+  try {
+    const today = edmontonWallString(new Date()).slice(0, 10);
+    const centsOf = (n) => Math.round(Number(n || 0) * 100);
+    const byStore = new Map();
+    for (const status of ['pending', 'in_transit', 'en_route']) {
+      const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
+      for (const d of rows || []) {
+        if (String(d?.delivery_date || '') !== today) continue;
+        const required = Number(d?.cod_total_amount_required || 0);
+        if (required <= 0 || d?.cod_confirmed_collected) continue;
+        const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+        const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+        const out = Math.max(0, centsOf(required) - nonCash);
+        if (out <= 0) continue;
+        const key = String(d?.store_id || '');
+        const rec = byStore.get(key) || { count: 0, total: 0 };
+        rec.count += 1;
+        rec.total += out / 100;
+        byStore.set(key, rec);
+      }
+    }
+    return byStore;
+  } catch (e) {
+    console.error('[useSquareBalancesSummary] daily remaining failed:', e);
+    return new Map();
+  }
+}
+
 export const COD_WINDOW_DAYS = 7;
 
 /** Roll store totals up to per-location daily averages: Σ(store totals on card) / 7. */
@@ -209,6 +240,7 @@ export function useSquareBalancesSummary(enabled = true) {
   const [storeToLoc, setStoreToLoc] = useState(new Map());
   const [weeklyByStore, setWeeklyByStore] = useState(new Map());
   const [storeNames, setStoreNames] = useState(new Map());
+  const [dailyRemainingByStore, setDailyRemainingByStore] = useState(new Map());
   const reloadSeq = useRef(0);
 
   const reload = useCallback(async () => {
@@ -219,15 +251,17 @@ export function useSquareBalancesSummary(enabled = true) {
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
     ]);
-    const [codOutstanding, weekly] = await Promise.all([
+    const [codOutstanding, weekly, dailyRemaining] = await Promise.all([
       config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
       computeWeeklyCodTotalsByStore(),
+      computeDailyCodRemainingByStore(),
     ]);
     if (seq !== reloadSeq.current) return;
     setByLocId(config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map());
     setStoreToLoc(stl);
     setWeeklyByStore(weekly);
     setStoreNames(names);
+    setDailyRemainingByStore(dailyRemaining);
     setReady(true);
   }, []);
 
@@ -254,5 +288,5 @@ export function useSquareBalancesSummary(enabled = true) {
     };
   }, [enabled, reload]);
 
-  return { ready, byLocId, storeToLoc, weeklyByStore, storeNames };
+  return { ready, byLocId, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore };
 }
