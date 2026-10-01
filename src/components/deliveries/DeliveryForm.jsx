@@ -1132,6 +1132,16 @@ export default function DeliveryForm({
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) { import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); }); return true; }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) { try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); } }
       const { driverChanged, dateChanged, timeWindowChanged, travelModeChanged, statusChangedToInTransit, statusChangedToCompletion, actualDeliveryTimeChanged, codWasRemoved } = getDeliverySubmitFlags({ delivery, formData, dataToSave });
+      // Reopening a terminal stop (completed/failed/cancelled) MUST clear its completion
+      // stamps. The old actual_delivery_time/arrival_time belong to the abandoned
+      // attempt — while they remain, downstream logic (finished-stop sorting, stats,
+      // dashboard grouping) still treats the stop as complete and reverts the card.
+      const TERMINAL = ['completed', 'failed', 'cancelled'];
+      const reopenedFromTerminal = !!delivery?.id && TERMINAL.includes(delivery?.status) && !TERMINAL.includes(formData.status);
+      if (reopenedFromTerminal) {
+        dataToSave.actual_delivery_time = null;
+        dataToSave.arrival_time = null;
+      }
       const travelModeOnly = !!delivery && travelModeChanged && !driverChanged && !dateChanged && !timeWindowChanged && !statusChangedToInTransit && !statusChangedToCompletion && !actualDeliveryTimeChanged;
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
