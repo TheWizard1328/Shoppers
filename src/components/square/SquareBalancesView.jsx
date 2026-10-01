@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
+import { edmontonWallString } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS } from "./useSquareBalancesSummary";
 
 /**
@@ -36,12 +37,46 @@ function daysSince(iso) {
   return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
+// Owner-only COD list at the bottom of each card. Rows use the SAME format as
+// the Square catalog items list (name + subtext, bold amount, Collected/Pending
+// pill). Three levels, top to bottom: collected today, uncollected today, past
+// uncollected.
+function CardCodList({ sections }) {
+  if (!sections || !sections.some((s) => s.rows.length > 0)) return null;
+  return (
+    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+      {sections.map((sec) => (
+        <div key={sec.label} className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-medium">
+            <span style={{ color: sec.color }}>{sec.label}</span>
+            <span className="text-slate-400 tabular-nums">{sec.rows.length} · {fmtMoney(sec.total)}</span>
+          </div>
+          {sec.rows.length === 0 && <div className="text-[11px] text-slate-400">none</div>}
+          {sec.rows.map((r) => (
+            <div key={r.key} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.name || 'COD'}</p>
+                <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
+              </div>
+              <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
+              {r.collected
+                ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
+                : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SquareBalancesView({ currentUser, visibleLocationIds = null }) {
   const [config, setConfig] = useState(null);
   const [configRecordId, setConfigRecordId] = useState(null);
   const [sales, setSales] = useState([]);
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
+  const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -56,6 +91,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeLocalOutstandingRef = useRef(null);
   const ownerCanEditRef = useRef(false);
   const loadDailyCodRef = useRef(null);
+  const computeCodCollectedTodayRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
   // null = show every card (admins/owner); array = only these cards (drivers see the
@@ -143,7 +179,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (outstanding <= 0) continue;
           const agg = aggFor(locId);
           agg.total += outstanding; agg.pendingCount += 1;
-          agg.items.push({ delivery_id: d.id, status, patient: d.patient_name || null, amount: outstanding / 100, reason: 'pending_or_in_transit' });
+          agg.items.push({ delivery_id: d.id, status, patient: d.patient_name || null, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10) });
         }
       }
 
@@ -160,7 +196,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (!locId) continue;
           const agg = aggFor(locId);
           agg.total += cash; agg.awaitingCount += 1;
-          agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, amount: cash / 100, reason: 'cash_awaiting_square' });
+          agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10) });
         }
         if (list.length < 2000) break;
         if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
@@ -168,11 +204,93 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
       const out = {};
       for (const [locId, agg] of byLoc) {
-        out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 25) };
+        out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50) };
       }
       setLocalOutstanding(out);
     } catch (e) {
       console.error('local COD outstanding failed:', e);
+    }
+  }, []);
+
+  // Owner-only: today's COLLECTED CODs per card.
+  //   a) Square-confirmed cash collections (ledger cod_collection entries whose
+  //      occurred_at lands on today's Edmonton date)
+  //   b) non-cash payments (debit/credit/cheque) collected today — recorded on
+  //      the delivery itself, no Square transaction
+  // Uncollected lists are derived from localOutstanding at render time.
+  const computeCodCollectedToday = useCallback(async () => {
+    if (!ownerCanEditRef.current) return;
+    try {
+      const [storesRaw, cfgsRaw, codSalesRaw] = await Promise.all([
+        base44.entities.Store.list().catch(() => []),
+        base44.entities.SquareLocationConfig.list().catch(() => []),
+        base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []),
+      ]);
+      const cfgLoc = new Map();
+      (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
+      const storeToLoc = new Map();
+      (storesRaw || []).forEach((s) => {
+        const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
+        if (s?.id && loc) storeToLoc.set(String(s.id), loc);
+      });
+      const today = edmontonWallString(new Date()).slice(0, 10);
+      const centsOf = (n) => Math.round(Number(n || 0) * 100);
+      const byLoc = new Map();
+      const aggFor = (locId) => {
+        if (!byLoc.has(locId)) byLoc.set(locId, []);
+        return byLoc.get(locId);
+      };
+
+      // a) Square-confirmed cash collections that happened TODAY
+      const squareTodayIds = new Set();
+      for (const e of (codSalesRaw || [])) {
+        if (String(e?.status || '').toUpperCase() !== 'COMPLETED' || !e?.delivery_id) continue;
+        const when = e.occurred_at ? edmontonWallString(new Date(e.occurred_at)) : '';
+        if (!when || when.slice(0, 10) !== today) continue;
+        squareTodayIds.add(String(e.delivery_id));
+        const locId = e.location_id;
+        if (!locId) continue;
+        aggFor(locId).push({
+          key: `tx-${e.id || e.square_id}`,
+          name: e.cod_item_name || e.patient_name || 'Square COD',
+          amount: Math.abs(Number(e.amount_cents || 0)) / 100,
+          sub: `Square cash · ${when.slice(11, 16)}`,
+          collected: true,
+        });
+      }
+
+      // b) non-cash payments collected today (no Square tx)
+      for (let page = 0; page < 4; page++) {
+        const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
+        const list = rows || [];
+        for (const d of list) {
+          if (d?.status !== 'completed' || Number(d?.cod_total_amount_required || 0) <= 0) continue;
+          const doneAt = String(d.actual_delivery_time || '');
+          if (doneAt.slice(0, 10) !== today) continue;
+          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+          const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+          if (nonCash <= 0) continue;
+          if (squareTodayIds.has(String(d.id))) continue; // already reported via Square
+          const locId = storeToLoc.get(String(d?.store_id || ''));
+          if (!locId) continue;
+          const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
+          aggFor(locId).push({
+            key: `d-${d.id}`,
+            name: d.patient_name || 'COD',
+            amount: nonCash / 100,
+            sub: `${type} · ${doneAt.slice(11, 16)}`,
+            collected: true,
+          });
+        }
+        if (list.length < 2000) break;
+        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < Date.now() - 3 * 86400000) break;
+      }
+
+      const out = {};
+      for (const [locId, rows] of byLoc) out[locId] = rows;
+      setCodCollectedTodayByLoc(out);
+    } catch (e) {
+      console.error('cod collected-today compute failed:', e);
     }
   }, []);
 
@@ -205,6 +323,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
         await loadSales(cfg);
         computeLocalOutstanding();
+        computeCodCollectedToday();
         loadDailyCod();
       } catch (e) {
         console.error('balances load failed:', e);
@@ -227,6 +346,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.success('Square data refreshed');
       await refresh({ reloadConfig: false });
       computeLocalOutstanding();
+      computeCodCollectedToday();
     } catch (err) {
       console.error('squareLedgerSync failed:', err);
       toast.error('Square refresh failed');
@@ -239,6 +359,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   syncRef.current = syncFromSquare;
   configRef.current = config;
   computeLocalOutstandingRef.current = computeLocalOutstanding;
+  computeCodCollectedTodayRef.current = computeCodCollectedToday;
   ownerCanEditRef.current = ownerCanEdit;
 
   // ── WebSocket live updates ──
@@ -254,7 +375,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
+      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -537,6 +658,35 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
               </div>
+              {ownerCanEdit && (() => {
+                const todayStr = edmontonWallString(new Date()).slice(0, 10);
+                const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
+                const uncollectedTodayRows = outItems.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                  key: `o-${it.delivery_id}`,
+                  name: it.patient || 'COD',
+                  amount: it.amount,
+                  sub: `${it.date || todayStr} · ${it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}`,
+                  collected: false,
+                }));
+                const pastUncollectedRows = outItems.filter((it) => it.date && it.date < todayStr).map((it) => ({
+                  key: `p-${it.delivery_id}`,
+                  name: it.patient || 'COD',
+                  amount: it.amount,
+                  sub: `${it.date} · ${it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}`,
+                  collected: false,
+                }));
+                const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
+                const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+                return (
+                  <CardCodList
+                    sections={[
+                      { label: 'Collected today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
+                      { label: 'Uncollected today', color: '#d97706', rows: uncollectedTodayRows, total: sumOf(uncollectedTodayRows) },
+                      { label: 'Past uncollected', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
+                    ]}
+                  />
+                );
+              })()}
             </div>
           </div>
           );
