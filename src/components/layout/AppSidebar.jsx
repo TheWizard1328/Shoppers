@@ -147,7 +147,7 @@ export default function AppSidebar({
   const sqIsAdmin = userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
   const sqIsDriver = !sqIsAdmin && userHasRole(currentUser, 'driver');
   const sqIsDispatcher = !sqIsAdmin && !sqIsDriver && userHasRole(currentUser, 'dispatcher');
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore } = useSquareBalancesSummary(!!currentUser);
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames } = useSquareBalancesSummary(!!currentUser);
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let storeIds = null;
@@ -183,8 +183,27 @@ export default function AppSidebar({
       for (const sid of storeIds) avg += Number(sqWeeklyByStore?.get(String(sid)) || 0) / 7;
     }
     if (!found) return null;
-    return { total, avg, level: getBalanceLevel(total, avg) };
-  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
+    // Hover-balloon lines: one per store (the user's stores), showing the balance of
+    // that store's card, colored by the card's level.
+    const balloonStoreIds = sqIsAdmin
+      ? [...sqStoreToLoc.keys()]
+      : (storeIds || []);
+    const lines = balloonStoreIds
+      .map((sid) => {
+        const lid = sqStoreToLoc.get(String(sid));
+        const row = lid ? sqByLocId.get(lid) : null;
+        if (!row) return null;
+        return {
+          storeId: String(sid),
+          name: sqStoreNames?.get(String(sid)) || String(sid),
+          balance: row.cardEstimate,
+          level: row.level,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { total, avg, level: getBalanceLevel(total, avg), lines };
+  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
   const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge.total).toLocaleString()}`;
   const sqBadgeStyle = sqBadge == null ? { background: 'var(--bg-slate-200)' } : BALANCE_LEVELS[sqBadge.level] ? { background: BALANCE_LEVELS[sqBadge.level].chipBg, color: BALANCE_LEVELS[sqBadge.level].chipText } : { background: 'var(--bg-slate-200)' };
 
@@ -513,14 +532,28 @@ export default function AppSidebar({
           route's cards); dispatchers get a read-only badge (single card at their store). */}
       {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
         const sqActive = currentPageName === 'SquareBalances';
+        const balloon = sqBadge?.lines?.length > 0 && (
+          <div className="hidden group-hover:block absolute left-full top-0 ml-2 z-[70] pointer-events-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 min-w-[210px]">
+            <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Store · card balance</div>
+            <div className="space-y-0.5">
+              {sqBadge.lines.map((l) => (
+                <div key={l.storeId} className="flex items-center justify-between gap-3 text-xs whitespace-nowrap" style={{ color: BALANCE_LEVELS[l.level]?.chipText }}>
+                  <span className="truncate max-w-[150px] text-slate-600 dark:text-slate-300">{l.name}</span>
+                  <span className="font-semibold tabular-nums">{`$${Math.round(l.balance).toLocaleString()}`}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
         const inner = (
           <>
-            <Wallet className="w-5 h-5" />
+            <Wallet className="w-5 h-5 shrink-0" />
             <span className="font-semibold">Square Balances</span>
             <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums font-semibold" style={sqBadgeStyle}>{sqBadgeLabel}</Badge>
+            {balloon}
           </>
         );
-        const cls = `px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
+        const cls = `relative group px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
         const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
         if (sqIsDispatcher) {
           // Not clickable — a dispatcher only ever has the one card for their store.

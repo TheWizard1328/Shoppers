@@ -36,6 +36,13 @@ async function loadCardSales(cfg) {
   return out;
 }
 
+export async function buildStoreNameMap() {
+  const rows = await base44.entities.Store.list().catch(() => []);
+  const m = new Map();
+  (rows || []).forEach((s) => { if (s?.id) m.set(String(s.id), s?.name || String(s.id)); });
+  return m;
+}
+
 export async function buildStoreToLocMap() {
   const [storesRaw, cfgsRaw] = await Promise.all([
     base44.entities.Store.list().catch(() => []),
@@ -201,14 +208,16 @@ export function useSquareBalancesSummary(enabled = true) {
   const [byLocId, setByLocId] = useState(new Map());
   const [storeToLoc, setStoreToLoc] = useState(new Map());
   const [weeklyByStore, setWeeklyByStore] = useState(new Map());
+  const [storeNames, setStoreNames] = useState(new Map());
   const reloadSeq = useRef(0);
 
   const reload = useCallback(async () => {
     const seq = ++reloadSeq.current;
     const config = await loadConfig();
-    const [sales, stl] = await Promise.all([
+    const [sales, stl, names] = await Promise.all([
       config ? loadCardSales(config).catch(() => []) : Promise.resolve([]),
       buildStoreToLocMap().catch(() => new Map()),
+      buildStoreNameMap().catch(() => new Map()),
     ]);
     const [codOutstanding, weekly] = await Promise.all([
       config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
@@ -218,6 +227,7 @@ export function useSquareBalancesSummary(enabled = true) {
     setByLocId(config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map());
     setStoreToLoc(stl);
     setWeeklyByStore(weekly);
+    setStoreNames(names);
     setReady(true);
   }, []);
 
@@ -244,5 +254,5 @@ export function useSquareBalancesSummary(enabled = true) {
     };
   }, [enabled, reload]);
 
-  return { ready, byLocId, storeToLoc, weeklyByStore };
+  return { ready, byLocId, storeToLoc, weeklyByStore, storeNames };
 }
