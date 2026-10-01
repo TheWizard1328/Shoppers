@@ -127,6 +127,15 @@ export default function DeliveryForm({
     return sorted.filter((driver) => driver && driver.user_name && driver.status !== 'inactive');
   }, [drivers, appUsers]);
 
+  // Guards the live WS merge below from clobbering an UNSAVED status edit the
+  // user just made in this form (Oct 1 2026 fix — editing a completed delivery's
+  // status briefly showed the new value then reverted: any unrelated background
+  // write to this delivery, e.g. repairStopOrders bulk-saving the whole route,
+  // rebroadcast the still-committed server status and the WS merge blindly
+  // reapplied it). Tracks the last status value it's safe to overwrite with a
+  // live update; once the user edits away from it, live updates stop touching
+  // status until the form saves or resets for a different delivery.
+  const baselineStatusRef = useRef(delivery?.status || null);
   const [formData, setFormData] = useState(() => buildDeliveryFormInitialState({
     initialPatientId,
     patients,
@@ -411,7 +420,17 @@ export default function DeliveryForm({
       const isTransitioned = ['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(d.status);
       const canonicalTimeStart = d.delivery_time_start || (!isTransitioned ? livePatient?.time_window_start : '') || '';
       const canonicalTimeEnd = d.delivery_time_end || (!isTransitioned ? livePatient?.time_window_end : '') || '';
-      setFormData(prev => ({ ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: d.status || prev.status, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null }));
+      setFormData(prev => {
+        // Only let a live update move Status if the user hasn't edited it away
+        // from the last known-safe server value in this open form. Otherwise an
+        // unrelated background write to this delivery (route repair, sync pass,
+        // etc.) would rebroadcast the old committed status and silently revert
+        // the user's unsaved dropdown change.
+        const statusIsUnedited = prev.status === baselineStatusRef.current;
+        const nextStatus = statusIsUnedited ? (d.status || prev.status) : prev.status;
+        if (statusIsUnedited) baselineStatusRef.current = nextStatus;
+        return { ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: nextStatus, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null };
+      });
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
     window.addEventListener('patientUpdated', handlePatientUpdated);
@@ -448,8 +467,9 @@ export default function DeliveryForm({
           // Interstore deliveries (ISP-/ISD-) only have in_transit/completed as valid statuses.
           // If the DB has 'en_route' (legacy write bug), normalize it to 'in_transit' immediately
           // so the Select shows a valid value instead of rendering blank.
-          if (isInterStoreDelivery(delivery.delivery_id) && raw === 'en_route') return 'in_transit';
-          return raw;
+          const resolved = (isInterStoreDelivery(delivery.delivery_id) && raw === 'en_route') ? 'in_transit' : raw;
+          baselineStatusRef.current = resolved;
+          return resolved;
         })(), driver_name: delivery.driver_name || '', driver_id: delivery.driver_id || '',
         prescription_number: delivery.prescription_number || "", delivery_instructions: patient?.notes || delivery.delivery_instructions || "",
         delivery_notes: delivery.delivery_notes || "", cod_total_amount_required: delivery.cod_total_amount_required ? delivery.cod_total_amount_required * 100 : 0,
@@ -1130,6 +1150,10 @@ export default function DeliveryForm({
       const codRemovedOnEdit = delivery?.id && Number(delivery.cod_total_amount_required || 0) > 0 && Number(formData.cod_total_amount_required || 0) <= 0;
       if (codRemovedOnEdit) { dataToSave.cod_payments = []; dataToSave.cod_payment_type = 'No Payment'; dataToSave.cod_amount = ''; }
       if (delivery?.id) {
+        // Re-sync the baseline to the value we're about to commit — once this save
+        // lands, that status is the new known-safe value, so live updates for the
+        // rest of this open session compare against it instead of the stale one.
+        baselineStatusRef.current = dataToSave.status || formData.status;
         // Register before the backend write so the WS echo is recognized as self-originated
         try { const { smartRefreshManager: srm } = await import('../utils/smartRefreshManager'); srm.registerPendingUpdate(delivery.id, formData.driver_id, formData.delivery_date); } catch (_) {}
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true });
