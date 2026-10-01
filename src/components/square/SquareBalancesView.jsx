@@ -1,0 +1,284 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { RefreshCw, Wallet, Landmark, PiggyBank } from "lucide-react";
+import { toast } from "sonner";
+import { isAppOwner } from "@/components/utils/userRoles";
+
+/**
+ * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
+ *
+ * Tracks, per Square location:
+ *   - Card balance estimate: starting balance + Σ(collected card sale − fee − folder 2% − loan%)
+ *   - Loan remaining: starting loan − Σ(loan_rate × card sale)
+ *   - Folder (savings) total: Σ(2% × card sale) since last true-up
+ *
+ * Data sources:
+ *   - AppSettings 'square_balances': { trued_up_at, folder_rate, locations: [{location_id, name, card_start, loan_start, loan_rate, folder_start}] }
+ *   - SquareLedgerEntry: entry_kind 'sale', tender_type 'CARD', status COMPLETED, occurred_at >= trued_up_at
+ *     (kept fresh by squareLedgerSync; the Refresh button invokes it for the window since true-up).
+ *
+ * The loan repayment and folder contribution are NOT exposed by Square's API — they are
+ * computed here from owner-supplied rates. Numbers drift with any off-card spending; the
+ * true-up form resets the starting points from real Square dashboard numbers.
+ */
+
+const SETTING_KEY = 'square_balances';
+const DEFAULT_FOLDER_RATE = 0.02;
+
+const fmtMoney = (n) => `$${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;
+
+function daysSince(iso) {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 86400000));
+}
+
+export default function SquareBalancesView({ currentUser }) {
+  const [config, setConfig] = useState(null);
+  const [configRecordId, setConfigRecordId] = useState(null);
+  const [sales, setSales] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showTrueUp, setShowTrueUp] = useState(false);
+  const [trueUpDraft, setTrueUpDraft] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+  const loadSeq = useRef(0);
+
+  const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
+
+  const loadConfig = useCallback(async () => {
+    const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
+    const rec = (rows || [])[0];
+    if (rec?.setting_value?.locations?.length) {
+      setConfig(rec.setting_value);
+      setConfigRecordId(rec.id);
+      return rec.setting_value;
+    }
+    setConfig(null);
+    setConfigRecordId(rec?.id || null);
+    return null;
+  }, []);
+
+  const loadSales = useCallback(async (cfg) => {
+    if (!cfg?.trued_up_at) { setSales([]); return; }
+    const seq = ++loadSeq.current;
+    const out = [];
+    let skip = 0;
+    // Paginate completed CARD sales since the true-up timestamp
+    for (let page = 0; page < 40; page++) {
+      const rows = await base44.entities.SquareLedgerEntry.filter(
+        { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
+        undefined, 500, skip
+      ).catch(() => []);
+      const list = rows || [];
+      out.push(...list);
+      if (list.length < 500) break;
+      skip += 500;
+    }
+    if (seq === loadSeq.current) setSales(out);
+  }, []);
+
+  const refresh = useCallback(async (opts = {}) => {
+    setIsLoading(true);
+    try {
+      let cfg = config;
+      if (opts.reloadConfig || !cfg) cfg = await loadConfig();
+      await loadSales(cfg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [config, loadConfig, loadSales]);
+
+  useEffect(() => { refresh({ reloadConfig: true }); /* eslint-disable-next-line */ }, []);
+
+  const syncFromSquare = useCallback(async () => {
+    const startDate = config?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
+    setIsSyncing(true);
+    try {
+      await base44.functions.invoke('squareLedgerSync', { startDate });
+      toast.success('Square data refreshed');
+      await refresh({ reloadConfig: false });
+    } catch (err) {
+      console.error('squareLedgerSync failed:', err);
+      toast.error('Square refresh failed');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [config, refresh]);
+
+  // Per-location math from the sale records
+  const perLocation = useMemo(() => {
+    if (!config) return [];
+    const folderRate = Number(config.folder_rate ?? DEFAULT_FOLDER_RATE);
+    return (config.locations || []).map((loc) => {
+      const locSales = sales.filter((s) => s.location_id === loc.location_id);
+      let gross = 0, fees = 0, loan = 0, folder = 0, credits = 0;
+      for (const s of locSales) {
+        const amount = Number(s.amount_cents || 0) / 100;
+        const fee = Number(s.fee_cents || 0) / 100;
+        const l = amount * Number(loc.loan_rate || 0);
+        const f = amount * folderRate;
+        gross += amount; fees += fee; loan += l; folder += f;
+        credits += amount - fee - l - f;
+      }
+      const r2 = (x) => Math.round(x * 100) / 100;
+      return {
+        ...loc,
+        saleCount: locSales.length,
+        gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
+        cardEstimate: r2(Number(loc.card_start || 0) + credits),
+        loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
+        folderTotal: r2(Number(loc.folder_start || 0) + folder),
+        lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
+      };
+    });
+  }, [config, sales]);
+
+  const startTrueUp = () => {
+    const draft = {};
+    (config?.locations || []).forEach((loc) => {
+      draft[loc.location_id] = { card: '', loan: '', loan_rate: String(loc.loan_rate ?? '') };
+    });
+    setTrueUpDraft(draft);
+    setShowTrueUp(true);
+  };
+
+  const saveTrueUp = async () => {
+    if (!config) return;
+    const locations = (config.locations || []).map((loc) => {
+      const d = trueUpDraft[loc.location_id] || {};
+      const card = parseFloat(d.card);
+      const loan = parseFloat(d.loan);
+      const rate = parseFloat(d.loan_rate);
+      return {
+        ...loc,
+        card_start: Number.isFinite(card) ? card : loc.card_start,
+        loan_start: Number.isFinite(loan) ? loan : loc.loan_start,
+        loan_rate: Number.isFinite(rate) ? rate : loc.loan_rate,
+      };
+    });
+    const newConfig = { ...config, locations, trued_up_at: new Date().toISOString() };
+    setIsSaving(true);
+    try {
+      if (configRecordId) {
+        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      } else {
+        const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
+        setConfigRecordId(created?.id || null);
+      }
+      setConfig(newConfig);
+      setShowTrueUp(false);
+      toast.success('Balances trued-up from new starting points');
+      await loadSales(newConfig);
+    } catch (err) {
+      console.error('true-up save failed:', err);
+      toast.error('Could not save the new balances');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading && !config) {
+    return <div className="text-sm text-slate-500 p-4">Loading balances…</div>;
+  }
+
+  if (!config) {
+    return (
+      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="text-sm font-medium mb-1">No balance config yet</div>
+        <div className="text-xs text-slate-500">Ask the agent to seed the AppSettings 'square_balances' record (locations, starting balances, loan rates), then reload this tab.</div>
+      </div>
+    );
+  }
+
+  const trueUpDays = daysSince(config.trued_up_at);
+
+  return (
+    <div className="space-y-3">
+      {/* Header row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          Estimates since true-up {new Date(config.trued_up_at).toLocaleString()} ({trueUpDays}d ago)
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="outline" onClick={syncFromSquare} disabled={isSyncing || isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Syncing…' : 'Refresh Square'}
+          </Button>
+          {ownerCanEdit && (
+            <Button size="sm" onClick={startTrueUp} disabled={isSaving}>
+              True-Up Balances
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Location cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {perLocation.map((loc) => (
+          <div key={loc.location_id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
+              <div className="text-[11px] text-slate-400">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Wallet className="w-3.5 h-3.5" /> Card</div>
+                <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(loc.cardEstimate)}</div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
+                <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><PiggyBank className="w-3.5 h-3.5" /> Folder</div>
+                <div className="text-lg font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(loc.folderTotal)}</div>
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
+                +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-[11px] text-slate-400">
+        Card = start + sales − fees − 2% folder − loan%. Loan and folder are computed from owner-supplied rates (not in Square's API). Off-card spending isn't tracked — use True-Up whenever the real Square numbers are checked.
+      </div>
+
+      {/* True-up dialog (simple inline panel) */}
+      {showTrueUp && (
+        <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-900 space-y-3">
+          <div className="text-sm font-medium">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
+          <div className="text-xs text-slate-500">Blank fields keep the existing value. This resets the tracking window to now.</div>
+          {(config.locations || []).map((loc) => (
+            <div key={loc.location_id} className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
+              <div className="text-sm font-medium col-span-2 md:col-span-1 flex items-center">{loc.name || loc.location_id}</div>
+              <label className="text-[11px] text-slate-500">Card balance
+                <Input type="number" step="0.01" className="mt-0.5" placeholder={fmtMoney(loc.card_start)}
+                  value={trueUpDraft[loc.location_id]?.card ?? ''}
+                  onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), card: e.target.value } }))} />
+              </label>
+              <label className="text-[11px] text-slate-500">Loan remaining
+                <Input type="number" step="0.01" className="mt-0.5" placeholder={fmtMoney(loc.loan_start)}
+                  value={trueUpDraft[loc.location_id]?.loan ?? ''}
+                  onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan: e.target.value } }))} />
+              </label>
+              <label className="text-[11px] text-slate-500">Loan rate (e.g. 0.1725)
+                <Input type="number" step="0.0001" className="mt-0.5" placeholder={String(loc.loan_rate)}
+                  value={trueUpDraft[loc.location_id]?.loan_rate ?? ''}
+                  onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan_rate: e.target.value } }))} />
+              </label>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowTrueUp(false)} disabled={isSaving}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

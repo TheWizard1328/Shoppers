@@ -571,6 +571,53 @@ async function handleBriefing(base44, params = {}) {
           for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
           lines.push('');
         }
+        // ── Card / Loan / Folder balance estimates (owner-only section, Oct 2026) ──
+        // Loan repayment + folder contribution are NOT in Square's API; they're
+        // computed from owner-supplied rates in the AppSettings 'square_balances'
+        // record. Freshens the SquareLedgerEntry ledger first (cross-function
+        // invoke; squareLedgerSync has softened auth so it proceeds without a
+        // forwarded user context).
+        try {
+          const cfgRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => []);
+          const cfg = cfgRows?.[0]?.setting_value;
+          if (cfg?.locations?.length && cfg.trued_up_at) {
+            await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at }).catch((e) => console.log('[briefing] ledger freshen skipped:', e?.message || e));
+            const sinceRows = await base44.asServiceRole.entities.SquareLedgerEntry.filter(
+              { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
+              '-occurred_at', 2000
+            ).catch(() => []);
+            const since = sinceRows || [];
+            const folderRate = Number(cfg.folder_rate ?? 0.02);
+            const balParts = [];
+            const balStrs = [];
+            let folderTotal = 0;
+            for (const loc of cfg.locations) {
+              let gross = 0, fees = 0, loan = 0, folder = 0;
+              for (const s of since) {
+                if (s?.location_id !== loc.location_id) continue;
+                const amount = Number(s.amount_cents || 0) / 100;
+                const fee = Number(s.fee_cents || 0) / 100;
+                const l = amount * Number(loc.loan_rate || 0);
+                const f = amount * folderRate;
+                gross += amount; fees += fee; loan += l; folder += f;
+              }
+              folderTotal += folder + Number(loc.folder_start || 0);
+              const cardEst = Number(loc.card_start || 0) + gross - fees - loan - folder;
+              const loanLeft = Math.max(0, Number(loc.loan_start || 0) - loan);
+              const name = String(loc.name || loc.location_id);
+              balParts.push({ name, card: Math.round(cardEst * 100) / 100, loan: Math.round(loanLeft * 100) / 100 });
+              balStrs.push(name, cardEst.toFixed(2), loanLeft.toFixed(2));
+            }
+            const bw = Math.max(...balStrs.map((x) => x.length), 5);
+            const bmoney = (amt) => `$ ${amt.toFixed(2).padStart(bw)}`;
+            lines.push('BALANCES (est):');
+            for (const b of balParts) lines.push(`${b.name} Card ${bmoney(b.card)} Loan ${bmoney(b.loan)}`);
+            lines.push(`Folder ${bmoney(Math.round(folderTotal * 100) / 100)} (2% since true-up)`);
+            lines.push('');
+          }
+        } catch (e) {
+          console.log('[briefing] balance estimates failed:', e?.message || e);
+        }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
         lines.push('Pushes:');
         lines.push(pushes.map((pr) => {
