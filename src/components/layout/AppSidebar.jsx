@@ -22,7 +22,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
-import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity } from 'lucide-react';
+import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity, Wallet } from 'lucide-react';
 import { isMobileDevice as isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import SettingsMenu from './SettingsMenu';
@@ -497,6 +497,27 @@ export default function AppSidebar({
              <span className="font-semibold">Stores</span>
              <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
              </Link>
+            }
+
+      {/* Square Balances - App Owner only (same group as Patients/Stores/Drivers) */}
+      {isAppOwner(currentUser) &&
+            <Link
+              to={createPageUrl('SquareBalances')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'SquareBalances' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'SquareBalances' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <Wallet className="w-5 h-5" />
+            <span className="font-semibold">Square Balances</span>
+        </Link>
             }
 
             {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&

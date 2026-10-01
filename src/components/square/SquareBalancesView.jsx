@@ -91,7 +91,28 @@ export default function SquareBalancesView({ currentUser }) {
     }
   }, [config, loadConfig, loadSales]);
 
-  useEffect(() => { refresh({ reloadConfig: true }); /* eslint-disable-next-line */ }, []);
+  // Fresh numbers every visit: load config, pull new Square sales since the
+  // true-up, then read the ledger. The 9pm briefing also freshens the ledger,
+  // and the Refresh button does it on demand.
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await loadConfig();
+        if (cfg?.trued_up_at) {
+          setIsSyncing(true);
+          await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at }).catch((e) => console.error('auto ledger sync failed:', e));
+          setIsSyncing(false);
+        }
+        await loadSales(cfg);
+      } catch (e) {
+        console.error('balances load failed:', e);
+      } finally {
+        setIsLoading(false);
+        setIsSyncing(false);
+      }
+    })();
+    /* eslint-disable-next-line */
+  }, []);
 
   const syncFromSquare = useCallback(async () => {
     const startDate = config?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
@@ -130,10 +151,20 @@ export default function SquareBalancesView({ currentUser }) {
         gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
         cardEstimate: r2(Number(loc.card_start || 0) + credits),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
-        folderTotal: r2(Number(loc.folder_start || 0) + folder),
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
+  }, [config, sales]);
+
+  // SINGLE folder total — the 2% flows from every card's sales into ONE folder
+  const folderTotal = useMemo(() => {
+    if (!config) return 0;
+    const folderRate = Number(config.folder_rate ?? DEFAULT_FOLDER_RATE);
+    let total = Number(config.folder_start || 0);
+    for (const s of sales) {
+      total += (Number(s.amount_cents || 0) / 100) * folderRate;
+    }
+    return Math.round(total * 100) / 100;
   }, [config, sales]);
 
   const startTrueUp = () => {
@@ -141,6 +172,7 @@ export default function SquareBalancesView({ currentUser }) {
     (config?.locations || []).forEach((loc) => {
       draft[loc.location_id] = { card: '', loan: '', loan_rate: String(loc.loan_rate ?? '') };
     });
+    draft.__folder = '';
     setTrueUpDraft(draft);
     setShowTrueUp(true);
   };
@@ -159,7 +191,13 @@ export default function SquareBalancesView({ currentUser }) {
         loan_rate: Number.isFinite(rate) ? rate : loc.loan_rate,
       };
     });
-    const newConfig = { ...config, locations, trued_up_at: new Date().toISOString() };
+    const folderVal = parseFloat(trueUpDraft.__folder);
+    const newConfig = {
+      ...config,
+      locations,
+      folder_start: Number.isFinite(folderVal) ? folderVal : Number(config.folder_start || 0),
+      trued_up_at: new Date().toISOString(),
+    };
     setIsSaving(true);
     try {
       if (configRecordId) {
@@ -215,6 +253,12 @@ export default function SquareBalancesView({ currentUser }) {
         </div>
       </div>
 
+      {/* Single combined Folder total */}
+      <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300"><PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Folder (all cards, 2% per sale)</div>
+        <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(folderTotal)}</div>
+      </div>
+
       {/* Location cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {perLocation.map((loc) => (
@@ -231,10 +275,6 @@ export default function SquareBalancesView({ currentUser }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
                 <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><PiggyBank className="w-3.5 h-3.5" /> Folder</div>
-                <div className="text-lg font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(loc.folderTotal)}</div>
               </div>
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
@@ -273,6 +313,14 @@ export default function SquareBalancesView({ currentUser }) {
               </label>
             </div>
           ))}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
+            <div className="text-sm font-medium col-span-2 md:col-span-1 flex items-center">Folder (combined)</div>
+            <label className="text-[11px] text-slate-500">Folder balance
+              <Input type="number" step="0.01" className="mt-0.5" placeholder={fmtMoney(config.folder_start || 0)}
+                value={trueUpDraft.__folder ?? ''}
+                onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: e.target.value }))} />
+            </label>
+          </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
             <Button size="sm" variant="outline" onClick={() => setShowTrueUp(false)} disabled={isSaving}>Cancel</Button>

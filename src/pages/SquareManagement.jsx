@@ -17,7 +17,6 @@ import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import SyncStatusInline from "@/components/square/SyncStatusInline";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
 import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
-import SquareBalancesView from "@/components/square/SquareBalancesView";
 import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
@@ -2623,7 +2622,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           }
           {currentUser && isAppOwner(currentUser) &&
           <div className="col-span-2 md:col-span-auto flex flex-row items-center gap-2 md:ml-auto shrink-0">
-            {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconcile' }, { key: 'balances', label: 'Balances' }].map((view) =>
+            {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconcile' }].map((view) =>
             <Button
               key={view.key}
               type="button"
@@ -2882,13 +2881,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           </div>
         }
 
-        {activeView === 'balances' && currentUser && isAppOwner(currentUser) ?
-
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 md:p-4">
-          <SquareBalancesView currentUser={currentUser} />
-        </div> :
-
-        activeView === 'reconciliation' ?
+        {activeView === 'reconciliation' ?
         <SquareCodDatasetTable
           key="reconciliation"
           title="Reconciliation"

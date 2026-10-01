@@ -27,6 +27,7 @@ const Patients = lazy(() => import('./pages/Patients'));
 const Settings = lazy(() => import('./pages/Settings'));
 const SquareLocationConfigs = lazy(() => import('./pages/SquareLocationConfigs'));
 const SquareManagement = lazy(() => import('./pages/SquareManagement'));
+const SquareBalances = lazy(() => import('./pages/SquareBalances'));
 const StoreInvoices = lazy(() => import('./pages/StoreInvoices'));
 const Stores = lazy(() => import('./pages/Stores'));
 
@@ -49,6 +50,7 @@ export const PAGES = {
     "Settings": Settings,
     "SquareLocationConfigs": SquareLocationConfigs,
     "SquareManagement": SquareManagement,
+    "SquareBalances": SquareBalances,
     "StoreInvoices": StoreInvoices,
     "Stores": Stores,
 }

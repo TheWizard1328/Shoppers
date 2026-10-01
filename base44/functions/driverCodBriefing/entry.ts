@@ -588,6 +588,7 @@ async function handleBriefing(base44, params = {}) {
             ).catch(() => []);
             const since = sinceRows || [];
             const folderRate = Number(cfg.folder_rate ?? 0.02);
+            folderTotal += Number(cfg.folder_start || 0);
             const balParts = [];
             const balStrs = [];
             let folderTotal = 0;
@@ -601,7 +602,7 @@ async function handleBriefing(base44, params = {}) {
                 const f = amount * folderRate;
                 gross += amount; fees += fee; loan += l; folder += f;
               }
-              folderTotal += folder + Number(loc.folder_start || 0);
+              folderTotal += folder;
               const cardEst = Number(loc.card_start || 0) + gross - fees - loan - folder;
               const loanLeft = Math.max(0, Number(loc.loan_start || 0) - loan);
               const name = String(loc.name || loc.location_id);
