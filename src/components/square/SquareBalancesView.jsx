@@ -46,6 +46,10 @@ export default function SquareBalancesView({ currentUser }) {
   const [trueUpDraft, setTrueUpDraft] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const loadSeq = useRef(0);
+  // Latest-handler refs for the WebSocket subscriptions (mounted once)
+  const loadSalesRef = useRef(null);
+  const syncRef = useRef(null);
+  const configRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
 
@@ -135,6 +139,48 @@ export default function SquareBalancesView({ currentUser }) {
       setIsSyncing(false);
     }
   }, [config, refresh]);
+
+  loadSalesRef.current = loadSales;
+  syncRef.current = syncFromSquare;
+  configRef.current = config;
+
+  // ── WebSocket live updates ──
+  // AppSettings broadcasts (user-scoped true-up writes) → live config/sales reload
+  // so a true-up on another device shows immediately.
+  // Delivery broadcasts (driver COD activity: created/completed/collected) →
+  // debounced 45s full re-sync so "CODs out" stays live while the page is open.
+  // SquareLedgerEntry broadcasts (user-scoped writes only; backend service-role
+  // syncs do NOT broadcast) → debounced 5s sales re-read.
+  useEffect(() => {
+    const unsubs = [];
+    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null;
+    try {
+      unsubs.push(base44.entities.AppSettings.subscribe((event) => {
+        if (event?.data?.setting_key !== SETTING_KEY) return;
+        clearTimeout(cfgTimer);
+        cfgTimer = setTimeout(async () => {
+          const cfg = await loadConfig().catch(() => null);
+          if (cfg) await loadSalesRef.current?.(cfg);
+        }, 2000);
+      }));
+    } catch (e) { console.error('AppSettings subscribe failed:', e); }
+    try {
+      unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
+        clearTimeout(ledgerTimer);
+        ledgerTimer = setTimeout(() => loadSalesRef.current?.(configRef.current), 5000);
+      }));
+    } catch (e) { console.error('Ledger subscribe failed:', e); }
+    try {
+      unsubs.push(base44.entities.Delivery.subscribe(() => {
+        clearTimeout(deliveryTimer);
+        deliveryTimer = setTimeout(() => syncRef.current?.(), 45000);
+      }));
+    } catch (e) { console.error('Delivery subscribe failed:', e); }
+    return () => {
+      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer);
+      unsubs.forEach((u) => { try { u?.(); } catch {} });
+    };
+  }, []);
 
   // Per-location math from the sale records
   const perLocation = useMemo(() => {
