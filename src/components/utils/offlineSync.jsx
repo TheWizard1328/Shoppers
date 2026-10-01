@@ -1,3 +1,4 @@
+import { filterDeleted } from './deletedDeliveryRegistry';
 /**
  * Offline Sync Manager v3 - Timestamp-Based Sync with Date-Range Delivery Syncing
  * 
@@ -292,12 +293,12 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
     const serverDeliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
-    const deliveries = await applyPendingEntityMutations({
+    const deliveries = filterDeleted(await applyPendingEntityMutations({
       entityName: 'Delivery',
       serverRows: serverDeliveries || [],
       storeName: offlineDB.STORES.DELIVERIES,
       filter: deliveryFilter,
-    });
+    }));
     // CRITICAL: Use bulkSave to merge, not replaceRecordsByIndex which clears data
     if (getSyncPaused()) {
       console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');
@@ -477,8 +478,10 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   if (getSyncPaused()) return [];
   
   try {
-    const deliveries = await Delivery.filter({ delivery_date: dateStr });
+    const deliveries = filterDeleted(await Delivery.filter({ delivery_date: dateStr }));
     // Upsert fresh records, then prune any offline records that no longer exist on the server
+    // (filterDeleted first: an in-flight fetch captured BEFORE a delete's backend commit
+    // can still return the deleted row — never bulkSave it back into IDB).
     const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
     const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
     const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
@@ -680,8 +683,9 @@ export const forceSyncAll = async () => {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
-    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+    const deliveries = filterDeleted(await Delivery.filter({ delivery_date: selectedDateStr }));
     // Upsert + prune deleted — never clear the date's data before writing
+    // (filterDeleted: drop rows deleted on this device that arrived via stale in-flight fetches).
     {
       const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
       const fsExisting = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
@@ -743,9 +747,10 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null,
     if (cityStoreIds.length > 0) {
       deliveryFilter.store_id = { $in: cityStoreIds };
     }
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    const deliveries = filterDeleted(await Delivery.filter(deliveryFilter, '-updated_date', 5000));
 
     // CRITICAL: Merge deliveries, never delete — user edits must be preserved
+    // (filterDeleted: drop rows deleted on this device that arrived via stale in-flight fetches).
     if (getSyncPaused()) {
       console.log('⏸️ [ManualSyncSelected] Skipping deliveries bulkSave — paused during action');
       return { skipped: true, reason: 'paused_during_action' };
