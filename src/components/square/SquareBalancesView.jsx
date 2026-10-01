@@ -92,6 +92,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTrueUp, setShowTrueUp] = useState(false);
   const [trueUpDraft, setTrueUpDraft] = useState({});
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [topUpDraft, setTopUpDraft] = useState({});
+  const trueUpPanelRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const loadSeq = useRef(0);
   // Latest-handler refs for the WebSocket subscriptions (mounted once)
@@ -515,6 +518,52 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     draft.__folder = '';
     setTrueUpDraft(draft);
     setShowTrueUp(true);
+    // The panel renders at the bottom of this tall page — scroll it into view
+    // so the button doesn't look dead after opening.
+    setTimeout(() => trueUpPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  };
+
+  const startTopUp = () => {
+    const draft = {};
+    (config?.locations || []).forEach((loc) => { draft[loc.location_id] = ''; });
+    setTopUpDraft(draft);
+    setShowTopUp(true);
+  };
+
+  // Top-Up: ADD the typed amounts to each card's current starting balance.
+  // Unlike True-Up this does NOT reset the tracking window (trued_up_at) —
+  // it's money added to the cards, not a reconciliation.
+  const saveTopUp = async () => {
+    if (!config) return;
+    const locations = (config.locations || []).map((loc) => {
+      const amt = parseFloat(topUpDraft[loc.location_id]);
+      return {
+        ...loc,
+        card_start: Number.isFinite(amt) && amt !== 0 ? Number(loc.card_start || 0) + amt : loc.card_start,
+      };
+    });
+    setIsSaving(true);
+    try {
+      const newConfig = { ...config, locations };
+      if (configRecordId) {
+        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      } else {
+        const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
+        setConfigRecordId(created?.id || null);
+      }
+      setConfig(newConfig);
+      setShowTopUp(false);
+      const totalTopUp = (config.locations || []).reduce((s, loc) => {
+        const amt = parseFloat(topUpDraft[loc.location_id]);
+        return Number.isFinite(amt) ? s + amt : s;
+      }, 0);
+      toast.success(totalTopUp ? `Cards topped up (+${fmtMoney(totalTopUp)} split across cards)` : 'No amounts entered — nothing changed');
+    } catch (err) {
+      console.error('top-up save failed:', err);
+      toast.error('Could not save the top-up');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const saveTrueUp = async () => {
@@ -600,6 +649,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
             {isSyncing ? 'Syncing…' : 'Refresh Square'}
           </Button>
+          )}
+          {ownerCanEdit && (
+            <Button size="sm" variant="outline" onClick={startTopUp} disabled={isSaving || isLoading}>
+              Top Up Cards
+            </Button>
           )}
           {ownerCanEdit && (
             <Button size="sm" onClick={startTrueUp} disabled={isSaving}>
@@ -736,7 +790,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
       {/* True-up dialog (simple inline panel) */}
       {showTrueUp && (
-        <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-900 space-y-3">
+        <div ref={trueUpPanelRef} className="p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-900 space-y-3">
           <div className="text-sm font-medium">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
           <div className="text-xs text-slate-500">Blank fields keep the existing value. This resets the tracking window to now.</div>
           {(config.locations || []).map((loc) => (
@@ -770,6 +824,38 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           <div className="flex gap-2">
             <Button size="sm" onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
             <Button size="sm" variant="outline" onClick={() => setShowTrueUp(false)} disabled={isSaving}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Top-Up overlay: add money to each card's balance (does not reset the window) */}
+      {showTopUp && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTopUp(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Top Up Cards</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter the amount to ADD to each card's current balance. Blank fields are skipped. This does not reset the tracking window.</div>
+            </div>
+            {(config?.locations || []).map((loc) => (
+              <label key={loc.location_id} className="block space-y-1">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{loc.name || loc.location_id}</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={`current ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
+                  value={topUpDraft[loc.location_id] ?? ''}
+                  disabled={isSaving}
+                  onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: e.target.value }))}
+                />
+              </label>
+            ))}
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowTopUp(false)} disabled={isSaving}>Cancel</Button>
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveTopUp} disabled={isSaving}>
+                {isSaving ? 'Adding…' : 'Add to Cards'}
+              </Button>
+            </div>
           </div>
         </div>
       )}
