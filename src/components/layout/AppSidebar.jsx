@@ -20,7 +20,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
   } catch (_) {}
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
-import { useSquareBalancesSummary } from '../square/useSquareBalancesSummary';
+import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS } from '../square/useSquareBalancesSummary';
 import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
@@ -162,22 +162,25 @@ export default function AppSidebar({
     } else if (sqIsDispatcher) {
       storeIds = (currentUser?.store_ids || []).map(String);
     }
+    let total = 0, daily = 0, found = false;
     if (sqIsAdmin) {
-      let total = 0;
-      for (const row of sqByLocId.values()) total += Number(row?.cardEstimate || 0);
-      return total;
+      for (const row of sqByLocId.values()) {
+        total += Number(row?.cardEstimate || 0);
+        daily += Number(row?.dailyCodTotal || 0);
+      }
+      found = sqByLocId.size > 0;
+    } else if (storeIds && storeIds.length && sqStoreToLoc) {
+      const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc.get(String(sid))).filter(Boolean))];
+      for (const lid of locIds) {
+        const row = sqByLocId.get(lid);
+        if (row) { total += Number(row.cardEstimate || 0); daily += Number(row.dailyCodTotal || 0); found = true; }
+      }
     }
-    if (!storeIds || !storeIds.length || !sqStoreToLoc) return null;
-    const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc.get(String(sid))).filter(Boolean))];
-    if (!locIds.length) return null;
-    let total = 0, found = false;
-    for (const lid of locIds) {
-      const row = sqByLocId.get(lid);
-      if (row) { total += Number(row.cardEstimate || 0); found = true; }
-    }
-    return found ? total : null;
+    if (!found) return null;
+    return { total, daily, level: getBalanceLevel(total, daily) };
   }, [sqReady, sqByLocId, sqStoreToLoc, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
-  const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge).toLocaleString()}`;
+  const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge.total).toLocaleString()}`;
+  const sqBadgeStyle = sqBadge == null ? { background: 'var(--bg-slate-200)' } : BALANCE_LEVELS[sqBadge.level] ? { background: BALANCE_LEVELS[sqBadge.level].chipBg, color: BALANCE_LEVELS[sqBadge.level].chipText } : { background: 'var(--bg-slate-200)' };
 
   // Pending doc access requests badge
   const [pendingDocRequestCount, setPendingDocRequestCount] = useState(0);
@@ -508,7 +511,7 @@ export default function AppSidebar({
           <>
             <Wallet className="w-5 h-5" />
             <span className="font-semibold">Square Balances</span>
-            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums" style={{ background: 'var(--bg-slate-200)' }}>{sqBadgeLabel}</Badge>
+            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums font-semibold" style={sqBadgeStyle}>{sqBadgeLabel}</Badge>
           </>
         );
         const cls = `px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;

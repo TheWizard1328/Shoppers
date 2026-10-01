@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { edmontonWallString } from '@/components/utils/albertaTime';
 
 /**
  * useSquareBalancesSummary — lightweight per-card balance estimates for the
@@ -105,7 +106,52 @@ async function computeCodOutstandingByLoc(cfg, storeToLoc) {
   }
 }
 
-function computeByLocId({ config, sales, codOutstanding }) {
+// Today's (Edmonton date) still-to-collect CODs per card: pending/in-transit/en-route
+// deliveries dated today, minus non-cash payments already taken, not confirmed collected.
+export async function computeDailyCodByLoc(storeToLoc) {
+  try {
+    const today = edmontonWallString(new Date()).slice(0, 10);
+    const centsOf = (n) => Math.round(Number(n || 0) * 100);
+    const byLoc = new Map();
+    for (const status of ['pending', 'in_transit', 'en_route']) {
+      const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
+      for (const d of rows || []) {
+        if (String(d?.delivery_date || '') !== today) continue;
+        const required = Number(d?.cod_total_amount_required || 0);
+        if (required <= 0 || d?.cod_confirmed_collected) continue;
+        const locId = storeToLoc.get(String(d?.store_id || ''));
+        if (!locId) continue;
+        const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+        const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+        const out = Math.max(0, centsOf(required) - nonCash);
+        if (out > 0) byLoc.set(locId, (byLoc.get(locId) || 0) + out);
+      }
+    }
+    const out = {};
+    for (const [locId, cents] of byLoc) out[locId] = cents / 100;
+    return out;
+  } catch (e) {
+    console.error('[useSquareBalancesSummary] daily COD failed:', e);
+    return {};
+  }
+}
+
+// Color level: green when the balance is more than $20 ABOVE the daily CODs to
+// collect, red when more than $20 BELOW, yellow inside the ±$20 band.
+export const BALANCE_BAND = 20;
+export function getBalanceLevel(balance, dailyCod) {
+  const diff = (Number(balance) || 0) - (Number(dailyCod) || 0);
+  if (diff > BALANCE_BAND) return 'green';
+  if (diff >= -BALANCE_BAND) return 'yellow';
+  return 'red';
+}
+export const BALANCE_LEVELS = {
+  green: { border: '#10b981', tint: 'rgba(16, 185, 129, 0.07)', chipBg: '#d1fae5', chipText: '#065f46' },
+  yellow: { border: '#f59e0b', tint: 'rgba(245, 158, 11, 0.08)', chipBg: '#fef3c7', chipText: '#92400e' },
+  red: { border: '#ef4444', tint: 'rgba(239, 68, 68, 0.07)', chipBg: '#fee2e2', chipText: '#991b1b' },
+};
+
+function computeByLocId({ config, sales, codOutstanding, dailyCod }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
   for (const loc of (config.locations || [])) {
@@ -118,10 +164,14 @@ function computeByLocId({ config, sales, codOutstanding }) {
       credits += amount - fee - amount * Number(loc.loan_rate || 0) - amount * folderRate;
     }
     const codOut = Number(codOutstanding?.[loc.location_id] || 0);
+    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - codOut) * 100) / 100;
+    const dailyCodTotal = Math.round(Number(dailyCod?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
-      cardEstimate: Math.round((Number(loc.card_start || 0) + credits - codOut) * 100) / 100,
+      cardEstimate,
       loanRemaining: Math.round(Math.max(0, Number(loc.loan_start || 0) - loan) * 100) / 100,
+      dailyCodTotal,
+      level: getBalanceLevel(cardEstimate, dailyCodTotal),
     });
   }
   return byLocId;
@@ -140,9 +190,12 @@ export function useSquareBalancesSummary(enabled = true) {
       config ? loadCardSales(config).catch(() => []) : Promise.resolve([]),
       buildStoreToLocMap().catch(() => new Map()),
     ]);
-    const codOutstanding = config ? await computeCodOutstandingByLoc(config, stl) : {};
+    const [codOutstanding, dailyCod] = await Promise.all([
+      config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
+      config ? computeDailyCodByLoc(stl) : Promise.resolve({}),
+    ]);
     if (seq !== reloadSeq.current) return;
-    setByLocId(config ? computeByLocId({ config, sales, codOutstanding }) : new Map());
+    setByLocId(config ? computeByLocId({ config, sales, codOutstanding, dailyCod }) : new Map());
     setStoreToLoc(stl);
     setReady(true);
   }, []);

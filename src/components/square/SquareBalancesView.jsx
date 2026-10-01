@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
+import { buildStoreToLocMap, computeDailyCodByLoc, getBalanceLevel, BALANCE_LEVELS } from "./useSquareBalancesSummary";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -41,6 +42,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [sales, setSales] = useState([]);
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
+  const [dailyCodByLoc, setDailyCodByLoc] = useState({}); // today's still-to-collect CODs per card
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTrueUp, setShowTrueUp] = useState(false);
@@ -53,6 +55,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const configRef = useRef(null);
   const computeLocalOutstandingRef = useRef(null);
   const ownerCanEditRef = useRef(false);
+  const loadDailyCodRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
   // null = show every card (admins/owner); array = only these cards (drivers see the
@@ -191,7 +194,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     (async () => {
       try {
         const cfg = await loadConfig();
-        if (cfg?.trued_up_at) {
+        // Auto Square sync is owner-only — a driver's open tab must never hit the Square API.
+        if (cfg?.trued_up_at && ownerCanEditRef.current) {
           setIsSyncing(true);
           const res = await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at, includeCodOutstanding: true }).catch((e) => { console.error('auto ledger sync failed:', e); return null; });
           const out = res?.codOutstanding || [];
@@ -201,6 +205,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
         await loadSales(cfg);
         computeLocalOutstanding();
+        loadDailyCod();
       } catch (e) {
         console.error('balances load failed:', e);
       } finally {
@@ -249,7 +254,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => computeLocalOutstandingRef.current?.(), 8000);
+      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -290,6 +295,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     };
   }, []);
 
+  // Today's still-to-collect CODs per card (drives the green/yellow/red levels)
+  const loadDailyCod = useCallback(async () => {
+    try {
+      const stl = await buildStoreToLocMap();
+      setDailyCodByLoc(await computeDailyCodByLoc(stl));
+    } catch (e) {
+      console.error('daily COD load failed:', e);
+    }
+  }, []);
+  loadDailyCodRef.current = loadDailyCod;
+
   // Per-location math from the sale records
   const perLocation = useMemo(() => {
     if (!config) return [];
@@ -315,11 +331,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // CODs out (pending/in-transit + cash awaiting Square) reduce the available card balance
         cardEstimate: r2(Number(loc.card_start || 0) + credits - codOutTotal),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
+        dailyCodTotal: r2(Number(dailyCodByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - codOutTotal), Number(dailyCodByLoc[loc.location_id] || 0)),
         codOutstanding: codOut,
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
-  }, [config, sales, codOutstandingByLoc, localOutstanding]);
+  }, [config, sales, codOutstandingByLoc, localOutstanding, dailyCodByLoc]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -444,8 +462,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
       {/* Location cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => (
-          <div key={loc.location_id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+        {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
+          const lvl = BALANCE_LEVELS[loc.level] || null;
+          return (
+          <div key={loc.location_id}
+            className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden"
+            style={lvl ? { borderColor: lvl.border, backgroundImage: `linear-gradient(0deg, ${lvl.tint}, ${lvl.tint})` } : { borderColor: 'var(--border-slate-200, #e2e8f0)' }}>
             <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
               <div className="text-[11px] text-slate-400">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
@@ -459,6 +481,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
                 <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
               </div>
+              {loc.dailyCodTotal > 0 && (
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> Today's CODs to collect</div>
+                  <div className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.dailyCodTotal)}</div>
+                </div>
+              )}
               {loc.codOutstanding?.total > 0 && (
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between text-xs">
@@ -490,7 +518,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="text-[11px] text-slate-400">
