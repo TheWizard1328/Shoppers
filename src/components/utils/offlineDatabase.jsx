@@ -603,6 +603,48 @@ const getAll = async (storeName) => {
 };
 
 /**
+ * STRICT variant of getAll: on any failure (open timeout, write-drain stall,
+ * getAll timeout, decrypt timeout) it REJECTS instead of silently resolving [].
+ *
+ * WHY THIS EXISTS (owner report, Sep 30 2026): the Square COD page rebuilds its
+ * lists from IDB right after the sync's heavy write burst. On the owner's tablet,
+ * getAll() on the big PHI stores didn't finish inside the 6s window (slower
+ * storage + AES decrypt of thousands of records + the write-drain wait), so the
+ * catch swallowed the timeout and returned []. The page then set every list —
+ * deliveries, transactions, catalog, reconcile — to EMPTY. Same APK on the phone
+ * finished the read in time and kept everything. Silent-[] reads must NEVER
+ * feed a UI that treats [] as real data: use getAllStrict and handle the
+ * rejection by keeping the current state.
+ */
+const getAllStrict = async (storeName) => {
+  // Same write-drain discipline as getAll (a readwrite transaction holds the
+  // IDB lock and blocks reads), but a stall REJECTS instead of returning [].
+  if (_activeWrites > 0) {
+    const drained = await waitForWritesToDrain(10000);
+    if (!drained) throw new Error(`IDB getAllStrict(${storeName}) blocked by a stalled write`);
+  }
+  const db = await openDatabase();
+  const transaction = db.transaction([storeName], 'readonly');
+  const store = transaction.objectStore(storeName);
+
+  const records = await withTimeout(new Promise((resolve, reject) => {
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  }), GETALL_TIMEOUT_MS, `IDB getAllStrict(${storeName})`);
+
+  if (isPHIStore(storeName)) {
+    const decrypted = await withTimeout(
+      decryptRecords(records),
+      GETALL_TIMEOUT_MS,
+      `decryptRecords(${storeName}) [strict]`
+    );
+    return decrypted;
+  }
+  return records;
+};
+
+/**
  * Get records by index query
  */
 const getByIndex = async (storeName, indexName, value) => {
@@ -1524,6 +1566,7 @@ export const offlineDB = {
   save,
   bulkSave,
   getAll,
+  getAllStrict,
   waitForWritesToDrain,
   getById,
   getByIndex,

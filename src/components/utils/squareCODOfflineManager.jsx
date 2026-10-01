@@ -102,9 +102,10 @@ const updateTransactionSyncStatus = async () => {
 };
 
 const pruneStoredCatalogItems = async () => {
+  // getAllStrict — see pruneStoredSquareTransactions: read failures must throw.
   // Catalog items are not date-filtered â€” no pruning needed, just update sync status.
   await updateCatalogSyncStatus();
-  const items = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
+  const items = await offlineDB.getAllStrict(SQUARE_COD_STORES.CATALOG_ITEMS);
   return items || [];
 };
 
@@ -127,7 +128,10 @@ const bulkSaveChunked = async (storeName, records) => {
 };
 
 const pruneStoredSquareTransactions = async () => {
-  const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+  // getAllStrict: a timed-out/stalled read must THROW (getter returns null so the
+  // UI keeps its lists) — the silent getAll returns [] on failure, which made
+  // the Square COD page zero every list on the owner's tablet (Sep 30 2026).
+  const transactions = await offlineDB.getAllStrict(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
   const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
 
   // DELETE-ONLY prune (owner fix, Sep 29 2026): never clearStore-then-resave
@@ -234,8 +238,11 @@ export const getCatalogItemsOffline = async () => {
     const items = await pruneStoredCatalogItems();
     return (items || []).map(mapCatalogEntityToUIItem);
   } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving catalog items:', error);
-    return [];
+    // READ-FAILURE SIGNAL (owner report, Sep 30 2026): null = the read FAILED
+    // (timeout/stall) — callers keep their current lists instead of zeroing.
+    // [] is reserved for a genuinely empty store.
+    console.error('[SquareCODOffline] Catalog read FAILED (not empty):', error);
+    return null;
   }
 };
 
@@ -243,8 +250,13 @@ export const getPaymentTransactionsOffline = async () => {
   try {
     return await pruneStoredSquareTransactions();
   } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving payment transactions:', error);
-    return [];
+    // READ-FAILURE SIGNAL (owner report, Sep 30 2026): returning [] here made
+    // callers overwrite live UI lists with EMPTY when the tablet's IDB read
+    // timed out mid-sync — every list on the Square COD page vanished. Return
+    // null so callers know the read FAILED and can keep their current state.
+    // [] stays reserved for a genuinely empty store.
+    console.error('[SquareCODOffline] Payment tx read FAILED (not empty):', error);
+    return null;
   }
 };
 

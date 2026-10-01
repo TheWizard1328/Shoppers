@@ -116,15 +116,22 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
 
     const sold = (offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status));
 
-    setCatalogItems([...(offlineCatalog || [])]);
-    setSoldCatalogItems([...(sold || [])]);
-    setAllTransactions([...(offlineTransactions || [])]);
+    // null = IDB read FAILED (timeout/stall), not empty (owner report, Sep 30
+    // 2026) — keep whatever is already on screen instead of zeroing the page.
+    if (offlineCatalog !== null) setCatalogItems([...(offlineCatalog || [])]);
+    if (offlineTransactions !== null) {
+      setSoldCatalogItems([...(sold || [])]);
+      setAllTransactions([...(offlineTransactions || [])]);
+    }
     setSyncStatus(updatedSyncStatus ? { ...updatedSyncStatus } : updatedSyncStatus);
 
+    // null passthrough (Sep 30 2026): a FAILED read must stay null through this
+    // snapshot so callers (loadReconciliationFromOffline) can keep their current
+    // lists — coalescing null → [] here made read failures zero the page.
     return {
-      items: offlineCatalog || [],
-      transactions: offlineTransactions || [],
-      sold
+      items: offlineCatalog === null ? null : (offlineCatalog || []),
+      transactions: offlineTransactions === null ? null : (offlineTransactions || []),
+      sold: offlineTransactions === null ? null : sold
     };
   }, [getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus]);
 
@@ -215,17 +222,25 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
   }), []);
 
   const loadReconciliationFromOffline = useCallback(async (offlineDB, startDateStr, endDateStr) => {
-    const [windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot] = await Promise.all([
-    loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
-    offlineDB.getAll(offlineDB.STORES.DELIVERIES),
-    loadSquareViewFromOffline()]
-    );
+    // Strict reads + null guards (owner report, Sep 30 2026): a read timeout must
+    // never zero the page — keep the current state when IDB is busy/stalled.
+    let windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot;
+    try {
+      [windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot] = await Promise.all([
+      loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
+      offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES),
+      loadSquareViewFromOffline()]
+      );
+    } catch (readErr) {
+      console.warn('[SquareManagement] loadReconciliationFromOffline: IDB read failed — keeping current lists:', readErr?.message);
+      return;
+    }
 
     const deliveriesToUse = (windowDeliveries || []).length > 0 ? windowDeliveries || [] : allOfflineDeliveries || [];
     setDeliveries([...(deliveriesToUse || [])]);
-    setCatalogItems([...(offlineCatalogSnapshot?.items || [])]);
-    setAllTransactions([...(offlineCatalogSnapshot?.transactions || [])]);
-    setSoldCatalogItems([...(offlineCatalogSnapshot?.sold || [])]);
+    if (offlineCatalogSnapshot?.items != null) setCatalogItems([...(offlineCatalogSnapshot.items || [])]);
+    if (offlineCatalogSnapshot?.transactions != null) setAllTransactions([...(offlineCatalogSnapshot.transactions || [])]);
+    if (offlineCatalogSnapshot?.sold != null) setSoldCatalogItems([...(offlineCatalogSnapshot.sold || [])]);
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
   const refreshUiFromOfflineOnly = useCallback(async () => {
@@ -386,9 +401,13 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
               squareCODOfflineManager.getCatalogItemsOffline(),
               squareCODOfflineManager.getPaymentTransactionsOffline(),
             ]);
-            setCatalogItems([...(uiCatalog2 || [])]);
-            setAllTransactions([...(uiTxs2 || [])]);
-            setSoldCatalogItems([...(uiTxs2 || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
+            // null = read FAILED, not empty (owner report, Sep 30 2026) — keep
+            // the current lists rather than zeroing the page.
+            if (uiCatalog2 !== null) setCatalogItems([...(uiCatalog2 || [])]);
+            if (uiTxs2 !== null) {
+              setAllTransactions([...(uiTxs2 || [])]);
+              setSoldCatalogItems([...(uiTxs2 || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
+            }
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             // Rebuild the reconcile state straight from IDB (no Square API) so
             // the delivery↔catalog links settle completely.
@@ -445,12 +464,24 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Load all deliveries + transactions from offline DB — reconciliationRows useMemo does the matching
-      const [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
-      offlineDB.getAll(offlineDB.STORES.DELIVERIES),
-      offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
-      offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)]
-      );
+      // Load all deliveries + transactions from offline DB — reconciliationRows useMemo does the matching.
+      // STRICT reads (owner report, Sep 30 2026): the plain getAll() swallows
+      // timeouts and returns [], which zeroed EVERY list on the owner's tablet
+      // right after a sync (slower storage + the sync's write burst = read
+      // stalls). Strict reads THROW on failure so we keep the current lists
+      // instead of replacing them with empty ones.
+      let allOfflineDeliveries, offlineCatalog, offlineTransactions;
+      try {
+        [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
+        offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES),
+        offlineDB.getAllStrict(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+        offlineDB.getAllStrict(offlineDB.STORES.SQUARE_TRANSACTIONS)]
+        );
+      } catch (readErr) {
+        console.error('[SquareManagement] RECONCILE: IDB read FAILED — keeping current lists (NOT zeroing):', readErr?.message);
+        toast.info('Device storage was busy — lists left as-is. Try Refresh in a moment.');
+        return;
+      }
 
       setDeliveries([...(allOfflineDeliveries || [])]);
       setCatalogItems([...(offlineCatalog || [])]);
@@ -572,9 +603,12 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       const { startDateStr, endDateStr } = getSourceWindow();
       const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
       setDeliveries([...(windowedDeliveries.length > 0 ? windowedDeliveries : Array.from(existingMap.values()))]);
-      setCatalogItems([...(uiCatalog || [])]);
-      setAllTransactions([...(uiTransactions || [])]);
-      setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+      // null = read FAILED, not empty (Sep 30 2026) — keep current lists.
+      if (uiCatalog !== null) setCatalogItems([...(uiCatalog || [])]);
+      if (uiTransactions !== null) {
+        setAllTransactions([...(uiTransactions || [])]);
+        setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+      }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
@@ -669,10 +703,19 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         squareCODOfflineManager.getPaymentTransactionsOffline(),
       ]);
       setIsLoading(false);
-      setCatalogItems([...(step1Catalog || [])]);
-      setAllTransactions([...(step1Txs || [])]);
-      setSoldCatalogItems([...(step1Txs || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
-      console.log(`[SquareManagement] SYNC STEP 1: offline load — ${(step1Catalog || []).length} catalog, ${(step1Txs || []).length} txs → UI`);
+      // null = IDB read FAILED (timeout/stall), NOT an empty store (owner report,
+      // Sep 30 2026: the tablet's reads right after a big sync timed out and
+      // zeroed every list). Keep the current on-screen state instead.
+      if (step1Catalog !== null) setCatalogItems([...(step1Catalog || [])]);
+      if (step1Txs !== null) {
+        setAllTransactions([...(step1Txs || [])]);
+        setSoldCatalogItems([...(step1Txs || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
+      }
+      if (step1Catalog === null || step1Txs === null) {
+        console.warn('[SquareManagement] SYNC STEP 1: offline read FAILED (kept current lists) — catalog:', step1Catalog === null ? 'FAILED' : 'ok', 'txs:', step1Txs === null ? 'FAILED' : 'ok');
+      } else {
+        console.log(`[SquareManagement] SYNC STEP 1: offline load — ${(step1Catalog || []).length} catalog, ${(step1Txs || []).length} txs → UI`);
+      }
 
       // ── STEP 2: Single API call — catalog + transactions + cleanup in one pass ──
       // squareGetCodData2 now fetches catalog + orders once, builds transaction records,
@@ -737,8 +780,17 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
 
         // Merge deliveries non-destructively — preserve local-only fields (delivery_notes,
         // encoded_polyline, etc.) that squareGetCodData2 doesn't return in its stripped payload.
-        const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
-        const existingMap = new Map(existing.map((r) => [r.id, r]));
+        // STRICT read (Sep 30 2026): a silent-[] timeout used to make this merge
+        // run on a phantom EMPTY store and the replace wiped local-only fields.
+        // On failure we skip the merge-write entirely — IDB keeps its records.
+        let existing;
+        try {
+          existing = (await offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES)) || [];
+        } catch (readErr) {
+          console.error('[SquareManagement] Sync STEP 3: DELIVERIES read FAILED — skipping non-destructive merge (IDB untouched):', readErr?.message);
+          existing = null;
+        }
+        const existingMap = new Map((existing || []).map((r) => [r.id, r]));
         (strippedDeliveries || []).forEach((r) => {
           if (!r?.id) return;
           const prev = existingMap.get(r.id);
@@ -750,8 +802,10 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
             existingMap.set(r.id, r);
           }
         });
-        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
-        console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted`);
+        if (existing !== null) {
+          await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
+        }
+        console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted${existing === null ? ' (deliveries merge SKIPPED — read failed)' : ''}`);
 
         // ── STEP 3: run the reconcile system (rebuilds every list from the
         // freshly synced offline DB and updates the UI state) ────────────
