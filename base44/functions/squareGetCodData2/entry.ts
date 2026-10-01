@@ -975,7 +975,8 @@ async function handleGetCodData(base44, payload={}) {
       const searchEndAt = new Date(newest).toISOString();
       mark('before_out_of_window_search');
   console.log('[squareGetCodData2] out-of-window order search:', { candidates: work.length, searchStartAt, searchEndAt });
-      const searchOrders = await listOrders(locationIds, searchStartAt, accessToken, 6000, ['COMPLETED'], 'DESC', searchEndAt);
+mark('ootw_orders_fetched');
+        const searchOrders = await listOrders(locationIds, searchStartAt, accessToken, 6000, ['COMPLETED'], 'DESC', searchEndAt);
       const refundedIds = buildRefundedOrderIdSet(searchOrders);
       // sig → array of ring timestamps (for the ±10-day proximity check)
       const sigRings = new Map();
@@ -1021,7 +1022,8 @@ async function handleGetCodData(base44, payload={}) {
   if (toDelete.length > 0) {
     const objectIds = toDelete.map((i) => i.id).filter(Boolean);
     attemptedDeleteObjectIds = new Set(objectIds);
-    const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
+mark('before_catalog_delete_api');
+      const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
     deletedCatalogIds = deleteResult.deleted || [];
     // Clean up DB records for deleted objects — batch in parallel
     const dbCleanupPromises = objectIds.map(async (objId) => {
@@ -1035,7 +1037,8 @@ async function handleGetCodData(base44, payload={}) {
       const staleTxs = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
       for (const r of staleTxs) { await base44.asServiceRole.entities.SquareTransaction.delete(r.id).catch(() => null); }
     });
-    await Promise.all(dbCleanupPromises);
+mark('after_db_cleanup');
+      await Promise.all(dbCleanupPromises);
   }
 
   // ── 5a) Purge DB records for confirmed-collected deliveries ─────────
@@ -1139,7 +1142,8 @@ async function handleGetCodData(base44, payload={}) {
     await base44.asServiceRole.entities.SquareCatalogItems.delete(id).catch(() => null);
     purgedCatalogRows++;
   }
-  console.log('[squareGetCodData2] Collected-delivery DB purge (floor-scoped):', { collected: allCollectedIds.size, txRowsPurged: purgedTxRows, catalogRowsPurged: purgedCatalogRows });
+mark('after_collected_purge');
+    console.log('[squareGetCodData2] Collected-delivery DB purge (floor-scoped):', { collected: allCollectedIds.size, txRowsPurged: purgedTxRows, catalogRowsPurged: purgedCatalogRows });
   const preStampedIds = new Set((activeDeliveriesWithAmounts || [])
     .filter((d) => d?.cod_confirmed_collected && !confirmedCollectedDeliveryIds.has(d.id))
     .map((d) => d.id));
