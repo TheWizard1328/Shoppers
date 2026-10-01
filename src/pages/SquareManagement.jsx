@@ -459,7 +459,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
   }, [isUpdatingCatalog, isSyncing, patients]);
   updateCatalogRef.current = updateCatalog;
 
-  const runReconcile = useCallback(async () => {
+  const runReconcile = useCallback(async (preloaded) => {
     setIsReconciling(true);
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
@@ -470,13 +470,24 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       // right after a sync (slower storage + the sync's write burst = read
       // stalls). Strict reads THROW on failure so we keep the current lists
       // instead of replacing them with empty ones.
-      let allOfflineDeliveries, offlineCatalog, offlineTransactions;
+      //
+      // Speed spec (Sep 30 2026): `preloaded` lets the post-sync call skip the
+      // triple IDB re-read + decrypt entirely — the sync already holds exactly
+      // what it just wrote (merged deliveries + saved catalog/tx sets), so
+      // re-reading the PHI store only re-decrypts thousands of records for
+      // identical data. Other callers (Reconcile button, updateCatalog) still
+      // read from IDB.
+      let allOfflineDeliveries = preloaded?.deliveries || null;
+      let offlineCatalog = preloaded?.catalogItems || null;
+      let offlineTransactions = preloaded?.transactions || null;
       try {
-        [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
-        offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES),
-        offlineDB.getAllStrict(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
-        offlineDB.getAllStrict(offlineDB.STORES.SQUARE_TRANSACTIONS)]
-        );
+        if (allOfflineDeliveries === null || offlineCatalog === null || offlineTransactions === null) {
+          [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
+          offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES),
+          offlineDB.getAllStrict(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+          offlineDB.getAllStrict(offlineDB.STORES.SQUARE_TRANSACTIONS)]
+          );
+        }
       } catch (readErr) {
         console.error('[SquareManagement] RECONCILE: IDB read FAILED — keeping current lists (NOT zeroing):', readErr?.message);
         toast.info('Device storage was busy — lists left as-is. Try Refresh in a moment.');
@@ -639,7 +650,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       // (isSyncing released + 1s render flush — same re-bind pattern as the
       // sync's STEP 5.)
       setIsSyncing(false);
-      await new Promise((r) => setTimeout(r, 1000));
+      // Short render yield re-binds updateCatalogRef (old fixed 1s wait just
+      // burned time — speed spec, Sep 30 2026).
+      await new Promise((r) => setTimeout(r, 50));
       console.log('[SquareManagement] Backfill: running Update Catalog path for uncollected items');
       await updateCatalogRef.current?.('auto');
     } catch (err) {
@@ -759,22 +772,32 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         const deletedCount = (codData.deletedCatalogIds || []).length;
 
         // Sync online → offline (IDB writes only, no UI state)
-        await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
+        // Speed spec (Sep 30 2026): the saves now diff against the existing IDB
+        // rows and only write CHANGED records, so an ordinary sync (nothing
+        // collected, nothing new) does near-zero encryption work instead of
+        // re-encrypting and rewriting the whole catalog + 6-month tx mirror.
+        let savedCatalogSet = null; // what IDB now holds, for the preloaded reconcile
+        const catSave = await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
+        if (catSave?.success && (catalogRecords || []).length > 0) savedCatalogSet = catalogRecords;
         // Guard the IDB tx history: a replace-save only happens when the response
         // is a COMPLETE DB mirror (new backend: txRetentionFloor present AND rows).
         // Partial/empty responses (old backend mid-deploy, failed order fetch)
         // would otherwise wipe 6 months of history on every device.
+        let savedTxSet = null; // what IDB now holds, for the preloaded reconcile
         if (finalDataHasCompleteTxMirror(codData, transactionRecords)) {
           const txSave = await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
           if (!txSave?.success) {
             console.error('[SquareManagement] Sync: IDB tx save FAILED — history untouched:', txSave?.error);
+          } else if ((transactionRecords || []).length > 0) {
+            savedTxSet = transactionRecords;
           }
         } else {
           const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
           const existingTxs = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
           const mergedTxs = new Map((existingTxs || []).map((t) => [keyOf(t), t]));
           (transactionRecords || []).forEach((t) => { if (t) mergedTxs.set(keyOf(t), { ...mergedTxs.get(keyOf(t)), ...t }); });
-          await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(mergedTxs.values()));
+          const mergedTxSave = await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(mergedTxs.values()));
+          if (mergedTxSave?.success) savedTxSet = Array.from(mergedTxs.values());
           console.warn('[SquareManagement] Partial/empty tx response — merged into IDB instead of replace-save', { rows: transactionRecords?.length, floor: codData?.txRetentionFloor });
         }
 
@@ -791,26 +814,58 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           existing = null;
         }
         const existingMap = new Map((existing || []).map((r) => [r.id, r]));
+        // Speed spec (Sep 30 2026): the old flow replaceAllRecords'd the ENTIRE
+        // deliveries store every sync — re-encrypting and rewriting every row
+        // (AES-GCM on a PHI store, thousands of records) even when nothing
+        // changed. This is the single slowest IDB step of the sync. Now we
+        // bulkSave only the CHANGED records: server rows whose updated_date or
+        // content differs from what's stored, plus brand-new ones. Pruning is
+        // unnecessary here by construction — the merged set is existing + server
+        // rows, so nothing can be missing that replaceAllRecords would have
+        // deleted (server-side deletions were never pruned by this path anyway).
+        let changedDeliveries = [];
+        if (existing !== null) {
+          changedDeliveries = (strippedDeliveries || []).filter((r) => {
+            if (!r?.id) return false;
+            const prev = existingMap.get(r.id);
+            if (!prev) return true; // brand-new row
+            if (r.updated_date !== prev.updated_date) return true; // cheap fast-path
+            // updated_date identical but content could still differ — deep compare
+            const merged = { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' };
+            return JSON.stringify(merged) !== JSON.stringify(prev);
+          }).map((r) => {
+            const prev = existingMap.get(r.id);
+            // Shallow-merge server fields on top of existing record, but keep
+            // any local-only fields the server strip omitted.
+            return prev ? { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' } : r;
+          });
+          if (changedDeliveries.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
+          }
+        }
         (strippedDeliveries || []).forEach((r) => {
           if (!r?.id) return;
           const prev = existingMap.get(r.id);
           if (prev) {
-            // Shallow-merge server fields on top of existing record, but keep
-            // any local-only fields the server strip omitted.
             existingMap.set(r.id, { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' });
           } else {
             existingMap.set(r.id, r);
           }
         });
-        if (existing !== null) {
-          await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
-        }
-        console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted${existing === null ? ' (deliveries merge SKIPPED — read failed)' : ''}`);
+        console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted, deliveries changed ${existing === null ? 'SKIPPED (read failed)' : changedDeliveries.length + '/' + (strippedDeliveries || []).length}`);
 
-        // ── STEP 3: run the reconcile system (rebuilds every list from the
-        // freshly synced offline DB and updates the UI state) ────────────
-        await runReconcile();
-        console.log('[SquareManagement] SYNC STEP 3: reconcile complete — lists + UI rebuilt from offline DB');
+        // ── STEP 3: run the reconcile system (rebuilds every list and updates
+        // the UI state). Preloaded with the data this sync JUST wrote to IDB —
+        // skips the triple getAllStrict re-read + decrypt (speed spec, Sep 30
+        // 2026). savedCatalogSet/savedTxSet are null when the save was a no-op
+        // (empty incoming set) — then IDB holds the OLD rows and we must read.
+        const preloaded = (existing !== null && savedCatalogSet !== null && savedTxSet !== null) ? {
+          deliveries: Array.from(existingMap.values()),
+          catalogItems: savedCatalogSet,
+          transactions: savedTxSet,
+        } : null;
+        await runReconcile(preloaded);
+        console.log(`[SquareManagement] SYNC STEP 3: reconcile complete — lists + UI rebuilt ${preloaded ? 'from pre-sync data (IDB re-read skipped)' : 'from offline DB'}`);
 
         // ── STEP 4: update the UI from the rebuilt state ────────────────
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -818,12 +873,15 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         console.log('[SquareManagement] SYNC STEP 4: UI updated');
 
         // ── STEP 5 (FINAL): run the Update Catalog path for everything the
-        // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). The
-        // 1s render flush comes FIRST: runReconcile's setStates haven't
-        // re-rendered yet, so reading the refs synchronously saw the
-        // PRE-sync list — that's why Update Catalog only ever ran after the
-        // SECOND sync (owner report, Sep 28).
-        await new Promise((r) => setTimeout(r, 1000));
+        // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). A short
+        // render yield comes FIRST: runReconcile's setStates haven't re-rendered
+        // yet, so reading the refs synchronously saw the PRE-sync list — that's
+        // why Update Catalog only ever ran after the SECOND sync (owner report,
+        // Sep 28). 50ms is plenty (refs are assigned during the render commit,
+        // not in effects); the old fixed 1000ms just burned sync time (speed
+        // spec, Sep 30 2026). Worst case a missed rebind = item created on the
+        // next sync/manual button, same graceful fallback as before.
+        await new Promise((r) => setTimeout(r, 50));
         try {
           const catalogDeliveryIds = new Set(
             (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
@@ -844,7 +902,10 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
             // report, Sep 28). The 1s flush re-binds updateCatalogRef to the
             // re-rendered callback whose isSyncing closure is now false.
             setIsSyncing(false);
-            await new Promise((r) => setTimeout(r, 1000));
+            // Short render yield re-binds updateCatalogRef to the re-rendered
+            // callback whose isSyncing closure is now false (the old 1s wait
+            // just burned sync time — speed spec, Sep 30 2026).
+            await new Promise((r) => setTimeout(r, 50));
             console.log('[SquareManagement] SYNC STEP 5: running Update Catalog path');
             await updateCatalogRef.current?.('auto');
           } else {
