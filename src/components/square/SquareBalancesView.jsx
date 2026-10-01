@@ -55,7 +55,17 @@ function CardCodList({ sections }) {
           {sec.rows.map((r) => (
             <div key={r.key} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.name || 'COD'}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {r.storeAbbrev && (
+                    <span
+                      className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                      style={{ backgroundColor: r.storeColor || '#64748b' }}
+                    >
+                      {r.storeAbbrev}
+                    </span>
+                  )}
+                  <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.driverName || 'Unassigned'}</p>
+                </div>
                 <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
               </div>
               <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
@@ -143,9 +153,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const cfgLoc = new Map();
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
       const storeToLoc = new Map();
+      const storeById = new Map();
       (storesRaw || []).forEach((s) => {
         const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
         if (s?.id && loc) storeToLoc.set(String(s.id), loc);
+        if (s?.id) storeById.set(String(s.id), s);
       });
       // Cash rung at a register = ledger cod_collection sale linked to the delivery
       const confirmed = new Set(
@@ -179,7 +191,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (outstanding <= 0) continue;
           const agg = aggFor(locId);
           agg.total += outstanding; agg.pendingCount += 1;
-          agg.items.push({ delivery_id: d.id, status, patient: d.patient_name || null, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10) });
+          const sInfoA = storeById.get(String(d.store_id || ''));
+          agg.items.push({ delivery_id: d.id, status, patient: d.patient_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoA?.abbreviation || null, storeColor: sInfoA?.color || null, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10) });
         }
       }
 
@@ -196,7 +209,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (!locId) continue;
           const agg = aggFor(locId);
           agg.total += cash; agg.awaitingCount += 1;
-          agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10) });
+          const sInfoB = storeById.get(String(d.store_id || ''));
+          agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoB?.abbreviation || null, storeColor: sInfoB?.color || null, amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10) });
         }
         if (list.length < 2000) break;
         if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
@@ -229,9 +243,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const cfgLoc = new Map();
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
       const storeToLoc = new Map();
+      const storeById = new Map();
       (storesRaw || []).forEach((s) => {
         const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
         if (s?.id && loc) storeToLoc.set(String(s.id), loc);
+        if (s?.id) storeById.set(String(s.id), s);
       });
       const today = edmontonWallString(new Date()).slice(0, 10);
       const centsOf = (n) => Math.round(Number(n || 0) * 100);
@@ -240,6 +256,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (!byLoc.has(locId)) byLoc.set(locId, []);
         return byLoc.get(locId);
       };
+
+      // Pull deliveries first — needed to resolve driver name + store badge for
+      // BOTH the Square-confirmed cash rows (a) and the non-cash rows (b).
+      const deliveryById = new Map();
+      const deliveryList = [];
+      for (let page = 0; page < 4; page++) {
+        const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
+        const list = rows || [];
+        deliveryList.push(...list);
+        list.forEach((d) => { if (d?.id) deliveryById.set(String(d.id), d); });
+        if (list.length < 2000) break;
+        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < Date.now() - 3 * 86400000) break;
+      }
 
       // a) Square-confirmed cash collections that happened TODAY
       const squareTodayIds = new Set();
@@ -250,9 +279,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         squareTodayIds.add(String(e.delivery_id));
         const locId = e.location_id;
         if (!locId) continue;
+        const linkedDelivery = deliveryById.get(String(e.delivery_id));
+        const sInfo = linkedDelivery ? storeById.get(String(linkedDelivery.store_id || '')) : null;
         aggFor(locId).push({
           key: `tx-${e.id || e.square_id}`,
-          name: e.cod_item_name || e.patient_name || 'Square COD',
+          driverName: linkedDelivery?.driver_name || null,
+          storeAbbrev: sInfo?.abbreviation || null,
+          storeColor: sInfo?.color || null,
           amount: Math.abs(Number(e.amount_cents || 0)) / 100,
           sub: `Square cash · ${when.slice(11, 16)}`,
           collected: true,
@@ -260,9 +293,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       // b) non-cash payments collected today (no Square tx)
-      for (let page = 0; page < 4; page++) {
-        const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
-        const list = rows || [];
+      {
+        const list = deliveryList;
         for (const d of list) {
           if (d?.status !== 'completed' || Number(d?.cod_total_amount_required || 0) <= 0) continue;
           const doneAt = String(d.actual_delivery_time || '');
@@ -273,17 +305,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (squareTodayIds.has(String(d.id))) continue; // already reported via Square
           const locId = storeToLoc.get(String(d?.store_id || ''));
           if (!locId) continue;
+          const sInfo = storeById.get(String(d?.store_id || ''));
           const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
           aggFor(locId).push({
             key: `d-${d.id}`,
-            name: d.patient_name || 'COD',
+            driverName: d.driver_name || null,
+            storeAbbrev: sInfo?.abbreviation || null,
+            storeColor: sInfo?.color || null,
             amount: nonCash / 100,
             sub: `${type} · ${doneAt.slice(11, 16)}`,
             collected: true,
           });
         }
-        if (list.length < 2000) break;
-        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < Date.now() - 3 * 86400000) break;
       }
 
       const out = {};
@@ -663,14 +696,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
                 const uncollectedTodayRows = outItems.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
                   key: `o-${it.delivery_id}`,
-                  name: it.patient || 'COD',
+                  driverName: it.driverName || null,
+                  storeAbbrev: it.storeAbbrev || null,
+                  storeColor: it.storeColor || null,
                   amount: it.amount,
                   sub: `${it.date || todayStr} · ${it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}`,
                   collected: false,
                 }));
                 const pastUncollectedRows = outItems.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: `p-${it.delivery_id}`,
-                  name: it.patient || 'COD',
+                  driverName: it.driverName || null,
+                  storeAbbrev: it.storeAbbrev || null,
+                  storeColor: it.storeColor || null,
                   amount: it.amount,
                   sub: `${it.date} · ${it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}`,
                   collected: false,
