@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 
@@ -39,6 +39,7 @@ export default function SquareBalancesView({ currentUser }) {
   const [config, setConfig] = useState(null);
   const [configRecordId, setConfigRecordId] = useState(null);
   const [sales, setSales] = useState([]);
+  const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTrueUp, setShowTrueUp] = useState(false);
@@ -100,7 +101,10 @@ export default function SquareBalancesView({ currentUser }) {
         const cfg = await loadConfig();
         if (cfg?.trued_up_at) {
           setIsSyncing(true);
-          await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at }).catch((e) => console.error('auto ledger sync failed:', e));
+          const res = await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at, includeCodOutstanding: true }).catch((e) => { console.error('auto ledger sync failed:', e); return null; });
+          const out = res?.codOutstanding || [];
+          const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
+          setCodOutstandingByLoc(byLoc);
           setIsSyncing(false);
         }
         await loadSales(cfg);
@@ -118,7 +122,10 @@ export default function SquareBalancesView({ currentUser }) {
     const startDate = config?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
     setIsSyncing(true);
     try {
-      await base44.functions.invoke('squareLedgerSync', { startDate });
+      const res = await base44.functions.invoke('squareLedgerSync', { startDate, includeCodOutstanding: true });
+      const out = res?.codOutstanding || [];
+      const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
+      setCodOutstandingByLoc(byLoc);
       toast.success('Square data refreshed');
       await refresh({ reloadConfig: false });
     } catch (err) {
@@ -145,16 +152,20 @@ export default function SquareBalancesView({ currentUser }) {
         credits += amount - fee - l - f;
       }
       const r2 = (x) => Math.round(x * 100) / 100;
+      const codOut = codOutstandingByLoc[loc.location_id] || null;
+      const codOutTotal = Number(codOut?.total || 0);
       return {
         ...loc,
         saleCount: locSales.length,
         gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
-        cardEstimate: r2(Number(loc.card_start || 0) + credits),
+        // CODs out (pending/in-transit + cash awaiting Square) reduce the available card balance
+        cardEstimate: r2(Number(loc.card_start || 0) + credits - codOutTotal),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
+        codOutstanding: codOut,
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
-  }, [config, sales]);
+  }, [config, sales, codOutstandingByLoc]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -276,6 +287,32 @@ export default function SquareBalancesView({ currentUser }) {
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
                 <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
               </div>
+              {loc.codOutstanding?.total > 0 && (
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs out</div>
+                    <div className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">−{fmtMoney(loc.codOutstanding.total)}</div>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    {loc.codOutstanding.pending_count > 0 && `${loc.codOutstanding.pending_count} on route`}
+                    {loc.codOutstanding.pending_count > 0 && loc.codOutstanding.awaiting_square_count > 0 && ' · '}
+                    {loc.codOutstanding.awaiting_square_count > 0 && `${loc.codOutstanding.awaiting_square_count} cash awaiting Square`}
+                  </div>
+                  {loc.codOutstanding.items?.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="text-[11px] text-slate-400 cursor-pointer hover:text-slate-500">view breakdown</summary>
+                      <div className="mt-1 space-y-0.5 text-[11px] text-slate-400 tabular-nums">
+                        {loc.codOutstanding.items.map((it) => (
+                          <div key={it.delivery_id} className="flex justify-between gap-2">
+                            <span className="truncate">{it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}{it.patient ? ` · ${it.patient}` : ''}</span>
+                            <span>{fmtMoney(it.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
               </div>

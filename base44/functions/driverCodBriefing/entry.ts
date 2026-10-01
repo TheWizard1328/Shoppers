@@ -581,7 +581,9 @@ async function handleBriefing(base44, params = {}) {
           const cfgRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => []);
           const cfg = cfgRows?.[0]?.setting_value;
           if (cfg?.locations?.length && cfg.trued_up_at) {
-            await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at }).catch((e) => console.log('[briefing] ledger freshen skipped:', e?.message || e));
+            const ledgerRes = await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at, includeCodOutstanding: true }).catch((e) => { console.log('[briefing] ledger freshen skipped:', e?.message || e); return null; });
+            const codOutByLoc = new Map((ledgerRes?.codOutstanding || []).map((o) => [o.location_id, Number(o.total || 0)]));
+            const codOutAll = (ledgerRes?.codOutstanding || []).reduce((s, o) => s + Number(o.total || 0), 0);
             const sinceRows = await base44.asServiceRole.entities.SquareLedgerEntry.filter(
               { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
               '-occurred_at', 2000
@@ -603,7 +605,7 @@ async function handleBriefing(base44, params = {}) {
                 gross += amount; fees += fee; loan += l; folder += f;
               }
               folderTotal += folder;
-              const cardEst = Number(loc.card_start || 0) + gross - fees - loan - folder;
+              const cardEst = Number(loc.card_start || 0) + gross - fees - loan - folder - (codOutByLoc.get(loc.location_id) || 0);
               const loanLeft = Math.max(0, Number(loc.loan_start || 0) - loan);
               const name = String(loc.name || loc.location_id);
               balParts.push({ name, card: Math.round(cardEst * 100) / 100, loan: Math.round(loanLeft * 100) / 100 });
@@ -614,6 +616,7 @@ async function handleBriefing(base44, params = {}) {
             lines.push('BALANCES (est):');
             for (const b of balParts) lines.push(`${b.name} Card ${bmoney(b.card)} Loan ${bmoney(b.loan)}`);
             lines.push(`Folder ${bmoney(Math.round(folderTotal * 100) / 100)} (2% since true-up)`);
+            lines.push(`CODs out ${bmoney(Math.round(codOutAll * 100) / 100)} (pending + cash awaiting Square)`);
             lines.push('');
           }
         } catch (e) {
