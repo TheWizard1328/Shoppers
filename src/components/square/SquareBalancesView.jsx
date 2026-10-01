@@ -37,6 +37,23 @@ function daysSince(iso) {
   return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
+// Delivery only stores patient_id (no patient_name field) — resolve the real
+// name from the Patient entity, same dual-key lookup used across the app
+// (patient_id can match either Patient.id or Patient.patient_id).
+function buildPatientResolver(patientsRaw) {
+  const byId = new Map();
+  const byPid = new Map();
+  (patientsRaw || []).forEach((p) => {
+    if (p?.id) byId.set(String(p.id), p);
+    if (p?.patient_id) byPid.set(String(p.patient_id), p);
+  });
+  return (patientId) => {
+    if (!patientId) return null;
+    const key = String(patientId);
+    return byId.get(key) || byPid.get(key) || null;
+  };
+}
+
 // Owner-only COD list at the bottom of each card. Rows use the SAME format as
 // the Square catalog items list (name + subtext, bold amount, Collected/Pending
 // pill). Three levels, top to bottom: collected today, uncollected today, past
@@ -148,11 +165,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // (no Square API round-trip needed). Local result wins over the sync response.
   const computeLocalOutstanding = useCallback(async (cfgArg) => {
     try {
-      const [storesRaw, cfgsRaw, codSalesRaw] = await Promise.all([
+      const [storesRaw, cfgsRaw, codSalesRaw, patientsRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.SquareLocationConfig.list().catch(() => []),
         base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []),
+        base44.entities.Patient.list().catch(() => []),
       ]);
+      const resolvePatientName = buildPatientResolver(patientsRaw);
       const cfgLoc = new Map();
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
       const storeToLoc = new Map();
@@ -195,7 +214,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const agg = aggFor(locId);
           agg.total += outstanding; agg.pendingCount += 1;
           const sInfoA = storeById.get(String(d.store_id || ''));
-          agg.items.push({ delivery_id: d.id, status, patient: d.patient_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoA?.abbreviation || null, storeColor: sInfoA?.color || null, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10) });
+          agg.items.push({ delivery_id: d.id, status, patient: resolvePatientName(d.patient_id)?.full_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoA?.abbreviation || null, storeColor: sInfoA?.color || null, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10) });
         }
       }
 
@@ -213,7 +232,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const agg = aggFor(locId);
           agg.total += cash; agg.awaitingCount += 1;
           const sInfoB = storeById.get(String(d.store_id || ''));
-          agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoB?.abbreviation || null, storeColor: sInfoB?.color || null, amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10) });
+          agg.items.push({ delivery_id: d.id, status: 'completed', patient: resolvePatientName(d.patient_id)?.full_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoB?.abbreviation || null, storeColor: sInfoB?.color || null, amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10) });
         }
         if (list.length < 2000) break;
         if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
@@ -238,11 +257,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeCodCollectedToday = useCallback(async () => {
     if (!ownerCanEditRef.current) return;
     try {
-      const [storesRaw, cfgsRaw, codSalesRaw] = await Promise.all([
+      const [storesRaw, cfgsRaw, codSalesRaw, patientsRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.SquareLocationConfig.list().catch(() => []),
         base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []),
+        base44.entities.Patient.list().catch(() => []),
       ]);
+      const resolvePatientName = buildPatientResolver(patientsRaw);
       const cfgLoc = new Map();
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
       const storeToLoc = new Map();
@@ -284,9 +305,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (!locId) continue;
         const linkedDelivery = deliveryById.get(String(e.delivery_id));
         const sInfo = linkedDelivery ? storeById.get(String(linkedDelivery.store_id || '')) : null;
+        const txPatientName = resolvePatientName(e.patient_id || linkedDelivery?.patient_id)?.full_name || null;
         aggFor(locId).push({
           key: `tx-${e.id || e.square_id}`,
-          patientName: linkedDelivery?.patient_name || null,
+          patientName: txPatientName,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: Math.abs(Number(e.amount_cents || 0)) / 100,
@@ -312,7 +334,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
           aggFor(locId).push({
             key: `d-${d.id}`,
-            patientName: d.patient_name || null,
+            patientName: resolvePatientName(d.patient_id)?.full_name || null,
             storeAbbrev: sInfo?.abbreviation || null,
             storeColor: sInfo?.color || null,
             amount: nonCash / 100,
