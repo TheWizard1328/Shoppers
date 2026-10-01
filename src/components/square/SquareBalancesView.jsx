@@ -64,7 +64,7 @@ function CardCodList({ sections }) {
                       {r.storeAbbrev}
                     </span>
                   )}
-                  <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.driverName || 'Unassigned'}</p>
+                  <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.patientName || 'COD'}</p>
                 </div>
                 <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
               </div>
@@ -283,7 +283,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const sInfo = linkedDelivery ? storeById.get(String(linkedDelivery.store_id || '')) : null;
         aggFor(locId).push({
           key: `tx-${e.id || e.square_id}`,
-          driverName: linkedDelivery?.driver_name || null,
+          patientName: linkedDelivery?.patient_name || null,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: Math.abs(Number(e.amount_cents || 0)) / 100,
@@ -309,7 +309,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
           aggFor(locId).push({
             key: `d-${d.id}`,
-            driverName: d.driver_name || null,
+            patientName: d.patient_name || null,
             storeAbbrev: sInfo?.abbreviation || null,
             storeColor: sInfo?.color || null,
             amount: nonCash / 100,
@@ -696,7 +696,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
                 const uncollectedTodayRows = outItems.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
                   key: `o-${it.delivery_id}`,
-                  driverName: it.driverName || null,
+                  patientName: it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
                   amount: it.amount,
@@ -705,7 +705,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 }));
                 const pastUncollectedRows = outItems.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: `p-${it.delivery_id}`,
-                  driverName: it.driverName || null,
+                  patientName: it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
                   amount: it.amount,
