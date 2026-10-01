@@ -7,7 +7,7 @@
  *   Advanced: priority, stop_on_match, cooldown, shadow_mode
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -360,8 +360,28 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
     }));
   };
 
+  const messageTemplateRef = useRef(null);
+
   const insertVariable = (varStr) => {
-    setDraft((d) => ({ ...d, message_template: (d.message_template || '') + varStr }));
+    // Insert at the TEXTAREA'S CURRENT CURSOR POSITION, not the end of the
+    // text. Reads selectionStart at click time; if the textarea never had
+    // focus this falls back to appending. After the state update lands,
+    // refocus and park the caret right after the inserted variable.
+    const el = messageTemplateRef.current;
+    const current = draft.message_template || '';
+    const pos = el && typeof el.selectionStart === 'number' && el.selectionStart <= current.length
+      ? el.selectionStart
+      : current.length;
+    const next = current.slice(0, pos) + varStr + current.slice(pos);
+    setDraft((d) => ({ ...d, message_template: next }));
+    requestAnimationFrame(() => {
+      const ta = messageTemplateRef.current;
+      if (ta) {
+        ta.focus();
+        const caret = pos + varStr.length;
+        try { ta.setSelectionRange(caret, caret); } catch (_) { /* detached */ }
+      }
+    });
   };
 
   // ── Action button handlers ───────────────────────────────────────────────
@@ -488,6 +508,7 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Message Template</Label>
               <Textarea
+                ref={messageTemplateRef}
                 value={draft.message_template}
                 onChange={(e) => setDraft({ ...draft, message_template: e.target.value })}
                 placeholder="Enter message… use {{driverName}}, {{patientName}}, {{date}}, etc."
