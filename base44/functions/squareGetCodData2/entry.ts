@@ -1014,7 +1014,8 @@ mark('ootw_orders_fetched');
         console.log('[squareGetCodData2] out-of-window order search: no matches among', work.length, 'candidate(s)');
       }
     }
-  } catch (e) { console.warn('[squareGetCodData2] out-of-window order search failed:', e?.message || e); }
+  mark('ootw_search_done');
+  } catch (e) { mark('ootw_search_done'); console.warn('[squareGetCodData2] out-of-window order search failed:', e?.message || e); }
 
   let deletedCatalogIds = [];
   let cleanupDbCount = 0;
@@ -1085,6 +1086,7 @@ mark('after_db_cleanup');
       const ae = fh.filter((e) => e?.pays_app_fees === true && e?.effective_date).sort((a, b) => String(a.effective_date).localeCompare(String(b.effective_date)));
       floorEligibility.set(store.id, ae.length > 0 ? ae[0].effective_date : null);
     }
+    mark('floor_rows_fetched');
     floorDeliveryRows = allFd.filter((d) => {
       if (!floorEligibility.has(d?.store_id)) return false;
       const ef = floorEligibility.get(d.store_id);
