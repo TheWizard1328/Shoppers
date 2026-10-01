@@ -713,12 +713,39 @@ export default function DeliveryForm({
   const biWeeklyLabel = useMemo(() => currentFrequency === 'bi-weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Bi-Weekly') : 'Bi-Weekly', [currentFrequency, hasAnyDaySelected, formData]);
   const weeklyX4Label = useMemo(() => currentFrequency === 'weekly-x4' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Weekly x4') : 'Weekly x4', [currentFrequency, hasAnyDaySelected, formData]);
 
+  // Retry-style barcode input focus. The old single setTimeout(..., 0) fired
+  // BEFORE React committed the setFormData re-render triggered just above it,
+  // so SmartBarcodeScanner hadn't re-attached its input yet (or focus was
+  // stolen by the re-render) — the field "sometimes" didn't get focused after
+  // selecting a patient. Attempt at staggered delays and stop as soon as the
+  // input actually holds focus.
+  const focusBarcodeInputWithRetry = () => {
+    [120, 300, 600].forEach((delay) => {
+      setTimeout(() => {
+        const el = barcodeInputRef.current;
+        if (el && document.activeElement !== el) {
+          try { el.focus?.(); } catch (_) { /* detached between renders */ }
+        }
+      }, delay);
+    });
+  };
+
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     driverLocationPoller.pause();
     const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
-    if (alreadyStaged) { setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return; }
+    if (alreadyStaged) {
+      setPatientSearch(''); setHighlightedPatientIndex(-1);
+      // The patient is already staged — still return the caret to the barcode
+      // input so the user can keep scanning. Single-shot focus at 0ms races the
+      // re-render; use the same retrying helper as the fresh-select path.
+      if (shouldAutoFocusFields) {
+        if (formData.driver_id) focusBarcodeInputWithRetry();
+        else window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect'));
+      }
+      driverLocationPoller.resume(); return;
+    }
     if (isLoadingExistingDelivery.current) { driverLocationPoller.resume(); return; }
     const hasCompletedDelivery = allDeliveries?.some((d) => d && d.patient_id === patient.id && d.status === 'completed');
     const isFirstDelivery = !hasCompletedDelivery;
@@ -741,7 +768,10 @@ export default function DeliveryForm({
     setFormData({ ...updatedFormData, store_id: patient.store_id, puid: chosenPickup?.stop_id || chosenPickup?.puid || '' });
     if (!updatedFormData.driver_id) setForceOpenDriverSelectOnLoad(true);
     if (!autoAddToStaged) {
-      if (shouldAutoFocusFields) { setTimeout(() => { if (updatedFormData.driver_id) { barcodeInputRef.current?.focus?.(); return; } window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect')); }, 0); }
+      if (shouldAutoFocusFields) {
+        if (updatedFormData.driver_id) focusBarcodeInputWithRetry();
+        else window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect'));
+      }
       setPatientSearch(openMode === 'add_to_route' ? '__locked__' : '');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
