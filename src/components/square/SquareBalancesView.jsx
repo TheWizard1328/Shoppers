@@ -90,7 +90,7 @@ export default function SquareBalancesView({ currentUser }) {
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
   // from the entities so COD add/remove on any delivery shows up in seconds
   // (no Square API round-trip needed). Local result wins over the sync response.
-  const computeLocalOutstanding = useCallback(async () => {
+  const computeLocalOutstanding = useCallback(async (cfgArg) => {
     try {
       const [storesRaw, cfgsRaw, codSalesRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
@@ -108,8 +108,13 @@ export default function SquareBalancesView({ currentUser }) {
       const confirmed = new Set(
         (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
       );
-      const cutoff = Date.now() - 45 * 86400000;
-      const isRecent = (d) => { const t = new Date(d?.created_date || d?.created_at || 0).getTime(); return Number.isFinite(t) && t >= cutoff; };
+      // Owner rule: CODs outstanding at true-up are already in the starting
+      // balances — only deliveries dated on/after the true-up day count.
+      const cfg = cfgArg || configRef.current;
+      const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
+      const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
+      const createdFloor = new Date(new Date(cutoffDate + 'T00:00:00Z').getTime() - 3 * 86400000).getTime();
+      const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
       const centsOf = (n) => Math.round(Number(n || 0) * 100);
       const byLoc = new Map();
       const aggFor = (locId) => {
@@ -122,7 +127,7 @@ export default function SquareBalancesView({ currentUser }) {
         const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
         for (const d of rows || []) {
           const required = Number(d?.cod_total_amount_required || 0);
-          if (required <= 0 || !isRecent(d) || d?.cod_confirmed_collected) continue;
+          if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
           const locId = storeToLoc.get(String(d?.store_id || ''));
           if (!locId) continue;
           const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
@@ -140,7 +145,7 @@ export default function SquareBalancesView({ currentUser }) {
         const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
         const list = rows || [];
         for (const d of list) {
-          if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isRecent(d)) continue;
+          if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
           const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
           const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
           if (cash <= 0 || confirmed.has(String(d.id))) continue;
@@ -151,7 +156,7 @@ export default function SquareBalancesView({ currentUser }) {
           agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, amount: cash / 100, reason: 'cash_awaiting_square' });
         }
         if (list.length < 2000) break;
-        if (list.length && !isRecent(list[list.length - 1])) break;
+        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
       }
 
       const out = {};
@@ -364,6 +369,7 @@ export default function SquareBalancesView({ currentUser }) {
       setShowTrueUp(false);
       toast.success('Balances trued-up from new starting points');
       await loadSales(newConfig);
+      computeLocalOutstanding(newConfig);
     } catch (err) {
       console.error('true-up save failed:', err);
       toast.error('Could not save the new balances');

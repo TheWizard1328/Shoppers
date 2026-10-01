@@ -448,12 +448,21 @@ Deno.serve(async (req) => {
           (codSalesRaw || []).filter((e: any) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e: any) => String(e.delivery_id))
         );
 
-        const COD_CUTOFF_DAYS = 45;
-        const cutoff = Date.now() - COD_CUTOFF_DAYS * 86400000;
-        const isRecent = (d: any) => {
-          const t = new Date(d?.created_date || d?.created_at || 0).getTime();
-          return Number.isFinite(t) && t >= cutoff;
-        };
+        // Owner rule (Oct 1 2026): CODs outstanding at true-up are ALREADY baked into
+        // the starting balances — only deliveries DATED on/after the true-up day
+        // count as CODs out. Past-dated COD deliveries are already accounted for.
+        let cutoffDate = '';
+        try {
+          const cfgRows: any[] = ((await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => [])) as any[]) || [];
+          const tu = (cfgRows || [])[0]?.setting_value?.trued_up_at;
+          if (tu) cutoffDate = new Date(new Date(tu).getTime() - 6 * 3600000).toISOString().slice(0, 10); // Edmonton (UTC-6) date of the true-up
+        } catch { /* fall through */ }
+        if (payload?.codCutoffDate) cutoffDate = String(payload.codCutoffDate);
+        if (!cutoffDate) cutoffDate = new Date(Date.now() - 6 * 3600000).toISOString().slice(0, 10);
+        // Pagination stop: deliveries are staged at most a few days ahead, so
+        // stop walking created_date-descending pages a few days before the cutoff.
+        const createdFloor = new Date(new Date(cutoffDate + 'T00:00:00Z').getTime() - 3 * 86400000).getTime();
+        const isCounted = (d: any) => String(d?.delivery_date || '') >= cutoffDate;
         const centsOf = (n: any) => Math.round(Number(n || 0) * 100);
 
         type Agg = { total: number; pendingTotal: number; pendingCount: number; awaitingTotal: number; awaitingCount: number; items: any[] };
@@ -471,7 +480,7 @@ Deno.serve(async (req) => {
           try { rows = ((await base44.asServiceRole.entities.Delivery.filter({ status })) as any[]) || []; } catch { rows = []; }
           for (const d of rows) {
             const required = Number(d?.cod_total_amount_required || 0);
-            if (required <= 0 || !isRecent(d) || d?.cod_confirmed_collected) continue;
+            if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
             const locId = storeToLoc.get(String(d?.store_id || ''));
             if (!locId) continue;
             const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
@@ -492,7 +501,7 @@ Deno.serve(async (req) => {
           const rows = await base44.asServiceRole.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
           const list: any[] = rows || [];
           for (const d of list) {
-            if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isRecent(d)) continue;
+            if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
             const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
             const cash = payments.filter((p: any) => String(p?.type || '').toLowerCase() === 'cash').reduce((s: number, p: any) => s + centsOf(p?.amount), 0);
             if (cash <= 0) continue;
@@ -510,12 +519,13 @@ Deno.serve(async (req) => {
             agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, amount: cash / 100, reason: 'cash_awaiting_square' });
           }
           if (list.length < 2000) break;
-          if (list.length && !isRecent(list[list.length - 1])) break;
+          if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
         }
 
         for (const [location_id, agg] of byLoc) {
           codOutstanding.push({
             location_id,
+            cutoff_date: cutoffDate,
             total: agg.total / 100,
             pending_total: agg.pendingTotal / 100,
             pending_count: agg.pendingCount,
