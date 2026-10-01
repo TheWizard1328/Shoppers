@@ -5,7 +5,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Send, Wallet } from 'lucide-react';
 import { getAppOwners, sendDeliveryMessage, sendPushForNotification } from '@/components/utils/deliveryMessaging';
 
@@ -33,26 +32,22 @@ export default function SquareBalanceRequestDialog({
   byLocId,
   storeToLoc,
 }) {
-  const [locId, setLocId] = useState('');
   const [amount, setAmount] = useState('');
   const [sending, setSending] = useState(false);
   const [sentOk, setSentOk] = useState(false);
   const [error, setError] = useState('');
 
-  const cards = useMemo(() => {
-    if (!byLocId) return [];
-    return [...byLocId.entries()].map(([id, v]) => ({
-      id, name: v?.name || 'Card', balance: Number(v?.cardEstimate || 0),
-    })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [byLocId]);
-
-  // Default to the dispatcher's own store's card
-  useEffect(() => {
-    if (!open || locId || !cards.length) return;
+  // The card is PRESET — it comes from the Square location mapped to the
+  // dispatcher's own store (the store they're logged into / assigned to).
+  // Dispatchers never pick a card.
+  const card = useMemo(() => {
+    if (!byLocId) return null;
     const myStoreIds = (currentUser?.store_ids || []).map(String);
-    const mine = myStoreIds.map((sid) => storeToLoc?.get?.(sid)).find(Boolean);
-    setLocId(mine || cards[0].id);
-  }, [open, cards, currentUser, storeToLoc]);
+    const myLocId = myStoreIds.map((sid) => storeToLoc?.get?.(sid)).find(Boolean);
+    const v = myLocId ? byLocId.get(myLocId) : null;
+    if (!v) return null;
+    return { id: myLocId, name: v?.name || 'Store card', balance: Number(v?.cardEstimate || 0) };
+  }, [byLocId, storeToLoc, currentUser]);
 
   useEffect(() => {
     if (open) { setAmount(''); setSending(false); setSentOk(false); setError(''); }
@@ -60,7 +55,6 @@ export default function SquareBalanceRequestDialog({
 
   const entered = Number(String(amount).replace(/[^0-9.]/g, '')) || 0;
   const rounded = roundUpToFive(entered);
-  const card = cards.find((c) => c.id === locId);
 
   const handleSend = async () => {
     if (!rounded || !card || sending) return;
@@ -119,7 +113,7 @@ export default function SquareBalanceRequestDialog({
           <DialogTitle className="flex items-center gap-2"><Wallet className="w-4 h-4" /> Request Card Top-Up</DialogTitle>
           <DialogDescription>
             Sends the App Owner a push notification and in-app message asking for
-            more money on the store's Square card. The amount is rounded up to the
+            more money on your store's Square card. The amount is rounded up to the
             next $5 mark.
           </DialogDescription>
         </DialogHeader>
@@ -132,18 +126,14 @@ export default function SquareBalanceRequestDialog({
           <div className="space-y-4 py-1">
             <div className="space-y-1">
               <Label className="text-sm">Store card</Label>
-              <Select value={locId} onValueChange={setLocId} disabled={cards.length === 0}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select card..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[240px]">
-                  {cards.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {`${c.name} · ~$${Math.round(c.balance).toLocaleString()}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {card ? (
+                <div className="rounded-md border px-3 py-2 text-sm font-medium flex items-center justify-between" style={{ borderColor: 'var(--border-slate-300)' }}>
+                  <span>{card.name}</span>
+                  <span className="tabular-nums text-muted-foreground">{`~$${Math.round(card.balance).toLocaleString()}`}</span>
+                </div>
+              ) : (
+                <div className="text-xs text-red-500">No Square card is configured for your store.</div>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -171,7 +161,7 @@ export default function SquareBalanceRequestDialog({
         {!sentOk && (
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => onOpenChange?.(false)} disabled={sending}>Cancel</Button>
-            <Button onClick={handleSend} disabled={!rounded || !locId || sending} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button onClick={handleSend} disabled={!rounded || !card || sending} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               {sending ? 'Sending…' : 'Send Request'}
             </Button>
