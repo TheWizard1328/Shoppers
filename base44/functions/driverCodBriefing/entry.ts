@@ -287,6 +287,7 @@ async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
   const testDriverId = params?.test_driver_id || null;
   const ownerOnly = !!params?.owner_only;
+  const correctionTag = params?.correction_tag || ''; // e.g. 'CORRECTION — ' prepended to every push title
   const startedAt = Date.now();
 
   const today = edmontonToday();
@@ -472,7 +473,7 @@ async function handleBriefing(base44, params = {}) {
         '',
         ...lines,
       ].join('\n');
-      const title = `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up: ${shortDate(today)}`;
+      const title = `${testDriverId ? 'TEST — ' : ''}${correctionTag}COD Wrap-Up: ${shortDate(today)}`;
       // In-app Message copy in the same system 'COD Briefing' thread shape.
       let inAppMessageId = null;
       try {
@@ -578,7 +579,7 @@ async function handleBriefing(base44, params = {}) {
           const why = pr.errors && pr.errors.length ? String(pr.errors[0]).slice(0, 40) : 'no active subscription';
           return `${nm} 0 (${why})`;
         }).join(', ') + '.');
-        const title = `${ownerOnly ? 'TEST — ' : ''}COD WRAP-UP: ${monthDay(today)}`;
+        const title = `${ownerOnly ? 'TEST — ' : ''}${correctionTag}COD WRAP-UP: ${monthDay(today)}`;
         const ownerBody = [title, '', ...lines].join('\n');
         let ownerMessageId = null;
         try {
