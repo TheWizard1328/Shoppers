@@ -40,6 +40,7 @@ export default function SquareBalancesView({ currentUser }) {
   const [configRecordId, setConfigRecordId] = useState(null);
   const [sales, setSales] = useState([]);
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
+  const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTrueUp, setShowTrueUp] = useState(false);
@@ -50,6 +51,7 @@ export default function SquareBalancesView({ currentUser }) {
   const loadSalesRef = useRef(null);
   const syncRef = useRef(null);
   const configRef = useRef(null);
+  const computeLocalOutstandingRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
 
@@ -85,6 +87,83 @@ export default function SquareBalancesView({ currentUser }) {
     if (seq === loadSeq.current) setSales(out);
   }, []);
 
+  // Client-side COD outstanding — same rules as the backend pass, computed fresh
+  // from the entities so COD add/remove on any delivery shows up in seconds
+  // (no Square API round-trip needed). Local result wins over the sync response.
+  const computeLocalOutstanding = useCallback(async () => {
+    try {
+      const [storesRaw, cfgsRaw, codSalesRaw] = await Promise.all([
+        base44.entities.Store.list().catch(() => []),
+        base44.entities.SquareLocationConfig.list().catch(() => []),
+        base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []),
+      ]);
+      const cfgLoc = new Map();
+      (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
+      const storeToLoc = new Map();
+      (storesRaw || []).forEach((s) => {
+        const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
+        if (s?.id && loc) storeToLoc.set(String(s.id), loc);
+      });
+      // Cash rung at a register = ledger cod_collection sale linked to the delivery
+      const confirmed = new Set(
+        (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
+      );
+      const cutoff = Date.now() - 45 * 86400000;
+      const isRecent = (d) => { const t = new Date(d?.created_date || d?.created_at || 0).getTime(); return Number.isFinite(t) && t >= cutoff; };
+      const centsOf = (n) => Math.round(Number(n || 0) * 100);
+      const byLoc = new Map();
+      const aggFor = (locId) => {
+        if (!byLoc.has(locId)) byLoc.set(locId, { total: 0, pendingCount: 0, awaitingCount: 0, items: [] });
+        return byLoc.get(locId);
+      };
+
+      // a) pending / in-transit CODs (minus debit/credit/cheque already collected)
+      for (const status of ['pending', 'in_transit', 'en_route']) {
+        const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
+        for (const d of rows || []) {
+          const required = Number(d?.cod_total_amount_required || 0);
+          if (required <= 0 || !isRecent(d) || d?.cod_confirmed_collected) continue;
+          const locId = storeToLoc.get(String(d?.store_id || ''));
+          if (!locId) continue;
+          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+          const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+          const outstanding = Math.max(0, centsOf(required) - nonCash);
+          if (outstanding <= 0) continue;
+          const agg = aggFor(locId);
+          agg.total += outstanding; agg.pendingCount += 1;
+          agg.items.push({ delivery_id: d.id, status, patient: d.patient_name || null, amount: outstanding / 100, reason: 'pending_or_in_transit' });
+        }
+      }
+
+      // b) completed cash CODs still awaiting Square registration (last 45 days)
+      for (let page = 0; page < 4; page++) {
+        const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
+        const list = rows || [];
+        for (const d of list) {
+          if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isRecent(d)) continue;
+          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+          const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+          if (cash <= 0 || confirmed.has(String(d.id))) continue;
+          const locId = storeToLoc.get(String(d?.store_id || ''));
+          if (!locId) continue;
+          const agg = aggFor(locId);
+          agg.total += cash; agg.awaitingCount += 1;
+          agg.items.push({ delivery_id: d.id, status: 'completed', patient: d.patient_name || null, amount: cash / 100, reason: 'cash_awaiting_square' });
+        }
+        if (list.length < 2000) break;
+        if (list.length && !isRecent(list[list.length - 1])) break;
+      }
+
+      const out = {};
+      for (const [locId, agg] of byLoc) {
+        out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 25) };
+      }
+      setLocalOutstanding(out);
+    } catch (e) {
+      console.error('local COD outstanding failed:', e);
+    }
+  }, []);
+
   const refresh = useCallback(async (opts = {}) => {
     setIsLoading(true);
     try {
@@ -112,6 +191,7 @@ export default function SquareBalancesView({ currentUser }) {
           setIsSyncing(false);
         }
         await loadSales(cfg);
+        computeLocalOutstanding();
       } catch (e) {
         console.error('balances load failed:', e);
       } finally {
@@ -132,6 +212,7 @@ export default function SquareBalancesView({ currentUser }) {
       setCodOutstandingByLoc(byLoc);
       toast.success('Square data refreshed');
       await refresh({ reloadConfig: false });
+      computeLocalOutstanding();
     } catch (err) {
       console.error('squareLedgerSync failed:', err);
       toast.error('Square refresh failed');
@@ -143,6 +224,7 @@ export default function SquareBalancesView({ currentUser }) {
   loadSalesRef.current = loadSales;
   syncRef.current = syncFromSquare;
   configRef.current = config;
+  computeLocalOutstandingRef.current = computeLocalOutstanding;
 
   // ── WebSocket live updates ──
   // AppSettings broadcasts (user-scoped true-up writes) → live config/sales reload
@@ -153,7 +235,12 @@ export default function SquareBalancesView({ currentUser }) {
   // syncs do NOT broadcast) → debounced 5s sales re-read.
   useEffect(() => {
     const unsubs = [];
-    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null;
+    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null, codTimer = null;
+    // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
+    const scheduleCodRecompute = () => {
+      clearTimeout(codTimer);
+      codTimer = setTimeout(() => computeLocalOutstandingRef.current?.(), 8000);
+    };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
         if (event?.data?.setting_key !== SETTING_KEY) return;
@@ -172,13 +259,23 @@ export default function SquareBalancesView({ currentUser }) {
     } catch (e) { console.error('Ledger subscribe failed:', e); }
     try {
       unsubs.push(base44.entities.Delivery.subscribe(() => {
+        scheduleCodRecompute();
+        // Full Square re-sync on sustained activity only (protects Square API rate limits)
         clearTimeout(deliveryTimer);
-        deliveryTimer = setTimeout(() => syncRef.current?.(), 45000);
+        deliveryTimer = setTimeout(() => syncRef.current?.(), 300000);
       }));
     } catch (e) { console.error('Delivery subscribe failed:', e); }
+    // Same-device delivery edits (DeliveryForm/StopCard dispatch these) — WS echo
+    // suppression blocks our own writes for 5 min, so also listen to the app events.
+    const onDeliveriesUpdated = () => scheduleCodRecompute();
+    const onRouteReordered = () => scheduleCodRecompute();
+    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('routeReordered', onRouteReordered);
     return () => {
-      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer);
+      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
+      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('routeReordered', onRouteReordered);
     };
   }, []);
 
@@ -198,7 +295,7 @@ export default function SquareBalancesView({ currentUser }) {
         credits += amount - fee - l - f;
       }
       const r2 = (x) => Math.round(x * 100) / 100;
-      const codOut = codOutstandingByLoc[loc.location_id] || null;
+      const codOut = localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || null;
       const codOutTotal = Number(codOut?.total || 0);
       return {
         ...loc,
@@ -211,7 +308,7 @@ export default function SquareBalancesView({ currentUser }) {
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
-  }, [config, sales, codOutstandingByLoc]);
+  }, [config, sales, codOutstandingByLoc, localOutstanding]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
