@@ -518,9 +518,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     draft.__folder = '';
     setTrueUpDraft(draft);
     setShowTrueUp(true);
-    // The panel renders at the bottom of this tall page — scroll it into view
-    // so the button doesn't look dead after opening.
-    setTimeout(() => trueUpPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   };
 
   const startTopUp = () => {
@@ -788,42 +785,50 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         Card = start + sales − fees − 2% folder − loan%. Loan and folder are computed from owner-supplied rates (not in Square's API). Off-card spending isn't tracked — use True-Up whenever the real Square numbers are checked.
       </div>
 
-      {/* True-up dialog (simple inline panel) */}
+      {/* True-up overlay: enter the CURRENT real numbers from each Square dashboard */}
       {showTrueUp && (
-        <div ref={trueUpPanelRef} className="p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-900 space-y-3">
-          <div className="text-sm font-medium">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
-          <div className="text-xs text-slate-500">Blank fields keep the existing value. This resets the tracking window to now.</div>
-          {(config.locations || []).map((loc) => (
-            <div key={loc.location_id} className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
-              <div className="text-sm font-medium col-span-2 md:col-span-1 flex items-center">{loc.name || loc.location_id}</div>
-              <label className="text-[11px] text-slate-500">Card balance
-                <Input type="number" step="0.01" className="mt-0.5" placeholder={fmtMoney(loc.card_start)}
-                  value={trueUpDraft[loc.location_id]?.card ?? ''}
-                  onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), card: e.target.value } }))} />
-              </label>
-              <label className="text-[11px] text-slate-500">Loan remaining
-                <Input type="number" step="0.01" className="mt-0.5" placeholder={fmtMoney(loc.loan_start)}
-                  value={trueUpDraft[loc.location_id]?.loan ?? ''}
-                  onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan: e.target.value } }))} />
-              </label>
-              <label className="text-[11px] text-slate-500">Loan rate (e.g. 0.1725)
-                <Input type="number" step="0.0001" className="mt-0.5" placeholder={String(loc.loan_rate)}
-                  value={trueUpDraft[loc.location_id]?.loan_rate ?? ''}
-                  onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan_rate: e.target.value } }))} />
-              </label>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTrueUp(false)}>
+          <div ref={trueUpPanelRef} className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blank fields keep the existing value. This resets the tracking window to now.</div>
             </div>
-          ))}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
-            <div className="text-sm font-medium col-span-2 md:col-span-1 flex items-center">Folder (combined)</div>
-            <label className="text-[11px] text-slate-500">Folder balance
-              <Input type="number" step="0.01" className="mt-0.5" placeholder={fmtMoney(config.folder_start || 0)}
-                value={trueUpDraft.__folder ?? ''}
-                onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: e.target.value }))} />
-            </label>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
-            <Button size="sm" variant="outline" onClick={() => setShowTrueUp(false)} disabled={isSaving}>Cancel</Button>
+            {(config.locations || []).map((loc) => (
+              <div key={loc.location_id} className="space-y-1.5">
+                <div className="text-sm font-medium text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
+                <div className="grid grid-cols-3 gap-1.5 items-end">
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400">Card balance
+                    <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.card_start)}
+                      value={trueUpDraft[loc.location_id]?.card ?? ''}
+                      onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), card: e.target.value } }))} />
+                  </label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan remaining
+                    <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.loan_start)}
+                      value={trueUpDraft[loc.location_id]?.loan ?? ''}
+                      onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan: e.target.value } }))} />
+                  </label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan rate
+                    <Input type="number" step="0.0001" className="mt-0.5 px-2 text-xs" placeholder={String(loc.loan_rate)}
+                      value={trueUpDraft[loc.location_id]?.loan_rate ?? ''}
+                      onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan_rate: e.target.value } }))} />
+                  </label>
+                </div>
+              </div>
+            ))}
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Folder (combined)</div>
+              <div className="grid grid-cols-3 gap-1.5 items-end">
+                <label className="text-[10px] text-slate-500 dark:text-slate-400">Folder balance
+                  <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(config.folder_start || 0)}
+                    value={trueUpDraft.__folder ?? ''}
+                    onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: e.target.value }))} />
+                </label>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button size="sm" variant="outline" onClick={() => setShowTrueUp(false)} disabled={isSaving}>Cancel</Button>
+              <Button size="sm" onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
+            </div>
           </div>
         </div>
       )}
