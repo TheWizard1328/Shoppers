@@ -106,41 +106,60 @@ async function computeCodOutstandingByLoc(cfg, storeToLoc) {
   }
 }
 
-// Today's (Edmonton date) still-to-collect CODs per card: pending/in-transit/en-route
-// deliveries dated today, minus non-cash payments already taken, not confirmed collected.
-export async function computeDailyCodByLoc(storeToLoc) {
+/**
+ * Required-COD totals per STORE over the last 7 days EXCLUDING today
+ * (non-cancelled deliveries, cod_total_amount_required > 0). The 7-day window
+ * gives a stable "typical day" figure — today is excluded so the average is
+ * never skewed by a day that hasn't finished yet.
+ * Returns Map(storeId → total $ over the window).
+ */
+export async function computeWeeklyCodTotalsByStore() {
   try {
     const today = edmontonWallString(new Date()).slice(0, 10);
-    const centsOf = (n) => Math.round(Number(n || 0) * 100);
-    const byLoc = new Map();
-    for (const status of ['pending', 'in_transit', 'en_route']) {
-      const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
-      for (const d of rows || []) {
-        if (String(d?.delivery_date || '') !== today) continue;
+    const from = new Date(new Date(today + 'T00:00:00Z').getTime() - 7 * 86400000).toISOString().slice(0, 10);
+    const createdFloor = new Date(new Date(today + 'T00:00:00Z').getTime() - 10 * 86400000).getTime();
+    const byStore = new Map();
+    for (let page = 0; page < 6; page++) {
+      const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
+      const list = rows || [];
+      for (const d of list) {
+        const dd = String(d?.delivery_date || '');
+        if (dd < from || dd >= today) continue;
+        if (d?.status === 'cancelled') continue;
         const required = Number(d?.cod_total_amount_required || 0);
-        if (required <= 0 || d?.cod_confirmed_collected) continue;
-        const locId = storeToLoc.get(String(d?.store_id || ''));
-        if (!locId) continue;
-        const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-        const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-        const out = Math.max(0, centsOf(required) - nonCash);
-        if (out > 0) byLoc.set(locId, (byLoc.get(locId) || 0) + out);
+        if (required <= 0 || !d?.store_id) continue;
+        byStore.set(String(d.store_id), (byStore.get(String(d.store_id)) || 0) + required);
       }
+      if (list.length < 2000) break;
+      if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
     }
-    const out = {};
-    for (const [locId, cents] of byLoc) out[locId] = cents / 100;
-    return out;
+    return byStore;
   } catch (e) {
-    console.error('[useSquareBalancesSummary] daily COD failed:', e);
-    return {};
+    console.error('[useSquareBalancesSummary] weekly COD totals failed:', e);
+    return new Map();
   }
 }
 
-// Color level: green when the balance is more than $20 ABOVE the daily CODs to
-// collect, red when more than $20 BELOW, yellow inside the ±$20 band.
+export const COD_WINDOW_DAYS = 7;
+
+/** Roll store totals up to per-location daily averages: Σ(store totals on card) / 7. */
+export function weeklyAvgByLocFromStores(storeToLoc, weeklyByStore) {
+  const totals = new Map();
+  for (const [storeId, locId] of storeToLoc.entries()) {
+    const t = Number(weeklyByStore?.get(String(storeId)) || 0);
+    if (!t) continue;
+    totals.set(locId, (totals.get(locId) || 0) + t);
+  }
+  const avg = {};
+  for (const [locId, t] of totals.entries()) avg[locId] = t / COD_WINDOW_DAYS;
+  return avg;
+}
+
+// Color level: green when the balance is more than $20 ABOVE the 7-day average
+// daily CODs to collect, red when more than $20 BELOW, yellow inside the ±$20 band.
 export const BALANCE_BAND = 20;
-export function getBalanceLevel(balance, dailyCod) {
-  const diff = (Number(balance) || 0) - (Number(dailyCod) || 0);
+export function getBalanceLevel(balance, codAvg) {
+  const diff = (Number(balance) || 0) - (Number(codAvg) || 0);
   if (diff > BALANCE_BAND) return 'green';
   if (diff >= -BALANCE_BAND) return 'yellow';
   return 'red';
@@ -151,7 +170,7 @@ export const BALANCE_LEVELS = {
   red: { border: '#ef4444', tint: 'rgba(239, 68, 68, 0.07)', chipBg: '#fee2e2', chipText: '#991b1b' },
 };
 
-function computeByLocId({ config, sales, codOutstanding, dailyCod }) {
+function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
   for (const loc of (config.locations || [])) {
@@ -165,13 +184,13 @@ function computeByLocId({ config, sales, codOutstanding, dailyCod }) {
     }
     const codOut = Number(codOutstanding?.[loc.location_id] || 0);
     const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - codOut) * 100) / 100;
-    const dailyCodTotal = Math.round(Number(dailyCod?.[loc.location_id] || 0) * 100) / 100;
+    const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
       cardEstimate,
       loanRemaining: Math.round(Math.max(0, Number(loc.loan_start || 0) - loan) * 100) / 100,
-      dailyCodTotal,
-      level: getBalanceLevel(cardEstimate, dailyCodTotal),
+      codAvg,
+      level: getBalanceLevel(cardEstimate, codAvg),
     });
   }
   return byLocId;
@@ -181,6 +200,7 @@ export function useSquareBalancesSummary(enabled = true) {
   const [ready, setReady] = useState(false);
   const [byLocId, setByLocId] = useState(new Map());
   const [storeToLoc, setStoreToLoc] = useState(new Map());
+  const [weeklyByStore, setWeeklyByStore] = useState(new Map());
   const reloadSeq = useRef(0);
 
   const reload = useCallback(async () => {
@@ -190,13 +210,14 @@ export function useSquareBalancesSummary(enabled = true) {
       config ? loadCardSales(config).catch(() => []) : Promise.resolve([]),
       buildStoreToLocMap().catch(() => new Map()),
     ]);
-    const [codOutstanding, dailyCod] = await Promise.all([
+    const [codOutstanding, weekly] = await Promise.all([
       config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
-      config ? computeDailyCodByLoc(stl) : Promise.resolve({}),
+      computeWeeklyCodTotalsByStore(),
     ]);
     if (seq !== reloadSeq.current) return;
-    setByLocId(config ? computeByLocId({ config, sales, codOutstanding, dailyCod }) : new Map());
+    setByLocId(config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map());
     setStoreToLoc(stl);
+    setWeeklyByStore(weekly);
     setReady(true);
   }, []);
 
@@ -223,5 +244,5 @@ export function useSquareBalancesSummary(enabled = true) {
     };
   }, [enabled, reload]);
 
-  return { ready, byLocId, storeToLoc };
+  return { ready, byLocId, storeToLoc, weeklyByStore };
 }

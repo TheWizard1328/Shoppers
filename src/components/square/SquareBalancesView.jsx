@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
-import { buildStoreToLocMap, computeDailyCodByLoc, getBalanceLevel, BALANCE_LEVELS } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS } from "./useSquareBalancesSummary";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -42,7 +42,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [sales, setSales] = useState([]);
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
-  const [dailyCodByLoc, setDailyCodByLoc] = useState({}); // today's still-to-collect CODs per card
+  const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTrueUp, setShowTrueUp] = useState(false);
@@ -295,13 +295,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     };
   }, []);
 
-  // Today's still-to-collect CODs per card (drives the green/yellow/red levels)
+  // 7-day (excluding today) required-COD average per card (drives the green/yellow/red levels)
   const loadDailyCod = useCallback(async () => {
     try {
-      const stl = await buildStoreToLocMap();
-      setDailyCodByLoc(await computeDailyCodByLoc(stl));
+      const [stl, weekly] = await Promise.all([
+        buildStoreToLocMap(),
+        computeWeeklyCodTotalsByStore(),
+      ]);
+      setWeeklyCodAvgByLoc(weeklyAvgByLocFromStores(stl, weekly));
     } catch (e) {
-      console.error('daily COD load failed:', e);
+      console.error('weekly COD average load failed:', e);
     }
   }, []);
   loadDailyCodRef.current = loadDailyCod;
@@ -331,13 +334,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // CODs out (pending/in-transit + cash awaiting Square) reduce the available card balance
         cardEstimate: r2(Number(loc.card_start || 0) + credits - codOutTotal),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
-        dailyCodTotal: r2(Number(dailyCodByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - codOutTotal), Number(dailyCodByLoc[loc.location_id] || 0)),
+        weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - codOutTotal), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         codOutstanding: codOut,
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
-  }, [config, sales, codOutstandingByLoc, localOutstanding, dailyCodByLoc]);
+  }, [config, sales, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -481,10 +484,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
                 <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
               </div>
-              {loc.dailyCodTotal > 0 && (
+              {loc.weeklyCodAvg > 0 && (
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> Today's CODs to collect</div>
-                  <div className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.dailyCodTotal)}</div>
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs/day (7-day avg)</div>
+                  <div className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.weeklyCodAvg)}</div>
                 </div>
               )}
               {loc.codOutstanding?.total > 0 && (

@@ -147,38 +147,44 @@ export default function AppSidebar({
   const sqIsAdmin = userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
   const sqIsDriver = !sqIsAdmin && userHasRole(currentUser, 'driver');
   const sqIsDispatcher = !sqIsAdmin && !sqIsDriver && userHasRole(currentUser, 'dispatcher');
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser);
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore } = useSquareBalancesSummary(!!currentUser);
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let storeIds = null;
-    if (sqIsDriver) {
-      const today = edmontonWallString(new Date()).slice(0, 10);
-      storeIds = [...new Set(
-        (deliveries || [])
-          .filter((d) => d?.driver_id === currentUser?.id && d?.delivery_date === today && d?.status !== 'cancelled')
-          .map((d) => String(d?.store_id || ''))
-      )].filter(Boolean);
-      if (!storeIds.length) storeIds = (currentUser?.store_ids || []).map(String);
-    } else if (sqIsDispatcher) {
-      storeIds = (currentUser?.store_ids || []).map(String);
+    if (sqIsDriver || sqIsDispatcher) {
+      // The driver's own stores come first (fixed assignments); a route with no
+      // assigned stores falls back to today's route stores.
+      storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
+      if (!storeIds.length && sqIsDriver) {
+        const today = edmontonWallString(new Date()).slice(0, 10);
+        storeIds = [...new Set(
+          (deliveries || [])
+            .filter((d) => d?.driver_id === currentUser?.id && d?.delivery_date === today && d?.status !== 'cancelled')
+            .map((d) => String(d?.store_id || ''))
+        )].filter(Boolean);
+      }
     }
-    let total = 0, daily = 0, found = false;
+    let total = 0, avg = 0, found = false;
     if (sqIsAdmin) {
+      // Admin: all cards combined against the combined 7-day COD average.
       for (const row of sqByLocId.values()) {
         total += Number(row?.cardEstimate || 0);
-        daily += Number(row?.dailyCodTotal || 0);
+        avg += Number(row?.codAvg || 0);
       }
       found = sqByLocId.size > 0;
     } else if (storeIds && storeIds.length && sqStoreToLoc) {
+      // Driver/dispatcher: cards for their stores, but the COD average is built
+      // from THEIR stores' deliveries only (7 days, excluding today).
       const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc.get(String(sid))).filter(Boolean))];
       for (const lid of locIds) {
         const row = sqByLocId.get(lid);
-        if (row) { total += Number(row.cardEstimate || 0); daily += Number(row.dailyCodTotal || 0); found = true; }
+        if (row) { total += Number(row.cardEstimate || 0); found = true; }
       }
+      for (const sid of storeIds) avg += Number(sqWeeklyByStore?.get(String(sid)) || 0) / 7;
     }
     if (!found) return null;
-    return { total, daily, level: getBalanceLevel(total, daily) };
-  }, [sqReady, sqByLocId, sqStoreToLoc, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
+    return { total, avg, level: getBalanceLevel(total, avg) };
+  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
   const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge.total).toLocaleString()}`;
   const sqBadgeStyle = sqBadge == null ? { background: 'var(--bg-slate-200)' } : BALANCE_LEVELS[sqBadge.level] ? { background: BALANCE_LEVELS[sqBadge.level].chipBg, color: BALANCE_LEVELS[sqBadge.level].chipText } : { background: 'var(--bg-slate-200)' };
 
