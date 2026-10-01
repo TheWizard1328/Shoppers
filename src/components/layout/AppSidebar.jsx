@@ -21,6 +21,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS } from '../square/useSquareBalancesSummary';
+import SquareBalanceRequestDialog from '../square/SquareBalanceRequestDialog';
 import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
@@ -147,6 +148,11 @@ export default function AppSidebar({
   const sqIsAdmin = userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
   const sqIsDriver = !sqIsAdmin && userHasRole(currentUser, 'driver');
   const sqIsDispatcher = !sqIsAdmin && !sqIsDriver && userHasRole(currentUser, 'dispatcher');
+
+  // ── Dispatcher card top-up request dialog ──
+  // Dispatchers can't open the balances page — clicking the Square Balances
+  // link opens a dialog that asks the App Owner for more money on a card.
+  const [showBalanceRequest, setShowBalanceRequest] = useState(false);
   const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames, dailyRemainingByStore: sqDailyRemaining } = useSquareBalancesSummary(!!currentUser);
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
@@ -588,8 +594,20 @@ export default function AppSidebar({
         const cls = `relative group px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
         const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
         if (sqIsDispatcher) {
-          // Not clickable — a dispatcher only ever has the one card for their store.
-          return <div className={`${cls} cursor-default`} style={style}>{inner}</div>;
+          // Dispatchers open a card top-up request dialog instead of the balances
+          // page — the click sends the App Owner a push + in-app message asking
+          // for more money on the store's Square card.
+          return (
+            <button
+              type="button"
+              onClick={() => { setShowBalanceRequest(true); setSidebarOpen(false); }}
+              className={`${cls} cursor-pointer text-left w-full`}
+              style={style}
+              title="Request a card top-up from the App Owner"
+            >
+              {inner}
+            </button>
+          );
         }
         return (
           <Link to={createPageUrl('SquareBalances')} onClick={() => setSidebarOpen(false)} className={cls} style={style}>
@@ -816,6 +834,14 @@ export default function AppSidebar({
         </div>
           }
   </div>
+
+  <SquareBalanceRequestDialog
+          open={showBalanceRequest}
+          onOpenChange={setShowBalanceRequest}
+          currentUser={currentUser}
+          appUsers={appUsers}
+          byLocId={sqByLocId}
+          storeToLoc={sqStoreToLoc} />
 
   <DriverAvailabilityPanel
           currentUser={currentUser}
