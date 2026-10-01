@@ -27,7 +27,7 @@
  */
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
+import { dispatchMessageRules, clearRuleCache, buildDateQualifier } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
 import {
   notifyDriverAccepted,
@@ -80,6 +80,8 @@ function buildContext({ actor, driver, driverId, store, deliveries, pendingCount
     driverName: driver?.user_name || driver?.full_name || 'Driver',
     adminName,
     storeName,
+    // {{date}} — 'for Tomorr '/'for Mon Oct 05 '/'' per the deliveries' delivery_date
+    date: buildDateQualifier((deliveries || [])[0]?.delivery_date),
     pendingCount: String(pendingCount != null ? pendingCount : (deliveries || []).length),
     deliveryList: buildDeliveryList(deliveries, patientNameMap),
     patientName: patientName || (patientNameMap?.get(deliveries?.[0]?.patient_id) || deliveries?.[0]?.patient_name || ''),

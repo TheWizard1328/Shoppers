@@ -141,7 +141,7 @@ const ACTION_PRESETS_BY_EVENT = {
 const TEMPLATE_VARIABLES = [
   '{{driverName}}', '{{adminName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
   '{{pendingCount}}', '{{pendingCountLabel}}', '{{existingStopCount}}', '{{hasExistingStops}}',
-  '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
+  '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}', '{{date}}',
 ];
 
 // Sample values used to render a test message preview
@@ -165,6 +165,8 @@ const SAMPLE_DATA = {
   status: 'completed',
   timestamp: new Date().toLocaleTimeString(),
   eventName: 'Test Event',
+  // {{date}} — '' for today, 'for Tomorr ' for tomorrow, 'for Mon Oct 05 ' beyond
+  date: 'for Tomorr ',
 };
 
 // ── Entity multi-select ─────────────────────────────────────────────────────
@@ -488,7 +490,7 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
               <Textarea
                 value={draft.message_template}
                 onChange={(e) => setDraft({ ...draft, message_template: e.target.value })}
-                placeholder="Enter message… use {{driverName}}, {{patientName}}, etc."
+                placeholder="Enter message… use {{driverName}}, {{patientName}}, {{date}}, etc."
                 className="text-sm min-h-[60px]"
               />
               <div className="flex flex-wrap gap-1 mt-1.5">

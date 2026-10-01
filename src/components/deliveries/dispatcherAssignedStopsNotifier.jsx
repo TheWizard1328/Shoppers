@@ -22,7 +22,7 @@
  * defaulting to the legacy system.
  */
 import { base44 } from '@/api/base44Client';
-import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
+import { dispatchMessageRules, clearRuleCache, buildDateQualifier } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
 import {
   notifyDispatcherAssignedAll,
@@ -115,6 +115,8 @@ function buildBatchAwareContext({
     adminName,
     storeName,
     deliveryList,
+    // {{date}} — 'for Tomorr '/'for Mon Oct 05 '/'' per the deliveries' delivery_date
+    date: buildDateQualifier(deliveries[0]?.delivery_date),
     pendingCount: String(deliveries.length),
     deliveryCount: String(deliveries.length),
     pendingCountLabel,

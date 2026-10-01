@@ -7,6 +7,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { toEdmontonWall } from './albertaTime';
 import { getAppOwnerUserIds } from './appOwnerResolver';
 
 // ── In-memory cache of enabled rules, keyed by event_name ──────────────────
@@ -139,6 +140,48 @@ export async function loadEnabledRules(force = false) {
 export function clearRuleCache() {
   _ruleCache = null;
   _cacheLoadedAt = 0;
+}
+
+// ── {{date}} qualifier helper ───────────────────────────────────────────────
+
+const DATE_QUALIFIER_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DATE_QUALIFIER_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Build the {{date}} template value for the deliveries' delivery_date.
+ * Owner spec (Oct 1 2026):
+ *   - date is TODAY            → '' (blank)
+ *   - date is TOMORROW         → 'for Tomorr '  (deliberate truncation)
+ *   - date is beyond tomorrow  → 'for Mon Oct 05 ' (3-char weekday, 3-char
+ *                                month, 2-digit day — no year, trailing space)
+ * "Today" is computed in EDMONTON time (pure math, never device-local) so a
+ * UTC-past-midnight device never mislabels a date. Both dates are compared
+ * as calendar values via Date.UTC, so offsets never skew the day math.
+ */
+export function buildDateQualifier(deliveryDateStr) {
+  const s = String(deliveryDateStr || '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return '';
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+
+  // Today's Edmonton calendar date — pure math via albertaTime, no Intl/device tz
+  const w = toEdmontonWall(new Date());
+  const todayY = w.y;
+  const todayMo = w.mo;
+  const todayD = w.d;
+
+  const targetMid = Date.UTC(y, mo - 1, d);
+  const todayMid = Date.UTC(todayY, todayMo - 1, todayD);
+  const dayDiff = Math.round((targetMid - todayMid) / 86400000);
+
+  if (dayDiff <= 0) return '';              // today (or past) → blank
+  if (dayDiff === 1) return 'for Tomorr ';  // tomorrow
+  const dt = new Date(targetMid);
+  const day = DATE_QUALIFIER_DAYS[dt.getUTCDay()];
+  const month = DATE_QUALIFIER_MONTHS[dt.getUTCMonth()];
+  return `for ${day} ${month} ${String(d).padStart(2, '0')} `;
 }
 
 // ── Template variable substitution ─────────────────────────────────────────
