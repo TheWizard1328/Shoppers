@@ -35,7 +35,7 @@ function daysSince(iso) {
   return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
-export default function SquareBalancesView({ currentUser }) {
+export default function SquareBalancesView({ currentUser, visibleLocationIds = null }) {
   const [config, setConfig] = useState(null);
   const [configRecordId, setConfigRecordId] = useState(null);
   const [sales, setSales] = useState([]);
@@ -52,8 +52,12 @@ export default function SquareBalancesView({ currentUser }) {
   const syncRef = useRef(null);
   const configRef = useRef(null);
   const computeLocalOutstandingRef = useRef(null);
+  const ownerCanEditRef = useRef(false);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
+  // null = show every card (admins/owner); array = only these cards (drivers see the
+  // cards assigned to their stores for the current date).
+  const restricted = Array.isArray(visibleLocationIds);
 
   const loadConfig = useCallback(async () => {
     const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
@@ -230,6 +234,7 @@ export default function SquareBalancesView({ currentUser }) {
   syncRef.current = syncFromSquare;
   configRef.current = config;
   computeLocalOutstandingRef.current = computeLocalOutstanding;
+  ownerCanEditRef.current = ownerCanEdit;
 
   // ── WebSocket live updates ──
   // AppSettings broadcasts (user-scoped true-up writes) → live config/sales reload
@@ -266,8 +271,9 @@ export default function SquareBalancesView({ currentUser }) {
       unsubs.push(base44.entities.Delivery.subscribe(() => {
         scheduleCodRecompute();
         // Full Square re-sync on sustained activity only (protects Square API rate limits)
+        // — owner-only: a driver's open tab must never fire Square API syncs.
         clearTimeout(deliveryTimer);
-        deliveryTimer = setTimeout(() => syncRef.current?.(), 300000);
+        deliveryTimer = setTimeout(() => { if (ownerCanEditRef.current) syncRef.current?.(); }, 300000);
       }));
     } catch (e) { console.error('Delivery subscribe failed:', e); }
     // Same-device delivery edits (DeliveryForm/StopCard dispatch these) — WS echo
@@ -382,6 +388,19 @@ export default function SquareBalancesView({ currentUser }) {
     return <div className="text-sm text-slate-500 p-4">Loading balances…</div>;
   }
 
+  if (visibleLocationIds === undefined) {
+    return <div className="text-sm text-slate-500 p-4">Loading balances…</div>;
+  }
+
+  if (restricted && visibleLocationIds.length === 0) {
+    return (
+      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="text-sm font-medium mb-1">No cards assigned to your stores today</div>
+        <div className="text-xs text-slate-500">The Square card balance badge in the sidebar will update once you have stops from a Square-linked store.</div>
+      </div>
+    );
+  }
+
   if (!config) {
     return (
       <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -401,10 +420,12 @@ export default function SquareBalancesView({ currentUser }) {
           Estimates since true-up {new Date(config.trued_up_at).toLocaleString()} ({trueUpDays}d ago)
         </div>
         <div className="ml-auto flex gap-2">
+          {ownerCanEdit && (
           <Button size="sm" variant="outline" onClick={syncFromSquare} disabled={isSyncing || isLoading}>
             <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
             {isSyncing ? 'Syncing…' : 'Refresh Square'}
           </Button>
+          )}
           {ownerCanEdit && (
             <Button size="sm" onClick={startTrueUp} disabled={isSaving}>
               True-Up Balances
@@ -413,15 +434,17 @@ export default function SquareBalancesView({ currentUser }) {
         </div>
       </div>
 
-      {/* Single combined Folder total */}
+      {/* Single combined Folder total — owner/admin view only (spans all cards) */}
+      {!restricted && (
       <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300"><PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Folder (all cards, 2% per sale)</div>
         <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(folderTotal)}</div>
       </div>
+      )}
 
       {/* Location cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {perLocation.map((loc) => (
+        {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => (
           <div key={loc.location_id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
             <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>

@@ -20,6 +20,8 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
   } catch (_) {}
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
+import { useSquareBalancesSummary } from '../square/useSquareBalancesSummary';
+import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
 import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity, Wallet } from 'lucide-react';
@@ -137,6 +139,45 @@ export default function AppSidebar({
 
   // Booked-off scheduling badge — shared hook keeps AppSidebar + MobileBottomNav in sync
   const { count: bookedOffCount } = useBookedOffBadge(currentUser);
+
+  // ── Square card balance badge ──
+  // Admin/owner: combined balance of ALL cards. Driver: cards for the stores on
+  // their route today (fallback: their assigned stores). Dispatcher: the card for
+  // their own store(s) — and the link stays unclickable for them.
+  const sqIsAdmin = userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
+  const sqIsDriver = !sqIsAdmin && userHasRole(currentUser, 'driver');
+  const sqIsDispatcher = !sqIsAdmin && !sqIsDriver && userHasRole(currentUser, 'dispatcher');
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser);
+  const sqBadge = useMemo(() => {
+    if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
+    let storeIds = null;
+    if (sqIsDriver) {
+      const today = edmontonWallString(new Date()).slice(0, 10);
+      storeIds = [...new Set(
+        (deliveries || [])
+          .filter((d) => d?.driver_id === currentUser?.id && d?.delivery_date === today && d?.status !== 'cancelled')
+          .map((d) => String(d?.store_id || ''))
+      )].filter(Boolean);
+      if (!storeIds.length) storeIds = (currentUser?.store_ids || []).map(String);
+    } else if (sqIsDispatcher) {
+      storeIds = (currentUser?.store_ids || []).map(String);
+    }
+    if (sqIsAdmin) {
+      let total = 0;
+      for (const row of sqByLocId.values()) total += Number(row?.cardEstimate || 0);
+      return total;
+    }
+    if (!storeIds || !storeIds.length || !sqStoreToLoc) return null;
+    const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc.get(String(sid))).filter(Boolean))];
+    if (!locIds.length) return null;
+    let total = 0, found = false;
+    for (const lid of locIds) {
+      const row = sqByLocId.get(lid);
+      if (row) { total += Number(row.cardEstimate || 0); found = true; }
+    }
+    return found ? total : null;
+  }, [sqReady, sqByLocId, sqStoreToLoc, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
+  const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge).toLocaleString()}`;
 
   // Pending doc access requests badge
   const [pendingDocRequestCount, setPendingDocRequestCount] = useState(0);
@@ -458,6 +499,31 @@ export default function AppSidebar({
 
       <SidebarDivider />
 
+      {/* Square Balances — everyone sees it; badge = combined card balance for the
+          user's cards. Clickable for admins/owners (all cards) and drivers (their
+          route's cards); dispatchers get a read-only badge (single card at their store). */}
+      {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
+        const sqActive = currentPageName === 'SquareBalances';
+        const inner = (
+          <>
+            <Wallet className="w-5 h-5" />
+            <span className="font-semibold">Square Balances</span>
+            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums" style={{ background: 'var(--bg-slate-200)' }}>{sqBadgeLabel}</Badge>
+          </>
+        );
+        const cls = `px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
+        const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
+        if (sqIsDispatcher) {
+          // Not clickable — a dispatcher only ever has the one card for their store.
+          return <div className={`${cls} cursor-default`} style={style}>{inner}</div>;
+        }
+        return (
+          <Link to={createPageUrl('SquareBalances')} onClick={() => setSidebarOpen(false)} className={cls} style={style}>
+            {inner}
+          </Link>
+        );
+      })()}
+
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
             <Link
               to={createPageUrl('Patients')}
@@ -497,27 +563,6 @@ export default function AppSidebar({
              <span className="font-semibold">Stores</span>
              <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
              </Link>
-            }
-
-      {/* Square Balances - App Owner only (same group as Patients/Stores/Drivers) */}
-      {isAppOwner(currentUser) &&
-            <Link
-              to={createPageUrl('SquareBalances')}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentPageName === 'SquareBalances' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'SquareBalances' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-            <Wallet className="w-5 h-5" />
-            <span className="font-semibold">Square Balances</span>
-        </Link>
             }
 
             {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
