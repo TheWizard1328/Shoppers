@@ -62,6 +62,58 @@ async function loadCardSales(cfg) {
   return out;
 }
 
+// Bank sweeps (BATCH payouts) since the true-up. Square auto-transfers the
+// card balance to the linked bank account — the real card DROPS by these,
+// so the estimate must subtract them (owner mismatch report, Oct 2 2026:
+// Bonnie Doon swept $75.59 the same day and the app kept showing it).
+// SIMPLE payouts are EXCLUDED: they are Square's per-sale withholdings
+// (loan/folder), which the credits formula already deducts via
+// loan_rate/folder_rate — subtracting them again would double-count.
+// Verified live: BATCH = sale − fee − loan% − 2% exactly, SIMPLE = 2% of sale.
+// Only PAID/SENT have actually left the balance (PENDING/IN_PROGRESS have not,
+// CANCELED/FAILED never will). Dedupe by square_id AND amount+time+type —
+// duplicate payout rows exist in the ledger (Callingwood Oct 2: the same
+// 05:37Z payout persisted twice).
+export async function loadCardPayouts(cfg) {
+  if (!cfg?.trued_up_at) return [];
+  const rows = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const list = await base44.entities.SquareLedgerEntry.filter(
+      { entry_kind: 'payout', occurred_at: { $gte: cfg.trued_up_at } },
+      undefined, 500, skip
+    ).catch(() => []);
+    rows.push(...(list || []));
+    if ((list || []).length < 500) break;
+    skip += 500;
+  }
+  const seenId = new Set();
+  const seenTuple = new Set();
+  const out = [];
+  for (const r of rows || []) {
+    if (!r?.id || !r?.square_id) continue;
+    if (String(r?.status || '').toUpperCase() !== 'PAID' && String(r?.status || '').toUpperCase() !== 'SENT') continue;
+    const reason = String(r?.reason || '');
+    if (reason.toUpperCase().includes('SIMPLE')) continue; // modeled in credits — see note above
+    const amount = Number(r.amount_cents || 0);
+    const tuple = `${reason}::${amount}::${r.occurred_at}`;
+    if (seenId.has(r.square_id) || seenTuple.has(tuple)) continue;
+    seenId.add(r.square_id);
+    seenTuple.add(tuple);
+    out.push({ id: r.id, location_id: r.location_id, amount, occurred_at: r.occurred_at, status: r.status });
+  }
+  return out;
+}
+
+export function payoutsByLocation(payouts) {
+  const m = new Map();
+  for (const p of payouts || []) {
+    if (!p?.location_id) continue;
+    m.set(p.location_id, (m.get(p.location_id) || 0) + (Number(p.amount) || 0) / 100);
+  }
+  return m;
+}
+
 export async function buildStoreNameMap() {
   const rows = await base44.entities.Store.list().catch(() => []);
   const m = new Map();
@@ -98,10 +150,22 @@ export async function buildStoreToLocMap() {
 // the caller retries once, and only a second failure degrades to null (which
 // loadSummary flags as degraded and self-heals with a delayed forced reload).
 export async function computeCodOutstandingDetailed(cfgArg) {
-  const [storesRaw, cfgsRaw, codSalesRaw, patientsRaw] = await Promise.all([
+  const [storesRaw, cfgsRaw, codSalesRaw, allSalesRaw, patientsRaw] = await Promise.all([
     base44.entities.Store.list(),
     base44.entities.SquareLocationConfig.list(),
     base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }),
+    // ALL completed sales (any tender) — for the unlinked-ring fallback below.
+    (async () => {
+      const out = [];
+      let skip = 0;
+      for (let page = 0; page < 20; page++) {
+        const rows = await base44.entities.SquareLedgerEntry.filter({ entry_kind: 'sale', status: 'COMPLETED' }, undefined, 500, skip);
+        out.push(...(rows || []));
+        if ((rows || []).length < 500) break;
+        skip += 500;
+      }
+      return out;
+    })(),
     base44.entities.Patient.list(),
   ]);
   const patientById = new Map();
@@ -117,6 +181,50 @@ export async function computeCodOutstandingDetailed(cfgArg) {
   const confirmed = new Set(
     (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
   );
+  // ── UNLINKED-RING FALLBACK (Oct 2 2026) ────────────────────────────────
+  // The office sometimes rings a collected cash COD into Square as a MANUAL
+  // amount instead of tapping the delivery's "COD for …" catalog item. The
+  // order then has no catalog_object_id → resolveCodLink can't tie it to the
+  // delivery → sale_class stays null and the delivery NEVER gets confirmed.
+  // The estimate kept subtracting that COD as "cash awaiting Square" while the
+  // same money also counted as an arrived card sale — a double-penalty
+  // (owner report Oct 2: a $5.01 cash COD rung manually one minute before
+  // its delivery completed). Fallback match: an UNLINKED completed sale at
+  // the same location, EXACT same cents, rung within 90 minutes before the
+  // delivery's completion up to the end of its Edmonton delivery day. Each
+  // sale confirms at most ONE delivery (nearest completion time wins).
+  const usedSaleIds = new Set();
+  const unlinkedSalesByLoc = new Map();
+  for (const e of allSalesRaw || []) {
+    if (!e || e?.delivery_id || !e?.location_id || !e?.occurred_at) continue;
+    const cents = Math.round(Number(e.amount_cents || 0));
+    if (!Number.isFinite(cents) || cents <= 0) continue;
+    if (!unlinkedSalesByLoc.has(e.location_id)) unlinkedSalesByLoc.set(e.location_id, []);
+    unlinkedSalesByLoc.get(e.location_id).push({ key: String(e.square_id || e.id || `${e.location_id}:${cents}:${e.occurred_at}`), cents, wall: edmontonWallString(new Date(e.occurred_at)) });
+  }
+  const wallMinus90 = (naiveWall) => {
+    try {
+      const t = new Date(`${String(naiveWall).slice(0, 19)}Z`).getTime() - 90 * 60000;
+      if (!Number.isFinite(t)) return null;
+      return new Date(t).toISOString().slice(0, 19);
+    } catch (_) { return null; }
+  };
+  const matchesUnlinkedRing = (locId, cents, deliveryDate, actualTime) => {
+    const pool = unlinkedSalesByLoc.get(locId) || [];
+    const floor = actualTime ? wallMinus90(actualTime) : `${deliveryDate}T00:00:00`;
+    if (!floor) return false;
+    const ceil = `${deliveryDate}T23:59:59`;
+    let best = null;
+    for (const sale of pool) {
+      if (usedSaleIds.has(sale.key) || sale.cents !== cents) continue;
+      const w = String(sale.wall || '').slice(0, 19);
+      if (!w || w < floor || w > ceil) continue;
+      if (!best || w > best.w) best = { ...sale, w }; // latest in-window ring
+    }
+    if (!best) return false;
+    usedSaleIds.add(best.key);
+    return true;
+  };
   const cfg = cfgArg;
   const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
   const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
@@ -155,6 +263,11 @@ export async function computeCodOutstandingDetailed(cfgArg) {
       if (cash <= 0 || confirmed.has(String(d.id))) continue;
       const locId = storeToLoc.get(String(d?.store_id || ''));
       if (!locId) continue;
+      // Manual/unlinked Square ring of this cash COD → treat as confirmed.
+      if (matchesUnlinkedRing(locId, cash, String(d.delivery_date || '').slice(0, 10), String(d.actual_delivery_time || ''))) {
+        confirmed.add(String(d.id));
+        continue;
+      }
       const agg = aggFor(locId);
       agg.total += cash; agg.awaitingCount += 1;
       agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
@@ -300,7 +413,7 @@ function isCodRelevantEvent(ev) {
   return recordHasCod(ev.data);
 }
 
-function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc }) {
+function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc, payoutsByLoc }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
   for (const loc of (config.locations || [])) {
@@ -313,13 +426,16 @@ function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc }) {
       credits += amount - fee - amount * Number(loc.loan_rate || 0) - amount * folderRate;
     }
     const codOut = Number(codOutstanding?.[loc.location_id] || 0);
-    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - codOut) * 100) / 100;
+    // BATCH bank sweeps since true-up also leave the card (Oct 2 2026 fix).
+    const swept = Number(payoutsByLoc?.get?.(loc.location_id) || 0);
+    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - codOut - swept) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
       cardEstimate,
       loanRemaining: Math.round(Math.max(0, Number(loc.loan_start || 0) - loan) * 100) / 100,
       codAvg,
+      sweptOut: Math.round(swept * 100) / 100,
       level: getBalanceLevel(cardEstimate, codAvg),
     });
   }
@@ -365,18 +481,21 @@ async function loadSummary(force) {
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
     ]);
-    const [codOutstandingRaw, weekly, dailyRemaining] = await Promise.all([
+    const [codOutstandingRaw, weekly, dailyRemaining, payouts] = await Promise.all([
       config ? computeCodOutstandingByLoc(config) : Promise.resolve({}),
       computeWeeklyCached(),
       computeDailyCodRemainingByStore(),
+      config ? loadCardPayouts(config) : Promise.resolve([]),
     ]);
     // null = both attempts failed (e.g. transient entity rate limit). Cache the
     // degraded result so the badge still shows something, but flag it so the
     // hook schedules a self-heal forced reload.
     const degraded = codOutstandingRaw === null;
     const codOutstanding = degraded ? {} : codOutstandingRaw;
+    const payoutsLoc = payoutsByLocation(payouts);
     const data = {
-      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map(),
+      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc }) : new Map(),
+      payoutsByLoc: payoutsLoc,
       storeToLoc: stl,
       weeklyByStore: weekly,
       storeNames: names,
@@ -396,6 +515,7 @@ export function useSquareBalancesSummary(enabled = true) {
   const [weeklyByStore, setWeeklyByStore] = useState(new Map());
   const [storeNames, setStoreNames] = useState(new Map());
   const [dailyRemainingByStore, setDailyRemainingByStore] = useState(new Map());
+  const [payoutsByLoc, setPayoutsByLoc] = useState(new Map());
   const reloadSeq = useRef(0);
 
   const apply = useCallback((data) => {
@@ -404,6 +524,7 @@ export function useSquareBalancesSummary(enabled = true) {
     setWeeklyByStore(data.weeklyByStore);
     setStoreNames(data.storeNames);
     setDailyRemainingByStore(data.dailyRemainingByStore);
+    setPayoutsByLoc(data.payoutsByLoc || new Map());
     setReady(true);
   }, []);
 
@@ -518,5 +639,5 @@ export function useSquareBalancesSummary(enabled = true) {
     };
   }, [enabled, reload]);
 
-  return { ready, byLocId, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore };
+  return { ready, byLocId, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore, payoutsByLoc };
 }
