@@ -1513,20 +1513,31 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   //    every pickup group — Lothar Strach (own delivery_time_start 09:30,
   //    in_transit, orphaned from a prior pickup) sorted last on a 6-stop route
   //    instead of first.
+  // Owner rule (Oct 1 2026): an IN-HAND delivery (en_route/in_transit — the meds
+  // were already collected) has NO dependency on its pickup block. It breaks out
+  // as a standalone block anchored at its OWN delivery_time_start, so it sorts
+  // purely by window like every other stop. A pending delivery stays inside its
+  // pickup block (physical pickup-first constraint). Repro: Lothar Strach,
+  // in_transit with own window 09:30 attached to tomorrow's Hamptons pickup
+  // (10:00) — block anchoring kept him AFTER the pickup; pure window sort puts
+  // him first, before the store.
+  const _IN_HAND_STATUSES = ['en_route', 'in_transit'];
   const addedDeliveryIds = new Set();
   const blocks = [];
   for (const pickup of normalizedPickups) {
     const items = [{ delivery: pickup, isPickup: true }];
-    for (const del of sortedDeliveries.filter(d => d.puid === pickup.stop_id)) {
+    for (const del of sortedDeliveries.filter(
+      (d) => d.puid === pickup.stop_id
+        && !_IN_HAND_STATUSES.includes(String(d.status || '').toLowerCase())
+    )) {
       items.push({ delivery: del, isPickup: false });
       addedDeliveryIds.add(del.id);
     }
     blocks.push({ startMin: parseTimeToMinutes(pickup.delivery_time_start || '99:99'), items });
   }
   for (const del of sortedDeliveries) {
-    if (!addedDeliveryIds.has(del.id)) {
-      blocks.push({ startMin: parseTimeToMinutes(del.delivery_time_start || '99:99'), items: [{ delivery: del, isPickup: false }] });
-    }
+    if (addedDeliveryIds.has(del.id)) continue;
+    blocks.push({ startMin: parseTimeToMinutes(del.delivery_time_start || '99:99'), items: [{ delivery: del, isPickup: false }] });
   }
   blocks.sort((a, b) => a.startMin - b.startMin);
   const orderedStops = blocks.flatMap(b => b.items);
