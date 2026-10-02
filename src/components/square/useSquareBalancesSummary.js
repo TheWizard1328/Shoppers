@@ -36,7 +36,11 @@ async function filterAllDeliveries(status) {
 }
 
 async function loadConfig() {
-  const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
+  // No .catch here (Oct 2 2026 boot-race fix) — a failed AppSettings fetch
+  // must THROW so the caller's retry-with-backoff runs, instead of silently
+  // resolving to "no config" (empty badge) and caching that wrong empty
+  // result for the full 60s TTL.
+  const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY });
   const rec = (rows || [])[0];
   return rec?.setting_value?.locations?.length ? rec.setting_value : null;
 }
@@ -404,9 +408,28 @@ export function useSquareBalancesSummary(enabled = true) {
   }, []);
 
   const healTimerRef = useRef(null);
-  const reload = useCallback(async (force = false) => {
+  // RETRY (Oct 2 2026): loadSummary()/loadConfig() can throw outright (not
+  // just return a degraded result) — e.g. during the boot-loader race where
+  // this hook's mount effect fires before the SDK's auth token is actually
+  // attached, so the very first Store/SquareLocationConfig/etc. list() calls
+  // reject. Previously that throw propagated out of this async function with
+  // nothing catching it (an unhandled rejection) — `ready` never became true
+  // and, since updates are event-driven only, the badge/page stayed stuck
+  // showing nothing until a manual full reload. Now a hard failure retries
+  // with backoff (2s, 4s, 8s) same as the softer "degraded" self-heal below.
+  const reload = useCallback(async (force = false, attempt = 0) => {
     const seq = ++reloadSeq.current;
-    const { data, degraded } = await loadSummary(force);
+    let data, degraded;
+    try {
+      ({ data, degraded } = await loadSummary(force));
+    } catch (e) {
+      console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1} failed:`, e?.message || e);
+      if (seq !== reloadSeq.current) return;
+      if (attempt < 3) {
+        setTimeout(() => reload(true, attempt + 1), 2000 * Math.pow(2, attempt));
+      }
+      return;
+    }
     if (seq !== reloadSeq.current) return;
     apply(data);
     // A degraded run (COD-outstanding fetch failed twice) freezes the badge

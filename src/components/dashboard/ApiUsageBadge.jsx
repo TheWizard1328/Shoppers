@@ -43,7 +43,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     return { startISO, endISO };
   };
 
-  const fetchCounts = async () => {
+  // RETRY (Oct 2 2026): fetchCounts previously had no retry — a boot-time
+  // failure (entity calls racing ahead of the auth token actually attaching,
+  // during the very first seconds after login/app load) was caught, logged,
+  // and then PERMANENTLY left the badge on "..." until a full page reload,
+  // since this only runs once on mount + on WS events (never re-fetches on
+  // its own). Now retries up to 3 times with backoff (1.5s, 3s, 6s) before
+  // giving up, which is enough to ride out the boot-loader race.
+  const fetchCounts = async (attempt = 0) => {
     try {
       const { startISO, endISO } = getDayBoundsISO();
 
@@ -60,8 +67,10 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       setHereRoutingCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing'));
       setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));
     } catch (err) {
-      // Non-critical; keep previous values
-      console.warn("[ApiUsageBadge] Failed to fetch counts:", err?.message || err);
+      console.warn(`[ApiUsageBadge] Failed to fetch counts (attempt ${attempt + 1}):`, err?.message || err);
+      if (attempt < 3) {
+        setTimeout(() => fetchCounts(attempt + 1), 1500 * Math.pow(2, attempt));
+      }
     }
   };
 

@@ -144,7 +144,7 @@ export default function SettingsMenu({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent 
-                className="z-[10003] bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+                className="bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 <SelectItem value="auto" className="text-body">Auto (System)</SelectItem>
                 <SelectItem value="light" className="text-body">Light</SelectItem>
@@ -183,7 +183,7 @@ export default function SettingsMenu({
                 <SelectValue placeholder="City" />
               </SelectTrigger>
               <SelectContent 
-                className="max-h-[300px] overflow-y-auto z-[10002] bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+                className="max-h-[300px] overflow-y-auto bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 {cities.map((city) => (
                   <SelectItem key={city.id} value={city.id} className="text-body">
