@@ -447,7 +447,16 @@ export function useSquareBalancesSummary(enabled = true) {
   // timers, no refresh on non-COD activity (GPS, route ops, plain deliveries).
   useEffect(() => {
     if (!enabled) return undefined;
-    reload();
+    // DEFERRED INITIAL LOAD (Oct 2 2026, owner request): previously the first
+    // reload() fired immediately on mount — right when the boot loader clears
+    // and the app's first big entity-read wave (deliveries, patients, stores,
+    // IDB hydration) is saturating the SDK. The badge's config/store/delivery
+    // fetches joined that storm and lost on cold starts, leaving totals blank.
+    // Now the first load waits 4s for the boot wave to pass; retries with
+    // backoff (in reload) and the event subscriptions below cover everything
+    // after. COD/True-Up events can still trigger an earlier load via the
+    // debounced timers — that is correct behavior, not a boot-race problem.
+    const bootDelay = setTimeout(() => reload(), 4000);
     const unsubs = [];
     let cfgTimer = null, codTimer = null;
     // True-Up writes AppSettings — the one non-delivery event that directly
@@ -483,7 +492,7 @@ export function useSquareBalancesSummary(enabled = true) {
     };
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     return () => {
-      clearTimeout(cfgTimer); clearTimeout(codTimer);
+      clearTimeout(bootDelay); clearTimeout(cfgTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
     };

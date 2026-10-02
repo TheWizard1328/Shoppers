@@ -19,6 +19,9 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   const [googleCount, setGoogleCount] = useState(null);
   const [hereRoutingCount, setHereRoutingCount] = useState(null);
   const [hereTileCount, setHereTileCount] = useState(null);
+  // Mirror of "are counts still missing" for the focus self-heal effect below
+  // (kept in a ref so that effect never re-subscribes on every count change)
+  const countsMissingRef = useRef(true);
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipTimerRef = useRef(null);
@@ -66,19 +69,38 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'google'));
       setHereRoutingCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing'));
       setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));
+      countsMissingRef.current = false;
     } catch (err) {
       console.warn(`[ApiUsageBadge] Failed to fetch counts (attempt ${attempt + 1}):`, err?.message || err);
-      if (attempt < 3) {
-        setTimeout(() => fetchCounts(attempt + 1), 1500 * Math.pow(2, attempt));
+      if (attempt < 5) {
+        setTimeout(() => fetchCounts(attempt + 1), 2000 * Math.pow(2, attempt));
       }
     }
   };
 
   useEffect(() => {
-    if (!currentUser || !isOwner) return;
+    if (!currentUser || !isOwner) return undefined;
 
-    // One initial fetch on load
-    fetchCounts();
+    // DEFERRED INITIAL FETCH (Oct 2 2026, owner request): previously the
+    // badge fetched immediately on mount, which lands right as the boot
+    // loader clears — the same moment the app fires its first big wave of
+    // entity reads (deliveries, patients, stores, IDB hydration). This badge's
+    // two filter() calls joined that storm and frequently lost (429/timeouts),
+    // leaving the counter on "..." for the whole session. Now the first fetch
+    // waits out the boot storm: a 6s settle delay, then runs inside
+    // requestIdleCallback (fallback: timeout) so it only fires once the
+    // browser is actually quiet. Retries + focus self-heal below cover the rest.
+    let idleId = null, timeoutId = null;
+    const startFetch = () => { timeoutId = null; fetchCounts(0); };
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      if (typeof window.requestIdleCallback === 'function') {
+        idleId = window.requestIdleCallback(startFetch, { timeout: 4000 });
+      } else {
+        startFetch();
+      }
+    }, 6000);
+
 
     // WebSocket-driven incremental update — just increment the HERE routing count
     // without making another API call
@@ -96,8 +118,29 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
     return () => {
       window.removeEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
     };
   }, [currentUser, isOwner]);
+
+
+  // SELF-HEAL ON FOCUS (Oct 2 2026): if the initial fetch's retries all failed
+  // (unusually long/slow boot) and the badge is still stuck on "...", try again
+  // whenever the user returns to the app. Cheap (2 entity filters) and runs
+  // only while values are missing.
+  useEffect(() => {
+    const retryIfMissing = () => {
+      if (countsMissingRef.current) fetchCounts(0);
+    };
+    window.addEventListener('focus', retryIfMissing);
+    document.addEventListener('visibilitychange', retryIfMissing);
+    return () => {
+      window.removeEventListener('focus', retryIfMissing);
+      document.removeEventListener('visibilitychange', retryIfMissing);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
