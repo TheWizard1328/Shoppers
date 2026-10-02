@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+import '@/components/utils/suppressResizeObserverWarning'
 import { startAuthTokenBridge } from '@/lib/authTokenBridge'
 
 // ── Global rate-limit flag broadcaster ──────────────────────────────────────
