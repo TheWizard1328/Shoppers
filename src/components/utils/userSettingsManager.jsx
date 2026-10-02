@@ -18,6 +18,19 @@ let lastFetchTime = 0;
 let inFlightSettingsPromise = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
 
+// IN-FLIGHT WRITE TRACKER (Oct 2 2026): "Force Full App Refresh" calls
+// window.location.reload() right after a user action like changing the
+// dashboard date. saveSetting's IDB write (saveToLocalPersistentStore) is
+// fast but asynchronous and NOT awaited by its caller (globalFilters fires
+// it and returns immediately) — a reload that lands before that write
+// resolves discards it, so the next boot reads the IDB snapshot from
+// whenever selected_date/selected_driver_id were last saved, which can be
+// an old session (owner report: force-refreshing right after setting
+// today's date restored a date from weeks earlier). Every saveSetting call
+// registers its IDB-write promise here; waitForPendingSettingWrites lets a
+// deliberate reload action wait for them first.
+const pendingWritePromises = new Set();
+
 /**
  * Gets unique device identifier - stored and persisted in localStorage
  * CRITICAL: Must be stable across sessions for the same physical device
@@ -469,7 +482,10 @@ export async function saveSetting(userId, key, value) {
   }
   currentUserId = userId;
 
-  await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
+  const idbWritePromise = saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
+  pendingWritePromises.add(idbWritePromise);
+  idbWritePromise.finally(() => pendingWritePromises.delete(idbWritePromise));
+  await idbWritePromise;
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
@@ -545,20 +561,34 @@ export async function saveSetting(userId, key, value) {
 // dropped the save entirely (theme choice lost, stale server value won on the
 // next boot). Flush pending writes immediately when the page is being hidden.
 const pendingSaveBodies = new Map();
+export const flushPendingSettingSaves = () => {
+  for (const [key, flush] of pendingSaveBodies.entries()) {
+    const timer = userSettingsSaveTimeouts.get(key);
+    if (timer) clearTimeout(timer);
+    userSettingsSaveTimeouts.delete(key);
+    pendingSaveBodies.delete(key);
+    try { flush(); } catch (_) {}
+  }
+};
 if (typeof window !== 'undefined') {
-  const flushPendingSettingSaves = () => {
-    for (const [key, flush] of pendingSaveBodies.entries()) {
-      const timer = userSettingsSaveTimeouts.get(key);
-      if (timer) clearTimeout(timer);
-      userSettingsSaveTimeouts.delete(key);
-      pendingSaveBodies.delete(key);
-      try { flush(); } catch (_) {}
-    }
-  };
   window.addEventListener('pagehide', flushPendingSettingSaves);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushPendingSettingSaves();
   });
+}
+
+/**
+ * Waits for every currently in-flight setSetting IDB write (e.g. the
+ * selected_date / selected_driver_id write kicked off by the dashboard's
+ * date or driver picker) to resolve. Call this BEFORE a deliberate
+ * window.location.reload() so the write that's already running can't lose
+ * a race against the reload wiping the JS context mid-write.
+ */
+export async function waitForPendingSettingWrites() {
+  if (pendingWritePromises.size === 0) return;
+  // Snapshot — writes started by in-flight writes finishing (rare) will be
+  // caught by the caller's own flow; we only need to not race the CURRENT ones.
+  await Promise.allSettled(Array.from(pendingWritePromises));
 }
 
 /**

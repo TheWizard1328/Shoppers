@@ -16,7 +16,7 @@ import { getDemoSettings } from '@/components/utils/configCache';
 
 import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache, getEffectiveUser } from '../utils/auth';
-import { clearSettingsCache } from '../utils/userSettingsManager';
+import { clearSettingsCache, waitForPendingSettingWrites, flushPendingSettingSaves } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 
 
@@ -217,6 +217,15 @@ export default function SettingsMenu({
       <DropdownMenuItem
         onClick={async () => {
           try {
+            // FIX (Oct 2 2026): a reload fired right after changing the
+            // dashboard date/driver used to race the in-flight settings
+            // write (not awaited by its caller) — the reload could land
+            // before the IDB write resolved, so the next boot read whatever
+            // selected_date/selected_driver_id was last saved, sometimes
+            // weeks old. Wait for any write already in flight, then flush
+            // the debounced server write, before clearing cache and reloading.
+            await waitForPendingSettingWrites();
+            flushPendingSettingSaves();
             clearUserCache();
             clearSettingsCache();
             window.location.reload(true);
