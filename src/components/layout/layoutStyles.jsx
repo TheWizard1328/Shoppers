@@ -199,7 +199,15 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .border-yellow-400, .border-yellow-500, .border-yellow-600, input:focus, select:focus, textarea:focus, [data-state="open"] { border-color:black !important; }
           input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline:2px solid black !important; outline-offset:2px; }
           ::placeholder, input::placeholder, textarea::placeholder, .text-muted, .text-muted-foreground, .text-slate-400, .text-slate-300, .text-gray-400, .text-gray-300, .text-slate-400 svg, .text-gray-400 svg { color:#64748b !important; opacity:1 !important; }
-          .text-slate-500 { color:#475569 !important; }
+          /* FIX (Oct 2 2026): these two were leftover "FORCE light mode" rules from
+             before dark mode existed. Being plain classes with !important, they
+             ALWAYS beat Tailwind's non-!important dark: variant (e.g.
+             bg-slate-50 dark:bg-slate-800) regardless of ANY class on <html> —
+             the literal cause of the Square COD item rows staying white in
+             dark mode no matter what theme fix landed upstream. Scoped to
+             :not(.dark) so they still force the original light-mode intent
+             but step aside once useAutoThemeSync puts 'dark' on <html>. */
+          html:not(.dark) .text-slate-500 { color:#475569 !important; }
           .bg-yellow-100 { background-color:#fef3c7 !important; }
           .text-yellow-800 { color:#92400e !important; }
           .bg-yellow-400, .bg-yellow-500 { background-color:#f59e0b !important; color:#ffffff !important; }
@@ -297,7 +305,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              tablets) even though the JS correctly renders it there. */
           .app-container.chrome-desktop nav[data-mobile-bottom-nav] { display: none !important; }
           .app-container.chrome-desktop { --bottom-nav-height: 0px; }
-          .bg-slate-50 { background-color:#f8fafc !important; }
+          html:not(.dark) .bg-slate-50 { background-color:#f8fafc !important; }
           .text-xs, .text-sm { color:inherit; }
           [role="option"][aria-selected="true"], [role="option"][data-selected="true"], [cmdk-item][data-selected="true"], [role="option"][aria-selected="true"] span, [role="option"][data-selected="true"] span, [cmdk-item][data-selected="true"] span { color:#000000 !important; }
           .store-color-0 { color: #3b82f6; }
