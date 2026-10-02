@@ -63,8 +63,7 @@ export default function SquareBalanceRequestDialog({
     try {
       const dispatcherName = currentUser?.user_name || currentUser?.full_name || 'Dispatcher';
       const body =
-        `${dispatcherName} is requesting a\nSquare card top-up.\n\n` +
-        `Card: ${card.name}\n` +
+        `[Square card top-up]\n\n` +
         `Amount: $${rounded}\n` +
         `Current estimated balance: $${Math.round(card.balance).toLocaleString()}`;
 
