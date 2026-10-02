@@ -104,6 +104,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
+  const [catalogUncollectedByLoc, setCatalogUncollectedByLoc] = useState(undefined); // owner-only: ACTIVE SquareCatalogItems = uncollected, all dates
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -122,6 +123,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const ownerCanEditRef = useRef(false);
   const loadDailyCodRef = useRef(null);
   const computeCodCollectedTodayRef = useRef(null);
+  const computeCatalogUncollectedRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
   // null = show every card (admins/owner); array = only these cards (drivers see the
@@ -245,6 +247,52 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       setLocalOutstanding(out);
     } catch (e) {
       console.error('local COD outstanding failed:', e);
+    }
+  }, []);
+
+  // Owner-only: UNCOLLECTED CODs taken from the SquareCatalogItems database.
+  // An ACTIVE catalog item = the COD is still sitting in the Square register,
+  // regardless of delivery date — this catches old ones (e.g. 100 days back)
+  // that the true-up-window delivery queries exclude. Statuses 'completed' and
+  // 'deleted' mean the item was rung/removed = collected, so they're skipped.
+  const computeCatalogUncollected = useCallback(async () => {
+    if (!ownerCanEditRef.current) return;
+    try {
+      const itemsPages = [];
+      for (let skip = 0; skip < 20000; skip += 500) {
+        const rows = await base44.entities.SquareCatalogItems.filter({ status: 'active' }, undefined, 500, skip).catch(() => []);
+        const list = rows || [];
+        itemsPages.push(...list);
+        if (list.length < 500) break;
+      }
+      const [storesRaw, patientsRaw] = await Promise.all([
+        base44.entities.Store.list().catch(() => []),
+        base44.entities.Patient.list().catch(() => []),
+      ]);
+      const itemsRaw = itemsPages;
+      const resolvePatientName = buildPatientResolver(patientsRaw);
+      const storeById = new Map();
+      (storesRaw || []).forEach((s) => { if (s?.id) storeById.set(String(s.id), s); });
+      const byLoc = new Map();
+      for (const it of (itemsRaw || [])) {
+        if (!it?.location_id) continue;
+        if (!byLoc.has(it.location_id)) byLoc.set(it.location_id, []);
+        const sInfo = storeById.get(String(it.store_id || ''));
+        const date = String(it.delivery_date || '').slice(0, 10);
+        byLoc.get(it.location_id).push({
+          key: `cat-${it.id || it.square_catalog_object_id}`,
+          patientName: resolvePatientName(it.patient_id)?.full_name || null,
+          storeAbbrev: sInfo?.abbreviation || null,
+          storeColor: sInfo?.color || null,
+          amount: Number(it.amount || 0),
+          date: date || null,
+        });
+      }
+      const out = {};
+      for (const [locId, rows] of byLoc) out[locId] = rows;
+      setCatalogUncollectedByLoc(out);
+    } catch (e) {
+      console.error('catalog uncollected compute failed:', e);
     }
   }, []);
 
@@ -382,6 +430,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         await loadSales(cfg);
         computeLocalOutstanding();
         computeCodCollectedToday();
+        computeCatalogUncollected();
         loadDailyCod();
       } catch (e) {
         console.error('balances load failed:', e);
@@ -405,6 +454,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await refresh({ reloadConfig: false });
       computeLocalOutstanding();
       computeCodCollectedToday();
+      computeCatalogUncollected();
     } catch (err) {
       console.error('squareLedgerSync failed:', err);
       toast.error('Square refresh failed');
@@ -418,6 +468,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   configRef.current = config;
   computeLocalOutstandingRef.current = computeLocalOutstanding;
   computeCodCollectedTodayRef.current = computeCodCollectedToday;
+  computeCatalogUncollectedRef.current = computeCatalogUncollected;
   ownerCanEditRef.current = ownerCanEdit;
 
   // ── WebSocket live updates ──
@@ -429,11 +480,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // syncs do NOT broadcast) → debounced 5s sales re-read.
   useEffect(() => {
     const unsubs = [];
-    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null, codTimer = null;
+    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null, codTimer = null, catalogTimer = null;
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
+      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); computeCatalogUncollectedRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -452,6 +503,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }));
     } catch (e) { console.error('Ledger subscribe failed:', e); }
     try {
+      unsubs.push(base44.entities.SquareCatalogItems.subscribe(() => {
+        clearTimeout(catalogTimer);
+        catalogTimer = setTimeout(() => { computeCatalogUncollectedRef.current?.(); }, 5000);
+      }));
+    } catch (e) { console.error('Catalog subscribe failed:', e); }
+    try {
       unsubs.push(base44.entities.Delivery.subscribe(() => {
         scheduleCodRecompute();
         // Full Square re-sync on sustained activity only (protects Square API rate limits)
@@ -467,7 +524,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeReordered', onRouteReordered);
     return () => {
-      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer); clearTimeout(codTimer);
+      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer); clearTimeout(codTimer); clearTimeout(catalogTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeReordered', onRouteReordered);
@@ -766,23 +823,38 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               </div>
               {ownerCanEdit && (() => {
                 const todayStr = edmontonWallString(new Date()).slice(0, 10);
+                // Uncollected rows come from the SquareCatalogItems database:
+                // ACTIVE catalog items = still sitting in the register, ALL
+                // dates included (the old true-up-window delivery query missed
+                // anything past the window, e.g. week-old CODs).
+                // Fallback to the delivery-derived items only while the
+                // catalog list hasn't loaded yet.
+                const catItems = catalogUncollectedByLoc?.[loc.location_id];
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
-                const uncollectedTodayRows = outItems.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                const uncollectedSrc = catItems || outItems.map((it) => ({
                   key: `o-${it.delivery_id}`,
                   patientName: it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
                   amount: it.amount,
-                  sub: `${it.date || todayStr} · ${it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}`,
-                  collected: false,
+                  date: it.date || null,
                 }));
-                const pastUncollectedRows = outItems.filter((it) => it.date && it.date < todayStr).map((it) => ({
-                  key: `p-${it.delivery_id}`,
-                  patientName: it.patient || null,
+                const uncollectedTodayRows = uncollectedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                  key: it.key || `o-${it.delivery_id}`,
+                  patientName: it.patientName || it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
                   amount: it.amount,
-                  sub: `${it.date} · ${it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}`,
+                  sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
+                  collected: false,
+                }));
+                const pastUncollectedRows = uncollectedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
+                  key: it.key || `p-${it.delivery_id}`,
+                  patientName: it.patientName || it.patient || null,
+                  storeAbbrev: it.storeAbbrev || null,
+                  storeColor: it.storeColor || null,
+                  amount: it.amount,
+                  sub: it.sub || it.date,
                   collected: false,
                 }));
                 const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
