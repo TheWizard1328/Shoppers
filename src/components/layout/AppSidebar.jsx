@@ -603,7 +603,7 @@ export default function AppSidebar({
               onClick={() => { setShowBalanceRequest(true); setSidebarOpen(false); }}
               className={`${cls} cursor-pointer text-left w-full`}
               style={style}
-              title="Request a card top-up from the App Owner"
+              title="Request a card top-up"
             >
               {inner}
             </button>
