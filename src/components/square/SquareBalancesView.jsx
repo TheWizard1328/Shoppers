@@ -56,8 +56,8 @@ function buildPatientResolver(patientsRaw) {
 
 // Owner-only COD list at the bottom of each card. Rows use the SAME format as
 // the Square catalog items list (name + subtext, bold amount, Collected/Pending
-// pill). Three levels, top to bottom: collected today, uncollected today, past
-// uncollected.
+// pill). Three levels, top to bottom: collected today, uncollected (today +
+// future-dated pending CODs), past uncollected.
 function CardCodList({ sections }) {
   if (!sections || !sections.some((s) => s.rows.length > 0)) return null;
   return (
@@ -281,6 +281,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const date = String(it.delivery_date || '').slice(0, 10);
         byLoc.get(it.location_id).push({
           key: `cat-${it.id || it.square_catalog_object_id}`,
+          delivery_id: it.delivery_id || null,
           patientName: resolvePatientName(it.patient_id)?.full_name || null,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
@@ -833,6 +834,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
                 const uncollectedSrc = catItems || outItems.map((it) => ({
                   key: `o-${it.delivery_id}`,
+                  delivery_id: it.delivery_id,
                   patientName: it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
@@ -848,6 +850,27 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
                   collected: false,
                 }));
+                // Future-dated pending CODs never have a Square catalog item
+                // (the reconciler removes pending deliveries' items until they
+                // go active), so they'd vanish once the catalog list loads —
+                // merge them in from the delivery-derived outstanding list
+                // (owner request, Oct 1 2026: "Uncollected" must also list
+                // pending CODs from future dates).
+                const srcDeliveryIds = new Set(
+                  uncollectedSrc.map((it) => it.delivery_id).filter(Boolean)
+                );
+                const futurePendingRows = outItems
+                  .filter((it) => it.date && it.date > todayStr)
+                  .filter((it) => !srcDeliveryIds.has(it.delivery_id))
+                  .map((it) => ({
+                    key: `f-${it.delivery_id}`,
+                    patientName: it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    sub: `${it.date} · upcoming`,
+                    collected: false,
+                  }));
                 const pastUncollectedRows = uncollectedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
                   patientName: it.patientName || it.patient || null,
@@ -863,7 +886,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <CardCodList
                     sections={[
                       { label: 'Collected today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
-                      { label: 'Uncollected today', color: '#d97706', rows: uncollectedTodayRows, total: sumOf(uncollectedTodayRows) },
+                      { label: 'Uncollected', color: '#d97706', rows: [...uncollectedTodayRows, ...futurePendingRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
                       { label: 'Past uncollected', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
                     ]}
                   />
