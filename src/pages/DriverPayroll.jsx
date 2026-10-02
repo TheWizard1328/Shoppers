@@ -834,15 +834,19 @@ export default function DriverPayroll() {
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
 
+    // Store original theme class BEFORE the try so the catch path can restore it
+    // (Oct 2 2026: it was declared inside try, and the old catch only stripped
+    // 'light-theme' — leaving a Dark-theme user with NO theme class at all, so
+    // the app's CSS vars fell back to light while Tailwind dark: utilities
+    // stayed dark → split light/dark page until reload).
+    const htmlElement = document.documentElement;
+    const originalThemeClass = htmlElement.className;
+
     try {
       if (!contentRef.current) {
         toast.error('Content not found');
         return;
       }
-
-      // Store original theme class
-      const htmlElement = document.documentElement;
-      const originalThemeClass = htmlElement.className;
 
       // Force light mode temporarily
       htmlElement.classList.remove('dark-theme', 'auto-theme');
@@ -928,9 +932,8 @@ export default function DriverPayroll() {
       console.error('Screenshot error:', error);
       toast.error('Failed to capture screenshot');
 
-      // Restore original state on error
-      const htmlElement = document.documentElement;
-      htmlElement.className = htmlElement.className.replace('light-theme', '').trim();
+      // Restore original state on error — the full captured class set
+      htmlElement.className = originalThemeClass;
       const controlsElement = document.getElementById('payroll-controls');
       if (controlsElement) {
         controlsElement.style.display = 'flex';

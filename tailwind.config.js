@@ -25,7 +25,20 @@ module.exports = {
 // of the OS) makes core generate `.dark\:bg-slate-800:is(.dark *)` — every
 // dark: utility now follows the SAME <html class="dark"> our own vars use,
 // with zero dependency on the device's OS appearance setting.
-    darkMode: 'class',
+    // FIX (Oct 2 2026, v4): v3 pointed dark: at '.dark' only. But the app's own
+    // CSS variables (layoutStyles.jsx) go dark in THREE states: html.dark-theme
+    // (explicit Dark), html.dark (auto + system dark), and html.auto-theme under
+    // '@media (prefers-color-scheme: dark)'. The third state needs NO 'dark'
+    // class at the CSS level — so a page loaded while the OS was Light (no
+    // 'dark' class written) whose OS later switched to Dark showed a SPLIT page:
+    // every CSS-var surface went dark, but every literal dark: utility (cards,
+    // COD chips, text) stayed light-rendered — white cards on a dark page
+    // (owner's Square Balances screenshot). Matching '.dark, .dark-theme'
+    // removes the reliance on the JS-synced 'dark' class for the explicit-Dark
+    // case; useAutoThemeSync now also re-syncs on visibilitychange/focus/60s
+    // so the auto + system-dark case can't drift either (matchMedia 'change'
+    // events are unreliable in suspended Android WebView/PWA sessions).
+    darkMode: ['class', '.dark, .dark-theme'],
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
