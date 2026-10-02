@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
@@ -112,6 +112,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [trueUpDraft, setTrueUpDraft] = useState({});
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpDraft, setTopUpDraft] = useState({});
+  // Funds transfer: move money from ONE card to another (owner-only).
+  // transferFromLoc = full location object the button was clicked on.
+  const [transferFromLoc, setTransferFromLoc] = useState(null);
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferToLocId, setTransferToLocId] = useState('');
   const trueUpPanelRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const loadSeq = useRef(0);
@@ -631,6 +636,47 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     setShowTopUp(true);
   };
 
+  // Funds transfer: subtract from the source card's start, add to the target
+  // card's start. Same mechanism as Top-Up (adjusts card_start, does NOT reset
+  // the tracking window) — it's money moving between cards, not a reconciliation.
+  const openTransfer = (loc) => {
+    setTransferFromLoc(loc);
+    setTransferAmount('');
+    setTransferToLocId('');
+  };
+
+  const saveTransfer = async () => {
+    if (!config || !transferFromLoc) return;
+    const amt = parseFloat(transferAmount);
+    if (!Number.isFinite(amt) || amt <= 0) { toast.error('Enter a transfer amount greater than 0'); return; }
+    if (!transferToLocId) { toast.error('Pick a destination card'); return; }
+    if (transferToLocId === transferFromLoc.location_id) { toast.error('Destination must be a different card'); return; }
+    const locations = (config.locations || []).map((loc) => {
+      if (loc.location_id === transferFromLoc.location_id) return { ...loc, card_start: Number(loc.card_start || 0) - amt };
+      if (loc.location_id === transferToLocId) return { ...loc, card_start: Number(loc.card_start || 0) + amt };
+      return loc;
+    });
+    setIsSaving(true);
+    try {
+      const newConfig = { ...config, locations };
+      if (configRecordId) {
+        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      } else {
+        const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
+        setConfigRecordId(created?.id || null);
+      }
+      setConfig(newConfig);
+      const toName = (config.locations || []).find((l) => l.location_id === transferToLocId)?.name || transferToLocId;
+      toast.success(`Transferred ${fmtMoney(amt)} from ${transferFromLoc.name || transferFromLoc.location_id} to ${toName}`);
+      setTransferFromLoc(null);
+    } catch (err) {
+      console.error('funds transfer failed:', err);
+      toast.error('Could not save the transfer');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Top-Up: ADD the typed amounts to each card's current starting balance.
   // Unlike True-Up this does NOT reset the tracking window (trued_up_at) —
   // it's money added to the cards, not a reconciliation.
@@ -799,8 +845,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden"
             style={lvl ? { borderColor: lvl.border, backgroundImage: `linear-gradient(0deg, ${lvl.tint}, ${lvl.tint})` } : { borderColor: 'var(--border-slate-200, #e2e8f0)' }}>
             <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
-              <div className="text-[11px] text-slate-400">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
+                  <div className="text-[11px] text-slate-400">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
+                </div>
+                {ownerCanEdit && (
+                  <button
+                    type="button"
+                    title="Funds transfer"
+                    aria-label={`Funds transfer from ${loc.name || loc.location_id}`}
+                    className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
+                    onClick={(e) => { e.stopPropagation(); openTransfer(loc); }}
+                    disabled={isSaving || isLoading}
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="px-4 py-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -1000,6 +1062,54 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <Button size="sm" variant="outline" onClick={() => setShowTopUp(false)} disabled={isSaving}>Cancel</Button>
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveTopUp} disabled={isSaving}>
                 {isSaving ? 'Adding…' : 'Add to Cards'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Funds Transfer overlay: move money from one card to another (does not reset the window) */}
+      {transferFromLoc && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setTransferFromLoc(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Funds Transfer</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Move money from this card to another card. Does not reset the tracking window.</div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">From</span>
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">{transferFromLoc.name || transferFromLoc.location_id}</span>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Amount</span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={`available ~${fmtMoney(perLocation.find((l) => l.location_id === transferFromLoc.location_id)?.cardEstimate || 0)}`}
+                value={transferAmount}
+                disabled={isSaving}
+                onChange={(e) => setTransferAmount(e.target.value)}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">To card</span>
+              <select
+                className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50"
+                value={transferToLocId}
+                disabled={isSaving}
+                onChange={(e) => setTransferToLocId(e.target.value)}
+              >
+                <option value="">Select destination card…</option>
+                {(config?.locations || []).filter((loc) => loc.location_id !== transferFromLoc.location_id).map((loc) => (
+                  <option key={loc.location_id} value={loc.location_id}>{loc.name || loc.location_id}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setTransferFromLoc(null)} disabled={isSaving}>Cancel</Button>
+              <Button size="sm" onClick={saveTransfer} disabled={isSaving}>
+                {isSaving ? 'Transferring…' : 'Transfer'}
               </Button>
             </div>
           </div>
