@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { edmontonWallString } from '@/components/utils/albertaTime';
 import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary } from '@/components/square/squareBalancesOfflineManager';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
  * useSquareBalancesSummary — lightweight per-card balance estimates for the
@@ -13,6 +14,78 @@ import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary } from '@/c
  */
 
 const SETTING_KEY = 'square_balances';
+
+// ── IDB-FIRST READS (owner report, Oct 2 2026: boot rate-limit storm) ────────
+// One badge reload used to fire ~25 entity API calls (3 full status scans,
+// 4-page + 6-page Delivery.list sweeps, Store/SquareLocationConfig/Patient
+// lists ×2, ledger scans). Every COD-relevant WS delivery event forced a full
+// reload, and each 429 retry repeated the whole volley — the badge itself was
+// a major contributor to the boot rate-limit storm. The app's own realtime
+// sync already keeps DELIVERIES / STORES / SQUARE_LOCATION_CONFIGS / PATIENTS
+// fresh in IDB (same user-scoped view the API would return), so all delivery
+// math now reads IDB instead. Remaining per-reload API calls: config + the
+// three Square ledger scans (ledger rows only change via squareLedgerSync).
+// TTLs: deliveries 60s (coalesces with the summary cache), reference data 5min.
+const IDB_DELIVERIES_TTL = 60_000;
+const IDB_REF_TTL = 5 * 60_000;
+const idbReadCaches = {
+  deliveries: { at: 0, rows: null },
+  stores: { at: 0, rows: null },
+  locCfgs: { at: 0, rows: null },
+  patients: { at: 0, rows: null },
+};
+const IDB_FRESH_INSTALL_MIN_ROWS = 20;
+
+async function readIdbRows(storeName, cacheKey, ttlMs) {
+  const c = idbReadCaches[cacheKey];
+  if (c.rows && Date.now() - c.at < ttlMs) return c.rows;
+  // No .catch — a failed IDB read must throw so the caller retries (with
+  // backoff at the reload level), NOT silently report empty data.
+  const rows = await offlineDB.getAll(storeName);
+  c.at = Date.now();
+  c.rows = rows || [];
+  return c.rows;
+}
+
+// Deliveries straight from the local mirror the app sync maintains. Returns
+// ALL statuses — callers filter client-side. If the local DB clearly hasn't
+// been bootstrapped yet (fresh install / pre-sync), fall back to the API so
+// the badge is still correct on first runs.
+async function getAllDeliveriesIdb() {
+  // API fallback backfills fresh installs (no synced data yet) — one volley
+  // per cold start; warmed IDB makes every later reload IDB-only.
+  const apiFetch = async () => {
+    const all = [];
+    for (const status of ['pending', 'in_transit', 'en_route', 'completed']) {
+      all.push(...await filterAllDeliveries(status));
+    }
+    return all;
+  };
+  return idbOrApi(offlineDB.STORES.DELIVERIES, 'deliveries', IDB_DELIVERIES_TTL, apiFetch, IDB_FRESH_INSTALL_MIN_ROWS);
+}
+
+function deliveriesWithStatus(rows, status) {
+  return (rows || []).filter((d) => d?.status === status);
+}
+
+// IDB-first read with an API fallback for fresh installs (IDB not yet
+// bootstrapped) and read failures. The API result is cached too so a
+// fresh-install badge converges to IDB-less operation until the app's
+// own sync populates IDB.
+async function idbOrApi(storeName, cacheKey, ttlMs, apiFetch, minRows = 1) {
+  let rows = null;
+  try {
+    rows = await readIdbRows(storeName, cacheKey, ttlMs);
+  } catch { rows = null; }
+  if (rows && rows.length >= minRows) return rows;
+  const apiRows = await apiFetch().catch(() => []);
+  if ((apiRows || []).length > (rows?.length || 0)) {
+    const c = idbReadCaches[cacheKey];
+    c.at = Date.now(); c.rows = apiRows;
+    return apiRows;
+  }
+  return rows || apiRows || [];
+}
 
 // Unlimited .filter({status}) calls silently truncate at the server's default
 // page size — fine for a quiet system, but once active (pending/in_transit/
@@ -116,7 +189,9 @@ export function payoutsByLocation(payouts) {
 }
 
 export async function buildStoreNameMap() {
-  const rows = await base44.entities.Store.list().catch(() => []);
+  // IDB-first (Oct 2 2026): the app sync keeps STORES fresh locally.
+  const rows = await idbOrApi(offlineDB.STORES.STORES, 'stores', IDB_REF_TTL,
+    () => base44.entities.Store.list(), 5);
   const m = new Map();
   (rows || []).forEach((s) => { if (s?.id) m.set(String(s.id), s?.name || String(s.id)); });
   return m;
@@ -124,8 +199,10 @@ export async function buildStoreNameMap() {
 
 export async function buildStoreToLocMap() {
   const [storesRaw, cfgsRaw] = await Promise.all([
-    base44.entities.Store.list().catch(() => []),
-    base44.entities.SquareLocationConfig.list().catch(() => []),
+    idbOrApi(offlineDB.STORES.STORES, 'stores', IDB_REF_TTL,
+      () => base44.entities.Store.list(), 5),
+    idbOrApi(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, 'locCfgs', IDB_REF_TTL,
+      () => base44.entities.SquareLocationConfig.list(), 1),
   ]);
   const cfgLoc = new Map();
   (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
@@ -151,23 +228,32 @@ export async function buildStoreToLocMap() {
 // the caller retries once, and only a second failure degrades to null (which
 // loadSummary flags as degraded and self-heals with a delayed forced reload).
 export async function computeCodOutstandingDetailed(cfgArg) {
-  const [storesRaw, cfgsRaw, codSalesRaw, allSalesRaw, patientsRaw] = await Promise.all([
-    base44.entities.Store.list(),
-    base44.entities.SquareLocationConfig.list(),
+  // IDB-first for the app-synced reference data (no API cost); the Square
+  // ledger scans stay on the API (ledger rows change only via squareLedgerSync,
+  // so they are one bounded read each, windowed where possible).
+  const [storesRaw, cfgsRaw, codSalesRaw, allSalesRaw, patientsRaw, allDeliveries] = await Promise.all([
+    idbOrApi(offlineDB.STORES.STORES, 'stores', IDB_REF_TTL, () => base44.entities.Store.list(), 5),
+    idbOrApi(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, 'locCfgs', IDB_REF_TTL, () => base44.entities.SquareLocationConfig.list(), 1),
     base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }),
-    // ALL completed sales (any tender) — for the unlinked-ring fallback below.
+    // Completed sales for the unlinked-ring fallback below. Windowed to the
+    // candidate horizon (cutoff − 3d) instead of the full history — the
+    // fallback only ever matches sales from a candidate's own Edmonton day.
     (async () => {
+      const tu = cfgArg?.trued_up_at ? new Date(cfgArg.trued_up_at) : null;
+      const cutoffD = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
+      const since = new Date(new Date(`${cutoffD}T00:00:00Z`).getTime() - 3 * 86400000).toISOString();
       const out = [];
       let skip = 0;
       for (let page = 0; page < 20; page++) {
-        const rows = await base44.entities.SquareLedgerEntry.filter({ entry_kind: 'sale', status: 'COMPLETED' }, undefined, 500, skip);
+        const rows = await base44.entities.SquareLedgerEntry.filter({ entry_kind: 'sale', status: 'COMPLETED', occurred_at: { $gte: since } }, undefined, 500, skip);
         out.push(...(rows || []));
         if ((rows || []).length < 500) break;
         skip += 500;
       }
       return out;
     })(),
-    base44.entities.Patient.list(),
+    idbOrApi(offlineDB.STORES.PATIENTS, 'patients', IDB_REF_TTL, () => base44.entities.Patient.list(), 20),
+    getAllDeliveriesIdb(),
   ]);
   const patientById = new Map();
   (patientsRaw || []).forEach((p) => { if (p?.id) patientById.set(String(p.id), p); if (p?.patient_id) patientById.set(String(p.patient_id), p); });
@@ -239,7 +325,7 @@ export async function computeCodOutstandingDetailed(cfgArg) {
   };
 
   for (const status of ['pending', 'in_transit', 'en_route']) {
-    const rows = await filterAllDeliveries(status);
+    const rows = deliveriesWithStatus(allDeliveries, status);
     for (const d of rows || []) {
       const required = Number(d?.cod_total_amount_required || 0);
       if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
@@ -255,26 +341,40 @@ export async function computeCodOutstandingDetailed(cfgArg) {
     }
   }
 
-  for (let page = 0; page < 4; page++) {
-    const list = await base44.entities.Delivery.list('-created_date', 2000, page * 2000);
-    for (const d of list || []) {
-      if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
-      const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-      const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-      if (cash <= 0 || confirmed.has(String(d.id))) continue;
-      const locId = storeToLoc.get(String(d?.store_id || ''));
-      if (!locId) continue;
-      // Manual/unlinked Square ring of this cash COD → treat as confirmed.
-      if (matchesUnlinkedRing(locId, cash, String(d.delivery_date || '').slice(0, 10), String(d.actual_delivery_time || ''))) {
-        confirmed.add(String(d.id));
-        continue;
+  // Completed-cash scan from the IDB mirror (IDB prunes deliveries older than
+  // 60 days, so if the true-up window extends beyond that horizon, ALSO sweep
+  // the API pages once for the older tail — otherwise old uncollected CODs
+  // would silently vanish from the estimate).
+  const idbHorizon = new Date(Date.now() - 59 * 86400000).toISOString().slice(0, 10);
+  const completedRows = (allDeliveries || []).filter(
+    (d) => d?.status === 'completed' && !d?.cod_confirmed_collected && isCounted(d)
+  );
+  if (cutoffDate < idbHorizon) {
+    for (let page = 0; page < 4; page++) {
+      const list = await base44.entities.Delivery.list('-created_date', 2000, page * 2000);
+      for (const d of list || []) {
+        if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
+        if (String(d?.delivery_date || '') >= idbHorizon) continue; // IDB already covers these
+        completedRows.push(d);
       }
-      const agg = aggFor(locId);
-      agg.total += cash; agg.awaitingCount += 1;
-      agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
+      if (list.length < 2000) break;
+      if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
     }
-    if (list.length < 2000) break;
-    if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
+  }
+  for (const d of completedRows) {
+    const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+    const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+    if (cash <= 0 || confirmed.has(String(d.id))) continue;
+    const locId = storeToLoc.get(String(d?.store_id || ''));
+    if (!locId) continue;
+    // Manual/unlinked Square ring of this cash COD → treat as confirmed.
+    if (matchesUnlinkedRing(locId, cash, String(d.delivery_date || '').slice(0, 10), String(d.actual_delivery_time || ''))) {
+      confirmed.add(String(d.id));
+      continue;
+    }
+    const agg = aggFor(locId);
+    agg.total += cash; agg.awaitingCount += 1;
+    agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
   }
 
   const out = {};
@@ -314,21 +414,15 @@ export async function computeWeeklyCodTotalsByStore() {
   try {
     const today = edmontonWallString(new Date()).slice(0, 10);
     const from = new Date(new Date(today + 'T00:00:00Z').getTime() - 7 * 86400000).toISOString().slice(0, 10);
-    const createdFloor = new Date(new Date(today + 'T00:00:00Z').getTime() - 10 * 86400000).getTime();
     const byStore = new Map();
-    for (let page = 0; page < 6; page++) {
-      const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
-      const list = rows || [];
-      for (const d of list) {
-        const dd = String(d?.delivery_date || '');
-        if (dd < from || dd >= today) continue;
-        if (d?.status === 'cancelled') continue;
-        const required = Number(d?.cod_total_amount_required || 0);
-        if (required <= 0 || !d?.store_id) continue;
-        byStore.set(String(d.store_id), (byStore.get(String(d.store_id)) || 0) + required);
-      }
-      if (list.length < 2000) break;
-      if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
+    const list = await getAllDeliveriesIdb();
+    for (const d of list) {
+      const dd = String(d?.delivery_date || '');
+      if (dd < from || dd >= today) continue;
+      if (d?.status === 'cancelled') continue;
+      const required = Number(d?.cod_total_amount_required || 0);
+      if (required <= 0 || !d?.store_id) continue;
+      byStore.set(String(d.store_id), (byStore.get(String(d.store_id)) || 0) + required);
     }
     return byStore;
   } catch (e) {
@@ -344,8 +438,9 @@ export async function computeDailyCodRemainingByStore() {
     const today = edmontonWallString(new Date()).slice(0, 10);
     const centsOf = (n) => Math.round(Number(n || 0) * 100);
     const byStore = new Map();
+    const allRows = await getAllDeliveriesIdb();
     for (const status of ['pending', 'in_transit', 'en_route']) {
-      const rows = await filterAllDeliveries(status);
+      const rows = deliveriesWithStatus(allRows, status);
       for (const d of rows || []) {
         if (String(d?.delivery_date || '') !== today) continue;
         const required = Number(d?.cod_total_amount_required || 0);
@@ -672,7 +767,11 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
     } catch {}
     const scheduleCodReload = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => reload(true), 2500);
+      // NON-forced (Oct 2 2026 rate-limit fix): the 60s summary cache
+      // coalesces WS bursts — a delivery-change volley runs at most once a
+      // minute instead of on every 2.5s-debounced event. True-Up still
+      // forces (card_start changed).
+      codTimer = setTimeout(() => reload(false), 2500);
     };
     // Remote WS delivery events — refresh only when the changed record is
     // COD-relevant (has a COD amount/payments/confirmation, a cod_* field was
