@@ -6,7 +6,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight } from 
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed } from "./useSquareBalancesSummary";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -193,97 +193,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
   // from the entities so COD add/remove on any delivery shows up in seconds
   // (no Square API round-trip needed). Local result wins over the sync response.
+  // CODs-outstanding now comes from the ONE shared implementation in
+  // useSquareBalancesSummary.js (computeCodOutstandingDetailed) — the sidebar
+  // badge and this page can no longer drift apart (Oct 2 2026 badge-vs-page
+  // mismatch: the badge's private copy swallowed a fetch failure and showed
+  // $0 outstanding while this page computed $18.14 correctly).
   const computeLocalOutstanding = useCallback(async (cfgArg) => {
     try {
-      const [storesRaw, cfgsRaw, codSalesRaw, patientsRaw] = await Promise.all([
-        base44.entities.Store.list().catch(() => []),
-        base44.entities.SquareLocationConfig.list().catch(() => []),
-        base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []),
-        base44.entities.Patient.list().catch(() => []),
-      ]);
-      const resolvePatientName = buildPatientResolver(patientsRaw);
-      const cfgLoc = new Map();
-      (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
-      const storeToLoc = new Map();
-      const storeById = new Map();
-      (storesRaw || []).forEach((s) => {
-        const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
-        if (s?.id && loc) storeToLoc.set(String(s.id), loc);
-        if (s?.id) storeById.set(String(s.id), s);
-      });
-      // Cash rung at a register = ledger cod_collection sale linked to the delivery
-      const confirmed = new Set(
-        (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
-      );
-      // Owner rule: CODs outstanding at true-up are already in the starting
-      // balances — only deliveries dated on/after the true-up day count.
-      const cfg = cfgArg || configRef.current;
-      const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
-      const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
-      const createdFloor = new Date(new Date(cutoffDate + 'T00:00:00Z').getTime() - 3 * 86400000).getTime();
-      const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
-      const centsOf = (n) => Math.round(Number(n || 0) * 100);
-      const byLoc = new Map();
-      const aggFor = (locId) => {
-        if (!byLoc.has(locId)) byLoc.set(locId, { total: 0, pendingCount: 0, awaitingCount: 0, items: [] });
-        return byLoc.get(locId);
-      };
-
-      // a) pending / in-transit CODs (minus debit/credit/cheque already collected)
-      // Fully paginated — an unlimited .filter({status}) call silently truncates
-      // at the server's default page size once active deliveries exceed it,
-      // under-counting outstanding CODs and inflating the shown card balance
-      // (Oct 1 2026 "wrong total" report, same root cause as the sidebar badge).
-      for (const status of ['pending', 'in_transit', 'en_route']) {
-        const rows = [];
-        let statusSkip = 0;
-        for (let sp = 0; sp < 20; sp++) {
-          const page = await base44.entities.Delivery.filter({ status }, undefined, 500, statusSkip).catch(() => []);
-          const list = page || [];
-          rows.push(...list);
-          if (list.length < 500) break;
-          statusSkip += 500;
-        }
-        for (const d of rows || []) {
-          const required = Number(d?.cod_total_amount_required || 0);
-          if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
-          const locId = storeToLoc.get(String(d?.store_id || ''));
-          if (!locId) continue;
-          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-          const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-          const outstanding = Math.max(0, centsOf(required) - nonCash);
-          if (outstanding <= 0) continue;
-          const agg = aggFor(locId);
-          agg.total += outstanding; agg.pendingCount += 1;
-          const sInfoA = storeById.get(String(d.store_id || ''));
-          agg.items.push({ delivery_id: d.id, status, patient: resolvePatientName(d.patient_id)?.full_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoA?.abbreviation || null, storeColor: sInfoA?.color || null, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10) });
-        }
-      }
-
-      // b) completed cash CODs still awaiting Square registration (last 45 days)
-      for (let page = 0; page < 4; page++) {
-        const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
-        const list = rows || [];
-        for (const d of list) {
-          if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
-          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-          const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-          if (cash <= 0 || confirmed.has(String(d.id))) continue;
-          const locId = storeToLoc.get(String(d?.store_id || ''));
-          if (!locId) continue;
-          const agg = aggFor(locId);
-          agg.total += cash; agg.awaitingCount += 1;
-          const sInfoB = storeById.get(String(d.store_id || ''));
-          agg.items.push({ delivery_id: d.id, status: 'completed', patient: resolvePatientName(d.patient_id)?.full_name || null, driverName: d.driver_name || null, storeAbbrev: sInfoB?.abbreviation || null, storeColor: sInfoB?.color || null, amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10) });
-        }
-        if (list.length < 2000) break;
-        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
-      }
-
-      const out = {};
-      for (const [locId, agg] of byLoc) {
-        out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50) };
-      }
+      const out = await computeCodOutstandingDetailed(cfgArg || configRef.current);
       setLocalOutstanding(out);
     } catch (e) {
       console.error('local COD outstanding failed:', e);
@@ -880,10 +797,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Wallet className="w-3.5 h-3.5" /> Card</div>
                 <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(loc.cardEstimate)}</div>
               </div>
+              {ownerCanEdit && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
                 <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
               </div>
+              )}
               {loc.weeklyCodAvg > 0 && (
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs/day (7-day avg)</div>
@@ -916,9 +835,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   )}
                 </div>
               )}
+              {ownerCanEdit && (
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
               </div>
+              )}
               {ownerCanEdit && (() => {
                 const todayStr = edmontonWallString(new Date()).slice(0, 10);
                 // Uncollected rows come from the SquareCatalogItems database:

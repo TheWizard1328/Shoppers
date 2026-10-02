@@ -24,7 +24,9 @@ async function filterAllDeliveries(status) {
   const out = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
-    const rows = await base44.entities.Delivery.filter({ status }, undefined, 500, skip).catch(() => []);
+    // No .catch here — a failed status scan must throw so the caller can
+    // RETRY instead of silently reporting zero outstanding CODs.
+    const rows = await base44.entities.Delivery.filter({ status }, undefined, 500, skip);
     const list = rows || [];
     out.push(...list);
     if (list.length < 500) break;
@@ -80,57 +82,107 @@ export async function buildStoreToLocMap() {
 
 // Same COD-outstanding rules as SquareBalancesView: pending/in-transit CODs minus
 // non-cash payments, plus completed cash CODs not yet rung at Square.
-async function computeCodOutstandingByLoc(cfg, storeToLoc) {
-  try {
-    const codSalesRaw = await base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []);
-    const confirmed = new Set(
-      (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
-    );
-    const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
-    const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
-    const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
-    const centsOf = (n) => Math.round(Number(n || 0) * 100);
-    const byLoc = new Map();
+// SINGLE shared COD-outstanding computation (Oct 2 2026). This is the ONE
+// source of truth used by BOTH the sidebar badge and the Square Balances page
+// (ported verbatim from the page's computeLocalOutstanding — the two had
+// drifted into identical-looking but separately-maintained copies, and a
+// swallowed fetch failure in the badge's copy silently zeroed the owner's
+// CODs-out while the page's copy computed correctly, producing the
+// "badge says 565, page says 546.96" mismatch).
+// Unlike the old badge copy, fetch helpers here DO NOT swallow errors — a
+// failed Store/SquareLocationConfig/Delivery/SquareLedgerEntry call THROWS,
+// the caller retries once, and only a second failure degrades to null (which
+// loadSummary flags as degraded and self-heals with a delayed forced reload).
+export async function computeCodOutstandingDetailed(cfgArg) {
+  const [storesRaw, cfgsRaw, codSalesRaw, patientsRaw] = await Promise.all([
+    base44.entities.Store.list(),
+    base44.entities.SquareLocationConfig.list(),
+    base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }),
+    base44.entities.Patient.list(),
+  ]);
+  const patientById = new Map();
+  (patientsRaw || []).forEach((p) => { if (p?.id) patientById.set(String(p.id), p); if (p?.patient_id) patientById.set(String(p.patient_id), p); });
+  const patientNameOf = (pid) => (pid ? (patientById.get(String(pid))?.full_name || null) : null);
+  const cfgLoc = new Map();
+  (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
+  const storeToLoc = new Map();
+  (storesRaw || []).forEach((s) => {
+    const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
+    if (s?.id && loc) storeToLoc.set(String(s.id), loc);
+  });
+  const confirmed = new Set(
+    (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
+  );
+  const cfg = cfgArg;
+  const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
+  const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
+  const createdFloor = new Date(new Date(cutoffDate + 'T00:00:00Z').getTime() - 3 * 86400000).getTime();
+  const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
+  const centsOf = (n) => Math.round(Number(n || 0) * 100);
+  const byLoc = new Map();
+  const aggFor = (locId) => {
+    if (!byLoc.has(locId)) byLoc.set(locId, { total: 0, pendingCount: 0, awaitingCount: 0, items: [] });
+    return byLoc.get(locId);
+  };
 
-    for (const status of ['pending', 'in_transit', 'en_route']) {
-      const rows = await filterAllDeliveries(status);
-      for (const d of rows || []) {
-        const required = Number(d?.cod_total_amount_required || 0);
-        if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
-        const locId = storeToLoc.get(String(d?.store_id || ''));
-        if (!locId) continue;
-        const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-        const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-        const outstanding = Math.max(0, centsOf(required) - nonCash);
-        if (outstanding <= 0) continue;
-        byLoc.set(locId, (byLoc.get(locId) || 0) + outstanding);
-      }
+  for (const status of ['pending', 'in_transit', 'en_route']) {
+    const rows = await filterAllDeliveries(status);
+    for (const d of rows || []) {
+      const required = Number(d?.cod_total_amount_required || 0);
+      if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
+      const locId = storeToLoc.get(String(d?.store_id || ''));
+      if (!locId) continue;
+      const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+      const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+      const outstanding = Math.max(0, centsOf(required) - nonCash);
+      if (outstanding <= 0) continue;
+      const agg = aggFor(locId);
+      agg.total += outstanding; agg.pendingCount += 1;
+      agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
     }
-
-    for (let page = 0; page < 4; page++) {
-      const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
-      const list = rows || [];
-      for (const d of list) {
-        if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
-        const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-        const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-        if (cash <= 0 || confirmed.has(String(d.id))) continue;
-        const locId = storeToLoc.get(String(d?.store_id || ''));
-        if (!locId) continue;
-        byLoc.set(locId, (byLoc.get(locId) || 0) + cash);
-      }
-      if (list.length < 2000) break;
-      const createdFloor = new Date(new Date(cutoffDate + 'T00:00:00Z').getTime() - 3 * 86400000).getTime();
-      if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
-    }
-
-    const out = {};
-    for (const [locId, cents] of byLoc) out[locId] = cents / 100;
-    return out;
-  } catch (e) {
-    console.error('[useSquareBalancesSummary] COD outstanding failed:', e);
-    return {};
   }
+
+  for (let page = 0; page < 4; page++) {
+    const list = await base44.entities.Delivery.list('-created_date', 2000, page * 2000);
+    for (const d of list || []) {
+      if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
+      const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+      const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
+      if (cash <= 0 || confirmed.has(String(d.id))) continue;
+      const locId = storeToLoc.get(String(d?.store_id || ''));
+      if (!locId) continue;
+      const agg = aggFor(locId);
+      agg.total += cash; agg.awaitingCount += 1;
+      agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
+    }
+    if (list.length < 2000) break;
+    if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
+  }
+
+  const out = {};
+  for (const [locId, agg] of byLoc) {
+    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50) };
+  }
+  return out;
+}
+
+// Totals-only view for the badge. Retries once on failure; returns null on a
+// second failure so the caller can flag degradation (previously a single
+// transient failure returned {} and the badge silently showed card balances
+// with ZERO CODs outstanding — the exact Oct 2 owner mismatch).
+async function computeCodOutstandingByLoc(cfg) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const detailed = await computeCodOutstandingDetailed(cfg);
+      const out = {};
+      for (const [locId, agg] of Object.entries(detailed || {})) out[locId] = agg.total;
+      return out;
+    } catch (e) {
+      console.error(`[useSquareBalancesSummary] COD outstanding attempt ${attempt + 1} failed:`, e);
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  return null;
 }
 
 /**
@@ -298,7 +350,7 @@ async function computeWeeklyCached() {
 async function loadSummary(force) {
   const now = Date.now();
   if (!force && summaryCache.data && now - summaryCache.at < SUMMARY_CACHE_TTL) {
-    return { cached: true, data: summaryCache.data };
+    return { cached: true, data: summaryCache.data, degraded: false };
   }
   // Coalesce concurrent requests (mount + a WS debounce firing together)
   if (inflight) return inflight;
@@ -309,11 +361,16 @@ async function loadSummary(force) {
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
     ]);
-    const [codOutstanding, weekly, dailyRemaining] = await Promise.all([
-      config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
+    const [codOutstandingRaw, weekly, dailyRemaining] = await Promise.all([
+      config ? computeCodOutstandingByLoc(config) : Promise.resolve({}),
       computeWeeklyCached(),
       computeDailyCodRemainingByStore(),
     ]);
+    // null = both attempts failed (e.g. transient entity rate limit). Cache the
+    // degraded result so the badge still shows something, but flag it so the
+    // hook schedules a self-heal forced reload.
+    const degraded = codOutstandingRaw === null;
+    const codOutstanding = degraded ? {} : codOutstandingRaw;
     const data = {
       byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map(),
       storeToLoc: stl,
@@ -323,7 +380,7 @@ async function loadSummary(force) {
     };
     summaryCache.at = Date.now();
     summaryCache.data = data;
-    return { cached: false, data };
+    return { cached: false, data, degraded };
   })().finally(() => { inflight = null; });
   return inflight;
 }
@@ -346,11 +403,19 @@ export function useSquareBalancesSummary(enabled = true) {
     setReady(true);
   }, []);
 
+  const healTimerRef = useRef(null);
   const reload = useCallback(async (force = false) => {
     const seq = ++reloadSeq.current;
-    const { data } = await loadSummary(force);
+    const { data, degraded } = await loadSummary(force);
     if (seq !== reloadSeq.current) return;
     apply(data);
+    // A degraded run (COD-outstanding fetch failed twice) freezes the badge
+    // with wrong totals because updates are event-driven — nothing else will
+    // fix it. Schedule ONE 30s forced reload to self-heal.
+    if (degraded) {
+      if (healTimerRef.current) clearTimeout(healTimerRef.current);
+      healTimerRef.current = setTimeout(() => { healTimerRef.current = null; reload(true); }, 30000);
+    }
   }, [apply]);
 
   // ── Event-driven ONLY updates (owner spec, Oct 1 2026) ────────────────────
