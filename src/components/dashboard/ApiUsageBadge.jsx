@@ -71,9 +71,19 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));
       countsMissingRef.current = false;
     } catch (err) {
-      console.warn(`[ApiUsageBadge] Failed to fetch counts (attempt ${attempt + 1}):`, err?.message || err);
-      if (attempt < 5) {
-        setTimeout(() => fetchCounts(attempt + 1), 2000 * Math.pow(2, attempt));
+      const msg = String(err?.message || err);
+      const status = Number(err?.status || err?.response?.status || 0);
+      const rateLimited = status === 429 || /429|rate limit|too many/i.test(msg);
+      console.warn(`[ApiUsageBadge] Failed to fetch counts (attempt ${attempt + 1}${rateLimited ? ', rate-limited' : ''}):`, msg);
+      if (attempt < 6) {
+        // RATE-AWARE BACKOFF (Oct 2 2026): a 429 means the platform's
+        // per-minute quota is exhausted — retrying seconds later lands inside
+        // the SAME limited window and just burns another failure (observed:
+        // badge stuck 30-60s on hard boot while every short retry 429'd).
+        // Rate-limited attempts wait in 15s/30s steps for the quota bucket to
+        // refill; other transient errors keep the short 2-16s backoff.
+        const wait = rateLimited ? [15000, 30000, 30000, 45000, 45000, 60000][attempt] : 2000 * Math.pow(2, attempt);
+        setTimeout(() => fetchCounts(attempt + 1), wait);
       }
     }
   };
@@ -91,7 +101,8 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     // requestIdleCallback (fallback: timeout) so it only fires once the
     // browser is actually quiet. Retries + focus self-heal below cover the rest.
     let idleId = null, timeoutId = null;
-    const startFetch = () => { timeoutId = null; fetchCounts(0); };
+    let bootWaveFired = false;
+    const startFetch = () => { timeoutId = null; idleId = null; fetchCounts(0); };
     timeoutId = setTimeout(() => {
       timeoutId = null;
       if (typeof window.requestIdleCallback === 'function') {
@@ -100,6 +111,20 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
         startFetch();
       }
     }, 6000);
+    // If the main boot data wave finishes before the 6s idle timer, its
+    // completion event is the ideal moment: the paced entity reads are done
+    // and the quota bucket is free, so fire immediately instead of waiting.
+    const onBootWave = () => {
+      if (bootWaveFired) return;
+      bootWaveFired = true;
+      window.removeEventListener('lightweightRefreshComplete', onBootWave);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
+      startFetch();
+    };
+    window.addEventListener('lightweightRefreshComplete', onBootWave);
 
 
     // WebSocket-driven incremental update — just increment the HERE routing count
@@ -118,6 +143,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
     return () => {
       window.removeEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
+      window.removeEventListener('lightweightRefreshComplete', onBootWave);
       if (timeoutId) clearTimeout(timeoutId);
       if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
         window.cancelIdleCallback(idleId);

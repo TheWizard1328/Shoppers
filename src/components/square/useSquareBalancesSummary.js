@@ -423,10 +423,18 @@ export function useSquareBalancesSummary(enabled = true) {
     try {
       ({ data, degraded } = await loadSummary(force));
     } catch (e) {
-      console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1} failed:`, e?.message || e);
+      const msg = String(e?.message || e);
+      const status = Number(e?.status || e?.response?.status || 0);
+      const rateLimited = status === 429 || /429|rate limit|too many/i.test(msg);
+      console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1}${rateLimited ? ' (rate-limited)' : ''} failed:`, msg);
       if (seq !== reloadSeq.current) return;
       if (attempt < 3) {
-        setTimeout(() => reload(true, attempt + 1), 2000 * Math.pow(2, attempt));
+        // RATE-AWARE BACKOFF (Oct 2 2026): a 429 means the per-minute quota
+        // bucket is exhausted — short 2-8s retries land inside the same
+        // limited window and fail again (observed: badge blank 30-60s on hard
+        // boot while every quick retry 429'd). Wait for the bucket to refill.
+        const wait = rateLimited ? [15000, 30000, 45000][attempt] : 2000 * Math.pow(2, attempt);
+        setTimeout(() => reload(true, attempt + 1), wait);
       }
       return;
     }
@@ -456,7 +464,18 @@ export function useSquareBalancesSummary(enabled = true) {
     // backoff (in reload) and the event subscriptions below cover everything
     // after. COD/True-Up events can still trigger an earlier load via the
     // debounced timers — that is correct behavior, not a boot-race problem.
-    const bootDelay = setTimeout(() => reload(), 4000);
+    let bootDelayFired = false;
+    const bootDelay = setTimeout(() => { bootDelayFired = true; reload(); }, 4000);
+    // 'lightweightRefreshComplete' = the main boot data wave just finished and
+    // the quota bucket is free — the ideal moment for the first load. Fires
+    // only if the 4s fallback timer hasn't already run (one-shot).
+    const onBootWave = () => {
+      if (bootDelayFired) return;
+      bootDelayFired = true;
+      clearTimeout(bootDelay);
+      reload();
+    };
+    window.addEventListener('lightweightRefreshComplete', onBootWave);
     const unsubs = [];
     let cfgTimer = null, codTimer = null;
     // True-Up writes AppSettings — the one non-delivery event that directly
@@ -492,6 +511,7 @@ export function useSquareBalancesSummary(enabled = true) {
     };
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     return () => {
+      window.removeEventListener('lightweightRefreshComplete', onBootWave);
       clearTimeout(bootDelay); clearTimeout(cfgTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
