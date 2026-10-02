@@ -139,9 +139,9 @@ export default function DriverAvailabilityPrompt({ currentUser }) {
             {result === 'yes' && (
               <>
                 <CheckCircle2 className="w-12 h-12 mx-auto text-green-500 mb-3" />
-                <h3 className="text-lg font-semibold mb-1">Acknowledged</h3>
+                <h3 className="text-lg font-semibold mb-1">Request accepted</h3>
                 <p className="text-sm text-muted-foreground">
-                  {request?.dispatcher_name || 'The dispatcher'} has been notified — they'll message you shortly.
+                  {request?.dispatcher_name || 'The dispatcher'} has been notified.
                 </p>
               </>
             )}
@@ -189,7 +189,7 @@ export default function DriverAvailabilityPrompt({ currentUser }) {
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
                 {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Acknowledge
+                I Accept
               </Button>
               <Button
                 onClick={() => respond('no')}

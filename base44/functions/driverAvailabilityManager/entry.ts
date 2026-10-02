@@ -11,8 +11,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *                     If no assigned drivers, goes straight to broadcast.
  *   escalate_now    — Dispatcher manually escalates before timeout.
  *   driver_response — Driver taps Acknowledge/Unavailable on the push.
- *                     "yes" → Message to dispatcher ("acknowledged, on my way
- *                             soon"), request completed (first responder wins).
+ *                     "yes" → push notification to dispatcher only (no chat
+ *                             message), request completed (first responder wins).
  *                     "no"  → assigned phase: dispatcher told the driver is
  *                             unavailable + AUTO-escalated to other drivers.
  *                             Broadcast phase: dispatcher told per response,
@@ -268,7 +268,7 @@ export default async function(req: Request): Promise<Response> {
             tag: 'availability_' + created.id,
             requireInteraction: true,
             actions: [
-              { action: 'availability_yes', title: 'Acknowledge' },
+              { action: 'availability_yes', title: 'I Accept' },
               { action: 'availability_no', title: 'Unavailable' }
             ],
             data: {
@@ -344,26 +344,14 @@ export default async function(req: Request): Promise<Response> {
           ]
         });
 
-        // Create Message to dispatcher
-        const conversationId = [user.id, request.dispatcher_id].sort().join('_');
-        await base44.asServiceRole.entities.Message.create({
-          sender_id: user.id,
-          sender_name: driverName,
-          receiver_id: request.dispatcher_id,
-          receiver_name: request.dispatcher_name || 'Dispatcher',
-          conversation_id: conversationId,
-          content: `I have acknowledged the request and will be on my way soon.`,
-          read: false,
-        });
-
-        // Send push notification back to dispatcher. Body tap just opens the app
-        // (no auto-opened chat) — the sidebar panel already shows "[Driver] has
-        // accepted your pickup request". The explicit "Reply" action button still
-        // opens the chat on demand via its own data payload (reply_to/reply_to_name).
+        // Owner directive (Oct 1 2026): NO in-app chat Message on I Accept —
+        // the dispatcher is told via push notification only. The push's "Reply"
+        // action still opens the chat on demand via its own data payload
+        // (reply_to/reply_to_name).
         await base44.asServiceRole.functions.invoke('sendPushNotification', {
           user_id: request.dispatcher_id,
-          title: `${driverName} acknowledged your request`,
-          body: `${driverName} has acknowledged the request and will be on their way soon.`,
+          title: `${driverName} accepted your pickup request`,
+          body: `${driverName} has accepted your pickup request for ${request.store_name || 'your store'}.`,
           url: '/',
           tag: 'availability_response_' + request_id,
           actions: [{ action: 'reply', title: 'Reply' }],
@@ -507,7 +495,7 @@ export default async function(req: Request): Promise<Response> {
                 tag: 'availability_' + request_id + '_r' + newResendCount,
                 requireInteraction: true,
                 actions: [
-                  { action: 'availability_yes', title: 'Acknowledge' },
+                  { action: 'availability_yes', title: 'I Accept' },
                   { action: 'availability_no', title: 'Unavailable' }
                 ],
                 data: {
@@ -664,7 +652,7 @@ async function doBroadcast(base44, request, dispatcherId, dispatcherName, store,
       tag: 'availability_' + request.id,
       requireInteraction: true,
             actions: [
-              { action: 'availability_yes', title: 'Acknowledge' },
+              { action: 'availability_yes', title: 'I Accept' },
               { action: 'availability_no', title: 'Unavailable' }
             ],
       data: {
