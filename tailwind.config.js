@@ -25,20 +25,24 @@ module.exports = {
 // of the OS) makes core generate `.dark\:bg-slate-800:is(.dark *)` — every
 // dark: utility now follows the SAME <html class="dark"> our own vars use,
 // with zero dependency on the device's OS appearance setting.
-    // FIX (Oct 2 2026, v4): v3 pointed dark: at '.dark' only. But the app's own
-    // CSS variables (layoutStyles.jsx) go dark in THREE states: html.dark-theme
-    // (explicit Dark), html.dark (auto + system dark), and html.auto-theme under
-    // '@media (prefers-color-scheme: dark)'. The third state needs NO 'dark'
-    // class at the CSS level — so a page loaded while the OS was Light (no
-    // 'dark' class written) whose OS later switched to Dark showed a SPLIT page:
-    // every CSS-var surface went dark, but every literal dark: utility (cards,
-    // COD chips, text) stayed light-rendered — white cards on a dark page
-    // (owner's Square Balances screenshot). Matching '.dark, .dark-theme'
-    // removes the reliance on the JS-synced 'dark' class for the explicit-Dark
-    // case; useAutoThemeSync now also re-syncs on visibilitychange/focus/60s
-    // so the auto + system-dark case can't drift either (matchMedia 'change'
-    // events are unreliable in suspended Android WebView/PWA sessions).
-    darkMode: ['class', '.dark, .dark-theme'],
+    // FIX (Oct 2 2026, v5): v4 tried darkMode: ['class', '.dark, .dark-theme']
+    // to cover BOTH signals. BUG: Tailwind's custom-selector string handling
+    // appends the descendant ' *' to only the LAST comma-separated token —
+    // the compiled output was literally '.dark\:bg-slate-900:is(.dark,
+    // .dark-theme *)'. CSS parses that as :is(.dark) OR :is(.dark-theme *) —
+    // the FIRST branch means the ELEMENT ITSELF must carry class="dark"
+    // (true only for <html>, never a nested card), not an ANCESTOR check.
+    // So explicit Dark theme worked by luck (useAutoThemeSync also adds the
+    // 'dark-theme' class, whose branch WAS a correct descendant selector),
+    // but Auto-resolved-dark (which only ever gets 'auto-theme' + 'dark', no
+    // 'dark-theme') never matched any dark: utility at all — Dark and Auto
+    // rendered completely differently, exactly as reported. Fix: plain
+    // 'class' strategy compiles to the correct '.dark\:x:is(.dark *)' built
+    // in to Tailwind. useAutoThemeSync (JS) already guarantees the literal
+    // 'dark' class is present on <html> in EVERY case that should render
+    // dark (explicit dark AND auto+system-dark) — that's the one signal
+    // needed; no custom multi-selector required.
+    darkMode: 'class',
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
