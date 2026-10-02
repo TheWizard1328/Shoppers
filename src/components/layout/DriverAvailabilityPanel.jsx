@@ -582,7 +582,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
             <div className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
               <span className="text-[11px] font-semibold text-emerald-700 flex-1 whitespace-normal break-words">
-                {activeRequest.responded_driver_name || 'A driver'} has accepted your pickup request ✓
+                {activeRequest.responded_driver_name || 'A driver'} has acknowledged your pickup request ✓
               </span>
             </div>
             <Button

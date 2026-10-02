@@ -10,9 +10,17 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *                     from Store schedule fields, sends targeted push to them.
  *                     If no assigned drivers, goes straight to broadcast.
  *   escalate_now    — Dispatcher manually escalates before timeout.
- *   driver_response — Driver taps Yes/No on push notification.
- *                     "yes" → creates Message to dispatcher, marks request completed.
- *                     "no"  → if during assigned phase, triggers escalation.
+ *   driver_response — Driver taps Acknowledge/Unavailable on the push.
+ *                     "yes" → Message to dispatcher ("acknowledged, on my way
+ *                             soon"), request completed (first responder wins).
+ *                     "no"  → assigned phase: dispatcher told the driver is
+ *                             unavailable + AUTO-escalated to other drivers.
+ *                             Broadcast phase: dispatcher told per response,
+ *                             escalate timer +2 min per Unavailable, and when
+ *                             ALL drivers respond Unavailable the push is
+ *                             resent to all of them (up to 3 rounds) with the
+ *                             timer restarted; after the 3rd round all-
+ *                             Unavailable, the request expires.
  *   get_pending_for_driver — Returns the active, unanswered request (if any)
  *                     targeting the logged-in driver. Used by the in-app
  *                     DriverAvailabilityPrompt so a driver who taps a push
@@ -260,7 +268,7 @@ export default async function(req: Request): Promise<Response> {
             tag: 'availability_' + created.id,
             requireInteraction: true,
             actions: [
-              { action: 'availability_yes', title: "Yes, I'm available" },
+              { action: 'availability_yes', title: 'Acknowledge' },
               { action: 'availability_no', title: 'Unavailable' }
             ],
             data: {
@@ -344,7 +352,7 @@ export default async function(req: Request): Promise<Response> {
           receiver_id: request.dispatcher_id,
           receiver_name: request.dispatcher_name || 'Dispatcher',
           conversation_id: conversationId,
-          content: `I am available. — See you shortly`,
+          content: `I have acknowledged the request and will be on my way soon.`,
           read: false,
         });
 
@@ -354,8 +362,8 @@ export default async function(req: Request): Promise<Response> {
         // opens the chat on demand via its own data payload (reply_to/reply_to_name).
         await base44.asServiceRole.functions.invoke('sendPushNotification', {
           user_id: request.dispatcher_id,
-          title: `${driverName} is available`,
-          body: `${driverName} accepted your pickup request for ${request.store_name || 'your store'}.`,
+          title: `${driverName} acknowledged your request`,
+          body: `${driverName} has acknowledged the request and will be on their way soon.`,
           url: '/',
           tag: 'availability_response_' + request_id,
           actions: [{ action: 'reply', title: 'Reply' }],
@@ -377,38 +385,148 @@ export default async function(req: Request): Promise<Response> {
         const updatedExcluded = Array.from(new Set([...(request.excluded_driver_ids || []), user.id]));
 
         if (request.status === 'waiting') {
-          // Check if ALL assigned drivers have responded No
-          const assignedIds = request.assigned_driver_ids || [];
-          const noResponses = updatedResponses.filter(r => r.response === 'no');
-          const allSaidNo = assignedIds.length > 0 && assignedIds.every(id =>
-            noResponses.some(r => r.driver_id === id)
-          );
+          // Assigned/default driver clicked Unavailable (owner spec, Oct 1 2026):
+          // inform the dispatcher that the driver is unavailable AND that the
+          // request has been AUTO-ESCALATED to the other drivers — the broadcast
+          // goes out immediately (the other assigned drivers are part of the
+          // broadcast roster and can still Acknowledge).
+          const conversationId = [user.id, request.dispatcher_id].sort().join('_');
+          await base44.asServiceRole.entities.Message.create({
+            sender_id: user.id,
+            sender_name: driverName,
+            receiver_id: request.dispatcher_id,
+            receiver_name: request.dispatcher_name || 'Dispatcher',
+            conversation_id: conversationId,
+            content: `I'm unavailable for the ${request.store_name || 'store'} pickup request.`,
+            read: false,
+          });
+          await base44.asServiceRole.functions.invoke('sendPushNotification', {
+            user_id: request.dispatcher_id,
+            title: `${driverName} is unavailable`,
+            body: `${driverName} is unavailable and your pickup request for ${request.store_name || 'your store'} has been auto-escalated to the other drivers.`,
+            url: '/',
+            tag: 'availability_response_' + request_id,
+            actions: [{ action: 'reply', title: 'Reply' }],
+            data: {
+              reply_to: user.id,
+              reply_to_name: driverName
+            }
+          });
 
-          if (allSaidNo) {
-            // All assigned drivers said No — escalate immediately
-            const stores = await base44.asServiceRole.entities.Store.filter({ id: request.store_id });
-            const store = stores?.[0];
-            await base44.asServiceRole.entities.DriverAvailabilityRequest.update(request_id, {
-              assigned_driver_responses: updatedResponses,
-              excluded_driver_ids: updatedExcluded
-            });
-            const updatedReq = { ...request, assigned_driver_responses: updatedResponses, excluded_driver_ids: updatedExcluded };
-            return await doBroadcast(base44, updatedReq, request.dispatcher_id, request.dispatcher_name, store, request.extra_info, updatedExcluded);
-          } else {
-            // Just record the No, wait for others
-            await base44.asServiceRole.entities.DriverAvailabilityRequest.update(request_id, {
-              assigned_driver_responses: updatedResponses,
-              excluded_driver_ids: updatedExcluded
-            });
-            return Response.json({ ok: true, response: 'no', waiting_for_others: true });
-          }
-        } else if (request.status === 'escalated') {
-          // During broadcast phase — silently dismiss
+          const stores = await base44.asServiceRole.entities.Store.filter({ id: request.store_id });
+          const store = stores?.[0];
           await base44.asServiceRole.entities.DriverAvailabilityRequest.update(request_id, {
             assigned_driver_responses: updatedResponses,
             excluded_driver_ids: updatedExcluded
           });
-          return Response.json({ ok: true, response: 'no', phase: 'broadcast' });
+          const updatedReq = { ...request, assigned_driver_responses: updatedResponses, excluded_driver_ids: updatedExcluded };
+          return await doBroadcast(base44, updatedReq, request.dispatcher_id, request.dispatcher_name, store, request.extra_info, updatedExcluded);
+        } else if (request.status === 'escalated') {
+          // Broadcast phase (owner spec, Oct 1 2026):
+          //  1. Dispatcher is notified of EVERY Unavailable response.
+          //  2. Each Unavailable before anyone Acknowledges extends the escalate
+          //     timer by 2 more minutes.
+          //  3. When ALL broadcast drivers have clicked Unavailable, the push is
+          //     resent to ALL of them (up to 3 times) and the timer restarts.
+          //  4. After the 3rd follow-up round with all Unavailable, the request
+          //     expires and the dispatcher is told so.
+          const conversationId = [user.id, request.dispatcher_id].sort().join('_');
+          await base44.asServiceRole.entities.Message.create({
+            sender_id: user.id,
+            sender_name: driverName,
+            receiver_id: request.dispatcher_id,
+            receiver_name: request.dispatcher_name || 'Dispatcher',
+            conversation_id: conversationId,
+            content: `I'm unavailable for the ${request.store_name || 'store'} pickup request.`,
+            read: false,
+          });
+          await base44.asServiceRole.functions.invoke('sendPushNotification', {
+            user_id: request.dispatcher_id,
+            title: `${driverName} is unavailable`,
+            body: `${driverName} is unavailable for your ${request.store_name || 'store'} pickup request.`,
+            url: '/',
+            tag: 'availability_response_' + request_id + '_' + user.id,
+            actions: [{ action: 'reply', title: 'Reply' }],
+            data: {
+              reply_to: user.id,
+              reply_to_name: driverName
+            }
+          });
+
+          // +2 more minutes on the escalate timer
+          const currentCooldown = request.cooldown_expires_at ? new Date(request.cooldown_expires_at).getTime() : 0;
+          const newCooldown = new Date(Math.max(currentCooldown, Date.now()) + TWO_MIN_MS).toISOString();
+
+          const roster = request.broadcast_driver_ids || [];
+          const noIds = new Set(updatedResponses.filter(r => r.response === 'no').map(r => r.driver_id));
+          const allSaidNo = roster.length > 0 && roster.every(id => noIds.has(id));
+
+          if (allSaidNo) {
+            const resendCount = Number(request.broadcast_resend_count || 0);
+            if (resendCount >= 3) {
+              // 3 follow-up rounds done, still all Unavailable — expire.
+              await base44.asServiceRole.entities.DriverAvailabilityRequest.update(request_id, {
+                assigned_driver_responses: updatedResponses,
+                excluded_driver_ids: updatedExcluded,
+                cooldown_expires_at: newCooldown,
+                status: 'expired'
+              });
+              await base44.asServiceRole.functions.invoke('sendPushNotification', {
+                user_id: request.dispatcher_id,
+                title: 'No drivers available',
+                body: `Every driver responded Unavailable after 3 follow-up rounds. Your ${request.store_name || 'store'} pickup request has expired.`,
+                url: '/',
+                tag: 'availability_response_' + request_id
+              });
+              return Response.json({ ok: true, response: 'no', expired: true });
+            }
+            // Resend to ALL broadcast drivers — responses reset so each driver
+            // can respond again, timer restarts fresh.
+            const newResendCount = resendCount + 1;
+            const restartCooldown = new Date(Date.now() + FIVE_MIN_MS).toISOString();
+            await base44.asServiceRole.entities.DriverAvailabilityRequest.update(request_id, {
+              assigned_driver_responses: [],
+              excluded_driver_ids: [],
+              cooldown_expires_at: restartCooldown,
+              broadcast_resend_count: newResendCount,
+              broadcast_sent_at: new Date().toISOString()
+            });
+            const allAppUsers = await base44.asServiceRole.entities.AppUser.list(500);
+            const rosterDrivers = (allAppUsers || []).filter(au =>
+              roster.includes(au.user_id) && au.status === 'active'
+            );
+            const pushTitle = `Pickup Request — ${request.store_name || 'Store'}`;
+            const pushBody = request.extra_info ||
+              `${request.dispatcher_name || 'Dispatcher'} at ${request.store_name || 'Store'} is requesting a driver for pickup`;
+            for (const driver of rosterDrivers) {
+              await base44.asServiceRole.functions.invoke('sendPushNotification', {
+                user_id: driver.user_id,
+                title: pushTitle,
+                body: pushBody,
+                url: '/?availability_request=' + request_id,
+                tag: 'availability_' + request_id + '_r' + newResendCount,
+                requireInteraction: true,
+                actions: [
+                  { action: 'availability_yes', title: 'Acknowledge' },
+                  { action: 'availability_no', title: 'Unavailable' }
+                ],
+                data: {
+                  request_id: request_id,
+                  dispatcher_id: request.dispatcher_id,
+                  dispatcher_name: request.dispatcher_name,
+                  store_name: request.store_name || 'Store'
+                }
+              });
+            }
+            return Response.json({ ok: true, response: 'no', resent_to_all: true, resend_round: newResendCount, resent_count: rosterDrivers.length });
+          }
+
+          await base44.asServiceRole.entities.DriverAvailabilityRequest.update(request_id, {
+            assigned_driver_responses: updatedResponses,
+            excluded_driver_ids: updatedExcluded,
+            cooldown_expires_at: newCooldown
+          });
+          return Response.json({ ok: true, response: 'no', phase: 'broadcast', cooldown_extended_ms: TWO_MIN_MS });
         }
       }
     }
@@ -545,10 +663,10 @@ async function doBroadcast(base44, request, dispatcherId, dispatcherName, store,
       url: '/?availability_request=' + request.id,
       tag: 'availability_' + request.id,
       requireInteraction: true,
-      actions: [
-        { action: 'availability_yes', title: "Yes, I'm available" },
-        { action: 'availability_no', title: 'Unavailable' }
-      ],
+            actions: [
+              { action: 'availability_yes', title: 'Acknowledge' },
+              { action: 'availability_no', title: 'Unavailable' }
+            ],
       data: {
         request_id: request.id,
         dispatcher_id: dispatcherId,

@@ -199,23 +199,20 @@ Deno.serve(async (req) => {
           return;
         }
         try {
-          // ── ALL FCM messages (interactive AND non-interactive) carry a
-          // `notification` payload (title + body). A data-ONLY message requires
-          // the app's JS layer to be alive to display anything — when the app
-          // is cleared from memory, a data-only message wakes the process but
-          // the WebView/JS never loads, so the plugin silently queues it as
-          // `lastMessage` and the driver sees NOTHING (the "no pushes when
-          // killed" bug). A `notification` payload is displayed by the OS
-          // itself, so it shows even with the app fully killed.
-          //
-          // Interactive sends keep their action data (`__interactive`,
-          // `actions`, title/body in data) so the FOREGROUND JS path still
-          // builds the button-rich LocalNotification (Yes, I'm available /
-          // Unavailable). Trade-off: when the app is backgrounded-but-alive,
-          // the OS displays the notification WITHOUT buttons. Tapping it opens
-          // the app, where the in-app DriverAvailabilityPrompt (mounted in
-          // GlobalOverlays) shows the same Yes/No prompt, so the response
-          // flow survives every state: foreground, background, killed.
+          // ── Non-interactive FCM messages carry a `notification` payload
+          // (title + body) so the OS itself displays them even with the app
+          // fully killed. INTERACTIVE sends (with action buttons — driver
+          // availability requests) go DATA-ONLY instead: Android never draws
+          // action buttons on OS-displayed FCM notifications, so a
+          // `notification` payload made the Acknowledge/Unavailable options
+          // disappear in every background state (the "push is missing the 2
+          // options" bug, Oct 1 2026). Data-only messages reach the app's JS
+          // layer whenever the process is alive (foreground OR backgrounded),
+          // and the nativePushNotifications listener re-displays them as a
+          // LocalNotification WITH the registered action-type buttons.
+          // Trade-off: with the app fully killed the data-only message draws
+          // nothing; the driver still gets the request via the in-app
+          // DriverAvailabilityPrompt on the next app open and via chat.
           const isInteractive = Array.isArray(actions) && actions.length > 0;
 
           const fcmDataPayload = Object.fromEntries(
@@ -248,9 +245,14 @@ Deno.serve(async (req) => {
             },
           };
 
-          // Present for BOTH variants so the OS can display the message when
-          // the app process is dead (killed-from-memory deliveries).
-          fcmMessage.notification = { title, body };
+          // Notification payload ONLY for non-interactive sends — it lets the
+          // OS display the message when the app process is dead. For
+          // interactive sends it's deliberately OMITTED: an OS-drawn
+          // notification can never carry the Acknowledge/Unavailable action
+          // buttons, which was hiding the driver's response options.
+          if (!isInteractive) {
+            fcmMessage.notification = { title, body };
+          }
 
           const fcmPayload = { message: fcmMessage };
 

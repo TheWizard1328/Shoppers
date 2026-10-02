@@ -87,7 +87,7 @@ export async function initNativePushNotifications(userId) {
             {
               id: 'AVAILABILITY_ACTIONS',
               actions: [
-                { id: 'availability_yes', title: "Yes, I'm available" },
+                { id: 'availability_yes', title: 'Acknowledge' },
                 { id: 'availability_no', title: 'Unavailable' },
               ],
             },
