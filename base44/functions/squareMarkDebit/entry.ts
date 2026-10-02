@@ -35,6 +35,7 @@ async function handleMarkCollectedDebit(base44, payload) {
   const delivery=await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(()=>null);
   if(!delivery)throw new HttpError(404,'Delivery not found');
   const effectiveType=String(codType||'Debit').trim()||'Debit';
+  const isArchive=effectiveType==='Archived';
   const updatePayload={cod_payments:[{type:effectiveType,amount:Number(delivery.cod_total_amount_required||0)}]};
   // Append the explanation note to delivery_notes in the SAME update — avoids a
   // race condition where the realtime event from the cod_payments change would
@@ -43,7 +44,6 @@ async function handleMarkCollectedDebit(base44, payload) {
     const existingNotes=String(delivery.delivery_notes||'').trim();
     const ts=new Date().toLocaleString('en-US',{timeZone:'America/Edmonton'});
     const dateStr=new Date().toLocaleDateString('en-US',{timeZone:'America/Edmonton',month:'2-digit',day:'2-digit',year:'numeric'})+' '+new Date().toLocaleTimeString('en-US',{timeZone:'America/Edmonton',hour:'numeric',minute:'2-digit',hour12:true});
-    const isArchive=effectiveType==='Archived';
     const noteLine=`${isArchive?'[COD Archived]':'[COD Collected]'}:\n${String(note).trim()}`;
     updatePayload.delivery_notes=existingNotes?`${existingNotes}\n${noteLine}`:noteLine;
   }
