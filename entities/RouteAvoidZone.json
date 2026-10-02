@@ -1,0 +1,29 @@
+{
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "What this blocked area is (e.g. Rough back alley)"
+    },
+    "center_lat": {
+      "type": "number",
+      "description": "Latitude of the zone center"
+    },
+    "center_lng": {
+      "type": "number",
+      "description": "Longitude of the zone center"
+    },
+    "radius_meters": {
+      "type": "number",
+      "description": "Radius of the blocked circle in meters"
+    },
+    "city_name": {
+      "type": "string",
+      "description": "Nearest city name if known"
+    },
+    "created_by_name": {
+      "type": "string",
+      "description": "Who blocked this area"
+    }
+  },
+  "type": "object"
+}

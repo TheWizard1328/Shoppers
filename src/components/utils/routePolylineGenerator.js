@@ -166,9 +166,35 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
   const viaPoints = validPoints.slice(1, -1);
   viaPoints.forEach((p) => params.append('via', `${p.lat},${p.lon}`));
 
-  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+  // Blocked alleys / rough paths (owner rule, Oct 2 2026): cycling legs avoid
+  // user-placed RouteAvoidZone areas + dirt roads. Driving legs are untouched
+  // so existing car routes don't silently change shape. If HERE rejects the
+  // avoid params (bad zone geometry, area caps) we retry once without them -
+  // zone data must never break polyline generation.
+  let avoidAreas = '';
+  if (hereTransportMode === 'bicycle') {
+    try {
+      const { fetchAvoidZones, zonesToAvoidAreasParam } = await import('./routeAvoidZones');
+      const zones = await fetchAvoidZones();
+      avoidAreas = zonesToAvoidAreasParam(zones, validPoints);
+    } catch (_) { /* route without zones */ }
+    if (avoidAreas) {
+      params.set('avoid[areas]', avoidAreas);
+      params.set('avoid[features]', 'dirtRoad,seasonalClosure');
+    }
+  }
+
+  let routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
   });
+  if (!routeResp.ok && avoidAreas) {
+    // Retry clean - zones are advisory, never fatal.
+    params.delete('avoid[areas]');
+    params.delete('avoid[features]');
+    routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
+    });
+  }
   logHereApiCall({ apiType: 'Routes (HERE)', purpose: logPurpose || `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
