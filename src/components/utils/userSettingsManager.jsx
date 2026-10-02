@@ -480,9 +480,10 @@ export async function saveSetting(userId, key, value) {
     const timeoutKey = `${userId}:${deviceIdentifier}:${key}`;
     if (userSettingsSaveTimeouts.has(timeoutKey)) {
       clearTimeout(userSettingsSaveTimeouts.get(timeoutKey));
+      try { pendingSaveBodies.delete(timeoutKey); } catch (_) {}
     }
 
-    const timeoutId = setTimeout(async () => {
+    const performServerWrite = async (attempt) => {
       userSettingsSaveTimeouts.delete(timeoutKey);
       try {
         const userSettingsRecord = await getLatestUserSettingsRecord(userId);
@@ -517,17 +518,46 @@ export async function saveSetting(userId, key, value) {
 
         resolve(cachedSettings);
       } catch (error) {
-        if (error?.response?.status === 429 || error?.status === 429 || String(error?.message || '').includes('Rate limit exceeded')) {
-          console.warn('⚠️ [UserSettings] Rate limited while saving setting - keeping local cache only');
-          resolve(cachedSettings || { ...DEFAULT_SETTINGS, [key]: value });
+        const isRateLimit = error?.response?.status === 429 || error?.status === 429 || String(error?.message || '').includes('Rate limit exceeded');
+        // FIX (Oct 1 2026): a 429 used to silently drop the server write — the
+        // user's theme choice stayed local-only and the stale server value kept
+        // winning on every restart. Retry with backoff instead of giving up.
+        if (isRateLimit && attempt < 3) {
+          console.warn(`⚠️ [UserSettings] Rate limited saving ${key} (attempt ${attempt + 1}) — retrying in ${(attempt + 2) * 1500}ms`);
+          const retryId = setTimeout(() => performServerWrite(attempt + 1), (attempt + 2) * 1500);
+          userSettingsSaveTimeouts.set(timeoutKey, retryId);
+          pendingSaveBodies.set(timeoutKey, () => performServerWrite(attempt + 1));
           return;
         }
         console.error('❌ [UserSettings] Error saving setting:', error);
         resolve(cachedSettings || { ...DEFAULT_SETTINGS, [key]: value });
       }
-    }, 500);
+    };
+
+    const timeoutId = setTimeout(() => performServerWrite(0), 500);
+    pendingSaveBodies.set(timeoutKey, () => performServerWrite(0));
 
     userSettingsSaveTimeouts.set(timeoutKey, timeoutId);
+  });
+}
+
+// FIX (Oct 1 2026): killing/reloading the app inside the 500ms debounce window
+// dropped the save entirely (theme choice lost, stale server value won on the
+// next boot). Flush pending writes immediately when the page is being hidden.
+const pendingSaveBodies = new Map();
+if (typeof window !== 'undefined') {
+  const flushPendingSettingSaves = () => {
+    for (const [key, flush] of pendingSaveBodies.entries()) {
+      const timer = userSettingsSaveTimeouts.get(key);
+      if (timer) clearTimeout(timer);
+      userSettingsSaveTimeouts.delete(key);
+      pendingSaveBodies.delete(key);
+      try { flush(); } catch (_) {}
+    }
+  };
+  window.addEventListener('pagehide', flushPendingSettingSaves);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSettingSaves();
   });
 }
 
