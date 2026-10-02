@@ -36,7 +36,6 @@ export default function SettingsMenu({
 }) {
   const { isMobile: isMobileDeviceForUI } = useDevice();
   const { logout: authLogout } = useAuth();
-  const isMobileForTheme = isMobileDeviceForUI;
   
   const [showDemoModeDialog, setShowDemoModeDialog] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState(false);
@@ -115,8 +114,12 @@ export default function SettingsMenu({
             Display
           </DropdownMenuLabel>
           
-          {/* Theme Toggle - Mobile Devices Only (based on user agent, not screen width) */}
-          {isMobileForTheme && (
+          {/* Theme selector — ALL devices (Oct 2 2026): previously gated to
+              mobile user agents only, which left DESKTOP PWA sessions with NO
+              way to see or change their theme. A desktop whose device profile
+              was stuck on 'dark' (global preference wiped by a stale
+              cross-device write) rendered permanently dark with no selector to
+              fix it, reading as "Auto mode is always doing Dark mode". */}
         <div className="px-2 py-2">
           <label 
             className="font-medium mb-1.5 block text-body-2" style={{ fontSize: isMobileDeviceForUI ? '15px' : '14px' }}
@@ -150,7 +153,6 @@ export default function SettingsMenu({
             </Select>
           )}
         </div>
-      )}
         </>
       ) : null}
 
