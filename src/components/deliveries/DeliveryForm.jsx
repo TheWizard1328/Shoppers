@@ -136,6 +136,14 @@ export default function DeliveryForm({
   // live update; once the user edits away from it, live updates stop touching
   // status until the form saves or resets for a different delivery.
   const baselineStatusRef = useRef(delivery?.status || null);
+  // Oct 1 2026 — same unedited-guard pattern extended to date + time windows:
+  // a background broadcast for this delivery (route repair, stop_order renumber,
+  // sync pass) must never stomp the user's unsaved edits. These track the last
+  // server values the form still displays; live updates only overwrite a field
+  // while the form still holds that baseline value.
+  const baselineDateRef = useRef(delivery?.delivery_date || null);
+  const baselineWindowStartRef = useRef(delivery?.delivery_time_start || null);
+  const baselineWindowEndRef = useRef(delivery?.delivery_time_end || null);
   const [formData, setFormData] = useState(() => buildDeliveryFormInitialState({
     initialPatientId,
     patients,
@@ -429,7 +437,21 @@ export default function DeliveryForm({
         const statusIsUnedited = prev.status === baselineStatusRef.current;
         const nextStatus = statusIsUnedited ? (d.status || prev.status) : prev.status;
         if (statusIsUnedited) baselineStatusRef.current = nextStatus;
-        return { ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: nextStatus, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null };
+        // Date + window fields get the SAME unedited-guard: accept the live value
+        // only while the form still shows the last known server value. Without
+        // this, a mid-edit broadcast reverted the user's date change back to the
+        // old server date before save ("moved my last stop to tomorrow — the
+        // date did not save", Oct 1 2026) while the window edit landed fine.
+        const dateIsUnedited = prev.delivery_date === baselineDateRef.current;
+        const nextDate = dateIsUnedited ? (d.delivery_date || prev.delivery_date) : prev.delivery_date;
+        if (dateIsUnedited && nextDate !== baselineDateRef.current) baselineDateRef.current = nextDate;
+        const startIsUnedited = prev.delivery_time_start === baselineWindowStartRef.current;
+        const nextStart = startIsUnedited ? (canonicalTimeStart || prev.delivery_time_start) : prev.delivery_time_start;
+        if (startIsUnedited && nextStart !== baselineWindowStartRef.current) baselineWindowStartRef.current = nextStart;
+        const endIsUnedited = prev.delivery_time_end === baselineWindowEndRef.current;
+        const nextEnd = endIsUnedited ? (canonicalTimeEnd || prev.delivery_time_end) : prev.delivery_time_end;
+        if (endIsUnedited && nextEnd !== baselineWindowEndRef.current) baselineWindowEndRef.current = nextEnd;
+        return { ...prev, delivery_date: nextDate, delivery_time_start: nextStart, delivery_time_end: nextEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: nextStatus, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null };
       });
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
@@ -469,6 +491,9 @@ export default function DeliveryForm({
           // so the Select shows a valid value instead of rendering blank.
           const resolved = (isInterStoreDelivery(delivery.delivery_id) && raw === 'en_route') ? 'in_transit' : raw;
           baselineStatusRef.current = resolved;
+          baselineDateRef.current = delivery.delivery_date || null;
+          baselineWindowStartRef.current = delivery.delivery_time_start || null;
+          baselineWindowEndRef.current = delivery.delivery_time_end || null;
           return resolved;
         })(), driver_name: delivery.driver_name || '', driver_id: delivery.driver_id || '',
         prescription_number: delivery.prescription_number || "", delivery_instructions: patient?.notes || delivery.delivery_instructions || "",
@@ -1194,6 +1219,9 @@ export default function DeliveryForm({
         // lands, that status is the new known-safe value, so live updates for the
         // rest of this open session compare against it instead of the stale one.
         baselineStatusRef.current = dataToSave.status || formData.status;
+        baselineDateRef.current = dataToSave.delivery_date || formData.delivery_date || null;
+        baselineWindowStartRef.current = dataToSave.delivery_time_start ?? formData.delivery_time_start ?? null;
+        baselineWindowEndRef.current = dataToSave.delivery_time_end ?? formData.delivery_time_end ?? null;
         // Register before the backend write so the WS echo is recognized as self-originated
         try { const { smartRefreshManager: srm } = await import('../utils/smartRefreshManager'); srm.registerPendingUpdate(delivery.id, formData.driver_id, formData.delivery_date); } catch (_) {}
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true });

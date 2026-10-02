@@ -149,6 +149,37 @@ export async function runDeliverySubmitSideEffects({
         } catch (_) {}
       }, 1000);
     }
+
+    // Owner spec (Oct 1 2026): moving a stop to another date (or driver) removes it
+    // from the OLD route. If it was the driver's LAST active stop for the old date,
+    // run the SAME auto off-duty toggle the delete flow uses (setDriverStatus
+    // backend: closes the DriverDailyActivity segment with 5-min rounding, anchored
+    // on the last completed stop's actual time — not "now"). Runs after the
+    // old-route reoptimization settles so IDB reflects the post-move state.
+    if (oldDriverId && oldDate) {
+      setTimeout(async () => {
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const remainingForOldRoute = (all || []).filter(
+            (d) => d && d.driver_id === oldDriverId && d.delivery_date === oldDate && d.id !== delivery.id
+          );
+          const { checkAndToggleOffDutyAfterDelete } = await import('../utils/postDeleteDutyCheck');
+          const { base44 } = await import('@/api/base44Client');
+          const appUsers = await base44.entities.AppUser.filter({ user_id: oldDriverId }).catch(() => null);
+          if (!appUsers) return; // couldn't confirm duty status — don't guess
+          await checkAndToggleOffDutyAfterDelete({
+            driverId: oldDriverId,
+            deliveryDate: oldDate,
+            remainingDeliveries: remainingForOldRoute,
+            appUsers,
+            base44
+          });
+        } catch (e) {
+          console.warn('⚠️ [DeliveryForm] Post-move off-duty check failed:', e?.message || e);
+        }
+      }, 1500);
+    }
   }
 
   if (isPickupMode && delivery && (driverChanged || dateChanged)) {
