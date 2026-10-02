@@ -153,7 +153,8 @@ function UnifiedRoutePolylines({
       if (
         (Array.isArray(deliveries) && deliveries.some((d) => d?.encoded_polyline || d?.polyline_saved_at || d?.transport_mode)) ||
         detail.triggeredBy === "resetPolylines_chunk" ||
-        detail.triggeredBy === "realtimeBufferedFullRefresh"
+        detail.triggeredBy === "realtimeBufferedFullRefresh" ||
+        detail.triggeredBy === "routeDeviation"
       ) invalidate();
     };
 

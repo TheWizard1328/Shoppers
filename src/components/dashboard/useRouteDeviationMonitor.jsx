@@ -150,6 +150,18 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
     emitGatedEvent(new CustomEvent('deliveriesUpdated', {
       detail: { driverId, deliveryDate: todayStr, triggeredBy: 'routeDeviation', alreadyOptimized: true }
     }), 'deliveriesUpdated:routeDeviation');
+    // CRITICAL (Oct 2 2026): ALSO fire the polylineUpdated event — the map's
+    // route layer (UnifiedRoutePolylines) only repaints route lines when it
+    // receives one of its invalidate events. The deliveriesUpdated event above
+    // carries no freshDeliveries array and 'routeDeviation' was not in the
+    // listener's triggeredBy whitelist, so the freshly regenerated current-leg
+    // polyline sat undrawn until the NEXT refresh cycle (WS full refresh /
+    // smartRefresh poll) happened to bump the map's refresh token — the
+    // "polyline updates a cycle late" symptom. Accept/Start/Return flows all
+    // dispatch this same event for exactly this reason.
+    emitGatedEvent(new CustomEvent('polylineUpdated', {
+      detail: { driverId, deliveryDate: todayStr, source: 'route_deviation' }
+    }), 'polylineUpdated:routeDeviation');
     console.log('[RouteDeviation] current-leg regen complete');
     return { regenerated: result?.success === true, updatedDelivery: result?.updatedDelivery || null };
   } catch (err) {
