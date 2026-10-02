@@ -234,6 +234,64 @@ function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc }) {
   return byLocId;
 }
 
+// ── Performance guards ─────────────────────────────────────────────────────
+// The sidebar mounts this hook on EVERY page (dashboard included), and one
+// full reload lists up to ~20k Delivery rows. During active driving the
+// Delivery WS stream fires constantly, which re-triggered the full fetch
+// every 15-20s and froze card swipes (owner report, Oct 1 2026).
+//  - SUMMARY_CACHE_TTL: a cached full result satisfies any non-forced reload
+//    (mounts + delivery-driven refreshes). Money events (true-up, Square
+//    ledger) bypass the cache with force=true.
+//  - WEEKLY_CACHE_TTL: the 7-day average only changes once a day — cache it
+//    for 10 minutes so the heaviest scan (6 pages × 2000 rows) stops
+//    re-running on every refresh.
+const SUMMARY_CACHE_TTL = 60_000;
+const WEEKLY_CACHE_TTL = 10 * 60_000;
+const summaryCache = { at: 0, data: null };
+const weeklyCache = { at: 0, value: null };
+let inflight = null;
+
+async function computeWeeklyCached() {
+  if (weeklyCache.value && Date.now() - weeklyCache.at < WEEKLY_CACHE_TTL) return weeklyCache.value;
+  const value = await computeWeeklyCodTotalsByStore();
+  weeklyCache.at = Date.now();
+  weeklyCache.value = value;
+  return value;
+}
+
+async function loadSummary(force) {
+  const now = Date.now();
+  if (!force && summaryCache.data && now - summaryCache.at < SUMMARY_CACHE_TTL) {
+    return { cached: true, data: summaryCache.data };
+  }
+  // Coalesce concurrent requests (mount + a WS debounce firing together)
+  if (inflight) return inflight;
+  inflight = (async () => {
+    const config = await loadConfig();
+    const [sales, stl, names] = await Promise.all([
+      config ? loadCardSales(config).catch(() => []) : Promise.resolve([]),
+      buildStoreToLocMap().catch(() => new Map()),
+      buildStoreNameMap().catch(() => new Map()),
+    ]);
+    const [codOutstanding, weekly, dailyRemaining] = await Promise.all([
+      config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
+      computeWeeklyCached(),
+      computeDailyCodRemainingByStore(),
+    ]);
+    const data = {
+      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map(),
+      storeToLoc: stl,
+      weeklyByStore: weekly,
+      storeNames: names,
+      dailyRemainingByStore: dailyRemaining,
+    };
+    summaryCache.at = Date.now();
+    summaryCache.data = data;
+    return { cached: false, data };
+  })().finally(() => { inflight = null; });
+  return inflight;
+}
+
 export function useSquareBalancesSummary(enabled = true) {
   const [ready, setReady] = useState(false);
   const [byLocId, setByLocId] = useState(new Map());
@@ -243,43 +301,40 @@ export function useSquareBalancesSummary(enabled = true) {
   const [dailyRemainingByStore, setDailyRemainingByStore] = useState(new Map());
   const reloadSeq = useRef(0);
 
-  const reload = useCallback(async () => {
-    const seq = ++reloadSeq.current;
-    const config = await loadConfig();
-    const [sales, stl, names] = await Promise.all([
-      config ? loadCardSales(config).catch(() => []) : Promise.resolve([]),
-      buildStoreToLocMap().catch(() => new Map()),
-      buildStoreNameMap().catch(() => new Map()),
-    ]);
-    const [codOutstanding, weekly, dailyRemaining] = await Promise.all([
-      config ? computeCodOutstandingByLoc(config, stl) : Promise.resolve({}),
-      computeWeeklyCodTotalsByStore(),
-      computeDailyCodRemainingByStore(),
-    ]);
-    if (seq !== reloadSeq.current) return;
-    setByLocId(config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly) }) : new Map());
-    setStoreToLoc(stl);
-    setWeeklyByStore(weekly);
-    setStoreNames(names);
-    setDailyRemainingByStore(dailyRemaining);
+  const apply = useCallback((data) => {
+    setByLocId(data.byLocId);
+    setStoreToLoc(data.storeToLoc);
+    setWeeklyByStore(data.weeklyByStore);
+    setStoreNames(data.storeNames);
+    setDailyRemainingByStore(data.dailyRemainingByStore);
     setReady(true);
   }, []);
+
+  const reload = useCallback(async (force = false) => {
+    const seq = ++reloadSeq.current;
+    const { data } = await loadSummary(force);
+    if (seq !== reloadSeq.current) return;
+    apply(data);
+  }, [apply]);
 
   useEffect(() => {
     if (!enabled) return undefined;
     reload();
     const unsubs = [];
     let cfgTimer = null, ledgerTimer = null, deliveryTimer = null;
+    // Money events force past the cache (badge must move on true-up / Square sale).
     try {
-      unsubs.push(base44.entities.AppSettings.subscribe(() => { clearTimeout(cfgTimer); cfgTimer = setTimeout(reload, 2500); }));
+      unsubs.push(base44.entities.AppSettings.subscribe(() => { clearTimeout(cfgTimer); cfgTimer = setTimeout(() => reload(true), 2500); }));
     } catch {}
     try {
-      unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => { clearTimeout(ledgerTimer); ledgerTimer = setTimeout(reload, 6000); }));
+      unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => { clearTimeout(ledgerTimer); ledgerTimer = setTimeout(() => reload(true), 6000); }));
     } catch {}
+    // Delivery churn during driving hits the 60s cache — cheap no-ops instead
+    // of 20k-row rescans every 15-20s.
     try {
-      unsubs.push(base44.entities.Delivery.subscribe(() => { clearTimeout(deliveryTimer); deliveryTimer = setTimeout(reload, 20000); }));
+      unsubs.push(base44.entities.Delivery.subscribe(() => { clearTimeout(deliveryTimer); deliveryTimer = setTimeout(() => reload(false), 30000); }));
     } catch {}
-    const onDeliveriesUpdated = () => { clearTimeout(deliveryTimer); deliveryTimer = setTimeout(reload, 15000); };
+    const onDeliveriesUpdated = () => { clearTimeout(deliveryTimer); deliveryTimer = setTimeout(() => reload(false), 30000); };
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     return () => {
       clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer);
