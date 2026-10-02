@@ -74,8 +74,18 @@ export async function runAcceptAllBatchPipeline({
 
     let resolvedStart;
     if (ownStartMin != null) {
-      // Rule 1: the delivery's own window is authoritative once created
-      resolvedStart = delivery.delivery_time_start;
+      // Rule 1: the delivery's own window is authoritative once created.
+      // OWNER AMENDMENT (Oct 2 2026): EXCEPT when the delivery's own start is
+      // EARLIER than the patient's window start — a dispatcher can create/
+      // edit a pending stop with a start that precedes when the patient is
+      // actually available. At Accept All the stop is about to be sequenced,
+      // so reset it to the patient's start so the optimizer gets the correct
+      // earliest-arrival time (only raises, never lowers).
+      if (patientWindowStartMin != null && ownStartMin < patientWindowStartMin) {
+        resolvedStart = patient.time_window_start;
+      } else {
+        resolvedStart = delivery.delivery_time_start;
+      }
     } else if (patientWindowStartMin != null && nowMinutes != null && patientWindowStartMin >= nowMinutes) {
       // Rule 2: blank delivery window — patient default still valid, use it
       resolvedStart = patient.time_window_start;
@@ -86,7 +96,21 @@ export async function runAcceptAllBatchPipeline({
 
     // delivery_time_end: same precedence — delivery's own end first, patient
     // default only as fallback when the delivery's end is blank
-    const resolvedEnd = delivery.delivery_time_end || patient?.time_window_end || '';
+    let resolvedEnd = delivery.delivery_time_end || patient?.time_window_end || '';
+
+    // END GUARD (companion to the start reset above): if the start was just
+    // raised past the delivery's own end, the window is now invalid
+    // (start > end). Prefer the patient's end when it still covers the new
+    // start; otherwise pin end to the new start so the optimizer never sees
+    // an inverted window.
+    const resolvedStartMin = _parseTimeToMinutes(resolvedStart);
+    const resolvedEndMin = resolvedEnd ? _parseTimeToMinutes(resolvedEnd) : null;
+    if (resolvedStartMin != null && resolvedEndMin != null && resolvedEndMin < resolvedStartMin) {
+      const patientEndMin = patient?.time_window_end ? _parseTimeToMinutes(patient.time_window_end) : null;
+      resolvedEnd = (patientEndMin != null && patientEndMin >= resolvedStartMin)
+        ? patient.time_window_end
+        : resolvedStart;
+    }
 
     return {
       ...delivery,
