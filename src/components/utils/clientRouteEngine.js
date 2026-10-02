@@ -1500,20 +1500,36 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     parseTimeToMinutes(b.delivery_time_start || '99:99')
   );
 
-  // 4. Build ordered stop list: each pickup followed by its window-sorted deliveries,
-  //    then any orphan deliveries without a matching pickup.
-  const orderedStops = [];
+  // 4. Build ordered stop list via TIME-SORTED BLOCKS (fixed Oct 1 2026).
+  //    Each pickup forms a block (anchored at the pickup's own window start,
+  //    carrying its window-sorted deliveries); any delivery with no matching
+  //    pickup for this route (orphan — e.g. a manually in_transit stop whose
+  //    puid points at an earlier/different-day pickup not in today's optimizable
+  //    set) becomes its OWN single-stop block anchored at ITS OWN window start.
+  //    All blocks are then sorted together by anchor time, so an early-window
+  //    orphan (e.g. 09:30) correctly lands ahead of a later pickup group (e.g.
+  //    13:30) instead of being forced to the back of the route regardless of
+  //    its window. Bug: previously orphans were unconditionally appended AFTER
+  //    every pickup group — Lothar Strach (own delivery_time_start 09:30,
+  //    in_transit, orphaned from a prior pickup) sorted last on a 6-stop route
+  //    instead of first.
   const addedDeliveryIds = new Set();
+  const blocks = [];
   for (const pickup of normalizedPickups) {
-    orderedStops.push({ delivery: pickup, isPickup: true });
+    const items = [{ delivery: pickup, isPickup: true }];
     for (const del of sortedDeliveries.filter(d => d.puid === pickup.stop_id)) {
-      orderedStops.push({ delivery: del, isPickup: false });
+      items.push({ delivery: del, isPickup: false });
       addedDeliveryIds.add(del.id);
     }
+    blocks.push({ startMin: parseTimeToMinutes(pickup.delivery_time_start || '99:99'), items });
   }
   for (const del of sortedDeliveries) {
-    if (!addedDeliveryIds.has(del.id)) orderedStops.push({ delivery: del, isPickup: false });
+    if (!addedDeliveryIds.has(del.id)) {
+      blocks.push({ startMin: parseTimeToMinutes(del.delivery_time_start || '99:99'), items: [{ delivery: del, isPickup: false }] });
+    }
   }
+  blocks.sort((a, b) => a.startMin - b.startMin);
+  const orderedStops = blocks.flatMap(b => b.items);
 
   const firstStop = orderedStops[0];
   let cumulativeTime = firstStop ? parseTimeToMinutes(firstStop.delivery.delivery_time_start || '00:00') : currentMinutes;
