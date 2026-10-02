@@ -22,6 +22,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS } from '../square/useSquareBalancesSummary';
 import SquareBalanceRequestDialog from '../square/SquareBalanceRequestDialog';
+import SquareLowBalanceAlert from '../square/SquareLowBalanceAlert';
 import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
@@ -600,6 +601,7 @@ export default function AppSidebar({
           return (
             <button
               type="button"
+              data-square-balances-link
               onClick={() => { setShowBalanceRequest(true); setSidebarOpen(false); }}
               className={`${cls} cursor-pointer text-left w-full`}
               style={style}
@@ -610,11 +612,22 @@ export default function AppSidebar({
           );
         }
         return (
-          <Link to={createPageUrl('SquareBalances')} onClick={() => setSidebarOpen(false)} className={cls} style={style}>
+          <Link to={createPageUrl('SquareBalances')} data-square-balances-link onClick={() => setSidebarOpen(false)} className={cls} style={style}>
             {inner}
           </Link>
         );
       })()}
+
+      {/* Owner-only: low-balance alert balloon (mobile: pops above the side
+          panel button; desktop: pops out from the Square Balances link while
+          the sidebar is open) + one deduped push per low-state change. */}
+      <SquareLowBalanceAlert
+        ready={sqReady}
+        byLocId={sqByLocId}
+        currentUser={currentUser}
+        sidebarOpen={sidebarOpen}
+        isMobileLike={isMobile || isTabletPortrait}
+      />
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
             <Link
