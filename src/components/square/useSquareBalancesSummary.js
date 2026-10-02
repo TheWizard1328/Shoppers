@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { edmontonWallString } from '@/components/utils/albertaTime';
+import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary } from '@/components/square/squareBalancesOfflineManager';
 
 /**
  * useSquareBalancesSummary — lightweight per-card balance estimates for the
@@ -481,8 +482,12 @@ async function loadSummary(force) {
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
     ]);
-    const [codOutstandingRaw, weekly, dailyRemaining, payouts] = await Promise.all([
-      config ? computeCodOutstandingByLoc(config) : Promise.resolve({}),
+    // One detailed pass — the totals map used by the card math is derived from
+    // it, and the detailed output (items/patient names) is kept so the Square
+    // Balances page can hydrate offline from the IDB snapshot without a
+    // second compute.
+    const [codDetailedRaw, weekly, dailyRemaining, payouts] = await Promise.all([
+      config ? computeCodOutstandingDetailed(config) : Promise.resolve({}),
       computeWeeklyCached(),
       computeDailyCodRemainingByStore(),
       config ? loadCardPayouts(config) : Promise.resolve([]),
@@ -490,8 +495,10 @@ async function loadSummary(force) {
     // null = both attempts failed (e.g. transient entity rate limit). Cache the
     // degraded result so the badge still shows something, but flag it so the
     // hook schedules a self-heal forced reload.
-    const degraded = codOutstandingRaw === null;
-    const codOutstanding = degraded ? {} : codOutstandingRaw;
+    const degraded = codDetailedRaw === null;
+    const codOutstandingDetailed = degraded ? {} : (codDetailedRaw || {});
+    const codOutstanding = {};
+    for (const [locId, agg] of Object.entries(codOutstandingDetailed)) codOutstanding[locId] = agg?.total ?? agg;
     const payoutsLoc = payoutsByLocation(payouts);
     const data = {
       byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc }) : new Map(),
@@ -500,6 +507,10 @@ async function loadSummary(force) {
       weeklyByStore: weekly,
       storeNames: names,
       dailyRemainingByStore: dailyRemaining,
+      codOutstandingDetailed,
+      config: config || null,
+      sales: sales || [],
+      payouts: payouts || [],
     };
     summaryCache.at = Date.now();
     summaryCache.data = data;
@@ -508,7 +519,7 @@ async function loadSummary(force) {
   return inflight;
 }
 
-export function useSquareBalancesSummary(enabled = true) {
+export function useSquareBalancesSummary(enabled = true, userId = null) {
   const [ready, setReady] = useState(false);
   const [byLocId, setByLocId] = useState(new Map());
   const [storeToLoc, setStoreToLoc] = useState(new Map());
@@ -517,6 +528,31 @@ export function useSquareBalancesSummary(enabled = true) {
   const [dailyRemainingByStore, setDailyRemainingByStore] = useState(new Map());
   const [payoutsByLoc, setPayoutsByLoc] = useState(new Map());
   const reloadSeq = useRef(0);
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  // True once an IDB snapshot has been applied at boot — controls whether the
+  // deferred first-load band-aid still applies (fresh installs only).
+  const hydratedFromIdbRef = useRef(false);
+
+  // Serialize the summary for the IDB snapshot. Maps become entry arrays;
+  // deserializeSummary() rebuilds them. Fire-and-forget, never blocks the UI.
+  const persistSnapshot = useCallback((data) => {
+    if (!data) return;
+    const payload = {
+      byLocId: [...(data.byLocId || new Map())],
+      payoutsByLoc: [...(data.payoutsByLoc || new Map())],
+      storeToLoc: [...(data.storeToLoc || new Map())],
+      weeklyByStore: [...(data.weeklyByStore || new Map())],
+      storeNames: [...(data.storeNames || new Map())],
+      dailyRemainingByStore: [...(data.dailyRemainingByStore || new Map())],
+      codOutstandingDetailed: data.codOutstandingDetailed || {},
+      config: data.config || null,
+      sales: data.sales || [],
+      payouts: data.payouts || [],
+      savedAt: new Date().toISOString(),
+    };
+    saveSummarySnapshot(userIdRef.current, payload).catch?.(() => {});
+  }, []);
 
   const apply = useCallback((data) => {
     setByLocId(data.byLocId);
@@ -561,6 +597,7 @@ export function useSquareBalancesSummary(enabled = true) {
     }
     if (seq !== reloadSeq.current) return;
     apply(data);
+    persistSnapshot(data);
     // A degraded run (COD-outstanding fetch failed twice) freezes the badge
     // with wrong totals because updates are event-driven — nothing else will
     // fix it. Schedule ONE 30s forced reload to self-heal.
@@ -568,7 +605,7 @@ export function useSquareBalancesSummary(enabled = true) {
       if (healTimerRef.current) clearTimeout(healTimerRef.current);
       healTimerRef.current = setTimeout(() => { healTimerRef.current = null; reload(true); }, 30000);
     }
-  }, [apply]);
+  }, [apply, persistSnapshot]);
 
   // ── Event-driven ONLY updates (owner spec, Oct 1 2026) ────────────────────
   // The badge refreshes ONLY when a user changes a COD delivery (create/edit/
@@ -576,26 +613,51 @@ export function useSquareBalancesSummary(enabled = true) {
   // timers, no refresh on non-COD activity (GPS, route ops, plain deliveries).
   useEffect(() => {
     if (!enabled) return undefined;
-    // DEFERRED INITIAL LOAD (Oct 2 2026, owner request): previously the first
-    // reload() fired immediately on mount — right when the boot loader clears
-    // and the app's first big entity-read wave (deliveries, patients, stores,
-    // IDB hydration) is saturating the SDK. The badge's config/store/delivery
-    // fetches joined that storm and lost on cold starts, leaving totals blank.
-    // Now the first load waits 4s for the boot wave to pass; retries with
-    // backoff (in reload) and the event subscriptions below cover everything
-    // after. COD/True-Up events can still trigger an earlier load via the
-    // debounced timers — that is correct behavior, not a boot-race problem.
+    // OFFLINE-FIRST BOOT (owner report, Oct 2 2026): the summary was NOT in
+    // IDB, so every boot started from an empty badge and the only way to load
+    // it without joining the boot read-storm was the artificial 4s defer +
+    // 'lightweightRefreshComplete' band-aid. Now the LAST snapshot is read
+    // from IDB and applied INSTANTLY — the badge shows real numbers at boot,
+    // even fully offline — and the fixed boot delay is REMOVED. The first
+    // fresh server load still rides the boot wave event (right when the quota
+    // bucket frees up); a short 20s silent fallback covers the rare boot where
+    // no wave event fires, and it is invisible because the badge is already
+    // rendered from the snapshot. Fresh installs (no snapshot yet) keep the
+    // original deferred behavior — there is nothing to render otherwise.
+    let cancelled = false;
     let bootDelayFired = false;
-    const bootDelay = setTimeout(() => { bootDelayFired = true; reload(); }, 4000);
-    // 'lightweightRefreshComplete' = the main boot data wave just finished and
-    // the quota bucket is free — the ideal moment for the first load. Fires
-    // only if the 4s fallback timer hasn't already run (one-shot).
-    const onBootWave = () => {
-      if (bootDelayFired) return;
+    let bootTimer = null;
+    let firstLoadDone = false;
+    const runFirstLoad = () => {
+      if (bootDelayFired || firstLoadDone) return;
       bootDelayFired = true;
-      clearTimeout(bootDelay);
+      if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
       reload();
     };
+    (async () => {
+      const snap = await getSummarySnapshot().catch(() => null);
+      if (cancelled) return;
+      // Card balances are role/user-scoped (admin sees all cards, drivers
+      // their stores) — never render another user's snapshot.
+      if (snap?.payload && (!snap.user_id || snap.user_id === userIdRef.current)) {
+        const data = deserializeSummary(snap.payload);
+        if (data && !bootDelayFired) {
+          apply(data);
+          setReady(true);
+          hydratedFromIdbRef.current = true;
+        }
+      }
+      if (!hydratedFromIdbRef.current) {
+        // No usable snapshot (fresh install / cleared cache): keep the old
+        // deferred first load — nothing to render offline.
+        bootTimer = setTimeout(runFirstLoad, 4000);
+      } else {
+        bootTimer = setTimeout(runFirstLoad, 20000);
+      }
+    })();
+    // 'lightweightRefreshComplete' = the main boot data wave just finished and
+    // the quota bucket is free — the ideal moment for the first fresh load.
+    const onBootWave = () => runFirstLoad();
     window.addEventListener('lightweightRefreshComplete', onBootWave);
     const unsubs = [];
     let cfgTimer = null, codTimer = null;
@@ -632,12 +694,15 @@ export function useSquareBalancesSummary(enabled = true) {
     };
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     return () => {
+      cancelled = true;
+      firstLoadDone = true;
       window.removeEventListener('lightweightRefreshComplete', onBootWave);
-      clearTimeout(bootDelay); clearTimeout(cfgTimer); clearTimeout(codTimer);
+      if (bootTimer) clearTimeout(bootTimer);
+      clearTimeout(cfgTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
     };
-  }, [enabled, reload]);
+  }, [enabled, reload, apply]);
 
   return { ready, byLocId, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore, payoutsByLoc };
 }

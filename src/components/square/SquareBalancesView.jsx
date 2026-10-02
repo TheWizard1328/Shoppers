@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, payoutsByLocation } from "./useSquareBalancesSummary";
+import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -380,6 +381,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // and the Refresh button does it on demand.
   useEffect(() => {
     (async () => {
+      // OFFLINE-FIRST (Oct 2 2026): paint the last IDB snapshot instantly so
+      // the page opens with real numbers even before the network round-trips
+      // (config + sales + payouts + CODs outstanding all live in the snapshot
+      // the sidebar hook writes after every successful load). User-scoped:
+      // never render another account's balances. Server loads below then
+      // overwrite everything with fresh data.
+      try {
+        const snap = await getSummarySnapshot().catch(() => null);
+        if (snap?.payload && (!snap.user_id || snap.user_id === currentUser?.id)) {
+          const data = deserializeSummary(snap.payload);
+          if (data) {
+            if (data.config) setConfig(data.config);
+            if (data.configRecordId) setConfigRecordId(data.configRecordId);
+            setSales(data.sales || []);
+            setPayouts(data.payouts || []);
+            if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
+            setIsLoading(false);
+          }
+        }
+      } catch (e) { /* snapshot is best-effort — server load below is authoritative */ }
       try {
         const cfg = await loadConfig();
         // Auto Square sync is owner-only — a driver's open tab must never hit the Square API.

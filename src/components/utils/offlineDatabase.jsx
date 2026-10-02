@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 21; // v21: Added square_ledger store (Square finance audit)
+const DB_VERSION = 22; // v22: Added square_balances_summary store (offline-first badge/page)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -35,7 +35,8 @@ const STORES = {
   RX_TEMP_LOGS: 'rx_temp_logs',           // cooler temperature logs per driver/date
   STAT_HOLIDAYS: 'stat_holidays',         // statutory holidays for date lookups
   DRIVER_DAILY_ACTIVITY: 'driver_daily_activity', // v20: driver on-duty activity segments
-  SQUARE_LEDGER: 'square_ledger' // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
+  SQUARE_LEDGER: 'square_ledger', // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
+  SQUARE_BALANCES_SUMMARY: 'square_balances_summary' // v22: offline-first snapshot of the Square Balances summary (badge + page)
 };
 
 // PHI-bearing stores — these get encrypted at rest via AES-GCM
@@ -410,6 +411,17 @@ const openDatabase = async () => {
         squareLedgerStore.createIndex('delivery_id', 'delivery_id', { unique: false });
         squareLedgerStore.createIndex('card_fingerprint', 'card_fingerprint', { unique: false });
         squareLedgerStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      // v22: square_balances_summary — ONE record snapshot of the last computed
+      // Square Balances summary (config, sales, payouts, CODs outstanding,
+      // per-location card math) written after each successful server load.
+      // Hydrated instantly at app boot so the sidebar badge and the Square
+      // Balances page render real numbers offline-first, before any server
+      // fetch (owner report Oct 2 2026: badge sometimes blank/not loading at
+      // boot, forcing a deferred-delay band-aid that this store replaces).
+      if (!db.objectStoreNames.contains(STORES.SQUARE_BALANCES_SUMMARY)) {
+        db.createObjectStore(STORES.SQUARE_BALANCES_SUMMARY, { keyPath: 'id' });
       }
 
       // v19: stat_holidays — statutory holidays for offline date lookups
