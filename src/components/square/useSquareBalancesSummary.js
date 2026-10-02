@@ -13,6 +13,26 @@ import { edmontonWallString } from '@/components/utils/albertaTime';
 
 const SETTING_KEY = 'square_balances';
 
+// Unlimited .filter({status}) calls silently truncate at the server's default
+// page size — fine for a quiet system, but once active (pending/in_transit/
+// en_route) deliveries exceed that default, the badge's COD-outstanding scan
+// under-counts and the card total shows too HIGH, intermittently, exactly
+// matching when the system is busiest (Oct 1 2026 "badge mis-loads" report).
+// Every delivery-status scan below now pages fully, same pattern already used
+// for the 2000-row history scans in this file.
+async function filterAllDeliveries(status) {
+  const out = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const rows = await base44.entities.Delivery.filter({ status }, undefined, 500, skip).catch(() => []);
+    const list = rows || [];
+    out.push(...list);
+    if (list.length < 500) break;
+    skip += 500;
+  }
+  return out;
+}
+
 async function loadConfig() {
   const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
   const rec = (rows || [])[0];
@@ -73,7 +93,7 @@ async function computeCodOutstandingByLoc(cfg, storeToLoc) {
     const byLoc = new Map();
 
     for (const status of ['pending', 'in_transit', 'en_route']) {
-      const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
+      const rows = await filterAllDeliveries(status);
       for (const d of rows || []) {
         const required = Number(d?.cod_total_amount_required || 0);
         if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
@@ -155,7 +175,7 @@ export async function computeDailyCodRemainingByStore() {
     const centsOf = (n) => Math.round(Number(n || 0) * 100);
     const byStore = new Map();
     for (const status of ['pending', 'in_transit', 'en_route']) {
-      const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
+      const rows = await filterAllDeliveries(status);
       for (const d of rows || []) {
         if (String(d?.delivery_date || '') !== today) continue;
         const required = Number(d?.cod_total_amount_required || 0);

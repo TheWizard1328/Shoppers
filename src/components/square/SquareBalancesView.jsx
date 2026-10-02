@@ -70,7 +70,7 @@ function CardCodList({ sections }) {
           </div>
           {sec.rows.length === 0 && <div className="text-[11px] text-slate-400">none</div>}
           {sec.rows.map((r) => (
-            <div key={r.key} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+            <div key={r.key} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
                   {r.storeAbbrev && (
@@ -115,6 +115,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const trueUpPanelRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const loadSeq = useRef(0);
+  // Guards loadConfig() specifically: multiple call sites (mount, Refresh,
+  // True-Up/Top-Up save, the AppSettings WS debounce) can all resolve out of
+  // order on a slow connection. Without this, an OLDER in-flight fetch that
+  // happens to finish LAST clobbers the page with the stale "base" true-up
+  // snapshot it started with, undoing a fresher update that already landed
+  // (Oct 1 2026 "replaced with the base True-Up data" report).
+  const configLoadSeq = useRef(0);
   // Latest-handler refs for the WebSocket subscriptions (mounted once)
   const loadSalesRef = useRef(null);
   const syncRef = useRef(null);
@@ -131,12 +138,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const restricted = Array.isArray(visibleLocationIds);
 
   const loadConfig = useCallback(async () => {
+    const seq = ++configLoadSeq.current;
     const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
     const rec = (rows || [])[0];
-    if (rec?.setting_value?.locations?.length) {
-      setConfig(rec.setting_value);
+    const value = rec?.setting_value?.locations?.length ? rec.setting_value : null;
+    // A newer loadConfig() call already started (and will apply its own,
+    // fresher result) — discard this older one instead of overwriting state.
+    if (seq !== configLoadSeq.current) return value;
+    if (value) {
+      setConfig(value);
       setConfigRecordId(rec.id);
-      return rec.setting_value;
+      return value;
     }
     setConfig(null);
     setConfigRecordId(rec?.id || null);
@@ -202,8 +214,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       };
 
       // a) pending / in-transit CODs (minus debit/credit/cheque already collected)
+      // Fully paginated — an unlimited .filter({status}) call silently truncates
+      // at the server's default page size once active deliveries exceed it,
+      // under-counting outstanding CODs and inflating the shown card balance
+      // (Oct 1 2026 "wrong total" report, same root cause as the sidebar badge).
       for (const status of ['pending', 'in_transit', 'en_route']) {
-        const rows = await base44.entities.Delivery.filter({ status }).catch(() => []);
+        const rows = [];
+        let statusSkip = 0;
+        for (let sp = 0; sp < 20; sp++) {
+          const page = await base44.entities.Delivery.filter({ status }, undefined, 500, statusSkip).catch(() => []);
+          const list = page || [];
+          rows.push(...list);
+          if (list.length < 500) break;
+          statusSkip += 500;
+        }
         for (const d of rows || []) {
           const required = Number(d?.cod_total_amount_required || 0);
           if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
