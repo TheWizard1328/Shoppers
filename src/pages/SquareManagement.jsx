@@ -73,6 +73,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
   const [activeView, setActiveView] = useState('catalog');
   const [itemToDelete, setItemToDelete] = useState(null);
   const [itemToArchive, setItemToArchive] = useState(null);
+  const [itemToUnarchive, setItemToUnarchive] = useState(null);
   const [collectNote, setCollectNote] = useState('');
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
@@ -1256,6 +1257,69 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     return () => { mounted = false; };
   }, [selectedDaysRange, getLocalDateString]);
 
+  // ARCHIVED / UNARCHIVED COD backfill (Oct 1 2026): archived CODs can be far
+  // older than the 90-day delivery_date window (their delivery_date never
+  // changes), so the windowed loads never fetch them. But archiving/unarchiving
+  // bumps updated_date, so fetch recent-updated deliveries and keep only rows
+  // with an Archived payment or the cod_unarchived_at stamp — this powers the
+  // ARCHIVED section's "all archived items, any age" rule.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const updatedSince = new Date(Date.now() - 90 * 86400000).toISOString();
+        const pageSize = 500;
+        let skip = 0;
+        const found = [];
+        while (true) {
+          const page = await base44.entities.Delivery.filter(
+            { updated_date: { $gte: updatedSince } },
+            '-updated_date',
+            pageSize,
+            skip
+          );
+          if (!page?.length) break;
+          for (const d of page) {
+            if (!d?.id) continue;
+            const archived = (Array.isArray(d.cod_payments) ? d.cod_payments : []).some((p) => String(p?.type || '').toLowerCase() === 'archived' && Number(p?.amount || 0) > 0);
+            if (archived || d.cod_unarchived_at) found.push(d);
+          }
+          if (page.length < pageSize) break;
+          skip += pageSize;
+          if (skip > 10000) break; // hard safety cap
+        }
+        if (mounted && found.length > 0) {
+          setDeliveries((prev) => {
+            const map = new Map();
+            (prev || []).forEach((d) => { if (d?.id) map.set(d.id, d); });
+            for (const d of found) map.set(d.id, d);
+            return Array.from(map.values());
+          });
+          // Mirror into IDB (merge, never replace) — RECONCILE rebuilds the page
+          // lists from IDB, so without this an old archived row would vanish from
+          // the ARCHIVED section right after any Reconcile/Sync.
+          try {
+            const { offlineDB } = await import('@/components/utils/offlineDatabase');
+            const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+            const map = new Map(existing.map((r) => [r.id, r]));
+            for (const r of found) {
+              if (!r?.id) continue;
+              const cur = map.get(r.id);
+              map.set(r.id, cur ? { ...cur, ...r } : r);
+            }
+            await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(map.values()));
+          } catch (idbErr) {
+            console.warn('[SquareManagement] Archived COD backfill IDB merge failed:', idbErr?.message);
+          }
+          console.log('[SquareManagement] Archived/Unarchived COD backfill:', found.length, 'row(s) merged');
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Archived COD backfill fetch failed:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
     if (!appCurrentUser) return;
@@ -1794,10 +1858,12 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       try {
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
         const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToArchive.delivery_id);
-        if (idbRecord) {
+        const stateRecord = (deliveries || []).find((d) => d?.id === itemToArchive.delivery_id) || null;
+        const baseRecord = idbRecord || stateRecord;
+        if (baseRecord) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
-            ...idbRecord,
-            cod_payments: [{ type: 'Archived', amount: Number(idbRecord.cod_total_amount_required || 0) }],
+            ...baseRecord,
+            cod_payments: [{ type: 'Archived', amount: Number(baseRecord.cod_total_amount_required || 0) }],
             delivery_notes: updatedNotes,
           }]);
         }
@@ -1835,6 +1901,119 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     } catch (err) {
       console.error('Archive failed:', err);
       toast.error('Failed to archive COD: ' + err.message);
+      setDeletingId(null);
+    }
+  };
+
+  // ── UNARCHIVE COD (Oct 1 2026) ──────────────────────────────────────────
+  // Reverses an Archive: strips the Archived payment (back to outstanding cash
+  // COD status), stamps cod_unarchived_at so the row stays visible past the
+  // 90-day window, and recreates the Square catalog item so it reappears in
+  // NOT COLLECTED.
+  const confirmUnarchive = async () => {
+    if (!itemToUnarchive?.delivery_id) return;
+    setDeletingId(itemToUnarchive.delivery_id);
+    try {
+      let resultData = null;
+      try {
+        const res = await base44.functions.invoke('squareMarkDebit', {
+          deliveryId: itemToUnarchive.delivery_id,
+          codType: 'Unarchive',
+          note: 'This Deliveries COD has been Unarchived and returned to Cash status.'
+        });
+        resultData = res?.data || res;
+      } catch (err) {
+        console.error('squareMarkDebit (Unarchive) failed:', err);
+        throw err;
+      }
+      const updatedNotes = resultData?.delivery_notes || '';
+      const unarchivedAt = new Date().toISOString();
+
+      // Recreate the Square catalog item (direct frontend call — backend
+      // cross-function invoke does not forward auth). Pass the amount explicitly;
+      // the function resolves patient/store/date from the delivery itself.
+      let createResult = null;
+      try {
+        const createRes = await base44.functions.invoke('squareCreateCodItem', {
+          deliveryId: itemToUnarchive.delivery_id,
+          codAmount: itemToUnarchive.cod_amount
+        });
+        createResult = createRes?.data || createRes;
+        if (createResult?.skipped) {
+          console.warn('Catalog item creation skipped:', createResult?.reason);
+        }
+      } catch (err) {
+        console.error('squareCreateCodItem (Unarchive) failed — delivery is unarchived; item can be recreated by Sync/Reconcile:', err);
+      }
+
+      // Recreated catalog item → local state + IDB so it shows in NOT COLLECTED
+      // immediately (runReconcile rebuilds from IDB; the regular Sync replaces
+      // it with the canonical server row).
+      if (createResult?.success && !createResult?.skipped && createResult?.catalogObjectId) {
+        try {
+          const deliveryRecord = (deliveries || []).find((d) => d?.id === itemToUnarchive.delivery_id) || null;
+          const store = (stores || []).find((st) => st?.id === (deliveryRecord?.store_id || null)) || null;
+          const config = getConfigForStore(store) || null;
+          const newCatalogRow = {
+            id: createResult.catalogObjectId,
+            catalog_object_id: createResult.catalogObjectId,
+            name: createResult.itemName,
+            item_name: createResult.itemName,
+            price_dollars: Number(itemToUnarchive.cod_amount || deliveryRecord?.cod_total_amount_required || 0),
+            amount: Number(itemToUnarchive.cod_amount || deliveryRecord?.cod_total_amount_required || 0),
+            delivery_id: itemToUnarchive.delivery_id,
+            location_id: config?.square_location_id || null,
+            store_id: deliveryRecord?.store_id || null,
+            delivery_date: deliveryRecord?.delivery_date || null,
+            status: 'pending',
+            description: `COD for ${deliveryRecord?.patient_name || 'patient'} | Delivery ${itemToUnarchive.delivery_id}`
+          };
+          setCatalogItems((prev) => (prev || []).some((i) => (i?.id || i?.catalog_object_id) === newCatalogRow.id) ? prev : [...(prev || []), newCatalogRow]);
+          const { offlineDB } = await import('@/components/utils/offlineDatabase');
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_CATALOG_ITEMS, [newCatalogRow]);
+        } catch (catalogErr) {
+          console.error('Unarchive: local catalog row add failed (settles on next Sync):', catalogErr);
+        }
+      }
+
+      // Local state mirror: back to outstanding (no cod_payments) + visibility stamp
+      setDeliveries((prev) => prev.map((delivery) =>
+      delivery?.id === itemToUnarchive.delivery_id ?
+      {
+        ...delivery,
+        cod_payments: (Array.isArray(delivery.cod_payments) ? delivery.cod_payments : []).filter((p) => String(p?.type || '').toLowerCase() !== 'archived'),
+        cod_unarchived_at: unarchivedAt,
+        delivery_notes: updatedNotes
+      } :
+      delivery
+      ));
+
+      // IDB mirror so the change survives sync merges
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToUnarchive.delivery_id);
+        const stateRecord = (deliveries || []).find((d) => d?.id === itemToUnarchive.delivery_id) || null;
+        const baseRecord = idbRecord || stateRecord;
+        if (baseRecord) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
+            ...baseRecord,
+            cod_payments: (Array.isArray(baseRecord.cod_payments) ? baseRecord.cod_payments : []).filter((p) => String(p?.type || '').toLowerCase() !== 'archived'),
+            cod_unarchived_at: unarchivedAt,
+            delivery_notes: updatedNotes,
+          }]);
+        }
+      } catch (idbErr) {
+        console.error('Unarchive: local IDB update failed (settles on next sync):', idbErr);
+      }
+
+      toast.success('COD unarchived');
+      setItemToUnarchive(null);
+      setDeletingId(null);
+      // IDB-only list rebuild — the row moves back into NOT COLLECTED
+      await runReconcile();
+    } catch (err) {
+      console.error('Unarchive failed:', err);
+      toast.error('Failed to unarchive COD: ' + err.message);
       setDeletingId(null);
     }
   };
@@ -2077,7 +2256,8 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
   //  - archivedDeliveryRows: archived CODs — rendered only in the ARCHIVED section
   //    at the bottom of the list, excluded from all totals.
   const deliveryRowSets = useMemo(() => {
-    const matchesBaseFilters = (delivery) => {
+    const matchesBaseFilters = (delivery, opts) => {
+      const skipDateWindow = !!(opts && opts.skipDateWindow);
       if (!delivery) return false;
       // RULE: Failed deliveries are exempt from the Square COD Deliveries tab list,
       // Reconcile flow, and Square Catalog update path. Cancelled and pending are
@@ -2093,8 +2273,14 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (selectedStoreFilter && selectedStoreFilter !== 'all') {
         if (delivery.store_id !== selectedStoreFilter) return false;
       }
-      const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
-      if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
+      if (skipDateWindow) {
+        // ARCHIVED rows: show ALL of them, even beyond the 90-day window.
+      } else {
+        const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
+        // Unarchived CODs (cod_unarchived_at stamp) always stay visible past the
+        // 90-day window so they can show in NOT COLLECTED again.
+        if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || (deliveryDate < lookbackStart && !delivery.cod_unarchived_at)) return false;
+      }
       if (selectedDriverFilter === 'all') return true;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(delivery.driver_id);
@@ -2170,7 +2356,20 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         subtext: delivery.driver_name || null,
         driverColor: getDriverColorForId(delivery.driver_id),
         actions: isArchivedDelivery(delivery) ?
-        <Button variant="secondary" size="sm" className="border border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Archived</Button> :
+        <div className="flex items-center gap-1">
+        <Button variant="secondary" size="sm" className="border border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Archived</Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToUnarchive({ name: patient?.full_name || delivery.delivery_id || 'this COD', delivery_id: delivery.id, cod_amount: Number(delivery.cod_total_amount_required || 0) });
+          }}
+          disabled={deletingId === delivery.id}
+          className="rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/20">
+          {deletingId === delivery.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Unarchive'}
+        </Button>
+        </div> :
         hasMatch ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         delivery.status === 'pending' ?
@@ -2191,7 +2390,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     const codCandidates = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0);
     return {
       filteredDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => !isArchivedDelivery(delivery) && matchesBaseFilters(delivery)))),
-      archivedDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => isArchivedDelivery(delivery) && matchesBaseFilters(delivery))))
+      archivedDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => isArchivedDelivery(delivery) && matchesBaseFilters(delivery, { skipDateWindow: true }))))
     };
   }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds, getDriverColorForId]);
   const { filteredDeliveryRows, archivedDeliveryRows } = deliveryRowSets;
@@ -3154,6 +3353,30 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
                 disabled={deletingId === (itemToArchive?.catalog_object_id || itemToArchive?.delivery_id)}
                 className="rounded-lg border border-blue-700 bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
                 {deletingId === (itemToArchive?.catalog_object_id || itemToArchive?.delivery_id) ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Archive'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!itemToUnarchive} onOpenChange={(open) => { if (!open) setItemToUnarchive(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unarchive COD</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will return "{itemToUnarchive?.name || 'this COD'}" to Cash status: the Archived
+                payment is removed, the Square catalog item is recreated, and the COD shows up in the
+                NOT COLLECTED section again — even if it is older than the 90-day window. The note
+                "This Deliveries COD has been Unarchived and returned to Cash status." will be added
+                to the delivery's Driver Notes.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setItemToUnarchive(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmUnarchive}
+                disabled={deletingId === itemToUnarchive?.delivery_id}
+                className="rounded-lg border border-slate-700 bg-slate-600 hover:bg-slate-700 disabled:opacity-50">
+                {deletingId === itemToUnarchive?.delivery_id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Unarchive'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

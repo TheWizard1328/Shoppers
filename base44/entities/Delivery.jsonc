@@ -155,6 +155,11 @@
       "type": "string",
       "description": "ISO timestamp when COD collection was confirmed via Square POS"
     },
+    "cod_unarchived_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when an Archived COD was Unarchived back to outstanding cash status; the Square page keeps unarchived CODs visible (NOT COLLECTED + catalog lists) past the normal 90-day window"
+    },
     "cod_scan_at": {
       "title": "COD wide-scan timestamp",
       "type": "string",

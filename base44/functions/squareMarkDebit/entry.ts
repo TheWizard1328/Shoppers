@@ -36,7 +36,19 @@ async function handleMarkCollectedDebit(base44, payload) {
   if(!delivery)throw new HttpError(404,'Delivery not found');
   const effectiveType=String(codType||'Debit').trim()||'Debit';
   const isArchive=effectiveType==='Archived';
-  const updatePayload={cod_payments:[{type:effectiveType,amount:Number(delivery.cod_total_amount_required||0)}]};
+  const isUnarchive=effectiveType==='Unarchive';
+  let updatePayload;
+  if(isUnarchive){
+    // UNARCHIVE (Oct 1 2026): reverse the Archive write-off — strip the Archived
+    // payment rows so the COD is an outstanding cash COD again, and stamp
+    // cod_unarchived_at so the app keeps showing it past the 90-day window
+    // (the frontend then recreates the Square catalog item via squareCreateCodItem).
+    const payments=Array.isArray(delivery.cod_payments)?delivery.cod_payments:[];
+    const remaining=payments.filter((p)=>String(p?.type||'').toLowerCase()!=='archived');
+    updatePayload={cod_payments:remaining,cod_unarchived_at:new Date().toISOString()};
+  }else{
+    updatePayload={cod_payments:[{type:effectiveType,amount:Number(delivery.cod_total_amount_required||0)}]};
+  }
   // Append the explanation note to delivery_notes in the SAME update — avoids a
   // race condition where the realtime event from the cod_payments change would
   // overwrite a separately-saved delivery_notes with the stale (pre-note) value.
@@ -44,12 +56,14 @@ async function handleMarkCollectedDebit(base44, payload) {
     const existingNotes=String(delivery.delivery_notes||'').trim();
     const ts=new Date().toLocaleString('en-US',{timeZone:'America/Edmonton'});
     const dateStr=new Date().toLocaleDateString('en-US',{timeZone:'America/Edmonton',month:'2-digit',day:'2-digit',year:'numeric'})+' '+new Date().toLocaleTimeString('en-US',{timeZone:'America/Edmonton',hour:'numeric',minute:'2-digit',hour12:true});
-    const noteLine=`${isArchive?'[COD Archived]':'[COD Collected]'}:\n${String(note).trim()}`;
+    const noteLine=`${isArchive?'[COD Archived]':(isUnarchive?'[COD Unarchived]':'[COD Collected]')}:\n${String(note).trim()}`;
     updatePayload.delivery_notes=existingNotes?`${existingNotes}\n${noteLine}`:noteLine;
   }
   const updatedDelivery=await base44.asServiceRole.entities.Delivery.update(deliveryId,updatePayload);
   let deleteError=null;
-  try{
+  if(isUnarchive){
+    // Unarchive KEEPS/creates the catalog item — the delete path is archive/collect only.
+  }else try{
     await base44.functions.invoke('squareDeleteCodItem', {deliveryId,transactionId,catalogObjectId,reason:isArchive?'cod_archived':'collected_debit'});
   }catch(e){
     // Non-fatal — the COD item deletion can fail independently (e.g. already removed);
