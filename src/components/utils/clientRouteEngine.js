@@ -510,8 +510,15 @@ let _inheritedWindowCount = 0;
   }
 
   // ── Route date classification ────────────────────────────────────────────
+  // Owner rule (Oct 1 2026): TODAY is also treated as a FUTURE route before
+  // 9:00 AM Edmonton — routes start at 9, so a pre-9am optimization must plan
+  // like a future route (window sort, home-origin polylines, no live-GPS via
+  // point, no HERE sequencing). Once any stop on the route is completed
+  // (routeOfficiallyStarted), the main path handles it regardless.
   const historicalRoute = isHistoricalRouteDate(deliveryDate);
-  const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
+  const _todayStr = getEdmontonTodayDateString();
+  const _isPreStartToday = deliveryDate === _todayStr && currentMinutes < 9 * 60;
+  const isFutureRoute = !historicalRoute && (deliveryDate > _todayStr || _isPreStartToday);
   const routeOfficiallyStarted = completedDeliveries.length > 0;
 
   // ── Future route fast-path: sort stops by delivery_time_start (NO HERE call) ──
