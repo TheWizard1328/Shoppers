@@ -37,6 +37,17 @@ function daysSince(iso) {
   return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
+// Fallback when a SquareCatalogItems row has no patient_id (older rows created
+// by a path that didn't persist it — Oct 2 2026 report: name shows briefly
+// then flips to "COD" once the catalog list loads and replaces the
+// delivery-derived rows that DID have a resolvable name). The name is always
+// baked into description at creation time ("COD for <name> | Delivery <id>"),
+// so extract it from there instead of returning null.
+function extractNameFromCatalogDescription(description) {
+  const m = /^COD for (.+?) \| Delivery/.exec(String(description || ''));
+  return m ? m[1].trim() : null;
+}
+
 // Delivery only stores patient_id (no patient_name field) — resolve the real
 // name from the Patient entity, same dual-key lookup used across the app
 // (patient_id can match either Patient.id or Patient.patient_id).
@@ -311,7 +322,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         byLoc.get(it.location_id).push({
           key: `cat-${it.id || it.square_catalog_object_id}`,
           delivery_id: it.delivery_id || null,
-          patientName: resolvePatientName(it.patient_id)?.full_name || null,
+          patientName: resolvePatientName(it.patient_id)?.full_name || extractNameFromCatalogDescription(it.description) || null,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: Number(it.amount || 0),
