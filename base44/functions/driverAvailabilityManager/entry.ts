@@ -184,7 +184,12 @@ export default async function(req: Request): Promise<Response> {
           const cooldownMs = r.cooldown_expires_at ? new Date(r.cooldown_expires_at).getTime() : 0;
           return cooldownMs > 0 && cooldownMs > now;
         }
-        if (r.cooldown_expires_at && new Date(r.cooldown_expires_at).getTime() > now) return true;
+        // Terminal statuses (completed / expired / cancelled) NEVER block a new
+        // request. The old generic cooldown_expires_at check here kept 409-ing
+        // the dispatcher for 5+ minutes after a completed/CANCELLED request
+        // ("already active or in cooldown") — and since cancel doesn't clear
+        // the timestamp, the panel's cancel-and-retry recovery couldn't unblock
+        // it either (Oct 1 2026 preview 409 report).
         return false;
       });
       if (activeExisting) {
