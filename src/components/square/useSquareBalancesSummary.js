@@ -208,6 +208,22 @@ export const BALANCE_LEVELS = {
   red: { border: '#ef4444', tint: 'rgba(239, 68, 68, 0.07)', chipBg: '#fee2e2', chipText: '#991b1b' },
 };
 
+// A record/event touches a COD if it carries a COD amount, payments or a
+// collection flag, a cod_* field was edited, or (for deletes, where we may not
+// have the record) we conservatively allow it through.
+function recordHasCod(d) {
+  return !!d && (Number(d.cod_total_amount_required) > 0
+    || (Array.isArray(d.cod_payments) && d.cod_payments.length > 0)
+    || !!d.cod_confirmed_collected);
+}
+function isCodRelevantEvent(ev) {
+  if (!ev) return false;
+  const changed = ev.changedFields || ev.changed_fields || [];
+  if (changed.some((f) => String(f).startsWith('cod_'))) return true;
+  if (ev.type === 'delete') return ev.data ? recordHasCod(ev.data) : true;
+  return recordHasCod(ev.data);
+}
+
 function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
@@ -317,27 +333,49 @@ export function useSquareBalancesSummary(enabled = true) {
     apply(data);
   }, [apply]);
 
+  // ── Event-driven ONLY updates (owner spec, Oct 1 2026) ────────────────────
+  // The badge refreshes ONLY when a user changes a COD delivery (create/edit/
+  // delete/collect/status) or performs a True-Up. No periodic re-checking, no
+  // timers, no refresh on non-COD activity (GPS, route ops, plain deliveries).
   useEffect(() => {
     if (!enabled) return undefined;
     reload();
     const unsubs = [];
-    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null;
-    // Money events force past the cache (badge must move on true-up / Square sale).
+    let cfgTimer = null, codTimer = null;
+    // True-Up writes AppSettings — the one non-delivery event that directly
+    // changes the card starting balances, so it refreshes the badge too.
     try {
-      unsubs.push(base44.entities.AppSettings.subscribe(() => { clearTimeout(cfgTimer); cfgTimer = setTimeout(() => reload(true), 2500); }));
+      unsubs.push(base44.entities.AppSettings.subscribe((ev) => {
+        if (ev?.data?.setting_key !== SETTING_KEY) return;
+        clearTimeout(cfgTimer);
+        cfgTimer = setTimeout(() => reload(true), 2500);
+      }));
     } catch {}
+    const scheduleCodReload = () => {
+      clearTimeout(codTimer);
+      codTimer = setTimeout(() => reload(true), 2500);
+    };
+    // Remote WS delivery events — refresh only when the changed record is
+    // COD-relevant (has a COD amount/payments/confirmation, a cod_* field was
+    // just edited, or a record with a COD was deleted).
     try {
-      unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => { clearTimeout(ledgerTimer); ledgerTimer = setTimeout(() => reload(true), 6000); }));
+      unsubs.push(base44.entities.Delivery.subscribe((ev) => {
+        if (!isCodRelevantEvent(ev)) return;
+        scheduleCodReload();
+      }));
     } catch {}
-    // Delivery churn during driving hits the 60s cache — cheap no-ops instead
-    // of 20k-row rescans every 15-20s.
-    try {
-      unsubs.push(base44.entities.Delivery.subscribe(() => { clearTimeout(deliveryTimer); deliveryTimer = setTimeout(() => reload(false), 30000); }));
-    } catch {}
-    const onDeliveriesUpdated = () => { clearTimeout(deliveryTimer); deliveryTimer = setTimeout(() => reload(false), 30000); };
+    // Same-device user actions — WS echoes are suppressed after local writes,
+    // so the app's own window event is the local signal. When the event
+    // carries the changed records, filter by COD relevance; when it doesn't,
+    // trigger conservatively (these only fire on explicit user actions).
+    const onDeliveriesUpdated = (e) => {
+      const records = e?.detail?.freshDeliveries;
+      if (Array.isArray(records) && records.length && !records.some(isCodRelevantEvent)) return;
+      scheduleCodReload();
+    };
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     return () => {
-      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer);
+      clearTimeout(cfgTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
     };
