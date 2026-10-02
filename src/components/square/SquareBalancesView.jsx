@@ -99,7 +99,9 @@ function CardCodList({ sections }) {
               <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
               {r.collected
                 ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
-                : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>}
+                : r.pendingPickup
+                  ? <span className="shrink-0 rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
+                  : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>}
             </div>
           ))}
         </div>
@@ -850,7 +852,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 // catalog list hasn't loaded yet.
                 const catItems = catalogUncollectedByLoc?.[loc.location_id];
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
-                const uncollectedSrc = catItems || outItems.map((it) => ({
+                // Pending-status ("impending pickup" — not yet picked up by a
+                // driver) deliveries never get a Square catalog item at all;
+                // the reconciler removes a delivery's item until the stop
+                // goes active (en_route/in_transit). Keep them OUT of the
+                // catalog-sourced list and handle them separately below so
+                // they can be tagged pendingPickup regardless of date.
+                const uncollectedSrc = catItems || outItems.filter((it) => it.status !== 'pending').map((it) => ({
                   key: `o-${it.delivery_id}`,
                   delivery_id: it.delivery_id,
                   patientName: it.patient || null,
@@ -859,7 +867,30 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   amount: it.amount,
                   date: it.date || null,
                 }));
-                const uncollectedTodayRows = uncollectedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                const srcDeliveryIds = new Set(
+                  uncollectedSrc.map((it) => it.delivery_id).filter(Boolean)
+                );
+                // Pending-status deliveries with a COD to collect still need
+                // to show up in Uncollected/Past uncollected — just labeled
+                // "Card Spend" instead of "Pending" since the driver hasn't
+                // picked the order up yet (owner request, Oct 2 2026).
+                // Covers EVERY date (today, future, past), not just future —
+                // these were previously invisible entirely for today's date
+                // because catalog items don't exist for them yet.
+                const pendingPickupItems = outItems
+                  .filter((it) => it.status === 'pending' && !srcDeliveryIds.has(it.delivery_id))
+                  .map((it) => ({
+                    key: `pp-${it.delivery_id}`,
+                    delivery_id: it.delivery_id,
+                    patientName: it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    date: it.date || null,
+                    pendingPickup: true,
+                  }));
+                const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
+                const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
                   key: it.key || `o-${it.delivery_id}`,
                   patientName: it.patientName || it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
@@ -867,19 +898,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   amount: it.amount,
                   sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
                   collected: false,
+                  pendingPickup: !!it.pendingPickup,
                 }));
-                // Future-dated pending CODs never have a Square catalog item
-                // (the reconciler removes pending deliveries' items until they
-                // go active), so they'd vanish once the catalog list loads —
-                // merge them in from the delivery-derived outstanding list
-                // (owner request, Oct 1 2026: "Uncollected" must also list
-                // pending CODs from future dates).
-                const srcDeliveryIds = new Set(
-                  uncollectedSrc.map((it) => it.delivery_id).filter(Boolean)
-                );
+                // Future-dated en_route/in_transit CODs never have a Square
+                // catalog item either (same reconciler behavior) — merge them
+                // in from the delivery-derived outstanding list (owner
+                // request, Oct 1 2026: "Uncollected" must also list pending
+                // CODs from future dates). Pending-status future items are
+                // already covered by pendingPickupItems above, so exclude
+                // anything already placed via combinedSrc.
+                const allKnownIds = new Set(combinedSrc.map((it) => it.delivery_id).filter(Boolean));
                 const futurePendingRows = outItems
                   .filter((it) => it.date && it.date > todayStr)
-                  .filter((it) => !srcDeliveryIds.has(it.delivery_id))
+                  .filter((it) => !allKnownIds.has(it.delivery_id))
                   .map((it) => ({
                     key: `f-${it.delivery_id}`,
                     patientName: it.patient || null,
@@ -888,8 +919,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     amount: it.amount,
                     sub: `${it.date} · upcoming`,
                     collected: false,
+                    pendingPickup: it.status === 'pending',
                   }));
-                const pastUncollectedRows = uncollectedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
+                const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
                   patientName: it.patientName || it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
@@ -897,6 +929,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   amount: it.amount,
                   sub: it.sub || it.date,
                   collected: false,
+                  pendingPickup: !!it.pendingPickup,
                 }));
                 const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
                 const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
