@@ -310,6 +310,8 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
 function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  // All hooks must run before any conditional early return (rules of hooks).
+  const messageTemplateRef = useRef(null);
 
   useEffect(() => {
     if (open && initialRule) {
@@ -359,8 +361,6 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
       channels: d.channels.includes(val) ? d.channels.filter((c) => c !== val) : [...d.channels, val]
     }));
   };
-
-  const messageTemplateRef = useRef(null);
 
   const insertVariable = (varStr) => {
     // Insert at the TEXTAREA'S CURRENT CURSOR POSITION, not the end of the
