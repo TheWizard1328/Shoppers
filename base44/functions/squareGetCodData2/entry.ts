@@ -662,7 +662,9 @@ async function handleGetCodData(base44, payload={}) {
   // collected just because cod_payments has an entry: those are exactly the items
   // that need to STAY in the Square catalog until the store actually rings them
   // through the register (tracked via a completed SquareTransaction below).
-  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card']);
+  // 'Archived' (Oct 1 2026): the Square page Archive action writes the COD off —
+  // any lingering catalog item is stale, so archived completions drain like card ones.
+  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card', 'Archived', 'archived']);
   const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
   const collectedDeliveryIds = new Set(
     (deliveriesWithAmounts || [])
@@ -1059,7 +1061,7 @@ mark('after_db_cleanup');
   // still always purged (the live catalog mirrors only outstanding items).
   const deliveryDateById = new Map((activeDeliveriesWithAmounts || []).map((d) => [d.id, d.delivery_date]));
   const hasCardOrChequePayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
-    .some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
+    .some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card', 'Archived', 'archived'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
   // Floor candidates span 180 days regardless of this run's window: an old
   // uncollected COD outside the 90-day sync window (e.g. June 22) still anchors
   // the retention floor. Oldest-first fetch so a cap keeps the oldest rows —
@@ -1208,6 +1210,8 @@ mark('after_collected_purge');
     const cps = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const hasCardPayment = cps.some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'card', 'debit', 'credit', 'cheque', 'check'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
     if (d?.status === 'completed' && hasCardPayment) return false; // card bypasses Square catalog
+    // Archived CODs (Square page Archive action) are written off — no catalog item, ever.
+    if (cps.some((p) => ['Archived', 'archived'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0)) return false;
     return true;
   };
   // Only skip auto-create for deliveries that have an actual Square POS transaction

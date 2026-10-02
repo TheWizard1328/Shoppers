@@ -128,6 +128,7 @@ export default function StopCardCODCollection({
                     <SelectItem value="Debit">Debit</SelectItem>
                     <SelectItem value="Credit">Credit</SelectItem>
                     <SelectItem value="Cheque">Cheque</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
 

@@ -72,6 +72,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
   const [deliveries, setDeliveries] = useState([]);
   const [activeView, setActiveView] = useState('catalog');
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [itemToArchive, setItemToArchive] = useState(null);
   const [collectNote, setCollectNote] = useState('');
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
@@ -1464,6 +1465,16 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     });
   };
 
+  // A delivery's COD is ARCHIVED (Square page Archive action / Archived collection
+  // type) when any cod_payment row is type 'Archived' with a positive amount.
+  // Archived CODs are written off: removed from the Square catalog (item deleted,
+  // never re-created), excluded from every total, and shown only in the ARCHIVED
+  // section at the bottom of the list.
+  function isArchivedDelivery(delivery) {
+    const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+    return payments.some((p) => String(p?.type || '').toLowerCase() === 'archived' && Number(p?.amount || 0) > 0);
+  }
+
   // A delivery is considered a "manual override" (collected without Square) if it has
   // Debit or Credit cod_payments recorded and no matching Square transaction.
   // These should be excluded from Reconcile and Catalog tabs.
@@ -1738,6 +1749,96 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     }
   };
 
+  // ── ARCHIVE COD (Oct 1 2026) ────────────────────────────────────────────
+  // Sets the delivery's COD collection type to Archived (write-off): the Square
+  // catalog item is deleted (never re-created), the fixed driver note
+  // "This Deliveries COD has been Archived." is appended, and the COD moves to
+  // the ARCHIVED section at the bottom of the list — excluded from all totals.
+  const confirmArchive = async () => {
+    if (!itemToArchive?.delivery_id) return;
+    const trackingId = itemToArchive.catalog_object_id || itemToArchive.delivery_id;
+    setDeletingId(trackingId);
+    try {
+      // Single backend call (squareMarkDebit with codType 'Archived') updates
+      // cod_payments + delivery_notes atomically AND deletes the Square catalog
+      // item + bookkeeping server-side.
+      let resultData = null;
+      try {
+        const res = await base44.functions.invoke('squareMarkDebit', {
+          deliveryId: itemToArchive.delivery_id,
+          catalogObjectId: itemToArchive.catalog_object_id || null,
+          transactionId: itemToArchive.transaction_id || null,
+          codType: 'Archived',
+          note: 'This Deliveries COD has been Archived.'
+        });
+        resultData = res?.data || res;
+      } catch (err) {
+        console.error('squareMarkDebit (Archive) failed:', err);
+        throw err;
+      }
+      const updatedNotes = resultData?.delivery_notes || '';
+
+      // Mirror into local state (same pattern as the Collect flow)
+      setCatalogItems((prev) => prev.filter((i) => !(i.delivery_id === itemToArchive.delivery_id || (itemToArchive.catalog_object_id && i.catalog_object_id === itemToArchive.catalog_object_id))));
+      setDeliveries((prev) => prev.map((delivery) =>
+      delivery?.id === itemToArchive.delivery_id ?
+      {
+        ...delivery,
+        cod_payments: [{ type: 'Archived', amount: Number(delivery.cod_total_amount_required || 0) }],
+        delivery_notes: updatedNotes
+      } :
+      delivery
+      ));
+
+      // IDB mirrors so the changes survive sync merges
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToArchive.delivery_id);
+        if (idbRecord) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
+            ...idbRecord,
+            cod_payments: [{ type: 'Archived', amount: Number(idbRecord.cod_total_amount_required || 0) }],
+            delivery_notes: updatedNotes,
+          }]);
+        }
+        const catRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
+        const staleCat = catRecords.filter((r) => r && (
+          r.delivery_id === itemToArchive.delivery_id ||
+          (itemToArchive.catalog_object_id && (r.id === itemToArchive.catalog_object_id || r.square_catalog_object_id === itemToArchive.catalog_object_id))
+        ));
+        if (staleCat.length > 0) {
+          await Promise.all(staleCat.map((r) => offlineDB.deleteRecord(offlineDB.STORES.SQUARE_CATALOG_ITEMS, r.id).catch(() => null)));
+          console.log(`[SquareManagement] Archive: removed ${staleCat.length} local catalog row(s)`);
+        }
+        const txRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
+        const relatedTxs = txRecords.filter((t) => t && (
+          t.delivery_id === itemToArchive.delivery_id ||
+          (itemToArchive.catalog_object_id && t.square_catalog_object_id === itemToArchive.catalog_object_id)
+        ));
+        if (relatedTxs.length > 0) {
+          const nowIso = new Date().toISOString();
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, relatedTxs.map((t) => ({
+            ...t,
+            status: 'cancelled',
+            raw_square_data: { ...(t.raw_square_data || {}), deleted_at: nowIso, deleted_reason: 'cod_archived' },
+          })));
+        }
+      } catch (idbErr) {
+        console.error('Archive: local IDB cleanup failed (lists settle on next sync):', idbErr);
+      }
+
+      toast.success('COD archived');
+      setItemToArchive(null);
+      setDeletingId(null);
+      // IDB-only list rebuild — the ARCHIVED section picks the row up
+      await runReconcile();
+    } catch (err) {
+      console.error('Archive failed:', err);
+      toast.error('Failed to archive COD: ' + err.message);
+      setDeletingId(null);
+    }
+  };
+
   // ═════════════════════════════════════════════════════════════════
   // UNIFIED INDEX: Build all Map indexes in a single pass to enable O(1)
   // lookups instead of O(N) .find() calls inside render loops.
@@ -1971,9 +2072,12 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     return driver?.user_name ? generateDriverColor(driver.user_name) : null;
   }, [drivers]);
 
-  const filteredDeliveryRows = useMemo(() => {
-    const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
-    filter((delivery) => {
+  // One memo builds BOTH row sets from the same filters:
+  //  - filteredDeliveryRows: active COD deliveries (archived excluded everywhere)
+  //  - archivedDeliveryRows: archived CODs — rendered only in the ARCHIVED section
+  //    at the bottom of the list, excluded from all totals.
+  const deliveryRowSets = useMemo(() => {
+    const matchesBaseFilters = (delivery) => {
       if (!delivery) return false;
       // RULE: Failed deliveries are exempt from the Square COD Deliveries tab list,
       // Reconcile flow, and Square Catalog update path. Cancelled and pending are
@@ -1994,7 +2098,8 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (selectedDriverFilter === 'all') return true;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(delivery.driver_id);
-    }).
+    };
+    const buildRows = (list) => list.
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).
     map((delivery) => {
       const patient = lookupIndexes.resolvePatient(delivery);
@@ -2064,7 +2169,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         collectionType,
         subtext: delivery.driver_name || null,
         driverColor: getDriverColorForId(delivery.driver_id),
-        actions: hasMatch ?
+        actions: isArchivedDelivery(delivery) ?
+        <Button variant="secondary" size="sm" className="border border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Archived</Button> :
+        hasMatch ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         delivery.status === 'pending' ?
         <Button variant="secondary" size="sm" className="border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">Pending Pickup</Button> :
@@ -2072,14 +2179,22 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       };
     });
 
-    const seenRowKeys = new Set();
-    return rows.filter((row) => {
-      const rowKey = row.key || row.id;
-      if (seenRowKeys.has(rowKey)) return false;
-      seenRowKeys.add(rowKey);
-      return true;
-    });
+    const dedupeRows = (rows) => {
+      const seenRowKeys = new Set();
+      return rows.filter((row) => {
+        const rowKey = row.key || row.id;
+        if (seenRowKeys.has(rowKey)) return false;
+        seenRowKeys.add(rowKey);
+        return true;
+      });
+    };
+    const codCandidates = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0);
+    return {
+      filteredDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => !isArchivedDelivery(delivery) && matchesBaseFilters(delivery)))),
+      archivedDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => isArchivedDelivery(delivery) && matchesBaseFilters(delivery))))
+    };
   }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds, getDriverColorForId]);
+  const { filteredDeliveryRows, archivedDeliveryRows } = deliveryRowSets;
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
@@ -2226,6 +2341,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (linkedDelivery?.status === 'pending') return false;
       // Exclude if the linked delivery was paid by Debit/Credit (manual override — no Square transaction needed)
       if (linkedDelivery && isManualCardOverride(linkedDelivery)) return false;
+      // Archived CODs have no catalog item — the backend deletes it and this guard
+      // keeps any pre-sync local mirror rows out of the list until then.
+      if (linkedDelivery && isArchivedDelivery(linkedDelivery)) return false;
       // Filter by the driver assigned to the linked delivery (not by Square location)
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
@@ -2297,6 +2415,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         isCollected,
         actions: isCollected ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
+        <div className="flex items-center gap-1">
         <Button
           variant="secondary"
           size="sm"
@@ -2308,6 +2427,20 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           className="rounded-lg border border-emerald-300 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
           {deletingId === catalogObjectId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collect'}
         </Button>
+        {item.delivery_id &&
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToArchive({ name: item.name || item.item_name, delivery_id: item.delivery_id, catalog_object_id: catalogObjectId, transaction_id: null });
+          }}
+          disabled={deletingId === catalogObjectId}
+          className="rounded-lg border border-blue-300 bg-white text-blue-700 shadow-sm hover:bg-blue-50 hover:border-blue-400 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
+          Archive
+        </Button>
+        }
+        </div>
       };
     }).
     sort((a, b) => {
@@ -2346,6 +2479,8 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       // NEVER find them again. Without this check every confirmed-collected cash COD
       // reappears here forever as a bogus "New Catalog Item" (missing transaction id).
       if (delivery.cod_confirmed_collected) return false;
+      // Archived CODs are written off — never a New Catalog Item candidate.
+      if (isArchivedDelivery(delivery)) return false;
       // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       // Only show deliveries for stores that have a Square location config
@@ -2446,6 +2581,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         driverColor: getDriverColorForId(delivery.driver_id),
         crossStoreAlert: null,
         actions:
+        <div className="flex items-center gap-1">
         <Button
           variant="secondary"
           size="sm"
@@ -2462,6 +2598,18 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           className="rounded-lg border border-emerald-300 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
           {deletingId === delivery.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collect'}
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToArchive({ name: computedItemName, catalog_object_id: null, delivery_id: delivery.id, transaction_id: null });
+          }}
+          disabled={deletingId === delivery.id}
+          className="rounded-lg border border-blue-300 bg-white text-blue-700 shadow-sm hover:bg-blue-50 hover:border-blue-400 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
+          Archive
+        </Button>
+        </div>
 
       };
     }).
@@ -2905,7 +3053,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           undefined} /> :
 
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn archivedRows={archivedDeliveryRows} /> :
         activeView === 'transactions' ?
         <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected /> :
 
@@ -2913,6 +3061,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           key="catalog"
           title="Square Catalog Items"
           rows={filteredCatalogRows}
+          archivedRows={archivedDeliveryRows}
           isLoading={isLoading}
           emptyTitle="No Square catalog items found"
           emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
@@ -2982,6 +3131,29 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
                 disabled={!collectNote.trim() || deletingId === (itemToDelete?.catalog_object_id || itemToDelete?.delivery_id)}
                 className="rounded-lg border border-emerald-700 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">
                 {deletingId === (itemToDelete?.catalog_object_id || itemToDelete?.delivery_id) ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collected'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!itemToArchive} onOpenChange={(open) => { if (!open) setItemToArchive(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive COD</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will set "{itemToArchive?.name || 'this COD'}" to the Archived collection type:
+                removed from the Square catalog, excluded from all totals, and moved to the ARCHIVED
+                section at the bottom of the list. The note "This Deliveries COD has been Archived."
+                will be added to the delivery's Driver Notes.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setItemToArchive(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmArchive}
+                disabled={deletingId === (itemToArchive?.catalog_object_id || itemToArchive?.delivery_id)}
+                className="rounded-lg border border-blue-700 bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+                {deletingId === (itemToArchive?.catalog_object_id || itemToArchive?.delivery_id) ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Archive'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

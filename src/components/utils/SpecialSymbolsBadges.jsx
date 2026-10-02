@@ -12,6 +12,9 @@ export function getCodSymbolColor(delivery) {
     new Set((delivery?.cod_payments || []).map((payment) => String(payment?.type || '').toLowerCase()).filter(Boolean))
   );
 
+  // Blue if the COD was Archived (written off via the Square page Archive action)
+  if (paymentTypes.some((type) => type === 'archived')) return '#2563eb';
+
   // Green if collected via a direct payment — Debit, Credit, or Cheque
   // (cheque = money taken directly, same as cards; only cash awaits deposit)
   if (paymentTypes.some((type) => type === 'debit' || type === 'credit' || type === 'cheque' || type === 'check')) return '#16a34a';
@@ -24,6 +27,7 @@ export function getCodSymbolColor(delivery) {
 
 export function getCodSymbolColorClass(delivery) {
   const color = getCodSymbolColor(delivery);
+  if (color === '#2563eb') return 'text-blue-600';
   if (color === '#16a34a') return 'text-green-600';
   if (color === '#dc2626') return 'text-red-600';
   return '';

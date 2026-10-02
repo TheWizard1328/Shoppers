@@ -47,7 +47,10 @@ const ru = async (b) => { const ok = await b.auth.isAuthenticated().catch(() => 
 
 // ── PAYMENT SEMANTICS — the ONLY place these are defined ──
 const CASH_TYPES = ['cash'];
-const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card'];
+// 'archived' (Oct 1 2026): the Square page Archive action — COD written off.
+// Behaves like a direct payment for the catalog: any existing item is deleted and
+// NEVER re-created, but it is not a collection (no confirmed-collected stamping).
+const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card', 'archived'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route', 'arrived'];
 const REMOVE_STATUSES = ['failed', 'cancelled', 'returned'];
 

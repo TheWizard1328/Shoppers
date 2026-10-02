@@ -15,8 +15,8 @@ export function matchesDeliveryCodFilter(delivery, selectedCodFilter) {
   const legacyType = normalizeType(delivery?.cod_payment_type);
 
   if (selectedCodFilter === 'all') {
-    const hasPaymentType = paymentTypes.some((type) => ['cash', 'debit', 'credit', 'cheque'].includes(type));
-    const hasLegacyType = ['cash', 'debit', 'credit', 'cheque'].includes(legacyType);
+    const hasPaymentType = paymentTypes.some((type) => ['cash', 'debit', 'credit', 'cheque', 'archived'].includes(type));
+    const hasLegacyType = ['cash', 'debit', 'credit', 'cheque', 'archived'].includes(legacyType);
     return codAmount > 0 || legacyAmount > 0 || hasPaymentType || hasLegacyType;
   }
 

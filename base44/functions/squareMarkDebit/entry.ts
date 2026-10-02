@@ -27,11 +27,15 @@ async function squareFetch(path, method, accessToken, body, options={}) {
 }
 
 async function handleMarkCollectedDebit(base44, payload) {
-  const{deliveryId,transactionId,catalogObjectId,note}=payload||{};
+  const{deliveryId,transactionId,catalogObjectId,note,codType}=payload||{};
+  // Oct 1 2026: codType lets the Square page Archive a COD — 'Archived' behaves like
+  // a direct payment for the catalog (item removed, never re-created) but is a
+  // write-off, not a collection. Default remains 'Debit' (the manual Collect flow).
   if(!deliveryId)throw new HttpError(400,'Missing required field: deliveryId');
   const delivery=await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(()=>null);
   if(!delivery)throw new HttpError(404,'Delivery not found');
-  const updatePayload={cod_payments:[{type:'Debit',amount:Number(delivery.cod_total_amount_required||0)}]};
+  const effectiveType=String(codType||'Debit').trim()||'Debit';
+  const updatePayload={cod_payments:[{type:effectiveType,amount:Number(delivery.cod_total_amount_required||0)}]};
   // Append the explanation note to delivery_notes in the SAME update — avoids a
   // race condition where the realtime event from the cod_payments change would
   // overwrite a separately-saved delivery_notes with the stale (pre-note) value.
@@ -39,13 +43,14 @@ async function handleMarkCollectedDebit(base44, payload) {
     const existingNotes=String(delivery.delivery_notes||'').trim();
     const ts=new Date().toLocaleString('en-US',{timeZone:'America/Edmonton'});
     const dateStr=new Date().toLocaleDateString('en-US',{timeZone:'America/Edmonton',month:'2-digit',day:'2-digit',year:'numeric'})+' '+new Date().toLocaleTimeString('en-US',{timeZone:'America/Edmonton',hour:'numeric',minute:'2-digit',hour12:true});
-    const noteLine=`[COD Collected]:\n${String(note).trim()}`;
+    const isArchive=effectiveType==='Archived';
+    const noteLine=`${isArchive?'[COD Archived]':'[COD Collected]'}:\n${String(note).trim()}`;
     updatePayload.delivery_notes=existingNotes?`${existingNotes}\n${noteLine}`:noteLine;
   }
   const updatedDelivery=await base44.asServiceRole.entities.Delivery.update(deliveryId,updatePayload);
   let deleteError=null;
   try{
-    await base44.functions.invoke('squareDeleteCodItem', {deliveryId,transactionId,catalogObjectId,reason:'collected_debit'});
+    await base44.functions.invoke('squareDeleteCodItem', {deliveryId,transactionId,catalogObjectId,reason:isArchive?'cod_archived':'collected_debit'});
   }catch(e){
     // Non-fatal — the COD item deletion can fail independently (e.g. already removed);
     // the delivery's cod_payments + delivery_notes were already persisted above.
@@ -55,7 +60,7 @@ async function handleMarkCollectedDebit(base44, payload) {
   // refs that make Response.json() throw "Converting circular structure to JSON",
   // which would mask the successful Delivery.update and prevent the frontend from
   // receiving delivery_notes.
-  return{success:true,deliveryId,paymentType:'Debit',delivery_notes:updatedDelivery?.delivery_notes||'',deleteError};
+  return{success:true,deliveryId,paymentType:effectiveType,delivery_notes:updatedDelivery?.delivery_notes||'',deleteError};
 }
 
 Deno.serve(async (req) => {

@@ -15,6 +15,7 @@ const ru = async (b) => { const u = await b.auth.me().catch(() => null); if (!u)
 
 function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'other'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
 function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
+function hasArchivedPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Archived', 'archived'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   const [,month,day] = String(deliveryDate||'').split('-');
@@ -126,6 +127,11 @@ async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipB
   }
   if (dr?.status === 'completed' && hasCardPayment(dr)) {
     return { success: true, skipped: true, reason: 'delivery_already_collected_card' };
+  }
+  // Archived CODs (Square page Archive action, Oct 1 2026) are written off — no
+  // catalog item in any status, and any existing one gets deleted by the delete path.
+  if (hasArchivedPayment(dr)) {
+    return { success: true, skipped: true, reason: 'cod_archived' };
   }
   // Only skip if a COMPLETED SquareTransaction exists — that means the payment
   // was actually collected via Square POS. A pending transaction is just a
@@ -361,7 +367,7 @@ Deno.serve(async (req) => {
           if (hasOfflinePayment(delivery) && !hasCardPayment(delivery)) {
             return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped', reason: 'offline_payment_needs_catalog_item' }] });
           }
-          const reason = hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery';
+          const reason = hasArchivedPayment(delivery) ? 'cod_archived' : (hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery');
           const r = await handleDeleteCodItem(b, { deliveryId: delivery.id, reason });
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }

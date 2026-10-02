@@ -124,6 +124,8 @@ async function handleCreateCodItem(base44, payload) {
   const deliveryRecord=await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(()=>null);
   // Confirmed collected at the register (SquareTransaction rows purged) — never re-create.
   if(deliveryRecord?.cod_confirmed_collected){return{success:true,skipped:true,reason:'cod_confirmed_collected'};}
+  // Archived CODs (Square page Archive action) are written off — never create a catalog item.
+  if((deliveryRecord?.cod_payments||[]).some((p)=>['Archived','archived'].includes(String(p?.type||''))&&Number(p?.amount||0)>0)){return{success:true,skipped:true,reason:'cod_archived'};}
   const{patientById,patientByPid}=await buildPatientMaps(base44,deliveryRecord?[deliveryRecord]:[]);
   const patientRecord=deliveryRecord?await resolveDeliveryPatient(base44,deliveryRecord,patientById,patientByPid):null;
   const effectiveStoreId=storeId||deliveryRecord?.store_id;

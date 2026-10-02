@@ -211,7 +211,8 @@ export default function SquareCodDatasetTable({
   showCatalogColumn,
   headerActions,
   headerStatus,
-  newCatalogRows
+  newCatalogRows,
+  archivedRows
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const term = searchTerm.trim().toLowerCase();
@@ -224,6 +225,7 @@ export default function SquareCodDatasetTable({
   // Apply search filter across all row fields before dedup/grouping.
   const filteredRows = useMemo(() => (rows || []).filter(matchesSearch), [rows, term]);
   const filteredNewCatalogRows = useMemo(() => (newCatalogRows || []).filter(matchesSearch), [newCatalogRows, term]);
+  const filteredArchivedRows = useMemo(() => (archivedRows || []).filter(matchesSearch), [archivedRows, term]);
 
   // Deduplicate newCatalogRows against the main rows (Not Collected + Collected) so the
   // same delivery never appears in both "New Catalog Items" and "Not Collected".
@@ -243,6 +245,7 @@ export default function SquareCodDatasetTable({
   const notCollected = groupByCollected ? filteredRows.filter((r) => !isRowCollected(r)) : filteredRows;
   const collected = groupByCollected ? filteredRows.filter((r) => isRowCollected(r)) : [];
   const hasNewCatalogRows = dedupedNewCatalogRows.length > 0;
+  const hasArchivedRows = filteredArchivedRows.length > 0;
   const colSpan = showLocationColumn ? 7 : 6;
 
   return (
@@ -339,6 +342,12 @@ export default function SquareCodDatasetTable({
                     {collected.map((row, index) =>
                   <DesktopRow key={getRowKey(row, notCollected.length + index)} row={row} index={notCollected.length + index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
                   )}
+                    {hasArchivedRows &&
+                  <SectionDivider label={`Archived (${filteredArchivedRows.length})`} colSpan={colSpan} />
+                  }
+                    {hasArchivedRows && filteredArchivedRows.map((row, index) =>
+                  <DesktopRow key={getRowKey(row, `archived-${index}`)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
+                  )}
                   </tbody>
                 </table>
               </div>
@@ -375,6 +384,16 @@ export default function SquareCodDatasetTable({
             }
               {collected.map((row, index) =>
             <MobileCard key={row.id || `${row.itemName}-${notCollected.length + index}`} row={row} index={notCollected.length + index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
+            )}
+              {hasArchivedRows &&
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider py-1">
+                  <div className="flex-1 h-px bg-blue-300 dark:bg-blue-600" />
+                  <span>Archived ({filteredArchivedRows.length})</span>
+                  <div className="flex-1 h-px bg-blue-300 dark:bg-blue-600" />
+                </div>
+            }
+              {hasArchivedRows && filteredArchivedRows.map((row, index) =>
+            <MobileCard key={row.id || `${row.itemName}-archived-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
             )}
             </div>
           </div>
