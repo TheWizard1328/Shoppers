@@ -813,6 +813,16 @@ export default function StatsPanel({
                   }
               </div>
 
+              {/* data-stats-locked-expanded-end (Oct 2 2026): for dispatchers
+                  the driver-select + InterStore row above is NEVER collapsed
+                  (isDispatcherLockedExpanded is permanently true), so
+                  data-stats-base-end sits ABOVE this always-visible row —
+                  DashboardWeatherBar anchored there and rendered its bar
+                  overlapping/behind this row for every dispatcher. This marker
+                  gives the weather bar a second, lower anchor that exists only
+                  while the dispatcher-locked content is on screen. */}
+              {isDispatcherLockedExpanded && <div data-stats-locked-expanded-end="true" />}
+
               {isDriver && !isDispatcher && <>
                 <div className="pt-1 border-t border-slate-200 dark:border-slate-700"></div>
                 <div className="flex items-center gap-1">

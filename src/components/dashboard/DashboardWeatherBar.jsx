@@ -167,9 +167,18 @@ function DashboardWeatherBar({
     const legend = document.querySelector('[data-stats-legend]');
     const legendRect = legend && legend.offsetParent !== null ? legend.getBoundingClientRect() : null;
     if (legendRect) legendHeight = Math.max(0, legendRect.height) + 6;
+    // Dispatchers lock the driver-select + InterStore row permanently open
+    // (it never collapses), so data-stats-base-end sits ABOVE it — anchoring
+    // there put the bar behind that row for every dispatcher. When present,
+    // this lower marker (only rendered while that locked content is visible)
+    // takes priority over the base-end row.
+    const lockedEnd = document.querySelector('[data-stats-locked-expanded-end]');
+    const lockedEndRect = lockedEnd && lockedEnd.offsetParent !== null ? lockedEnd.getBoundingClientRect() : null;
     const baseEnd = document.querySelector('[data-stats-base-end]');
     const baseEndRect = baseEnd && baseEnd.offsetParent !== null ? baseEnd.getBoundingClientRect() : null;
-    if (baseEndRect) {
+    if (lockedEndRect) {
+      top = Math.max(0, lockedEndRect.bottom - parentRect.top) + 8 + legendHeight;
+    } else if (baseEndRect) {
       top = Math.max(0, baseEndRect.bottom - parentRect.top) + 8 + legendHeight;
     } else {
       const statsEl = statsContainerRef?.current;
