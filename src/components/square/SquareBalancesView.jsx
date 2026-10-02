@@ -550,19 +550,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
       const r2 = (x) => Math.round(x * 100) / 100;
       const codOut = localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || null;
-      const codOutTotal = Number(codOut?.total || 0);
       const swept = payoutByLoc.get(loc.location_id) || 0;
       return {
         ...loc,
         saleCount: locSales.length,
         gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
         sweptOut: r2(swept),
-        // CODs out (pending/in-transit + cash awaiting Square) reduce the available card balance;
+        // UN-SWIPED CODs DO NOT REDUCE THE BALANCE (owner rule, Oct 2 2026,
+        // Londonderry $528.17 report): a COD only counts as money removed from
+        // the card once its real card spend exists in the Square records (the
+        // spend lands as a card sale credit and confirms the delivery).
+        // Outstanding CODs stay visible as "owed, not yet swiped" and drive
+        // the low-balance forecast, but do NOT subtract from the estimate.
         // BATCH bank sweeps since true-up leave the real card too (Oct 2 2026 fix)
-        cardEstimate: r2(Number(loc.card_start || 0) + credits - codOutTotal - swept),
+        cardEstimate: r2(Number(loc.card_start || 0) + credits - swept),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - codOutTotal), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - swept), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         codOutstanding: codOut,
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
@@ -851,8 +855,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               {loc.codOutstanding?.total > 0 && (
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs out</div>
-                    <div className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">−{fmtMoney(loc.codOutstanding.total)}</div>
+                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs owed (not yet swiped)</div>
+                    <div className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">{fmtMoney(loc.codOutstanding.total)}</div>
                   </div>
                   <div className="text-[11px] text-slate-400 mt-0.5">
                     {loc.codOutstanding.pending_count > 0 && `${loc.codOutstanding.pending_count} on route`}

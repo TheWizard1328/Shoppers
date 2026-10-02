@@ -509,7 +509,7 @@ function isCodRelevantEvent(ev) {
   return recordHasCod(ev.data);
 }
 
-function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc, payoutsByLoc }) {
+function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
   for (const loc of (config.locations || [])) {
@@ -521,10 +521,18 @@ function computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc, payouts
       loan += amount * Number(loc.loan_rate || 0);
       credits += amount - fee - amount * Number(loc.loan_rate || 0) - amount * folderRate;
     }
-    const codOut = Number(codOutstanding?.[loc.location_id] || 0);
+    // UN-SWIPED CODs DO NOT REDUCE THE BALANCE (owner rule, Oct 2 2026,
+    // Londonderry $528.17 report): a COD only registers as money removed from
+    // the card once its actual card spend exists in the Square records. The
+    // spend arrives as a card sale (counted in credits above) and the delivery
+    // gets cod_confirmed_collected, so outstanding CODs — pending, in
+    // transit, or collected cash awaiting the Square ring — are tracked in the
+    // Uncollected lists and drive the low-balance forecast, but they do NOT
+    // subtract from the estimate. The estimate reflects only real card
+    // activity: starting balance + net sale credits − bank sweeps.
     // BATCH bank sweeps since true-up also leave the card (Oct 2 2026 fix).
     const swept = Number(payoutsByLoc?.get?.(loc.location_id) || 0);
-    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - codOut - swept) * 100) / 100;
+    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
