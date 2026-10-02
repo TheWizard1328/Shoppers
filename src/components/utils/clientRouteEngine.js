@@ -1104,7 +1104,13 @@ let _inheritedWindowCount = 0;
       ? { lat: Number(_driverAppUser.current_latitude), lon: Number(_driverAppUser.current_longitude) }
       : null;
     const hasInFlightStop = activeRouteStops.some(s => ['en_route', 'in_transit'].includes(String(s.delivery?.status || '')));
-    const viaPointAfterOrigin = (driverOnDuty && hasInFlightStop && driverGpsCoords
+    // Owner rule (Oct 1 2026): the driver's LIVE GPS only belongs on TODAY's route.
+    // A future-date optimization (drag-reorder with preserved order, manual FAB on
+    // tomorrow's route, cycling-marker regens) must plan polylines from home/last
+    // finished stop — never from where the driver happens to be standing right now.
+    // Historical (past) routes get the same exclusion.
+    const routeIsToday = !isFutureRoute && !historicalRoute;
+    const viaPointAfterOrigin = (routeIsToday && driverOnDuty && hasInFlightStop && driverGpsCoords
       && Number.isFinite(driverGpsCoords.lat) && Number.isFinite(driverGpsCoords.lon)
       && !cyclingSegmentOnly && !drivingSegmentOnly
       && calculateCrowFliesDistance(polylineOrigin.lat, polylineOrigin.lon, driverGpsCoords.lat, driverGpsCoords.lon) > 0.1)
@@ -1460,10 +1466,16 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       const pickupStartMin = pickup?.delivery_time_start ? parseTimeToMinutes(pickup.delivery_time_start) : Infinity;
       let newStart = d.delivery_time_start;
       let newEnd = d.delivery_time_end;
-      if (patient?.time_window_start) {
+      // Owner rule (permanent, restated Oct 1 2026): the delivery's OWN
+      // delivery_time_start/end take precedence. The patient's stored window is a
+      // CREATION-TIME DEFAULT consulted only when the delivery's own field is
+      // blank — it must never REPLACE a window the driver/dispatcher set on the
+      // delivery (the old REPLACE behavior silently overwrote edited windows on
+      // every future-route optimization).
+      if (!d.delivery_time_start && patient?.time_window_start) {
         newStart = patient.time_window_start;
-        if (patient.time_window_end) newEnd = patient.time_window_end;
-      } else if (Number.isFinite(pickupStartMin)) {
+        if (!d.delivery_time_end && patient.time_window_end) newEnd = patient.time_window_end;
+      } else if (!d.delivery_time_start && Number.isFinite(pickupStartMin)) {
         newStart = formatMinutesToTime(pickupStartMin + 5);
       }
       return {
@@ -1502,7 +1514,9 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   for (let i = 0; i < orderedStops.length; i++) {
     const { delivery, isPickup } = orderedStops[i];
     if (isPickup) { const ps = parseTimeToMinutes(delivery.delivery_time_start || '00:00'); if (Number.isFinite(ps) && cumulativeTime < ps) cumulativeTime = ps; }
-    const ws = parseTimeToMinutes(delivery.time_window_start || delivery.delivery_time_start || '');
+    // Owner rule: delivery's OWN delivery_time_start wins; time_window_start
+    // (denormalized patient copy) is fallback only — same blank-guard pattern.
+    const ws = parseTimeToMinutes(delivery.delivery_time_start || delivery.time_window_start || '');
     if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
     etaMap.set(delivery.id, formatMinutesToTime(cumulativeTime));
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);
