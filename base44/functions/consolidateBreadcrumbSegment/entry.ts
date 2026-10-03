@@ -678,18 +678,19 @@ Deno.serve(async (req) => {
       }
 
       // ── Write ONLY the target segment ──────────────────────────────────────
-      let existing = null;
+      // Match by linked_delivery_id FIRST (stable across stop_order renumbers).
+      // Legacy records with no linked_delivery_id fall back to stop_order.
+      let existing = (existingAll || []).find((rec) => rec.linked_delivery_id && rec.linked_delivery_id === target.delivery.id) || null;
       const dupIds = [];
-      const seen = new Set();
       for (const rec of (existingAll || [])) {
-        if (Number(rec.stop_order) === stopOrder) {
-          if (!existing || (rec.saved_to_route === true && existing.saved_to_route !== true)) {
-            if (existing) dupIds.push(existing.id);
-            existing = rec;
-          } else {
-            dupIds.push(rec.id);
-          }
-          seen.add(rec.id);
+        if (rec.id === existing?.id) continue;
+        const sameDelivery = rec.linked_delivery_id ? rec.linked_delivery_id === target.delivery.id : Number(rec.stop_order) === stopOrder;
+        if (!sameDelivery) continue;
+        if (!existing || (rec.saved_to_route === true && existing.saved_to_route !== true)) {
+          if (existing) dupIds.push(existing.id);
+          existing = rec;
+        } else {
+          dupIds.push(rec.id);
         }
       }
       for (const id of dupIds) {
@@ -715,6 +716,7 @@ Deno.serve(async (req) => {
         driver_id,
         delivery_date,
         stop_order: stopOrder,
+        linked_delivery_id: target.delivery.id,
         encoded_polyline: segEncoded,
         timestamps: segTimestamps,
         transport_mode: segTransportMode,
@@ -960,26 +962,33 @@ Deno.serve(async (req) => {
       delivery_date
     }).catch(() => []);
 
+    // Two indexes: linked_delivery_id (stable, preferred) and stop_order
+    // (legacy fallback for records sealed before linked_delivery_id existed).
+    // A segment keeps following its delivery even after a repairStopOrders
+    // renumber — only legacy un-migrated records can still be mismatched.
+    const existingByDeliveryId = new Map();
     const existingByStopOrder = new Map();
     const duplicateCrumbIds = [];
-    const seenStopOrders = new Set();
+    const seenKeys = new Set();
     for (const rec of (existingSegments || [])) {
-      if (rec.stop_order !== -1) {
-        const so = Number(rec.stop_order);
-        if (seenStopOrders.has(so)) {
-          const existing = existingByStopOrder.get(so);
-          if (existing && existing.saved_to_route === true && rec.saved_to_route !== true) {
-            duplicateCrumbIds.push(rec.id);
-          } else if (existing && existing.saved_to_route !== true && rec.saved_to_route === true) {
-            duplicateCrumbIds.push(existing.id);
-            existingByStopOrder.set(so, rec);
-          } else {
-            duplicateCrumbIds.push(rec.id);
-          }
+      if (rec.stop_order === -1) continue;
+      const key = rec.linked_delivery_id ? `d:${rec.linked_delivery_id}` : `s:${Number(rec.stop_order)}`;
+      if (seenKeys.has(key)) {
+        const map = rec.linked_delivery_id ? existingByDeliveryId : existingByStopOrder;
+        const mapKey = rec.linked_delivery_id || Number(rec.stop_order);
+        const existing = map.get(mapKey);
+        if (existing && existing.saved_to_route === true && rec.saved_to_route !== true) {
+          duplicateCrumbIds.push(rec.id);
+        } else if (existing && existing.saved_to_route !== true && rec.saved_to_route === true) {
+          duplicateCrumbIds.push(existing.id);
+          map.set(mapKey, rec);
         } else {
-          seenStopOrders.add(so);
-          existingByStopOrder.set(so, rec);
+          duplicateCrumbIds.push(rec.id);
         }
+      } else {
+        seenKeys.add(key);
+        if (rec.linked_delivery_id) existingByDeliveryId.set(rec.linked_delivery_id, rec);
+        else existingByStopOrder.set(Number(rec.stop_order), rec);
       }
     }
 
@@ -1011,7 +1020,10 @@ Deno.serve(async (req) => {
         segTransportMode = 'cycling';
       }
 
-      const existing = existingByStopOrder.get(stopOrder);
+      // Prefer the stable linked_delivery_id match — this is what makes a
+      // sealed leg follow its delivery after a stop_order renumber instead of
+      // being orphaned (deleted below) or silently detached from its stop.
+      const existing = existingByDeliveryId.get(seg.delivery.id) || existingByStopOrder.get(stopOrder);
 
       const preserveSavedToRoute = (explicitlySelected || force_replace) && existing?.saved_to_route === true;
 
@@ -1019,6 +1031,7 @@ Deno.serve(async (req) => {
         driver_id,
         delivery_date,
         stop_order: stopOrder,
+        linked_delivery_id: seg.delivery.id,
         encoded_polyline: segEncoded,
         timestamps: segTimestamps,
         transport_mode: segTransportMode,
@@ -1027,9 +1040,20 @@ Deno.serve(async (req) => {
       };
 
       if (existing?.id) {
-        existingByStopOrder.delete(stopOrder);
+        existingByDeliveryId.delete(seg.delivery.id);
+        existingByStopOrder.delete(Number(existing.stop_order));
         if (!explicitlySelected && !force_replace && existing.saved_to_route === true) {
           console.log(`⏭️ [consolidateBreadcrumbSegment] Skipping stop #${stopOrder} — already saved_to_route`);
+          // Re-stamp stop_order + linked_delivery_id even while skipping the
+          // polyline itself, so a sealed leg that drifted to a NEW stop_order
+          // (repairStopOrders ran after it was sealed) is re-anchored to the
+          // correct current number instead of staying stuck at its old one.
+          if (Number(existing.stop_order) !== stopOrder || !existing.linked_delivery_id) {
+            await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, {
+              stop_order: stopOrder,
+              linked_delivery_id: seg.delivery.id,
+            }).catch(() => null);
+          }
           results.push({
             stop_order: stopOrder,
             delivery_id: seg.delivery.delivery_id || seg.delivery.id,
@@ -1056,7 +1080,14 @@ Deno.serve(async (req) => {
     }
 
     // ── 8. Clean up orphaned segments for stops that no longer exist ──────────
+    // Both maps had every CLAIMED record removed above (by delivery or by
+    // stop_order) — anything left here belongs to no current terminal stop
+    // under either key, so it's a genuine orphan (delivery deleted/cancelled).
     if (!explicitlySelected) {
+      for (const [, rec] of existingByDeliveryId) {
+        console.log(`🗑️ [consolidateBreadcrumbSegment] Deleting orphaned segment for linked_delivery_id=${rec.linked_delivery_id}`);
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(rec.id).catch(() => null);
+      }
       const validStopOrders = new Set(stops.map(d => Number(d.stop_order)));
       for (const [stopOrder, rec] of existingByStopOrder) {
         if (!validStopOrders.has(stopOrder)) {

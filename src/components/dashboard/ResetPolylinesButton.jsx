@@ -310,12 +310,12 @@ export default function ResetPolylinesButton({
         ]);
         const stops = (rawDeliveries || []).filter(d => d && d.status !== 'cancelled');
         total += stops.length;
-        const sealedOrders = new Set(
-          (segments || [])
-            .filter(seg => seg && seg.encoded_polyline && seg.stop_order !== -1 && seg.saved_to_route === true)
-            .map(seg => Number(seg.stop_order))
-        );
-        sealed += stops.filter(d => sealedOrders.has(Number(d.stop_order))).length;
+        // Match by linked_delivery_id first (stable across stop_order renumbers,
+        // Oct 2 2026 fix); legacy segments with no linked id fall back to stop_order.
+        const sealedSegs = (segments || []).filter(seg => seg && seg.encoded_polyline && seg.stop_order !== -1 && seg.saved_to_route === true);
+        const sealedDeliveryIds = new Set(sealedSegs.filter(seg => seg.linked_delivery_id).map(seg => seg.linked_delivery_id));
+        const sealedOrders = new Set(sealedSegs.filter(seg => !seg.linked_delivery_id).map(seg => Number(seg.stop_order)));
+        sealed += stops.filter(d => sealedDeliveryIds.has(d.id) || sealedOrders.has(Number(d.stop_order))).length;
       } catch (_) {}
     }
     setCoverage({ sealed, total });
@@ -460,16 +460,24 @@ export default function ResetPolylinesButton({
       seg.stop_order !== masterStopOrder &&
       seg.saved_to_route === true
     );
-    const sealedByStopOrder = new Map(sealedBreadcrumbs.map(seg => [Number(seg.stop_order), seg]));
+    // OWNER BUG (Oct 2 2026): matching sealed breadcrumbs to deliveries by
+    // stop_order alone breaks the moment stop_order gets renumbered after the
+    // segment was sealed (repairStopOrders runs after ANY stop edit/delete/
+    // create/optimization) — the saved path then either attaches to the WRONG
+    // delivery now sitting at that number, or finds no match at all and the
+    // full HERE regeneration below silently overwrote/cleared it. Match by
+    // the stable linked_delivery_id first; only legacy pre-migration segments
+    // (no linked_delivery_id) fall back to stop_order.
+    const sealedByDeliveryId = new Map(sealedBreadcrumbs.filter(seg => seg.linked_delivery_id).map(seg => [seg.linked_delivery_id, seg]));
+    const sealedByStopOrder = new Map(sealedBreadcrumbs.filter(seg => !seg.linked_delivery_id).map(seg => [Number(seg.stop_order), seg]));
+    const findSealedFor = (delivery) => sealedByDeliveryId.get(delivery.id) || sealedByStopOrder.get(Number(delivery.stop_order)) || null;
     // Route stops needing a polyline: every non-cancelled stop on the route.
     const routeStops = sorted.filter(d => d.status !== 'cancelled');
-    const allStopsSealed = routeStops.length > 0 && routeStops.every(d =>
-      sealedByStopOrder.has(Number(d.stop_order))
-    );
+    const allStopsSealed = routeStops.length > 0 && routeStops.every(d => !!findSealedFor(d));
     if (allStopsSealed) {
       console.log(`[ResetPolylinesButton] all ${routeStops.length} route stops have sealed breadcrumb segments — breadcrumb-only mode`);
     } else {
-      const sealedCount = routeStops.filter(d => sealedByStopOrder.has(Number(d.stop_order))).length;
+      const sealedCount = routeStops.filter(d => !!findSealedFor(d)).length;
       console.log(`[ResetPolylinesButton] breadcrumb coverage ${sealedCount}/${routeStops.length} stops — full polyline regeneration`);
     }
 
@@ -516,10 +524,10 @@ export default function ResetPolylinesButton({
 
     // Full breadcrumb coverage — apply ONLY the sealed driven paths.
     if (allStopsSealed) {
-      for (const seg of sealedBreadcrumbs) {
-        const matchingDelivery = sorted.find(d => Number(d.stop_order) === Number(seg.stop_order));
-        if (!matchingDelivery) continue;
-        mergeUpdate(matchingDelivery.id, {
+      for (const d of routeStops) {
+        const seg = findSealedFor(d);
+        if (!seg) continue;
+        mergeUpdate(d.id, {
           encoded_polyline: seg.encoded_polyline,
           ...(seg.transport_mode ? { transport_mode: seg.transport_mode } : {}),
         });
@@ -644,14 +652,14 @@ export default function ResetPolylinesButton({
 
     const breadcrumbsToSeal = [];
 
-    for (const seg of pendingBreadcrumbs) {
-      // Match by stop_order to find the corresponding delivery
-      const matchingDelivery = sorted.find(d =>
-        Number(d.stop_order) === Number(seg.stop_order)
-      );
-      if (!matchingDelivery) continue;
+    for (const d of sorted) {
+      if (d.status === 'cancelled') continue;
+      // Match by linked_delivery_id FIRST (stable across stop_order
+      // renumbers) — stop_order fallback only for legacy un-migrated segments.
+      const seg = sealedByDeliveryId.get(d.id) || sealedByStopOrder.get(Number(d.stop_order));
+      if (!seg) continue;
 
-      mergeUpdate(matchingDelivery.id, {
+      mergeUpdate(d.id, {
         encoded_polyline: seg.encoded_polyline,
         ...(seg.transport_mode ? { transport_mode: seg.transport_mode } : {}),
       });
