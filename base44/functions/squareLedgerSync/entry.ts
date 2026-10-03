@@ -250,6 +250,7 @@ Deno.serve(async (req) => {
       }
       const dayKind = new Map<string, Map<string, number>>();
       const kindRange = new Map<string, { min: string; max: string; n: number }>();
+      const locKindRange = new Map<string, { min: string; max: string; n: number }>();
       const payoutLocRange = new Map<string, { min: string; max: string; n: number }>();
       for (const r of scanned) {
         const day = String(r?.occurred_at || '').slice(0, 10);
@@ -263,6 +264,12 @@ Deno.serve(async (req) => {
         if (day > kr.max) kr.max = day;
         kr.n += 1;
         kindRange.set(kind, kr);
+        const lk = `${String(r?.location_name || r?.location_id || '?')}|${kind}`;
+        const lr = locKindRange.get(lk) || { min: day, max: day, n: 0 };
+        if (day < lr.min) lr.min = day;
+        if (day > lr.max) lr.max = day;
+        lr.n += 1;
+        locKindRange.set(lk, lr);
         if (kind === 'card_spend' || kind === 'payout') {
           const loc = String(r?.location_name || r?.location_id || '?');
           const lr = payoutLocRange.get(loc) || { min: day, max: day, n: 0 };
@@ -281,6 +288,7 @@ Deno.serve(async (req) => {
         success: true,
         total: scanned.length,
         kindRanges: Object.fromEntries(kindRange),
+        locKindRanges: Object.fromEntries(locKindRange),
         payoutCoverageByLocation: Object.fromEntries(payoutLocRange),
         days,
       });
