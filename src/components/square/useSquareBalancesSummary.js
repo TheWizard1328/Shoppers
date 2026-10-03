@@ -669,7 +669,13 @@ async function computeWeeklyCached() {
   return value;
 }
 
-async function loadSummary(force) {
+// FIX (Oct 3 2026): loadSummary was hoisted to MODULE scope for the
+// summaryCache/inflight coalescing, but still referenced `userIdRef` — a ref
+// that lives INSIDE the hook. Module scope can never see hook locals, so every
+// load threw `userIdRef is not defined` and the badge fell into the retry loop
+// (observed as "reload attempt 1-4 failed"). The uid now travels as a
+// parameter from the hook's reload().
+async function loadSummary(force, uid) {
   const now = Date.now();
   if (!force && summaryCache.data && now - summaryCache.at < SUMMARY_CACHE_TTL) {
     return { cached: true, data: summaryCache.data, degraded: false };
@@ -678,7 +684,6 @@ async function loadSummary(force) {
   if (inflight) return inflight;
   inflight = (async () => {
     const config = await loadConfig();
-    const uid = userIdRef.current || null;
     const [sales, stl, names] = await Promise.all([
       config ? loadCardSales(config, uid).catch(() => []) : Promise.resolve([]),
       buildStoreToLocMap().catch(() => new Map()),
@@ -780,7 +785,7 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
     const seq = ++reloadSeq.current;
     let data, degraded;
     try {
-      ({ data, degraded } = await loadSummary(force));
+      ({ data, degraded } = await loadSummary(force, userIdRef.current || null));
     } catch (e) {
       const msg = String(e?.message || e);
       const status = Number(e?.status || e?.response?.status || 0);
