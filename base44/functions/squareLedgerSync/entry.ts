@@ -257,23 +257,9 @@ Deno.serve(async (req) => {
           if (l?.fingerprint && l?.is_business_card) businessFps.add(String(l.fingerprint));
         }
       } catch { /* optional */ }
-      const fpStats = new Map<string, { sales: number; cod: number }>();
-      for (const row of scanned) {
-        const kind = String(row.entry_kind || '');
-        if (!(kind === 'sale' || kind === 'collected')) continue;
-        if (String(row.tender_type || '').toUpperCase() !== 'CARD') continue;
-        if (String(row.status || '').toUpperCase() !== 'COMPLETED') continue;
-        if (!row?.card_fingerprint) continue;
-        const key = `${row.location_id}:${row.card_fingerprint}`;
-        const st = fpStats.get(key) || { sales: 0, cod: 0 };
-        st.sales += 1;
-        if (row?.delivery_id) st.cod += 1;
-        fpStats.set(key, st);
-      }
-      const storeCardFps = new Set<string>();
-      for (const [key, st] of fpStats) {
-        if (st.sales >= 5 && st.cod === 0) storeCardFps.add(key.split(':')[1]);
-      }
+      // card_spend class comes ONLY from owner-managed business-card labels —
+      // the 5-swipe heuristic proved unreliable for stamping (unlinked COD
+      // sales look like store-card spends when the catalog link chain broke).
       for (const row of scanned) {
         if (!row?.id) continue;
         const kind = String(row.entry_kind || '');
@@ -290,12 +276,14 @@ Deno.serve(async (req) => {
         }
         if (isSale) {
           const desired = row?.delivery_id ? 'cod_collection'
-            : (row?.card_fingerprint && (businessFps.has(String(row.card_fingerprint)) || storeCardFps.has(String(row.card_fingerprint)))) ? 'card_spend'
+            : (row?.card_fingerprint && businessFps.has(String(row.card_fingerprint))) ? 'card_spend'
             : 'other_sale';
-          // Never overwrite an existing cod_collection stamp; upgrade
-          // mis-defaulted other_sale rows to card_spend.
-          if (!row.sale_class || (row.sale_class === 'other_sale' && desired === 'card_spend')) {
-            if (row.sale_class !== desired) { patch.sale_class = desired; stampClasses += 1; }
+          // Self-correcting: re-stamp anything that doesn't match the desired
+          // class EXCEPT an existing cod_collection stamp (authoritative).
+          // This also reverts heuristic-era card_spend stamps.
+          if (row.sale_class !== desired && row.sale_class !== 'cod_collection') {
+            patch.sale_class = desired;
+            stampClasses += 1;
           }
         }
         if (Object.keys(patch).length) patches.push({ id: row.id, patch });
@@ -738,15 +726,6 @@ Deno.serve(async (req) => {
       const storeCardFingerprints = new Set<string>();
       for (const [fk, n] of Object.entries(storeFingerprintCounts)) {
         if (Number(n) >= 5) storeCardFingerprints.add(fk.split(':')[1]);
-      }
-      // Upgrade non-COD sales on store-card fingerprints to sale_class
-      // 'card_spend' (they were built as other_sale before this was known).
-      for (const e of allEntries) {
-        if (e?.entry_kind !== 'collected' || e.sale_class !== 'other_sale') continue;
-        if (!e?.card_fingerprint) continue;
-        if (e?.delivery_id) continue;
-        if (!storeCardFingerprints.has(String(e.card_fingerprint))) continue;
-        e.sale_class = 'card_spend';
       }
 
       const usedSaleKeys = new Set<string>();
