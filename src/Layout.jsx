@@ -444,6 +444,22 @@ export default function Layout({ children, currentPageName }) {
     return () => window.removeEventListener('appSettingsUpdated', handleAppSettingsUpdate);
   }, [currentUser]);
 
+  // Patients synced from the server (priority sync / patient DB priority sync /
+  // filter date-change sync) — merge them into the patients state the moment
+  // they land. Without this, a patient missing from the boot IDB snapshot kept
+  // its stop card showing "Unknown" for the whole session even though the
+  // record had been saved to IndexedDB seconds after boot.
+  useEffect(() => {
+    const onPatientsSynced = (e) => {
+      const synced = e?.detail?.patients;
+      if (Array.isArray(synced) && synced.length > 0) {
+        setPatients((prev) => mergePatients(prev, synced));
+      }
+    };
+    window.addEventListener('patientsSyncedFromServer', onPatientsSynced);
+    return () => window.removeEventListener('patientsSyncedFromServer', onPatientsSynced);
+  }, []);
+
   // ATOMIC INIT: Unified loading state - keeps spinner until device+auth+data confirmed
   // ─── App bootstrap + sync lifecycle ────────────────────────────────────
   // Extracted to useLayoutInit (init sequence, cleanup, retry timer, bg sync).

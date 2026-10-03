@@ -239,7 +239,7 @@ export const loadPriorityDataForced = async (selectedDateStr, cityId = null, fil
   return loadPriorityData(selectedDateStr, cityId, filters);
 };
 
-export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}, onPartialFresh = null) => {
+export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
 
   // ── FRESHNESS GUARD: skip if we synced this date within the last 5 minutes ──
@@ -309,9 +309,6 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     }
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
-    if (onPartialFresh && Array.isArray(deliveries) && deliveries.length > 0) {
-      try { onPartialFresh({ deliveries }); } catch (_) {}
-    }
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     // Step 4: Sync ONLY patients for these deliveries (priority light-weight sync)
@@ -335,8 +332,13 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         syncedPatients = protectedPatients;
       }
     }
-    if (onPartialFresh && Array.isArray(syncedPatients) && syncedPatients.length > 0) {
-      try { onPartialFresh({ patients: syncedPatients }); } catch (_) {}
+    // CRITICAL: tell the UI about the synced patients. The boot priority sync
+    // previously ONLY wrote IndexedDB — the patients React state stayed frozen
+    // at the boot IDB snapshot, so a patient missing from IDB at boot kept its
+    // stop card showing "Unknown" for the WHOLE SESSION even though the record
+    // was already saved offline.
+    if (Array.isArray(syncedPatients) && syncedPatients.length > 0) {
+      try { window.dispatchEvent(new CustomEvent('patientsSyncedFromServer', { detail: { patients: syncedPatients } })); } catch (_) {}
     }
     invalidateEntityCache('Patient');
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: patientIds.length });
