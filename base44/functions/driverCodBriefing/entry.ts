@@ -585,10 +585,10 @@ async function handleBriefing(base44, params = {}) {
             const codOutByLoc = new Map((ledgerRes?.codOutstanding || []).map((o) => [o.location_id, Number(o.total || 0)]));
             const codOutAll = (ledgerRes?.codOutstanding || []).reduce((s, o) => s + Number(o.total || 0), 0);
             const sinceRows = await base44.asServiceRole.entities.SquareLedgerEntry.filter(
-              { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
+              { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
               '-occurred_at', 2000
             ).catch(() => []);
-            const since = sinceRows || [];
+            const since = (sinceRows || []).filter((s) => ['sale', 'collected'].includes(String(s?.entry_kind || '')));
             const folderRate = Number(cfg.folder_rate ?? 0.02);
             folderTotal += Number(cfg.folder_start || 0);
             const balParts = [];

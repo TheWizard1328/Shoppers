@@ -179,6 +179,15 @@ function windowSinceFor(cfg) {
 // re-counted its amount AND its ~7-cent fee in the card-balance math. The
 // sync now dedupes on write; this dedupes on read so the math is correct
 // even against pre-fix duplicate rows.
+// Entry-kind transition (owner revamp, Oct 3 2026): sale -> collected,
+// payout -> card_spend. The DB backfill rewrites old rows, but IDB window
+// caches can still hold old-kind rows for up to 10 minutes — every reader
+// accepts BOTH values until the migration fully settles.
+const SALE_KINDS = ['sale', 'collected'];
+const PAYOUT_KINDS = ['payout', 'card_spend'];
+const isSaleKind = (e) => SALE_KINDS.includes(String(e?.entry_kind || ''));
+const isPayoutKind = (e) => PAYOUT_KINDS.includes(String(e?.entry_kind || ''));
+
 function dedupeBySquareId(rows) {
   const seen = new Set();
   const out = [];
@@ -199,7 +208,7 @@ export async function loadCardSales(cfg, userId = null) {
   let skip = 0;
   for (let page = 0; page < 40; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
-      { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
+      { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
       undefined, 500, skip
     ).catch(() => []);
     const list = rows || [];
@@ -207,7 +216,7 @@ export async function loadCardSales(cfg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  const deduped = dedupeBySquareId(out);
+  const deduped = dedupeBySquareId(out).filter(isSaleKind);
   writeLedgerCache({ trued_up_at: cfg.trued_up_at, sales: deduped }, userId);
   return deduped;
 }
@@ -248,7 +257,7 @@ async function loadWindowSales(cfg, userId = null) {
   let skip = 0;
   for (let page = 0; page < 20; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
-      { entry_kind: 'sale', status: 'COMPLETED', occurred_at: { $gte: since } },
+      { status: 'COMPLETED', occurred_at: { $gte: since } },
       undefined, 500, skip
     ).catch(() => []);
     const list = rows || [];
@@ -256,7 +265,7 @@ async function loadWindowSales(cfg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  const dedupedW = dedupeBySquareId(out);
+  const dedupedW = dedupeBySquareId(out).filter(isSaleKind);
   writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, window_sales: dedupedW }, userId);
   return dedupedW;
 }
@@ -275,14 +284,14 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
   const since = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
   const cached = await freshLedgerWindows(cfg, userId);
   if (cached && cached.evidence_since === since) {
-    return { sales: dedupeBySquareId(cached.evidence_sales), declines: dedupeBySquareId(cached.evidence_declines) };
+    return { sales: dedupeBySquareId(cached.evidence_sales).filter(isSaleKind), declines: dedupeBySquareId(cached.evidence_declines) };
   }
   const sales = [];
   const declines = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
-      { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: since } },
+      { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: since } },
       undefined, 500, skip
     ).catch(() => []);
     const list = rows || [];
@@ -301,7 +310,7 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  const dedupedSales = dedupeBySquareId(sales);
+  const dedupedSales = dedupeBySquareId(sales).filter(isSaleKind);
   const dedupedDeclines = dedupeBySquareId(declines);
   writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, evidence_since: since, evidence_sales: dedupedSales, evidence_declines: dedupedDeclines }, userId);
   return { sales: dedupedSales, declines: dedupedDeclines };
@@ -327,10 +336,10 @@ export async function loadCardPayouts(cfg, userId = null) {
   let skip = 0;
   for (let page = 0; page < 20; page++) {
     const list = await base44.entities.SquareLedgerEntry.filter(
-      { entry_kind: 'payout', occurred_at: { $gte: cfg.trued_up_at } },
+      { occurred_at: { $gte: cfg.trued_up_at } },
       undefined, 500, skip
     ).catch(() => []);
-    rows.push(...(list || []));
+    rows.push(...(list || []).filter(isPayoutKind));
     if ((list || []).length < 500) break;
     skip += 500;
   }

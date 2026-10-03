@@ -9,12 +9,12 @@
     "entry_kind": {
       "type": "string",
       "enum": [
-        "sale",
+        "collected",
         "refund",
         "decline",
-        "payout"
+        "card_spend"
       ],
-      "description": "Kind of ledger entry"
+      "description": "Kind of ledger entry (owner revamp Oct 3 2026: sale->collected, payout->card_spend; decline/refund unchanged)"
     },
     "tender_type": {
       "type": "string",
@@ -36,6 +36,21 @@
     "fee_cents": {
       "type": "number",
       "description": "Processing fee in cents",
+      "default": 0
+    },
+    "folder_cents": {
+      "type": "number",
+      "description": "Folder (savings) contribution in cents: round(amount_cents x folder_rate). Stamped on CARD sales only",
+      "default": 0
+    },
+    "loan_cents": {
+      "type": "number",
+      "description": "Loan repayment in cents: round(amount_cents x loan_rate for the sale location). Stamped on CARD sales only",
+      "default": 0
+    },
+    "settled_cents": {
+      "type": "number",
+      "description": "Net returned to the card: amount_cents - fee_cents - folder_cents - loan_cents. Stamped on CARD sales only",
       "default": 0
     },
     "status": {

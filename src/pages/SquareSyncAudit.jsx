@@ -123,8 +123,8 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId) => {
     return { code: "refund_unlinked", sign: 1 };
   }
   if (entry.entry_kind === "decline") return { code: "decline", sign: 0 };
-  if (entry.entry_kind === "payout") return { code: "payout", sign: 0 };
-  if (entry.entry_kind === "sale") {
+  if (["payout", "card_spend"].includes(String(entry.entry_kind || ""))) return { code: "payout", sign: 0 };
+  if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
     if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
     const label = entry.card_fingerprint ? labelsByFingerprint[entry.card_fingerprint] : null;
     if (label?.is_business_card) return { code: "spend", sign: -1 };
@@ -286,7 +286,7 @@ export default function SquareSyncAudit() {
       const st = stats.get(e.card_fingerprint);
       if (e.location_name) st.locations.add(e.location_name);
       const cls = classifyEntry(e, labelsByFingerprint, entriesBySquareId);
-      if (e.entry_kind === "sale") { st.saleCount++; st.saleTotal += Number(e.amount_cents || 0); }
+      if (["sale", "collected"].includes(String(e.entry_kind || ""))) { st.saleCount++; st.saleTotal += Number(e.amount_cents || 0); }
       if (e.entry_kind === "decline") st.declineCount++;
       if (e.occurred_at > st.lastSeen) st.lastSeen = e.occurred_at;
     }
@@ -349,7 +349,8 @@ export default function SquareSyncAudit() {
         case "refund_in": b.refundIn += amt; break;
         case "refund_out": b.refundOut += amt; break;
         case "decline": b.declines++; break;
-        case "payout": b.payout += amt; break;
+        case "payout":
+        case "card_spend": b.payout += amt; break;
         default: break;
       }
     }
@@ -385,7 +386,7 @@ export default function SquareSyncAudit() {
       );
       const collectedByDelivery = new Map();
       for (const e of enhancedEntries) {
-        if (e.entry_kind === "sale" && e.sale_class === "cod_collection" && e.delivery_id) {
+        if (["sale", "collected"].includes(String(e.entry_kind || "")) && e.sale_class === "cod_collection" && e.delivery_id) {
           collectedByDelivery.set(e.delivery_id, e);
         }
       }
@@ -688,6 +689,10 @@ export default function SquareSyncAudit() {
                         <th className="px-3 py-2">Method</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2 text-right">Amount</th>
+                        <th className="px-3 py-2 text-right">Fee</th>
+                        <th className="px-3 py-2 text-right">Folder</th>
+                        <th className="px-3 py-2 text-right">Loan</th>
+                        <th className="px-3 py-2 text-right">Settled to Card</th>
                         <th className="px-3 py-2">Item / Reason</th>
                       </tr>
                     </thead>
@@ -708,6 +713,10 @@ export default function SquareSyncAudit() {
                             <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${style.amount}`}>
                               {e.cls.sign === -1 ? "-" : ""}{fmtCents(e.amount_cents)}
                             </td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.fee_cents != null ? fmtCents(e.fee_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.folder_cents != null ? fmtCents(e.folder_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.loan_cents != null ? fmtCents(e.loan_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
                             <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>{e.cod_item_name || e.reason || ""}</td>
                           </tr>
                         );

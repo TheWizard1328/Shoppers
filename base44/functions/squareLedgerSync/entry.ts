@@ -136,6 +136,34 @@ function expectedFeeCents(cardBrand: any, entryMethod: any, amountCents: number)
   return null;
 }
 
+// ── Card settlement columns (owner revamp, Oct 3 2026) ─────────────────────────
+// Every CARD sale now carries its full payout story in ONE row:
+//   folder_cents  = round(amount x folder_rate)  (savings contribution)
+//   loan_cents    = round(amount x loan_rate)    (loan repayment, per location)
+//   settled_cents = amount - fee - folder - loan (net returned to the card)
+// Owner-verified example (Oct 3, Callingwood, loan_rate 0.1825, folder 2%):
+//   $8.62 sale, $0.13 fee -> folder $0.17, loan $1.57, settled $6.75.
+// Rates come from AppSettings 'square_balances' (folder_rate + locations[].loan_rate).
+async function loadBalanceRates(base44: any): Promise<{ folderRate: number; loanRateByLoc: Map<string, number> }> {
+  const rates = { folderRate: 0.02, loanRateByLoc: new Map<string, number>() };
+  try {
+    const rows: any[] = (await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' })) as any[];
+    const cfg = rows?.[0]?.setting_value;
+    if (Number.isFinite(Number(cfg?.folder_rate))) rates.folderRate = Number(cfg.folder_rate);
+    for (const loc of (cfg?.locations || [])) {
+      if (loc?.location_id && Number.isFinite(Number(loc?.loan_rate))) rates.loanRateByLoc.set(String(loc.location_id), Number(loc.loan_rate));
+    }
+  } catch { /* defaults hold */ }
+  return rates;
+}
+function cardSettlementCents(rates: any, locId: any, amountCents: number, feeCents: number): { folder_cents: number; loan_cents: number; settled_cents: number } {
+  const amount = Math.round(Number(amountCents) || 0);
+  const fee = Math.round(Number(feeCents) || 0);
+  const folder = Math.round(amount * rates.folderRate);
+  const loan = Math.round(amount * (rates.loanRateByLoc.get(String(locId || '')) || 0));
+  return { folder_cents: folder, loan_cents: loan, settled_cents: amount - fee - folder - loan };
+}
+
 function ledgerNormalizeText(v: any): string {
   return String(v || '').replace(/\s+/g, ' ').trim();
 }
@@ -154,6 +182,9 @@ function buildEntry(base: Record<string, any>) {
     sale_class: base.sale_class ?? null,
     amount_cents: toCents(base.amount_cents),
     fee_cents: toCents(base.fee_cents),
+    folder_cents: base.folder_cents != null ? toCents(base.folder_cents) : null,
+    loan_cents: base.loan_cents != null ? toCents(base.loan_cents) : null,
+    settled_cents: base.settled_cents != null ? toCents(base.settled_cents) : null,
     status: base.status || null,
     occurred_at: base.occurred_at || null,
     location_id: base.location_id || null,
@@ -192,6 +223,72 @@ Deno.serve(async (req) => {
     const payload = await req.json().catch(() => ({}));
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
     if (!accessToken) throw new HttpError(500, 'Square credentials not configured');
+
+    const rates = await loadBalanceRates(base44);
+
+    // ── LEDGER BACKFILL (owner revamp, Oct 3 2026) ─────────────────────────
+    // One-time migration for the entry_kind rename + settlement columns.
+    // Does NOT touch Square — it walks the existing SquareLedgerEntry table:
+    //   sale     -> collected  (+ stamp folder/loan/settled on CARD sales)
+    //   payout   -> card_spend
+    //   decline/refund unchanged.
+    // Rate-limited rows retry with 30s pauses (same posture as the persist
+    // loop). Safe to re-run: renamed rows and already-stamped CARD sales are
+    // skipped.
+    if (payload?.ledgerBackfill) {
+      const scanned: any[] = [];
+      let skip = 0;
+      for (let page = 0; page < 100; page++) {
+        const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip)) as any[];
+        const list = rows || [];
+        scanned.push(...list);
+        if (list.length < 2000) break;
+        skip += 2000;
+      }
+      const patches: { id: string; patch: any }[] = [];
+      let renameSales = 0, renamePayouts = 0, stampSettlement = 0;
+      for (const row of scanned) {
+        if (!row?.id) continue;
+        const kind = String(row.entry_kind || '');
+        const patch: any = {};
+        if (kind === 'sale') { patch.entry_kind = 'collected'; renameSales += 1; }
+        else if (kind === 'payout') { patch.entry_kind = 'card_spend'; renamePayouts += 1; }
+        const isCardSale = (kind === 'sale' || kind === 'collected')
+          && String(row.tender_type || '').toUpperCase() === 'CARD'
+          && String(row.status || '').toUpperCase() === 'COMPLETED';
+        if (isCardSale && row.settled_cents == null) {
+          Object.assign(patch, cardSettlementCents(rates, row.location_id, row.amount_cents, row.fee_cents));
+          stampSettlement += 1;
+        }
+        if (Object.keys(patch).length) patches.push({ id: row.id, patch });
+      }
+      let applied = 0, pending = patches.slice();
+      for (let pass = 0; pass <= 3 && pending.length; pass++) {
+        const nextPending: any[] = [];
+        for (let i = 0; i < pending.length; i += 50) {
+          const chunk = pending.slice(i, i + 50);
+          const results = await Promise.allSettled(chunk.map((r: any) => base44.asServiceRole.entities.SquareLedgerEntry.update(r.id, r.patch)));
+          results.forEach((res: any, idx: number) => {
+            if (res.status === 'fulfilled') { applied += 1; return; }
+            const msg = String(res.reason?.message || res.reason || '');
+            if (/rate limit/i.test(msg) || res.reason?.status === 429) nextPending.push(chunk[idx]);
+          });
+          await sleep(150);
+        }
+        pending = nextPending;
+        if (pending.length && pass < 3) await sleep(30000);
+      }
+      return Response.json({
+        success: pending.length === 0,
+        scanned: scanned.length,
+        patchesNeeded: patches.length,
+        patched: applied,
+        failed: pending.length,
+        renamedSales: renameSales,
+        renamedPayouts: renamePayouts,
+        settlementStamps: stampSettlement,
+      });
+    }
 
     const monthsBack = Math.min(MAX_MONTHS_BACK, Math.max(1, Math.round(Number(payload?.monthsBack || DEFAULT_MONTHS_BACK)) || DEFAULT_MONTHS_BACK));
     const windowStart = payload?.startDate || new Date(Date.now() - monthsBack * 30.44 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
@@ -321,11 +418,12 @@ Deno.serve(async (req) => {
 
         entries.set(payment.id, buildEntry({
           square_id: payment.id,
-          entry_kind: 'sale',
+          entry_kind: 'collected',
           tender_type: 'CARD',
           sale_class: codLink ? 'cod_collection' : null,
           amount_cents: payment?.amount_money?.amount,
           fee_cents: sumProcessingFees(payment),
+          ...cardSettlementCents(rates, locationId, payment?.amount_money?.amount, sumProcessingFees(payment)),
           status: payment.status,
           occurred_at: payment.created_at,
           location_id: locationId,
@@ -349,7 +447,7 @@ Deno.serve(async (req) => {
           const codLink = resolveCodLink(order, catalogByObjectId);
           entries.set(`tender-${tender.id}`, buildEntry({
             square_id: `tender-${tender.id}`,
-            entry_kind: 'sale',
+            entry_kind: 'collected',
             tender_type: tender.type || 'OTHER',
             sale_class: codLink ? 'cod_collection' : null,
             amount_cents: tender?.amount_money?.amount,
@@ -395,7 +493,7 @@ Deno.serve(async (req) => {
         if (!payout?.id) continue;
         entries.set(payout.id, buildEntry({
           square_id: payout.id,
-          entry_kind: 'payout',
+          entry_kind: 'card_spend',
           amount_cents: payout?.amount_money?.amount,
           status: payout.status,
           occurred_at: payout.created_at,
@@ -562,7 +660,7 @@ Deno.serve(async (req) => {
         const at = new Date(e?.occurred_at || 0).getTime();
         if (!Number.isFinite(at)) continue;
         if (e?.entry_kind === 'decline') { declineAnchors.push({ cents, at, locId: e?.location_id || null }); continue; }
-        if (e?.entry_kind !== 'sale' || String(e?.tender_type || '').toUpperCase() !== 'CARD') continue;
+        if (!['sale', 'collected'].includes(String(e?.entry_kind || '')) || String(e?.tender_type || '').toUpperCase() !== 'CARD') continue;
         if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
         if (e?.card_fingerprint) {
           const fk = `${e.location_id}:${e.card_fingerprint}`;
@@ -582,7 +680,7 @@ Deno.serve(async (req) => {
         const at = new Date(e?.occurred_at || 0).getTime();
         if (!Number.isFinite(at) || cents <= 0) continue;
         if (e?.entry_kind === 'decline') { declineAnchors.push({ cents, at, locId: e?.location_id || null }); continue; }
-        if (e?.entry_kind !== 'sale' || String(e?.tender_type || '').toUpperCase() !== 'CARD') continue;
+        if (!['sale', 'collected'].includes(String(e?.entry_kind || '')) || String(e?.tender_type || '').toUpperCase() !== 'CARD') continue;
         if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
         if (e?.card_fingerprint) {
           const fk = `${e.location_id}:${e.card_fingerprint}`;

@@ -20,7 +20,7 @@ import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
  *
  * Data sources:
  *   - AppSettings 'square_balances': { trued_up_at, folder_rate, locations: [{location_id, name, card_start, loan_start, loan_rate, folder_start}] }
- *   - SquareLedgerEntry: entry_kind 'sale', tender_type 'CARD', status COMPLETED, occurred_at >= trued_up_at
+ *   - SquareLedgerEntry: entry_kind 'collected' (legacy 'sale' also accepted), tender_type 'CARD', status COMPLETED, occurred_at >= trued_up_at
  *     (kept fresh by squareLedgerSync; the Refresh button invokes it for the window since true-up).
  *
  * The loan repayment and folder contribution are NOT exposed by Square's API — they are
@@ -369,7 +369,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         ...(evidence.sales || []),
         ...(codSalesRaw || []),
       ].filter((e) =>
-        String(e?.tender_type || '').toUpperCase() === 'CARD'
+        ['sale', 'collected'].includes(String(e?.entry_kind || ''))
+        && String(e?.tender_type || '').toUpperCase() === 'CARD'
         && String(e?.status || '').toUpperCase() === 'COMPLETED'
         && e?.location_id
         && !isStoreCard(e)));
