@@ -6,8 +6,9 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight } from 
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, payoutsByLocation } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardSales, payoutsByLocation } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
+import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -178,24 +179,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const loadSales = useCallback(async (cfg) => {
     if (!cfg?.trued_up_at) { setSales([]); setPayouts([]); return; }
     const seq = ++loadSeq.current;
-    const out = [];
-    let skip = 0;
-    // Paginate completed CARD sales since the true-up timestamp
-    for (let page = 0; page < 40; page++) {
-      const rows = await base44.entities.SquareLedgerEntry.filter(
-        { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
-        undefined, 500, skip
-      ).catch(() => []);
-      const list = rows || [];
-      out.push(...list);
-      if (list.length < 500) break;
-      skip += 500;
-    }
+    // IDB-cached windows (Oct 2 2026 "100% offline-first"): loadCardSales and
+    // loadCardPayouts both serve the shared 10-minute ledger windows cache —
+    // opening the page during/after a rate-limit storm paints instantly from
+    // IDB instead of joining the storm with 2-4 paginated API scans.
+    const out = await loadCardSales(cfg, currentUser?.id || null).catch(() => []);
     // Bank sweeps (BATCH payouts) since true-up — they leave the real card, so
     // the estimate must subtract them (Oct 2 2026 owner mismatch fix).
-    const payoutRows = await loadCardPayouts(cfg).catch(() => []);
+    const payoutRows = await loadCardPayouts(cfg, currentUser?.id || null).catch(() => []);
     if (seq === loadSeq.current) { setSales(out); setPayouts(payoutRows); }
-  }, []);
+  }, [currentUser?.id]);
 
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
   // from the entities so COD add/remove on any delivery shows up in seconds
@@ -207,12 +200,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // $0 outstanding while this page computed $18.14 correctly).
   const computeLocalOutstanding = useCallback(async (cfgArg) => {
     try {
-      const out = await computeCodOutstandingDetailed(cfgArg || configRef.current);
+      const out = await computeCodOutstandingDetailed(cfgArg || configRef.current, currentUser?.id || null);
       setLocalOutstanding(out);
     } catch (e) {
       console.error('local COD outstanding failed:', e);
     }
-  }, []);
+  }, [currentUser?.id]);
 
   // Owner-only: UNCOLLECTED CODs taken from the SquareCatalogItems database.
   // An ACTIVE catalog item = the COD is still sitting in the Square register,
@@ -436,6 +429,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
       setCodOutstandingByLoc(byLoc);
       toast.success('Square data refreshed');
+      // The sync just wrote NEW ledger rows (service-role — no WS echo reaches
+      // us), so the IDB windows cache is stale: drop it before refresh() runs
+      // loadSales, otherwise the page repaints the pre-sync cache.
+      invalidateLedgerWindows();
       await refresh({ reloadConfig: false });
       computeLocalOutstanding();
       computeCodCollectedToday();
@@ -483,6 +480,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } catch (e) { console.error('AppSettings subscribe failed:', e); }
     try {
       unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
+        invalidateLedgerWindows(); // windows cache is stale — force refetch inside loadSales
         clearTimeout(ledgerTimer);
         ledgerTimer = setTimeout(() => loadSalesRef.current?.(configRef.current), 5000);
       }));

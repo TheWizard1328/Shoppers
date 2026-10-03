@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { edmontonWallString } from '@/components/utils/albertaTime';
-import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary } from '@/components/square/squareBalancesOfflineManager';
+import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedgerWindows, getLedgerWindows } from '@/components/square/squareBalancesOfflineManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
@@ -119,8 +119,65 @@ async function loadConfig() {
   return rec?.setting_value?.locations?.length ? rec.setting_value : null;
 }
 
-async function loadCardSales(cfg) {
+// ── Ledger windows cache (Oct 2 2026, "100% offline-first" owner request) ──
+// The summary snapshot renders instantly, but every refresh still re-fetched
+// the SAME SquareLedgerEntry windows from the entity API (5-8 calls per run),
+// joining the boot rate-limit storm (owner report: red/orange heartbeat dots
+// on every app open, 429 reload attempts in console). Ledger rows only change
+// via squareLedgerSync, so the fetched windows are cached in IDB and served
+// to every subsequent refresh — the badge computes entirely offline unless
+// something actually changed money. Invalidation: true-up change
+// (trued_up_at mismatch), a 10-minute TTL, or a SquareLedgerEntry WS
+// broadcast (invalidateLedgerWindows).
+const LEDGER_CACHE_TTL = 10 * 60_000;
+const ledgerCache = { data: null, idbRead: false, invalidatedAt: 0 };
+let ledgerSaveTimer = null;
+
+async function freshLedgerWindows(cfg, userId) {
+  if (!ledgerCache.data && !ledgerCache.idbRead) {
+    ledgerCache.idbRead = true;
+    const rec = await getLedgerWindows(userId).catch(() => null);
+    if (rec?.saved_at) ledgerCache.data = rec;
+  }
+  const w = ledgerCache.data;
+  if (!w?.saved_at) return null;
+  if (cfg?.trued_up_at && w.trued_up_at !== cfg.trued_up_at) return null; // true-up moved
+  if (ledgerCache.invalidatedAt && new Date(w.saved_at).getTime() < ledgerCache.invalidatedAt) return null;
+  if (Date.now() - new Date(w.saved_at).getTime() > LEDGER_CACHE_TTL) return null;
+  return w;
+}
+
+function writeLedgerCache(patch, userId) {
+  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], cod_sales: [], window_sales: [], window_since: null };
+  ledgerCache.data = { ...w, ...patch, saved_at: new Date().toISOString() };
+  if (ledgerSaveTimer) clearTimeout(ledgerSaveTimer);
+  // Single debounced flush — all loaders write the SAME IDB record.
+  ledgerSaveTimer = setTimeout(() => {
+    ledgerSaveTimer = null;
+    const snap = { ...ledgerCache.data };
+    saveLedgerWindows(snap, userId).catch?.(() => {});
+  }, 1500);
+}
+
+/** A SquareLedgerEntry WS write arrived (page sync, manual ops) — refetch next time. */
+export function invalidateLedgerWindows() {
+  ledgerCache.invalidatedAt = Date.now();
+  ledgerCache.data = null; // keep idbRead so the stale IDB copy is NOT re-served
+}
+
+// Both ledger windows (card sales + unlinked-ring sales pool) use the same
+// Edmonton-day horizon: candidates are deliveries dated cutoff-onward, and a
+// confirming ring can land at most 3 days before that.
+function windowSinceFor(cfg) {
+  const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
+  const cutoffD = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
+  return new Date(new Date(`${cutoffD}T00:00:00Z`).getTime() - 3 * 86400000).toISOString();
+}
+
+export async function loadCardSales(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
+  const cached = await freshLedgerWindows(cfg, userId);
+  if (cached) return cached.sales || [];
   const out = [];
   let skip = 0;
   for (let page = 0; page < 40; page++) {
@@ -133,6 +190,54 @@ async function loadCardSales(cfg) {
     if (list.length < 500) break;
     skip += 500;
   }
+  writeLedgerCache({ trued_up_at: cfg.trued_up_at, sales: out }, userId);
+  return out;
+}
+
+// cod_collection ledger rows windowed to the candidate horizon (Oct 2 2026):
+// previously an UNWINDOWED full scan — every confirmed COD ring ever recorded —
+// on every refresh. Only candidates dated cutoff-onward can be confirmed, and
+// a ring always lands AFTER its delivery's date, so the window is lossless.
+// Fully paged (the old unpageed filter silently truncated at the server's
+// default page size anyway).
+async function loadCodSales(cfg, userId = null) {
+  const since = windowSinceFor(cfg);
+  const cached = await freshLedgerWindows(cfg, userId);
+  if (cached && cached.window_since === since) return cached.cod_sales || [];
+  const out = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const rows = await base44.entities.SquareLedgerEntry.filter(
+      { sale_class: 'cod_collection', occurred_at: { $gte: since } },
+      undefined, 500, skip
+    ).catch(() => []);
+    const list = rows || [];
+    out.push(...list);
+    if (list.length < 500) break;
+    skip += 500;
+  }
+  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, cod_sales: out }, userId);
+  return out;
+}
+
+// Completed sales for the unlinked-ring fallback, same window as loadCodSales.
+async function loadWindowSales(cfg, userId = null) {
+  const since = windowSinceFor(cfg);
+  const cached = await freshLedgerWindows(cfg, userId);
+  if (cached && cached.window_since === since) return cached.window_sales || [];
+  const out = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const rows = await base44.entities.SquareLedgerEntry.filter(
+      { entry_kind: 'sale', status: 'COMPLETED', occurred_at: { $gte: since } },
+      undefined, 500, skip
+    ).catch(() => []);
+    const list = rows || [];
+    out.push(...list);
+    if (list.length < 500) break;
+    skip += 500;
+  }
+  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, window_sales: out }, userId);
   return out;
 }
 
@@ -148,8 +253,10 @@ async function loadCardSales(cfg) {
 // CANCELED/FAILED never will). Dedupe by square_id AND amount+time+type —
 // duplicate payout rows exist in the ledger (Callingwood Oct 2: the same
 // 05:37Z payout persisted twice).
-export async function loadCardPayouts(cfg) {
+export async function loadCardPayouts(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
+  const cached = await freshLedgerWindows(cfg, userId);
+  if (cached) return cached.payouts || [];
   const rows = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -176,6 +283,7 @@ export async function loadCardPayouts(cfg) {
     seenTuple.add(tuple);
     out.push({ id: r.id, location_id: r.location_id, amount, occurred_at: r.occurred_at, status: r.status });
   }
+  writeLedgerCache({ trued_up_at: cfg.trued_up_at, payouts: out }, userId);
   return out;
 }
 
@@ -227,31 +335,20 @@ export async function buildStoreToLocMap() {
 // failed Store/SquareLocationConfig/Delivery/SquareLedgerEntry call THROWS,
 // the caller retries once, and only a second failure degrades to null (which
 // loadSummary flags as degraded and self-heals with a delayed forced reload).
-export async function computeCodOutstandingDetailed(cfgArg) {
+export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   // IDB-first for the app-synced reference data (no API cost); the Square
   // ledger scans stay on the API (ledger rows change only via squareLedgerSync,
   // so they are one bounded read each, windowed where possible).
   const [storesRaw, cfgsRaw, codSalesRaw, allSalesRaw, patientsRaw, allDeliveries] = await Promise.all([
     idbOrApi(offlineDB.STORES.STORES, 'stores', IDB_REF_TTL, () => base44.entities.Store.list(), 5),
     idbOrApi(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, 'locCfgs', IDB_REF_TTL, () => base44.entities.SquareLocationConfig.list(), 1),
-    base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }),
-    // Completed sales for the unlinked-ring fallback below. Windowed to the
-    // candidate horizon (cutoff − 3d) instead of the full history — the
-    // fallback only ever matches sales from a candidate's own Edmonton day.
-    (async () => {
-      const tu = cfgArg?.trued_up_at ? new Date(cfgArg.trued_up_at) : null;
-      const cutoffD = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
-      const since = new Date(new Date(`${cutoffD}T00:00:00Z`).getTime() - 3 * 86400000).toISOString();
-      const out = [];
-      let skip = 0;
-      for (let page = 0; page < 20; page++) {
-        const rows = await base44.entities.SquareLedgerEntry.filter({ entry_kind: 'sale', status: 'COMPLETED', occurred_at: { $gte: since } }, undefined, 500, skip);
-        out.push(...(rows || []));
-        if ((rows || []).length < 500) break;
-        skip += 500;
-      }
-      return out;
-    })(),
+    // Ledger scans are IDB-cached windows (Oct 2 2026 "100% offline-first"):
+    // loadCodSales/loadWindowSales serve the 10-min cache unless a true-up
+    // moved or a WS ledger write invalidated it. Cod collection rows are now
+    // WINDOWED (cutoff − 3d) and fully paged — previously an unwindowed
+    // un-paged scan whose results silently truncated at the default page size.
+    loadCodSales(cfgArg, userId),
+    loadWindowSales(cfgArg, userId),
     idbOrApi(offlineDB.STORES.PATIENTS, 'patients', IDB_REF_TTL, () => base44.entities.Patient.list(), 20),
     getAllDeliveriesIdb(),
   ]);
@@ -382,25 +479,6 @@ export async function computeCodOutstandingDetailed(cfgArg) {
     out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50) };
   }
   return out;
-}
-
-// Totals-only view for the badge. Retries once on failure; returns null on a
-// second failure so the caller can flag degradation (previously a single
-// transient failure returned {} and the badge silently showed card balances
-// with ZERO CODs outstanding — the exact Oct 2 owner mismatch).
-async function computeCodOutstandingByLoc(cfg) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const detailed = await computeCodOutstandingDetailed(cfg);
-      const out = {};
-      for (const [locId, agg] of Object.entries(detailed || {})) out[locId] = agg.total;
-      return out;
-    } catch (e) {
-      console.error(`[useSquareBalancesSummary] COD outstanding attempt ${attempt + 1} failed:`, e);
-      if (attempt === 0) await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-  return null;
 }
 
 /**
@@ -580,8 +658,9 @@ async function loadSummary(force) {
   if (inflight) return inflight;
   inflight = (async () => {
     const config = await loadConfig();
+    const uid = userIdRef.current || null;
     const [sales, stl, names] = await Promise.all([
-      config ? loadCardSales(config).catch(() => []) : Promise.resolve([]),
+      config ? loadCardSales(config, uid).catch(() => []) : Promise.resolve([]),
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
     ]);
@@ -590,10 +669,10 @@ async function loadSummary(force) {
     // Balances page can hydrate offline from the IDB snapshot without a
     // second compute.
     const [codDetailedRaw, weekly, dailyRemaining, payouts] = await Promise.all([
-      config ? computeCodOutstandingDetailed(config) : Promise.resolve({}),
+      config ? computeCodOutstandingDetailed(config, uid) : Promise.resolve({}),
       computeWeeklyCached(),
       computeDailyCodRemainingByStore(),
-      config ? loadCardPayouts(config) : Promise.resolve([]),
+      config ? loadCardPayouts(config, uid) : Promise.resolve([]),
     ]);
     // null = both attempts failed (e.g. transient entity rate limit). Cache the
     // degraded result so the badge still shows something, but flag it so the
@@ -689,11 +768,13 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
       console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1}${rateLimited ? ' (rate-limited)' : ''} failed:`, msg);
       if (seq !== reloadSeq.current) return;
       if (attempt < 3) {
-        // RATE-AWARE BACKOFF (Oct 2 2026): a 429 means the per-minute quota
-        // bucket is exhausted — short 2-8s retries land inside the same
-        // limited window and fail again (observed: badge blank 30-60s on hard
-        // boot while every quick retry 429'd). Wait for the bucket to refill.
-        const wait = rateLimited ? [15000, 30000, 45000][attempt] : 2000 * Math.pow(2, attempt);
+        // RATE-AWARE BACKOFF (Oct 2 2026, tuned for offline-first): a 429
+        // means the per-minute quota bucket is exhausted — the badge already
+        // renders the IDB snapshot (and the ledger windows cache keeps the
+        // compute offline), so retries only need to EVENTUALLY succeed, never
+        // fast. Long waits also stop the retry loop itself from feeding the
+        // storm (observed: attempts 1-4 back-to-back made the dots worse).
+        const wait = rateLimited ? [30000, 90000, 180000][attempt] : 2000 * Math.pow(2, attempt);
         setTimeout(() => reload(true, attempt + 1), wait);
       }
       return;
@@ -755,13 +836,14 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
         // deferred first load — nothing to render offline.
         bootTimer = setTimeout(runFirstLoad, 4000);
       } else {
-        bootTimer = setTimeout(runFirstLoad, 20000);
+        // 60s (Oct 2 2026, was 20s + boot-wave): the badge already renders the
+        // snapshot instantly, so the first network refresh has nothing to
+        // win by racing the boot read-storm — every 429 here was a red/orange
+        // heartbeat dot on the owner's stats card. One minute of (already
+        // visible) snapshot data is the cheaper trade.
+        bootTimer = setTimeout(runFirstLoad, 60000);
       }
     })();
-    // 'lightweightRefreshComplete' = the main boot data wave just finished and
-    // the quota bucket is free — the ideal moment for the first fresh load.
-    const onBootWave = () => runFirstLoad();
-    window.addEventListener('lightweightRefreshComplete', onBootWave);
     const unsubs = [];
     let cfgTimer = null, codTimer = null;
     // True-Up writes AppSettings — the one non-delivery event that directly
@@ -769,11 +851,13 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((ev) => {
         if (ev?.data?.setting_key !== SETTING_KEY) return;
+        if (!bootDelayFired) return; // quiet boot window — snapshot still showing
         clearTimeout(cfgTimer);
         cfgTimer = setTimeout(() => reload(true), 2500);
       }));
     } catch {}
     const scheduleCodReload = () => {
+      if (!bootDelayFired) return; // quiet boot window — snapshot still showing
       clearTimeout(codTimer);
       // NON-forced (Oct 2 2026 rate-limit fix): the 60s summary cache
       // coalesces WS bursts — a delivery-change volley runs at most once a
@@ -790,6 +874,18 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
         scheduleCodReload();
       }));
     } catch {}
+    // SquareLedgerEntry broadcasts (page sync / manual ring bookkeeping):
+    // the ledger windows cache MUST be dropped — the next reload refetches.
+    // This is what keeps the IDB cache trustworthy without a polling timer:
+    // any change to the badge's money data invalidates it exactly on time.
+    try {
+      unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
+        invalidateLedgerWindows();
+        if (!bootDelayFired) return; // quiet boot window — snapshot still showing
+        clearTimeout(cfgTimer);
+        cfgTimer = setTimeout(() => reload(true), 2500);
+      }));
+    } catch {}
     // Same-device user actions — WS echoes are suppressed after local writes,
     // so the app's own window event is the local signal. When the event
     // carries the changed records, filter by COD relevance; when it doesn't,
@@ -803,7 +899,6 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
     return () => {
       cancelled = true;
       firstLoadDone = true;
-      window.removeEventListener('lightweightRefreshComplete', onBootWave);
       if (bootTimer) clearTimeout(bootTimer);
       clearTimeout(cfgTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });

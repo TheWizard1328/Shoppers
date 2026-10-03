@@ -83,3 +83,70 @@ export const purgeSummarySnapshot = async () => {
     return { success: false, error: error.message };
   }
 };
+
+// ── Ledger windows cache (Oct 2 2026, "100% offline-first" owner request) ──
+// The summary snapshot above renders INSTANTLY, but every refresh still re-
+// fetched the SAME SquareLedgerEntry windows from the entity API (card sales
+// pages, payout pages, cod_collection scan, unlinked-ring window) — 5-8 calls
+// per run, and during boot those calls joined the platform rate-limit storm
+// (owner report: red/orange heartbeat dots at every app open, 429s in console).
+// Ledger rows only change via squareLedgerSync (page sync / backend), so the
+// badge caches the fetched windows in IDB and serves refreshes from them. The
+// cache is invalidated by: true-up change (trued_up_at mismatch), a 10-minute
+// TTL, or a SquareLedgerEntry WS broadcast. Ledger rows are Square financial
+// data, not PHI and not user-scoped — one shared record per device.
+const LEDGER_WINDOWS_ID = 'ledger_windows';
+
+export const saveLedgerWindows = async (windows, userId = null) => {
+  try {
+    const record = {
+      id: LEDGER_WINDOWS_ID,
+      user_id: userId || null,
+      saved_at: new Date().toISOString(),
+      trued_up_at: windows?.trued_up_at || null,
+      sales: Array.isArray(windows?.sales) ? windows.sales : [],
+      payouts: Array.isArray(windows?.payouts) ? windows.payouts : [],
+      cod_sales: Array.isArray(windows?.cod_sales) ? windows.cod_sales : [],
+      window_sales: Array.isArray(windows?.window_sales) ? windows.window_sales : [],
+      window_since: windows?.window_since || null,
+    };
+    await offlineDB.save(SUMMARY_STORE, record);
+    return { success: true };
+  } catch (error) {
+    console.error('[SquareBalancesOffline] Error saving ledger windows:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// User-scoped like the summary snapshot: the windows are whatever the last
+// signed-in user's badge fetched — never serve them across accounts.
+export const getLedgerWindows = async (userId = null) => {
+  try {
+    const rec = await offlineDB.getById(SUMMARY_STORE, LEDGER_WINDOWS_ID);
+    if (!rec?.saved_at) return null;
+    if (rec.user_id && userId && rec.user_id !== userId) return null;
+    if (!rec.user_id && userId) return null; // anonymous record after a named session — refuse
+    return rec;
+  } catch (error) {
+    console.error('[SquareBalancesOffline] Error reading ledger windows:', error);
+    return null;
+  }
+};
+
+export const purgeLedgerWindows = async () => {
+  try {
+    // offlineDB has no single-record delete — overwrite the record with an
+    // unservable tombstone (trued_up_at null fails the cache guard, saved_at
+    // epoch fails the TTL guard). Never clearStore(): that would also wipe
+    // the summary snapshot next to it in this store.
+    await offlineDB.save(SUMMARY_STORE, {
+      id: LEDGER_WINDOWS_ID,
+      saved_at: new Date(0).toISOString(),
+      trued_up_at: null,
+      sales: [], payouts: [], cod_sales: [], window_sales: [],
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
