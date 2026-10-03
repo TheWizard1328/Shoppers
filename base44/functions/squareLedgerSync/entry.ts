@@ -120,6 +120,32 @@ function resolveCodLink(order: any, catalogByObjectId: Map<string, any>) {
   return null;
 }
 
+// ── Fee rules (owner, Oct 3 2026) ─────────────────────────────────────────────
+// Interac/debit: $0.07 + 0.75%. Any credit card: 2.5% flat. KEYED credit
+// (card number typed in, not tapped): 3.3% + $0.15 (owner rule added after the
+// Oct 1 Callingwood $23.43 KEYED VISA sale carrying a $0.92 fee). Verified
+// live against every Oct 1-3 sale in the ledger: all exact to the cent.
+function expectedFeeCents(cardBrand: any, entryMethod: any, amountCents: number): number | null {
+  const a = Math.round(Number(amountCents) || 0);
+  if (a <= 0) return null;
+  const brand = String(cardBrand || '').toUpperCase();
+  const method = String(entryMethod || '').toUpperCase();
+  if (brand === 'INTERAC') return 7 + Math.round(a * 0.0075);
+  if (method === 'KEYED') return 15 + Math.round(a * 0.033);
+  if (brand) return Math.round(a * 0.025);
+  return null;
+}
+
+function ledgerNormalizeText(v: any): string {
+  return String(v || '').replace(/\s+/g, ' ').trim();
+}
+// Same format as the catalog items (formatItemName in squareAdminCore) so
+// backfilled cod_item_name values match the names drivers see in Square.
+function ledgerFormatItemName(deliveryDate: any, storeAbbreviation: any, patientName: any): string {
+  const [, month, day] = String(deliveryDate || '').split('-');
+  return `${(month || '00').padStart(2, '0')}/${(day || '00').padStart(2, '0')}(${ledgerNormalizeText(storeAbbreviation) || 'NA'})-${ledgerNormalizeText(patientName) || 'Unknown Patient'}`;
+}
+
 function buildEntry(base: Record<string, any>) {
   const entry: Record<string, any> = {
     square_id: base.square_id,
@@ -458,13 +484,220 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── COD LINK BACKFILL (Oct 3 2026 owner plan) ────────────────────────────
+    // resolveCodLink only works when the order's line items carry the delivery's
+    // catalog_object_id — manual/un-itemized rings and multi-COD swipes were
+    // landing with delivery_id/patient_id/cod_item_name ALL null (owner report:
+    // "they have been getting skipped lately"). This pass matches unlinked
+    // completed CARD sales to completed delivery CODs by EXACT cents (single
+    // swipe first, then subset-sum of 2-3 swipes for split payments — the
+    // decline-then-partial pattern), scoped to the COD's store location and a
+    // [completion−90min, completion+6h] ring window. Matched sales get
+    // sale_class/delivery_id/patient_id/cod_item_name stamped; the delivery's
+    // collection type syncs to the swiped card (INTERAC → Debit, else Credit);
+    // and existing ledger rows missing links are repaired too, not just new
+    // window entries.
+    let backfillLinks = 0;
+    let backfillRepairs = 0;
+    let backfillTypeSyncs = 0;
+    let backfillFeeChecks = 0;
+    let backfillFeeMismatches = 0;
+    const storeFingerprintCounts: any = {};
+    try {
+      // Reference data: stores (loc + abbreviation), catalog rows keyed by
+      // delivery_id (item_name + patient_id), completed COD deliveries.
+      const [storesRaw, cfgsRaw] = await Promise.all([
+        base44.asServiceRole.entities.Store.list('-created_date', 2000).catch(() => []),
+        base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []),
+      ]);
+      const cfgLocById = new Map<string, string>();
+      for (const c of cfgsRaw || []) if (c?.id && c?.square_location_id) cfgLocById.set(String(c.id), c.square_location_id);
+      const storeToLoc = new Map<string, string>();
+      const storeAbbrById = new Map<string, string>();
+      for (const st of storesRaw || []) {
+        if (!st?.id) continue;
+        storeAbbrById.set(String(st.id), st?.abbreviation || null);
+        const loc = st?.square_location_config_id ? cfgLocById.get(String(st.square_location_config_id)) : null;
+        if (loc) storeToLoc.set(String(st.id), loc);
+      }
+      const catalogByDeliveryId = new Map<string, any>();
+      for (const [, link] of catalogByObjectId) {
+        if (link?.delivery_id && !catalogByDeliveryId.has(link.delivery_id)) catalogByDeliveryId.set(link.delivery_id, link);
+      }
+
+      // Completed deliveries with a COD requirement (bounded pages).
+      type CodDelivery = { id: string; locId: string; cents: number; completedAt: number; date: string; patientId: any; patientName: string; abbr: string | null };
+      const codDeliveries: CodDelivery[] = [];
+      const backfillFloorMs = new Date(new Date(windowStart).getTime() - 3 * 86400000).getTime();
+      for (let page = 0; page < 4; page++) {
+        const rows: any[] = (await base44.asServiceRole.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => [])) as any[];
+        const list = rows || [];
+        for (const d of list) {
+          if (d?.status !== 'completed' || d?.cod_confirmed_collected) continue;
+          const required = Number(d?.cod_total_amount_required || 0);
+          if (required <= 0) continue;
+          const createdMs = new Date(d?.created_date || 0).getTime();
+          if (Number.isFinite(createdMs) && createdMs < backfillFloorMs) continue;
+          const locId = storeToLoc.get(String(d?.store_id || ''));
+          if (!locId) continue;
+          const completedAt = new Date(d?.actual_delivery_time || d?.updated_date || d?.created_date || 0).getTime();
+          codDeliveries.push({
+            id: String(d.id), locId, cents: Math.round(required * 100), completedAt,
+            date: String(d?.delivery_date || ''), patientId: d?.patient_id || null,
+            patientName: ledgerNormalizeText(d?.patient_name), abbr: storeAbbrById.get(String(d?.store_id || '')) || null,
+          });
+        }
+        if (list.length < 2000) break;
+        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < backfillFloorMs) break;
+      }
+
+      // Unlinked completed CARD sales pool: current-window entries PLUS existing
+      // ledger rows (window-independent repair). Declines are anchor evidence.
+      type SaleCandidate = { key: string; existingId: string | null; cents: number; at: number; brand: string | null; method: string | null; fee: number; locId: string | null; cardFingerprint: string | null };
+      const salePool: SaleCandidate[] = [];
+      const declineAnchors: { cents: number; at: number; locId: string | null }[] = [];
+      for (const e of allEntries) {
+        if (e?.delivery_id) continue;
+        const cents = Math.round(Number(e?.amount_cents || 0));
+        const at = new Date(e?.occurred_at || 0).getTime();
+        if (!Number.isFinite(at)) continue;
+        if (e?.entry_kind === 'decline') { declineAnchors.push({ cents, at, locId: e?.location_id || null }); continue; }
+        if (e?.entry_kind !== 'sale' || String(e?.tender_type || '').toUpperCase() !== 'CARD') continue;
+        if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+        if (e?.card_fingerprint) {
+          const fk = `${e.location_id}:${e.card_fingerprint}`;
+          storeFingerprintCounts[fk] = (storeFingerprintCounts[fk] || 0) + 1;
+        }
+        salePool.push({
+          key: String(e.square_id), existingId: existingIdBySquareId.get(String(e.square_id)) || null,
+          cents, at, brand: e?.card_brand || null, method: e?.entry_method || null,
+          fee: Math.round(Number(e?.fee_cents || 0)), locId: e?.location_id || null, cardFingerprint: e?.card_fingerprint || null,
+        });
+      }
+      for (const [sqid, rows] of existingRowsBySquareId) {
+        if (entries.has(sqid)) continue;
+        const e = rows[0];
+        if (!e || e?.delivery_id) continue;
+        const cents = Math.round(Number(e?.amount_cents || 0));
+        const at = new Date(e?.occurred_at || 0).getTime();
+        if (!Number.isFinite(at) || cents <= 0) continue;
+        if (e?.entry_kind === 'decline') { declineAnchors.push({ cents, at, locId: e?.location_id || null }); continue; }
+        if (e?.entry_kind !== 'sale' || String(e?.tender_type || '').toUpperCase() !== 'CARD') continue;
+        if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+        if (e?.card_fingerprint) {
+          const fk = `${e.location_id}:${e.card_fingerprint}`;
+          storeFingerprintCounts[fk] = (storeFingerprintCounts[fk] || 0) + 1;
+        }
+        salePool.push({
+          key: String(e.square_id), existingId: e?.id || null,
+          cents, at, brand: e?.card_brand || null, method: e?.entry_method || null,
+          fee: Math.round(Number(e?.fee_cents || 0)), locId: e?.location_id || null, cardFingerprint: e?.card_fingerprint || null,
+        });
+      }
+
+      // Store-card fingerprints (owner plan): a card swiped many times at one
+      // location that never matches a COD is the store's own business card —
+      // exclude its sales from COD matching.
+      const storeCardFingerprints = new Set<string>();
+      for (const [fk, n] of Object.entries(storeFingerprintCounts)) {
+        if (Number(n) >= 5) storeCardFingerprints.add(fk.split(':')[1]);
+      }
+
+      const usedSaleKeys = new Set<string>();
+      const WINDOW_BEFORE_MS = 90 * 60000;
+      const WINDOW_AFTER_MS = 6 * 3600000;
+      const subsetSumMatch = (pool: SaleCandidate[], target: number): SaleCandidate[] | null => {
+        const avail = pool.filter((x) => !usedSaleKeys.has(x.key));
+        for (const one of avail) if (one.cents === target) return [one];
+        for (let i = 0; i < avail.length; i++) {
+          for (let j = i + 1; j < avail.length; j++) {
+            if (avail[i].cents + avail[j].cents === target) return [avail[i], avail[j]];
+            for (let k = j + 1; k < avail.length; k++) {
+              if (avail[i].cents + avail[j].cents + avail[k].cents === target) return [avail[i], avail[j], avail[k]];
+            }
+          }
+        }
+        return null;
+      };
+
+      for (const d of codDeliveries) {
+        const pool = salePool.filter((x) =>
+          x.locId === d.locId && !usedSaleKeys.has(x.key) &&
+          !(x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint)) &&
+          x.at >= d.completedAt - WINDOW_BEFORE_MS && x.at <= d.completedAt + WINDOW_AFTER_MS
+        );
+        if (!pool.length) continue;
+        // Prefer pool members whose ring follows a decline of the same amount
+        // (owner: declined full-COD swipe, then successful parts that sum to it).
+        const anchored = pool.filter((x) => declineAnchors.some((a) => a.locId === d.locId && a.cents === d.cents && a.at >= d.completedAt - WINDOW_BEFORE_MS && a.at <= x.at));
+        const match = subsetSumMatch(anchored.length ? anchored : pool, d.cents);
+        if (!match) continue;
+        const catalogLink = catalogByDeliveryId.get(d.id);
+        const patientId = catalogLink?.patient_id || d.patientId || null;
+        const itemName = catalogLink?.item_name || ledgerFormatItemName(d.date, d.abbr, d.patientName);
+        const codType = String(match[0].brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
+        for (const m of match) {
+          usedSaleKeys.add(m.key);
+          const stamp = { sale_class: 'cod_collection', delivery_id: d.id, patient_id: patientId, cod_item_name: itemName };
+          if (m.existingId && !entries.has(m.key)) {
+            await base44.asServiceRole.entities.SquareLedgerEntry.update(m.existingId, stamp).then(() => { backfillRepairs += 1; }).catch(() => {});
+          } else {
+            const rec = entries.get(m.key);
+            if (rec) Object.assign(rec, stamp);
+            backfillLinks += 1;
+          }
+          const expected = expectedFeeCents(m.brand, m.method, m.cents);
+          if (expected != null) { backfillFeeChecks += 1; if (Math.abs(expected - m.fee) > 2) backfillFeeMismatches += 1; }
+        }
+        // Collection type sync (owner rule Oct 3): the swiped card is the
+        // authority — INTERAC = Debit, any credit = Credit.
+        try {
+          const del: any = await base44.asServiceRole.entities.Delivery.get(d.id).catch(() => null);
+          const payments = Array.isArray(del?.cod_payments) ? del.cod_payments : [];
+          const centsOf = (n: any) => Math.round(Number(n || 0) * 100);
+          let updated = false;
+          let nextPayments = payments.map((p: any) => ({ ...p }));
+          const exactIdx = nextPayments.findIndex((p: any) => centsOf(p?.amount) === d.cents);
+          if (exactIdx >= 0) {
+            if (nextPayments[exactIdx]?.type !== codType) { nextPayments[exactIdx] = { ...nextPayments[exactIdx], type: codType }; updated = true; }
+          } else if (nextPayments.length === 1) {
+            if (nextPayments[0]?.type !== codType) { nextPayments[0] = { ...nextPayments[0], type: codType }; updated = true; }
+          } else {
+            nextPayments = [...nextPayments, { type: codType, amount: d.cents / 100 }];
+            updated = true;
+          }
+          if (updated || !del?.cod_confirmed_collected) {
+            await base44.asServiceRole.entities.Delivery.update(d.id, {
+              ...(updated ? { cod_payments: nextPayments } : {}),
+              cod_confirmed_collected: true,
+              cod_confirmed_collected_at: new Date().toISOString(),
+            }).then(() => { backfillTypeSyncs += 1; }).catch(() => {});
+          }
+        } catch { /* non-fatal */ }
+      }
+    } catch (e: any) {
+      syncErrors.push(`backfill: ${e?.message || e}`);
+    }
+
     let upserted = 0;
     let failedUpserts = 0;
     for (let i = 0; i < allEntries.length; i += UPSERT_CHUNK) {
       const chunk = allEntries.slice(i, i + UPSERT_CHUNK);
       const results = await Promise.all(chunk.map((record: any) => {
         const existingId = existingIdBySquareId.get(record.square_id);
-        if (existingId) return base44.asServiceRole.entities.SquareLedgerEntry.update(existingId, record).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`update(${record.square_id}): ${e?.message || e}`); return false; });
+        if (existingId) {
+          // Never wipe a previously stamped COD link when this run's rebuild
+          // failed to resolve it (e.g. catalog item since deleted).
+          const exRow = existingRowsBySquareId.get(record.square_id)?.[0];
+          const merged = exRow ? {
+            ...record,
+            sale_class: record.sale_class || exRow.sale_class || null,
+            delivery_id: record.delivery_id || exRow.delivery_id || null,
+            patient_id: record.patient_id || exRow.patient_id || null,
+            cod_item_name: record.cod_item_name || exRow.cod_item_name || null,
+          } : record;
+          return base44.asServiceRole.entities.SquareLedgerEntry.update(existingId, merged).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`update(${record.square_id}): ${e?.message || e}`); return false; });
+        }
         return base44.asServiceRole.entities.SquareLedgerEntry.create(record).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`create(${record.square_id}): ${e?.message || e}`); return false; });
       }));
       upserted += results.filter(Boolean).length;
@@ -603,6 +836,11 @@ Deno.serve(async (req) => {
       duplicateRowsDeleted,
       payoutsAvailable,
       codLinks: allEntries.filter((e) => e.delivery_id).length,
+      backfillLinks,
+      backfillRepairs,
+      backfillTypeSyncs,
+      backfillFeeChecks,
+      backfillFeeMismatches,
       codOutstanding,
       stampedConfirmations,
       durationMs: Date.now() - startedAt,

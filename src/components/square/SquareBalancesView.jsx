@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardSales, payoutsByLocation } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardSales, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -656,11 +656,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const perLocation = useMemo(() => {
     if (!config) return [];
     const folderRate = Number(config.folder_rate ?? DEFAULT_FOLDER_RATE);
+    const storeCardFps = learnStoreCardFingerprints(sales);
+    const payoutCentsByLoc = new Map();
+    for (const pw of payouts || []) {
+      if (!pw?.location_id) continue;
+      if (!payoutCentsByLoc.has(pw.location_id)) payoutCentsByLoc.set(pw.location_id, []);
+      payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
+    }
     return (config.locations || []).map((loc) => {
       const locSales = sales.filter((s) => s.location_id === loc.location_id);
-      let gross = 0, fees = 0, loan = 0, folder = 0, credits = 0;
+      let gross = 0, fees = 0, loan = 0, folder = 0, credits = 0, storeCardSpend = 0;
       for (const s of locSales) {
         const amount = Number(s.amount_cents || 0) / 100;
+        // Store-card spend (fingerprint-learned, owner plan Oct 3 2026): money
+        // OUT on the store's own card — excluded from the credit math.
+        if (s.card_fingerprint && storeCardFps.has(String(s.card_fingerprint))) { storeCardSpend += amount; continue; }
         const fee = Number(s.fee_cents || 0) / 100;
         const l = amount * Number(loc.loan_rate || 0);
         const f = amount * folderRate;
@@ -669,12 +679,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
       const r2 = (x) => Math.round(x * 100) / 100;
       const codOut = localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || null;
-      const swept = payoutByLoc.get(loc.location_id) || 0;
+      // PAYOUT-MATCHED OUTSTANDING CODs (owner rule Oct 3 2026): the COD to
+      // collect subtracts ONLY when payouts at this store equal it exactly
+      // (single or combined subset) — matched payouts leave the sweep total
+      // so the COD and its charge never double-count.
+      const { matched, chargedCents, chargedCount } = matchPayoutChargedCods(
+        (codOut?.items) || [],
+        payoutCentsByLoc.get(loc.location_id) || []
+      );
+      const payoutCents = payoutCentsByLoc.get(loc.location_id) || [];
+      const swept = payoutCents.length ? payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100 : (payoutByLoc.get(loc.location_id) || 0);
       return {
         ...loc,
         saleCount: locSales.length,
         gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
         sweptOut: r2(swept),
+        chargedToCard: r2(chargedCents / 100),
+        chargedCount,
+        storeCardSpend: r2(storeCardSpend),
         // UN-SWIPED CODs DO NOT REDUCE THE BALANCE (owner rule, Oct 2 2026,
         // Londonderry $528.17 report): a COD only counts as money removed from
         // the card once its real card spend exists in the Square records (the
@@ -682,15 +704,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Outstanding CODs stay visible as "owed, not yet swiped" and drive
         // the low-balance forecast, but do NOT subtract from the estimate.
         // BATCH bank sweeps since true-up leave the real card too (Oct 2 2026 fix)
-        cardEstimate: r2(Number(loc.card_start || 0) + credits - swept),
+        cardEstimate: r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - swept), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         codOutstanding: codOut,
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
-  }, [config, sales, payoutByLoc, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc]);
+  }, [config, sales, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -969,6 +991,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Swept to bank</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.sweptOut)}</div>
+                </div>
+              )}
+              {loc.chargedToCard > 0 && (
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Charged CODs (payout-matched{loc.chargedCount ? `, ${loc.chargedCount}` : ''})</div>
+                  <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.chargedToCard)}</div>
+                </div>
+              )}
+              {loc.storeCardSpend > 0 && (
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Store-card spends (excluded)</div>
+                  <div className="font-semibold tabular-nums text-slate-400">{fmtMoney(loc.storeCardSpend)}</div>
                 </div>
               )}
               {loc.codOutstanding?.total > 0 && (

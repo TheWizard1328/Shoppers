@@ -607,14 +607,75 @@ function isCodRelevantEvent(ev) {
   return recordHasCod(ev.data);
 }
 
-function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc }) {
+// ── Owner reconcile plan (Oct 3 2026) ───────────────────────────────────────
+// Store-card fingerprint learning: a card swiped 5+ times at ONE location
+// whose sales NEVER match a COD is the store's own business card (store-card
+// spend), not a patient collection — exclude it from credit math and from COD
+// matching. Fingerprints repeat over the whole window.
+export function learnStoreCardFingerprints(sales) {
+  const counts = new Map();
+  const codLinked = new Set();
+  for (const s of sales || []) {
+    const fp = s?.card_fingerprint;
+    if (!fp || !s?.location_id) continue;
+    const key = `${s.location_id}:${fp}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+    if (s?.sale_class === 'cod_collection' || s?.delivery_id) codLinked.add(key);
+  }
+  const storeCardFps = new Set();
+  for (const [key, n] of counts) {
+    if (n >= 5 && !codLinked.has(key)) storeCardFps.add(String(key).split(':').slice(1).join(':'));
+  }
+  return storeCardFps;
+}
+
+// Payout-matched outstanding COD (owner rule Oct 3): an outstanding COD
+// subtracts from the card balance ONLY when the store's payout(s) since
+// true-up EXACTLY equal the COD amount (single payout, or a subset of 2-3
+// combining to it — "amount or amounts that equal the COD to collect").
+// Returns the matched payout indexes so they can be excluded from the bank
+// sweep total (subtracting both the COD and its charge payout would
+// double-count).
+export function matchPayoutChargedCods(outstandingItems, payoutCents) {
+  const outs = (outstandingItems || [])
+    .map((it) => Math.round(Number(it?.amount || 0) * 100))
+    .filter((c) => Number.isFinite(c) && c > 0);
+  const payouts = (payoutCents || []).map((c) => Math.round(Number(c) || 0));
+  const matched = new Set();
+  let chargedCents = 0;
+  let chargedCount = 0;
+  const available = () => payouts.map((c, i) => ({ c, i })).filter((x) => !matched.has(x.i) && x.c > 0);
+  for (const target of outs) {
+    const pool = available();
+    let hit = null;
+    for (const one of pool) if (one.c === target) { hit = [one]; break; }
+    if (!hit) {
+      outer: for (let i = 0; i < pool.length; i++) {
+        for (let j = i + 1; j < pool.length; j++) {
+          if (pool[i].c + pool[j].c === target) { hit = [pool[i], pool[j]]; break outer; }
+          for (let k = j + 1; k < pool.length; k++) {
+            if (pool[i].c + pool[j].c + pool[k].c === target) { hit = [pool[i], pool[j], pool[k]]; break outer; }
+          }
+        }
+      }
+    }
+    if (hit) { hit.forEach((h) => matched.add(h.i)); chargedCents += target; chargedCount += 1; }
+  }
+  return { matched, chargedCents, chargedCount };
+}
+
+function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
+  const storeCardFps = learnStoreCardFingerprints(sales);
   for (const loc of (config.locations || [])) {
-    let credits = 0, loan = 0;
+    let credits = 0, loan = 0, storeCardSpend = 0;
     for (const s of sales) {
       if (s.location_id !== loc.location_id) continue;
       const amount = Number(s.amount_cents || 0) / 100;
+      // Store-card spend (fingerprint-learned): money OUT on the store's own
+      // card — excluded from credit math and from the sale/loan/folder totals.
+      if (s.card_fingerprint && storeCardFps.has(String(s.card_fingerprint))) { storeCardSpend += amount; continue; }
       const fee = Number(s.fee_cents || 0) / 100;
       loan += amount * Number(loc.loan_rate || 0);
       credits += amount - fee - amount * Number(loc.loan_rate || 0) - amount * folderRate;
@@ -629,8 +690,17 @@ function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc }) {
     // subtract from the estimate. The estimate reflects only real card
     // activity: starting balance + net sale credits − bank sweeps.
     // BATCH bank sweeps since true-up also leave the card (Oct 2 2026 fix).
-    const swept = Number(payoutsByLoc?.get?.(loc.location_id) || 0);
-    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept) * 100) / 100;
+    // PAYOUT-MATCHED OUTSTANDING CODs (owner rule Oct 3 2026): a COD to collect
+    // subtracts from the card balance ONLY when the store's payouts contain an
+    // amount (or amounts combining to) exactly the COD cents — the charge has
+    // hit the card. Matched payouts drop out of the sweep total so the COD and
+    // its charge are never counted twice.
+    const payoutCents = (payoutCentsByLoc?.get?.(loc.location_id) || []);
+    const outstandingItems = (codOutstandingDetailed?.[loc.location_id]?.items) || [];
+    const { matched, chargedCents, chargedCount } = matchPayoutChargedCods(outstandingItems, payoutCents);
+    const sweptRaw = payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100;
+    const swept = payoutCentsByLoc?.has?.(loc.location_id) ? sweptRaw : Number(payoutsByLoc?.get?.(loc.location_id) || 0);
+    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept - chargedCents / 100) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
@@ -638,6 +708,9 @@ function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc }) {
       loanRemaining: Math.round(Math.max(0, Number(loc.loan_start || 0) - loan) * 100) / 100,
       codAvg,
       sweptOut: Math.round(swept * 100) / 100,
+      chargedToCard: Math.round(chargedCents) / 100,
+      chargedCount,
+      storeCardSpend: Math.round(storeCardSpend * 100) / 100,
       level: getBalanceLevel(cardEstimate, codAvg),
     });
   }
@@ -707,8 +780,14 @@ async function loadSummary(force, uid) {
     const codOutstanding = {};
     for (const [locId, agg] of Object.entries(codOutstandingDetailed)) codOutstanding[locId] = agg?.total ?? agg;
     const payoutsLoc = payoutsByLocation(payouts);
+    const payoutCentsByLoc = new Map();
+    for (const pw of payouts || []) {
+      if (!pw?.location_id) continue;
+      if (!payoutCentsByLoc.has(pw.location_id)) payoutCentsByLoc.set(pw.location_id, []);
+      payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
+    }
     const data = {
-      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc }) : new Map(),
+      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed }) : new Map(),
       payoutsByLoc: payoutsLoc,
       storeToLoc: stl,
       weeklyByStore: weekly,
