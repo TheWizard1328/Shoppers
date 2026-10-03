@@ -338,51 +338,81 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < Date.now() - 3 * 86400000) break;
       }
 
-      // ── Card-spend evidence (owner, Oct 2 2026): deliveries with a real
-      // CARD swipe in the Square transaction data — the store actually paid
-      // the COD onto the app card. CARD-tender completed cod_collection sales
-      // only: cash-tender Square sales ring the register drawer, not the
-      // card. Three match rules:
-      //   1. Direct: sale row linked to this delivery (catalog object link).
-      //   2. Multi-COD single swipe: the ledger links a payment to its FIRST
-      //      COD line item only — a sibling COD (completed within +-90 min,
-      //      same card, ringed 90 min before its completion to +6 h) whose
-      //      amount fits inside the sale counts as swiped too.
-      //   3. Unlinked split ring: sale with no delivery link and EXACT cents
-      //      match in the same time window (register rang it separately).
+      // ── Card-spend evidence (owner, Oct 2 2026, fixed Oct 2 2026 v2): a
+      // delivery has a real CARD swipe when its DEBIT/CREDIT collection
+      // amount is matched to a completed CARD-tender Square sale. Cash never
+      // touches the card — a cash COD is excluded from this check entirely
+      // (its Square tender is CASH, confirming the till, not the card).
+      //
+      // BUG FIXED: the first version filtered candidate deliveries by CASH
+      // payments (copy-pasted from the unrelated cash-confirmation logic
+      // just below), so every debit/credit COD — the actual target of this
+      // feature — was skipped outright and NEVER got the pill, no matter
+      // what the ledger held. Rewritten to use debit+credit amounts.
+      //
+      // Direct delivery_id links from squareLedgerSync (rule 1) are rare in
+      // practice: resolveCodLink needs the order's catalog_object_id to
+      // still match an ACTIVE SquareCatalogItems row, but that row is
+      // deleted the moment the COD is collected — almost always gone before
+      // the next ledger sync runs. So the real matching work is subset-sum:
+      // one or more debit/credit CODs completed near the same time, whose
+      // amounts add up EXACTLY to one CARD sale's amount, are the swipe.
       const cardSales = (codSalesRaw || []).filter((e) =>
         String(e?.tender_type || '').toUpperCase() === 'CARD'
         && String(e?.status || '').toUpperCase() === 'COMPLETED');
       const swipedIds = new Set();
-      for (const e of cardSales) if (e?.delivery_id) swipedIds.add(String(e.delivery_id));
+      for (const e of cardSales) if (e?.delivery_id) swipedIds.add(String(e.delivery_id)); // rule 1
+
       const cardSalesByLoc = new Map();
       for (const e of cardSales) {
         if (!e?.location_id) continue;
         if (!cardSalesByLoc.has(e.location_id)) cardSalesByLoc.set(e.location_id, []);
         cardSalesByLoc.get(e.location_id).push(e);
       }
+      // Candidate pool: completed deliveries with an unmatched debit/credit
+      // collection amount and a known completion time.
+      const candidatesByLoc = new Map();
       for (const d of deliveryList) {
         if (!d?.id || swipedIds.has(String(d.id)) || d?.status !== 'completed') continue;
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-        const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((sum, p) => sum + centsOf(p?.amount), 0);
-        if (cash <= 0) continue;
-        const locId = storeToLoc.get(String(d?.store_id || ''));
-        const pool = locId ? cardSalesByLoc.get(locId) || [] : [];
+        const cardAmt = payments
+          .filter((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))
+          .reduce((sum, p) => sum + centsOf(p?.amount), 0);
+        if (cardAmt <= 0) continue;
         const doneAt = d.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
         if (!doneAt) continue;
-        for (const e of pool) {
-          const t = e.occurred_at ? new Date(e.occurred_at).getTime() : null;
-          if (!t || t < doneAt - 90 * 60000 || t > doneAt + 6 * 3600000) continue;
-          if (e?.delivery_id) {
-            // rule 2 — sibling COD riding the same swipe
-            const sib = deliveryById.get(String(e.delivery_id));
-            const sibDone = sib?.actual_delivery_time ? new Date(sib.actual_delivery_time).getTime() : null;
-            if (!sibDone || Math.abs(sibDone - doneAt) > 90 * 60000) continue;
-            if (Math.abs(Number(e.amount_cents || 0)) >= cash) { swipedIds.add(String(d.id)); break; }
-          } else if (Math.abs(Number(e.amount_cents || 0)) === cash) {
-            // rule 3 — unlinked exact-cents split ring
-            swipedIds.add(String(d.id)); break;
+        const locId = storeToLoc.get(String(d?.store_id || ''));
+        if (!locId) continue;
+        if (!candidatesByLoc.has(locId)) candidatesByLoc.set(locId, []);
+        candidatesByLoc.get(locId).push({ id: String(d.id), amt: cardAmt, t: doneAt });
+      }
+      // Find a combo (size 1-3) within `items` summing EXACTLY to `target`.
+      const findExactSumCombo = (items, target, maxSize) => {
+        const n = items.length;
+        for (let size = 1; size <= Math.min(maxSize, n); size++) {
+          const idx = Array.from({ length: size }, (_, i) => i);
+          while (idx[0] <= n - size) {
+            const combo = idx.map((i) => items[i]);
+            if (combo.reduce((s, c) => s + c.amt, 0) === target) return combo;
+            let i = size - 1;
+            while (i >= 0 && idx[i] === n - size + i) i--;
+            if (i < 0) break;
+            idx[i]++;
+            for (let j = i + 1; j < size; j++) idx[j] = idx[j - 1] + 1;
           }
+        }
+        return [];
+      };
+      for (const [locId, sales] of cardSalesByLoc) {
+        const pool = candidatesByLoc.get(locId) || [];
+        for (const sale of sales) {
+          if (!sale.occurred_at) continue;
+          const saleAmt = Math.abs(Number(sale.amount_cents || 0));
+          const saleT = new Date(sale.occurred_at).getTime();
+          const nearby = pool.filter((c) => !swipedIds.has(c.id) && Math.abs(c.t - saleT) <= 90 * 60000);
+          if (nearby.length === 0) continue;
+          const combo = findExactSumCombo(nearby, saleAmt, 3);
+          for (const c of combo) swipedIds.add(c.id);
         }
       }
       setCardSpendIds(swipedIds);
