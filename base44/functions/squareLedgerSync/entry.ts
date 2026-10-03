@@ -249,13 +249,16 @@ Deno.serve(async (req) => {
         skip += 2000;
       }
       const dayKind = new Map<string, Map<string, number>>();
+      const byLoc = Boolean(payload?.dateStatsByLocation);
       const kindRange = new Map<string, { min: string; max: string; n: number }>();
       const locKindRange = new Map<string, { min: string; max: string; n: number }>();
       const payoutLocRange = new Map<string, { min: string; max: string; n: number }>();
       for (const r of scanned) {
         const day = String(r?.occurred_at || '').slice(0, 10);
         if (!day) continue;
-        const kind = String(r?.entry_kind || '?');
+        const kind = byLoc
+          ? `${String(r?.location_name || r?.location_id || '?')}|${String(r?.entry_kind || '?')}`
+          : String(r?.entry_kind || '?');
         const m = dayKind.get(day) || new Map<string, number>();
         m.set(kind, (m.get(kind) || 0) + 1);
         dayKind.set(day, m);
