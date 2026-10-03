@@ -26,7 +26,6 @@ import DriverLocationMarkers from "./DriverLocationMarkers";
 import LiveDriverLocationMarker from "./LiveDriverLocationMarker";
 import { decodeGooglePolyline } from "../utils/dynamicPolylineManager";
 import HereTileUsageTracker from "./HereTileUsageTracker";
-import AvoidZoneLayer from "./AvoidZoneLayer";
 import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
@@ -1834,7 +1833,6 @@ function DeliveryMap({
           />
         )}
 
-        <AvoidZoneLayer currentUser={currentUser} />
         <MapController
           onMapInteraction={onMapInteraction}
           onDoubleTap={onDoubleTap}
