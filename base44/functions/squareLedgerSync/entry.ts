@@ -246,19 +246,57 @@ Deno.serve(async (req) => {
         skip += 2000;
       }
       const patches: { id: string; patch: any }[] = [];
-      let renameSales = 0, renamePayouts = 0, stampSettlement = 0;
+      let renameSales = 0, renamePayouts = 0, stampSettlement = 0, stampClasses = 0;
+      // sale_class evidence: business-card labels (owner-managed, AppSettings
+      // 'square_card_labels') + the >=5-swipes-never-COD store-card heuristic
+      // (same rule as SquareBalancesView). Everything else is other_sale.
+      const businessFps = new Set<string>();
+      try {
+        const labelRows: any[] = (await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_card_labels' })) as any[];
+        for (const l of (labelRows?.[0]?.setting_value?.labels || [])) {
+          if (l?.fingerprint && l?.is_business_card) businessFps.add(String(l.fingerprint));
+        }
+      } catch { /* optional */ }
+      const fpStats = new Map<string, { sales: number; cod: number }>();
+      for (const row of scanned) {
+        const kind = String(row.entry_kind || '');
+        if (!(kind === 'sale' || kind === 'collected')) continue;
+        if (String(row.tender_type || '').toUpperCase() !== 'CARD') continue;
+        if (String(row.status || '').toUpperCase() !== 'COMPLETED') continue;
+        if (!row?.card_fingerprint) continue;
+        const key = `${row.location_id}:${row.card_fingerprint}`;
+        const st = fpStats.get(key) || { sales: 0, cod: 0 };
+        st.sales += 1;
+        if (row?.delivery_id) st.cod += 1;
+        fpStats.set(key, st);
+      }
+      const storeCardFps = new Set<string>();
+      for (const [key, st] of fpStats) {
+        if (st.sales >= 5 && st.cod === 0) storeCardFps.add(key.split(':')[1]);
+      }
       for (const row of scanned) {
         if (!row?.id) continue;
         const kind = String(row.entry_kind || '');
         const patch: any = {};
         if (kind === 'sale') { patch.entry_kind = 'collected'; renameSales += 1; }
         else if (kind === 'payout') { patch.entry_kind = 'card_spend'; renamePayouts += 1; }
-        const isCardSale = (kind === 'sale' || kind === 'collected')
+        const isSale = kind === 'sale' || kind === 'collected';
+        const isCardSale = isSale
           && String(row.tender_type || '').toUpperCase() === 'CARD'
           && String(row.status || '').toUpperCase() === 'COMPLETED';
         if (isCardSale && row.settled_cents == null) {
           Object.assign(patch, cardSettlementCents(rates, row.location_id, row.amount_cents, row.fee_cents));
           stampSettlement += 1;
+        }
+        if (isSale) {
+          const desired = row?.delivery_id ? 'cod_collection'
+            : (row?.card_fingerprint && (businessFps.has(String(row.card_fingerprint)) || storeCardFps.has(String(row.card_fingerprint)))) ? 'card_spend'
+            : 'other_sale';
+          // Never overwrite an existing cod_collection stamp; upgrade
+          // mis-defaulted other_sale rows to card_spend.
+          if (!row.sale_class || (row.sale_class === 'other_sale' && desired === 'card_spend')) {
+            if (row.sale_class !== desired) { patch.sale_class = desired; stampClasses += 1; }
+          }
         }
         if (Object.keys(patch).length) patches.push({ id: row.id, patch });
       }
@@ -287,6 +325,7 @@ Deno.serve(async (req) => {
         renamedSales: renameSales,
         renamedPayouts: renamePayouts,
         settlementStamps: stampSettlement,
+        saleClassStamps: stampClasses,
       });
     }
 
@@ -420,7 +459,7 @@ Deno.serve(async (req) => {
           square_id: payment.id,
           entry_kind: 'collected',
           tender_type: 'CARD',
-          sale_class: codLink ? 'cod_collection' : null,
+          sale_class: codLink ? 'cod_collection' : 'other_sale',
           amount_cents: payment?.amount_money?.amount,
           fee_cents: sumProcessingFees(payment),
           ...cardSettlementCents(rates, locationId, payment?.amount_money?.amount, sumProcessingFees(payment)),
@@ -449,7 +488,7 @@ Deno.serve(async (req) => {
             square_id: `tender-${tender.id}`,
             entry_kind: 'collected',
             tender_type: tender.type || 'OTHER',
-            sale_class: codLink ? 'cod_collection' : null,
+            sale_class: codLink ? 'cod_collection' : 'other_sale',
             amount_cents: tender?.amount_money?.amount,
             status: order.state === 'COMPLETED' ? 'COMPLETED' : order.state,
             occurred_at: tender.created_at || order.created_at,
@@ -699,6 +738,15 @@ Deno.serve(async (req) => {
       const storeCardFingerprints = new Set<string>();
       for (const [fk, n] of Object.entries(storeFingerprintCounts)) {
         if (Number(n) >= 5) storeCardFingerprints.add(fk.split(':')[1]);
+      }
+      // Upgrade non-COD sales on store-card fingerprints to sale_class
+      // 'card_spend' (they were built as other_sale before this was known).
+      for (const e of allEntries) {
+        if (e?.entry_kind !== 'collected' || e.sale_class !== 'other_sale') continue;
+        if (!e?.card_fingerprint) continue;
+        if (e?.delivery_id) continue;
+        if (!storeCardFingerprints.has(String(e.card_fingerprint))) continue;
+        e.sale_class = 'card_spend';
       }
 
       const usedSaleKeys = new Set<string>();
