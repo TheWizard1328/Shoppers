@@ -239,7 +239,7 @@ export const loadPriorityDataForced = async (selectedDateStr, cityId = null, fil
   return loadPriorityData(selectedDateStr, cityId, filters);
 };
 
-export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
+export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}, onPartialFresh = null) => {
   if (getSyncPaused()) return { skipped: true };
 
   // ── FRESHNESS GUARD: skip if we synced this date within the last 5 minutes ──
@@ -309,6 +309,9 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     }
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
+    if (onPartialFresh && Array.isArray(deliveries) && deliveries.length > 0) {
+      try { onPartialFresh({ deliveries }); } catch (_) {}
+    }
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     // Step 4: Sync ONLY patients for these deliveries (priority light-weight sync)
@@ -331,6 +334,9 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, protectedPatients);
         syncedPatients = protectedPatients;
       }
+    }
+    if (onPartialFresh && Array.isArray(syncedPatients) && syncedPatients.length > 0) {
+      try { onPartialFresh({ patients: syncedPatients }); } catch (_) {}
     }
     invalidateEntityCache('Patient');
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: patientIds.length });
