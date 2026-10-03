@@ -174,10 +174,27 @@ function windowSinceFor(cfg) {
   return new Date(new Date(`${cutoffD}T00:00:00Z`).getTime() - 3 * 86400000).toISOString();
 }
 
+// One row per square_id, whatever the table holds (Oct 2 2026): a mid-storm
+// ledger sync once re-created rows as duplicates, and each copy of a swipe
+// re-counted its amount AND its ~7-cent fee in the card-balance math. The
+// sync now dedupes on write; this dedupes on read so the math is correct
+// even against pre-fix duplicate rows.
+function dedupeBySquareId(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const r of rows || []) {
+    const key = r?.square_id || r?.id || null;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
 export async function loadCardSales(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached) return cached.sales || [];
+  if (cached) return dedupeBySquareId(cached.sales);
   const out = [];
   let skip = 0;
   for (let page = 0; page < 40; page++) {
@@ -190,8 +207,9 @@ export async function loadCardSales(cfg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  writeLedgerCache({ trued_up_at: cfg.trued_up_at, sales: out }, userId);
-  return out;
+  const deduped = dedupeBySquareId(out);
+  writeLedgerCache({ trued_up_at: cfg.trued_up_at, sales: deduped }, userId);
+  return deduped;
 }
 
 // cod_collection ledger rows windowed to the candidate horizon (Oct 2 2026):
@@ -203,7 +221,7 @@ export async function loadCardSales(cfg, userId = null) {
 async function loadCodSales(cfg, userId = null) {
   const since = windowSinceFor(cfg);
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached && cached.window_since === since) return cached.cod_sales || [];
+  if (cached && cached.window_since === since) return dedupeBySquareId(cached.cod_sales);
   const out = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -216,15 +234,16 @@ async function loadCodSales(cfg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, cod_sales: out }, userId);
-  return out;
+  const deduped = dedupeBySquareId(out);
+  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, cod_sales: deduped }, userId);
+  return deduped;
 }
 
 // Completed sales for the unlinked-ring fallback, same window as loadCodSales.
 async function loadWindowSales(cfg, userId = null) {
   const since = windowSinceFor(cfg);
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached && cached.window_since === since) return cached.window_sales || [];
+  if (cached && cached.window_since === since) return dedupeBySquareId(cached.window_sales);
   const out = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -237,8 +256,9 @@ async function loadWindowSales(cfg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, window_sales: out }, userId);
-  return out;
+  const dedupedW = dedupeBySquareId(out);
+  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, window_sales: dedupedW }, userId);
+  return dedupedW;
 }
 
 // Bank sweeps (BATCH payouts) since the true-up. Square auto-transfers the

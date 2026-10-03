@@ -391,19 +391,71 @@ Deno.serve(async (req) => {
 
     // Persist — keyed on square_id: create new records, update existing ones.
     // (The functions runtime SDK has no .upsert(); use the proven list+create/update pattern.)
+    //
+    // DUPLICATE-SAFE SCAN (Oct 2 2026 owner report: "fee charged multiple
+    // times per transaction"). A previous run's scan failed mid-rate-limit-
+    // storm; its .catch(() => []) swallowed the error, the map stayed EMPTY,
+    // and every entry in the window was re-CREATED as a duplicate — the SAME
+    // swipe then counted TWICE in the card-balance math (amount once and its
+    // fee once, per copy). Three changes:
+    //   1. The scan now RETRIES and — if it still fails — ABORTS the persist
+    //      phase with an error instead of blindly creating duplicates.
+    //   2. Every run DEDUPES the table: square_ids with multiple rows lose
+    //      their older copies (self-heals the existing duplicates).
+    //   3. Same square_id can never be double-written by this run (Map keys).
     const allEntries = Array.from(entries.values());
     const existingIdBySquareId = new Map<string, string>();
-    try {
-      let skip = 0;
-      for (let page = 0; page < 50; page++) {
-        const rows = await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip).catch(() => []);
-        const list = rows || [];
-        for (const r of list) if (r?.square_id) existingIdBySquareId.set(r.square_id, r.id);
-        if (list.length < 2000) break;
-        skip += 2000;
+    const existingRowsBySquareId = new Map<string, any[]>();
+    let scanOk = false;
+    let lastScanError: any = null;
+    for (let attempt = 0; attempt < 3 && !scanOk; attempt++) {
+      existingIdBySquareId.clear();
+      existingRowsBySquareId.clear();
+      try {
+        let skip = 0;
+        for (let page = 0; page < 50; page++) {
+          const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip)) as any[];
+          const list = rows || [];
+          for (const r of list) {
+            if (!r?.square_id) continue;
+            if (!existingRowsBySquareId.has(r.square_id)) existingRowsBySquareId.set(r.square_id, []);
+            existingRowsBySquareId.get(r.square_id)!.push(r);
+          }
+          if (list.length < 2000) break;
+          skip += 2000;
+        }
+        scanOk = true;
+      } catch (e: any) {
+        lastScanError = e;
+        syncErrors.push(`existingScan(attempt ${attempt + 1}): ${e?.message || e}`);
+        await sleep(2000);
       }
-    } catch (e: any) {
-      syncErrors.push(`existingScan: ${e?.message || e}`);
+    }
+    if (!scanOk) {
+      return Response.json({
+        success: false,
+        error: `existingScan failed after 3 attempts (${lastScanError?.message || lastScanError}) — persist phase aborted to avoid creating duplicate ledger rows. No entries were written.`,
+        entriesFetched: allEntries.length,
+        errors: syncErrors.slice(0, 10),
+      }, { status: 503 });
+    }
+    // Dedupe existing rows per square_id (keep newest updated_date) and
+    // register the survivor for the update path below.
+    let duplicateRowsDeleted = 0;
+    for (const [sqid, rows] of existingRowsBySquareId) {
+      if (rows.length <= 1) {
+        if (rows[0]?.id) existingIdBySquareId.set(sqid, rows[0].id);
+        continue;
+      }
+      rows.sort((a: any, b: any) =>
+        new Date(b?.updated_date || b?.created_date || 0).getTime() -
+        new Date(a?.updated_date || a?.created_date || 0).getTime());
+      if (rows[0]?.id) existingIdBySquareId.set(sqid, rows[0].id);
+      for (let i = 1; i < rows.length; i++) {
+        await base44.asServiceRole.entities.SquareLedgerEntry.delete(rows[i].id)
+          .then(() => { duplicateRowsDeleted += 1; })
+          .catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`dedupeDelete(${rows[i].id}): ${e?.message || e}`); });
+      }
     }
 
     let upserted = 0;
@@ -548,6 +600,7 @@ Deno.serve(async (req) => {
       entriesFetched: allEntries.length,
       entriesUpserted: upserted,
       entriesFailed: failedUpserts,
+      duplicateRowsDeleted,
       payoutsAvailable,
       codLinks: allEntries.filter((e) => e.delivery_id).length,
       codOutstanding,
