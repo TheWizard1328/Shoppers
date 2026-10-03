@@ -235,6 +235,54 @@ Deno.serve(async (req) => {
     // Rate-limited rows retry with 30s pauses (same posture as the persist
     // loop). Safe to re-run: renamed rows and already-stamped CARD sales are
     // skipped.
+    // ── DATE STATS MODE (diagnostic, Oct 3 2026) ──────────────────────────────
+    // Day-by-day counts per entry_kind (+ per-location payout coverage) so
+    // gaps in the ledger are visible without pulling every row.
+    if (payload?.dateStats) {
+      const scanned: any[] = [];
+      let skip = 0;
+      for (let page = 0; page < 100; page++) {
+        const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip)) as any[];
+        const list = rows || [];
+        scanned.push(...list);
+        if (list.length < 2000) break;
+        skip += 2000;
+      }
+      const dayKind = new Map<string, Map<string, number>>();
+      const kindRange = new Map<string, { min: string; max: string; n: number }>();
+      const payoutLocRange = new Map<string, { min: string; max: string; n: number }>();
+      for (const r of scanned) {
+        const day = String(r?.occurred_at || '').slice(0, 10);
+        if (!day) continue;
+        const kind = String(r?.entry_kind || '?');
+        const m = dayKind.get(day) || new Map<string, number>();
+        m.set(kind, (m.get(kind) || 0) + 1);
+        dayKind.set(day, m);
+        const kr = kindRange.get(kind) || { min: day, max: day, n: 0 };
+        if (day < kr.min) kr.min = day;
+        if (day > kr.max) kr.max = day;
+        kr.n += 1;
+        kindRange.set(kind, kr);
+        if (kind === 'card_spend' || kind === 'payout') {
+          const loc = String(r?.location_name || r?.location_id || '?');
+          const lr = payoutLocRange.get(loc) || { min: day, max: day, n: 0 };
+          if (day < lr.min) lr.min = day;
+          if (day > lr.max) lr.max = day;
+          lr.n += 1;
+          payoutLocRange.set(loc, lr);
+        }
+      }
+      const days = Array.from(dayKind.entries()).sort((a: any, b: any) => (a[0] < b[0] ? -1 : 1))
+        .map(([day, m]: any) => ({ day, kinds: Object.fromEntries(m) }));
+      return Response.json({
+        success: true,
+        total: scanned.length,
+        kindRanges: Object.fromEntries(kindRange),
+        payoutCoverageByLocation: Object.fromEntries(payoutLocRange),
+        days,
+      });
+    }
+
     if (payload?.ledgerBackfill) {
       const scanned: any[] = [];
       let skip = 0;
