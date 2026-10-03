@@ -272,7 +272,10 @@ Deno.serve(async (req) => {
           payoutLocRange.set(loc, lr);
         }
       }
+      const from = payload?.dateStatsFrom ? String(payload.dateStatsFrom) : null;
+      const to = payload?.dateStatsTo ? String(payload.dateStatsTo) : null;
       const days = Array.from(dayKind.entries()).sort((a: any, b: any) => (a[0] < b[0] ? -1 : 1))
+        .filter(([day]: any) => (!from || day >= from) && (!to || day <= to))
         .map(([day, m]: any) => ({ day, kinds: Object.fromEntries(m) }));
       return Response.json({
         success: true,
