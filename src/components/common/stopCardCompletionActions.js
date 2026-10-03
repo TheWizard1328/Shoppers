@@ -23,7 +23,7 @@ import { updateDeliveryLocal, pauseOfflineMutations, resumeOfflineMutations } fr
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import { generateCompletionTimestamp, calculateRetroactiveStopTiming, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
-import { waitForRouteTransitionSettle } from "./stopCardActionHelpers";
+import { waitForRouteTransitionSettle, getCurrentLocalTimeString } from "./stopCardActionHelpers";
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -615,7 +615,17 @@ export function useStopCardCompletionActions({
 
         // Timing
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
+        // OWNER BUG (Oct 2 2026): localNowParts.time and localDeviceTodayStr are
+        // StopCard MOUNT-time values (useMemo with [] deps) — a card mounted
+        // before 21:00 still reads a pre-9pm clock long after the retro cutoff,
+        // so Complete kept the real 9pm+ time instead of backdating (the retro
+        // START button looked right because StopCardActionButtons computes
+        // `new Date()` live at every render). Compute LIVE values here, same
+        // pattern as the Sep 30 COD-swap midnight fix.
+        const _liveNow = new Date();
+        const _liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+        const _liveTimeStr = getCurrentLocalTimeString(_liveNow);
+        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _liveTodayStr, currentTimeString: _liveTimeStr });
         const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const completionCodPayments = autoCODPayment || codPayments;
         const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
@@ -630,7 +640,7 @@ export function useStopCardCompletionActions({
         let retroTravelDist = null;
         if (useRetroactiveTiming) {
           try {
-            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true });
+            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: _liveTodayStr, allowSameDay: true });
             if (retroactiveTiming) {
               completionActualTime = retroactiveTiming.actual_delivery_time;
               if (retroactiveTiming.arrival_time) completionArrivalTime = retroactiveTiming.arrival_time;
@@ -902,7 +912,17 @@ export function useStopCardCompletionActions({
         const existingNotes = delivery.delivery_notes || '';
         const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
+        // OWNER BUG (Oct 2 2026): localNowParts.time and localDeviceTodayStr are
+        // StopCard MOUNT-time values (useMemo with [] deps) — a card mounted
+        // before 21:00 still reads a pre-9pm clock long after the retro cutoff,
+        // so Complete kept the real 9pm+ time instead of backdating (the retro
+        // START button looked right because StopCardActionButtons computes
+        // `new Date()` live at every render). Compute LIVE values here, same
+        // pattern as the Sep 30 COD-swap midnight fix.
+        const _liveNow = new Date();
+        const _liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+        const _liveTimeStr = getCurrentLocalTimeString(_liveNow);
+        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _liveTodayStr, currentTimeString: _liveTimeStr });
         const allRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
 
         // Await retro timing before building criticalUpdate — same race-condition fix as Complete.
@@ -911,7 +931,7 @@ export function useStopCardCompletionActions({
         let failTravelDist = null;
         if (useRetroactiveTiming) {
           try {
-            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true });
+            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: _liveTodayStr, allowSameDay: true });
             if (retroactiveTiming) {
               failActualTime = retroactiveTiming.actual_delivery_time;
               if (retroactiveTiming.arrival_time) failArrivalTime = retroactiveTiming.arrival_time;
