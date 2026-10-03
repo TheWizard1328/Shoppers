@@ -1005,32 +1005,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="font-semibold tabular-nums text-slate-400">{fmtMoney(loc.storeCardSpend)}</div>
                 </div>
               )}
-              {loc.codOutstanding?.total > 0 && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs owed (not yet swiped)</div>
-                    <div className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">{fmtMoney(loc.codOutstanding.total)}</div>
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    {loc.codOutstanding.pending_count > 0 && `${loc.codOutstanding.pending_count} on route`}
-                    {loc.codOutstanding.pending_count > 0 && loc.codOutstanding.awaiting_square_count > 0 && ' · '}
-                    {loc.codOutstanding.awaiting_square_count > 0 && `${loc.codOutstanding.awaiting_square_count} cash awaiting Square`}
-                  </div>
-                  {loc.codOutstanding.items?.length > 0 && (
-                    <details className="mt-1">
-                      <summary className="text-[11px] text-slate-400 cursor-pointer hover:text-slate-500">view breakdown</summary>
-                      <div className="mt-1 space-y-0.5 text-[11px] text-slate-400 tabular-nums">
-                        {loc.codOutstanding.items.map((it) => (
-                          <div key={it.delivery_id} className="flex justify-between gap-2">
-                            <span className="truncate">{it.reason === 'cash_awaiting_square' ? 'cash awaiting Square' : it.status}{it.patient ? ` · ${it.patient}` : ''}</span>
-                            <span>{fmtMoney(it.amount)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              )}
               {ownerCanEdit && (
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
