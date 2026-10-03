@@ -681,29 +681,61 @@ Deno.serve(async (req) => {
 
     let upserted = 0;
     let failedUpserts = 0;
-    for (let i = 0; i < allEntries.length; i += UPSERT_CHUNK) {
-      const chunk = allEntries.slice(i, i + UPSERT_CHUNK);
-      const results = await Promise.all(chunk.map((record: any) => {
-        const existingId = existingIdBySquareId.get(record.square_id);
-        if (existingId) {
-          // Never wipe a previously stamped COD link when this run's rebuild
-          // failed to resolve it (e.g. catalog item since deleted).
-          const exRow = existingRowsBySquareId.get(record.square_id)?.[0];
-          const merged = exRow ? {
-            ...record,
-            sale_class: record.sale_class || exRow.sale_class || null,
-            delivery_id: record.delivery_id || exRow.delivery_id || null,
-            patient_id: record.patient_id || exRow.patient_id || null,
-            cod_item_name: record.cod_item_name || exRow.cod_item_name || null,
-          } : record;
-          return base44.asServiceRole.entities.SquareLedgerEntry.update(existingId, merged).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`update(${record.square_id}): ${e?.message || e}`); return false; });
-        }
-        return base44.asServiceRole.entities.SquareLedgerEntry.create(record).then(() => true).catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`create(${record.square_id}): ${e?.message || e}`); return false; });
-      }));
-      upserted += results.filter(Boolean).length;
-      failedUpserts += results.filter((r: any) => !r).length;
-      await sleep(100);
+    // RATE-LIMIT-AWARE UPSERT (Oct 3 2026): a large backfill window (e.g. a
+    // 2-year history import) writes thousands of rows and exhausts the entity
+    // API's per-minute quota mid-loop — previously those rows were silently
+    // dropped. Writes now run in small sequential chunks, and any chunk that
+    // hits "Rate limit" pauses 30s and retries (up to 2 extra passes), so a
+    // big window self-heals instead of losing rows. Normal 10-minute windows
+    // never hit this path.
+    const persistOne = async (record: any): Promise<boolean> => {
+      const existingId = existingIdBySquareId.get(record.square_id);
+      if (existingId) {
+        // Never wipe a previously stamped COD link when this run's rebuild
+        // failed to resolve it (e.g. catalog item since deleted).
+        const exRow = existingRowsBySquareId.get(record.square_id)?.[0];
+        const merged = exRow ? {
+          ...record,
+          sale_class: record.sale_class || exRow.sale_class || null,
+          delivery_id: record.delivery_id || exRow.delivery_id || null,
+          patient_id: record.patient_id || exRow.patient_id || null,
+          cod_item_name: record.cod_item_name || exRow.cod_item_name || null,
+        } : record;
+        return base44.asServiceRole.entities.SquareLedgerEntry.update(existingId, merged).then(() => true).catch((e: any) => { throw e; });
+      }
+      return base44.asServiceRole.entities.SquareLedgerEntry.create(record).then(() => true).catch((e: any) => { throw e; });
+    };
+    let pending = allEntries.slice();
+    for (let pass = 0; pass <= 2 && pending.length; pass++) {
+      let nextPending: any[] = [];
+      for (let i = 0; i < pending.length; i += UPSERT_CHUNK) {
+        const chunk = pending.slice(i, i + UPSERT_CHUNK);
+        const settled = await Promise.allSettled(chunk.map((r: any) => persistOne(r)));
+        let chunkRateLimited = false;
+        settled.forEach((res: any, idx: number) => {
+          if (res.status === 'fulfilled') { upserted += 1; return; }
+          const record = chunk[idx];
+          const msg = String(res.reason?.message || res.reason || '');
+          if (/rate limit/i.test(msg)) {
+            chunkRateLimited = true;
+            nextPending.push(record);
+          } else if (syncErrors.length < 10) {
+            syncErrors.push(`${existingIdBySquareId.get(record.square_id) ? 'update' : 'create'}(${record.square_id}): ${msg}`);
+          }
+        });
+        failedUpserts += chunkRateLimited && pass < 2 ? 0 : nextPending.length;
+        await sleep(100);
+      }
+      if (nextPending.length && pass < 2) {
+        console.log(`[squareLedgerSync] rate-limited on ${nextPending.length} rows — waiting 30s before retry pass ${pass + 2}`);
+        await sleep(30000);
+        pending = nextPending;
+      } else {
+        failedUpserts = nextPending.length ? nextPending.length : 0;
+        break;
+      }
     }
+    failedUpserts = Math.max(0, failedUpserts);
 
     // ── COD outstanding pass (card balance estimates, Oct 2026 owner spec) ──
     // A COD delivery subtracts its amount from the store's card balance while
