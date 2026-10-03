@@ -432,17 +432,26 @@ export default function ResetPolylinesButton({
     // already has a sealed breadcrumb segment (saved_to_route = true with a
     // polyline), the actual driven path IS the route — apply only the
     // breadcrumb polylines and skip HERE polyline regeneration entirely.
+    // OWNER BUG (Oct 2 2026): this fetch accepted an EMPTY IDB result as a
+    // valid answer and never fell back to the API — unlike the coverage-badge
+    // fetch above (loadCoverage), which explicitly checks `.length` first.
+    // Breadcrumbs sync onto the DRIVER's device, not every admin/dispatcher
+    // browser clicking Reset — so on an admin machine the local IDB for this
+    // driver's breadcrumbs is routinely empty/stale, silently leaving
+    // breadcrumbSegments=[] with no error. Pass 3 then has nothing to apply,
+    // so the full HERE regen (Pass 1) is all that's left — exactly the
+    // "clears the already-saved paths" symptom, even though the 22/32
+    // coverage badge (safe fetch) showed the real sealed count correctly.
     let breadcrumbSegments = [];
     try {
-      // Try offline DB first for speed
       const offlineSegs = await offlineDB.getByCompoundIndex(
         offlineDB.STORES.DELIVERY_BREADCRUMBS,
         'date_driver',
         [selectedDate, driverId]
       );
-      breadcrumbSegments = offlineSegs || [];
-    } catch (_) {
-      // Fallback to API
+      if (offlineSegs && offlineSegs.length) breadcrumbSegments = offlineSegs;
+    } catch (_) { /* fall through to API below */ }
+    if (!breadcrumbSegments.length) {
       try {
         breadcrumbSegments = await base44.entities.DeliveryBreadcrumbs.filter({
           driver_id: driverId,
