@@ -6,7 +6,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardSales, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardSales, loadCardSpendEvidence, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -329,64 +329,79 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // BOTH the Square-confirmed cash rows (a) and the non-cash rows (b).
       const deliveryById = new Map();
       const deliveryList = [];
-      for (let page = 0; page < 4; page++) {
-        const rows = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
+      // 30-day horizon (owner, Oct 3 2026): the card-spend fingerprint rule
+      // must cover the whole "Past uncollected" list (e.g. Sep 10 CODs on an
+      // Oct 3 view), not just the last 3 days.
+      const since30 = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
+      for (let page = 0; page < 20; page++) {
+        const rows = await base44.entities.Delivery.filter({ created_date: { $gte: since30 } }, '-created_date', 500, page * 500).catch(() => []);
         const list = rows || [];
         deliveryList.push(...list);
         list.forEach((d) => { if (d?.id) deliveryById.set(String(d.id), d); });
-        if (list.length < 2000) break;
-        if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < Date.now() - 3 * 86400000) break;
+        if (list.length < 500) break;
       }
 
-      // ── Card-spend evidence (owner, Oct 2 2026, fixed Oct 2 2026 v2): a
-      // delivery has a real CARD swipe when its DEBIT/CREDIT collection
-      // amount is matched to a completed CARD-tender Square sale. Cash never
-      // touches the card — a cash COD is excluded from this check entirely
-      // (its Square tender is CASH, confirming the till, not the card).
-      //
-      // BUG FIXED: the first version filtered candidate deliveries by CASH
-      // payments (copy-pasted from the unrelated cash-confirmation logic
-      // just below), so every debit/credit COD — the actual target of this
-      // feature — was skipped outright and NEVER got the pill, no matter
-      // what the ledger held. Rewritten to use debit+credit amounts.
-      //
-      // Direct delivery_id links from squareLedgerSync (rule 1) are rare in
-      // practice: resolveCodLink needs the order's catalog_object_id to
-      // still match an ACTIVE SquareCatalogItems row, but that row is
-      // deleted the moment the COD is collected — almost always gone before
-      // the next ledger sync runs. So the real matching work is subset-sum:
-      // one or more debit/credit CODs completed near the same time, whose
-      // amounts add up EXACTLY to one CARD sale's amount, are the swipe.
-      const cardSales = (codSalesRaw || []).filter((e) =>
+      // ── Card-spend evidence (owner spec, Oct 3 2026). A delivery gets the
+      // sky "Card Spend" pill when there is a real CARD swipe in the Square
+      // data for its COD. Owner's description of how a swiped COD shows up in
+      // the ledger: either a SINGLE sale entry, or a COMBINATION of 2+ sale
+      // items totaling the COD amount to collect — all on the same date, on
+      // the same (customer) card at the store, with one or more FAILED
+      // entries registered on that card too (the card declined, then got
+      // charged, possibly in pieces). Rules, in order:
+      //   1. Direct link — squareLedgerSync's backfill stamped delivery_id
+      //      on the sale row (decline-anchored exact match).
+      //   2. Fingerprint story — same store + same Edmonton date + same
+      //      card_fingerprint, at least one DECLINE on that card that day,
+      //      and a subset (1-4) of that card's completed sales summing
+      //      EXACTLY to the COD amount. This is the owner's split-payment
+      //      pattern: declines, then partial charges.
+      //   3. Near-time fallback — a completed CARD sale (or combo of nearby
+      //      CODs) within ±90min of the completion whose amounts add up
+      //      EXACTLY. Catches the clean single swipe with no decline.
+      // Store-card fingerprints (5+ swipes at one location, never linked to
+      // a COD) are learned and excluded — those are the store's own card
+      // spends, not customer COD swipes.
+      const evidence = await loadCardSpendEvidence(configRef.current, currentUser?.id || null).catch(() => ({ sales: [], declines: [] }));
+      const storeCardFps = learnStoreCardFingerprints(evidence.sales || []);
+      const isStoreCard = (e) => !!e?.card_fingerprint && storeCardFps.has(e.card_fingerprint);
+      const cardSales = dedupeLedgerById([
+        ...(evidence.sales || []),
+        ...(codSalesRaw || []),
+      ].filter((e) =>
         String(e?.tender_type || '').toUpperCase() === 'CARD'
-        && String(e?.status || '').toUpperCase() === 'COMPLETED');
+        && String(e?.status || '').toUpperCase() === 'COMPLETED'
+        && e?.location_id
+        && !isStoreCard(e)));
+      const declines = (evidence.declines || []).filter((e) => e?.location_id && e?.card_fingerprint && !isStoreCard(e));
       const swipedIds = new Set();
       for (const e of cardSales) if (e?.delivery_id) swipedIds.add(String(e.delivery_id)); // rule 1
 
-      const cardSalesByLoc = new Map();
-      for (const e of cardSales) {
-        if (!e?.location_id) continue;
-        if (!cardSalesByLoc.has(e.location_id)) cardSalesByLoc.set(e.location_id, []);
-        cardSalesByLoc.get(e.location_id).push(e);
-      }
-      // Candidate pool: completed deliveries with an unmatched debit/credit
-      // collection amount and a known completion time.
+      const saleKeyOf = (e) => String(e?.id || e?.square_id || '');
+      const usedSaleKeys = new Set();
+
+      // Candidate pool: completed deliveries with a COD to collect and a
+      // known completion time. Amount = the recorded debit/credit collection
+      // when present; otherwise the required COD amount (the split-swipe
+      // story must also surface for CODs the driver recorded as Cash — the
+      // exact-amount + same-card + decline-present guards keep it precise).
       const candidatesByLoc = new Map();
       for (const d of deliveryList) {
         if (!d?.id || swipedIds.has(String(d.id)) || d?.status !== 'completed') continue;
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-        const cardAmt = payments
+        let cardAmt = payments
           .filter((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))
           .reduce((sum, p) => sum + centsOf(p?.amount), 0);
+        if (cardAmt <= 0) cardAmt = centsOf(d?.cod_total_amount_required);
         if (cardAmt <= 0) continue;
         const doneAt = d.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
         if (!doneAt) continue;
         const locId = storeToLoc.get(String(d?.store_id || ''));
         if (!locId) continue;
         if (!candidatesByLoc.has(locId)) candidatesByLoc.set(locId, []);
-        candidatesByLoc.get(locId).push({ id: String(d.id), amt: cardAmt, t: doneAt });
+        candidatesByLoc.get(locId).push({ id: String(d.id), amt: cardAmt, t: doneAt, day: edmontonWallString(new Date(doneAt)).slice(0, 10) });
       }
-      // Find a combo (size 1-3) within `items` summing EXACTLY to `target`.
+      // Find a combo (size 1-maxSize) within `items` summing EXACTLY to `target`.
       const findExactSumCombo = (items, target, maxSize) => {
         const n = items.length;
         for (let size = 1; size <= Math.min(maxSize, n); size++) {
@@ -403,6 +418,52 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
         return [];
       };
+
+      // Rule 2 — fingerprint story (owner, Oct 3 2026): group CARD sales and
+      // declines by store + Edmonton date + card fingerprint; a group with at
+      // least one decline that day whose sales contain an exact-amount
+      // subset of a COD is the swipe.
+      const groupsByLocDayFp = new Map();
+      const groupKey = (locId, day, fp) => `${locId}|${day}|${fp}`;
+      for (const e of cardSales) {
+        if (!e?.card_fingerprint || !e?.occurred_at) continue;
+        const day = edmontonWallString(new Date(e.occurred_at)).slice(0, 10);
+        const k = groupKey(e.location_id, day, e.card_fingerprint);
+        if (!groupsByLocDayFp.has(k)) groupsByLocDayFp.set(k, { sales: [], declineCount: 0, locId: e.location_id, day });
+        groupsByLocDayFp.get(k).sales.push(e);
+      }
+      for (const e of declines) {
+        if (!e?.occurred_at) continue;
+        const day = edmontonWallString(new Date(e.occurred_at)).slice(0, 10);
+        const k = groupKey(e.location_id, day, e.card_fingerprint);
+        if (!groupsByLocDayFp.has(k)) groupsByLocDayFp.set(k, { sales: [], declineCount: 0, locId: e.location_id, day });
+        groupsByLocDayFp.get(k).declineCount += 1;
+      }
+      for (const [locId, cands] of candidatesByLoc) {
+        for (const c of cands) {
+          if (swipedIds.has(c.id)) continue;
+          for (const g of groupsByLocDayFp.values()) {
+            if (g.locId !== locId || g.day !== c.day || g.declineCount < 1) continue;
+            const avail = g.sales.filter((x) => !usedSaleKeys.has(saleKeyOf(x)));
+            if (!avail.length) continue;
+            const combo = findExactSumCombo(avail.map((x) => ({ amt: Math.abs(Number(x.amount_cents || 0)), row: x })), c.amt, 4);
+            if (combo.length) {
+              swipedIds.add(c.id);
+              combo.forEach((x) => usedSaleKeys.add(saleKeyOf(x.row)));
+              break;
+            }
+          }
+        }
+      }
+
+      // Rule 3 — near-time fallback: a completed CARD sale whose amount is
+      // an exact combo (1-3) of CODs completed within ±90 minutes of it.
+      const cardSalesByLoc = new Map();
+      for (const e of cardSales) {
+        if (!e?.location_id || usedSaleKeys.has(saleKeyOf(e))) continue;
+        if (!cardSalesByLoc.has(e.location_id)) cardSalesByLoc.set(e.location_id, []);
+        cardSalesByLoc.get(e.location_id).push(e);
+      }
       for (const [locId, sales] of cardSalesByLoc) {
         const pool = candidatesByLoc.get(locId) || [];
         for (const sale of sales) {

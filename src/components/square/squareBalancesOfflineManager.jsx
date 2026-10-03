@@ -109,6 +109,9 @@ export const saveLedgerWindows = async (windows, userId = null) => {
       cod_sales: Array.isArray(windows?.cod_sales) ? windows.cod_sales : [],
       window_sales: Array.isArray(windows?.window_sales) ? windows.window_sales : [],
       window_since: windows?.window_since || null,
+      evidence_sales: Array.isArray(windows?.evidence_sales) ? windows.evidence_sales : [],
+      evidence_declines: Array.isArray(windows?.evidence_declines) ? windows.evidence_declines : [],
+      evidence_since: windows?.evidence_since || null,
     };
     await offlineDB.save(SUMMARY_STORE, record);
     return { success: true };

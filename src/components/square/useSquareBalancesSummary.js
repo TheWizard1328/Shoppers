@@ -148,7 +148,7 @@ async function freshLedgerWindows(cfg, userId) {
 }
 
 function writeLedgerCache(patch, userId) {
-  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], cod_sales: [], window_sales: [], window_since: null };
+  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], cod_sales: [], window_sales: [], window_since: null, evidence_sales: [], evidence_declines: [], evidence_since: null };
   ledgerCache.data = { ...w, ...patch, saved_at: new Date().toISOString() };
   if (ledgerSaveTimer) clearTimeout(ledgerSaveTimer);
   // Single debounced flush — all loaders write the SAME IDB record.
@@ -259,6 +259,52 @@ async function loadWindowSales(cfg, userId = null) {
   const dedupedW = dedupeBySquareId(out);
   writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, window_since: since, window_sales: dedupedW }, userId);
   return dedupedW;
+}
+
+// Card-spend EVIDENCE pool (owner spec, Oct 3 2026): a swiped COD appears in
+// the ledger as either ONE sale or a COMBINATION of 2+ partial sales totaling
+// the COD amount — same date, same store, same customer card — and the story
+// almost always carries one or more FAILED (declined) entries on that card
+// too. The badge/rows "Card Spend" pill needs BOTH sides of that story, so
+// this loads 30 days of completed CARD sales plus every decline, riding the
+// same 10-minute IDB windows cache. 30 days covers the full "Past
+// uncollected" list; older CODs than that never had swipes detected anyway.
+export async function loadCardSpendEvidence(cfg, userId = null) {
+  // Day-aligned so the cache key is stable across calls within a day (the
+  // 10-minute TTL guard in freshLedgerWindows still bounds staleness).
+  const since = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
+  const cached = await freshLedgerWindows(cfg, userId);
+  if (cached && cached.evidence_since === since) {
+    return { sales: dedupeBySquareId(cached.evidence_sales), declines: dedupeBySquareId(cached.evidence_declines) };
+  }
+  const sales = [];
+  const declines = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const rows = await base44.entities.SquareLedgerEntry.filter(
+      { entry_kind: 'sale', tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: since } },
+      undefined, 500, skip
+    ).catch(() => []);
+    const list = rows || [];
+    sales.push(...list);
+    if (list.length < 500) break;
+    skip += 500;
+  }
+  skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const rows = await base44.entities.SquareLedgerEntry.filter(
+      { entry_kind: 'decline', occurred_at: { $gte: since } },
+      undefined, 500, skip
+    ).catch(() => []);
+    const list = rows || [];
+    declines.push(...list);
+    if (list.length < 500) break;
+    skip += 500;
+  }
+  const dedupedSales = dedupeBySquareId(sales);
+  const dedupedDeclines = dedupeBySquareId(declines);
+  writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, evidence_since: since, evidence_sales: dedupedSales, evidence_declines: dedupedDeclines }, userId);
+  return { sales: dedupedSales, declines: dedupedDeclines };
 }
 
 // Bank sweeps (BATCH payouts) since the true-up. Square auto-transfers the
