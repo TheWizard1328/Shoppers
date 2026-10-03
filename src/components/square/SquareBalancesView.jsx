@@ -52,6 +52,21 @@ function extractNameFromCatalogDescription(description) {
 
 // Delivery only stores patient_id (no patient_name field) — resolve the real
 // name from the Patient entity, same dual-key lookup used across the app
+// Ledger rows are keyed on square_id upstream, but a mid-storm sync once
+// left duplicate rows (each copy re-counting amount AND fee). Every ledger
+// read on this page goes through this guard: one row per square_id.
+function dedupeLedgerById(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const r of rows || []) {
+    const key = r?.square_id || r?.id || null;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
 // (patient_id can match either Patient.id or Patient.patient_id).
 function buildPatientResolver(patientsRaw) {
   const byId = new Map();
@@ -71,6 +86,13 @@ function buildPatientResolver(patientsRaw) {
 // the Square catalog items list (name + subtext, bold amount, Collected/Pending
 // pill). Three levels, top to bottom: collected today, uncollected (today +
 // future-dated pending CODs), past uncollected.
+// Two stacked pills per row (owner, Oct 2 2026): the TOP "Card Spend" pill
+// appears only when the delivery has a real CARD swipe in the Square
+// transaction data — the store actually paid it onto the app card — and the
+// BOTTOM pill is the collection status (Collected / Pending / Awaiting
+// Pickup). pendingPickup rows previously used the sky "Card Spend" pill as a
+// status; that wording now belongs to the transaction-evidence pill, so
+// their status pill reads "Awaiting Pickup".
 function CardCodList({ sections }) {
   if (!sections || !sections.some((s) => s.rows.length > 0)) return null;
   return (
@@ -99,11 +121,16 @@ function CardCodList({ sections }) {
                 <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
               </div>
               <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
-              {r.collected
-                ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
-                : r.pendingPickup
-                  ? <span className="shrink-0 rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
-                  : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>}
+              <div className="shrink-0 flex flex-col items-end gap-0.5">
+                {r.hasCardSpend && (
+                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
+                )}
+                {r.collected
+                  ? <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
+                  : r.pendingPickup
+                    ? <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Awaiting Pickup</span>
+                    : <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>}
+              </div>
             </div>
           ))}
         </div>
@@ -120,6 +147,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
+  const [cardSpendIds, setCardSpendIds] = useState(new Set()); // owner-only: delivery_ids with a real CARD swipe in Square tx data
   const [catalogUncollectedByLoc, setCatalogUncollectedByLoc] = useState(undefined); // owner-only: ACTIVE SquareCatalogItems = uncollected, all dates
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
@@ -263,12 +291,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeCodCollectedToday = useCallback(async () => {
     if (!ownerCanEditRef.current) return;
     try {
-      const [storesRaw, cfgsRaw, codSalesRaw, patientsRaw] = await Promise.all([
+      const [storesRaw, cfgsRaw, patientsRaw, codSalesPages] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.SquareLocationConfig.list().catch(() => []),
-        base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => []),
         base44.entities.Patient.list().catch(() => []),
+        (async () => {
+          const pages = [];
+          for (let skip = 0; skip < 20000; skip += 500) {
+            const rows = await base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }, undefined, 500, skip).catch(() => []);
+            const list = rows || [];
+            pages.push(...list);
+            if (list.length < 500) break;
+          }
+          return pages;
+        })(),
       ]);
+      const codSalesRaw = dedupeLedgerById(codSalesPages);
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const cfgLoc = new Map();
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
@@ -300,6 +338,55 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < Date.now() - 3 * 86400000) break;
       }
 
+      // ── Card-spend evidence (owner, Oct 2 2026): deliveries with a real
+      // CARD swipe in the Square transaction data — the store actually paid
+      // the COD onto the app card. CARD-tender completed cod_collection sales
+      // only: cash-tender Square sales ring the register drawer, not the
+      // card. Three match rules:
+      //   1. Direct: sale row linked to this delivery (catalog object link).
+      //   2. Multi-COD single swipe: the ledger links a payment to its FIRST
+      //      COD line item only — a sibling COD (completed within +-90 min,
+      //      same card, ringed 90 min before its completion to +6 h) whose
+      //      amount fits inside the sale counts as swiped too.
+      //   3. Unlinked split ring: sale with no delivery link and EXACT cents
+      //      match in the same time window (register rang it separately).
+      const cardSales = (codSalesRaw || []).filter((e) =>
+        String(e?.tender_type || '').toUpperCase() === 'CARD'
+        && String(e?.status || '').toUpperCase() === 'COMPLETED');
+      const swipedIds = new Set();
+      for (const e of cardSales) if (e?.delivery_id) swipedIds.add(String(e.delivery_id));
+      const cardSalesByLoc = new Map();
+      for (const e of cardSales) {
+        if (!e?.location_id) continue;
+        if (!cardSalesByLoc.has(e.location_id)) cardSalesByLoc.set(e.location_id, []);
+        cardSalesByLoc.get(e.location_id).push(e);
+      }
+      for (const d of deliveryList) {
+        if (!d?.id || swipedIds.has(String(d.id)) || d?.status !== 'completed') continue;
+        const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+        const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((sum, p) => sum + centsOf(p?.amount), 0);
+        if (cash <= 0) continue;
+        const locId = storeToLoc.get(String(d?.store_id || ''));
+        const pool = locId ? cardSalesByLoc.get(locId) || [] : [];
+        const doneAt = d.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
+        if (!doneAt) continue;
+        for (const e of pool) {
+          const t = e.occurred_at ? new Date(e.occurred_at).getTime() : null;
+          if (!t || t < doneAt - 90 * 60000 || t > doneAt + 6 * 3600000) continue;
+          if (e?.delivery_id) {
+            // rule 2 — sibling COD riding the same swipe
+            const sib = deliveryById.get(String(e.delivery_id));
+            const sibDone = sib?.actual_delivery_time ? new Date(sib.actual_delivery_time).getTime() : null;
+            if (!sibDone || Math.abs(sibDone - doneAt) > 90 * 60000) continue;
+            if (Math.abs(Number(e.amount_cents || 0)) >= cash) { swipedIds.add(String(d.id)); break; }
+          } else if (Math.abs(Number(e.amount_cents || 0)) === cash) {
+            // rule 3 — unlinked exact-cents split ring
+            swipedIds.add(String(d.id)); break;
+          }
+        }
+      }
+      setCardSpendIds(swipedIds);
+
       // a) Square-confirmed cash collections that happened TODAY
       const squareTodayIds = new Set();
       for (const e of (codSalesRaw || [])) {
@@ -314,12 +401,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const txPatientName = resolvePatientName(e.patient_id || linkedDelivery?.patient_id)?.full_name || null;
         aggFor(locId).push({
           key: `tx-${e.id || e.square_id}`,
+          delivery_id: String(e.delivery_id),
           patientName: txPatientName,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: Math.abs(Number(e.amount_cents || 0)) / 100,
           sub: `Square cash · ${when.slice(11, 16)}`,
           collected: true,
+          hasCardSpend: swipedIds.has(String(e.delivery_id)),
         });
       }
 
@@ -340,12 +429,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
           aggFor(locId).push({
             key: `d-${d.id}`,
+            delivery_id: String(d.id),
             patientName: resolvePatientName(d.patient_id)?.full_name || null,
             storeAbbrev: sInfo?.abbreviation || null,
             storeColor: sInfo?.color || null,
             amount: nonCash / 100,
             sub: `${type} · ${doneAt.slice(11, 16)}`,
             collected: true,
+            hasCardSpend: false, // in-app patient debit/credit — not a store card spend
           });
         }
       }
@@ -929,8 +1020,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     pendingPickup: true,
                   }));
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
+                const swiped = (id) => !!id && cardSpendIds.has(String(id));
                 const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
                   key: it.key || `o-${it.delivery_id}`,
+                  delivery_id: it.delivery_id || null,
                   patientName: it.patientName || it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
@@ -938,6 +1031,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
                   collected: false,
                   pendingPickup: !!it.pendingPickup,
+                  hasCardSpend: swiped(it.delivery_id),
                 }));
                 // Future-dated en_route/in_transit CODs never have a Square
                 // catalog item either (same reconciler behavior) — merge them
@@ -952,6 +1046,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   .filter((it) => !allKnownIds.has(it.delivery_id))
                   .map((it) => ({
                     key: `f-${it.delivery_id}`,
+                    delivery_id: it.delivery_id || null,
                     patientName: it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -959,9 +1054,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     sub: `${it.date} · upcoming`,
                     collected: false,
                     pendingPickup: it.status === 'pending',
+                    hasCardSpend: swiped(it.delivery_id),
                   }));
                 const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
+                  delivery_id: it.delivery_id || null,
                   patientName: it.patientName || it.patient || null,
                   storeAbbrev: it.storeAbbrev || null,
                   storeColor: it.storeColor || null,
@@ -969,6 +1066,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   sub: it.sub || it.date,
                   collected: false,
                   pendingPickup: !!it.pendingPickup,
+                  hasCardSpend: swiped(it.delivery_id),
                 }));
                 const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
                 const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
