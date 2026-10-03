@@ -73,6 +73,52 @@ function decodeGooglePolyline(encoded) {
   return coords;
 }
 
+/** Decode a breadcrumb segment polyline. Breadcrumb trails are encoded at
+ *  1e7 precision (client encoder in locationBreadcrumbService.jsx; the slicer
+ *  backend also encodes at 1e7), while Delivery route polylines are 1e5
+ *  (HERE/Google standard). A DIRECT copy of the breadcrumb string into
+ *  Delivery.encoded_polyline therefore renders as garbage — it must be
+ *  decoded at 1e7 and re-encoded at 1e5 (exactly what the
+ *  saveCrumbPolylineToDelivery backend does on manual seal).
+ *  Pure-arithmetic zigzag — NO bitwise ops: 1e7 integer values for Edmonton
+ *  longitude exceed the 32-bit bitwise-safe range (commit 2959509ef).
+ *  Auto-detects legacy 1e5 trails so old records still convert correctly. */
+function decodeBreadcrumbPolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const rawLats = [], rawLngs = [];
+  while (index < encoded.length) {
+    let result = 0, multiplier = 1, b;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lat += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    result = 0; multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    rawLats.push(lat); rawLngs.push(lng);
+  }
+  // Robust precision auto-detect (mirrors the slicer backend): skip (0,0)
+  // null-island leading points so one bad fix can't flip 1e7 → 1e5 decoding.
+  let firstLat = 0;
+  for (let i = 0; i < rawLats.length; i++) {
+    if (Math.abs(rawLats[i]) > 0 || Math.abs(rawLngs[i]) > 0) { firstLat = rawLats[i]; break; }
+  }
+  const divisor = Math.abs(firstLat) > 9000000 ? 1e7 : 1e5;
+  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
+}
+
+/** Convert a breadcrumb polyline (1e7) to a Delivery route polyline (1e5).
+ *  Drops corrupted points (null-island, out-of-range) so one bad GPS fix can't
+ *  poison the saved route. Returns null when nothing usable remains. */
+function breadcrumbToDeliveryPolyline(encoded) {
+  const pts = decodeBreadcrumbPolyline(encoded);
+  if (!pts.length) return null;
+  const clean = pts.filter(([lat, lng]) =>
+    !(Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01) &&
+    Math.abs(lat) <= 85 && Math.abs(lng) <= 180);
+  if (!clean.length) return null;
+  return encodeGooglePolyline(clean);
+}
+
 /** Concatenate two encoded polylines into one (dropping the shared joint point). */
 function mergeEncodedPolylines(a, b) {
   if (!a) return b || null;
@@ -417,13 +463,13 @@ export default function ResetPolylinesButton({
       base44.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1),
     ]);
 
-    const deliveries = (rawDeliveries || []).filter(Boolean);
+    let deliveries = (rawDeliveries || []).filter(Boolean);
     if (deliveries.length === 0) {
       throw new Error('No route stops found for this driver and date');
     }
 
     // Sort deliveries by stop_order (already fetched sorted, but be explicit)
-    const sorted = [...deliveries].sort((a, b) =>
+    let sorted = [...deliveries].sort((a, b) =>
       (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0)
     );
 
@@ -479,7 +525,73 @@ export default function ResetPolylinesButton({
     // (no linked_delivery_id) fall back to stop_order.
     const sealedByDeliveryId = new Map(sealedBreadcrumbs.filter(seg => seg.linked_delivery_id).map(seg => [seg.linked_delivery_id, seg]));
     const sealedByStopOrder = new Map(sealedBreadcrumbs.filter(seg => !seg.linked_delivery_id).map(seg => [Number(seg.stop_order), seg]));
-    const findSealedFor = (delivery) => sealedByDeliveryId.get(delivery.id) || sealedByStopOrder.get(Number(delivery.stop_order)) || null;
+
+    // Capture seal→delivery matches BEFORE the stop_order repair below. Legacy
+    // sealed segments carry PRE-repair stop_orders — they can ONLY be matched
+    // against the pre-repair numbering. Matching after the repair would attach
+    // a legacy seal to whatever delivery now sits at its old number.
+    const sealedMatchByDeliveryId = new Map();
+    for (const d of sorted) {
+      const seg = sealedByDeliveryId.get(d.id) || sealedByStopOrder.get(Number(d.stop_order));
+      if (seg) sealedMatchByDeliveryId.set(d.id, seg);
+    }
+
+    // True orphans: legacy (un-linked) sealed records whose stop_order matches
+    // NO delivery in the PRE-repair numbering — the delivery they belonged to
+    // is gone (deleted). Delete them now (slicer orphan-cleanup parity) so the
+    // delivery that inherits that number after the repair can never be
+    // mis-attached to a dead leg.
+    const matchedSegIds = new Set([...sealedMatchByDeliveryId.values()].map(seg => seg.id));
+    for (const seg of sealedByStopOrder.values()) {
+      if (matchedSegIds.has(seg.id)) continue;
+      console.warn(`[ResetPolylinesButton] deleting orphaned sealed segment stop_order=${seg.stop_order} (no matching delivery)`);
+      base44.entities.DeliveryBreadcrumbs.delete(seg.id).catch(() => {});
+    }
+
+    // ── STEP 0: repair the stop_order sequence (owner directive, Oct 2 2026)
+    // Close gaps (e.g. 1-22, 24-33 → clean 1-32) so the regenerated legs chain
+    // correctly. repairStopOrders sorts finished stops by actual_delivery_time
+    // 1..K, cycling markers included, and only writes changed stop_orders.
+    try {
+      const repair = await base44.functions.invoke('repairStopOrders', {
+        driverId,
+        deliveryDate: selectedDate,
+      });
+      if (repair?.success && repair.repairs > 0 && Array.isArray(repair.repairedDeliveries) && repair.repairedDeliveries.length) {
+        console.log(`[ResetPolylinesButton] Step 0 — repaired ${repair.repairs} stop_order(s)`);
+        const repaired = repair.repairedDeliveries.filter(Boolean);
+        if (repaired.length) {
+          deliveries = repaired;
+          sorted = [...repaired].sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+        }
+      }
+    } catch (err) {
+      console.warn('[ResetPolylinesButton] Step 0 stop_order repair failed:', err?.message || err);
+    }
+
+    // ── Legacy migration: re-anchor matched sealed records to the (possibly
+    // new) stop_order and stamp linked_delivery_id, so every future match is
+    // renumber-proof and the breadcrumb DB stays consistent with the route.
+    const deliveryById = new Map(sorted.map(d => [d.id, d]));
+    const migratedSegs = [];
+    for (const [deliveryId, seg] of sealedMatchByDeliveryId) {
+      const d = deliveryById.get(deliveryId);
+      if (!d) continue;
+      const newOrder = Number(d.stop_order);
+      if (Number(seg.stop_order) !== newOrder || !seg.linked_delivery_id) {
+        migratedSegs.push({ ...seg, stop_order: newOrder, linked_delivery_id: deliveryId });
+        base44.entities.DeliveryBreadcrumbs.update(seg.id, {
+          stop_order: newOrder,
+          linked_delivery_id: deliveryId,
+        }).catch(() => {});
+      }
+    }
+    if (migratedSegs.length) {
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, migratedSegs).catch(() => {});
+    }
+
+    // Id-keyed lookup — immune to the renumber that just happened above.
+    const findSealedFor = (delivery) => sealedMatchByDeliveryId.get(delivery.id) || sealedByDeliveryId.get(delivery.id) || null;
     // Route stops needing a polyline: every non-cancelled stop on the route.
     const routeStops = sorted.filter(d => d.status !== 'cancelled');
     const allStopsSealed = routeStops.length > 0 && routeStops.every(d => !!findSealedFor(d));
@@ -536,8 +648,12 @@ export default function ResetPolylinesButton({
       for (const d of routeStops) {
         const seg = findSealedFor(d);
         if (!seg) continue;
+        // Breadcrumb (1e7) must be converted to Delivery precision (1e5) —
+        // a direct copy renders as garbage (owner-confirmed corruption).
+        const deliveryPoly = breadcrumbToDeliveryPolyline(seg.encoded_polyline);
+        if (!deliveryPoly) continue;
         mergeUpdate(d.id, {
-          encoded_polyline: seg.encoded_polyline,
+          encoded_polyline: deliveryPoly,
           ...(seg.transport_mode ? { transport_mode: seg.transport_mode } : {}),
         });
       }
@@ -663,13 +779,17 @@ export default function ResetPolylinesButton({
 
     for (const d of sorted) {
       if (d.status === 'cancelled') continue;
-      // Match by linked_delivery_id FIRST (stable across stop_order
-      // renumbers) — stop_order fallback only for legacy un-migrated segments.
-      const seg = sealedByDeliveryId.get(d.id) || sealedByStopOrder.get(Number(d.stop_order));
+      // Id-keyed match (pre-repair capture) — stable across stop_order renumbers.
+      const seg = findSealedFor(d);
       if (!seg) continue;
 
+      // Breadcrumb (1e7) must be converted to Delivery precision (1e5) —
+      // a direct copy renders as garbage (owner-confirmed corruption).
+      const deliveryPoly = breadcrumbToDeliveryPolyline(seg.encoded_polyline);
+      if (!deliveryPoly) continue;
+
       mergeUpdate(d.id, {
-        encoded_polyline: seg.encoded_polyline,
+        encoded_polyline: deliveryPoly,
         ...(seg.transport_mode ? { transport_mode: seg.transport_mode } : {}),
       });
 
