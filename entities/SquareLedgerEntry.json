@@ -1,18 +1,18 @@
 {
   "name": "SquareLedgerEntry",
-  "type": "object",
   "properties": {
     "square_id": {
       "description": "Unique dedupe key: Square payment ID, tender ID, refund ID or payout ID",
       "type": "string"
     },
     "entry_kind": {
-      "description": "Kind of ledger entry",
+      "description": "Kind of ledger entry (owner revamp Oct 3 2026: sale->collected, payout->card_spend; card_topup added Oct 3 2026 for fund transfers onto the Square Cards \u2014 payout records at card (MOBILE) locations, destination SQUARE_STORED_BALANCE)",
       "enum": [
-        "sale",
+        "collected",
         "refund",
         "decline",
-        "payout"
+        "card_spend",
+        "card_topup"
       ],
       "type": "string"
     },
@@ -21,7 +21,7 @@
       "type": "string"
     },
     "sale_class": {
-      "description": "cod_collection set at sync; card_spend/other_sale derived at render from card labels; stored value may be null",
+      "description": "cod_collection is set at sync time (delivery link). card_spend/other_sale are derived at render time from card labels; stored value may be null",
       "enum": [
         "cod_collection",
         "card_spend",
@@ -30,7 +30,7 @@
       "type": "string"
     },
     "amount_cents": {
-      "description": "Absolute amount in cents (sign derived from classification at render time)",
+      "description": "Absolute amount in cents (sign is derived from classification at render time)",
       "type": "number"
     },
     "fee_cents": {
@@ -38,8 +38,20 @@
       "description": "Processing fee in cents",
       "type": "number"
     },
+    "folder_cents": {
+      "description": "Folder (savings) contribution in cents: round(amount_cents x folder_rate). Null for non-sale rows",
+      "type": "number"
+    },
+    "loan_cents": {
+      "description": "Loan repayment in cents: round(amount_cents x loan_rate for the location). Null for non-sale rows",
+      "type": "number"
+    },
+    "settled_cents": {
+      "description": "Net returned to the card: amount_cents - fee_cents - folder_cents - loan_cents. Null for non-sale rows",
+      "type": "number"
+    },
     "status": {
-      "description": "Raw Square status: COMPLETED, FAILED, PENDING, CANCELED, REJECTED, SENT etc.",
+      "description": "Raw Square status: COMPLETED, FAILED, PENDING, CANCELED, REJECTED, PAID, SENT, IN_PROGRESS, etc",
       "type": "string"
     },
     "occurred_at": {
@@ -59,7 +71,7 @@
       "type": "string"
     },
     "delivery_id": {
-      "description": "Linked RxDeliver delivery ID when the sale/refund belongs to a COD item (nullable)",
+      "description": "Linked RxDeliver delivery ID when the sale/refund belongs to a collected COD (nullable)",
       "type": "string"
     },
     "patient_id": {
@@ -79,7 +91,7 @@
       "type": "string"
     },
     "reason": {
-      "description": "Refund reason / decline details / payout type (nullable)",
+      "description": "Refund reason / decline details / payout destination+type / card_topup source summary (nullable)",
       "type": "string"
     },
     "card_fingerprint": {
@@ -91,7 +103,7 @@
       "type": "string"
     },
     "card_brand": {
-      "description": "Card brand, e.g. VISA, MASTERCARD (nullable)",
+      "description": "Card brand, e.g. VISA, MASTERCARD, INTERAC (nullable)",
       "type": "string"
     },
     "entry_method": {
@@ -101,13 +113,15 @@
     "synced_at": {
       "description": "ISO timestamp when this record was last synced from Square",
       "type": "string"
+    },
+    "attributed_location_id": {
+      "description": "For card_topup rows: the STORE location_id whose sale fed the card (resolved from the payout's CHARGE entry payment). Null when the transfer source is not a sale (e.g. folder/card-to-card manual transfer).",
+      "type": "string"
     }
   },
   "required": [
-    "square_id",
-    "entry_kind",
-    "amount_cents",
-    "occurred_at",
-    "location_id"
-  ]
+    "square_id"
+  ],
+  "rls": null,
+  "type": "object"
 }
