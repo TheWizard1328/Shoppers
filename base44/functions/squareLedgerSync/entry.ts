@@ -744,6 +744,9 @@ Deno.serve(async (req) => {
     // Resolve it to the STORE whose sale fed the card (in-window sales live
     // in the entries Map; older sales come from existing ledger rows).
     let topupsAttributed = 0;
+    // Source sales older than the scan pool (or from skipped store phases in
+    // topup-only backfills) are fetched straight from the ledger by square_id.
+    const unresolvedSrcs = new Set<string>();
     for (const rec of allEntries) {
       if (rec?.entry_kind !== 'card_topup') continue;
       const src = topupSrcByPayout.get(String(rec.square_id)) || null;
@@ -752,6 +755,26 @@ Deno.serve(async (req) => {
       if (!storeLoc) storeLoc = existingRowsBySquareId.get(src)?.[0]?.location_id || null;
       if (storeLoc && storeLocIds.has(String(storeLoc))) {
         rec.attributed_location_id = String(storeLoc);
+        topupsAttributed += 1;
+      } else if (!storeLoc) {
+        unresolvedSrcs.add(src);
+      }
+    }
+    const srcLocByPaymentId = new Map<string, string>();
+    for (const src of unresolvedSrcs) {
+      try {
+        const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ square_id: src }).catch(() => [])) as any[];
+        const row = (rows || []).find((r: any) => r?.location_id);
+        if (row?.location_id) srcLocByPaymentId.set(String(src), String(row.location_id));
+      } catch { /* best effort */ }
+      await sleep(40);
+    }
+    for (const rec of allEntries) {
+      if (rec?.entry_kind !== 'card_topup' || rec.attributed_location_id) continue;
+      const src = topupSrcByPayout.get(String(rec.square_id)) || null;
+      const storeLoc = src ? srcLocByPaymentId.get(String(src)) || null : null;
+      if (storeLoc && storeLocIds.has(String(storeLoc))) {
+        rec.attributed_location_id = storeLoc;
         topupsAttributed += 1;
       }
     }
