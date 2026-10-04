@@ -8,7 +8,6 @@
  */
 
 import { parseLocalTimestamp } from '../utils/timeRoundingHelper';
-import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
 import { acquireBreadcrumbSyncLock } from "../utils/breadcrumbSyncLock";
 
 export const START_ACTION_NAME = 'start_delivery';
@@ -48,36 +47,14 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
   } catch (flushErr) {
     console.warn('⚠️ [Breadcrumbs] Pre-slice flush failed:', flushErr?.message || flushErr);
     // Don't abort — the slicer will use whatever the server already has
-  }
-
-  try {
-    // FULL home-anchored walk (owner fix, Sep 29 2026): the previous
-    // 'incremental' tail cut anchored each new leg on the PREVIOUS leg's saved
-    // segment record, matched by stop_order — but stop_orders now get
-    // renumbered constantly (Start renumbering + repair passes renumber
-    // finished stops 1..K by completion time), so the record lookup kept
-    // missing and legs collapsed to 1-2 point stubs (owner report Sep 29:
-    // "most stops set to 1 or 2 points"; preview of the full walk on the same
-    // trail projected 275/119/230-point legs where incremental had written
-    // 1-2). The full walk is the same proven algorithm as the Route Viewer
-    // "reclip" scissors — home-anchored, time-primary boundaries — and it
-    // re-slices EVERY finished leg on every completion, so earlier bad legs
-    // self-heal as the day progresses. Manual saved_to_route legs are still
-    // never overwritten (backend skips them), and orphaned/stale-numbered
-    // segment records are cleaned up on each pass.
-    const result = await consolidateBreadcrumbSegment({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      delivery_id: deliveryId,
-    });
-    if (result?.success) {
-      console.log(`✅ [Breadcrumbs] Proximity slicing complete: ${result.total_segments} segments, ${result.master_point_count} master points`);
-    } else {
-      console.warn(`⚠️ [Breadcrumbs] Consolidation returned non-success:`, result?.error || result);
-    }
-  } catch (error) {
-    console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
   } finally {
+    // SLICING now runs SERVER-SIDE (owner approval Oct 4 2026): the scheduled
+    // "Breadcrumb Slice Cycle" workflow invokes consolidateBreadcrumbSegment in
+    // cycle mode every 5 minutes — full home-anchored walk per active
+    // driver-date (same algorithm, same saved_to_route protection, self-heals
+    // earlier legs, multi-arrival completions collapse into one slice). The
+    // phone's job at stop-finish is now ONLY the force-flush above; the heavy
+    // slicing invoke is off the driver's device entirely.
     if (releaseSliceLock) releaseSliceLock();
   }
 };

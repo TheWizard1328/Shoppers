@@ -317,16 +317,45 @@ function scanWindow(masterPoints, from, to, lat, lng, dtMs) {
 // Main handler
 // ═══════════════════════════════════════════════════════════════════════════════
 
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+// ── Edmonton-local YYYY-MM-DD for N days ago (delivery_date is a local date string) ──
+function edmontonDateDaysAgo(days) {
+  const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(d);
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+// ── Cycle mode discovery: driver-date pairs with a master trail (stop_order = -1) ──
+// for today + yesterday (Edmonton). A late-night trail synced after midnight is
+// still picked up by the next morning's pass since yesterday is included.
+async function discoverSliceTargets(base44) {
+  const dates = [edmontonDateDaysAgo(0), edmontonDateDaysAgo(1)];
+  const byKey = new Map();
+  for (const delivery_date of dates) {
+    let recs = [];
+    try {
+      let skip = 0;
+      for (;;) {
+        const page = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({ delivery_date, stop_order: -1 }, skip);
+        if (!Array.isArray(page) || page.length === 0) break;
+        recs = recs.concat(page);
+        if (page.length < 100) break;
+        skip += page.length;
+      }
+    } catch (_) { /* date with no trails */ }
+    for (const r of recs) {
+      if (r?.driver_id) byKey.set(`${r.driver_id}|${delivery_date}`, { driver_id: r.driver_id, delivery_date });
     }
+  }
+  return [...byKey.values()];
+}
 
-    const body = await req.json().catch(() => ({}));
+// ── Per-driver slicing core (full or incremental mode) ──
+async function handleSingle(base44, body) {
+  try {
     const {
       driver_id,
       delivery_date,
@@ -1109,6 +1138,44 @@ Deno.serve(async (req) => {
       delivery_date,
     });
 
+  } catch (error) {
+    console.error('❌ [consolidateBreadcrumbSegment] Error:', error?.message || error);
+    return Response.json({ error: error?.message || 'Unknown error' }, { status: 500 });
+  }
+}
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me().catch(() => null);
+    const body = await req.json().catch(() => ({}));
+
+    // CYCLE mode — scheduled-workflow invocation (service context, no user
+    // session; same service-role pattern as purgeOldBreadcrumbs). Discovers
+    // every driver-date with a master trail for today + yesterday (Edmonton)
+    // and runs the FULL home-anchored walk once per pair. This moves the
+    // per-stop-finish slicing work OFF the driver devices: the phone only
+    // force-flushes its master trail; the server slices within 5 minutes.
+    if (body?.mode === 'cycle') {
+      const targets = await discoverSliceTargets(base44);
+      const outcomes = [];
+      for (const t of targets) {
+        try {
+          const r = await handleSingle(base44, { driver_id: t.driver_id, delivery_date: t.delivery_date, mode: 'full' });
+          const data = await r.json().catch(() => ({}));
+          outcomes.push({ driver_id: t.driver_id, delivery_date: t.delivery_date, success: data?.success === true, segments: data?.total_segments ?? 0 });
+        } catch (e) {
+          outcomes.push({ driver_id: t.driver_id, delivery_date: t.delivery_date, success: false, error: e?.message || String(e) });
+        }
+      }
+      return Response.json({ success: true, mode: 'cycle', targets: targets.length, outcomes });
+    }
+
+    // Direct invocation (client scissors / admin tools) — requires a user session.
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return await handleSingle(base44, body);
   } catch (error) {
     console.error('❌ [consolidateBreadcrumbSegment] Error:', error?.message || error);
     return Response.json({ error: error?.message || 'Unknown error' }, { status: 500 });
