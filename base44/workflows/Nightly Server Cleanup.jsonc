@@ -1,0 +1,105 @@
+{
+  "name": "Nightly Server Cleanup",
+  "description": "Nightly 3:30am server-side cleanup: dedups duplicate master breadcrumb records, purges stale app-settings sync locks, clears stale driver locations, trims remote logs to 72h, and purges breadcrumb records older than 14 days. Keeps devices and server lean without any driver-device involvement.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "30 3 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "dedup_crumbs": {
+          "call": "invoke_backend_function",
+          "then": "purge_locks",
+          "with": {
+            "args": {
+              "scan_all": true
+            },
+            "function_name": "cleanupBreadcrumbDuplicates"
+          },
+          "x-base44": {
+            "description": "Scan all driver-dates",
+            "title": "Dedup master crumbs"
+          }
+        }
+      },
+      {
+        "purge_locks": {
+          "call": "invoke_backend_function",
+          "then": "clear_locations",
+          "with": {
+            "args": {},
+            "function_name": "purgeStaleAppSettingsLocks"
+          },
+          "x-base44": {
+            "description": "Stale sync locks",
+            "title": "Purge stale locks"
+          }
+        }
+      },
+      {
+        "clear_locations": {
+          "call": "invoke_backend_function",
+          "then": "trim_logs",
+          "with": {
+            "args": {},
+            "function_name": "clearStaleDriverLocations"
+          },
+          "x-base44": {
+            "description": "Old GPS fixes",
+            "title": "Clear stale locations"
+          }
+        }
+      },
+      {
+        "trim_logs": {
+          "call": "invoke_backend_function",
+          "then": "purge_crumbs",
+          "with": {
+            "args": {
+              "retention_hours": 72
+            },
+            "function_name": "clearRemoteLogs"
+          },
+          "x-base44": {
+            "description": "Keep 72h",
+            "title": "Trim remote logs"
+          }
+        }
+      },
+      {
+        "purge_crumbs": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {},
+            "function_name": "purgeOldBreadcrumbs"
+          },
+          "x-base44": {
+            "description": "Default 14-day window",
+            "title": "Purge old breadcrumbs"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "nightly_server_cleanup",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
