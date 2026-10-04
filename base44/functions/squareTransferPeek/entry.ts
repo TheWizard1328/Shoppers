@@ -24,7 +24,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
   if (!accessToken) throw Object.assign(new Error('Square credentials not configured'), { status: 500 });
 
-  const days = Math.max(1, Math.min(90, Number(payload?.days) || 14));
+  const days = Math.max(1, Math.min(400, Number(payload?.days) || 14));
   const begin = new Date(Date.now() - days * 86400000).toISOString();
   const withEntries = payload?.entries !== false;
 
@@ -39,6 +39,16 @@ async function handleRequest(req: Request): Promise<Response> {
     if (!r.ok) return { error: r.status, detail: json?.errors?.map((e: any) => e?.detail).join(', ') || String(json) };
     return json;
   };
+
+  // Locations in this Square account (reveals Square Card / balance-folder locations).
+  let locations: any[] = [];
+  let merchant: any = null;
+  if (payload?.locations !== false) {
+    const lj: any = await sf('/v2/locations');
+    if (!lj.error) locations = (lj.locations || []).map((l: any) => ({ id: l.id, name: l.name, type: l.type, status: l.status, address: l?.address?.locality || null }));
+    const mj: any = await sf('/v2/merchants/me');
+    if (!mj.error) merchant = { id: mj.merchant?.id, business_name: mj.merchant?.business_name, currency: mj.merchant?.currency };
+  }
 
   // Payouts are account-level; query without location filter.
   const payouts: any[] = [];
@@ -84,6 +94,9 @@ async function handleRequest(req: Request): Promise<Response> {
   return new Response(JSON.stringify({
     success: true,
     window_days: days,
+    merchant,
+    locations_count: locations.length,
+    locations,
     payouts_count: payouts.length,
     payout_destinations: Array.from(new Set(payouts.map((p: any) => [p?.destination?.type, p?.type, p?.status].join('|')))),
     payouts: payouts.map((p: any) => ({ id: p.id, type: p.type, status: p.status, amount: p?.amount_money?.amount, created_at: p.created_at, arriving: p?.arriving_date, destination: p?.destination?.type, location_id: p?.location_id })),
