@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { toEdmontonWall } from '../utils/albertaTime';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
@@ -210,7 +211,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     // Only one fetch in flight at a time
     if (_squareAppIdFetching) return;
     _squareAppIdFetching = true;
-    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).then((settings) => {
+    getAppSettingRows('refresh_intervals').then((settings) => {
       const appId = settings?.[0]?.setting_value?.square_app_id || null;
       _cachedSquareAppId = appId;
       _squareAppIdFetching = false;

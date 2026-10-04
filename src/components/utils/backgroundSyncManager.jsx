@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { offlineDB } from './offlineDatabase';
 import { format } from 'date-fns';
 import { syncHistoricalDateCityScoped, loadHistoricalCursor, saveHistoricalCursor, getCityIdsHash } from './historicalDeliverySync';
@@ -812,9 +813,7 @@ class BackgroundSyncManager {
 
     this.configLoadPromise = (async () => {
       try {
-        const settings = await base44.entities.AppSettings.filter({
-          setting_key: 'background_sync_config'
-        });
+        const settings = await getAppSettingRows('background_sync_config');
 
         if (settings && settings.length > 0) {
           const savedConfig = settings[0].setting_value;
@@ -841,9 +840,7 @@ class BackgroundSyncManager {
    */
   async saveConfig() {
     try {
-      const settings = await base44.entities.AppSettings.filter({
-        setting_key: 'background_sync_config'
-      });
+      const settings = await getFreshAppSettingRows('background_sync_config');
 
       const settingData = {
         setting_key: 'background_sync_config',

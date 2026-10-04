@@ -18,6 +18,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const STALE_MS = 5 * 60 * 1000;
@@ -81,7 +82,7 @@ export async function getDashboardWeather({ force = false } = {}) {
   if (_fetchPromise) return _fetchPromise;
   _fetchPromise = (async () => {
     try {
-      const rows = await base44.entities.AppSettings.filter({ setting_key: 'dashboard_weather' });
+      const rows = await getAppSettingRows('dashboard_weather');
       const raw = rows?.[0]?.setting_value || null;
       _cached = raw && typeof raw === 'object' && raw.cities && typeof raw.cities === 'object' ? raw : null;
       _fetchedAt = Date.now();

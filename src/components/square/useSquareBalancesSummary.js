@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
 import { edmontonWallString } from '@/components/utils/albertaTime';
 import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedgerWindows, getLedgerWindows } from '@/components/square/squareBalancesOfflineManager';
@@ -114,7 +115,7 @@ async function loadConfig() {
   // must THROW so the caller's retry-with-backoff runs, instead of silently
   // resolving to "no config" (empty badge) and caching that wrong empty
   // result for the full 60s TTL.
-  const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY });
+  const rows = await getAppSettingRows(SETTING_KEY);
   const rec = (rows || [])[0];
   return rec?.setting_value?.locations?.length ? rec.setting_value : null;
 }

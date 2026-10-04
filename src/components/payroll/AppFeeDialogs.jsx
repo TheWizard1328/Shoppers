@@ -1,4 +1,5 @@
 import React from 'react';
+import { getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { base44 } from '@/api/base44Client';
@@ -27,7 +28,7 @@ export function AppFeeAllDriversDialog({
           app_fee_amount: driverEdits[driver.driver.id]?.appFeeAmount || 0
         });
       }
-      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const settings = await getFreshAppSettingRows('refresh_intervals');
       if (settings?.[0]) await base44.entities.AppSettings.update(settings[0].id, {
         setting_value: { ...settings[0].setting_value, Extra_App_Fee_Percentage: extraAppFeePercent, Other_App_Fee_Percentage: otherAppFeePercent }
       });

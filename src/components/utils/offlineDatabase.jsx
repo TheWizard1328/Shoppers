@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 22; // v22: Added square_balances_summary store (offline-first badge/page)
+const DB_VERSION = 23; // v23: Added app_settings store (offline-first AppSettings reads)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -36,7 +36,8 @@ const STORES = {
   STAT_HOLIDAYS: 'stat_holidays',         // statutory holidays for date lookups
   DRIVER_DAILY_ACTIVITY: 'driver_daily_activity', // v20: driver on-duty activity segments
   SQUARE_LEDGER: 'square_ledger', // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
-  SQUARE_BALANCES_SUMMARY: 'square_balances_summary' // v22: offline-first snapshot of the Square Balances summary (badge + page)
+  SQUARE_BALANCES_SUMMARY: 'square_balances_summary', // v22: offline-first snapshot of the Square Balances summary (badge + page)
+  APP_SETTINGS: 'app_settings' // v23: offline-first AppSettings rows keyed by setting_key
 };
 
 // PHI-bearing stores — these get encrypted at rest via AES-GCM
@@ -422,6 +423,14 @@ const openDatabase = async () => {
       // boot, forcing a deferred-delay band-aid that this store replaces).
       if (!db.objectStoreNames.contains(STORES.SQUARE_BALANCES_SUMMARY)) {
         db.createObjectStore(STORES.SQUARE_BALANCES_SUMMARY, { keyPath: 'id' });
+      }
+
+      // v23: app_settings — AppSettings rows mirrored offline-first. Read path:
+      // memory TTL -> IndexedDB (stale-while-revalidate) -> API fallback.
+      // Updated live by the appSettingsUpdated WebSocket event (cache module).
+      if (!db.objectStoreNames.contains(STORES.APP_SETTINGS)) {
+        const appSettingsStore = db.createObjectStore(STORES.APP_SETTINGS, { keyPath: 'id' });
+        appSettingsStore.createIndex('setting_key', 'setting_key', { unique: false });
       }
 
       // v19: stat_holidays — statutory holidays for offline date lookups

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -948,7 +949,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
 
   // Load app fees per delivery setting
   useEffect(() => {
-    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).then((settings) => {
+    getAppSettingRows('refresh_intervals').then((settings) => {
       const sv = settings?.[0]?.setting_value;
       if (sv?.app_fees_per_delivery) setAppFeesPerDelivery(parseFloat(sv.app_fees_per_delivery));
       if (sv?.Extra_App_Fee_Percentage !== undefined) setExtraAppFeePercent(parseFloat(sv.Extra_App_Fee_Percentage));

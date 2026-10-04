@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,7 +189,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
   const loadConfig = useCallback(async () => {
     const seq = ++configLoadSeq.current;
-    const rows = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
+    const rows = await getAppSettingRows(SETTING_KEY);
     const rec = (rows || [])[0];
     const value = rec?.setting_value?.locations?.length ? rec.setting_value : null;
     // A newer loadConfig() call already started (and will apply its own,

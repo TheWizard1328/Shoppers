@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,7 +55,7 @@ const saveSettings = async (settings) => {
       locationUpdateIntervalSeconds: settings.locationUpdateIntervalSeconds,
       minMovementDistanceMeters: settings.minMovementDistanceMeters
     };
-    const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+    const appSettings = await getFreshAppSettingRows('route_optimization');
     if (appSettings && appSettings.length > 0) {
       await base44.entities.AppSettings.update(appSettings[0].id, {
         setting_value: adminOnlySettings
@@ -96,7 +97,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+        const rows = await getAppSettingRows('route_optimization');
         const serverValue = rows?.[0]?.setting_value;
         if (cancelled || !serverValue || typeof serverValue !== 'object') return;
         setSettings((prev) => ({ ...prev, ...serverValue }));

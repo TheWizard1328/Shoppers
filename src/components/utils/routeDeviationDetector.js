@@ -13,6 +13,7 @@
  * next stop's ETA/distance use the GPS→stop portion only.
  */
 import { decodeGooglePolyline } from '@/components/utils/routePolylineGenerator';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 
 // ── Settings (same storage the admin panel writes) ─────────────────────────
 // NOTE (owner-reported bug, Sep 28 2026): getDeviationSettings() is called
@@ -69,7 +70,7 @@ let _lastServerSyncedJson = null;
  */
 export async function syncDeviationSettingsFromServer(base44) {
   try {
-    const rows = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+    const rows = await getAppSettingRows('route_optimization');
     const serverValue = rows?.[0]?.setting_value;
     if (!serverValue || typeof serverValue !== 'object') return false;
     const serverJson = JSON.stringify(serverValue);

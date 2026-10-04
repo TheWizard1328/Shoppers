@@ -23,6 +23,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 
 export const DEFAULT_WINTER_MODE = Object.freeze({
   enabled: false,
@@ -54,7 +55,7 @@ export async function getWinterModeSettings({ force = false } = {}) {
   if (_fetchPromise) return _fetchPromise;
   _fetchPromise = (async () => {
     try {
-      const rows = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const rows = await getAppSettingRows('refresh_intervals');
       const raw = rows?.[0]?.setting_value?.winter_mode;
       const merged = { ...DEFAULT_WINTER_MODE, ...(raw && typeof raw === 'object' ? raw : {}) };
       // Sanity clamps

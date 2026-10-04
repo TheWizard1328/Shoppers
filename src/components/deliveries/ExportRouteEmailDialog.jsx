@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,7 @@ export default function ExportRouteEmailDialog({
 
     Promise.all([
       base44.entities.Store.list(),
-      base44.entities.AppSettings.filter({ setting_key: 'route_export_testing_email' }),
+      getAppSettingRows('route_export_testing_email').catch(() => []),
       base44.entities.Delivery.list('-delivery_date', 2000)
     ]).then(([allStores, settings, deliveries]) => {
       if (!isActive) return;

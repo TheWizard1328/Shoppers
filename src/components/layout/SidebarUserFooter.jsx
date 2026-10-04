@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Button } from '@/components/ui/button';
 import { Phone, MessageCircle, QrCode, Thermometer, MapPin, ChevronDown, LogOut } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -40,7 +41,7 @@ let _fridgeCfgCache = null;
 async function loadFridgeCfg() {
   if (_fridgeCfgCache) return _fridgeCfgCache;
   try {
-    const s = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const s = await getAppSettingRows('refresh_intervals');
     const ft = s?.[0]?.setting_value?.fridge_temp_settings;
     _fridgeCfgCache = {
       safe_min: typeof ft?.safe_min === 'number' ? ft.safe_min : 2,

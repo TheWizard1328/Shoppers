@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
@@ -257,7 +258,7 @@ export default function SquareLowBalanceAlert({ ready, byLocId, currentUser, sid
     let cancelled = false;
     (async () => {
       try {
-        const rows = await base44.entities.AppSettings.filter({ setting_key: PUSH_DEDUP_KEY }).catch(() => []);
+        const rows = await getFreshAppSettingRows(PUSH_DEDUP_KEY);
         const rec = (rows || [])[0];
         const val = rec?.setting_value || {};
         // Already notified for this exact low state (this device or another

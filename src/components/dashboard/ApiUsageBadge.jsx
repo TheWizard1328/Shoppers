@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
@@ -61,7 +62,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       base44.entities.GoogleAPILog.filter({
         timestamp: { $gte: startISO, $lte: endISO }
       }),
-      base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })]
+      getAppSettingRows('refresh_intervals')]
       );
 
       const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';

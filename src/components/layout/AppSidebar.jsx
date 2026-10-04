@@ -11,8 +11,8 @@ import { globalFilters } from '../utils/globalFilters';
 let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
 (async () => {
   try {
-    const { base44: b44 } = await import('@/api/base44Client');
-    const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const { getAppSettingRows } = await import('@/components/utils/appSettingsCache');
+    const s = await getAppSettingRows('refresh_intervals');
     const ft = s?.[0]?.setting_value?.fridge_temp_settings;
     if (typeof ft?.safe_min === 'number') _sidebarFridgeCfg.safe_min = ft.safe_min;
     if (typeof ft?.safe_max === 'number') _sidebarFridgeCfg.safe_max = ft.safe_max;

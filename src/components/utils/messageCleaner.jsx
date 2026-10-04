@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { format, subDays } from 'date-fns';
 
 /**
@@ -19,7 +20,7 @@ let cleanupInterval = null;
  */
 async function wasCleanupPerformedToday() {
   try {
-    const settings = await base44.entities.AppSettings.filter({ setting_key: APP_SETTINGS_KEY });
+    const settings = await getAppSettingRows(APP_SETTINGS_KEY);
     if (settings && settings.length > 0) {
       const settingValue = settings[0].setting_value || {};
       const today = format(new Date(), 'yyyy-MM-dd');
@@ -38,7 +39,7 @@ async function wasCleanupPerformedToday() {
 async function markCleanupStatus(status) {
   try {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const settings = await base44.entities.AppSettings.filter({ setting_key: APP_SETTINGS_KEY });
+    const settings = await getFreshAppSettingRows(APP_SETTINGS_KEY);
     const settingValue = status === 'running'
       ? { cleanup_status: 'running', cleanup_date: today, last_cleanup_date: null }
       : { cleanup_status: 'completed', cleanup_date: today, last_cleanup_date: today };

@@ -17,8 +17,8 @@ let _scTempMax = 6;
 // Load once from AppSettings (fire-and-forget; defaults used until resolved)
 (async () => {
   try {
-    const { base44: b44 } = await import('@/api/base44Client');
-    const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const { getAppSettingRows } = await import('@/components/utils/appSettingsCache');
+    const s = await getAppSettingRows('refresh_intervals');
     const ft = s?.[0]?.setting_value?.fridge_temp_settings;
     if (typeof ft?.safe_min === 'number') _scTempMin = ft.safe_min;
     if (typeof ft?.safe_max === 'number') _scTempMax = ft.safe_max;
