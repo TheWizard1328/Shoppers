@@ -465,7 +465,9 @@ Deno.serve(async (req) => {
       return out;
     };
 
-    const locationData = configs.length ? await Promise.all((configs as any[]).map(fetchLocationData)) : [];
+    const locationData = (!isTopupBackfill && configs.length)
+      ? await Promise.all((configs as any[]).map(fetchLocationData))
+      : [];
     for (const ld of locationData) {
       if (ld.payoutsScopeMissing) payoutsAvailable = false;
       for (const e of ld.errors || []) syncErrors.push(e);
