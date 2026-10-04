@@ -7,7 +7,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardSales, loadCardSpendEvidence, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadCardSales, loadCardSpendEvidence, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -145,6 +145,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [configRecordId, setConfigRecordId] = useState(null);
   const [sales, setSales] = useState([]);
   const [payouts, setPayouts] = useState([]); // BATCH bank sweeps since true-up
+  const [topups, setTopups] = useState([]); // card_topup transfers onto the Square Cards since true-up
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
@@ -216,7 +217,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // Bank sweeps (BATCH payouts) since true-up — they leave the real card, so
     // the estimate must subtract them (Oct 2 2026 owner mismatch fix).
     const payoutRows = await loadCardPayouts(cfg, currentUser?.id || null).catch(() => []);
-    if (seq === loadSeq.current) { setSales(out); setPayouts(payoutRows); }
+    const topupRows = await loadCardTopups(cfg, currentUser?.id || null).catch(() => []);
+    if (seq === loadSeq.current) { setSales(out); setPayouts(payoutRows); setTopups(topupRows); }
   }, [currentUser?.id]);
 
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
@@ -1186,6 +1188,44 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           );
         })}
       </div>
+
+      {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
+          Square Cards, pulled from the card (MOBILE) locations the per-store
+          sync never saw before. Attributed = fed by that store's sale
+          (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+          unattributed = folder / manual transfer with no sale link yet. */}
+      {topups.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <ArrowLeftRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Card Transfers (since true-up)
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+              {topups.length} transfer{topups.length === 1 ? '' : 's'} · +{fmtMoney(topups.reduce((a, t) => a + (Number(t.amount) || 0), 0))}
+            </div>
+          </div>
+          <div className="space-y-1 max-h-56 overflow-y-auto">
+            {topups.slice().sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0)).map((t) => {
+              const storeName = config?.locations?.find((l) => l.location_id === t.attributed_location_id)?.name || null;
+              const isFolder = !storeName && !/CHARGE/.test(String(t.reason || ''));
+              return (
+                <div key={t.id || t.square_id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40">
+                  <div className="min-w-0">
+                    <span className="font-medium text-slate-700 dark:text-slate-200">{t.card_name || 'Square Card'}</span>
+                    <span className="text-slate-400 dark:text-slate-500"> · {new Date(t.occurred_at || Date.now()).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300">
+                      {storeName ? `from ${storeName}` : isFolder ? 'folder / manual' : 'card transfer'}
+                    </span>
+                    <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">+{fmtMoney(Number(t.amount) || 0)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="text-[11px] text-slate-400">
         Card = start + sales − fees − 2% folder − loan%. Loan and folder are computed from owner-supplied rates (not in Square's API). Off-card spending isn't tracked — use True-Up whenever the real Square numbers are checked.

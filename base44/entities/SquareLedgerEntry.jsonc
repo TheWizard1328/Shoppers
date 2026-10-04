@@ -12,7 +12,8 @@
         "collected",
         "refund",
         "decline",
-        "card_spend"
+        "card_spend",
+        "card_topup"
       ],
       "description": "Kind of ledger entry (owner revamp Oct 3 2026: sale->collected, payout->card_spend; decline/refund unchanged)"
     },
@@ -113,7 +114,11 @@
       "type": "string",
       "description": "Card entry method: SWIPED, CHIP, CONTACTLESS, KEYED (nullable)"
     },
-    "synced_at": {
+    "attributed_location_id": {
+    "type": "string",
+    "description": "For card_topup rows: the STORE location_id whose sale fed the card (resolved from the payout's CHARGE entry payment). Null when the transfer source is not a sale (e.g. folder/card-to-card manual transfer)."
+  },
+  "synced_at": {
       "type": "string",
       "description": "ISO timestamp when this record was last synced from Square"
     }

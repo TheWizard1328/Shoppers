@@ -149,7 +149,7 @@ async function freshLedgerWindows(cfg, userId) {
 }
 
 function writeLedgerCache(patch, userId) {
-  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], cod_sales: [], window_sales: [], window_since: null, evidence_sales: [], evidence_declines: [], evidence_since: null };
+  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], topups: [], cod_sales: [], window_sales: [], window_since: null, evidence_sales: [], evidence_declines: [], evidence_since: null };
   ledgerCache.data = { ...w, ...patch, saved_at: new Date().toISOString() };
   if (ledgerSaveTimer) clearTimeout(ledgerSaveTimer);
   // Single debounced flush — all loaders write the SAME IDB record.
@@ -360,6 +360,47 @@ export async function loadCardPayouts(cfg, userId = null) {
     out.push({ id: r.id, location_id: r.location_id, amount, occurred_at: r.occurred_at, status: r.status });
   }
   writeLedgerCache({ trued_up_at: cfg.trued_up_at, payouts: out }, userId);
+  return out;
+}
+
+// Card top-ups — fund transfers ONTO the Square Cards (owner request, Oct 3
+// 2026: "pull transfer records card-to-card / folder-to-card"). The sync
+// stores them as entry_kind 'card_topup' at the card (MOBILE) locations:
+// per-sale money moves (attributed to the source store) and, when Square
+// exposes them, manual folder/card-to-card transfers (unattributed).
+// They CREDIT the card — PAYOUT_KINDS above deliberately excludes
+// card_topup so sweeps math can never subtract them. Not yet wired into
+// cardEstimate (owner's call — see Oct 3 notes); shown as records on the
+// Balances page so transfers finally show up.
+export async function loadCardTopups(cfg, userId = null) {
+  if (!cfg?.trued_up_at) return [];
+  const cached = await freshLedgerWindows(cfg, userId);
+  if (cached && Array.isArray(cached.topups)) return cached.topups;
+  const rows = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const list = await base44.entities.SquareLedgerEntry.filter(
+      { occurred_at: { $gte: cfg.trued_up_at } },
+      undefined, 500, skip
+    ).catch(() => []);
+    rows.push(...(list || []).filter((r) => String(r?.entry_kind || '') === 'card_topup'));
+    if ((list || []).length < 500) break;
+    skip += 500;
+  }
+  const out = [];
+  for (const r of dedupeBySquareId(rows)) {
+    out.push({
+      id: r.id,
+      square_id: r.square_id,
+      card_location_id: r.location_id || null,
+      card_name: r.location_name || null,
+      amount: Number(r.amount_cents || 0) / 100,
+      occurred_at: r.occurred_at || null,
+      attributed_location_id: r.attributed_location_id || null,
+      reason: r.reason || null,
+    });
+  }
+  writeLedgerCache({ trued_up_at: cfg.trued_up_at, topups: out }, userId);
   return out;
 }
 

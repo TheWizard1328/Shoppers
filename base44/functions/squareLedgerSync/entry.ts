@@ -198,6 +198,7 @@ function buildEntry(base: Record<string, any>) {
     reason: base.reason || null,
     card_fingerprint: base.card_fingerprint || null,
     card_last4: base.card_last4 || null,
+    attributed_location_id: base.attributed_location_id ?? null,
     card_brand: base.card_brand || null,
     entry_method: base.entry_method || null,
     synced_at: new Date().toISOString(),
@@ -380,13 +381,18 @@ Deno.serve(async (req) => {
     }
 
     const monthsBack = Math.min(MAX_MONTHS_BACK, Math.max(1, Math.round(Number(payload?.monthsBack || DEFAULT_MONTHS_BACK)) || DEFAULT_MONTHS_BACK));
-    const windowStart = payload?.startDate || new Date(Date.now() - monthsBack * 30.44 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
+    let windowStart = payload?.startDate || new Date(Date.now() - monthsBack * 30.44 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
     const windowEnd = payload?.endDate || new Date().toISOString();
 
     // Active Square locations
     const configsRaw = await base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []);
     const configs = (configsRaw || []).filter((c: any) => c?.square_location_id && (!c?.status || c.status === 'active'));
-    if (!configs.length) throw new HttpError(400, 'No active Square location configurations found');
+    // cardTopupBackfill mode: one-time import of card-location transfer
+    // history only (payments/orders/refunds/COD passes all skipped).
+    const isTopupBackfill = String(payload?.mode || '') === 'cardTopupBackfill';
+    if (isTopupBackfill) windowStart = new Date(Date.now() - 800 * 86400000).toISOString();
+    if (!configs.length && !isTopupBackfill) throw new HttpError(400, 'No active Square location configurations found');
+    const configIds = new Set(configs.map((c: any) => String(c.square_location_id)));
 
     // COD link map: catalog object id -> { delivery_id, patient_id, item_name }
     const catalogByObjectId = new Map<string, any>();
@@ -459,7 +465,7 @@ Deno.serve(async (req) => {
       return out;
     };
 
-    const locationData = await Promise.all((configs as any[]).map(fetchLocationData));
+    const locationData = configs.length ? await Promise.all((configs as any[]).map(fetchLocationData)) : [];
     for (const ld of locationData) {
       if (ld.payoutsScopeMissing) payoutsAvailable = false;
       for (const e of ld.errors || []) syncErrors.push(e);
@@ -602,6 +608,66 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── CARD LOCATIONS — fund transfers onto the Square Cards (owner request,
+    // Oct 3 2026: "pull transfer records card-to-card / folder-to-card").
+    // Square models each Square Card as a MOBILE location; payouts with
+    // destination SQUARE_STORED_BALANCE at those locations are the money
+    // moves ONTO the card (per-sale top-ups today; manual folder/card
+    // transfers when Square exposes them). The per-store loop above never
+    // sees them (they are not attributed to store locations), so they are
+    // pulled separately and stored as entry_kind 'card_topup' — a CREDIT.
+    // Readers must never count card_topup as a bank sweep (PAYOUT_KINDS in
+    // useSquareBalancesSummary.js excludes it on purpose).
+    const topupSrcByPayout = new Map<string, string | null>();
+    let topupsFetched = 0;
+    const storeLocIds = new Set(rates.loanRateByLoc.keys());
+    try {
+      const locsJson: any = await squareFetch('/v2/locations', 'GET', accessToken);
+      const cardLocs = ((locsJson?.locations || []) as any[])
+        .filter((l: any) => l?.id && String(l?.status || '').toUpperCase() === 'ACTIVE')
+        .filter((l: any) => !configIds.has(String(l.id)));
+      for (const cl of cardLocs) {
+        try {
+          const payoutsPath = `/v2/payouts?location_id=${encodeURIComponent(cl.id)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=ASC`;
+          const pos = await paginatedSquareGet(payoutsPath, accessToken);
+          for (const po of pos || []) {
+            if (!po?.id) continue;
+            const destType = String(po?.destination?.type || '');
+            // Payout entries reveal the source sale (CHARGE -> payment id) so
+            // the transfer can be attributed to the store whose sale fed the
+            // card. Best effort: manual folder transfers have no CHARGE entry.
+            let srcPaymentId: string | null = null;
+            let entryTypes: string[] = [];
+            try {
+              const entsJson: any = await squareFetch(`/v2/payouts/${po.id}/payout-entries`, 'GET', accessToken);
+              const ents = entsJson?.payout_entries || [];
+              entryTypes = (ents.map((e: any) => String(e?.type || '')).filter(Boolean)) as string[];
+              const charge = ents.find((e: any) => e?.type_charge_details?.payment_id);
+              if (charge) srcPaymentId = String(charge.type_charge_details.payment_id);
+            } catch { /* entries best effort */ }
+            topupSrcByPayout.set(String(po.id), srcPaymentId);
+            entries.set(po.id, buildEntry({
+              square_id: po.id,
+              entry_kind: 'card_topup',
+              amount_cents: po?.amount_money?.amount,
+              status: po.status,
+              occurred_at: po.created_at,
+              location_id: cl.id,
+              location_name: cl.name || cl.id,
+              reason: [destType, po.type, entryTypes.join('/') || null, srcPaymentId].filter(Boolean).join(' | '),
+            }));
+            topupsFetched += 1;
+            await sleep(60);
+          }
+          locationStats.push({
+            location_id: cl.id,
+            name: `${cl.name || cl.id} (card)`,
+            payments: 0, orders: 0, refunds: 0, payouts: (pos || []).length,
+          });
+        } catch (e: any) { syncErrors.push(`cardPayouts(${cl.name || cl.id}): ${e?.message || e}`); }
+      }
+    } catch (e: any) { syncErrors.push(`cardLocations: ${e?.message || e}`); }
+
     // Persist — keyed on square_id: create new records, update existing ones.
     // (The functions runtime SDK has no .upsert(); use the proven list+create/update pattern.)
     //
@@ -671,6 +737,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── TOPUP ATTRIBUTION ─────────────────────────────────────────────────────
+    // A card top-up's CHARGE entry points at the source sale's payment id.
+    // Resolve it to the STORE whose sale fed the card (in-window sales live
+    // in the entries Map; older sales come from existing ledger rows).
+    let topupsAttributed = 0;
+    for (const rec of allEntries) {
+      if (rec?.entry_kind !== 'card_topup') continue;
+      const src = topupSrcByPayout.get(String(rec.square_id)) || null;
+      if (!src) continue;
+      let storeLoc = entries.get(src)?.location_id || null;
+      if (!storeLoc) storeLoc = existingRowsBySquareId.get(src)?.[0]?.location_id || null;
+      if (storeLoc && storeLocIds.has(String(storeLoc))) {
+        rec.attributed_location_id = String(storeLoc);
+        topupsAttributed += 1;
+      }
+    }
+
     // ── COD LINK BACKFILL (Oct 3 2026 owner plan) ────────────────────────────
     // resolveCodLink only works when the order's line items carry the delivery's
     // catalog_object_id — manual/un-itemized rings and multi-COD swipes were
@@ -690,7 +773,7 @@ Deno.serve(async (req) => {
     let backfillFeeChecks = 0;
     let backfillFeeMismatches = 0;
     const storeFingerprintCounts: any = {};
-    try {
+    if (isTopupBackfill) { /* skipped: topup-only backfill */ } else try {
       // Reference data: stores (loc + abbreviation), catalog rows keyed by
       // delivery_id (item_name + patient_id), completed COD deliveries.
       const [storesRaw, cfgsRaw] = await Promise.all([
@@ -1050,6 +1133,8 @@ Deno.serve(async (req) => {
       locations: locationStats.length,
       locationStats,
       entriesFetched: allEntries.length,
+      topupsFetched,
+      topupsAttributed,
       entriesUpserted: upserted,
       entriesFailed: failedUpserts,
       duplicateRowsDeleted,
