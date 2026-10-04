@@ -1868,7 +1868,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right">$</td>
                               <td className="pr-1">
-                                {isAdmin ?
+                                {(isAdmin || (isDriver && selectedDriverId === currentUser?.id)) ?
                                     <Input
                                       type="text"
                                       inputMode="numeric"

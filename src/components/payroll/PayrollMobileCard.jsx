@@ -308,7 +308,7 @@ export default function PayrollMobileCard({
             <div className="text-left">Paid:</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right font-semibold">
-              {isAdmin ? (
+              {(isAdmin || currentUser?.id === data.driver.id) ? (
                 <input
                   type="text"
                   inputMode="decimal"
