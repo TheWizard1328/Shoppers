@@ -331,25 +331,36 @@ function edmontonDateDaysAgo(days) {
 // ── Cycle mode discovery: driver-date pairs with a master trail (stop_order = -1) ──
 // for today + yesterday (Edmonton). A late-night trail synced after midnight is
 // still picked up by the next morning's pass since yesterday is included.
+// Completion-driven discovery: return ONLY the driver+date pairs whose route
+// just had a stop finish (status flipped to completed) within the lookback
+// window. The 5-min cron calls this constantly, but when no stop has finished
+// recently the result is empty and NOTHING is re-sliced — the wasteful
+// "re-slice every driver-date every 5 minutes, 24/7" behavior is gone.
+// Lookback 12 min covers two missed cron ticks; pairs use the finished
+// delivery's OWN driver_id + delivery_date so midnight-crossing routes resolve
+// to the correct date. A later completion on the same route re-slices all
+// finished legs anyway (full walk), so anything missed self-heals.
 async function discoverSliceTargets(base44) {
-  const dates = [edmontonDateDaysAgo(0), edmontonDateDaysAgo(1)];
+  const lookbackMs = 12 * 60 * 1000;
   const byKey = new Map();
-  for (const delivery_date of dates) {
-    let recs = [];
-    try {
-      let skip = 0;
-      for (;;) {
-        const page = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({ delivery_date, stop_order: -1 }, skip);
-        if (!Array.isArray(page) || page.length === 0) break;
-        recs = recs.concat(page);
-        if (page.length < 100) break;
-        skip += page.length;
-      }
-    } catch (_) { /* date with no trails */ }
-    for (const r of recs) {
-      if (r?.driver_id) byKey.set(`${r.driver_id}|${delivery_date}`, { driver_id: r.driver_id, delivery_date });
+  const push = (driver_id, delivery_date) => {
+    if (!driver_id || !delivery_date) return;
+    byKey.set(`${driver_id}|${delivery_date}`, { driver_id, delivery_date });
+  };
+  // Recently completed deliveries: proven query shape (equality + sort +
+  // limit — range objects are NOT supported by the backend filter), then
+  // timestamp-check in code. Most-recent-200 completed is far more than any
+  // 12-minute window, so recent finishes can't fall off the page.
+  try {
+    const recs = await base44.asServiceRole.entities.Delivery.filter({ status: 'completed' }, '-updated_date', 200).catch(() => []);
+    for (const r of recs || []) {
+      const ts = r?.actual_delivery_time || r?.updated_date;
+      if (!ts) continue;
+      const t = Date.parse(ts);
+      if (!Number.isFinite(t) || t < Date.now() - lookbackMs) continue;
+      push(r?.driver_id, r?.delivery_date);
     }
-  }
+  } catch (_) { /* fall through to empty list */ }
   return [...byKey.values()];
 }
 
@@ -1156,14 +1167,13 @@ Deno.serve(async (req) => {
     // and runs the FULL home-anchored walk once per pair. This moves the
     // per-stop-finish slicing work OFF the driver devices: the phone only
     // force-flushes its master trail; the server slices within 5 minutes.
-    // Cycle trigger: explicit body.mode === 'cycle' (direct test calls), OR no
-    // user session + no driver_id (the real scheduled-workflow shape — observed
-    // in production the workflow runtime's invoke_backend_function call arrives
-    // with an EMPTY body on this function, despite args={mode:'cycle'} being
-    // configured; body-content detection alone is NOT reliable for scheduled
-    // calls here). A genuine client bug (authenticated user, no driver_id)
-    // still falls through to the explicit 400 below, since `user` is truthy.
-    const isCycleTrigger = body?.mode === 'cycle' || (!user && !body?.driver_id);
+    // Cycle trigger: any invocation without a driver_id+delivery_date pair —
+    // explicit mode 'cycle' OR a body-less call. Production observation: the
+    // scheduled workflow's invoke arrives with an EMPTY body AND carries a user
+    // session, so neither mode nor auth state can identify it; the only stable
+    // signature is "no specific route requested". Legitimate client calls
+    // (scissors button / Route Viewer) always carry driver_id+delivery_date.
+    const isCycleTrigger = !body?.driver_id || !body?.delivery_date;
     if (isCycleTrigger) {
       const targets = await discoverSliceTargets(base44);
       const outcomes = [];
@@ -1182,24 +1192,6 @@ Deno.serve(async (req) => {
     // Direct invocation (client scissors / admin tools) — requires a user session.
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // TEMP DIAGNOSTIC (remove once scheduled-call shape is confirmed): surface
-    // exactly what a request without driver_id looked like, since this path
-    // being hit at all when !user is false is unexpected for the scheduler.
-    if (!body?.driver_id) {
-      return Response.json({
-        success: false,
-        error: 'driver_id and delivery_date are required',
-        _diag: {
-          hadUser: !!user,
-          userId: user?.id || null,
-          userEmail: user?.email || null,
-          bodyKeys: Object.keys(body || {}),
-          bodyRaw: body,
-          method: req.method,
-          contentType: req.headers.get('content-type'),
-        },
-      }, { status: 400 });
     }
     return await handleSingle(base44, body);
   } catch (error) {
