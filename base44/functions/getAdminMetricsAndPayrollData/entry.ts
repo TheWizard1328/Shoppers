@@ -60,6 +60,22 @@ const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sor
   return dedupeById([...leftRecords, ...rightRecords]);
 };
 
+// CHUNKED $IN FILTER (Oct 3 2026): the entity API serializes $in id arrays
+// into the request URL. A full payroll year accumulates thousands of unique
+// patient ids (~24 chars each) -> the URL blew past the gateway's limit and
+// the whole function 500'd with "Request failed with status code 414" (owner
+// report: driver payroll page not loading). Fetch in bounded chunks and
+// merge — 150 ids/chunk keeps the URL ~4KB.
+const fetchByIdChunks = async (entityApi, ids, chunkSize = 150, limit = 5000) => {
+  const out = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const rows = await entityApi.filter({ id: { $in: chunk } }, '', limit);
+    out.push(...(rows || []));
+  }
+  return out;
+};
+
 const getChunkedMonths = (months, chunkSize = DELIVERY_PAGE_MONTHS.length) => {
   const chunks = [];
   for (let index = 0; index < months.length; index += chunkSize) {
@@ -665,7 +681,7 @@ Deno.serve(async (req) => {
 
       const [storesRaw, appUsersRaw, inactiveAppUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
-          ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
+          ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : fetchByIdChunks(base44.asServiceRole.entities.Store, relevantStoreIds, 150, 5000))
           : (cityStores.length ? cityStores : []),
         // Fetch ALL AppUsers with NO city_ids filter.
         // The city_ids field may be stale/missing on inactive drivers, excluding them
@@ -682,7 +698,7 @@ Deno.serve(async (req) => {
           throw error;
         }),
         relevantPatientIds.length
-          ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000)
+          ? fetchByIdChunks(base44.asServiceRole.entities.Patient, relevantPatientIds, 150, 5000)
           : Promise.resolve([])
       ]);
 
