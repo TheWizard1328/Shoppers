@@ -50,22 +50,35 @@ async function handleRequest(req: Request): Promise<Response> {
     if (!mj.error) merchant = { id: mj.merchant?.id, business_name: mj.merchant?.business_name, currency: mj.merchant?.currency };
   }
 
-  // Payouts are account-level; query without location filter.
+  // Payouts. Unfiltered (primary-location view) OR per-location when
+  // payload.locationIds is given (Square returns different payouts per
+  // location filter — the account-wide query misses per-location ones).
+  const locationIds: string[] = Array.isArray(payload?.locationIds)
+    ? payload.locationIds.map(String).filter(Boolean)
+    : null;
   const payouts: any[] = [];
-  let cursor: string | null = null;
-  for (let page = 0; page < 10; page++) {
-    const path = `/v2/payouts?begin_time=${encodeURIComponent(begin)}&sort_order=DESC${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
-    const json: any = await sf(path);
-    if (json.error) return new Response(JSON.stringify({ success: false, stage: 'list-payouts', apiError: json }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    payouts.push(...(json.payouts || []));
-    cursor = json.cursor || null;
-    if (!cursor) break;
+  const payoutLocIds = locationIds || [null];
+  const seenPayout = new Set<string>();
+  for (const pl of payoutLocIds) {
+    let cursor: string | null = null;
+    for (let page = 0; page < 15; page++) {
+      const path = `/v2/payouts?begin_time=${encodeURIComponent(begin)}&sort_order=DESC${pl ? `&location_id=${encodeURIComponent(pl)}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const json: any = await sf(path);
+      if (json.error) continue;
+      for (const po of json.payouts || []) {
+        if (seenPayout.has(po.id)) continue;
+        seenPayout.add(po.id);
+        payouts.push(po);
+      }
+      cursor = json.cursor || null;
+      if (!cursor) break;
+    }
   }
 
   // Pull entries per payout (the money movements: charges, fees, folder transfers...).
   const byPayout: any[] = [];
   if (withEntries) {
-    for (const p of payouts.slice(0, 25)) {
+    for (const p of payouts.slice(0, 40)) {
       const ents: any[] = [];
       let ec: string | null = null;
       for (let page = 0; page < 10; page++) {
