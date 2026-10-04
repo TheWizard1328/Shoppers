@@ -11,6 +11,7 @@ import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalcula
 export default function PayrollMobileCard({
   data,
   isAdmin,
+  canFinalize,
   driverHasConfirmed,
   adminHasFinalized,
   showBadge,
@@ -304,6 +305,7 @@ export default function PayrollMobileCard({
             <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
+          {(isAdmin || (canFinalize && driverHasConfirmed && currentUser?.id === data.driver.id)) &&
           <div className="grid gap-1 text-label" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">Paid:</div>
             <div className="text-right pr-0.5">$</div>
@@ -332,6 +334,7 @@ export default function PayrollMobileCard({
             <div></div>
             <div></div>
           </div>
+          }
 
           {/* Inline Notes (hidden from exports) */}
           <div data-notes-section="true" className="mt-3 space-y-3">

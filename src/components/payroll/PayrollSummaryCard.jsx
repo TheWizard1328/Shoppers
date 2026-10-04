@@ -1715,6 +1715,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                     key={data.driver.id}
                     data={data}
                     isAdmin={isAdmin}
+                    canFinalize={canFinalize}
                     driverHasConfirmed={driverHasConfirmed}
                     adminHasFinalized={adminHasFinalized}
                     showBadge={showBadge}
@@ -1863,7 +1864,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{formatPayrollAmount(getPeriodNetAmount({ grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0, deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0, appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0 }))}</td>
                             </tr>
-                            {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
+                            {canFinalize && (isAdmin || (selectedDriverId === currentUser?.id && driverHasConfirmed)) &&
                                 <tr className="text-label">
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right">$</td>
