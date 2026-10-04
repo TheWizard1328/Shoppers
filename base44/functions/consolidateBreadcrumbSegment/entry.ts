@@ -1156,7 +1156,15 @@ Deno.serve(async (req) => {
     // and runs the FULL home-anchored walk once per pair. This moves the
     // per-stop-finish slicing work OFF the driver devices: the phone only
     // force-flushes its master trail; the server slices within 5 minutes.
-    if (body?.mode === 'cycle') {
+    // Cycle trigger: explicit body.mode === 'cycle' (direct test calls), OR no
+    // user session + no driver_id (the real scheduled-workflow shape — observed
+    // in production the workflow runtime's invoke_backend_function call arrives
+    // with an EMPTY body on this function, despite args={mode:'cycle'} being
+    // configured; body-content detection alone is NOT reliable for scheduled
+    // calls here). A genuine client bug (authenticated user, no driver_id)
+    // still falls through to the explicit 400 below, since `user` is truthy.
+    const isCycleTrigger = body?.mode === 'cycle' || (!user && !body?.driver_id);
+    if (isCycleTrigger) {
       const targets = await discoverSliceTargets(base44);
       const outcomes = [];
       for (const t of targets) {
