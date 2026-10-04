@@ -1183,6 +1183,24 @@ Deno.serve(async (req) => {
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // TEMP DIAGNOSTIC (remove once scheduled-call shape is confirmed): surface
+    // exactly what a request without driver_id looked like, since this path
+    // being hit at all when !user is false is unexpected for the scheduler.
+    if (!body?.driver_id) {
+      return Response.json({
+        success: false,
+        error: 'driver_id and delivery_date are required',
+        _diag: {
+          hadUser: !!user,
+          userId: user?.id || null,
+          userEmail: user?.email || null,
+          bodyKeys: Object.keys(body || {}),
+          bodyRaw: body,
+          method: req.method,
+          contentType: req.headers.get('content-type'),
+        },
+      }, { status: 400 });
+    }
     return await handleSingle(base44, body);
   } catch (error) {
     console.error('❌ [consolidateBreadcrumbSegment] Error:', error?.message || error);
