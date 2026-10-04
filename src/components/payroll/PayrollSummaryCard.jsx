@@ -40,12 +40,12 @@ const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON
 const getEffectiveRates = (appUser, date) => {
   const history = Array.isArray(appUser?.pay_rate_history) ? appUser.pay_rate_history : [];
   if (history.length > 0 && date) {
-    const dateStr = date instanceof Date
-      ? date.toISOString().split('T')[0]
-      : String(date);
+    const dateStr = date instanceof Date ?
+    date.toISOString().split('T')[0] :
+    String(date);
     // Sort descending so we pick the most-recent entry that is still <= date
     const sorted = [...history].sort((a, b) =>
-      new Date(b.effective_date) - new Date(a.effective_date)
+    new Date(b.effective_date) - new Date(a.effective_date)
     );
     const match = sorted.find((e) => e.effective_date <= dateStr);
     if (match) {
@@ -55,7 +55,7 @@ const getEffectiveRates = (appUser, date) => {
         extra_km_limit: match.extra_km_limit ?? appUser?.extra_km_limit ?? 0,
         oversized_item_rate: match.oversized_item_rate ?? appUser?.oversized_item_rate ?? 0,
         gst_hst_enabled: match.gst_hst_enabled ?? appUser?.gst_hst_enabled ?? false,
-        pay_cycle_type: match.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly',
+        pay_cycle_type: match.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly'
       };
     }
     // Date is before all history entries — use earliest entry's rates
@@ -67,7 +67,7 @@ const getEffectiveRates = (appUser, date) => {
         extra_km_limit: earliest.extra_km_limit ?? appUser?.extra_km_limit ?? 0,
         oversized_item_rate: earliest.oversized_item_rate ?? appUser?.oversized_item_rate ?? 0,
         gst_hst_enabled: earliest.gst_hst_enabled ?? appUser?.gst_hst_enabled ?? false,
-        pay_cycle_type: earliest.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly',
+        pay_cycle_type: earliest.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly'
       };
     }
   }
@@ -77,7 +77,7 @@ const getEffectiveRates = (appUser, date) => {
     extra_km_limit: appUser?.extra_km_limit ?? 0,
     oversized_item_rate: appUser?.oversized_item_rate ?? 0,
     gst_hst_enabled: appUser?.gst_hst_enabled ?? false,
-    pay_cycle_type: appUser?.pay_cycle_type ?? 'monthly',
+    pay_cycle_type: appUser?.pay_cycle_type ?? 'monthly'
   };
 };
 
@@ -217,7 +217,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           const r = getEffectiveRates(appUser, d.delivery_date);
           // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0)
           const dIsPickup = !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS');
-          const multiplier = d.after_hours_pickup ? (dIsPickup ? 1 : 2) : (dIsPickup ? 0 : 1);
+          const multiplier = d.after_hours_pickup ? dIsPickup ? 1 : 2 : dIsPickup ? 0 : 1;
           return sum + r.pay_rate_per_delivery * multiplier;
         }, 0);
       } else {
@@ -278,16 +278,16 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       // Use date-range OVERLAP (not period-start reference) so a one-time deduction
       // whose start_date falls mid-period is still applied to that pay period — e.g.
       // a Aug 15 one-time deduction applies to the Aug 1–31 monthly period.
-      const deductionsArray = (periodStartStr && periodEndStr)
-        ? getActiveDeductionsForPeriod(allDriverDeductions, periodStartStr, periodEndStr)
-        : allDriverDeductions;
+      const deductionsArray = periodStartStr && periodEndStr ?
+      getActiveDeductionsForPeriod(allDriverDeductions, periodStartStr, periodEndStr) :
+      allDriverDeductions;
       const totalDeductions = totalPay > 0 ? sumDeductionAmounts(deductionsArray) : 0;
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
       const storedPaidAmount = payrollRecord?.paid_amount;
 
       const graphPayableDeliveries = periodDeliveries.filter((delivery) => {
         if (!delivery) return false;
-        const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || (delivery.status === 'cancelled' && delivery.after_hours_pickup);
+        const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || delivery.status === 'cancelled' && delivery.after_hours_pickup;
         if (!validStatus) return false;
         const dIdUpper = String(delivery.delivery_id || '').toUpperCase();
         const isIS = dIdUpper.startsWith('ISD-') || dIdUpper.startsWith('ISP-');
@@ -305,14 +305,14 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       const graphDeliveryUnits = graphDeliveryCount + graphAhDeliveryCount;
       // Compute graph pay from the graphPayableDeliveries subset with per-delivery rates
       // (same logic as basePay/extraKmPay/oversizedPay above, but scoped to graph subset)
-      let graphBasePay, graphExtraKmPay = 0, graphOversizedPay = 0;
+      let graphBasePay,graphExtraKmPay = 0,graphOversizedPay = 0;
       if (hasRateHistory && graphDeliveryCount > 0) {
         graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
           const r = getEffectiveRates(appUser, d.delivery_date);
           // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0).
           // no_charge deliveries are still paid at base rate (counted in Total deliveries).
           const dIsPickup = !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS');
-          const multiplier = d.after_hours_pickup ? (dIsPickup ? 1 : 2) : (dIsPickup ? 0 : 1);
+          const multiplier = d.after_hours_pickup ? dIsPickup ? 1 : 2 : dIsPickup ? 0 : 1;
           return sum + r.pay_rate_per_delivery * multiplier;
         }, 0);
         graphPayableDeliveries.forEach((d) => {
@@ -321,7 +321,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           const dExtraKmLimit = r.extra_km_limit;
           let dist = d.paid_km_override ?? 0;
           if (!dist && d.patient_id && patients) {
-            dist = patients.find((p) => p && (p.id === d.patient_id))?.distance_from_store || 0;
+            dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;
           }
           if (dist > dExtraKmLimit && dExtraKmRate > 0) {
             graphExtraKmPay += (dist - dExtraKmLimit) * dExtraKmRate;
@@ -339,7 +339,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         graphPayableDeliveries.forEach((d) => {
           let dist = d.paid_km_override ?? 0;
           if (!dist && d.patient_id && patients) {
-            dist = patients.find((p) => p && (p.id === d.patient_id))?.distance_from_store || 0;
+            dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;
           }
           if (dist > extraKmLimit && extraKmRate > 0) {
             graphExtraKmPay += (dist - extraKmLimit) * extraKmRate;
@@ -505,67 +505,67 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         });
         if (serverRecords && serverRecords.length > 0) {
           existingRecord = serverRecords.sort((a, b) =>
-            new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
+          new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
           )[0];
           // Merge server record into local state
           const updatedLocal = [...payrollRecords];
           const idx = updatedLocal.findIndex((r) => r.id === existingRecord.id);
-          if (idx >= 0) { updatedLocal[idx] = existingRecord; }
-          else { updatedLocal.push(existingRecord); }
+          if (idx >= 0) {updatedLocal[idx] = existingRecord;} else
+          {updatedLocal.push(existingRecord);}
           setPayrollRecords(updatedLocal);
           if (onPayrollRecordsChange) onPayrollRecordsChange(updatedLocal);
           // Delete extra server-side duplicates
           for (const dup of serverRecords.slice(1)) {
-            try { await base44.entities.Payroll.delete(dup.id); } catch (e) {}
+            try {await base44.entities.Payroll.delete(dup.id);} catch (e) {}
           }
         } else {
-        const driverData = payrollData.find((d) => d.driver.id === driverId);
-        if (!driverData) return;
-        const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
+          const driverData = payrollData.find((d) => d.driver.id === driverId);
+          if (!driverData) return;
+          const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
 
-        const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
-        const driverPayCycle = getEffectiveRates(driverAppUser, currentPeriod?.start).pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
-        const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
-        const newRecordData = {
-          driver_id: driverId,
-          company_id: driverCompanyId,
-          city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr,
-          pay_period_type: driverPayCycle,
-          total_deliveries: driverData.totalDeliveries,
-          total_extra_km: driverData.totalExtraKm,
-          total_oversized_deliveries: driverData.oversizedCount,
-          total_after_hours_deliveries: driverData.afterHoursCount || 0,
-          gross_pay: driverData.grossPay,
-          net_pay: getPeriodNetAmount({ grandTotal: driverData.grandTotal, taxAmount: driverData.taxAmount, bonusPay: 0, deductions: driverData.deductionsArray || [], appFeeAmount: saveAppFeeAmount }),
-          total_deductions: driverData.deductions,
-          deductions: driverData.deductionsArray,
-          bonus_pay: 0,
-          app_fee_percentage: 0,
-          app_fee_amount: saveAppFeeAmount,
-          paid_amount: getDefaultPaidAmount({ grandTotal: driverData.grandTotal, taxAmount: driverData.taxAmount, bonusPay: 0, deductions: driverData.deductionsArray || [] }),
-          tax_amount: driverData.taxAmount,
-          pay_rate_per_delivery: driverData.payRate,
-          extra_km_rate: driverData.extraKmRate,
-          extra_km_limit: driverData.extraKmLimit,
-          oversized_item_rate: driverData.oversizedRate,
-          gst_hst_enabled: driverData.gstHstEnabled,
-          status: 'draft'
-        };
+          const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
+          const driverPayCycle = getEffectiveRates(driverAppUser, currentPeriod?.start).pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+          const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
+          const newRecordData = {
+            driver_id: driverId,
+            company_id: driverCompanyId,
+            city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
+            pay_period_start: periodStartStr,
+            pay_period_end: periodEndStr,
+            pay_period_type: driverPayCycle,
+            total_deliveries: driverData.totalDeliveries,
+            total_extra_km: driverData.totalExtraKm,
+            total_oversized_deliveries: driverData.oversizedCount,
+            total_after_hours_deliveries: driverData.afterHoursCount || 0,
+            gross_pay: driverData.grossPay,
+            net_pay: getPeriodNetAmount({ grandTotal: driverData.grandTotal, taxAmount: driverData.taxAmount, bonusPay: 0, deductions: driverData.deductionsArray || [], appFeeAmount: saveAppFeeAmount }),
+            total_deductions: driverData.deductions,
+            deductions: driverData.deductionsArray,
+            bonus_pay: 0,
+            app_fee_percentage: 0,
+            app_fee_amount: saveAppFeeAmount,
+            paid_amount: getDefaultPaidAmount({ grandTotal: driverData.grandTotal, taxAmount: driverData.taxAmount, bonusPay: 0, deductions: driverData.deductionsArray || [] }),
+            tax_amount: driverData.taxAmount,
+            pay_rate_per_delivery: driverData.payRate,
+            extra_km_rate: driverData.extraKmRate,
+            extra_km_limit: driverData.extraKmLimit,
+            oversized_item_rate: driverData.oversizedRate,
+            gst_hst_enabled: driverData.gstHstEnabled,
+            status: 'draft'
+          };
 
-        const newRecord = await base44.entities.Payroll.create(roundPayrollData(newRecordData));
+          const newRecord = await base44.entities.Payroll.create(roundPayrollData(newRecordData));
 
-        const nextPayrollRecords = [...payrollRecords, newRecord];
-        setPayrollRecords(nextPayrollRecords);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(nextPayrollRecords);
-        }
-        try {
-          const { broadcastMutation } = await import('../utils/realtimeSync');
-          await broadcastMutation('Payroll', 'create', newRecord.id, newRecord);
-        } catch (e) {/* ignore */}
-        existingRecord = newRecord;
+          const nextPayrollRecords = [...payrollRecords, newRecord];
+          setPayrollRecords(nextPayrollRecords);
+          if (onPayrollRecordsChange) {
+            onPayrollRecordsChange(nextPayrollRecords);
+          }
+          try {
+            const { broadcastMutation } = await import('../utils/realtimeSync');
+            await broadcastMutation('Payroll', 'create', newRecord.id, newRecord);
+          } catch (e) {/* ignore */}
+          existingRecord = newRecord;
         }
       }
 
@@ -577,11 +577,11 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         // FIX: This must update net_pay (gross + tax - deductions + bonus + appFee), NOT gross_pay.
         // gross_pay represents base earnings before bonus/deduction adjustments and should stay untouched here.
         recalculatedUpdates.net_pay = roundCurrency(
-          (driverData?.grandTotal ?? existingRecord.gross_pay ?? 0) +
-          (driverData?.taxAmount || 0) -
+          (driverData?.grandTotal ?? existingRecord.gross_pay ?? 0) + (
+          driverData?.taxAmount || 0) -
           newDed +
-          newBonus +
-          (existingRecord.app_fee_amount || 0)
+          newBonus + (
+          existingRecord.app_fee_amount || 0)
         );
       }
 
@@ -632,7 +632,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       [currentUser.id]: {
         ...prev[currentUser.id],
         appFeePercent: ownerPct,
-        appFeeAmount: ownerAmt,
+        appFeeAmount: ownerAmt
       }
     }));
   }, [appFeeOverlayAllDriversId]);
@@ -694,23 +694,23 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     setIsFinalizing(true);
     try {
       let existingRecord = getDriverPayrollRecord(driverData.driver.id);
-    // CRITICAL: Check server before creating — prevents duplicate payroll records
-    if (!existingRecord) {
-      const serverRecs = await base44.entities.Payroll.filter({
-        driver_id: driverData.driver.id,
-        pay_period_start: periodStartStr,
-        pay_period_end: periodEndStr
-      });
-      if (serverRecs && serverRecs.length > 0) {
-        existingRecord = serverRecs.sort((a, b) =>
+      // CRITICAL: Check server before creating — prevents duplicate payroll records
+      if (!existingRecord) {
+        const serverRecs = await base44.entities.Payroll.filter({
+          driver_id: driverData.driver.id,
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        if (serverRecs && serverRecs.length > 0) {
+          existingRecord = serverRecs.sort((a, b) =>
           new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
-        )[0];
-        // Clean up extra duplicates
-        for (const dup of serverRecs.slice(1)) {
-          try { await base44.entities.Payroll.delete(dup.id); } catch (e) {}
+          )[0];
+          // Clean up extra duplicates
+          for (const dup of serverRecs.slice(1)) {
+            try {await base44.entities.Payroll.delete(dup.id);} catch (e) {}
+          }
         }
       }
-    }
       const edit = driverEdits[driverData.driver.id] || {};
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
       const finalizedNetPay = getPeriodNetAmount({
@@ -738,14 +738,14 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled,
         status: 'driver_finalized', driver_finalized_at: new Date().toISOString() };
 
-      const savedRecord = existingRecord
-        ? await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord))
-        : await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
+      const savedRecord = existingRecord ?
+      await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord)) :
+      await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
 
       const mergedRecord = { ...existingRecord, ...roundPayrollData(payrollRecord), ...savedRecord };
-      const nextPayrollRecords = existingRecord
-        ? payrollRecords.map((record) => record.id === existingRecord.id ? mergedRecord : record)
-        : [...payrollRecords, mergedRecord];
+      const nextPayrollRecords = existingRecord ?
+      payrollRecords.map((record) => record.id === existingRecord.id ? mergedRecord : record) :
+      [...payrollRecords, mergedRecord];
 
       // Update UI immediately — no need to wait for background tasks
       setPayrollRecords(nextPayrollRecords);
@@ -755,14 +755,14 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
 
       // Fire-and-forget background tasks (don't await — UI is already updated)
       Promise.all([
-        import('../utils/realtimeSync').then(({ broadcastMutation }) =>
-          broadcastMutation('Payroll', existingRecord ? 'update' : 'create', mergedRecord.id, mergedRecord)
-        ).catch(() => {}),
-        import('../utils/offlineDatabase').then(({ offlineDB }) =>
-          offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord)
-        ).catch(() => {}),
-        notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null }).catch(() => {})
-      ]);
+      import('../utils/realtimeSync').then(({ broadcastMutation }) =>
+      broadcastMutation('Payroll', existingRecord ? 'update' : 'create', mergedRecord.id, mergedRecord)
+      ).catch(() => {}),
+      import('../utils/offlineDatabase').then(({ offlineDB }) =>
+      offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord)
+      ).catch(() => {}),
+      notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null }).catch(() => {})]
+      );
     } catch (error) {
       console.error('❌ [Payroll] Failed to finalize:', error);
       alert('Failed to save payroll confirmation.');
@@ -893,11 +893,11 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   // settle the App Fee, so the App Fee % auto-fills on them.
   const periodSpansMonthEnd = useMemo(() => {
     if (!currentPeriod?.start || !currentPeriod?.end) return false;
-    const start = new Date(currentPeriod.start); start.setHours(12, 0, 0, 0);
-    const end = new Date(currentPeriod.end); end.setHours(12, 0, 0, 0);
+    const start = new Date(currentPeriod.start);start.setHours(12, 0, 0, 0);
+    const end = new Date(currentPeriod.end);end.setHours(12, 0, 0, 0);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return false;
     for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
-      const n = new Date(t); n.setDate(n.getDate() + 1);
+      const n = new Date(t);n.setDate(n.getDate() + 1);
       if (n.getMonth() !== new Date(t).getMonth()) return true;
     }
     return false;
@@ -986,7 +986,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
   const grandTotalBonus = driversWithDeliveries.reduce((sum, d) => sum + (Number(driverEdits[d.driver.id]?.bonusPay) || 0), 0);
-  const totalDriverAppFeesPaid = driversWithDeliveries.reduce((sum, d) => sum + (isPeriodEndOfMonth ? (Number(driverEdits[d.driver.id]?.appFeeAmount) || Number(getDriverPayrollRecord(d.driver.id)?.app_fee_amount) || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0)) : 0), 0);
+  const totalDriverAppFeesPaid = driversWithDeliveries.reduce((sum, d) => sum + (isPeriodEndOfMonth ? Number(driverEdits[d.driver.id]?.appFeeAmount) || Number(getDriverPayrollRecord(d.driver.id)?.app_fee_amount) || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0), 0);
   const grandTotalAppFee = isPeriodEndOfMonth ? Math.max(0, monthlyAppFeeBaseTotal - totalDriverAppFeesPaid) : 0;
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
   const grandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + ((d.grandTotal || 0) + (d.taxAmount || 0) - sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []) + (Number(driverEdits[d.driver.id]?.bonusPay) || 0) + (isPeriodEndOfMonth ? driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0)), 0);
@@ -1031,9 +1031,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           const k = data.driver.id;
           let pct = Number(getDriverPayrollRecord(k)?.app_fee_percentage) || 0;
           if (pct <= 0) {
-            const hist = (allPayrollRecords || [])
-              .filter((r) => r?.driver_id === k && (Number(r?.app_fee_percentage) || 0) > 0)
-              .sort((a, b) => String(b?.pay_period_start || '').localeCompare(String(a?.pay_period_start || '')));
+            const hist = (allPayrollRecords || []).
+            filter((r) => r?.driver_id === k && (Number(r?.app_fee_percentage) || 0) > 0).
+            sort((a, b) => String(b?.pay_period_start || '').localeCompare(String(a?.pay_period_start || '')));
             pct = Number(hist[0]?.app_fee_percentage) || 0;
           }
           savedPercentByDriver[k] = pct;
@@ -1063,9 +1063,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           // throwing away one-time adds/edits/removals on every re-sync).
           deductions: [
           ...(data.deductionsArray || []),
-          ...((pr?.deductions || []).filter((d) => d?.is_one_time))],
+          ...(pr?.deductions || []).filter((d) => d?.is_one_time)],
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
-          appFeePercent: autoFillFees ? (savedPercentByDriver[k] || 0) : (pr?.app_fee_percentage ?? 0),
+          appFeePercent: autoFillFees ? savedPercentByDriver[k] || 0 : pr?.app_fee_percentage ?? 0,
           appFeeAmount: pr?.app_fee_amount ?? (autoFillFees && savedPercentByDriver[k] > 0 ? calculateAppFeeAmount(k, savedPercentByDriver[k]) : 0),
           paidAmount,
           showDeductionManager: false,
@@ -1392,16 +1392,16 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                 const amount = editDeductionAmount;
                                 if (!name || !amount) return;
                                 const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.map((d, i) =>
-                                  i === idx ?
-                                  {
-                                    ...d,
-                                    name,
-                                    amount: parseFloat(amount),
-                                    start_date: normalizeDate(editDeductionStartDate) || undefined,
-                                    end_date: normalizeDate(editDeductionEndDate) || undefined,
-                                    is_one_time: true
-                                  } :
-                                  d
+                                i === idx ?
+                                {
+                                  ...d,
+                                  name,
+                                  amount: parseFloat(amount),
+                                  start_date: normalizeDate(editDeductionStartDate) || undefined,
+                                  end_date: normalizeDate(editDeductionEndDate) || undefined,
+                                  is_one_time: true
+                                } :
+                                d
                                 );
                                 setDriverEdits((prev) => ({
                                   ...prev,
@@ -1425,8 +1425,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <X className="w-4 h-4 text-slate-500" />
                             </button>
                           </div>
-                        </div>
-                      );
+                        </div>);
+
                     }
 
                     return (
@@ -1645,12 +1645,12 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
               You are about to finalize payroll for <strong>{currentPeriod?.label}</strong>.
               <br /><br />
               <strong>Total Net Pay:</strong> {formatCurrency(grandTotalNet)}
-              {Math.abs((totalPeriodPaidAmount || 0) - (grandTotalNet || 0)) > 0.009 && (
+              {Math.abs((totalPeriodPaidAmount || 0) - (grandTotalNet || 0)) > 0.009 &&
                 <>
                   <br />
                   <strong>Actual Paid:</strong> {formatCurrency(totalPeriodPaidAmount)}
                 </>
-              )}
+                }
               <br />
               <strong>Drivers Confirmed:</strong> {finalizedDriversCount}/{driversWithDeliveriesIds.length}
               <br /><br />
@@ -1761,30 +1761,30 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold text-body">
                     {data.driver.user_name || data.driver.full_name}
-                    {eTransEmail ? (
-                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">(E-Trans: {eTransEmail})</span>
-                    ) : isDriver && data.driver.id === currentUser?.id ? (
-                      <span className="text-xs font-normal text-amber-600 ml-1">(No e-Transfer email set)</span>
-                    ) : null}
+                    {eTransEmail ?
+                        <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">(E-Trans: {eTransEmail})</span> :
+                        isDriver && data.driver.id === currentUser?.id ?
+                        <span className="text-xs font-normal text-amber-600 ml-1">(No e-Transfer email set)</span> :
+                        null}
                   </h3>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {canShowConfirmButton &&
-                    <Button
-                      size="sm"
-                      onClick={() => handleDriverFinalize(data)}
-                      disabled={isFinalizing || driverHasConfirmed}
-                      className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
-                      title={driverHasConfirmed ? 'Already confirmed' : ''}>
+                      <Button
+                        size="sm"
+                        onClick={() => handleDriverFinalize(data)}
+                        disabled={isFinalizing || driverHasConfirmed}
+                        className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
+                        title={driverHasConfirmed ? 'Already confirmed' : ''}>
                       <CheckCircle className="w-3 h-3" />
                       {isFinalizing ? '...' : 'Confirm My Payroll'}
                     </Button>
-                  }
+                      }
                   {showBadge &&
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
                       <CheckCircle className="w-3.5 h-3.5 text-white" />
                     </span>
-                  }
+                      }
                 </div>
               </div>
 
@@ -1822,20 +1822,20 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(data.taxAmount || 0)}</td>
                             </tr>
-                            {(() => { const dedTotal = sumDeductionAmounts(edit.deductions || []); const isNegDed = dedTotal < 0; const dedLabel = dedTotal < 0 ? "Add On's:" : "Deductions:"; return (
-                            <tr style={{ color: isNegDed ? '#16a34a' : '#ef4444' }}>
+                            {(() => {const dedTotal = sumDeductionAmounts(edit.deductions || []);const isNegDed = dedTotal < 0;const dedLabel = dedTotal < 0 ? "Add On's:" : "Deductions:";return (
+                                    <tr style={{ color: isNegDed ? '#16a34a' : '#ef4444' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
-                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className={`${isNegDed ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'} cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle`}>
+                                        <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className={`${isNegDed ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'} cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle`}>
                                     {dedLabel}
                                   </button> :
-                                    dedLabel
-                                    }
+                                        dedLabel
+                                        }
                               </td>
                               <td className="text-right pr-0.5">{isNegDed ? '+$' : '-$'}</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(Math.abs(dedTotal))}</td>
-                            </tr>
-                            ); })()}
+                            </tr>);
+                                })()}
                             <tr style={{ color: '#16a34a' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
@@ -1868,7 +1868,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right">$</td>
                               <td className="pr-1">
-                                {(isAdmin || (isDriver && selectedDriverId === currentUser?.id)) ?
+                                {isAdmin || isDriver && selectedDriverId === currentUser?.id ?
                                     <Input
                                       type="text"
                                       inputMode="numeric"
@@ -1896,15 +1896,15 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                         await savePayrollChanges(driverKey, {
                                           paid_amount: nextPaidAmount
                                         });
-                                      }} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 w-[70px] text-right font-semibold" /> :
+                                      }} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 text-right font-semibold w-[80px]" /> :
 
 
 
                                     <div className="h-7 min-h-0 w-[60px] flex items-center justify-end text-right font-semibold">
                                     {formatPayrollAmount(parsePaidAmount(
-                                      edit.paidAmount,
-                                      (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)
-                                    ))}
+                                        edit.paidAmount,
+                                        (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)
+                                      ))}
                                   </div>
                                     }
                               </td>
@@ -1928,12 +1928,12 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0)}</td>
                             </tr>
-                            {(() => { const ytdDed = ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0; const isNegYtdDed = ytdDed < 0; return (
-                            <tr style={{ color: isNegYtdDed ? '#16a34a' : '#ef4444' }}>
+                            {(() => {const ytdDed = ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0;const isNegYtdDed = ytdDed < 0;return (
+                                    <tr style={{ color: isNegYtdDed ? '#16a34a' : '#ef4444' }}>
                               <td className="text-right pr-0.5">{isNegYtdDed ? '+$' : '-$'}</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(Math.abs(ytdDed))}</td>
-                            </tr>
-                            ); })()}
+                            </tr>);
+                                })()}
                             <tr style={{ color: '#16a34a' }}>
                               <td className="text-right pr-0.5">+$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0)}</td>
@@ -2313,6 +2313,6 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                   </Card>
         </>);
 
-})
+});
 
 export default PayrollSummaryCard;
