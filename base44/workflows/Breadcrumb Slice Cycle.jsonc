@@ -1,6 +1,6 @@
 {
   "name": "Breadcrumb Slice Cycle",
-  "description": "Every 5 minutes, runs the full home-anchored breadcrumb slicing server-side for every driver-date with a master trail (today + yesterday). Replaces the per-stop-finish slice invoke on driver devices \u2014 the phone now only force-flushes its master trail.",
+  "description": "Every 5 minutes, asks the slicer for routes that just had a stop finish. The slicer itself decides scope: it only slices driver+date pairs where a delivery flipped to completed within the last 12 minutes, and does nothing when no stop finished. Sealed (saved_to_route) legs stay protected. The old behavior (re-slice every driver-date, 24/7) is gone.",
   "trigger": {
     "condition": null,
     "config": {
@@ -31,7 +31,7 @@
             "function_name": "consolidateBreadcrumbSegment"
           },
           "x-base44": {
-            "description": "Full walk per active route",
+            "description": "Only routes with a recent stop finish",
             "title": "Slice breadcrumb trails"
           }
         }
@@ -41,7 +41,7 @@
       "dsl": "1.0.0",
       "name": "breadcrumb_slice_cycle",
       "namespace": "base44",
-      "version": "1.0"
+      "version": "1.1"
     }
   }
 }
