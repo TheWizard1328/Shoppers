@@ -105,8 +105,8 @@ export default function AppSidebar({
   // The ⋮ menu button (navigation panel) is visible on tablet landscape OR for
   // desktop admins/drivers with cities. When visible, the web update arrow +
   // info balloon prefer the MENU BUTTON over the app icon.
-  const menuBtnVisible = (deviceType === 'Tablet' && !isTabletPortrait) ||
-    (!isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0);
+  const menuBtnVisible = deviceType === 'Tablet' && !isTabletPortrait ||
+  !isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0;
   const handleLogoClick = (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
@@ -165,13 +165,13 @@ export default function AppSidebar({
       if (!storeIds.length && sqIsDriver) {
         const today = edmontonWallString(new Date()).slice(0, 10);
         storeIds = [...new Set(
-          (deliveries || [])
-            .filter((d) => d?.driver_id === currentUser?.id && d?.delivery_date === today && d?.status !== 'cancelled')
-            .map((d) => String(d?.store_id || ''))
+          (deliveries || []).
+          filter((d) => d?.driver_id === currentUser?.id && d?.delivery_date === today && d?.status !== 'cancelled').
+          map((d) => String(d?.store_id || ''))
         )].filter(Boolean);
       }
     }
-    let total = 0, avg = 0, found = false;
+    let total = 0,avg = 0,found = false;
     if (sqIsAdmin) {
       // Admin: all cards combined against the combined 7-day COD average.
       for (const row of sqByLocId.values()) {
@@ -185,7 +185,7 @@ export default function AppSidebar({
       const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc.get(String(sid))).filter(Boolean))];
       for (const lid of locIds) {
         const row = sqByLocId.get(lid);
-        if (row) { total += Number(row.cardEstimate || 0); found = true; }
+        if (row) {total += Number(row.cardEstimate || 0);found = true;}
       }
       for (const sid of storeIds) avg += Number(sqWeeklyByStore?.get(String(sid)) || 0) / 7;
     }
@@ -193,32 +193,32 @@ export default function AppSidebar({
     // Dispatcher balloon: today's remaining CODs (count + total) across their stores
     let remaining = null;
     if (sqIsDispatcher && storeIds && storeIds.length) {
-      let c = 0, t = 0;
+      let c = 0,t = 0;
       for (const sid of storeIds) {
         const r = sqDailyRemaining?.get(String(sid));
-        if (r) { c += Number(r.count || 0); t += Number(r.total || 0); }
+        if (r) {c += Number(r.count || 0);t += Number(r.total || 0);}
       }
       remaining = { count: c, total: t };
     }
     // Hover-balloon lines: one per store (the user's stores), showing the balance of
     // that store's card, colored by the card's level.
-    const balloonStoreIds = sqIsAdmin
-      ? [...sqStoreToLoc.keys()]
-      : (storeIds || []);
-    const lines = balloonStoreIds
-      .map((sid) => {
-        const lid = sqStoreToLoc.get(String(sid));
-        const row = lid ? sqByLocId.get(lid) : null;
-        if (!row) return null;
-        return {
-          storeId: String(sid),
-          name: sqStoreNames?.get(String(sid)) || String(sid),
-          balance: row.cardEstimate,
-          level: row.level,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const balloonStoreIds = sqIsAdmin ?
+    [...sqStoreToLoc.keys()] :
+    storeIds || [];
+    const lines = balloonStoreIds.
+    map((sid) => {
+      const lid = sqStoreToLoc.get(String(sid));
+      const row = lid ? sqByLocId.get(lid) : null;
+      if (!row) return null;
+      return {
+        storeId: String(sid),
+        name: sqStoreNames?.get(String(sid)) || String(sid),
+        balance: row.cardEstimate,
+        level: row.level
+      };
+    }).
+    filter(Boolean).
+    sort((a, b) => a.name.localeCompare(b.name));
     return { total, avg, level: getBalanceLevel(total, avg), lines, remaining };
   }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
   const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge.total).toLocaleString()}`;
@@ -276,27 +276,27 @@ export default function AppSidebar({
               }
 
         {/* App icon — anchors the desktop web-update arrow + info balloon
-            for ALL roles (dispatchers get the static version; drivers/admins
-            get the standard repeating balloon). */}
+                   for ALL roles (dispatchers get the static version; drivers/admins
+                   get the standard repeating balloon). */}
         <div className="relative flex-shrink-0" data-update-logo-btn>
         {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
-              <img
-                src={branding.logo_url}
-                alt="RxDeliver"
-                onClick={handleLogoClick}
-                title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
-                className={`rounded object-contain w-16 h-16 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
-                style={{ filter: 'var(--image-filter, none)' }}
-                onError={() => setLogoFailed(true)} /> :
+                <img
+                  src={branding.logo_url}
+                  alt="RxDeliver"
+                  onClick={handleLogoClick}
+                  title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
+                  className={`rounded object-contain w-16 h-16 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
+                  style={{ filter: 'var(--image-filter, none)' }}
+                  onError={() => setLogoFailed(true)} /> :
 
 
-              <div
-                onClick={handleLogoClick}
-                title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
-                className={`w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}>
+                <div
+                  onClick={handleLogoClick}
+                  title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
+                  className={`w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}>
             <span className="text-white font-bold text-sm">Rx</span>
           </div>
-              }
+                }
           {!isMobile && !isTabletPortrait && hasWebUpdate && !menuBtnVisible && <UpdateArrow type="web" size={12} />}
         </div>
 
@@ -313,37 +313,37 @@ export default function AppSidebar({
       </div>
 
       {/* Web-update info balloon (desktop, all roles) — expands to the right
-          of the app icon. Dispatchers: STATIC (no hide timer). Drivers/admins:
-          standard auto-hide + 3-minute re-show so it reminds without camping.
-          Tapping (or pressing F5) reloads the app to pick up the new build. */}
+                 of the app icon. Dispatchers: STATIC (no hide timer). Drivers/admins:
+                 standard auto-hide + 3-minute re-show so it reminds without camping.
+                 Tapping (or pressing F5) reloads the app to pick up the new build. */}
       {!isMobile && !isTabletPortrait &&
-      <UpdateInfoBalloon
-        active={!!hasWebUpdate || !!autoUpdatedNotice}
-        anchorSelector={menuBtnVisible ? "[data-update-menu-btn]" : "[data-update-logo-btn]"}
-        direction="right"
-        // "Just updated automatically" notice stays on screen until the user
-        // acknowledges it (owner request, Sep 28 2026) — no 10s auto-hide,
-        // no re-show cycle. Pending-update balloons keep their normal rhythm.
-        persistent={isDispatcherOnly || (!hasWebUpdate && !!autoUpdatedNotice)}
-        accent="#10b981"
-        icon={hasWebUpdate ? "⬆️" : "✅"}
-        title={hasWebUpdate ? "Update available" : "Update installed"}
-        message={hasWebUpdate
-          ? "A new version of RxDeliver is ready. Click here to refresh, or press F5."
-          : "Your app was just updated automatically to the latest version."}
-        cta={hasWebUpdate ? "Click to update" : "Got it"}
-        onClick={() => {
-          // Fresh update still pending = the normal refresh path wins.
-          if (hasWebUpdate) {
-            try { clearUserCache(); } catch (_) { /* silent — reload still picks up the build */ }
-            window.location.reload(true);
-            return;
-          }
-          // Just the "we auto-updated you" confirmation — dismiss the balloon.
-          if (onAutoUpdatedDismiss) onAutoUpdatedDismiss();
-        }}
-      />
-      }
+            <UpdateInfoBalloon
+              active={!!hasWebUpdate || !!autoUpdatedNotice}
+              anchorSelector={menuBtnVisible ? "[data-update-menu-btn]" : "[data-update-logo-btn]"}
+              direction="right"
+              // "Just updated automatically" notice stays on screen until the user
+              // acknowledges it (owner request, Sep 28 2026) — no 10s auto-hide,
+              // no re-show cycle. Pending-update balloons keep their normal rhythm.
+              persistent={isDispatcherOnly || !hasWebUpdate && !!autoUpdatedNotice}
+              accent="#10b981"
+              icon={hasWebUpdate ? "⬆️" : "✅"}
+              title={hasWebUpdate ? "Update available" : "Update installed"}
+              message={hasWebUpdate ?
+              "A new version of RxDeliver is ready. Click here to refresh, or press F5." :
+              "Your app was just updated automatically to the latest version."}
+              cta={hasWebUpdate ? "Click to update" : "Got it"}
+              onClick={() => {
+                // Fresh update still pending = the normal refresh path wins.
+                if (hasWebUpdate) {
+                  try {clearUserCache();} catch (_) {/* silent — reload still picks up the build */}
+                  window.location.reload(true);
+                  return;
+                }
+                // Just the "we auto-updated you" confirmation — dismiss the balloon.
+                if (onAutoUpdatedDismiss) onAutoUpdatedDismiss();
+              }} />
+
+            }
 
       <div className="flex items-center gap-2">
         {/* Show controls in navigation panel when tablet landscape OR landscape mobile */}
@@ -358,7 +358,7 @@ export default function AppSidebar({
                     <Button aria-label="More options" variant="ghost" size="sm" className="h-8 w-8 p-0 relative" data-update-menu-btn>
                       <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                       {/* Web-update arrow + balloon anchor here (preferred) whenever this
-                          menu button is visible — the app icon copy is the fallback. */}
+                               menu button is visible — the app icon copy is the fallback. */}
                       {hasWebUpdate && <UpdateArrow type="web" size={8} />}
                     </Button>
                   </DropdownMenuTrigger>
@@ -640,39 +640,39 @@ export default function AppSidebar({
             <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
 
       {/* ── Square section (owner request Oct 4 2026): COD, Balances,
-          Locations and Finance Audit grouped under one header below the
-          Drivers divider, with its own divider above Driver Activity. */}
+                 Locations and Finance Audit grouped under one header below the
+                 Drivers divider, with its own divider above Driver Activity. */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'dispatcher') || isAppOwner(currentUser)) &&
-        <SidebarSectionLabel>Square</SidebarSectionLabel>
-      }
+            <SidebarSectionLabel>Square</SidebarSectionLabel>
+            }
       <div className="space-y-1">
             {/* Square COD - Admins and Drivers only, clickable only if active */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-            <Link
-              to={createPageUrl('SquareManagement')}
-              onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);}}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentUser?.status === 'inactive' ? 'opacity-50 pointer-events-none' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'}`
-              }
-              style={currentPageName === 'SquareManagement' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
+              <Link
+                to={createPageUrl('SquareManagement')}
+                onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);}}
+                className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+                currentUser?.status === 'inactive' ? 'opacity-50 pointer-events-none' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'}`
+                }
+                style={currentPageName === 'SquareManagement' ? {
+                  background: 'var(--bg-slate-100)',
+                  color: 'var(--text-slate-900)'
+                } : {
+                  color: 'var(--text-slate-600)'
+                }}>
             <DollarSign className="w-5 h-5" />
-            <span className="font-semibold">Square COD</span>
+            <span className="font-semibold">COD's to Collect</span>
             {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
             </Link>
-            }
+              }
 
             {/* Square Balances — everyone sees it; badge = combined card balance for the
-          user's cards. Clickable for admins/owners (all cards) and drivers (their
-          route's cards); dispatchers get a read-only badge (single card at their store). */}
+                user's cards. Clickable for admins/owners (all cards) and drivers (their
+                route's cards); dispatchers get a read-only badge (single card at their store). */}
       {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
-        const sqActive = currentPageName === 'SquareBalances';
-        const dispatcherExtra = sqIsDispatcher && sqBadge && (
-          <>
+                const sqActive = currentPageName === 'SquareBalances';
+                const dispatcherExtra = sqIsDispatcher && sqBadge &&
+                <>
             <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
             <div className="space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.green.border }} /> more than $20 above avg</div>
@@ -684,113 +684,113 @@ export default function AppSidebar({
               <span className="text-slate-600 dark:text-slate-300">7-day avg CODs/day</span>
               <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`$${Math.round(sqBadge.avg).toLocaleString()}`}</span>
             </div>
-            {sqBadge.remaining && sqBadge.remaining.count > 0 && (
-              <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
+            {sqBadge.remaining && sqBadge.remaining.count > 0 &&
+                  <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
                 <span className="text-slate-600 dark:text-slate-300">CODs left today</span>
                 <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`${sqBadge.remaining.count} · $${Math.round(sqBadge.remaining.total).toLocaleString()}`}</span>
               </div>
-            )}
-          </>
-        );
-        const balloon = sqBadge?.lines?.length > 0 && (
-          <div className="hidden group-hover:block absolute left-full top-0 ml-2 z-[70] pointer-events-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 min-w-[210px]">
+                  }
+          </>;
+
+                const balloon = sqBadge?.lines?.length > 0 &&
+                <div className="hidden group-hover:block absolute left-full top-0 ml-2 z-[70] pointer-events-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 min-w-[210px]">
             <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Store · card balance</div>
             <div className="space-y-0.5">
-              {sqBadge.lines.map((l) => (
-                <div key={l.storeId} className="flex items-center justify-between gap-3 text-xs whitespace-nowrap" style={{ color: BALANCE_LEVELS[l.level]?.chipText }}>
+              {sqBadge.lines.map((l) =>
+                    <div key={l.storeId} className="flex items-center justify-between gap-3 text-xs whitespace-nowrap" style={{ color: BALANCE_LEVELS[l.level]?.chipText }}>
                   <span className="truncate max-w-[150px] text-slate-600 dark:text-slate-300">{l.name}</span>
                   <span className="font-semibold tabular-nums">{`$${Math.round(l.balance).toLocaleString()}`}</span>
                 </div>
-              ))}
+                    )}
             </div>
             {dispatcherExtra}
-          </div>
-        );
-        const inner = (
-          <>
+          </div>;
+
+                const inner =
+                <>
             <Wallet className="w-5 h-5 shrink-0" />
-            <span className="font-semibold">Square Balances</span>
+            <span className="font-semibold">e Balances</span>
             <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums font-semibold" style={sqBadgeStyle}>{sqBadgeLabel}</Badge>
             {balloon}
-          </>
-        );
-        const cls = `relative group px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
-        const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
-        if (sqIsDispatcher) {
-          // Dispatchers open a card top-up request dialog instead of the balances
-          // page — the click sends the App Owner a push + in-app message asking
-          // for more money on the store's Square card.
-          return (
-            <button
-              type="button"
-              data-square-balances-link
-              onClick={() => { setShowBalanceRequest(true); setSidebarOpen(false); }}
-              className={`${cls} cursor-pointer text-left w-full`}
-              style={style}
-              title="Request a card top-up"
-            >
+          </>;
+
+                const cls = `relative group px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
+                const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
+                if (sqIsDispatcher) {
+                  // Dispatchers open a card top-up request dialog instead of the balances
+                  // page — the click sends the App Owner a push + in-app message asking
+                  // for more money on the store's Square card.
+                  return (
+                    <button
+                      type="button"
+                      data-square-balances-link
+                      onClick={() => {setShowBalanceRequest(true);setSidebarOpen(false);}}
+                      className={`${cls} cursor-pointer text-left w-full`}
+                      style={style}
+                      title="Request a card top-up">
+                      
               {inner}
-            </button>
-          );
-        }
-        return (
-          <Link to={createPageUrl('SquareBalances')} data-square-balances-link onClick={() => setSidebarOpen(false)} className={cls} style={style}>
+            </button>);
+
+                }
+                return (
+                  <Link to={createPageUrl('SquareBalances')} data-square-balances-link onClick={() => setSidebarOpen(false)} className={cls} style={style}>
             {inner}
-          </Link>
-        );
-      })()}
+          </Link>);
+
+              })()}
 
 
       {/* Owner-only: low-balance alert balloon (mobile: pops above the side
-          panel button; desktop: pops out from the Square Balances link while
-          the sidebar is open) + one deduped push per low-state change. */}
+                   panel button; desktop: pops out from the Square Balances link while
+                   the sidebar is open) + one deduped push per low-state change. */}
       <SquareLowBalanceAlert
-        ready={sqReady}
-        byLocId={sqByLocId}
-        currentUser={currentUser}
-        sidebarOpen={sidebarOpen}
-        isMobileLike={isMobile || isTabletPortrait}
-      />
+                ready={sqReady}
+                byLocId={sqByLocId}
+                currentUser={currentUser}
+                sidebarOpen={sidebarOpen}
+                isMobileLike={isMobile || isTabletPortrait} />
+              
 
       {isAppOwner(currentUser) &&
-            <Link
-              to={createPageUrl('SquareLocationConfigs')}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentPageName === 'SquareLocationConfigs' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'SquareLocationConfigs' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
+              <Link
+                to={createPageUrl('SquareLocationConfigs')}
+                onClick={() => setSidebarOpen(false)}
+                className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+                currentPageName === 'SquareLocationConfigs' ?
+                'shadow-sm' :
+                'hover:opacity-80'}`
+                }
+                style={currentPageName === 'SquareLocationConfigs' ? {
+                  background: 'var(--bg-slate-100)',
+                  color: 'var(--text-slate-900)'
+                } : {
+                  color: 'var(--text-slate-600)'
+                }}>
             <CreditCard className="w-5 h-5" />
             <span className="font-semibold">Square Locations</span>
         </Link>
-            }
+              }
 
       {isAppOwner(currentUser) &&
-            <Link
-              to={createPageUrl('SquareSyncAudit')}
-              onClick={() => setSidebarOpen(false)}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentPageName === 'SquareSyncAudit' ?
-              'shadow-sm' :
-              'hover:opacity-80'}`
-              }
-              style={currentPageName === 'SquareSyncAudit' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
+              <Link
+                to={createPageUrl('SquareSyncAudit')}
+                onClick={() => setSidebarOpen(false)}
+                className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+                currentPageName === 'SquareSyncAudit' ?
+                'shadow-sm' :
+                'hover:opacity-80'}`
+                }
+                style={currentPageName === 'SquareSyncAudit' ? {
+                  background: 'var(--bg-slate-100)',
+                  color: 'var(--text-slate-900)'
+                } : {
+                  color: 'var(--text-slate-600)'
+                }}>
             <FileText className="w-5 h-5" />
             <span className="font-semibold">Square Finance Audit</span>
         </Link>
-            }
+              }
       </div>
 
       <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
