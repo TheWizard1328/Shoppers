@@ -53,11 +53,9 @@ export default function DeliveryPatientSearch({
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const { isMobile } = useDevice();
   const visiblePatients = React.useMemo(() => {
-    let list = (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally);
-
-    // Inactive patients: only show if no active patients match the search
-    const activeList = list.filter((patient) => patient?.status !== 'inactive');
-    return activeList.length > 0 ? activeList : list;
+    // Inactive patients: keep them in the results — sortFilteredPatients
+    // already ranks them to the bottom of the list (owner Oct 5 2026).
+    return (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally);
   }, [filteredPatients]);
 
   const handlePatientSearchKeyDown = (e) => {
@@ -206,11 +204,12 @@ export default function DeliveryPatientSearch({
             const isHighlighted = index === highlightedPatientIndex;
             const isSelected = selectedPatientIds.has(patient.id);
             const isAlreadyStaged = patient._isAlreadyStaged;
+            const isInactive = patient.status === 'inactive';
             return (
               <div
                 key={patient.id}
                 id={`patient-item-${index}`}
-                className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${
+                className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${isInactive ? 'opacity-60' : ''} ${
                   isAlreadyStaged
                     ? 'bg-amber-100/80 border-amber-500'
                     : isSelected
@@ -254,6 +253,7 @@ export default function DeliveryPatientSearch({
                   
                       <div className="font-medium truncate flex items-center gap-1.5">
                         {patient.full_name}
+                        {isInactive && <Badge className="bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 text-[10px] px-1.5 py-0 h-4">INACTIVE</Badge>}
                         {patient.care_pros && patient.cp_name && <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">({patient.cp_name})</span>}
                         {isAlreadyStaged && <Badge className="bg-amber-200/80 text-amber-900 dark:text-amber-950 text-[10px] px-1.5 py-0 h-4">STAGED</Badge>}
                         {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
