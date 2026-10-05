@@ -562,6 +562,12 @@ export default function SquareSyncAudit() {
     try {
       const startDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z";
       const res = await invokeWithLongTimeout("squareLedgerSync", { rawPreview: true, limit: 100, startDate, endDate: new Date().toISOString() });
+      if (!res?.rawPreview) {
+        // Stale backend still serving the previous build (origin propagation
+        // lag) — it ignored the flag and ran a normal sync instead.
+        toast.error("The deployed function hasn't received the raw preview update yet. Give it a few minutes and retry.");
+        return;
+      }
       setRawPreview(res);
       setRawPreviewOpen(res?.entries?.length ? `${res.entries[0].source}-0` : null);
     } catch (e) {
