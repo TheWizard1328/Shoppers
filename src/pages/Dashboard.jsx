@@ -1602,7 +1602,20 @@ function Dashboard() {
         }
 
         if (!_phase2Handled) {
-        const fabTargetDriverLocation = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
+        let fabTargetDriverLocation = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
+        // GLIDE HONOR (owner report Oct 5 2026): fit toward the INTERPOLATED
+        // dot position when following SELF on the primary device — the dot
+        // glides at ~20fps between 5s hardware fixes, and the old fit used the
+        // stale real fix, so the map lagged 3-5 dot-moves behind. The glide
+        // follower (useDriverLocationSync Effect 1c) fires this ~1s; here we
+        // swap in the fresh glide coords so the pan tracks the dot exactly.
+        const _selId2 = selectedDriverIdRef.current;
+        if ((_selId2 === 'all' || _selId2 === currentUser?.id || !_selId2) && (isPrimaryDeviceRef.current || window.__isPrimaryDevice === true)) {
+          const _disp = (window.__liveMarkerDisplay || {})[currentUser?.id];
+          if (_disp && Date.now() - (_disp.ts || 0) < 2500 && Number.isFinite(_disp.lat) && Number.isFinite(_disp.lng)) {
+            fabTargetDriverLocation = { ...(fabTargetDriverLocation || {}), latitude: _disp.lat, longitude: _disp.lng };
+          }
+        }
         console.log(`🗺️ [mapPos P2] immersiveHiddenRef=${immersiveHiddenRef.current} cancelInFlight=${_cancelInFlight} driverLoc=${fabTargetDriverLocation ? 'yes' : 'no'}`);
         if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null); const _selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd'); const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.delivery_date === _selectedDateStr2 && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;

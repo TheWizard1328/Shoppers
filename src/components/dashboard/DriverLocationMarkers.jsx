@@ -742,11 +742,19 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const now = Date.now();
       if (now - trailPaintRef.current < FRAME_MIN_MS) return;
       trailPaintRef.current = now;
+      // Display-position registry (owner report Oct 5 2026): GPS hardware
+      // fires every 5s but these glides paint ~20fps — the driver watched his
+      // dot move several times before the Phase 2 map refit. The Dashboard's
+      // Phase 2/3 follow now reads the GLIDING position from here so the map
+      // pans with the dot instead of waiting for the next 5s fix.
+      window.__liveMarkerDisplay = window.__liveMarkerDisplay || {};
       for (const [stableKey, entry] of trailInterpRef.current) {
         const marker = markerRefs.current[stableKey];
-        if (!marker?.setLatLng) continue;
         const p = entry.interp.getDisplayPosition(now);
-        if (p) marker.setLatLng([p.latitude, p.longitude]);
+        if (!p) continue;
+        window.__liveMarkerDisplay[stableKey] = { lat: p.latitude, lng: p.longitude, ts: now };
+        if (!marker?.setLatLng) continue;
+        marker.setLatLng([p.latitude, p.longitude]);
       }
     };
     trailRafRef.current = window.requestAnimationFrame(loop);
