@@ -1144,7 +1144,29 @@ let _inheritedWindowCount = 0;
       : null;
     console.log(`[clientRouteEngine] ${source} — live-GPS via point: ${viaPointAfterOrigin ? `(${viaPointAfterOrigin.lat.toFixed(4)}, ${viaPointAfterOrigin.lon.toFixed(4)})` : 'off (gates: onDuty=' + driverOnDuty + ', inFlight=' + hasInFlightStop + ', gps=' + (driverGpsCoords ? 'yes' : 'no') + ')'}`);
 
+    // ── Order-unchanged polyline skip (owner request, Oct 5 2026) ────────────
+    // If the optimizer kept every active stop in its existing stop_order, tell
+    // the generator: it then skips polyline generation entirely (same geometry
+    // already stored) and only ETAs update — unless the current leg genuinely
+    // differs (missing legs, moved origin anchor, live-GPS via point), in which
+    // case ONLY that leg regenerates. Excluded when the caller explicitly
+    // manages order/polyline intent: preserveExistingOrder (drag-reorder,
+    // travel-mode change, Reset Polylines), forceRegenerate, and the
+    // cycling/driving segment-only regens.
+    const _preOptOrderIds = activeRouteDeliveries
+      .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
+      .map(d => String(d.id));
+    const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
+    const orderUnchangedForPolylines = !preserveExistingOrder && !forceRegenerate
+      && !cyclingSegmentOnly && !drivingSegmentOnly
+      && _preOptOrderIds.length === _optimizedOrderIds.length
+      && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
+    if (orderUnchangedForPolylines) {
+      console.log(`[clientRouteEngine] ${source} — optimizer kept the existing stop order (${_optimizedOrderIds.length} stops) — requesting polyline skip`);
+    }
+
     segmentPolylineByDeliveryId = await generateRoutePolylines({
+      orderUnchanged: orderUnchangedForPolylines,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
       originPoint: polylineOrigin,
       cyclingSegmentOnly,

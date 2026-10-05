@@ -263,6 +263,13 @@ export async function generateRoutePolylines({
                               // right after the origin (first mode group only). Current-leg
                               // polyline bends through the driver's position; the first
                               // stop's ETA/distance metrics use the GPS→stop leg only.
+  orderUnchanged = false,    // OWNER REQUEST (Oct 5 2026): the optimizer produced the
+                              // SAME stop order as the deliveries' existing stop_order.
+                              // The legs are identical geometry, so polyline generation
+                              // is skipped entirely (ETAs still update from HERE
+                              // sequencing) — unless the current leg actually differs:
+                              // if any eligible leg is missing, the origin anchor moved,
+                              // or the live-GPS via point applies, ONLY that leg regenerates.
   logPurpose = null,          // Optional override for the Maps API usage-log purpose
                               // (e.g. 'Route Deviation (Google Directions) — Current Route Leg').
                               // Null → default 'Polyline generation' labels, unchanged.
@@ -319,16 +326,56 @@ export async function generateRoutePolylines({
     return polylineByDeliveryId;
   }
 
+  // ── Order-unchanged short-circuit (owner request, Oct 5 2026) ──────────────
+  // If the optimizer kept every stop in its existing order, the legs are the
+  // same origin→stop geometry already stored on the deliveries. Regenerating
+  // them burns a HERE/Google Router call per mode group for zero visual change.
+  //   • All legs present + current leg still anchored at the origin + no
+  //     live-GPS via → SKIP generation entirely; the writeBatch carries no
+  //     encoded_polyline so existing polylines are preserved server-side/IDB.
+  //   • Legs present but the current leg differs (origin anchor moved since
+  //     the last generation, or the driver's live GPS bends the current leg)
+  //     → regenerate ONLY that first leg; remaining legs keep their polylines.
+  let polyTargets = stopsToPolyline;
+  if (orderUnchanged && polyTargets.length > 0) {
+    const allLegsPresent = polyTargets.every(s =>
+      typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10
+    );
+    let firstLegAnchoredAtOrigin = false;
+    if (allLegsPresent) {
+      try {
+        const _pts = decodeGooglePolyline(polyTargets[0].delivery.encoded_polyline);
+        if (Array.isArray(_pts) && _pts.length > 0 && Number.isFinite(_pts[0][0]) && Number.isFinite(_pts[0][1])) {
+          const _latRad = (Number(effectiveOrigin.lat) || 0) * Math.PI / 180;
+          const _dLatKm = (Number(_pts[0][0]) - Number(effectiveOrigin.lat)) * 111.32;
+          const _dLonKm = (Number(_pts[0][1]) - Number(effectiveOrigin.lon)) * 111.32 * Math.max(Math.cos(_latRad), 0.01);
+          firstLegAnchoredAtOrigin = Math.hypot(_dLatKm, _dLonKm) < 0.1; // within 100 m of the anchor
+        }
+      } catch (_) { /* decode failure → treat as unanchored */ }
+    }
+    if (!allLegsPresent) {
+      // Some leg is missing (e.g. stops just accepted, or a previous polyline
+      // pass failed) → full generation; the skip must never leave gaps.
+      console.log(`[routePolylineGenerator] ${source} — order unchanged but ${polyTargets.length - polyTargets.filter(s => typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10).length} leg(s) missing → full generation`);
+    } else if (!firstLegAnchoredAtOrigin || viaValid) {
+      console.log(`[routePolylineGenerator] ${source} — order unchanged → current-leg-only regeneration (${!firstLegAnchoredAtOrigin ? 'origin anchor moved' : 'live-GPS via point'}); ${polyTargets.length - 1} later leg(s) keep existing polylines`);
+      polyTargets = [polyTargets[0]];
+    } else {
+      console.log(`[routePolylineGenerator] ${source} — ORDER UNCHANGED, all ${polyTargets.length} leg(s) present and anchored → polyline generation SKIPPED (ETAs still update from HERE sequencing)`);
+      return polylineByDeliveryId;
+    }
+  }
+
   // Build transport-mode groups (consecutive runs of the same mode).
   // Each group's fromPoint = effectiveOrigin for group[0], else the last stop of
   // the previous group. HERE/Google accept one transport mode per call.
   const modeGroups = [];
-  for (let i = 0; i < stopsToPolyline.length; i++) {
-    const stop = stopsToPolyline[i];
+  for (let i = 0; i < polyTargets.length; i++) {
+    const stop = polyTargets[i];
     const mode = resolveMode(stop.delivery);
     const prev = (i === 0)
       ? effectiveOrigin
-      : { lat: stopsToPolyline[i - 1].lat, lon: stopsToPolyline[i - 1].lng };
+      : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };
     const last = modeGroups[modeGroups.length - 1];
     if (last && last.mode === mode) {
       last.stops.push(stop);
@@ -463,9 +510,9 @@ export async function generateRoutePolylines({
 
   const _polyCount = [...polylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
   if (_polyCount === 0) {
-    console.warn(`[routePolylineGenerator] ${source} — produced 0 polylines despite ${eligibleStops.length} eligible stop(s) and ${stopsToPolyline.length} leg(s) — investigate origin/coords/HERE response`);
+    console.warn(`[routePolylineGenerator] ${source} — produced 0 polylines despite ${eligibleStops.length} eligible stop(s) and ${polyTargets.length} leg(s) — investigate origin/coords/HERE response`);
   } else {
-    console.log(`[routePolylineGenerator] ${source} — polylines generated: ${_polyCount}/${stopsToPolyline.length} legs`);
+    console.log(`[routePolylineGenerator] ${source} — polylines generated: ${_polyCount}/${polyTargets.length} legs`);
   }
 
   return polylineByDeliveryId;
