@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CalendarRange, CreditCard, Download, Flag, RefreshCw, Search, Table2, Wallet } from "lucide-react";
+import { AlertTriangle, Braces, CalendarRange, CreditCard, Download, Flag, RefreshCw, Search, Table2, Wallet } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { invokeWithLongTimeout } from "@/components/utils/squareLongTimeout";
 import { useUser } from "@/components/utils/UserContext";
@@ -151,6 +151,9 @@ export default function SquareSyncAudit() {
   const [activeTab, setActiveTab] = useState("ledger");
   const [entries, setEntries] = useState([]);
   const [expandedRowKey, setExpandedRowKey] = useState(null);
+  const [rawPreview, setRawPreview] = useState(null);
+  const [rawPreviewLoading, setRawPreviewLoading] = useState(false);
+  const [rawPreviewOpen, setRawPreviewOpen] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState("");
   const [storesById, setStoresById] = useState({});
@@ -554,11 +557,26 @@ export default function SquareSyncAudit() {
     return <div className="p-6 text-slate-500 dark:text-slate-400">Admin access required.</div>;
   }
 
+  const loadRawPreview = useCallback(async () => {
+    setRawPreviewLoading(true);
+    try {
+      const startDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z";
+      const res = await invokeWithLongTimeout("squareLedgerSync", { rawPreview: true, limit: 100, startDate, endDate: new Date().toISOString() });
+      setRawPreview(res);
+      setRawPreviewOpen(res?.entries?.length ? `${res.entries[0].source}-0` : null);
+    } catch (e) {
+      toast.error(`Raw preview failed: ${e?.message || e}`);
+    } finally {
+      setRawPreviewLoading(false);
+    }
+  }, []);
+
   const tabs = [
     { id: "ledger", label: "Transaction Ledger", icon: Table2 },
     { id: "summary", label: "Summaries", icon: CalendarRange },
     { id: "cards", label: "Cards & Red Flags", icon: CreditCard },
     { id: "health", label: "COD Sync Health", icon: RefreshCw },
+    { id: "raw", label: "Raw API (100)", icon: Braces },
   ];
 
   return (
@@ -973,6 +991,49 @@ export default function SquareSyncAudit() {
           )}
 
           {/* HEALTH TAB */}
+          {activeTab === "raw" && (
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Button size="sm" onClick={loadRawPreview} disabled={rawPreviewLoading}>
+                    {rawPreviewLoading ? "Fetching from Square..." : "Fetch first 100 raw records"}
+                  </Button>
+                  {rawPreview && !rawPreviewLoading && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {rawPreview.count} shown of {rawPreview.pulled} pulled · window {String(rawPreview.windowStart || "").slice(0, 10)} → {String(rawPreview.windowEnd || "").slice(0, 10)}
+                      {Array.isArray(rawPreview.errors) && rawPreview.errors.length > 0 && ` · ${rawPreview.errors.length} warnings`}
+                    </div>
+                  )}
+                </div>
+                {Array.isArray(rawPreview?.errors) && rawPreview.errors.length > 0 && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400">{rawPreview.errors.slice(0, 5).join(" · ")}</div>
+                )}
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Tap a record to see the full raw JSON exactly as Square returned it (pre-mapping, no DB writes).
+                </div>
+                <div className="space-y-2">
+                  {(rawPreview?.entries || []).map((rec, i) => {
+                    const key = `${rec.source}-${i}`;
+                    const open = rawPreviewOpen === key;
+                    return (
+                      <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <button onClick={() => setRawPreviewOpen(open ? null : key)} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                          <span className="text-xs font-semibold">
+                            {rec.at ? displayDateTime(wallOf(rec.at)) : "—"} · <span className="uppercase text-slate-500 dark:text-slate-400">{rec.source}</span> · {rec.location}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{open ? "hide" : "show raw"}</span>
+                        </button>
+                        {open && (
+                          <pre className="max-h-96 overflow-auto bg-slate-50 dark:bg-slate-900 text-[10px] leading-4 p-3 whitespace-pre-wrap break-all">{JSON.stringify(rec.raw, null, 2)}</pre>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {activeTab === "health" && (
             <div className="space-y-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">

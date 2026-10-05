@@ -441,6 +441,62 @@ Deno.serve(async (req) => {
     const isTopupBackfill = String(payload?.mode || '') === 'cardTopupBackfill';
     if (isTopupBackfill) windowStart = new Date(Date.now() - 800 * 86400000).toISOString();
     if (!configs.length && !isTopupBackfill) throw new HttpError(400, 'No active Square location configurations found');
+
+    // ── RAW API PREVIEW (owner request Oct 4 2026): return the raw records
+    // EXACTLY as the Square API delivered them — before any mapping, COD
+    // linking, settlement stamping, or DB writes. Nothing is persisted.
+    // One page per endpoint per location, merged newest-first, capped at
+    // payload.limit (default 100).
+    if (payload?.rawPreview) {
+      const limit = Math.min(200, Math.max(1, Math.round(Number(payload?.limit || 100)) || 100));
+      const raw: any[] = [];
+      const errors: string[] = [];
+      const jobs: Promise<any>[] = [];
+      for (const c of configs) {
+        const locationId = String(c.square_location_id);
+        const locationName = c.name || c.store_name || locationId;
+        jobs.push((async () => {
+          try {
+            const pj: any = await squareFetch(`/v2/payments?location_id=${encodeURIComponent(locationId)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=DESC&limit=${limit}`, 'GET', accessToken);
+            for (const p of pj?.payments || []) raw.push({ source: 'payment', location: locationName, at: p.created_at, raw: p });
+          } catch (e: any) { errors.push(`payments(${locationName}): ${e?.message || e}`); }
+        })());
+        jobs.push((async () => {
+          try {
+            const oj: any = await squareFetch('/v2/orders/search', 'POST', accessToken, {
+              location_ids: [locationId],
+              limit,
+              query: {
+                filter: {
+                  state_filter: { states: ['COMPLETED', 'CANCELED'] },
+                  date_time_filter: { created_at: { start_at: windowStart, end_at: windowEnd } },
+                },
+                sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' },
+              },
+            });
+            for (const o of oj?.orders || []) raw.push({ source: 'order', location: locationName, at: o.created_at, raw: o });
+          } catch (e: any) { errors.push(`orders(${locationName}): ${e?.message || e}`); }
+        })());
+        jobs.push((async () => {
+          try {
+            const rj: any = await squareFetch(`/v2/refunds?location_id=${encodeURIComponent(locationId)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=DESC&limit=${limit}`, 'GET', accessToken);
+            for (const r of rj?.refunds || []) raw.push({ source: 'refund', location: locationName, at: r.created_at, raw: r });
+          } catch (e: any) { errors.push(`refunds(${locationName}): ${e?.message || e}`); }
+        })());
+      }
+      await Promise.all(jobs);
+      raw.sort((a: any, b: any) => String(b.at || '').localeCompare(String(a.at || '')));
+      return Response.json({
+        success: true,
+        rawPreview: true,
+        windowStart,
+        windowEnd,
+        pulled: raw.length,
+        count: Math.min(raw.length, limit),
+        entries: raw.slice(0, limit),
+        errors,
+      });
+    }
     const configIds = new Set(configs.map((c: any) => String(c.square_location_id)));
 
     // COD link map: catalog object id -> { delivery_id, patient_id, item_name }
