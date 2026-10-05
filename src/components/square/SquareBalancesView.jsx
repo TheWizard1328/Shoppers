@@ -1075,7 +1075,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
               </div>
               )}
-              {ownerCanEdit && (() => {
+              {(() => {
+                // Collected/Uncollected/Past uncollected list — owner request
+                // Oct 4 2026: drivers see this full section too (same as the
+                // App Owner), just without the Loan left row and the net
+                // credits/gross/fees/loan/folder breakdown line above, which
+                // stay ownerCanEdit-gated.
                 const todayStr = edmontonWallString(new Date()).slice(0, 10);
                 // Uncollected rows come from the SquareCatalogItems database:
                 // ACTIVE catalog items = still sitting in the register, ALL
