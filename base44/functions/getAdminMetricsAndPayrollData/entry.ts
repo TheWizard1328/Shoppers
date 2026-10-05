@@ -1118,7 +1118,12 @@ Deno.serve(async (req) => {
       };
     }
 
-    return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination, payrollSummaryDebug });
+    // Debug mode: response carries ONLY the summary write log (huge payrollData
+    // payload would truncate the tool response before the debug field).
+    if (payrollSummaryDebug) {
+      return Response.json({ payrollSummaryDebug, delivered: payrollData?.deliveries?.length ?? 0 });
+    }
+    return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
     const isRateLimit = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
