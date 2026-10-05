@@ -7,8 +7,8 @@ import { edmontonWallString, parseAnyTimestamp } from "@/components/utils/albert
 import {
   getLedgerEntriesOffline,
   getLedgerLastSyncAt,
-  saveLedgerEntriesOffline,
-} from "@/components/utils/squareLedgerOfflineManager";
+  saveLedgerEntriesOffline } from
+"@/components/utils/squareLedgerOfflineManager";
 import SyncHealthPanel from "@/components/square-audit/SyncHealthPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,8 +20,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  SelectValue } from
+"@/components/ui/select";
 import { toast } from "sonner";
 
 const CARD_LABELS_KEY = "square_card_labels";
@@ -47,7 +47,7 @@ const weekKeyOf = (wall) => {
   const d = Number(String(wall).slice(8, 10));
   const utc = Date.UTC(y, mo - 1, d);
   const dow = new Date(utc).getUTCDay();
-  const monday = utc - ((dow + 6) % 7) * 86400000;
+  const monday = utc - (dow + 6) % 7 * 86400000;
   const m = new Date(monday);
   const mm = String(m.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(m.getUTCDate()).padStart(2, "0");
@@ -98,7 +98,7 @@ const CLASS_STYLES = {
   refund_in: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", amount: "text-emerald-600 dark:text-emerald-400", sign: 1 },
   refund_out: { badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300", amount: "text-orange-600 dark:text-orange-400", sign: -1 },
   refund_unlinked: { badge: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200", amount: "text-slate-700 dark:text-slate-300", sign: 1 },
-  payout: { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", amount: "text-violet-600 dark:text-violet-400", sign: 0 },
+  payout: { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", amount: "text-violet-600 dark:text-violet-400", sign: 0 }
 };
 
 const CLASS_LABELS = {
@@ -109,7 +109,7 @@ const CLASS_LABELS = {
   refund_in: "Refund (charge)",
   refund_out: "Refund (customer)",
   refund_unlinked: "Refund",
-  payout: "Bank Transfer",
+  payout: "Bank Transfer"
 };
 
 // Payout-class rows: SIMPLE = Square's per-sale folder withholding (mirrors the
@@ -252,7 +252,7 @@ export default function SquareSyncAudit() {
       await Promise.all([fetchLedgerFromServer(), loadCardLabels(), loadStores()]);
       if (!cancelled) setIsLoading(false);
     })();
-    return () => { cancelled = true; };
+    return () => {cancelled = true;};
   }, [isAdmin, fetchLedgerFromServer, loadCardLabels, loadStores]);
 
   // ---------- derived data ----------
@@ -295,20 +295,20 @@ export default function SquareSyncAudit() {
           saleCount: 0,
           saleTotal: 0,
           declineCount: 0,
-          lastSeen: "",
+          lastSeen: ""
         });
       }
       const st = stats.get(e.card_fingerprint);
       if (e.location_name) st.locations.add(e.location_name);
       const cls = classifyEntry(e, labelsByFingerprint, entriesBySquareId);
-      if (["sale", "collected"].includes(String(e.entry_kind || ""))) { st.saleCount++; st.saleTotal += Number(e.amount_cents || 0); }
+      if (["sale", "collected"].includes(String(e.entry_kind || ""))) {st.saleCount++;st.saleTotal += Number(e.amount_cents || 0);}
       if (e.entry_kind === "decline") st.declineCount++;
       if (e.occurred_at > st.lastSeen) st.lastSeen = e.occurred_at;
     }
     return Array.from(stats.values()).map((st) => ({
       ...st,
       locations: Array.from(st.locations),
-      likelyBusinessCard: st.locations.length >= 2,
+      likelyBusinessCard: st.locations.length >= 2
     }));
   }, [entries, labelsByFingerprint, entriesBySquareId]);
 
@@ -325,19 +325,19 @@ export default function SquareSyncAudit() {
     const to = toDate ? `${toDate}T23:59:59` : "";
     const search = searchText.trim().toLowerCase();
     const locSet = selectedLocations.length ? new Set(selectedLocations) : null;
-    return enhancedEntries
-      .filter((e) => {
-        if (locSet && !locSet.has(e.location_id)) return false;
-        if (from && e.wall < from) return false;
-        if (to && e.wall > to) return false;
-        if (kindFilter !== "all" && e.classCode !== kindFilter) return false;
-        if (search) {
-          const hay = `${e.location_name || ""} ${e.cod_item_name || ""} ${e.reason || ""} ${e.card_brand || ""} ${e.card_last4 || ""}`.toLowerCase();
-          if (!hay.includes(search)) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
+    return enhancedEntries.
+    filter((e) => {
+      if (locSet && !locSet.has(e.location_id)) return false;
+      if (from && e.wall < from) return false;
+      if (to && e.wall > to) return false;
+      if (kindFilter !== "all" && e.classCode !== kindFilter) return false;
+      if (search) {
+        const hay = `${e.location_name || ""} ${e.cod_item_name || ""} ${e.reason || ""} ${e.card_brand || ""} ${e.card_last4 || ""}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    }).
+    sort((a, b) => a.occurred_at < b.occurred_at ? 1 : -1);
   }, [enhancedEntries, fromDate, toDate, kindFilter, searchText, selectedLocations]);
 
   const summaryRows = useMemo(() => {
@@ -358,27 +358,27 @@ export default function SquareSyncAudit() {
       b.count++;
       const amt = Number(e.amount_cents || 0);
       switch (e.classCode) {
-        case "cod": b.collected += amt; break;
-        case "spend": b.spent += amt; break;
-        case "other": b.other += amt; break;
-        case "refund_in": b.refundIn += amt; break;
-        case "refund_out": b.refundOut += amt; break;
-        case "decline": b.declines++; break;
+        case "cod":b.collected += amt;break;
+        case "spend":b.spent += amt;break;
+        case "other":b.other += amt;break;
+        case "refund_in":b.refundIn += amt;break;
+        case "refund_out":b.refundOut += amt;break;
+        case "decline":b.declines++;break;
         case "payout":
-        case "card_spend": b.payout += amt; break;
-        default: break;
+        case "card_spend":b.payout += amt;break;
+        default:break;
       }
     }
     return rows;
   }, [enhancedEntries, fromDate, toDate, selectedLocations, granularity]);
 
-  const netOf = (b) => (b ? b.collected + b.other + b.refundIn - b.spent - b.refundOut : 0);
+  const netOf = (b) => b ? b.collected + b.other + b.refundIn - b.spent - b.refundOut : 0;
 
   const totals = useMemo(() => {
-    let collected = 0, spent = 0, other = 0, refundIn = 0, refundOut = 0, declines = 0;
+    let collected = 0,spent = 0,other = 0,refundIn = 0,refundOut = 0,declines = 0;
     for (const [, b] of summaryRows) {
-      collected += b.collected; spent += b.spent; other += b.other;
-      refundIn += b.refundIn; refundOut += b.refundOut; declines += b.declines;
+      collected += b.collected;spent += b.spent;other += b.other;
+      refundIn += b.refundIn;refundOut += b.refundOut;declines += b.declines;
     }
     return { collected, spent, other, refundIn, refundOut, declines, net: collected + other + refundIn - spent - refundOut };
   }, [summaryRows]);
@@ -394,10 +394,10 @@ export default function SquareSyncAudit() {
       const toWall = edmontonWallString(new Date()).slice(0, 10);
       const fromWall = edmontonWallString(new Date(Date.now() - 90 * 86400000)).slice(0, 10);
       const deliveries = await base44.entities.Delivery.filter({
-        delivery_date: { $gte: fromWall, $lte: toWall },
+        delivery_date: { $gte: fromWall, $lte: toWall }
       }, "-updated_date", 2000).catch(() => []);
       const flagged = (deliveries || []).filter((d) =>
-        ["failed", "returned"].includes(String(d?.status || "").toLowerCase())
+      ["failed", "returned"].includes(String(d?.status || "").toLowerCase())
       );
       const collectedByDelivery = new Map();
       for (const e of enhancedEntries) {
@@ -409,10 +409,10 @@ export default function SquareSyncAudit() {
       for (const e of enhancedEntries) {
         if (e.entry_kind === "refund" && e.delivery_id) refundByDelivery.set(e.delivery_id, e);
       }
-      const unlinkedRefunds = enhancedEntries
-        .filter((e) => e.entry_kind === "refund" && !e.delivery_id)
-        .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1))
-        .slice(0, 50);
+      const unlinkedRefunds = enhancedEntries.
+      filter((e) => e.entry_kind === "refund" && !e.delivery_id).
+      sort((a, b) => a.occurred_at < b.occurred_at ? 1 : -1).
+      slice(0, 50);
       const rows = flagged.map((d) => {
         const collected = collectedByDelivery.get(d.id) || null;
         const refund = refundByDelivery.get(d.id) || null;
@@ -424,10 +424,10 @@ export default function SquareSyncAudit() {
           codRequired: d.cod_total_amount_required || 0,
           collected: collected ? { amount: collected.amount_cents, wall: collected.wall, item: collected.cod_item_name } : null,
           refund: refund ? { amount: refund.amount_cents, wall: refund.wall } : null,
-          needsRefund: Boolean(collected) && !refund,
+          needsRefund: Boolean(collected) && !refund
         };
       });
-      setRedFlags({ rows: rows.sort((a, b) => (a.date < b.date ? 1 : -1)), unlinkedRefunds });
+      setRedFlags({ rows: rows.sort((a, b) => a.date < b.date ? 1 : -1), unlinkedRefunds });
     } catch (error) {
       console.error("[SquareFinanceAudit] Error loading red flags:", error);
       toast.error("Failed to load red flags");
@@ -500,8 +500,8 @@ export default function SquareSyncAudit() {
     setCardLabels((prev) => {
       const next = [...(prev || [])];
       const idx = next.findIndex((l) => l.fingerprint === fingerprint);
-      if (idx >= 0) next[idx] = { ...next[idx], ...patch };
-      else next.push({ fingerprint, ...patch });
+      if (idx >= 0) next[idx] = { ...next[idx], ...patch };else
+      next.push({ fingerprint, ...patch });
       return next;
     });
   }, []);
@@ -516,7 +516,7 @@ export default function SquareSyncAudit() {
         const created = await base44.entities.AppSettings.create({
           setting_key: CARD_LABELS_KEY,
           setting_value: settingValue,
-          description: "Square card fingerprints -> friendly labels for the finance audit",
+          description: "Square card fingerprints -> friendly labels for the finance audit"
         });
         if (created?.id) setCardLabelsRecordId(created.id);
       }
@@ -531,14 +531,14 @@ export default function SquareSyncAudit() {
   const downloadCsv = useCallback(() => {
     const header = ["Date (Edmonton)", "Location", "Card", "Type", "Entry Method", "Status", "Amount (CAD)", "Order ID", "Delivery ID", "Item / Reason"];
     const lines = filteredEntries.map((e) => {
-      const label = e.card_fingerprint ? (labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}`) : (e.tender_type === "CASH" ? "Cash" : "");
+      const label = e.card_fingerprint ? labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}` : e.tender_type === "CASH" ? "Cash" : "";
       const sign = e.cls.sign;
-      const amount = (sign * Number(e.amount_cents || 0)) / 100;
+      const amount = sign * Number(e.amount_cents || 0) / 100;
       return [
-        displayDateTime(e.wall), e.location_name || "", label,
-        e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode], e.entry_method || "", e.status || "",
-        amount.toFixed(2), e.order_id || "", e.delivery_id || "", e.cod_item_name || e.reason || "",
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+      displayDateTime(e.wall), e.location_name || "", label,
+      e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode], e.entry_method || "", e.status || "",
+      amount.toFixed(2), e.order_id || "", e.delivery_id || "", e.cod_item_name || e.reason || ""].
+      map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
     });
     const csv = [header.join(","), ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -586,12 +586,12 @@ export default function SquareSyncAudit() {
   }, []);
 
   const tabs = [
-    { id: "ledger", label: "Transaction Ledger", icon: Table2 },
-    { id: "summary", label: "Summaries", icon: CalendarRange },
-    { id: "cards", label: "Cards & Red Flags", icon: CreditCard },
-    { id: "health", label: "COD Sync Health", icon: RefreshCw },
-    { id: "raw", label: "Raw API (100)", icon: Braces },
-  ];
+  { id: "ledger", label: "Transaction Ledger", icon: Table2 },
+  { id: "summary", label: "Summaries", icon: CalendarRange },
+  { id: "cards", label: "Cards & Red Flags", icon: CreditCard },
+  { id: "health", label: "COD Sync Health", icon: RefreshCw },
+  { id: "raw", label: "Raw API (100)", icon: Braces }];
+
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-4">
@@ -625,65 +625,65 @@ export default function SquareSyncAudit() {
         </div>
       </div>
 
-      {(syncProgress || loadProgress) && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-4 py-2 text-sm text-blue-700 dark:text-blue-300">
+      {(syncProgress || loadProgress) &&
+      <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-4 py-2 text-sm text-blue-700 dark:text-blue-300">
           {syncProgress || loadProgress}
         </div>
-      )}
+      }
 
-      {lastSyncResult && !isSyncing && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-2 text-xs text-slate-600 dark:text-slate-400">
+      {lastSyncResult && !isSyncing &&
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-2 text-xs text-slate-600 dark:text-slate-400">
           Last sync: {lastSyncResult.entriesUpserted ?? 0} entries ({lastSyncResult.entriesFailed ?? 0} failed)
           {lastSyncResult.payoutsAvailable === false && " · payouts unavailable (missing PAYOUTS_READ scope)"}
           {Array.isArray(lastSyncResult.errors) && lastSyncResult.errors.length > 0 && ` · ${lastSyncResult.errors.length} warnings`}
         </div>
-      )}
+      }
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => { setActiveTab(t.id); if (t.id === "health") loadSyncHealth(); }}
-            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${activeTab === t.id ? "border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500 dark:text-white" : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
-          >
+        {tabs.map((t) =>
+        <button
+          key={t.id}
+          onClick={() => {setActiveTab(t.id);if (t.id === "health") loadSyncHealth();}}
+          className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${activeTab === t.id ? "border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500 dark:text-white" : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}>
+          
             <t.icon className="h-4 w-4" /> {t.label}
           </button>
-        ))}
+        )}
       </div>
 
-      {isLoading && entries.length === 0 ? (
-        <div className="p-6 text-slate-500 dark:text-slate-400">Loading ledger…</div>
-      ) : entries.length === 0 ? (
-        <Card><CardContent className="p-6 space-y-2">
+      {isLoading && entries.length === 0 ?
+      <div className="p-6 text-slate-500 dark:text-slate-400">Loading ledger…</div> :
+      entries.length === 0 ?
+      <Card><CardContent className="p-6 space-y-2">
           <div className="font-semibold">No Square ledger data yet.</div>
           <div className="text-sm text-slate-500 dark:text-slate-400">Run a Full Backfill to pull card spends, collections, refunds and declines from Square.</div>
-        </CardContent></Card>
-      ) : (
-        <>
+        </CardContent></Card> :
+
+      <>
           {/* Filters bar (ledger + summary) */}
-          {(activeTab === "ledger" || activeTab === "summary") && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
+          {(activeTab === "ledger" || activeTab === "summary") &&
+        <div className="flex flex-wrap items-center gap-2 text-sm">
               <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5">
                 <span className="text-xs text-slate-500 dark:text-slate-400">Locations:</span>
-                {locations.map((l) => (
-                  <label key={l.id} className="inline-flex items-center gap-1 cursor-pointer">
+                {locations.map((l) =>
+            <label key={l.id} className="inline-flex items-center gap-1 cursor-pointer">
                     <Checkbox
-                      checked={selectedLocations.includes(l.id)}
-                      onCheckedChange={(c) => setSelectedLocations((prev) => (c ? [...prev, l.id] : prev.filter((x) => x !== l.id)))}
-                    />
+                checked={selectedLocations.includes(l.id)}
+                onCheckedChange={(c) => setSelectedLocations((prev) => c ? [...prev, l.id] : prev.filter((x) => x !== l.id))} />
+              
                     <span className="text-xs">{l.name}</span>
                   </label>
-                ))}
-                {selectedLocations.length > 0 && (
-                  <button className="text-xs underline text-slate-500 dark:text-slate-400" onClick={() => setSelectedLocations([])}>all</button>
-                )}
+            )}
+                {selectedLocations.length > 0 &&
+            <button className="text-xs underline text-slate-500 dark:text-slate-400" onClick={() => setSelectedLocations([])}>all</button>
+            }
               </div>
               <Input type="date" className="w-36" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
               <span className="text-slate-400">→</span>
               <Input type="date" className="w-36" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-              {activeTab === "ledger" && (
-                <>
+              {activeTab === "ledger" &&
+          <>
                   <Select value={kindFilter} onValueChange={setKindFilter}>
                     <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -704,9 +704,9 @@ export default function SquareSyncAudit() {
                   </div>
                   <Button variant="outline" size="sm" onClick={downloadCsv}><Download className="h-4 w-4 mr-1" /> CSV</Button>
                 </>
-              )}
-              {activeTab === "summary" && (
-                <Select value={granularity} onValueChange={setGranularity}>
+          }
+              {activeTab === "summary" &&
+          <Select value={granularity} onValueChange={setGranularity}>
                   <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="year">Yearly</SelectItem>
@@ -715,13 +715,13 @@ export default function SquareSyncAudit() {
                     <SelectItem value="day">Daily</SelectItem>
                   </SelectContent>
                 </Select>
-              )}
+          }
             </div>
-          )}
+        }
 
           {/* LEDGER TAB */}
-          {activeTab === "ledger" && (
-            <Card>
+          {activeTab === "ledger" &&
+        <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -743,15 +743,15 @@ export default function SquareSyncAudit() {
                     </thead>
                     <tbody>
                       {filteredEntries.slice(0, ledgerLimit).map((e) => {
-                        const style = CLASS_STYLES[e.classCode] || CLASS_STYLES.other;
-                        const cardLabel = e.card_fingerprint
-                          ? (labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}`)
-                          : (e.tender_type === "CASH" ? "Cash" : e.tender_type || "");
-                        const rowKey = `${e.entry_kind}-${e.square_id}`;
-                        const isExpanded = expandedRowKey === rowKey;
-                        const rawFields = Object.entries(e).filter(([k]) => !["cls", "classCode", "wall"].includes(k));
-                        return (
-                          <>
+                    const style = CLASS_STYLES[e.classCode] || CLASS_STYLES.other;
+                    const cardLabel = e.card_fingerprint ?
+                    labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}` :
+                    e.tender_type === "CASH" ? "Cash" : e.tender_type || "";
+                    const rowKey = `${e.entry_kind}-${e.square_id}`;
+                    const isExpanded = expandedRowKey === rowKey;
+                    const rawFields = Object.entries(e).filter(([k]) => !["cls", "classCode", "wall"].includes(k));
+                    return (
+                      <>
                           <tr key={rowKey} onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/50 cursor-pointer">
                             <td className="px-3 py-2 whitespace-nowrap">{displayDateTime(e.wall)}</td>
                             <td className="px-3 py-2">{e.location_name || e.location_id}</td>
@@ -768,40 +768,40 @@ export default function SquareSyncAudit() {
                             <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
                             <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>{e.cod_item_name || e.reason || ""}</td>
                           </tr>
-                          {isExpanded && (
-                            <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">
+                          {isExpanded &&
+                        <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">
                               <td colSpan={12} className="px-3 py-2">
                                 <div className="text-[11px] font-mono leading-5 text-slate-600 dark:text-slate-300 max-h-64 overflow-y-auto">
-                                  {rawFields.map(([k, v]) => (
-                                    <div key={k}><span className="text-slate-400 dark:text-slate-500">{k}:</span> {v == null || v === "" ? "—" : String(v)}</div>
-                                  ))}
+                                  {rawFields.map(([k, v]) =>
+                              <div key={k}><span className="text-slate-400 dark:text-slate-500">{k}:</span> {v == null || v === "" ? "—" : String(v)}</div>
+                              )}
                                 </div>
                               </td>
                             </tr>
-                          )}
-                          </>
-                        );
-                      })}
+                        }
+                          </>);
+
+                  })}
                     </tbody>
                   </table>
                 </div>
-                {filteredEntries.length > ledgerLimit && (
-                  <div className="p-3 text-center">
+                {filteredEntries.length > ledgerLimit &&
+            <div className="p-3 text-center">
                     <Button variant="outline" size="sm" onClick={() => setLedgerLimit((l) => l + LEDGER_PAGE_SIZE * 2)}>
                       Load more ({filteredEntries.length - ledgerLimit} remaining)
                     </Button>
                   </div>
-                )}
+            }
                 <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                   {filteredEntries.length} of {entries.length} entries
                 </div>
               </CardContent>
             </Card>
-          )}
+        }
 
           {/* SUMMARY TAB */}
-          {activeTab === "summary" && (
-            <Card>
+          {activeTab === "summary" &&
+        <Card>
               <CardContent className="p-4 space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div className="rounded-lg border p-3"><div className="text-xs text-slate-500 dark:text-slate-400">COD Collected</div><div className="font-bold text-emerald-600 dark:text-emerald-400">{fmtCents(totals.collected)}</div></div>
@@ -814,50 +814,50 @@ export default function SquareSyncAudit() {
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                         <th className="px-3 py-2">Period</th>
-                        {activeLocations.map((l) => (
-                          <th key={l.id} colSpan={3} className="px-3 py-2 border-l text-center">{l.name}</th>
-                        ))}
+                        {activeLocations.map((l) =>
+                    <th key={l.id} colSpan={3} className="px-3 py-2 border-l text-center">{l.name}</th>
+                    )}
                         <th className="px-3 py-2 border-l text-right">All Net</th>
                       </tr>
                       <tr className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-400">
                         <th className="px-3 py-1"></th>
-                        {activeLocations.map((l) => (
-                          <React.Fragment key={l.id}>
+                        {activeLocations.map((l) =>
+                    <React.Fragment key={l.id}>
                             <th className="px-3 py-1 border-l text-right font-normal">Collected</th>
                             <th className="px-3 py-1 text-right font-normal">Spent</th>
                             <th className="px-3 py-1 text-right font-normal">Net</th>
                           </React.Fragment>
-                        ))}
+                    )}
                         <th className="px-3 py-1 border-l"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
-                        const periodKeys = Array.from(new Set(
-                          Array.from(summaryRows.keys()).map((k) => k.split("::")[0])
-                        )).sort().reverse();
-                        return periodKeys.map((pk) => {
-                          let allNet = 0;
-                          return (
-                            <tr key={pk} className="border-t hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                    const periodKeys = Array.from(new Set(
+                      Array.from(summaryRows.keys()).map((k) => k.split("::")[0])
+                    )).sort().reverse();
+                    return periodKeys.map((pk) => {
+                      let allNet = 0;
+                      return (
+                        <tr key={pk} className="border-t hover:bg-slate-50 dark:hover:bg-slate-900/50">
                               <td className="px-3 py-2 font-medium whitespace-nowrap">{periodLabelOf(pk, granularity)}</td>
                               {activeLocations.map((l) => {
-                                const b = summaryRows.get(`${pk}::${l.id}`);
-                                const net = netOf(b);
-                                allNet += net;
-                                return (
-                                  <React.Fragment key={l.id}>
+                            const b = summaryRows.get(`${pk}::${l.id}`);
+                            const net = netOf(b);
+                            allNet += net;
+                            return (
+                              <React.Fragment key={l.id}>
                                     <td className="px-3 py-2 border-l text-right whitespace-nowrap">{b ? fmtCents(b.collected) : "–"}</td>
                                     <td className="px-3 py-2 text-right text-red-600 dark:text-red-400 whitespace-nowrap">{b?.spent ? `-${fmtCents(b.spent)}` : "–"}</td>
                                     <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fmtCents(net)}</td>
-                                  </React.Fragment>
-                                );
-                              })}
+                                  </React.Fragment>);
+
+                          })}
                               <td className={`px-3 py-2 border-l text-right font-bold whitespace-nowrap ${allNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fmtCents(allNet)}</td>
-                            </tr>
-                          );
-                        });
-                      })()}
+                            </tr>);
+
+                    });
+                  })()}
                     </tbody>
                   </table>
                 </div>
@@ -866,11 +866,11 @@ export default function SquareSyncAudit() {
                 </div>
               </CardContent>
             </Card>
-          )}
+        }
 
           {/* CARDS & RED FLAGS TAB */}
-          {activeTab === "cards" && (
-            <div className="space-y-4">
+          {activeTab === "cards" &&
+        <div className="space-y-4">
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -893,34 +893,34 @@ export default function SquareSyncAudit() {
                         </tr>
                       </thead>
                       <tbody>
-                        {fingerprintStats.length === 0 && (
-                          <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">No card fingerprints yet — run a sync.</td></tr>
-                        )}
+                        {fingerprintStats.length === 0 &&
+                    <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">No card fingerprints yet — run a sync.</td></tr>
+                    }
                         {fingerprintStats.map((st) => {
-                          const label = labelsByFingerprint[st.fingerprint];
-                          return (
-                            <tr key={st.fingerprint} className="border-b last:border-0">
+                      const label = labelsByFingerprint[st.fingerprint];
+                      return (
+                        <tr key={st.fingerprint} className="border-b last:border-0">
                               <td className="px-2 py-1.5 text-xs">{st.brand} •{st.last4} {st.likelyBusinessCard && !label?.is_business_card && <span className="text-amber-600 text-[10px]">(likely business)</span>}</td>
                               <td className="px-2 py-1.5">
                                 <Input
-                                  className="h-7 w-44 text-xs"
-                                  placeholder="e.g. Callingwood's Card"
-                                  value={label?.label || ""}
-                                  onChange={(e) => saveCardLabel(st.fingerprint, { label: e.target.value })}
-                                />
+                              className="h-7 w-44 text-xs"
+                              placeholder="e.g. Callingwood's Card"
+                              value={label?.label || ""}
+                              onChange={(e) => saveCardLabel(st.fingerprint, { label: e.target.value })} />
+                            
                               </td>
                               <td className="px-2 py-1.5">
                                 <Checkbox
-                                  checked={Boolean(label?.is_business_card)}
-                                  onCheckedChange={(c) => saveCardLabel(st.fingerprint, { is_business_card: Boolean(c) })}
-                                />
+                              checked={Boolean(label?.is_business_card)}
+                              onCheckedChange={(c) => saveCardLabel(st.fingerprint, { is_business_card: Boolean(c) })} />
+                            
                               </td>
                               <td className="px-2 py-1.5 text-right text-xs">{st.saleCount}{st.declineCount > 0 && <span className="text-amber-600"> ({st.declineCount} declines)</span>}</td>
                               <td className="px-2 py-1.5 text-right text-xs font-medium">{fmtCents(st.saleTotal)}</td>
                               <td className="px-2 py-1.5 text-xs">{st.locations.join(", ")}</td>
-                            </tr>
-                          );
-                        })}
+                            </tr>);
+
+                    })}
                       </tbody>
                     </table>
                   </div>
@@ -950,24 +950,24 @@ export default function SquareSyncAudit() {
                       <tbody>
                         {!redFlags && isLoadingFlags && <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">Loading…</td></tr>}
                         {redFlags && redFlags.rows.length === 0 && <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">No failed/returned deliveries in the last 90 days.</td></tr>}
-                        {redFlags?.rows.map((r) => (
-                          <tr key={r.id} className="border-b last:border-0">
+                        {redFlags?.rows.map((r) =>
+                    <tr key={r.id} className="border-b last:border-0">
                             <td className="px-2 py-1.5 whitespace-nowrap">{r.date}</td>
                             <td className="px-2 py-1.5">{r.storeName}</td>
                             <td className="px-2 py-1.5"><Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{r.status}</Badge></td>
                             <td className="px-2 py-1.5 text-xs max-w-56 truncate" title={r.collected?.item || ""}>{r.collected?.item || "—"}</td>
                             <td className="px-2 py-1.5 text-right whitespace-nowrap">{r.collected ? fmtCents(r.collected.amount) : <span className="text-slate-400">not collected</span>}</td>
                             <td className="px-2 py-1.5">
-                              {r.refund ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Refunded {fmtCents(r.refund.amount)}</Badge>
-                              ) : r.needsRefund ? (
-                                <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"><AlertTriangle className="h-3 w-3 mr-1" />No refund</Badge>
-                              ) : (
-                                <span className="text-slate-400 text-xs">n/a</span>
-                              )}
+                              {r.refund ?
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Refunded {fmtCents(r.refund.amount)}</Badge> :
+                        r.needsRefund ?
+                        <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"><AlertTriangle className="h-3 w-3 mr-1" />No refund</Badge> :
+
+                        <span className="text-slate-400 text-xs">n/a</span>
+                        }
                             </td>
                           </tr>
-                        ))}
+                    )}
                       </tbody>
                     </table>
                   </div>
@@ -987,78 +987,78 @@ export default function SquareSyncAudit() {
                       </thead>
                       <tbody>
                         {redFlags?.unlinkedRefunds.length === 0 && <tr><td colSpan={5} className="px-2 py-3 text-sm text-slate-500">No unlinked refunds.</td></tr>}
-                        {redFlags?.unlinkedRefunds.map((e) => (
-                          <tr key={e.id || e.square_id} className="border-b last:border-0">
+                        {redFlags?.unlinkedRefunds.map((e) =>
+                    <tr key={e.id || e.square_id} className="border-b last:border-0">
                             <td className="px-2 py-1.5 whitespace-nowrap">{displayDateTime(e.wall)}</td>
                             <td className="px-2 py-1.5">{e.location_name || e.location_id}</td>
                             <td className="px-2 py-1.5 text-right font-medium">{fmtCents(e.amount_cents)}</td>
                             <td className="px-2 py-1.5 text-xs">{e.status}</td>
                             <td className="px-2 py-1.5 text-xs">{e.reason || "—"}</td>
                           </tr>
-                        ))}
+                    )}
                       </tbody>
                     </table>
                   </div>
                 </CardContent>
               </Card>
             </div>
-          )}
+        }
 
           {/* HEALTH TAB */}
-          {activeTab === "raw" && (
-            <Card>
+          {activeTab === "raw" &&
+        <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center gap-3 flex-wrap">
                   <Button size="sm" onClick={loadRawPreview} disabled={rawPreviewLoading}>
                     {rawPreviewLoading ? "Fetching from Square..." : "Fetch first 100 raw records"}
                   </Button>
-                  {rawPreview && !rawPreviewLoading && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {rawPreview && !rawPreviewLoading &&
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                       {rawPreview.count} shown of {rawPreview.pulled} pulled · window {String(rawPreview.windowStart || "").slice(0, 10)} → {String(rawPreview.windowEnd || "").slice(0, 10)}
                       {Array.isArray(rawPreview.errors) && rawPreview.errors.length > 0 && ` · ${rawPreview.errors.length} warnings`}
                     </div>
-                  )}
+              }
                 </div>
-                {Array.isArray(rawPreview?.errors) && rawPreview.errors.length > 0 && (
-                  <div className="text-xs text-amber-600 dark:text-amber-400">{rawPreview.errors.slice(0, 5).join(" · ")}</div>
-                )}
+                {Array.isArray(rawPreview?.errors) && rawPreview.errors.length > 0 &&
+            <div className="text-xs text-amber-600 dark:text-amber-400">{rawPreview.errors.slice(0, 5).join(" · ")}</div>
+            }
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   Tap a record to see the full raw JSON exactly as Square returned it (pre-mapping, no DB writes).
                 </div>
                 <div className="text-[10px] text-slate-400 dark:text-slate-500">raw preview build r4</div>
                 <div className="space-y-2">
                   {(rawPreview?.entries || []).map((rec, i) => {
-                    const key = `${rec.source}-${i}`;
-                    const open = rawPreviewOpen === key;
-                    return (
-                      <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                const key = `${rec.source}-${i}`;
+                const open = rawPreviewOpen === key;
+                return (
+                  <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                         <button onClick={() => setRawPreviewOpen(open ? null : key)} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-900/50">
                           <span className="text-xs font-semibold">
                             {rec.at ? displayDateTime(wallOf(rec.at)) : "—"} · <span className="uppercase text-slate-500 dark:text-slate-400">{rec.source}</span> · {rec.location}
                           </span>
                           <span className="text-[10px] text-slate-400">{open ? "hide" : "show raw"}</span>
                         </button>
-                        {open && (
-                          <pre className="max-h-96 overflow-auto bg-slate-50 dark:bg-slate-900 text-[10px] leading-4 p-3 whitespace-pre-wrap break-all">{JSON.stringify(rec.raw, null, 2)}</pre>
-                        )}
-                      </div>
-                    );
-                  })}
+                        {open &&
+                    <pre className="max-h-96 overflow-auto bg-slate-50 dark:bg-slate-900 leading-4 p-3 whitespace-pre-wrap break-all text-xs">{JSON.stringify(rec.raw, null, 2)}</pre>
+                    }
+                      </div>);
+
+              })}
                 </div>
               </CardContent>
             </Card>
-          )}
+        }
 
-          {activeTab === "health" && (
-            <div className="space-y-3">
+          {activeTab === "health" &&
+        <div className="space-y-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Health of the COD catalog sync jobs (Square Catalog DB Daily Prune, reconciles).
               </p>
               <SyncHealthPanel runs={syncHealth.runs || []} logs={syncHealth.logs || []} />
             </div>
-          )}
+        }
         </>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
