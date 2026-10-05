@@ -576,6 +576,7 @@ function DeliveryMap({
           number: delivery.display_stop_order || delivery.stop_order || 0,
           isFirstTime: !!delivery.first_delivery,
           isNextInLine: !!delivery.isNextDelivery,
+          isDriverOnDuty: driver?.driver_status === 'on_duty',
           markerType: "delivery",
           useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver) || useDispatcherPlaceholder,
           isOtherDriver: isOtherDriver || useDispatcherPlaceholder,
@@ -623,7 +624,8 @@ function DeliveryMap({
         markerType: "pickup",
         isInterStorePickup: isInterStore,
         useSimpleCircle: false,
-        isOtherDriver
+        isOtherDriver,
+        isDriverOnDuty: driver?.driver_status === 'on_duty'
       });
     });
 

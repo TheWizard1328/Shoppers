@@ -55,10 +55,10 @@ const getInnerSymbolColor = (status, isPickup = false) => {
   }
 };
 
-export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null) => {
+export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null, isDriverOnDuty = true) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}`;
+  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}_${isDriverOnDuty}`;
 
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
@@ -112,7 +112,7 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
 
   // Yellow next-delivery marker grows/shrinks on a 2s loop — the WHOLE marker
   // pulses, like the shared driver-location marker does (owner Oct 5 2026).
-  const showNextPulse = isNextDelivery && !FINISHED_STATUSES.includes(status) && !isFaded;
+  const showNextPulse = isNextDelivery && !FINISHED_STATUSES.includes(status) && !isFaded && isDriverOnDuty;
   const pulseAnim = showNextPulse ? 'animation: markerScalePulse 2s ease-in-out infinite;' : '';
 
   const icon = L.divIcon({
@@ -172,10 +172,10 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
   return icon;
 };
 
-export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false, isFaded = false, isHighlightedFinished = false, isAfterHours = false) => {
+export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false, isFaded = false, isHighlightedFinished = false, isAfterHours = false, isDriverOnDuty = true) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const storeCacheKey = `${status}_${storeColor}_${isActive}_${number}_${zBucket}_${duplicateCount}_${isHighlighted}_${isNextDelivery}_${hasIncompleteStops}_${isOtherDriver}_${isFaded}_${isHighlightedFinished}_${isAfterHours}`;
+  const storeCacheKey = `${status}_${storeColor}_${isActive}_${number}_${zBucket}_${duplicateCount}_${isHighlighted}_${isNextDelivery}_${hasIncompleteStops}_${isOtherDriver}_${isFaded}_${isHighlightedFinished}_${isAfterHours}_${isDriverOnDuty}`;
   if (storeIconCache.has(storeCacheKey)) return storeIconCache.get(storeCacheKey);
 
   const isFinished = FINISHED_STATUSES.includes(status);
@@ -208,7 +208,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
 
   // Yellow next-delivery store pin: the WHOLE pin grows/shrinks on a 2s
   // loop, same pulse style as the shared driver-location marker (owner Oct 5).
-  const showStorePulse = shouldShowNextYellow && !isFaded;
+  const showStorePulse = shouldShowNextYellow && !isFaded && isDriverOnDuty;
   const storePulseAnim = showStorePulse ? 'animation: markerScalePulse 2s ease-in-out infinite; transform-origin: 50% 50%;' : '';
 
   const icon = L.divIcon({
@@ -278,10 +278,10 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   return icon;
 };
 
-export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false) => {
+export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}`;
+  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}`;
   if (deliveryIconCache.has(deliveryCacheKey)) return deliveryIconCache.get(deliveryCacheKey);
 
   const isFinished = FINISHED_STATUSES.includes(status);
@@ -321,6 +321,10 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   const deliveryOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 
   const pinHeadHDel = Math.round(size * 1.4 * 0.72);
+  // Yellow next-delivery pin: the WHOLE pin grows/shrinks on a 2s loop —
+  // but only while its route's driver is on duty (owner Oct 5 2026).
+  const showDeliveryPulse = shouldShowNextYellow && !isFaded && isDriverOnDuty;
+  const deliveryPulseAnim = showDeliveryPulse ? 'animation: markerScalePulse 2s ease-in-out infinite; transform-origin: 50% 50%;' : '';
   const icon = L.divIcon({
     html: `
       <div style="
@@ -331,6 +335,7 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
         opacity: ${deliveryOpacity};
         transition: opacity 0.2s ease-in-out;
         overflow: visible;
+        ${deliveryPulseAnim}
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; display: block; overflow: visible; position: absolute; top: 0; left: 0;">
           <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z"

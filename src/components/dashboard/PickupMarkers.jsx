@@ -69,10 +69,10 @@ export default function PickupMarkers({
 
     const markerStoreColor = pickup.store ? getStoreColor(pickup.store) : null;
     const icon = pickup.useSimpleCircle
-      ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, markerStoreColor)
+      ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, markerStoreColor, pickup.isDriverOnDuty)
       : pickup.isInterStorePickup
-        ? createDeliveryIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, false, pickup.duplicateCount, currentZoom, pickup.isNextDelivery, isHighlighted, hasIncompleteStops, pickup.ampm_deliveries === 'PM', false, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished)
-        : createStoreIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.duplicateCount, isHighlighted, pickup.isNextDelivery, hasIncompleteStops, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, pickup.after_hours_pickup === true);
+        ? createDeliveryIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, false, pickup.duplicateCount, currentZoom, pickup.isNextDelivery, isHighlighted, hasIncompleteStops, pickup.ampm_deliveries === 'PM', false, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, pickup.isDriverOnDuty)
+        : createStoreIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.duplicateCount, isHighlighted, pickup.isNextDelivery, hasIncompleteStops, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, pickup.after_hours_pickup === true, pickup.isDriverOnDuty);
 
     const handlers = pickup.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isPickupFaded) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id])); handleMarkerClickForFanning(pickup, 'pickup'); },
