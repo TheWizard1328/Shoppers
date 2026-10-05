@@ -917,19 +917,25 @@ let _inheritedWindowCount = 0;
       if (hasTimeWindows && orderedStops.length > 1) {
         const TIME_BAND_MINUTES = 120; // 2-hour bands — same span as the old buckets
 
+        // BAND SEMANTICS (fixed Oct 5 2026, owner report "Meadows keeps
+        // sequencing next"): the band is the stop's EARLIEST SERVABLE TIME.
+        // A stop with NO window, or whose window has ALREADY OPENED, is
+        // servable RIGHT NOW → it takes the "now" band (earliest possible).
+        // A stop whose window opens in the FUTURE is servable only at its
+        // window start → it takes its window's chronological band, which is
+        // LATER than the now band → it sorts after every servable-now stop.
+        // The old code returned POSITIVE_INFINITY ("sorts last") for
+        // windowless/past-window stops — but that meant ANY future-window
+        // stop (finite band) sorted IN FRONT of them: Anna's 17:30-18:00
+        // Meadows pickup (band 8) kept landing ahead of servable-now stops
+        // whose 14:00 windows had passed, on every Start and manual
+        // optimize. Future-window stops sort last, chronologically among
+        // themselves; ties inside a band keep HERE's drive-time order.
+        const nowBand = Math.floor(currentMinutes / TIME_BAND_MINUTES);
         const bandOf = (stop) => {
           const m = parseTimeToMinutes(stop?.windowStart || stop?.delivery?.delivery_time_start || '');
-          if (!Number.isFinite(m) || m <= 0) return Number.POSITIVE_INFINITY; // no window → sorts last
-          // OWNER RULE (Oct 5 2026): a window that has ALREADY OPENED is not a
-          // sequencing constraint. "Deliverable any time after now" is true for
-          // every un-started stop on the route, so an accept-time stamp
-          // (delivery_time_start ≈ now, set when Accept All activated) must not
-          // band the stop ahead of closer windowless stops — that is exactly how
-          // a FAR stop with a now-stamp landed in front of CLOSER stops 8/9/10.
-          // Once the window start is at/before the current time, the stop joins
-          // the windowless bucket and HERE's drive-time order (distance) decides.
-          // Only FUTURE window openings create band priority.
-          if (routeIsToday && m <= currentMinutes) return Number.POSITIVE_INFINITY;
+          if (!Number.isFinite(m) || m <= 0) return nowBand; // no window → servable now
+          if (routeIsToday && m <= currentMinutes) return nowBand; // window open → servable now
           return Math.floor(m / TIME_BAND_MINUTES);
         };
 
