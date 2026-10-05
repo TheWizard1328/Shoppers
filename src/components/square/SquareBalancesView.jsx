@@ -163,6 +163,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [transferFromLoc, setTransferFromLoc] = useState(null);
   const [transferAmount, setTransferAmount] = useState('');
   const [transferToLocId, setTransferToLocId] = useState('');
+  // Folder → card transfer (owner request, Oct 4 2026). One direction only:
+  // money moves OUT of the shared folder ONTO a card — never card → folder.
+  const [folderTransferOpen, setFolderTransferOpen] = useState(false);
+  const [folderTransferAmount, setFolderTransferAmount] = useState('');
+  const [folderTransferToLocId, setFolderTransferToLocId] = useState('');
   const trueUpPanelRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const loadSeq = useRef(0);
@@ -852,6 +857,46 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   };
 
+  // Folder transfer: subtract from the single shared folder total
+  // (folder_start in the config), add onto the chosen card's card_start.
+  // Same window-preserving mechanism as card-to-card. One-way only:
+  // folder → card. There is no card → folder path and never will be.
+  const saveFolderTransfer = async () => {
+    if (!config) return;
+    const amt = parseFloat(folderTransferAmount);
+    if (!Number.isFinite(amt) || amt <= 0) { toast.error('Enter a transfer amount greater than 0'); return; }
+    if (!folderTransferToLocId) { toast.error('Pick a destination card'); return; }
+    if (amt > folderTotal + 0.001) { toast.error(`Amount exceeds the folder total (${fmtMoney(folderTotal)})`); return; }
+    const locations = (config.locations || []).map((loc) =>
+      loc.location_id === folderTransferToLocId
+        ? { ...loc, card_start: Number(loc.card_start || 0) + amt }
+        : loc
+    );
+    const newConfig = {
+      ...config,
+      folder_start: Number(config.folder_start || 0) - amt,
+      locations,
+    };
+    setIsSaving(true);
+    try {
+      if (configRecordId) {
+        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      } else {
+        const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
+        setConfigRecordId(created?.id || null);
+      }
+      setConfig(newConfig);
+      const toName = (config.locations || []).find((l) => l.location_id === folderTransferToLocId)?.name || folderTransferToLocId;
+      toast.success(`Transferred ${fmtMoney(amt)} from Folder to ${toName}`);
+      setFolderTransferOpen(false);
+    } catch (err) {
+      console.error('folder transfer failed:', err);
+      toast.error('Could not save the folder transfer');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Top-Up: ADD the typed amounts to each card's current starting balance.
   // Unlike True-Up this does NOT reset the tracking window (trued_up_at) —
   // it's money added to the cards, not a reconciliation.
@@ -989,7 +1034,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       {!restricted && (
       <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300"><PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Folder (all cards, 2% per sale)</div>
-        <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(folderTotal)}</div>
+        <div className="flex items-center gap-2">
+          <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(folderTotal)}</div>
+          {ownerCanEdit && (
+            <button
+              type="button"
+              title="Transfer from folder to a card"
+              aria-label="Transfer from folder to a card"
+              className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
+              onClick={() => { setFolderTransferAmount(''); setFolderTransferToLocId(''); setFolderTransferOpen(true); }}
+              disabled={isSaving || isLoading}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       )}
 
@@ -1314,6 +1373,56 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <Button size="sm" variant="outline" onClick={() => setShowTopUp(false)} disabled={isSaving}>Cancel</Button>
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveTopUp} disabled={isSaving}>
                 {isSaving ? 'Adding…' : 'Add to Cards'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Folder Transfer overlay: move money from the shared folder onto a
+          card (does not reset the window). One-way only — never card → folder. */}
+      {folderTransferOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Folder Transfer</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Move money from the folder onto a card. Does not reset the tracking window. Transfers out of the folder only — never into it.</div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">From</span>
+              <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">Folder · {fmtMoney(folderTotal)} available</span>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Amount</span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max={folderTotal}
+                placeholder={`available ${fmtMoney(folderTotal)}`}
+                value={folderTransferAmount}
+                disabled={isSaving}
+                onChange={(e) => setFolderTransferAmount(e.target.value)}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">To card</span>
+              <select
+                className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50"
+                value={folderTransferToLocId}
+                disabled={isSaving}
+                onChange={(e) => setFolderTransferToLocId(e.target.value)}
+              >
+                <option value="">Select destination card…</option>
+                {(config?.locations || []).map((loc) => (
+                  <option key={loc.location_id} value={loc.location_id}>{loc.name || loc.location_id}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setFolderTransferOpen(false)} disabled={isSaving}>Cancel</Button>
+              <Button size="sm" onClick={saveFolderTransfer} disabled={isSaving}>
+                {isSaving ? 'Transferring…' : 'Transfer'}
               </Button>
             </div>
           </div>
