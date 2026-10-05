@@ -619,8 +619,9 @@ Deno.serve(async (req) => {
       }
     };
 
-    const writePayrollSummary = async (year, cityId, yearData) => {
+    const writePayrollSummary = async (year, cityId, yearData, { collectDebug = false } = {}) => {
       const now = new Date().toISOString();
+      const writeLog = collectDebug ? [] : null;
       const patientsById = new Map((yearData.patients || []).map((p) => [p?.id, p]));
       const monthBuckets = new Map();
       (yearData.deliveries || []).forEach((d) => {
@@ -630,6 +631,7 @@ Deno.serve(async (req) => {
         monthBuckets.get(m).push(d);
       });
       for (let m = 1; m <= 12; m += 1) {
+        if (writeLog && m > 1) await new Promise((res) => setTimeout(res, 150)); // gentle stagger
         const monthDeliveries = monthBuckets.get(m) || [];
         const seenPatient = new Set();
         const monthPatients = [];
@@ -640,9 +642,8 @@ Deno.serve(async (req) => {
           const patient = patientsById.get(pid);
           if (patient) monthPatients.push(patient);
         });
-        await upsertPayrollSummaryRecords(
-          { city_id: cityId, year: Number(year), month: m, kind: 'month' },
-          {
+        try {
+          const payload = {
             city_id: cityId,
             year: Number(year),
             month: m,
@@ -652,27 +653,38 @@ Deno.serve(async (req) => {
             delivery_count: monthDeliveries.length,
             calculated_at: now,
             summary_version: PAYROLL_SUMMARY_VERSION
-          }
-        );
-      }
-      await upsertPayrollSummaryRecords(
-        { city_id: cityId, year: Number(year), kind: 'refs' },
-        {
-          city_id: cityId,
-          year: Number(year),
-          kind: 'refs',
-          refs: {
-            stores: yearData.stores || [],
-            appUsers: yearData.appUsers || [],
-            cities: yearData.cities || [],
-            cityName: yearData.cityName || '',
-            appFeeRate: yearData.appFeeRate || 0,
-            payrollRecords: yearData.payrollRecords || []
-          },
-          calculated_at: now,
-          summary_version: PAYROLL_SUMMARY_VERSION
+          };
+          await upsertPayrollSummaryRecords(
+            { city_id: cityId, year: Number(year), month: m, kind: 'month' },
+            payload
+          );
+          if (writeLog) writeLog.push({ month: m, ok: true, count: monthDeliveries.length, bytes: JSON.stringify(payload).length });
+        } catch (e) {
+          if (writeLog) writeLog.push({ month: m, ok: false, count: monthDeliveries.length, error: e?.message || String(e) });
         }
-      );
+      }
+      const refsPayload = {
+        city_id: cityId,
+        year: Number(year),
+        kind: 'refs',
+        refs: {
+          stores: yearData.stores || [],
+          appUsers: yearData.appUsers || [],
+          cities: yearData.cities || [],
+          cityName: yearData.cityName || '',
+          appFeeRate: yearData.appFeeRate || 0,
+          payrollRecords: yearData.payrollRecords || []
+        },
+        calculated_at: now,
+        summary_version: PAYROLL_SUMMARY_VERSION
+      };
+      try {
+        await upsertPayrollSummaryRecords({ city_id: cityId, year: Number(year), kind: 'refs' }, refsPayload);
+        if (writeLog) writeLog.push({ kind: 'refs', ok: true, bytes: JSON.stringify(refsPayload).length });
+      } catch (e) {
+        if (writeLog) writeLog.push({ kind: 'refs', ok: false, error: e?.message || String(e) });
+      }
+      return writeLog || null;
     };
 
     // Returns a fetchYearData-shaped payload from the durable summary, or null
@@ -1070,6 +1082,7 @@ Deno.serve(async (req) => {
 
     let payrollData = null;
     let payrollPagination = null;
+    let payrollSummaryDebug = null;
     if (payrollYear) {
       const normalizedPayrollCityId = payrollCityId;
       const shouldPaginatePayroll = payrollPaginationMode === 'paged';
@@ -1086,7 +1099,8 @@ Deno.serve(async (req) => {
         });
         if (summaryEligible) {
           try {
-            await writePayrollSummary(payrollYear, normalizedPayrollCityId, yearData);
+            const wlog = await writePayrollSummary(payrollYear, normalizedPayrollCityId, yearData, { collectDebug: !!body?.debugSummary });
+            if (wlog && body?.debugSummary) payrollSummaryDebug = wlog;
           } catch (e) {
             console.warn('⚠️ payroll summary write failed (non-fatal):', e?.message || e);
           }
@@ -1104,7 +1118,7 @@ Deno.serve(async (req) => {
       };
     }
 
-    return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination });
+    return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination, payrollSummaryDebug });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
     const isRateLimit = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
