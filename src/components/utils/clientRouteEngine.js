@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
+import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 /**
  * clientRouteEngine.js
  *
@@ -247,9 +248,24 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
 
 // ─── ETA calculation ─────────────────────────────────────────────────────────
 
-const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5 }) => {
+const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5, preferLeg = false, winterPadFactor = null, legMode = 'driving' }) => {
   if (typeof segmentPolyline?.estimatedDurationMinutes === 'number' && segmentPolyline.estimatedDurationMinutes > 0)
     return Math.ceil(segmentPolyline.estimatedDurationMinutes);
+  // OWNER REQUEST (Oct 5 2026): when polyline generation was SKIPPED because the
+  // optimizer kept the existing stop order, there is no fresh segmentPolyline —
+  // ETAs must still update. Prefer the FRESH findsequence2 leg duration over the
+  // stored (possibly hours-old) estimated_duration_minutes, with the same winter
+  // pad the generator applies to fresh durations (cycling excluded).
+  if (preferLeg) {
+    const _legSeconds = Number(leg?.duration || 0);
+    if (_legSeconds > 0) {
+      let _minutes = Math.ceil(_legSeconds / 60);
+      if (winterPadFactor && Number(winterPadFactor) > 0 && String(legMode).toLowerCase() !== 'cycling') {
+        _minutes = Math.ceil(_minutes * Number(winterPadFactor));
+      }
+      return _minutes;
+    }
+  }
   if (typeof stop?.delivery?.estimated_duration_minutes === 'number' && stop.delivery.estimated_duration_minutes > 0)
     return Math.ceil(stop.delivery.estimated_duration_minutes);
   const travelSeconds = Number(leg?.duration || 0);
@@ -1026,6 +1042,28 @@ let _inheritedWindowCount = 0;
   // scope — the writeBatch loop below (outside the polyline-phase block) reads it.
   // Empty when no transfer happened → no deviation_waypoints field is written.
   const deviationTransferChanges = new Map(); // deliveryId -> new deviation_waypoints
+  // ── Order-unchanged polyline skip (owner request, Oct 5 2026) ──────────────
+  // If the optimizer kept every active stop in its existing stop_order, tell
+  // the generator: it then skips polyline generation entirely (same geometry
+  // already stored) and only ETAs update — unless the current leg genuinely
+  // differs (missing legs, moved origin anchor, live-GPS via point), in which
+  // case ONLY that leg regenerates. Excluded when the caller explicitly
+  // manages order/polyline intent: preserveExistingOrder (drag-reorder,
+  // travel-mode change, Reset Polylines), forceRegenerate, and the
+  // cycling/driving segment-only regens. Declared at function scope so the
+  // ETA phase below can read it (it sits outside the polyline phase's block).
+  const _preOptOrderIds = activeRouteDeliveries
+    .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
+    .map(d => String(d.id));
+  const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
+  const orderUnchangedForPolylines = !preserveExistingOrder && !forceRegenerate
+    && !cyclingSegmentOnly && !drivingSegmentOnly
+    && _preOptOrderIds.length === _optimizedOrderIds.length
+    && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
+  if (orderUnchangedForPolylines) {
+    console.log(`[clientRouteEngine] ${source} — optimizer kept the existing stop order (${_optimizedOrderIds.length} stops) — requesting polyline skip`);
+  }
+
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
@@ -1144,27 +1182,6 @@ let _inheritedWindowCount = 0;
       : null;
     console.log(`[clientRouteEngine] ${source} — live-GPS via point: ${viaPointAfterOrigin ? `(${viaPointAfterOrigin.lat.toFixed(4)}, ${viaPointAfterOrigin.lon.toFixed(4)})` : 'off (gates: onDuty=' + driverOnDuty + ', inFlight=' + hasInFlightStop + ', gps=' + (driverGpsCoords ? 'yes' : 'no') + ')'}`);
 
-    // ── Order-unchanged polyline skip (owner request, Oct 5 2026) ────────────
-    // If the optimizer kept every active stop in its existing stop_order, tell
-    // the generator: it then skips polyline generation entirely (same geometry
-    // already stored) and only ETAs update — unless the current leg genuinely
-    // differs (missing legs, moved origin anchor, live-GPS via point), in which
-    // case ONLY that leg regenerates. Excluded when the caller explicitly
-    // manages order/polyline intent: preserveExistingOrder (drag-reorder,
-    // travel-mode change, Reset Polylines), forceRegenerate, and the
-    // cycling/driving segment-only regens.
-    const _preOptOrderIds = activeRouteDeliveries
-      .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
-      .map(d => String(d.id));
-    const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
-    const orderUnchangedForPolylines = !preserveExistingOrder && !forceRegenerate
-      && !cyclingSegmentOnly && !drivingSegmentOnly
-      && _preOptOrderIds.length === _optimizedOrderIds.length
-      && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
-    if (orderUnchangedForPolylines) {
-      console.log(`[clientRouteEngine] ${source} — optimizer kept the existing stop order (${_optimizedOrderIds.length} stops) — requesting polyline skip`);
-    }
-
     segmentPolylineByDeliveryId = await generateRoutePolylines({
       orderUnchanged: orderUnchangedForPolylines,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
@@ -1184,6 +1201,17 @@ let _inheritedWindowCount = 0;
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
+  // OWNER REQUEST (Oct 5 2026): with polyline generation skipped (unchanged
+  // order), ETAs must still refresh — derive travel minutes from the FRESH
+  // findsequence2 legs (same winter pad the generator applies), NOT the stale
+  // stored per-delivery durations. Stops that DID get a fresh segment (current
+  // leg regen) keep using it — seg always wins in getLegTravelMinutes.
+  const _etaPreferLeg = orderUnchangedForPolylines;
+  let _etaWinterPadFactor = null;
+  if (_etaPreferLeg) {
+    const _winter = await getWinterModeSettings().catch(() => null);
+    if (_winter?.enabled && Number(_winter.eta_factor) > 0) _etaWinterPadFactor = _winter.eta_factor;
+  }
   const stageEtaMap = new Map();
 
   if (historicalRoute && routeStops.length > 0) {
@@ -1213,9 +1241,10 @@ let _inheritedWindowCount = 0;
       const stop = routeStops[i];
       const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
       // Cycling markers: only add travel time if we have a polyline segment, otherwise treat as zero-travel anchor
+      const _legMode = String(stop.delivery?.transport_mode || effectiveTravelMode || 'driving').toLowerCase();
       const travelMinutes = stop.delivery.is_cycling_marker && !seg
         ? 0
-        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
+        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, preferLeg: _etaPreferLeg, winterPadFactor: _etaWinterPadFactor, legMode: _legMode });
       cumulativeTime += travelMinutes;
       const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
