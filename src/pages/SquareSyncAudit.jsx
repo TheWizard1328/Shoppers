@@ -131,22 +131,19 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId) => {
   if (entry.entry_kind === "refund") {
     const linked = entry.refund_of_square_id ? entriesBySquareId.get(entry.refund_of_square_id) : null;
     const linkedClass = linked ? classifyEntry(linked, labelsByFingerprint, entriesBySquareId) : null;
-    if (linkedClass && (linkedClass.code === "spend" || linkedClass.code === "other" && linked?.card_fingerprint && labelsByFingerprint[linked.card_fingerprint]?.is_business_card)) {
-      return { code: "refund_in", sign: 1 };
-    }
+    if (linkedClass && linkedClass.code === "spend") return { code: "refund_in", sign: 1 };
     if (linkedClass) return { code: "refund_out", sign: -1 };
     return { code: "refund_unlinked", sign: 1 };
   }
   if (entry.entry_kind === "decline") return { code: "decline", sign: 0 };
-  if (["payout", "card_spend"].includes(String(entry.entry_kind || ""))) return { code: "payout", sign: 0 };
+  if (String(entry.entry_kind || "") === "payout") return { code: "payout", sign: 0 };
+  // Actual purchases made with the business Square Card = money spent.
+  if (String(entry.entry_kind || "") === "card_spend") return { code: "spend", sign: -1 };
   if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
     if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
-    // Backend stamps card_spend only for owner-managed business-card labels —
-    // treat that stamp as authoritative even if the label record is missing
-    // the is_business_card toggle (owner report Oct 4 2026: Spent $0).
-    if (entry.sale_class === "card_spend") return { code: "spend", sign: -1 };
-    const label = entry.card_fingerprint ? labelsByFingerprint[entry.card_fingerprint] : null;
-    if (label?.is_business_card) return { code: "spend", sign: -1 };
+    // Owner rule (Oct 5 2026): sales paid with a labeled business card are
+    // still SALES — money into the register, always counted in Collected.
+    // Only real card purchases (entry_kind card_spend) count as Spent.
     return { code: "other", sign: 1 };
   }
   return { code: "other", sign: 0 };
@@ -885,7 +882,7 @@ export default function SquareSyncAudit() {
                   </table>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Collected = all Square sales at the store (COD-linked or not — legacy sales can't be delivery-linked). Refunds = refunds to customers minus refunds of card spends. Declines excluded from net. Bank transfers and card top-ups stay in the ledger tab. WIZARD WORXX cards hidden. Card spend classification uses card labels (Cards & Red Flags tab).
+                  Collected = all Square sales at the store — including sales paid with your labeled cards. Spent = actual card purchases only. Refunds = refunds to customers minus refunds of card purchases. Declines excluded from net. Bank transfers and card top-ups stay in the ledger tab. WIZARD WORXX cards hidden.
                 </div>
               </CardContent>
             </Card>
@@ -901,7 +898,7 @@ export default function SquareSyncAudit() {
                     <Button size="sm" disabled={isSavingLabels} onClick={persistCardLabels}>{isSavingLabels ? "Saving…" : "Save Labels"}</Button>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Name the three business Square Cards and toggle “Business card” so spends and their refunds classify correctly. Fingerprints seen at 2+ locations are likely business cards.
+                    Name the business Square Cards and toggle “Business card” — that flag drives the Square Balances card-spend tracking. The Audit summary counts ALL sales as Collected regardless of which card paid; only real card purchases show as Spent.
                   </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
