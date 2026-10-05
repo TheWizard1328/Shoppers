@@ -73,13 +73,16 @@ const periodLabelOf = (key, granularity) => {
   return String(key).slice(5).replace("-", "/");
 };
 
-const RANGE_MONTHS_BY_VALUE = { today: 1, "1": 1, "3": 3, "6": 6, "12": 12, "24": 24 };
+const RANGE_MONTHS_BY_VALUE = { today: 1, "1": 1, "3": 3, "6": 6, "12": 12, "24": 24, all: 60 };
 
 const rangeSelectionToMonths = (val) => RANGE_MONTHS_BY_VALUE[val] || 3;
 
 const rangeSelectionToDates = (val) => {
   const todayWall = edmontonWallString(new Date()).slice(0, 10);
   if (val === "today") return { from: todayWall, to: todayWall };
+  // "All" = no lower bound — show every spend/collection/refund ever synced,
+  // on every card/store (owner request Oct 5 2026).
+  if (val === "all") return { from: "", to: "" };
   const months = RANGE_MONTHS_BY_VALUE[val] || 3;
   const now = new Date();
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, now.getUTCDate()));
@@ -645,6 +648,7 @@ export default function SquareSyncAudit() {
               <SelectItem value="6">6 mo</SelectItem>
               <SelectItem value="12">1 yr</SelectItem>
               <SelectItem value="24">2 yrs</SelectItem>
+              <SelectItem value="all">All</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" disabled={isSyncing || isLoading} onClick={runRecentSync}>
