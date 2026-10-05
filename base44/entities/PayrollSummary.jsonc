@@ -22,11 +22,17 @@
     },
     "deliveries": {
       "type": "array",
-      "description": "Month's deliveries, payroll field whitelist only (DELIVERY_FIELDS)"
+      "description": "Month's deliveries, payroll field whitelist only (DELIVERY_FIELDS)",
+      "items": {
+        "type": "object"
+      }
     },
     "patients": {
       "type": "array",
-      "description": "Patients referenced by this month's deliveries (PATIENT_FIELDS whitelist)"
+      "description": "Patients referenced by this month's deliveries (PATIENT_FIELDS whitelist)",
+      "items": {
+        "type": "object"
+      }
     },
     "refs": {
       "type": "object",
