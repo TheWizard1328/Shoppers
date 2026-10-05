@@ -38,7 +38,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   // through a ref keeps callback identities stable so this panel doesn't re-fire
   // backend calls on every GPS tick (Sep 10 2026 amplifier fix).
   const deliveriesRef = useRef(deliveries);
-  useEffect(() => { deliveriesRef.current = deliveries; }, [deliveries]);
+  useEffect(() => {deliveriesRef.current = deliveries;}, [deliveries]);
 
   // Only dispatchers see this panel
   const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
@@ -63,8 +63,8 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   // Dispatcher's store(s)
   const dispatcherStoreIds = useMemo(() => currentUser?.store_ids || [], [currentUser]);
   const dispatcherStores = useMemo(() =>
-    (stores || []).filter(s => dispatcherStoreIds.includes(s?.id)),
-    [stores, dispatcherStoreIds]
+  (stores || []).filter((s) => dispatcherStoreIds.includes(s?.id)),
+  [stores, dispatcherStoreIds]
   );
 
   // City + company info from dispatcher's stores
@@ -79,14 +79,14 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   // Drivers for the current city + company (for dialog dropdown)
   const cityDrivers = useMemo(() => {
     if (!appUsers) return [];
-    return appUsers
-      .filter(au =>
-        au?.status === 'active' &&
-        Array.isArray(au.app_roles) &&
-        au.app_roles.includes('driver') &&
-        (cityId ? (au.city_ids?.includes(cityId) || au.city_id === cityId) : true)
-      )
-      .sort((a, b) => (a.user_name || '').localeCompare(b.user_name || ''));
+    return appUsers.
+    filter((au) =>
+    au?.status === 'active' &&
+    Array.isArray(au.app_roles) &&
+    au.app_roles.includes('driver') && (
+    cityId ? au.city_ids?.includes(cityId) || au.city_id === cityId : true)
+    ).
+    sort((a, b) => (a.user_name || '').localeCompare(b.user_name || ''));
   }, [appUsers, cityId]);
 
   // ── Guard check: any driver with isNextDelivery=true for dispatcher's store? ──
@@ -97,12 +97,12 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
       // Check locally first — faster than backend call
       const today = new Date().toISOString().split('T')[0];
       const TERMINAL = ['completed', 'failed', 'cancelled'];
-      const todayDeliveries = (deliveriesRef.current || []).filter(d =>
-        d?.delivery_date === today &&
-        dispatcherStoreIds.includes(d?.store_id)
+      const todayDeliveries = (deliveriesRef.current || []).filter((d) =>
+      d?.delivery_date === today &&
+      dispatcherStoreIds.includes(d?.store_id)
       );
-      const blocking = todayDeliveries.filter(d =>
-        d?.isNextDelivery === true && !TERMINAL.includes(d?.status)
+      const blocking = todayDeliveries.filter((d) =>
+      d?.isNextDelivery === true && !TERMINAL.includes(d?.status)
       );
       setGuardPassed(blocking.length === 0);
     } catch (e) {
@@ -160,7 +160,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 setPhase('broadcast');
                 return;
               }
-            } catch (_) { /* fall through to stale handling */ }
+            } catch (_) {/* fall through to stale handling */}
             // If timeout check didn't escalate, treat as stale — go idle
             setActiveRequest(null);
             setPhase('idle');
@@ -197,10 +197,10 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
     if (!canUse || dispatcherStoreIds.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
     const TERMINAL = ['completed', 'failed', 'cancelled'];
-    const blocking = (deliveries || []).filter(d =>
-      d?.delivery_date === today &&
-      dispatcherStoreIds.includes(d?.store_id) &&
-      d?.isNextDelivery === true && !TERMINAL.includes(d?.status)
+    const blocking = (deliveries || []).filter((d) =>
+    d?.delivery_date === today &&
+    dispatcherStoreIds.includes(d?.store_id) &&
+    d?.isNextDelivery === true && !TERMINAL.includes(d?.status)
     );
     if (blocking.length > 0) setGuardPassed(false);
   }, [deliveries, canUse, dispatcherStoreIds]);
@@ -242,7 +242,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   // This keeps polling for as long as the request is escalated and not yet
   // resolved, so "X driver(s) available" actually shows up live.
   useEffect(() => {
-    if ((phase !== 'broadcast' && phase !== 'cooldown') || !activeRequest || activeRequest.status !== 'escalated') return;
+    if (phase !== 'broadcast' && phase !== 'cooldown' || !activeRequest || activeRequest.status !== 'escalated') return;
     const interval = setInterval(async () => {
       try {
         const result = await base44.functions.invoke('driverAvailabilityManager', {
@@ -273,9 +273,9 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         const remaining = new Date(activeRequest.timeout_expires_at).getTime() - Date.now();
         setCountdownMs(Math.max(0, remaining));
         if (remaining <= 0) {
+
           // Timeout will be handled by poll
-        }
-      };
+        }};
       update();
       const interval = setInterval(update, 1000);
       return () => clearInterval(interval);
@@ -349,7 +349,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
           });
           result = await base44.functions.invoke('driverAvailabilityManager', payload);
           result = result?.data ?? result;
-        } catch (_) { /* retry failed — fall through to error display */ }
+        } catch (_) {/* retry failed — fall through to error display */}
       }
 
       if (result?.error) {
@@ -404,13 +404,13 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
               setSelectedDriverId('all');
               if (rrd?.request) {
                 setActiveRequest(rrd.request);
-                if (rrd.phase === 'waiting') setPhase('waiting');
-                else if (rrd.phase === 'broadcast') setPhase('broadcast');
+                if (rrd.phase === 'waiting') setPhase('waiting');else
+                if (rrd.phase === 'broadcast') setPhase('broadcast');
               }
               return;
             }
           }
-        } catch (_) { /* auto-recovery failed */ }
+        } catch (_) {/* auto-recovery failed */}
       }
       setError(msg);
     } finally {
@@ -481,33 +481,33 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
       {/* Panel container — sits above driver info cards */}
       <div className="px-2 pt-1 pb-1 border-t bg-surface border-surface">
         {/* IDLE STATE */}
-        {phase === 'idle' && (
-          <div className="flex flex-col gap-1">
+        {phase === 'idle' &&
+        <div className="flex flex-col gap-1">
             <Button
-              size="sm"
-              className="w-full gap-1.5 text-xs font-semibold"
-              disabled={!guardPassed || guardLoading}
-              onClick={() => setShowDialog(true)}
-              style={guardPassed ? {
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: 'white'
-              } : {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-400)'
-              }}
-            >
+            size="sm"
+            className="w-full gap-1.5 text-xs font-semibold"
+            disabled={!guardPassed || guardLoading}
+            onClick={() => setShowDialog(true)}
+            style={guardPassed ? {
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: 'white'
+            } : {
+              background: 'var(--bg-slate-100)',
+              color: 'var(--text-slate-400)'
+            }}>
+            
               {guardLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Truck className="w-3.5 h-3.5" />}
               {guardPassed ? 'Request A Driver' : 'Driver en route'}
             </Button>
-            {!guardPassed && (
-              <p className="text-[10px] text-slate-400 px-1">A driver is already heading to your store</p>
-            )}
+            {!guardPassed &&
+          <p className="text-[10px] text-slate-400 px-1 text-center">A driver is already heading to your store</p>
+          }
           </div>
-        )}
+        }
 
         {/* WAITING STATE */}
-        {phase === 'waiting' && activeRequest && (
-          <div className="rounded-lg border p-2 flex flex-col gap-1.5" style={{ borderColor: '#c7d2fe', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)' }}>
+        {phase === 'waiting' && activeRequest &&
+        <div className="rounded-lg border p-2 flex flex-col gap-1.5" style={{ borderColor: '#c7d2fe', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)' }}>
             <div className="flex items-start gap-1.5">
               <Clock className="w-3.5 h-3.5 text-indigo-500 animate-pulse mt-0.5 shrink-0" />
               <span className="text-[11px] font-semibold text-indigo-700 flex-1 whitespace-normal break-words">
@@ -517,68 +517,68 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 {formatCountdown(countdownMs)}
               </span>
             </div>
-            {activeRequest.assigned_driver_ids?.length > 0 && (
-              <p className="text-[10px] text-indigo-500 px-0.5">
+            {activeRequest.assigned_driver_ids?.length > 0 &&
+          <p className="text-[10px] text-indigo-500 px-0.5">
                 {activeRequest.assigned_driver_ids.length} driver(s) notified
               </p>
-            )}
-            {activeRequest.assigned_driver_responses?.filter(r => r.response === 'no').map(r => (
-              <p key={r.driver_id} className="text-[10px] text-red-500 px-0.5 flex items-center gap-1">
+          }
+            {activeRequest.assigned_driver_responses?.filter((r) => r.response === 'no').map((r) =>
+          <p key={r.driver_id} className="text-[10px] text-red-500 px-0.5 flex items-center gap-1">
                 <XCircle className="w-2.5 h-2.5" />
                 {r.driver_name || 'Driver'} declined
               </p>
-            ))}
+          )}
             <div className="flex gap-1">
               <Button
-                size="sm"
-                variant="destructive"
-                className="flex-1 h-7 text-[11px] gap-1"
-                onClick={handleEscalate}
-                disabled={escalating}
-              >
+              size="sm"
+              variant="destructive"
+              className="flex-1 h-7 text-[11px] gap-1"
+              onClick={handleEscalate}
+              disabled={escalating}>
+              
                 {escalating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
                 Escalate Now
               </Button>
               <Button
- aria-label="Cancel availability request"                size="sm"
-                variant="ghost"
-                className="h-7 text-[11px] px-2"
-                onClick={handleCancel}
-              >
+              aria-label="Cancel availability request" size="sm"
+              variant="ghost"
+              className="h-7 text-[11px] px-2"
+              onClick={handleCancel}>
+              
                 <X className="w-3 h-3" />
               </Button>
             </div>
           </div>
-        )}
+        }
 
         {/* BROADCAST STATE */}
-        {phase === 'broadcast' && activeRequest && (
-          <div className="rounded-lg border p-2 flex flex-col gap-1.5" style={{ borderColor: '#fde68a', background: 'linear-gradient(135deg, #fffbeb, #fefce8)' }}>
+        {phase === 'broadcast' && activeRequest &&
+        <div className="rounded-lg border p-2 flex flex-col gap-1.5" style={{ borderColor: '#fde68a', background: 'linear-gradient(135deg, #fffbeb, #fefce8)' }}>
             <div className="flex items-start gap-1.5">
               <Radio className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
               <span className="text-[11px] font-semibold text-amber-700 flex-1 whitespace-normal break-words">
                 Request sent to all drivers in city...
               </span>
             </div>
-            {activeRequest.broadcast_driver_ids?.length > 0 && (
-              <p className="text-[10px] text-amber-600 px-0.5">
+            {activeRequest.broadcast_driver_ids?.length > 0 &&
+          <p className="text-[10px] text-amber-600 px-0.5">
                 {activeRequest.broadcast_driver_ids.length} driver(s) notified
               </p>
-            )}
+          }
             <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-[11px] gap-1 self-end"
-              onClick={handleCancel}
-            >
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[11px] gap-1 self-end"
+            onClick={handleCancel}>
+            
               <X className="w-3 h-3" /> Cancel
             </Button>
           </div>
-        )}
+        }
 
         {/* RESPONSE STATE */}
-        {phase === 'response' && activeRequest && (
-          <div className="rounded-lg border p-2 flex flex-col gap-1" style={{ borderColor: '#bbf7d0', background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
+        {phase === 'response' && activeRequest &&
+        <div className="rounded-lg border p-2 flex flex-col gap-1" style={{ borderColor: '#bbf7d0', background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
             <div className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
               <span className="text-[11px] font-semibold text-emerald-700 flex-1 whitespace-normal break-words">
@@ -586,19 +586,19 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
               </span>
             </div>
             <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 text-[10px] gap-1 self-end"
-              onClick={() => { setPhase('idle'); setActiveRequest(null); checkGuard(); }}
-            >
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[10px] gap-1 self-end"
+            onClick={() => {setPhase('idle');setActiveRequest(null);checkGuard();}}>
+            
               Dismiss
             </Button>
           </div>
-        )}
+        }
 
         {/* COOLDOWN STATE */}
-        {phase === 'cooldown' && (
-          <div className="rounded-lg border p-2 flex flex-col gap-0.5 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+        {phase === 'cooldown' &&
+        <div className="rounded-lg border p-2 flex flex-col gap-0.5 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
             <div className="flex items-start gap-1.5">
               <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
               <span className="text-[11px] font-semibold text-slate-500 flex-1 whitespace-normal break-words">
@@ -606,7 +606,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
               </span>
             </div>
           </div>
-        )}
+        }
       </div>
 
       {/* Request Dialog */}
@@ -629,11 +629,11 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Drivers (auto-assigned first)</SelectItem>
-                  {cityDrivers.map(driver => (
-                    <SelectItem key={driver.user_id} value={driver.user_id}>
+                  {cityDrivers.map((driver) =>
+                  <SelectItem key={driver.user_id} value={driver.user_id}>
                       {driver.user_name || 'Unknown Driver'}
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -649,17 +649,17 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 onChange={(e) => setExtraInfo(e.target.value.slice(0, 200))}
                 rows={3}
                 className="resize-none text-sm"
-                maxLength={200}
-              />
+                maxLength={200} />
+              
               <p className="text-[10px] text-slate-400 text-right">{extraInfo.length}/200</p>
             </div>
 
-            {error && (
-              <div className="flex items-center gap-1.5 text-xs text-red-500">
+            {error &&
+            <div className="flex items-center gap-1.5 text-xs text-red-500">
                 <AlertCircle className="w-3.5 h-3.5" />
                 {error}
               </div>
-            )}
+            }
           </div>
 
           <DialogFooter className="gap-2">
@@ -671,14 +671,14 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
               onClick={handleSubmit}
               disabled={submitting}
               className="gap-1.5"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white' }}
-            >
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white' }}>
+              
               {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Radio className="w-3.5 h-3.5" />}
               Request
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
-  );
+    </>);
+
 }
