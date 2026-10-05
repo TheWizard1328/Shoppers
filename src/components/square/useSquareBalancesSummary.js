@@ -333,6 +333,13 @@ export async function loadCardPayouts(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
   const cached = await freshLedgerWindows(cfg, userId);
   if (cached) return cached.payouts || [];
+  // SOURCE CHANGED (owner rule Oct 4 2026): payout/card_spend rows were
+  // removed from the ledger (they duplicated folder_cents/settled_cents
+  // already stamped on each collected card sale). Bank sweeps are now DERIVED:
+  // every COMPLETED card sale's settled_cents is the amount Square auto-swept
+  // to the bank for that sale (verified live: BATCH payout === settled_cents,
+  // same timestamp). Same shape as before, so sweep math and the
+  // outstanding-COD payout matching below are unchanged.
   const rows = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -340,24 +347,22 @@ export async function loadCardPayouts(cfg, userId = null) {
       { occurred_at: { $gte: cfg.trued_up_at } },
       undefined, 500, skip
     ).catch(() => []);
-    rows.push(...(list || []).filter(isPayoutKind));
+    rows.push(...(list || []));
     if ((list || []).length < 500) break;
     skip += 500;
   }
   const seenId = new Set();
-  const seenTuple = new Set();
   const out = [];
   for (const r of rows || []) {
+    const kind = String(r?.entry_kind || '');
+    if (kind !== 'collected' && kind !== 'sale') continue;
+    if (String(r?.tender_type || '').toUpperCase() !== 'CARD') continue;
+    if (String(r?.status || '').toUpperCase() !== 'COMPLETED') continue;
+    if (r?.settled_cents == null) continue;
     if (!r?.id || !r?.square_id) continue;
-    if (String(r?.status || '').toUpperCase() !== 'PAID' && String(r?.status || '').toUpperCase() !== 'SENT') continue;
-    const reason = String(r?.reason || '');
-    if (reason.toUpperCase().includes('SIMPLE')) continue; // modeled in credits — see note above
-    const amount = Number(r.amount_cents || 0);
-    const tuple = `${reason}::${amount}::${r.occurred_at}`;
-    if (seenId.has(r.square_id) || seenTuple.has(tuple)) continue;
+    if (seenId.has(r.square_id)) continue;
     seenId.add(r.square_id);
-    seenTuple.add(tuple);
-    out.push({ id: r.id, location_id: r.location_id, amount, occurred_at: r.occurred_at, status: r.status });
+    out.push({ id: r.id, location_id: r.location_id, amount: Number(r.settled_cents || 0), occurred_at: r.occurred_at, status: 'PAID' });
   }
   writeLedgerCache({ trued_up_at: cfg.trued_up_at, payouts: out }, userId);
   return out;

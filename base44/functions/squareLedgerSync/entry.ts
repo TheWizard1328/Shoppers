@@ -3,7 +3,7 @@
 //   - /v2/payments      -> card sales (incl. business Square Card spends) + declines (FAILED)
 //   - /v2/orders/search -> cash tenders + COD delivery links (catalog item matching)
 //   - /v2/refunds       -> refunds, linked back to their originating payment
-//   - /v2/payouts       -> bank transfers (best effort; requires PAYOUTS_READ scope)
+//   - /v2/payouts       -> (removed Oct 4 2026 — sweeps derived from settled_cents)
 // Idempotent: upserts keyed on square_id, safe to re-run for the same window.
 // Self-contained by design — no cross-function base44.functions.invoke calls
 // (the platform gateway 403s those without forwarding auth context).
@@ -311,7 +311,8 @@ Deno.serve(async (req) => {
         skip += 2000;
       }
       const patches: { id: string; patch: any }[] = [];
-      let renameSales = 0, renamePayouts = 0, stampSettlement = 0, stampClasses = 0;
+      let renameSales = 0, deletedPayouts = 0, stampSettlement = 0, stampClasses = 0;
+      const payoutDeleteIds: string[] = [];
       // sale_class evidence: business-card labels (owner-managed, AppSettings
       // 'square_card_labels') + the >=5-swipes-never-COD store-card heuristic
       // (same rule as SquareBalancesView). Everything else is other_sale.
@@ -330,7 +331,7 @@ Deno.serve(async (req) => {
         const kind = String(row.entry_kind || '');
         const patch: any = {};
         if (kind === 'sale') { patch.entry_kind = 'collected'; renameSales += 1; }
-        else if (kind === 'payout') { patch.entry_kind = 'card_spend'; renamePayouts += 1; }
+        else if (kind === 'payout' || kind === 'card_spend') { payoutDeleteIds.push(row.id); }
         const isSale = kind === 'sale' || kind === 'collected';
         const isCardSale = isSale
           && String(row.tender_type || '').toUpperCase() === 'CARD'
@@ -375,6 +376,15 @@ Deno.serve(async (req) => {
         }
         if (Object.keys(patch).length) patches.push({ id: row.id, patch });
       }
+      // Payout-kind rows (payout / card_spend) are redundant duplicates of
+      // folder_cents + settled_cents on their collected sale rows — delete
+      // them outright (owner rule Oct 4 2026).
+      for (let i = 0; i < payoutDeleteIds.length; i += 50) {
+        const chunkIds = payoutDeleteIds.slice(i, i + 50);
+        const results = await Promise.allSettled(chunkIds.map((id) => base44.asServiceRole.entities.SquareLedgerEntry.delete(id)));
+        for (const r of results) if (r.status === 'fulfilled') deletedPayouts += 1;
+      }
+
       let applied = 0, pending = patches.slice();
       for (let pass = 0; pass <= 3 && pending.length; pass++) {
         const nextPending: any[] = [];
@@ -398,7 +408,7 @@ Deno.serve(async (req) => {
         patched: applied,
         failed: pending.length,
         renamedSales: renameSales,
-        renamedPayouts: renamePayouts,
+        deletedPayoutRows: deletedPayouts,
         settlementStamps: stampSettlement,
         saleClassStamps: stampClasses,
       });
@@ -474,16 +484,13 @@ Deno.serve(async (req) => {
             out.refunds = await paginatedSquareGet(refundsPath, accessToken);
           } catch (e: any) { out.errors.push(`refunds(${locationName}): ${e?.message || e}`); }
         })(),
-        (async () => {
-          try {
-            const payoutsPath = `/v2/payouts?location_id=${encodeURIComponent(locationId)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=ASC`;
-            out.payouts = await paginatedSquareGet(payoutsPath, accessToken);
-          } catch (e: any) {
-            const msg = String(e?.message || e);
-            if (!/scope|401|403/i.test(msg)) out.errors.push(`payouts(${locationName}): ${msg}`);
-            out.payoutsScopeMissing = true;
-          }
-        })(),
+        // Payout rows REMOVED (owner rule Oct 4 2026): the per-sale SIMPLE
+        // (folder) and BATCH (settled sweep) transfers duplicate folder_cents /
+        // settled_cents already stamped on each collected card sale — storing
+        // them as extra rows was pure duplication. Bank sweeps are now DERIVED
+        // from the collected rows' settled_cents (useSquareBalancesSummary).
+        // /v2/payouts is no longer fetched for store locations (also saves the
+        // API call). MOBILE-location top-ups are still pulled separately below.
       ];
       await Promise.all(tasks);
       return out;
@@ -500,7 +507,7 @@ Deno.serve(async (req) => {
     for (const ld of locationData) {
       const locationId = ld.config.square_location_id;
       const locationName = ld.locationName;
-      const { payments, orders, refunds, payouts } = ld;
+      const { payments, orders, refunds } = ld;
 
       const orderById = new Map<string, any>(orders.map((o: any) => [o.id, o]));
       const paymentById = new Map<string, any>(payments.map((p: any) => [p.id, p]));
@@ -609,20 +616,6 @@ Deno.serve(async (req) => {
         }));
       }
 
-      // Payouts -> bank transfer entries (best effort)
-      for (const payout of payouts) {
-        if (!payout?.id) continue;
-        entries.set(payout.id, buildEntry({
-          square_id: payout.id,
-          entry_kind: 'card_spend',
-          amount_cents: payout?.amount_money?.amount,
-          status: payout.status,
-          occurred_at: payout.created_at,
-          location_id: payout.location_id || locationId,
-          location_name: locationName,
-          reason: [payout.destination_type, payout.type].filter(Boolean).join(' ') || null,
-        }));
-      }
 
       locationStats.push({
         location_id: locationId,
@@ -630,7 +623,7 @@ Deno.serve(async (req) => {
         payments: payments.length,
         orders: orders.length,
         refunds: refunds.length,
-        payouts: payouts.length,
+        payouts: 0, // payout rows removed Oct 4 2026 — sweeps derived from settled_cents
       });
     }
 
