@@ -135,18 +135,22 @@ function CardCodList({ sections }) {
             <span className="text-slate-400 tabular-nums">{sec.rows.length} · {fmtMoney(sec.total)}</span>
           </div>
           {sec.rows.length === 0 && <div className="text-[11px] text-slate-400">none</div>}
-          {sec.rows.map((r) => (
-            // Two-row card (owner spec, Oct 5 2026): row 1 is the patient +
-            // the amount to collect — the amount a matching card swipe must
-            // equal, replacing the old separate "Card Spend" pill entirely.
-            // Row 2 is the status (Pending / Awaiting Pickup / Collected) and,
-            // once actually collected, the real amount that landed on the
-            // card after Square's service fee, folder fee (2%), and loan fee
-            // are deducted (computeNetCollected — settled_cents when a real
-            // ledger match exists, else an estimate from the recorded card type).
-            <div key={r.key} className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 space-y-1">
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
+          {sec.rows.map((r) => {
+            // Owner spec (Oct 5 2026): left side is identity (name+store on
+            // top, date/time below); right side is a 2x2 value/badge grid so
+            // every number and pill stays lined up on the far right —
+            // row 1 = amount to collect + Card Spend flag, row 2 = (once
+            // collected) the net amount returned to the card + the status
+            // badge, whose word itself names the real tender (Cash / Debit /
+            // Credit). Cash never shows a net amount — no card fees applied.
+            const statusLabel = r.collected ? (r.collectedLabel || 'Collected') : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending');
+            const statusColorCls = r.collected
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+              : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
+            const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
+            return (
+              <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+                <div className="min-w-0 flex flex-col gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     {r.storeAbbrev && (
                       <span
@@ -158,24 +162,25 @@ function CardCodList({ sections }) {
                     )}
                     <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.patientName || 'COD'}</p>
                   </div>
-                  <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
                 </div>
-                <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
+                    {r.hasCardSpend && (
+                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {showNetAmount && (
+                      <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
+                    )}
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusColorCls}`}>{statusLabel}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-2 pl-0.5">
-                {r.collected
-                  ? <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 flex-shrink-0">Collected</span>
-                  : r.pendingPickup
-                    ? <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 flex-shrink-0">Awaiting Pickup</span>
-                    : <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 flex-shrink-0">Pending</span>}
-                {r.collected && (
-                  <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 truncate">
-                    {fmtMoney(r.netAmount != null ? r.netAmount : r.amount)} collected
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ))}
     </div>
@@ -578,7 +583,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
       setCardSpendIds(swipedIds);
 
-      // a) Square-confirmed cash collections that happened TODAY
+      // Owner spec (Oct 5 2026): the status badge word itself now reflects
+      // HOW the money came back — 'Cash' (no card fees ever applied, no net
+      // math shown), or 'Debit'/'Credit' (real card tender, net amount shown
+      // to its left = gross − fee − loan% − folder%). INTERAC tender reads
+      // as Debit, everything else CARD reads as Credit.
+      const labelForTender = (tenderType, cardBrand) => {
+        if (String(tenderType || '').toUpperCase() !== 'CARD') return 'Cash';
+        return String(cardBrand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
+      };
+      const labelForPaymentType = (t) => {
+        const k = String(t || '').toLowerCase();
+        if (k === 'debit') return 'Debit';
+        if (k === 'credit') return 'Credit';
+        return 'Cash';
+      };
+
+      // a) Square-confirmed collections that happened TODAY — the ledger
+      // entry is the authoritative source for both the real tender (so a
+      // cash-recorded COD that was actually swiped shows Debit/Credit, not
+      // Cash) and the real settled amount (no estimate needed).
       const squareTodayIds = new Set();
       for (const e of (codSalesRaw || [])) {
         if (String(e?.status || '').toUpperCase() !== 'COMPLETED' || !e?.delivery_id) continue;
@@ -591,6 +615,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const sInfo = linkedDelivery ? storeById.get(String(linkedDelivery.store_id || '')) : null;
         const txPatientName = resolvePatientName(e.patient_id || linkedDelivery?.patient_id)?.full_name || null;
         const grossA = Math.abs(Number(e.amount_cents || 0)) / 100;
+        const label = labelForTender(e.tender_type, e.card_brand);
         aggFor(locId).push({
           key: `tx-${e.id || e.square_id}`,
           delivery_id: String(e.delivery_id),
@@ -598,30 +623,33 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: grossA,
-          sub: `Square cash · ${when.slice(11, 16)}`,
+          sub: when.slice(11, 16),
           collected: true,
           hasCardSpend: swipedIds.has(String(e.delivery_id)),
-          // Real Square settlement figure — authoritative, no estimate needed.
-          netAmount: computeNetCollected(grossA, { settledCents: e.settled_cents, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
+          collectedLabel: label,
+          // Cash never touches the card — no fee/loan/folder math applies.
+          netAmount: label === 'Cash' ? null : computeNetCollected(grossA, { settledCents: e.settled_cents, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
         });
       }
 
-      // b) non-cash payments collected today (no Square tx)
+      // b) deliveries completed TODAY with no Square-ledger match — covers
+      // BOTH in-app recorded non-cash payments (Debit/Credit, estimated fee
+      // math) AND pure cash collections (Cash badge, no amount, no math),
+      // so every completed-today COD shows up with the right badge word.
       {
         const list = deliveryList;
         for (const d of list) {
           if (d?.status !== 'completed' || Number(d?.cod_total_amount_required || 0) <= 0) continue;
           const doneAt = String(d.actual_delivery_time || '');
           if (doneAt.slice(0, 10) !== today) continue;
-          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-          const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-          if (nonCash <= 0) continue;
-          if (squareTodayIds.has(String(d.id))) continue; // already reported via Square
+          if (squareTodayIds.has(String(d.id))) continue; // already reported via Square (block a)
           const locId = storeToLoc.get(String(d?.store_id || ''));
           if (!locId) continue;
           const sInfo = storeById.get(String(d?.store_id || ''));
-          const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
-          const grossB = nonCash / 100;
+          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+          const nonCashPmt = payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash');
+          const grossB = Number(d.cod_total_amount_required || 0);
+          const label = labelForPaymentType(nonCashPmt?.type);
           aggFor(locId).push({
             key: `d-${d.id}`,
             delivery_id: String(d.id),
@@ -629,12 +657,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             storeAbbrev: sInfo?.abbreviation || null,
             storeColor: sInfo?.color || null,
             amount: grossB,
-            sub: `${type} · ${doneAt.slice(11, 16)}`,
+            sub: doneAt.slice(11, 16),
             collected: true,
             hasCardSpend: false, // in-app patient debit/credit — not a store card spend
+            collectedLabel: label,
             // No real Square tx for this one — estimate the fee from the
-            // recorded card type (owner rate sheet, Oct 3 2026).
-            netAmount: computeNetCollected(grossB, { cardType: type, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
+            // recorded card type (owner rate sheet, Oct 3 2026). Pure cash
+            // skips the math entirely per owner rule.
+            netAmount: label === 'Cash' ? null : computeNetCollected(grossB, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
           });
         }
       }
