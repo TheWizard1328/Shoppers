@@ -570,6 +570,7 @@ export default function SquareSyncAudit() {
       }
       setRawPreview(res);
       setRawPreviewOpen(res?.entries?.length ? `${res.entries[0].source}-0` : null);
+      toast.success(`Loaded ${res?.count ?? 0} raw records`);
     } catch (e) {
       toast.error(`Raw preview failed: ${e?.message || e}`);
     } finally {
@@ -1017,6 +1018,7 @@ export default function SquareSyncAudit() {
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   Tap a record to see the full raw JSON exactly as Square returned it (pre-mapping, no DB writes).
                 </div>
+                <div className="text-[10px] text-slate-400 dark:text-slate-500">raw preview build r3</div>
                 <div className="space-y-2">
                   {(rawPreview?.entries || []).map((rec, i) => {
                     const key = `${rec.source}-${i}`;
