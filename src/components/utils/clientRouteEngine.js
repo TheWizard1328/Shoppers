@@ -220,7 +220,16 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   stopsToSequence.forEach((stop, index) => {
     const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
-      const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
+      // OWNER RULE (Oct 5 2026): once a window has ALREADY OPENED (at/before
+      // the current time, today's route), its start is not a constraint —
+      // "deliverable any time after now" adds no information. Drop the from
+      // side so the already-open stamp (Accept All's now+5) can't bias HERE's
+      // sequencing; distance decides among deliverable-now stops. Future
+      // window openings still pass a real from constraint.
+      const wsMin = parseTimeToMinutes(stop.windowStart);
+      const windowAlreadyOpen = Number.isFinite(wsMin) && wsMin > 0
+        && deliveryDate === getEdmontonTodayDateString() && wsMin <= currentMinutes;
+      const accessConstraint = buildAccessConstraint(deliveryDate, windowAlreadyOpen ? null : stop.windowStart, stop.windowEnd);
       if (accessConstraint) segments.push(accessConstraint);
     }
     segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
@@ -895,6 +904,16 @@ let _inheritedWindowCount = 0;
         const bandOf = (stop) => {
           const m = parseTimeToMinutes(stop?.windowStart || stop?.delivery?.delivery_time_start || '');
           if (!Number.isFinite(m) || m <= 0) return Number.POSITIVE_INFINITY; // no window → sorts last
+          // OWNER RULE (Oct 5 2026): a window that has ALREADY OPENED is not a
+          // sequencing constraint. "Deliverable any time after now" is true for
+          // every un-started stop on the route, so an accept-time stamp
+          // (delivery_time_start ≈ now, set when Accept All activated) must not
+          // band the stop ahead of closer windowless stops — that is exactly how
+          // a FAR stop with a now-stamp landed in front of CLOSER stops 8/9/10.
+          // Once the window start is at/before the current time, the stop joins
+          // the windowless bucket and HERE's drive-time order (distance) decides.
+          // Only FUTURE window openings create band priority.
+          if (routeIsToday && m <= currentMinutes) return Number.POSITIVE_INFINITY;
           return Math.floor(m / TIME_BAND_MINUTES);
         };
 
