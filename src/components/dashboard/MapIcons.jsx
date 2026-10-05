@@ -110,6 +110,23 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
   // CRITICAL: Placeholder markers (isOtherDriver) stay fully opaque when route is complete to remain visible
   const markerOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : 1;
 
+  // Yellow next-delivery marker gets a soft pulsing halo, same animation
+  // the shared driver-location dot uses (owner Oct 5 2026).
+  const showNextPulse = isNextDelivery && !FINISHED_STATUSES.includes(status) && !isFaded;
+  const pulseRing = showNextPulse ? `
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: ${baseSize * 2}px;
+          height: ${baseSize * 2}px;
+          background: rgba(255, 255, 0, 0.35);
+          border-radius: 50%;
+          animation: locationPulse 2s infinite;
+          pointer-events: none;
+        "></div>` : '';
+
   const icon = L.divIcon({
     html: `
       <div class="simple-circle-marker" style="
@@ -134,6 +151,7 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
         isolation: isolate;
       ">
         <span style="pointer-events: none;">${number || ''}</span>
+        ${pulseRing}
         ${clusterCount > 1 ? `
           <div class="cluster-badge" style="
             position: absolute;
@@ -200,6 +218,23 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   const storeOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
   const pinHeadHStore = Math.round(size * 1.4 * 0.72);
 
+  // Yellow next-delivery store pin gets the same pulsing halo the shared
+  // driver-location dot uses (owner Oct 5 2026) — centered on the pin head.
+  const showStorePulse = shouldShowNextYellow && !isFaded;
+  const storePulseRing = showStorePulse ? `
+      <div style="
+        position: absolute;
+        top: ${size * 1.4 * (12 / 34)}px;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: ${size * 2}px;
+        height: ${size * 2}px;
+        background: rgba(255, 255, 0, 0.35);
+        border-radius: 50%;
+        animation: locationPulse 2s infinite;
+        pointer-events: none;
+      "></div>` : '';
+
   const icon = L.divIcon({
     html: `
       <div style="
@@ -210,7 +245,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
         opacity: ${storeOpacity};
         transition: opacity 0.2s ease-in-out;
         overflow: visible;
-      ">
+      ">${storePulseRing}
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; display: block; overflow: visible; position: absolute; top: 0; left: 0;">
           <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z"
                 fill="${storeColor}"
