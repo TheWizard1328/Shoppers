@@ -562,15 +562,22 @@ export default function SquareSyncAudit() {
     try {
       const startDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z";
       const res = await invokeWithLongTimeout("squareLedgerSync", { rawPreview: true, limit: 100, startDate, endDate: new Date().toISOString() });
-      if (!res?.rawPreview) {
+      // invokeWithLongTimeout may return either the raw axios response
+      // ({data: {...}}) or the unwrapped body depending on the client build —
+      // every other call site on this page uses the same `res?.data || res`
+      // normalization. Mine didn't — that was the whole bug (r3 and earlier
+      // read `res.rawPreview` off the axios wrapper, which is always
+      // undefined, so the tab always bailed out or showed nothing).
+      const body = res?.data || res || {};
+      if (!body?.rawPreview) {
         // Stale backend still serving the previous build (origin propagation
         // lag) — it ignored the flag and ran a normal sync instead.
         toast.error("The deployed function hasn't received the raw preview update yet. Give it a few minutes and retry.");
         return;
       }
-      setRawPreview(res);
-      setRawPreviewOpen(res?.entries?.length ? `${res.entries[0].source}-0` : null);
-      toast.success(`Loaded ${res?.count ?? 0} raw records`);
+      setRawPreview(body);
+      setRawPreviewOpen(body?.entries?.length ? `${body.entries[0].source}-0` : null);
+      toast.success(`Loaded ${body?.count ?? 0} raw records`);
     } catch (e) {
       toast.error(`Raw preview failed: ${e?.message || e}`);
     } finally {
@@ -1018,7 +1025,7 @@ export default function SquareSyncAudit() {
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   Tap a record to see the full raw JSON exactly as Square returned it (pre-mapping, no DB writes).
                 </div>
-                <div className="text-[10px] text-slate-400 dark:text-slate-500">raw preview build r3</div>
+                <div className="text-[10px] text-slate-400 dark:text-slate-500">raw preview build r4</div>
                 <div className="space-y-2">
                   {(rawPreview?.entries || []).map((rec, i) => {
                     const key = `${rec.source}-${i}`;
