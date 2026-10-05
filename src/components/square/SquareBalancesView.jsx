@@ -310,7 +310,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         (async () => {
           const pages = [];
           for (let skip = 0; skip < 20000; skip += 500) {
-            const rows = await base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }, undefined, 500, skip).catch(() => []);
+            const rows = await base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }, 'created_date', 500, skip).catch(() => []);
             const list = rows || [];
             pages.push(...list);
             if (list.length < 500) break;

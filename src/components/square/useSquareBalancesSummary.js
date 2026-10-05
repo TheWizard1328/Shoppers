@@ -210,7 +210,7 @@ export async function loadCardSales(cfg, userId = null) {
   for (let page = 0; page < 40; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
       { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     const list = rows || [];
     out.push(...list);
@@ -237,7 +237,7 @@ async function loadCodSales(cfg, userId = null) {
   for (let page = 0; page < 20; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
       { sale_class: 'cod_collection', occurred_at: { $gte: since } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     const list = rows || [];
     out.push(...list);
@@ -259,7 +259,7 @@ async function loadWindowSales(cfg, userId = null) {
   for (let page = 0; page < 20; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
       { status: 'COMPLETED', occurred_at: { $gte: since } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     const list = rows || [];
     out.push(...list);
@@ -293,7 +293,7 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
   for (let page = 0; page < 20; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
       { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: since } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     const list = rows || [];
     sales.push(...list);
@@ -304,7 +304,7 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
   for (let page = 0; page < 20; page++) {
     const rows = await base44.entities.SquareLedgerEntry.filter(
       { entry_kind: 'decline', occurred_at: { $gte: since } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     const list = rows || [];
     declines.push(...list);
@@ -345,7 +345,7 @@ export async function loadCardPayouts(cfg, userId = null) {
   for (let page = 0; page < 20; page++) {
     const list = await base44.entities.SquareLedgerEntry.filter(
       { occurred_at: { $gte: cfg.trued_up_at } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     rows.push(...(list || []));
     if ((list || []).length < 500) break;
@@ -386,7 +386,7 @@ export async function loadCardTopups(cfg, userId = null) {
   for (let page = 0; page < 20; page++) {
     const list = await base44.entities.SquareLedgerEntry.filter(
       { occurred_at: { $gte: cfg.trued_up_at } },
-      undefined, 500, skip
+      'created_date', 500, skip
     ).catch(() => []);
     rows.push(...(list || []).filter((r) => String(r?.entry_kind || '') === 'card_topup'));
     if ((list || []).length < 500) break;
