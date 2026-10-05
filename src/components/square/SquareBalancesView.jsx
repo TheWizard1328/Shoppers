@@ -244,7 +244,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // that the true-up-window delivery queries exclude. Statuses 'completed' and
   // 'deleted' mean the item was rung/removed = collected, so they're skipped.
   const computeCatalogUncollected = useCallback(async () => {
-    if (!ownerCanEditRef.current) return;
+    // Was owner-only; drivers now see the same full Uncollected/Past
+    // uncollected lists as the App Owner (owner request, Oct 4 2026) — the
+    // catalog-sourced list catches old items the windowed delivery query
+    // misses, which is exactly what "Past uncollected" needs for drivers too.
     try {
       const itemsPages = [];
       for (let skip = 0; skip < 20000; skip += 500) {
@@ -292,7 +295,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   //      the delivery itself, no Square transaction
   // Uncollected lists are derived from localOutstanding at render time.
   const computeCodCollectedToday = useCallback(async () => {
-    if (!ownerCanEditRef.current) return;
+    // Was owner-only; drivers now see "Collected today" the same as the App
+    // Owner (owner request, Oct 4 2026).
     try {
       const [storesRaw, cfgsRaw, patientsRaw, codSalesPages] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
