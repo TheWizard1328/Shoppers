@@ -95,6 +95,8 @@ const monthWindowUtc = (monthsAgo) => {
 // ---------- classification ----------
 
 const CLASS_STYLES = {
+  spend_sale: { badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", amount: "text-rose-600 dark:text-rose-400", sign: 1 },
+  spend_refund: { badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", amount: "text-rose-600 dark:text-rose-400", sign: -1 },
   cod: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", amount: "text-emerald-600 dark:text-emerald-400", sign: 1 },
   spend: { badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300", amount: "text-red-600 dark:text-red-400", sign: -1 },
   other: { badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", amount: "text-sky-600 dark:text-sky-400", sign: 1 },
@@ -107,7 +109,9 @@ const CLASS_STYLES = {
 
 const CLASS_LABELS = {
   cod: "COD Collected",
-  spend: "Card Spend",
+  spend: "Card Purchase",
+  spend_sale: "Card Spend (store)",
+  spend_refund: "Refund (card spend)",
   other: "Other Sale",
   decline: "Declined",
   refund_in: "Refund (charge)",
@@ -132,6 +136,7 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId) => {
     const linked = entry.refund_of_square_id ? entriesBySquareId.get(entry.refund_of_square_id) : null;
     const linkedClass = linked ? classifyEntry(linked, labelsByFingerprint, entriesBySquareId) : null;
     if (linkedClass && linkedClass.code === "spend") return { code: "refund_in", sign: 1 };
+    if (linkedClass && linkedClass.code === "spend_sale") return { code: "spend_refund", sign: -1 };
     if (linkedClass) return { code: "refund_out", sign: -1 };
     return { code: "refund_unlinked", sign: 1 };
   }
@@ -141,9 +146,12 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId) => {
   if (String(entry.entry_kind || "") === "card_spend") return { code: "spend", sign: -1 };
   if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
     if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
-    // Owner rule (Oct 5 2026): sales paid with a labeled business card are
-    // still SALES — money into the register, always counted in Collected.
-    // Only real card purchases (entry_kind card_spend) count as Spent.
+    // Owner rule (Oct 5 2026): a swipe/tap/key-in of a LABELED STORE CARD at
+    // the register is the store spending from its own Square Card. It is a
+    // sale (money crossed the register -> counted in Collected) AND money
+    // out of the store card (shown in Spent), so Net stays honest.
+    const label = entry.card_fingerprint ? labelsByFingerprint[entry.card_fingerprint] : null;
+    if (label?.is_business_card) return { code: "spend_sale", sign: 1 };
     return { code: "other", sign: 1 };
   }
   return { code: "other", sign: 0 };
@@ -373,6 +381,8 @@ export default function SquareSyncAudit() {
       switch (e.classCode) {
         case "cod":b.collected += amt;break;
         case "spend":b.spent += amt;break;
+        case "spend_sale":b.other += amt;b.spent += amt;break;
+        case "spend_refund":b.other -= amt;b.spent -= amt;break;
         case "other":b.other += amt;break;
         case "refund_in":b.refundIn += amt;break;
         case "refund_out":b.refundOut += amt;break;
@@ -706,7 +716,8 @@ export default function SquareSyncAudit() {
                     <SelectContent>
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="cod">COD Collected</SelectItem>
-                      <SelectItem value="spend">Card Spends</SelectItem>
+                      <SelectItem value="spend">Card Purchases</SelectItem>
+                      <SelectItem value="spend_sale">Card Spends (store)</SelectItem>
                       <SelectItem value="other">Other Sales</SelectItem>
                       <SelectItem value="refund_in">Refunds (charge)</SelectItem>
                       <SelectItem value="refund_out">Refunds (customer)</SelectItem>
@@ -882,7 +893,7 @@ export default function SquareSyncAudit() {
                   </table>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Collected = all Square sales at the store — including sales paid with your labeled cards. Spent = actual card purchases only. Refunds = refunds to customers minus refunds of card purchases. Declines excluded from net. Bank transfers and card top-ups stay in the ledger tab. WIZARD WORXX cards hidden.
+                  Collected = all Square sales at the store. Spent = swipes/taps/key-ins of your labeled STORE CARDS (money spent from each store card — also counted in Collected since it crosses the register, so it nets out). Refunds = refunds to customers minus refunds of card purchases. Declines excluded from net. Bank transfers and card top-ups stay in the ledger tab. WIZARD WORXX cards hidden.
                 </div>
               </CardContent>
             </Card>
