@@ -276,8 +276,8 @@ export default function AppSidebar({
               }
 
         {/* App icon — anchors the desktop web-update arrow + info balloon
-                          for ALL roles (dispatchers get the static version; drivers/admins
-                          get the standard repeating balloon). */}
+                                 for ALL roles (dispatchers get the static version; drivers/admins
+                                 get the standard repeating balloon). */}
         <div className="relative flex-shrink-0" data-update-logo-btn>
         {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
                 <img
@@ -313,9 +313,9 @@ export default function AppSidebar({
       </div>
 
       {/* Web-update info balloon (desktop, all roles) — expands to the right
-                        of the app icon. Dispatchers: STATIC (no hide timer). Drivers/admins:
-                        standard auto-hide + 3-minute re-show so it reminds without camping.
-                        Tapping (or pressing F5) reloads the app to pick up the new build. */}
+                               of the app icon. Dispatchers: STATIC (no hide timer). Drivers/admins:
+                               standard auto-hide + 3-minute re-show so it reminds without camping.
+                               Tapping (or pressing F5) reloads the app to pick up the new build. */}
       {!isMobile && !isTabletPortrait &&
             <UpdateInfoBalloon
               active={!!hasWebUpdate || !!autoUpdatedNotice}
@@ -358,7 +358,7 @@ export default function AppSidebar({
                     <Button aria-label="More options" variant="ghost" size="sm" className="h-8 w-8 p-0 relative" data-update-menu-btn>
                       <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                       {/* Web-update arrow + balloon anchor here (preferred) whenever this
-                                    menu button is visible — the app icon copy is the fallback. */}
+                                         menu button is visible — the app icon copy is the fallback. */}
                       {hasWebUpdate && <UpdateArrow type="web" size={8} />}
                     </Button>
                   </DropdownMenuTrigger>
@@ -640,8 +640,8 @@ export default function AppSidebar({
             <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
 
       {/* ── Square section (owner request Oct 4 2026): COD, Balances,
-                        Locations and Finance Audit grouped under one header below the
-                        Drivers divider, with its own divider above Driver Activity. */}
+                               Locations and Finance Audit grouped under one header below the
+                               Drivers divider, with its own divider above Driver Activity. */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'dispatcher') || isAppOwner(currentUser)) &&
             <SidebarSectionLabel>Square</SidebarSectionLabel>
             }
@@ -667,8 +667,8 @@ export default function AppSidebar({
               }
 
             {/* Square Balances — everyone sees it; badge = combined card balance for the
-                   user's cards. Clickable for admins/owners (all cards) and drivers (their
-                   route's cards); dispatchers get a read-only badge (single card at their store). */}
+                      user's cards. Clickable for admins/owners (all cards) and drivers (their
+                      route's cards); dispatchers get a read-only badge (single card at their store). */}
       {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
                 const sqActive = currentPageName === 'SquareBalances';
                 const dispatcherExtra = sqIsDispatcher && sqBadge &&
@@ -742,8 +742,8 @@ export default function AppSidebar({
 
 
       {/* Owner-only: low-balance alert balloon (mobile: pops above the side
-                            panel button; desktop: pops out from the Square Balances link while
-                            the sidebar is open) + one deduped push per low-state change. */}
+                                     panel button; desktop: pops out from the Square Balances link while
+                                     the sidebar is open) + one deduped push per low-state change. */}
       <SquareLowBalanceAlert
                 ready={sqReady}
                 byLocId={sqByLocId}
@@ -768,7 +768,7 @@ export default function AppSidebar({
                   color: 'var(--text-slate-600)'
                 }}>
             <CreditCard className="w-5 h-5" />
-            <span className="font-semibold">Square Locations</span>
+            <span className="font-semibold">Card Locations</span>
         </Link>
               }
 
@@ -788,7 +788,7 @@ export default function AppSidebar({
                   color: 'var(--text-slate-600)'
                 }}>
             <FileText className="w-5 h-5" />
-            <span className="font-semibold">Square Finance Audit</span>
+            <span className="font-semibold">Finance Audit</span>
         </Link>
               }
       </div>
