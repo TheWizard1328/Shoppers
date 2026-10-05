@@ -432,8 +432,14 @@ Deno.serve(async (req) => {
     const monthsBack = Math.min(MAX_MONTHS_BACK, Math.max(1, Math.round(Number(payload?.monthsBack || DEFAULT_MONTHS_BACK)) || DEFAULT_MONTHS_BACK));
     let windowStart = payload?.startDate || new Date(Date.now() - monthsBack * 30.44 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
     const windowEnd = payload?.endDate || new Date().toISOString();
+    // Active store location configs (restore: this fetch was accidentally
+    // dropped in an Oct 4 edit — configs/configIds were undefined, so every
+    // rawPreview and regular sync call failed 500 "configs is not defined").
+    const configsRaw = await base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []);
+    const configs = (configsRaw || []).filter((c: any) => c?.square_location_id && (!c?.status || c.status === 'active'));
     // Payout-only backfill mode (light chunks, no payments/orders/refunds).
     const isTopupBackfill = String(payload?.mode || '') === 'topupBackfill';
+    if (!configs.length && !isTopupBackfill) throw new HttpError(400, 'No active Square location configurations found');
 
     // ── CARD SPEND PROBE v2 (owner Oct 5 2026): find how Square represents
     // MONEY SPENT from the store Square Cards. Scan payouts at every ACTIVE
