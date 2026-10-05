@@ -659,7 +659,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             amount: grossB,
             sub: doneAt.slice(11, 16),
             collected: true,
-            hasCardSpend: false, // in-app patient debit/credit — not a store card spend
+            // BUG FIX (Oct 5 2026): this used to be hardcoded false — "in-app
+            // recorded, not a Square-confirmed spend" — but swipedIds already
+            // holds every delivery the fuzzy rules (2/3) matched against a
+            // REAL card sale in the ledger (same amount, same day, near-time
+            // or fingerprint+decline story), even when the backend never
+            // stamped a direct delivery_id link. Verified live: Marlene Vis's
+            // $64.89 Debit COD has an exact-amount, exact-time (16:41) CARD
+            // sale in the ledger that was simply never linked — the fuzzy
+            // match catches it, this hardcoded false was throwing it away.
+            hasCardSpend: swipedIds.has(String(d.id)),
             collectedLabel: label,
             // No real Square tx for this one — estimate the fee from the
             // recorded card type (owner rate sheet, Oct 3 2026). Pure cash
