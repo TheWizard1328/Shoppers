@@ -26,7 +26,7 @@ import SquareLowBalanceAlert from '../square/SquareLowBalanceAlert';
 import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
-import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity, Wallet } from 'lucide-react';
+import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity, Wallet, CreditCard, FileText } from 'lucide-react';
 import { isMobileDevice as isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import SettingsMenu from './SettingsMenu';
@@ -476,25 +476,7 @@ export default function AppSidebar({
         </Link>
             }
 
-      {/* Square COD - Admins and Drivers only, clickable only if active */}
-      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-            <Link
-              to={createPageUrl('SquareManagement')}
-              onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);}}
-              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-              currentUser?.status === 'inactive' ? 'opacity-50 pointer-events-none' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'}`
-              }
-              style={currentPageName === 'SquareManagement' ? {
-                background: 'var(--bg-slate-100)',
-                color: 'var(--text-slate-900)'
-              } : {
-                color: 'var(--text-slate-600)'
-              }}>
-            <DollarSign className="w-5 h-5" />
-            <span className="font-semibold">Square COD</span>
-            {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
-            </Link>
-            }
+
 
       {/* Driver Payroll - Admins and Drivers, always clickable to see payroll */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
@@ -544,90 +526,7 @@ export default function AppSidebar({
 
       <SidebarDivider />
 
-      {/* Square Balances — everyone sees it; badge = combined card balance for the
-          user's cards. Clickable for admins/owners (all cards) and drivers (their
-          route's cards); dispatchers get a read-only badge (single card at their store). */}
-      {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
-        const sqActive = currentPageName === 'SquareBalances';
-        const dispatcherExtra = sqIsDispatcher && sqBadge && (
-          <>
-            <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
-            <div className="space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.green.border }} /> more than $20 above avg</div>
-              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.yellow.border }} /> within $20 of avg</div>
-              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.red.border }} /> more than $20 below avg</div>
-            </div>
-            <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
-            <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
-              <span className="text-slate-600 dark:text-slate-300">7-day avg CODs/day</span>
-              <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`$${Math.round(sqBadge.avg).toLocaleString()}`}</span>
-            </div>
-            {sqBadge.remaining && sqBadge.remaining.count > 0 && (
-              <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
-                <span className="text-slate-600 dark:text-slate-300">CODs left today</span>
-                <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`${sqBadge.remaining.count} · $${Math.round(sqBadge.remaining.total).toLocaleString()}`}</span>
-              </div>
-            )}
-          </>
-        );
-        const balloon = sqBadge?.lines?.length > 0 && (
-          <div className="hidden group-hover:block absolute left-full top-0 ml-2 z-[70] pointer-events-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 min-w-[210px]">
-            <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Store · card balance</div>
-            <div className="space-y-0.5">
-              {sqBadge.lines.map((l) => (
-                <div key={l.storeId} className="flex items-center justify-between gap-3 text-xs whitespace-nowrap" style={{ color: BALANCE_LEVELS[l.level]?.chipText }}>
-                  <span className="truncate max-w-[150px] text-slate-600 dark:text-slate-300">{l.name}</span>
-                  <span className="font-semibold tabular-nums">{`$${Math.round(l.balance).toLocaleString()}`}</span>
-                </div>
-              ))}
-            </div>
-            {dispatcherExtra}
-          </div>
-        );
-        const inner = (
-          <>
-            <Wallet className="w-5 h-5 shrink-0" />
-            <span className="font-semibold">Square Balances</span>
-            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums font-semibold" style={sqBadgeStyle}>{sqBadgeLabel}</Badge>
-            {balloon}
-          </>
-        );
-        const cls = `relative group px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
-        const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
-        if (sqIsDispatcher) {
-          // Dispatchers open a card top-up request dialog instead of the balances
-          // page — the click sends the App Owner a push + in-app message asking
-          // for more money on the store's Square card.
-          return (
-            <button
-              type="button"
-              data-square-balances-link
-              onClick={() => { setShowBalanceRequest(true); setSidebarOpen(false); }}
-              className={`${cls} cursor-pointer text-left w-full`}
-              style={style}
-              title="Request a card top-up"
-            >
-              {inner}
-            </button>
-          );
-        }
-        return (
-          <Link to={createPageUrl('SquareBalances')} data-square-balances-link onClick={() => setSidebarOpen(false)} className={cls} style={style}>
-            {inner}
-          </Link>
-        );
-      })()}
 
-      {/* Owner-only: low-balance alert balloon (mobile: pops above the side
-          panel button; desktop: pops out from the Square Balances link while
-          the sidebar is open) + one deduped push per low-state change. */}
-      <SquareLowBalanceAlert
-        ready={sqReady}
-        byLocId={sqByLocId}
-        currentUser={currentUser}
-        sidebarOpen={sidebarOpen}
-        isMobileLike={isMobile || isTabletPortrait}
-      />
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
             <Link
@@ -739,6 +638,162 @@ export default function AppSidebar({
             }
 
             <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
+
+      {/* ── Square section (owner request Oct 4 2026): COD, Balances,
+          Locations and Finance Audit grouped under one header below the
+          Drivers divider, with its own divider above Driver Activity. */}
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'dispatcher') || isAppOwner(currentUser)) &&
+        <SidebarSectionLabel>Square</SidebarSectionLabel>
+      }
+      <div className="space-y-1">
+            {/* Square COD - Admins and Drivers only, clickable only if active */}
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
+            <Link
+              to={createPageUrl('SquareManagement')}
+              onClick={() => {if (currentUser?.status !== 'inactive') setSidebarOpen(false);}}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentUser?.status === 'inactive' ? 'opacity-50 pointer-events-none' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'}`
+              }
+              style={currentPageName === 'SquareManagement' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <DollarSign className="w-5 h-5" />
+            <span className="font-semibold">Square COD</span>
+            {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
+            </Link>
+            }
+
+            {/* Square Balances — everyone sees it; badge = combined card balance for the
+          user's cards. Clickable for admins/owners (all cards) and drivers (their
+          route's cards); dispatchers get a read-only badge (single card at their store). */}
+      {(sqIsAdmin || sqIsDriver || sqIsDispatcher || userHasRole(currentUser, 'driver')) && (() => {
+        const sqActive = currentPageName === 'SquareBalances';
+        const dispatcherExtra = sqIsDispatcher && sqBadge && (
+          <>
+            <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
+            <div className="space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.green.border }} /> more than $20 above avg</div>
+              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.yellow.border }} /> within $20 of avg</div>
+              <div className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: BALANCE_LEVELS.red.border }} /> more than $20 below avg</div>
+            </div>
+            <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
+            <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
+              <span className="text-slate-600 dark:text-slate-300">7-day avg CODs/day</span>
+              <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`$${Math.round(sqBadge.avg).toLocaleString()}`}</span>
+            </div>
+            {sqBadge.remaining && sqBadge.remaining.count > 0 && (
+              <div className="flex items-center justify-between gap-3 text-xs whitespace-nowrap">
+                <span className="text-slate-600 dark:text-slate-300">CODs left today</span>
+                <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{`${sqBadge.remaining.count} · $${Math.round(sqBadge.remaining.total).toLocaleString()}`}</span>
+              </div>
+            )}
+          </>
+        );
+        const balloon = sqBadge?.lines?.length > 0 && (
+          <div className="hidden group-hover:block absolute left-full top-0 ml-2 z-[70] pointer-events-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 min-w-[210px]">
+            <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Store · card balance</div>
+            <div className="space-y-0.5">
+              {sqBadge.lines.map((l) => (
+                <div key={l.storeId} className="flex items-center justify-between gap-3 text-xs whitespace-nowrap" style={{ color: BALANCE_LEVELS[l.level]?.chipText }}>
+                  <span className="truncate max-w-[150px] text-slate-600 dark:text-slate-300">{l.name}</span>
+                  <span className="font-semibold tabular-nums">{`$${Math.round(l.balance).toLocaleString()}`}</span>
+                </div>
+              ))}
+            </div>
+            {dispatcherExtra}
+          </div>
+        );
+        const inner = (
+          <>
+            <Wallet className="w-5 h-5 shrink-0" />
+            <span className="font-semibold">Square Balances</span>
+            <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] text-label tabular-nums font-semibold" style={sqBadgeStyle}>{sqBadgeLabel}</Badge>
+            {balloon}
+          </>
+        );
+        const cls = `relative group px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${sqActive ? 'shadow-sm' : 'hover:opacity-80'}`;
+        const style = sqActive ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' } : { color: 'var(--text-slate-600)' };
+        if (sqIsDispatcher) {
+          // Dispatchers open a card top-up request dialog instead of the balances
+          // page — the click sends the App Owner a push + in-app message asking
+          // for more money on the store's Square card.
+          return (
+            <button
+              type="button"
+              data-square-balances-link
+              onClick={() => { setShowBalanceRequest(true); setSidebarOpen(false); }}
+              className={`${cls} cursor-pointer text-left w-full`}
+              style={style}
+              title="Request a card top-up"
+            >
+              {inner}
+            </button>
+          );
+        }
+        return (
+          <Link to={createPageUrl('SquareBalances')} data-square-balances-link onClick={() => setSidebarOpen(false)} className={cls} style={style}>
+            {inner}
+          </Link>
+        );
+      })()}
+
+
+       balloon (mobile: pops above the side
+          panel button; desktop: pops out from the Square Balances link while
+          the sidebar is open) + one deduped push per low-state change. */}
+      <SquareLowBalanceAlert
+        ready={sqReady}
+        byLocId={sqByLocId}
+        currentUser={currentUser}
+        sidebarOpen={sidebarOpen}
+        isMobileLike={isMobile || isTabletPortrait}
+      />
+
+      {isAppOwner(currentUser) &&
+            <Link
+              to={createPageUrl('SquareLocationConfigs')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'SquareLocationConfigs' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'SquareLocationConfigs' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <CreditCard className="w-5 h-5" />
+            <span className="font-semibold">Square Locations</span>
+        </Link>
+            }
+
+      {isAppOwner(currentUser) &&
+            <Link
+              to={createPageUrl('SquareSyncAudit')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+              currentPageName === 'SquareSyncAudit' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'SquareSyncAudit' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+            <FileText className="w-5 h-5" />
+            <span className="font-semibold">Square Finance Audit</span>
+        </Link>
+            }
+      </div>
+
+      <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
 
 
       {/* Driver Activity — admins only */}

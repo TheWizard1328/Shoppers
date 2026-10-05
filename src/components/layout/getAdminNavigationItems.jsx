@@ -68,22 +68,6 @@ export default function getAdminNavigationItems({
     });
   }
 
-  if (currentUser && isAppOwner(currentUser)) {
-    items.push(
-      {
-        title: 'Square Locations',
-        pageName: 'SquareLocationConfigs',
-        url: createPageUrl('SquareLocationConfigs'),
-        icon: CreditCard
-      },
-      {
-        title: 'Square Finance Audit',
-        pageName: 'SquareSyncAudit',
-        url: createPageUrl('SquareSyncAudit'),
-        icon: FileText
-      }
-    );
-  }
 
   return items;
 }
