@@ -34,6 +34,36 @@ const DEFAULT_FOLDER_RATE = 0.02;
 
 const fmtMoney = (n) => `$${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;
 
+// Collected-amount net math (owner spec, Oct 5 2026): the "Collected" row
+// shows amount to collect − service fee − folder fee (2%) − loan fee, same
+// formula as the card-balance credits math (owner-verified live: BATCH payout
+// = sale − fee − loan% − 2%). Two fee sources, authoritative wins:
+//   1. Real ledger match: settled_cents is Square's own post-fee figure for
+//      that exact sale — use it directly, no estimate needed.
+//   2. No ledger match (in-app recorded card payment with no Square tx,
+//      e.g. a Debit/Credit COD the driver keyed without a device swipe):
+//      estimate the fee from the recorded card type using the owner's rate
+//      sheet (Oct 3 2026 plan): Interac/Debit = $0.07 + 0.75%, Credit = 2.5%
+//      flat. Then still deduct the location's own loan_rate + folder_rate.
+const FEE_SHEET = {
+  debit: (amt) => 0.07 + amt * 0.0075,     // Interac
+  interac: (amt) => 0.07 + amt * 0.0075,
+  credit: (amt) => amt * 0.025,            // flat-rate credit swipe
+};
+function estimateCardFee(amount, cardType) {
+  const key = String(cardType || '').toLowerCase();
+  const fn = FEE_SHEET[key] || FEE_SHEET.credit; // default to credit's flat rate when unknown
+  return Math.max(0, fn(Number(amount) || 0));
+}
+function computeNetCollected(grossAmount, { settledCents = null, cardType = null, loanRate = 0, folderRate = DEFAULT_FOLDER_RATE } = {}) {
+  const gross = Number(grossAmount) || 0;
+  if (settledCents != null) return Math.abs(Number(settledCents)) / 100;
+  const fee = estimateCardFee(gross, cardType);
+  const loan = gross * Number(loanRate || 0);
+  const folder = gross * Number(folderRate ?? DEFAULT_FOLDER_RATE);
+  return Math.max(0, gross - fee - loan - folder);
+}
+
 function daysSince(iso) {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return null;
@@ -106,31 +136,43 @@ function CardCodList({ sections }) {
           </div>
           {sec.rows.length === 0 && <div className="text-[11px] text-slate-400">none</div>}
           {sec.rows.map((r) => (
-            <div key={r.key} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {r.storeAbbrev && (
-                    <span
-                      className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                      style={{ backgroundColor: r.storeColor || '#64748b' }}
-                    >
-                      {r.storeAbbrev}
-                    </span>
-                  )}
-                  <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.patientName || 'COD'}</p>
+            // Two-row card (owner spec, Oct 5 2026): row 1 is the patient +
+            // the amount to collect — the amount a matching card swipe must
+            // equal, replacing the old separate "Card Spend" pill entirely.
+            // Row 2 is the status (Pending / Awaiting Pickup / Collected) and,
+            // once actually collected, the real amount that landed on the
+            // card after Square's service fee, folder fee (2%), and loan fee
+            // are deducted (computeNetCollected — settled_cents when a real
+            // ledger match exists, else an estimate from the recorded card type).
+            <div key={r.key} className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {r.storeAbbrev && (
+                      <span
+                        className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                        style={{ backgroundColor: r.storeColor || '#64748b' }}
+                      >
+                        {r.storeAbbrev}
+                      </span>
+                    )}
+                    <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.patientName || 'COD'}</p>
+                  </div>
+                  <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
                 </div>
-                <p className="text-[11px] mt-0.5 text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
+                <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
               </div>
-              <div className="shrink-0 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</div>
-              <div className="shrink-0 flex flex-col items-end gap-0.5">
-                {r.hasCardSpend && (
-                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
-                )}
+              <div className="flex items-center justify-between gap-2 pl-0.5">
                 {r.collected
-                  ? <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
+                  ? <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 flex-shrink-0">Collected</span>
                   : r.pendingPickup
-                    ? <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Awaiting Pickup</span>
-                    : <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>}
+                    ? <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 flex-shrink-0">Awaiting Pickup</span>
+                    : <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 flex-shrink-0">Pending</span>}
+                {r.collected && (
+                  <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 truncate">
+                    {fmtMoney(r.netAmount != null ? r.netAmount : r.amount)} collected
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -320,6 +362,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       ]);
       const codSalesRaw = dedupeLedgerById(codSalesPages);
       const resolvePatientName = buildPatientResolver(patientsRaw);
+      // Fee-net math (owner spec, Oct 5 2026) needs each location's own
+      // loan_rate; folder_rate is account-wide. configRef.current may be null
+      // on first paint before config loads — net falls back to gross in that
+      // case (computeNetCollected treats missing loanRate as 0).
+      const cfgNow = configRef.current || {};
+      const folderRateNow = Number(cfgNow.folder_rate ?? DEFAULT_FOLDER_RATE);
+      const loanRateByLoc = new Map();
+      (cfgNow.locations || []).forEach((l) => { if (l?.location_id) loanRateByLoc.set(l.location_id, Number(l.loan_rate || 0)); });
       const cfgLoc = new Map();
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
       const storeToLoc = new Map();
@@ -540,16 +590,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const linkedDelivery = deliveryById.get(String(e.delivery_id));
         const sInfo = linkedDelivery ? storeById.get(String(linkedDelivery.store_id || '')) : null;
         const txPatientName = resolvePatientName(e.patient_id || linkedDelivery?.patient_id)?.full_name || null;
+        const grossA = Math.abs(Number(e.amount_cents || 0)) / 100;
         aggFor(locId).push({
           key: `tx-${e.id || e.square_id}`,
           delivery_id: String(e.delivery_id),
           patientName: txPatientName,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
-          amount: Math.abs(Number(e.amount_cents || 0)) / 100,
+          amount: grossA,
           sub: `Square cash · ${when.slice(11, 16)}`,
           collected: true,
           hasCardSpend: swipedIds.has(String(e.delivery_id)),
+          // Real Square settlement figure — authoritative, no estimate needed.
+          netAmount: computeNetCollected(grossA, { settledCents: e.settled_cents, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
         });
       }
 
@@ -568,16 +621,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (!locId) continue;
           const sInfo = storeById.get(String(d?.store_id || ''));
           const type = (payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash') || {}).type || 'card';
+          const grossB = nonCash / 100;
           aggFor(locId).push({
             key: `d-${d.id}`,
             delivery_id: String(d.id),
             patientName: resolvePatientName(d.patient_id)?.full_name || null,
             storeAbbrev: sInfo?.abbreviation || null,
             storeColor: sInfo?.color || null,
-            amount: nonCash / 100,
+            amount: grossB,
             sub: `${type} · ${doneAt.slice(11, 16)}`,
             collected: true,
             hasCardSpend: false, // in-app patient debit/credit — not a store card spend
+            // No real Square tx for this one — estimate the fee from the
+            // recorded card type (owner rate sheet, Oct 3 2026).
+            netAmount: computeNetCollected(grossB, { cardType: type, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
           });
         }
       }
