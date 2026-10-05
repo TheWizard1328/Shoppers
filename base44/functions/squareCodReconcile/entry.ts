@@ -88,6 +88,44 @@ const desiredState = (d) => {
 const PATCH_FIELDS = ['status', 'cod_total_amount_required', 'cod_payments', 'cod_payment_type', 'patient_name', 'delivery_date', 'store_id'];
 const applyPatch = (d, patch) => { if (!patch) return d; const p = {}; for (const k of PATCH_FIELDS) if (patch[k] !== undefined) p[k] = patch[k]; return { ...d, ...p }; };
 
+// ── CITY LOCAL-TIME WINDOW (owner Oct 5 2026): the sweep runs 9am-8pm LOCAL
+// time per city (Edmonton & Calgary share America/Edmonton; Toronto is 2h
+// ahead, so its window is 9am-8pm Eastern). The workflow cron fires across
+// the UNION of all city windows; each delivery is only reconciled while its
+// own city sits inside 9am-8pm local. Cities resolve via Delivery.store_id ->
+// Store.city_id -> City.name; unknown cities default to America/Edmonton.
+const SWEEP_LOCAL_START_HOUR = 9;   // 9:00am
+const SWEEP_LOCAL_END_HOUR = 20;   // 7:59pm (8pm exclusive, mirrors 7am-10pm = hours 7-21)
+const CITY_TZ_BY_NAME = {
+  'edmonton': 'America/Edmonton', 'calgary': 'America/Edmonton', 'red deer': 'America/Edmonton',
+  'saskatoon': 'America/Regina', 'regina': 'America/Regina', 'winnipeg': 'America/Winnipeg',
+  'toronto': 'America/Toronto', 'ottawa': 'America/Toronto', 'montreal': 'America/Toronto',
+  'vancouver': 'America/Vancouver', 'halifax': 'America/Halifax',
+};
+const _cityRowCache = new Map();
+const _storeCityCache = new Map();
+const tzForCityId = async (b, cityId) => {
+  const key = nt(cityId);
+  if (!key) return 'America/Edmonton';
+  let c = _cityRowCache.get(key);
+  if (c === undefined) { c = await b.asServiceRole.entities.City.get(key).catch(() => null); _cityRowCache.set(key, c); }
+  return CITY_TZ_BY_NAME[nt(c?.name).toLowerCase()] || 'America/Edmonton';
+};
+const cityIdForStore = async (b, storeId) => {
+  const key = nt(storeId);
+  if (!key) return null;
+  if (_storeCityCache.has(key)) return _storeCityCache.get(key);
+  const s = await b.asServiceRole.entities.Store.get(key).catch(() => null);
+  const cid = s?.city_id || null;
+  _storeCityCache.set(key, cid);
+  return cid;
+};
+const cityInSweepWindow = async (b, cityId) => {
+  const tz = await tzForCityId(b, cityId);
+  const hour = Number(new Intl.DateTimeFormat('en-CA', { timeZone: tz, hour: 'numeric', hour12: false, hourCycle: 'h23' }).format(new Date()));
+  return hour >= SWEEP_LOCAL_START_HOUR && hour < SWEEP_LOCAL_END_HOUR;
+};
+
 const getEdmDate = () => {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const g = (t) => parts.find((p) => p.type === t)?.value;
@@ -328,8 +366,14 @@ Deno.serve(async (req) => {
     if (payload?.sweep) {
       const date = nt(payload?.deliveryDate) || getEdmDate();
       const dayDeliveries = await b.asServiceRole.entities.Delivery.filter({ delivery_date: date }, undefined, 500).catch(() => []);
+      let skippedOutOfWindow = 0;
       for (const d of dayDeliveries || []) {
         const did = d?.id; if (!did || recordIds.has(did)) continue; recordIds.add(did);
+        // City local-time gate: only reconcile while this delivery's city is
+        // inside its 9am-8pm local window (owner Oct 5 2026).
+        const cityId = await cityIdForStore(b, d?.store_id);
+        const inWindow = await cityInSweepWindow(b, cityId);
+        if (!inWindow) { skippedOutOfWindow += 1; continue; }
         const ds = desiredState(d);
         if (ds === 'want') wants.push({ deliveryId: did, delivery: d });
         else if (ds === 'remove') removes.push({ deliveryId: did, reason: `status_${d.status}` });
@@ -341,7 +385,7 @@ Deno.serve(async (req) => {
         const did = c?.delivery_id; if (!did || recordIds.has(did)) continue; recordIds.add(did);
         removes.push({ deliveryId: did, reason: 'sweep_orphan_no_want_state' });
       }
-      log(`sweep ${date}: ${wants.length} want, ${removes.length} remove`);
+      log(`sweep ${date}: ${wants.length} want, ${removes.length} remove${skippedOutOfWindow ? `, ${skippedOutOfWindow} out-of-city-window` : ''}`);
     }
 
     // A dedupe-only call (payload.dedupe, no records/sweep) legitimately has no

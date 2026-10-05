@@ -1,13 +1,13 @@
 {
   "name": "Square COD Reconciler Sweep",
-  "description": "Self-healing sweep for Square COD catalog items: every 15 minutes during delivery hours (7am-10pm Edmonton), reconciles today's COD deliveries against the live Square catalog \u2014 creates missing items, updates changed amounts, removes items for failed/cancelled/returned/direct-payment deliveries. Cash-collected items are untouched (squareReconcile's transaction match is their sole deletion trigger).",
+  "description": "Self-healing sweep for Square COD catalog items: every 15 minutes 7am-8pm Edmonton (union window), reconciles today's COD deliveries against the live Square catalog \u2014 creates missing items, updates changed amounts, removes items for failed/cancelled/returned/direct-payment deliveries. Each city only reconciles during its own 9am-8pm LOCAL window (Edmonton & Calgary same; Toronto 2h earlier in Edmonton terms) - enforced inside squareCodReconcile. Cash-collected items are untouched (squareReconcile's transaction match is their sole deletion trigger).",
   "trigger": {
     "condition": null,
     "config": {
       "trigger_type": "scheduled",
       "events": [],
       "schedule_mode": "recurring",
-      "cron_expression": "*/15 7-21 * * *",
+      "cron_expression": "*/15 7-19 * * *",
       "one_time_date": null,
       "timezone": "America/Edmonton",
       "interval_value": null,
