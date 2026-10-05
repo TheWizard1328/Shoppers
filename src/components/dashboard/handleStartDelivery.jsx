@@ -181,44 +181,47 @@ export async function handleStartDelivery({
     }));
     console.log('✅ [handleStartDelivery] Step 3 complete — UI updated from local state');
 
-    // ─── STEP 4: Authoritative clear-all-then-promote (ordered broadcast) ────
-    // Phase 1: write the target stop's status/ETA WITHOUT isNextDelivery or stop_order,
-    //   so the true flag is controlled solely by phases 2+3 below.
-    // Phase 2: clear ALL isNextDelivery=true flags on this driver+date route via a
-    //   server-side query (authoritative — catches stale trues the local snapshot
-    //   missed), excluding the target. Awaited so every false broadcasts first.
-    // Phase 3: promote the target to isNextDelivery=true LAST.
-    await base44.entities.Delivery.update(deliveryId, {
-      status: newStatus,
-      stop_order: newTargetStopOrder,
-      delivery_time_start: etaString,
-      delivery_time_eta: etaString,
-    }).catch((err) => {
-      console.warn(`⚠️ [handleStartDelivery] Status sync failed for ${deliveryId}:`, err?.message);
+    // ─── STEP 4: Silent server sync — ONE write, NO WebSocket broadcasts ────
+    // (owner request, Oct 5 2026: "Start button should push ONE final WebSocket
+    // broadcast like the Accept All button flow".)
+    //
+    // Previously this step did TWO broadcasting writes — a direct user-scoped
+    // base44.entities.Delivery.update (Step 4a) plus a per-record broadcasting
+    // bulkUpdateDeliveries for the renumbers (Step 4a.5). Every user-scoped
+    // write fires a WS broadcast, so other devices watched the route re-render
+    // in partial states (status first, renumbers second, optimizer's final
+    // order third) before it settled.
+    //
+    // Now BOTH land in ONE bulkUpdateDeliveries invoke with silent:true —
+    // service-role server writes do NOT broadcast. The route-optimization
+    // coordinator's final bulkUpdateDeliveries commit (Steps 5+6, user-scoped)
+    // becomes the SINGLE final broadcast carrying status, stop_order, ETAs,
+    // polylines, and isNextDelivery together — same pattern as Accept All.
+    // If optimization fails or its server commit fails, the fallback block
+    // after Step 8 fires one non-silent broadcast so other devices still sync.
+    const startSilentUpdates = [];
+    for (const id of renumberedIds) {
+      if (id === deliveryId) continue;
+      const d = mutatedDeliveries.find((x) => x?.id === id);
+      if (d && Number.isFinite(Number(d.stop_order))) {
+        startSilentUpdates.push({ id, data: { stop_order: Number(d.stop_order) } });
+      }
+    }
+    // Target last — status + renumber + ETA in the same silent batch.
+    startSilentUpdates.push({
+      id: deliveryId,
+      data: {
+        status: newStatus,
+        stop_order: newTargetStopOrder,
+        delivery_time_start: etaString,
+        delivery_time_eta: etaString,
+      },
     });
-    console.log(`✅ [handleStartDelivery] Step 4a complete — target status/stop_order/ETA synced (order ${newTargetStopOrder})`);
-
-    // ── STEP 4a.5: Persist the renumbered stop_order values for the OTHER stops.
-    // The coordinator writes stop_order again (atomically with polylines) for every
-    // stop on the route, but this guarantees the numbers land on the server even
-    // if optimization degrades or fails. Fire-and-forget — the 1.5s pause below
-    // gives it time to land before the optimizer reads the delivery list.
     try {
-      const renumberUpdates = [];
-      for (const id of renumberedIds) {
-        if (id === deliveryId) continue; // already synced in Step 4a
-        const d = mutatedDeliveries.find((x) => x?.id === id);
-        if (d && Number.isFinite(Number(d.stop_order))) {
-          renumberUpdates.push({ id, data: { stop_order: Number(d.stop_order) } });
-        }
-      }
-      if (renumberUpdates.length > 0) {
-        base44.functions.invoke('bulkUpdateDeliveries', { updates: renumberUpdates })
-          .then(() => console.log(`✅ [handleStartDelivery] Step 4a.5 complete — ${renumberUpdates.length} renumbered stop_order(s) synced`))
-          .catch((err) => console.warn(`⚠️ [handleStartDelivery] Step 4a.5 renumber sync failed:`, err?.message));
-      }
+      await base44.functions.invoke('bulkUpdateDeliveries', { updates: startSilentUpdates, silent: true });
+      console.log(`✅ [handleStartDelivery] Step 4 complete — ${startSilentUpdates.length} silent update(s) synced (no WS broadcast; final broadcast comes from the coordinator)`);
     } catch (err) {
-      console.warn(`⚠️ [handleStartDelivery] Step 4a.5 renumber sync failed:`, err?.message);
+      console.warn(`⚠️ [handleStartDelivery] Step 4 silent sync failed:`, err?.message);
     }
 
     // Authoritative server-side clear-all-then-promote (asServiceRole, primary read):
@@ -401,6 +404,39 @@ export async function handleStartDelivery({
     }, 800);
 
     console.log('✅ [handleStartDelivery] Step 8 complete — final UI updated from server');
+
+    // ─── STEP 8.5: Fallback single broadcast when the coordinator did NOT ───
+    // commit (engine failed, degraded without commit, or server commit failed).
+    // Every server write so far was SILENT (Step 4 silent:true + Step 4b
+    // asServiceRole) — the coordinator's user-scoped commit was supposed to be
+    // the one final WS broadcast. When it doesn't happen, fire ONE non-silent
+    // bulkUpdateDeliveries carrying the complete start state so other devices
+    // sync in a single broadcast instead of waiting for the next poll.
+    if (!coordResult?.success || coordResult?.serverCommitFailed === true) {
+      try {
+        const fallbackUpdates = [];
+        for (const id of transitionedIds) {
+          if (id === deliveryId) continue;
+          const d = mutatedDeliveries.find((x) => x?.id === id);
+          if (!d) continue;
+          fallbackUpdates.push({ id, data: { stop_order: Number(d.stop_order), isNextDelivery: false } });
+        }
+        fallbackUpdates.push({
+          id: deliveryId,
+          data: {
+            status: newStatus,
+            stop_order: newTargetStopOrder,
+            delivery_time_start: etaString,
+            delivery_time_eta: etaString,
+            isNextDelivery: true,
+          },
+        });
+        await base44.functions.invoke('bulkUpdateDeliveries', { updates: fallbackUpdates });
+        console.log(`✅ [handleStartDelivery] Step 8.5 — fallback single broadcast sent (${fallbackUpdates.length} updates, coordinator did not commit)`);
+      } catch (err) {
+        console.warn(`⚠️ [handleStartDelivery] Step 8.5 fallback broadcast failed:`, err?.message);
+      }
+    }
 
   } catch (error) {
     console.error('❌ [handleStartDelivery] Error:', error);
