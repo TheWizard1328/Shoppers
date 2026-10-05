@@ -1049,14 +1049,14 @@ let _inheritedWindowCount = 0;
   // differs (missing legs, moved origin anchor, live-GPS via point), in which
   // case ONLY that leg regenerates. Excluded when the caller explicitly
   // manages order/polyline intent: preserveExistingOrder (drag-reorder,
-  // travel-mode change, Reset Polylines), forceRegenerate, and the
-  // cycling/driving segment-only regens. Declared at function scope so the
+  // travel-mode change, Reset Polylines) and the cycling/driving
+  // segment-only regens. Declared at function scope so the
   // ETA phase below can read it (it sits outside the polyline phase's block).
   const _preOptOrderIds = activeRouteDeliveries
     .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
     .map(d => String(d.id));
   const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
-  const orderUnchangedForPolylines = !preserveExistingOrder && !forceRegenerate
+  const orderUnchangedForPolylines = !preserveExistingOrder
     && !cyclingSegmentOnly && !drivingSegmentOnly
     && _preOptOrderIds.length === _optimizedOrderIds.length
     && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
