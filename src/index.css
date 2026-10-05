@@ -361,6 +361,13 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
 }
 
+/* Whole-marker grow/shrink for the yellow isNextDelivery marker (Oct 5 2026):
+   the entire pin/circle gently scales up ~30% and back, looping every 2s. */
+@keyframes markerScalePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
 /* Conversation-card blink for dispatchers when a new direct message arrives
    while the Messages panel is already open on a different conversation.
    Calm, accessible pulse with light & dark variants per the token system. */
