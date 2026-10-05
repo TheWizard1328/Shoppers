@@ -480,10 +480,20 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   const cfgLoc = new Map();
   (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
   const storeToLoc = new Map();
+  // Store badge info (owner report Oct 5 2026: badges missing next to patient
+  // names on Uncollected / Past uncollected rows). computeCodOutstandingDetailed
+  // items only carried store_id — the render reads it.storeAbbrev/storeColor
+  // which were always undefined for delivery-derived rows.
+  const storeInfoById = new Map();
   (storesRaw || []).forEach((s) => {
     const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
     if (s?.id && loc) storeToLoc.set(String(s.id), loc);
+    if (s?.id) storeInfoById.set(String(s.id), { abbreviation: s?.abbreviation || null, color: s?.color || null });
   });
+  const storeBadgeOf = (sid) => {
+    const si = sid ? storeInfoById.get(String(sid)) : null;
+    return si ? { storeAbbrev: si.abbreviation, storeColor: si.color } : { storeAbbrev: null, storeColor: null };
+  };
   const confirmed = new Set(
     (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
   );
@@ -556,7 +566,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       if (outstanding <= 0) continue;
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
-      agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
+      agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
     }
   }
 
@@ -593,7 +603,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     }
     const agg = aggFor(locId);
     agg.total += cash; agg.awaitingCount += 1;
-    agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id });
+    agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
   }
 
   const out = {};

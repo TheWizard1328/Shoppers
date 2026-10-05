@@ -400,19 +400,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // exact-amount + same-card + decline-present guards keep it precise).
       const candidatesByLoc = new Map();
       for (const d of deliveryList) {
-        if (!d?.id || swipedIds.has(String(d.id)) || d?.status !== 'completed') continue;
+        // Owner rule (Oct 5 2026): the Card Spend pill must surface on EVERY
+        // delivery whose COD value exists in the Square data — including
+        // UNCOLLECTED ones (pending/in_transit/en_route). An active delivery
+        // whose swipe already landed in Square is exactly the mismatch the
+        // pill exists to flag. Completed deliveries anchor on completion time;
+        // active ones anchor on their own delivery_date (no completion yet).
+        if (!d?.id || swipedIds.has(String(d.id))) continue;
+        const dStatus = String(d?.status || '').toLowerCase();
+        const isCompleted = dStatus === 'completed';
+        if (!isCompleted && !['pending', 'in_transit', 'en_route'].includes(dStatus)) continue;
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
         let cardAmt = payments
           .filter((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))
           .reduce((sum, p) => sum + centsOf(p?.amount), 0);
         if (cardAmt <= 0) cardAmt = centsOf(d?.cod_total_amount_required);
         if (cardAmt <= 0) continue;
-        const doneAt = d.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
-        if (!doneAt) continue;
+        const doneAt = isCompleted && d.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
+        if (isCompleted && !doneAt) continue;
         const locId = storeToLoc.get(String(d?.store_id || ''));
         if (!locId) continue;
         if (!candidatesByLoc.has(locId)) candidatesByLoc.set(locId, []);
-        candidatesByLoc.get(locId).push({ id: String(d.id), amt: cardAmt, t: doneAt, day: edmontonWallString(new Date(doneAt)).slice(0, 10) });
+        const day = isCompleted
+          ? edmontonWallString(new Date(doneAt)).slice(0, 10)
+          : String(d?.delivery_date || '').slice(0, 10);
+        candidatesByLoc.get(locId).push({ id: String(d.id), amt: cardAmt, t: doneAt, day });
       }
       // Find a combo (size 1-maxSize) within `items` summing EXACTLY to `target`.
       const findExactSumCombo = (items, target, maxSize) => {
@@ -469,6 +481,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
       }
 
+      // Rule 2b — clean swipe story (owner, Oct 5 2026): same store + same
+      // Edmonton date + same card_fingerprint, NO decline required — an exact
+      // subset (1-4) of that card's completed sales summing to the COD. The
+      // decline anchor (rule 2) covers the split-payment story; this covers
+      // the clean single swipe rung hours away from the completion, and
+      // UNCOLLECTED deliveries (pending/in_transit/en_route) which have no
+      // completion time for rule 3's ±90min window. Owner rule: every delivery
+      // whose value exists in the Square data gets the pill.
+      for (const [locId, cands] of candidatesByLoc) {
+        for (const c of cands) {
+          if (swipedIds.has(c.id)) continue;
+          for (const g of groupsByLocDayFp.values()) {
+            if (g.locId !== locId || g.day !== c.day) continue;
+            const avail = g.sales.filter((x) => !usedSaleKeys.has(saleKeyOf(x)));
+            if (!avail.length) continue;
+            const combo = findExactSumCombo(avail.map((x) => ({ amt: Math.abs(Number(x.amount_cents || 0)), row: x })), c.amt, 4);
+            if (combo.length) {
+              swipedIds.add(c.id);
+              combo.forEach((x) => usedSaleKeys.add(saleKeyOf(x.row)));
+              break;
+            }
+          }
+        }
+      }
+
       // Rule 3 — near-time fallback: a completed CARD sale whose amount is
       // an exact combo (1-3) of CODs completed within ±90 minutes of it.
       const cardSalesByLoc = new Map();
@@ -483,7 +520,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (!sale.occurred_at) continue;
           const saleAmt = Math.abs(Number(sale.amount_cents || 0));
           const saleT = new Date(sale.occurred_at).getTime();
-          const nearby = pool.filter((c) => !swipedIds.has(c.id) && Math.abs(c.t - saleT) <= 90 * 60000);
+          const nearby = pool.filter((c) => c.t != null && !swipedIds.has(c.id) && Math.abs(c.t - saleT) <= 90 * 60000);
           if (nearby.length === 0) continue;
           const combo = findExactSumCombo(nearby, saleAmt, 3);
           for (const c of combo) swipedIds.add(c.id);
@@ -599,6 +636,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
           setCodOutstandingByLoc(byLoc);
           setIsSyncing(false);
+          // Fresh ledger rows just landed via a service-role sync (no WS echo
+          // reaches us), so the IDB windows cache — including the card-spend
+          // evidence pool — is stale. Drop it BEFORE loadSales/computes run,
+          // otherwise new swipes badge only after the 10-min TTL (owner report
+          // Oct 5 2026: Card Spend pill showing intermittently).
+          if (res) invalidateLedgerWindows();
         }
         await loadSales(cfg);
         computeLocalOutstanding();

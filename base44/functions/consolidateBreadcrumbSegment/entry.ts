@@ -407,6 +407,16 @@ async function rebuildPayrollMonthRecord(base44, cityId, year, month) {
   return { city: cityId, month, success: true, deliveries: deliveries.length };
 }
 
+// Owner spec (Oct 5 2026): a stop finish must NOT re-gather the whole month.
+// It should ADD the finished stop to the existing PayrollSummary month record —
+// the driver's and store's delivery counts are derived by consumers from the
+// stored deliveries array, so merging the finished delivery in IS the update.
+// Full rebuild happens ONLY when the city+month record doesn't exist yet (the
+// month's first completion). The old behavior — full re-read of the entire
+// city+month of deliveries + patients on EVERY stop finish — was a constant
+// heavy-read loop during work hours that pushed the app over the platform's
+// entity-read volume limit (Oct 5 midday: app-wide sluggishness, a driver stuck
+// at the load screen, platform 429s).
 async function syncPayrollMonthSnapshots(base44, recentCompleted) {
   if (!Array.isArray(recentCompleted) || recentCompleted.length === 0) return [];
   const storeIds = Array.from(new Set(recentCompleted.map((d) => d?.store_id).filter(Boolean)));
@@ -417,20 +427,67 @@ async function syncPayrollMonthSnapshots(base44, recentCompleted) {
     const rows = await base44.asServiceRole.entities.Store.filter({ id: { $in: chunk } }, '', 5000).catch(() => []);
     (rows || []).forEach((st) => st?.id && storeById.set(st.id, st));
   }
+  // Group the finished stops by city|year|month, keeping the delivery objects
+  // so they can be merged straight into the stored record.
   const pairs = new Map();
   recentCompleted.forEach((d) => {
     const cityId = storeById.get(d?.store_id)?.city_id;
     const month = d?.delivery_date ? Number(String(d.delivery_date).slice(5, 7)) : 0;
     const year = d?.delivery_date ? Number(String(d.delivery_date).slice(0, 4)) : 0;
     if (!cityId || !month || !year) return;
-    pairs.set(`${cityId}|${year}|${month}`, { cityId, year, month });
+    const key = `${cityId}|${year}|${month}`;
+    if (!pairs.has(key)) pairs.set(key, { cityId, year, month, finished: [] });
+    pairs.get(key).finished.push(d);
   });
+  const isValidObjectId = (id) => typeof id === 'string' && /^[a-f0-9]{24}$/.test(id);
   const results = [];
-  for (const { cityId, year, month } of pairs.values()) {
+  for (const { cityId, year, month, finished } of pairs.values()) {
     try {
-      const r = await rebuildPayrollMonthRecord(base44, cityId, year, month);
-      results.push(r);
-      console.log(`💰 [payroll sync] ${r.success ? 'refreshed' : 'skipped'} city=${cityId} ${year}-${month} deliveries=${r.deliveries ?? 0}`);
+      const existing = await base44.asServiceRole.entities.PayrollSummary.filter(
+        { city_id: cityId, year: Number(year), month: Number(month), kind: 'month' }, '', 20
+      ).catch(() => []);
+      const matches = existing || [];
+      if (matches.length === 0) {
+        // First completion of the month — no record to merge into yet.
+        const r = await rebuildPayrollMonthRecord(base44, cityId, year, month);
+        results.push(r);
+        console.log(`💰 [payroll sync] ${r.success ? 'rebuilt (new)' : 'skipped'} city=${cityId} ${year}-${month} deliveries=${r.deliveries ?? 0}`);
+        continue;
+      }
+      // Fetch only the finished stops' patients (same valid-object-id guard as
+      // the gather path — temp ids crash the Patient query with a 500).
+      const patientIds = Array.from(new Set(finished.map((d) => d?.patient_id).filter(isValidObjectId)));
+      const freshPatients = [];
+      for (let i = 0; i < patientIds.length; i += 150) {
+        const chunk = patientIds.slice(i, i + 150);
+        const rows = await base44.asServiceRole.entities.Patient.filter({ id: { $in: chunk } }, '', 5000).catch(() => []);
+        (rows || []).forEach((pt) => freshPatients.push(payrollPickFields(pt, PAYROLL_PATIENT_FIELDS)));
+      }
+      const finishedIds = new Set(finished.map((d) => d?.id).filter(Boolean).map(String));
+      const now = new Date().toISOString();
+      let mergedCount = 0;
+      for (const rec of matches) {
+        const prevDeliveries = Array.isArray(rec.deliveries) ? rec.deliveries : [];
+        // Replace any stored copy of the same delivery (e.g. it was already in
+        // the month as pending), then append the fresh completed snapshot.
+        const kept = prevDeliveries.filter((d) => !finishedIds.has(String(d?.id)));
+        const merged = [...kept, ...finished.map((d) => payrollPickFields(d, PAYROLL_DELIVERY_FIELDS))];
+        const prevPatients = Array.isArray(rec.patients) ? rec.patients : [];
+        const patSet = new Set(prevPatients.map((pt) => String(pt?.id || pt?.patient_id || '')).filter(Boolean));
+        const mergedPatients = [...prevPatients, ...freshPatients.filter((pt) => {
+          const k = String(pt?.id || pt?.patient_id || '');
+          return k && !patSet.has(k);
+        })];
+        await base44.asServiceRole.entities.PayrollSummary.update(rec.id, {
+          deliveries: merged,
+          patients: mergedPatients,
+          delivery_count: merged.length,
+          calculated_at: now,
+        });
+        mergedCount = merged.length;
+      }
+      results.push({ city: cityId, month, success: true, deliveries: mergedCount, incremental: true });
+      console.log(`💰 [payroll sync] incremental city=${cityId} ${year}-${month} +${finished.length} stop(s), total=${mergedCount}`);
     } catch (e) {
       results.push({ city: cityId, month, success: false, error: e?.message || String(e) });
     }
@@ -1304,7 +1361,7 @@ Deno.serve(async (req) => {
       } catch (e) {
         payrollSync = [{ success: false, error: e?.message || String(e) }];
       }
-      return Response.json({ success: true, mode: 'cycle', targets: targets.length, outcomes, payroll_sync: payrollSync });
+      return Response.json({ success: true, mode: 'cycle', targets: targets.length, outcomes, payroll_sync: payrollSync, payroll_mode: 'incremental' });
     }
 
     // Direct invocation (client scissors / admin tools) — requires a user session.
