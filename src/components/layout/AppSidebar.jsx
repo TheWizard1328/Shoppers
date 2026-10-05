@@ -741,7 +741,7 @@ export default function AppSidebar({
       })()}
 
 
-       balloon (mobile: pops above the side
+      {/* Owner-only: low-balance alert balloon (mobile: pops above the side
           panel button; desktop: pops out from the Square Balances link while
           the sidebar is open) + one deduped push per low-state change. */}
       <SquareLowBalanceAlert
