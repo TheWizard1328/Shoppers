@@ -337,6 +337,7 @@ export function useStopCardCompletionActions({
           bypassDriverStatus: true,
           recalcTrackingNumbers: true,   // TR# computed inside coordinator, merged atomically with stop_order
           recalcTrackingStoreId: delivery.store_id,  // Only WRITE TR#s for this store — see all for collision detection
+          skipServerWrite: true, // The caller commits ONE merged update set (Step 5.5) — single broadcast
         }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
         new Promise(resolve => setTimeout(() => {
           console.error('⏱️ [AcceptAll] optimizer timed out after 90s');
@@ -361,6 +362,55 @@ export function useStopCardCompletionActions({
           })()
         : fullDeliveriesForOptimizer;
 
+      // ── STEP 5.5: SINGLE merged server commit (owner rule, Oct 5 2026) ──────
+      // The coordinator deferred its server write (skipServerWrite). Merge its
+      // writeBatch (stop_order, TR#s, ETAs, polylines, statuses, isNextDelivery)
+      // with the staged Accept-All transitions (status + delivery_time_start/end
+      // resolved by the pipeline — INCLUDING the Oct 2 rule: a delivery whose own
+      // start is EARLIER than its patient's window start gets RAISED to the
+      // patient's start). ONE user-scoped bulkUpdateDeliveries = the single
+      // WebSocket broadcast other devices receive.
+      //
+      // This closes a real gap: the engine's writeBatch only carries
+      // delivery_time_start for PENDING stops, so the raised start landed in IDB
+      // but never on the server — other devices and any refresh kept the old
+      // earlier start.
+      const _acceptAllWriteBatch = Array.isArray(coordResult?.optimizeData?.writeBatch) ? coordResult.optimizeData.writeBatch : [];
+      const _mergedAcceptAllMap = new Map();
+      for (const w of _acceptAllWriteBatch) {
+        if (w?.id && w.data) _mergedAcceptAllMap.set(w.id, { ...w.data });
+      }
+      for (const d of (stagedChangedDeliveries || [])) {
+        if (!d?.id) continue;
+        const existing = _mergedAcceptAllMap.get(d.id) || {};
+        _mergedAcceptAllMap.set(d.id, {
+          ...existing,
+          status: existing.status || 'in_transit',
+          delivery_time_start: d.delivery_time_start,
+          ...(d.delivery_time_end ? { delivery_time_end: d.delivery_time_end } : {}),
+          ...(existing.delivery_time_eta ? {} : { delivery_time_eta: d.delivery_time_eta }),
+        });
+      }
+      const mergedServerUpdates = Array.from(_mergedAcceptAllMap.entries()).map(([id, data]) => ({ id, data }));
+      const serverCommitPromise = mergedServerUpdates.length > 0
+        ? base44.functions.invoke('bulkUpdateDeliveries', { updates: mergedServerUpdates })
+            .then(() => {
+              console.log(`[AcceptAll] Step 5.5 — single merged commit: ${mergedServerUpdates.length} update(s) (one broadcast)`);
+              return true;
+            })
+            .catch(async (e) => {
+              console.warn('[AcceptAll] Step 5.5 merged commit failed, falling back to chunked individual writes:', e?.message || e);
+              const CHUNK = 20; let okCount = 0;
+              for (let i = 0; i < mergedServerUpdates.length; i += CHUNK) {
+                await Promise.all(mergedServerUpdates.slice(i, i + CHUNK).map(({ id, data }) =>
+                  base44.entities.Delivery.update(id, data).then(() => { okCount++; }).catch(() => {})
+                )).catch(() => {});
+              }
+              console.warn(`[AcceptAll] Step 5.5 fallback commit: ${okCount}/${mergedServerUpdates.length} landed`);
+              return okCount === mergedServerUpdates.length;
+            })
+        : Promise.resolve(true);
+
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
@@ -377,10 +427,16 @@ export function useStopCardCompletionActions({
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
         updateDeliveriesLocally?.(finalDeliveries, false);
 
+        // Await the Step 5.5 single commit so the safety-net below only fires
+        // for updates that genuinely didn't land.
+        const serverCommitOk = await serverCommitPromise;
+
         // Safety net: find any transitioned deliveries whose status was NOT written
-        // by the coordinator (deliveries not in coordResult.freshDeliveries, or
-        // optimizer failed). Fire-and-forget — does not block UI.
-        const writtenByCoord = new Set((coordResult?.freshDeliveries || []).map(d => d?.id));
+        // by the merged commit (nothing landed — total failure/offline).
+        // Fire-and-forget — does not block UI.
+        const writtenByCoord = serverCommitOk
+          ? new Set(mergedServerUpdates.map(u => u.id))
+          : new Set();
         const missedUpdates = (stagedChangedDeliveries || [])
           .filter(d => d?.id && !writtenByCoord.has(d.id))
           .map(d => ({
