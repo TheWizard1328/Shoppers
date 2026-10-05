@@ -112,6 +112,17 @@ const CLASS_LABELS = {
   payout: "Bank Transfer",
 };
 
+// Payout-class rows: SIMPLE = Square's per-sale folder withholding (mirrors the
+// collected row's folder_cents), BATCH = the settled remainder swept to the
+// bank (mirrors settled_cents). Distinct labels stop them reading as
+// unexplained extra card spends (owner report Oct 4 2026).
+const payoutLabel = (e) => {
+  const reason = String(e?.reason || "").toUpperCase();
+  if (reason.includes("SIMPLE")) return "Folder Withholding";
+  if (reason.includes("BATCH")) return "Bank Sweep";
+  return CLASS_LABELS.payout;
+};
+
 const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId) => {
   if (entry.entry_kind === "refund") {
     const linked = entry.refund_of_square_id ? entriesBySquareId.get(entry.refund_of_square_id) : null;
@@ -520,7 +531,8 @@ export default function SquareSyncAudit() {
       const sign = e.cls.sign;
       const amount = (sign * Number(e.amount_cents || 0)) / 100;
       return [
-        displayDateTime(e.wall), e.location_name || "", label, CLASS_LABELS[e.classCode], e.entry_method || "", e.status || "",
+        displayDateTime(e.wall), e.location_name || "", label,
+        e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode], e.entry_method || "", e.status || "",
         amount.toFixed(2), e.order_id || "", e.delivery_id || "", e.cod_item_name || e.reason || "",
       ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
     });
@@ -707,7 +719,7 @@ export default function SquareSyncAudit() {
                             <td className="px-3 py-2 whitespace-nowrap">{displayDateTime(e.wall)}</td>
                             <td className="px-3 py-2">{e.location_name || e.location_id}</td>
                             <td className="px-3 py-2 text-xs">{cardLabel}</td>
-                            <td className="px-3 py-2"><Badge className={style.badge}>{CLASS_LABELS[e.classCode]}</Badge></td>
+                            <td className="px-3 py-2"><Badge className={style.badge}>{e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode]}</Badge></td>
                             <td className="px-3 py-2 text-xs">{e.entry_method || (e.tender_type === "CASH" ? "cash" : "")}</td>
                             <td className="px-3 py-2 text-xs">{e.status}</td>
                             <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${style.amount}`}>

@@ -159,8 +159,10 @@ async function loadBalanceRates(base44: any): Promise<{ folderRate: number; loan
 function cardSettlementCents(rates: any, locId: any, amountCents: number, feeCents: number): { folder_cents: number; loan_cents: number; settled_cents: number } {
   const amount = Math.round(Number(amountCents) || 0);
   const fee = Math.round(Number(feeCents) || 0);
-  const folder = Math.round(amount * rates.folderRate);
-  const loan = Math.round(amount * (rates.loanRateByLoc.get(String(locId || '')) || 0));
+  // Square TRUNCATES the per-sale folder/loan contribution (owner-verified
+  // Oct 4 2026: $87.33 x 2% = 174.66, Square moved 174) — never round up.
+  const folder = Math.floor(amount * rates.folderRate);
+  const loan = Math.floor(amount * (rates.loanRateByLoc.get(String(locId || '')) || 0));
   return { folder_cents: folder, loan_cents: loan, settled_cents: amount - fee - folder - loan };
 }
 
@@ -336,6 +338,28 @@ Deno.serve(async (req) => {
         if (isCardSale && row.settled_cents == null) {
           Object.assign(patch, cardSettlementCents(rates, row.location_id, row.amount_cents, row.fee_cents));
           stampSettlement += 1;
+        } else if (isCardSale) {
+          // Round-up era repair: rows stamped with the old Math.round formula
+          // can carry a folder/loan cent too high (e.g. 175 vs Square's real
+          // 174). Recompute ONLY when the stored value matches the old
+          // round() result and differs from the truncated one, so rows whose
+          // cents came from any other source are left untouched.
+          const amt = Math.round(Number(row.amount_cents) || 0);
+          const fee = Math.round(Number(row.fee_cents) || 0);
+          const recomputed = cardSettlementCents(rates, row.location_id, amt, fee);
+          const oldFolder = Math.round(amt * rates.folderRate);
+          const oldLoan = Math.round(amt * (rates.loanRateByLoc.get(String(row.location_id || '')) || 0));
+          const storedFolder = Number(row.folder_cents);
+          const storedLoan = Number(row.loan_cents);
+          if (storedFolder === oldFolder && oldFolder !== recomputed.folder_cents) {
+            patch.folder_cents = recomputed.folder_cents;
+            patch.settled_cents = recomputed.settled_cents;
+            stampSettlement += 1;
+          } else if (storedLoan === oldLoan && oldLoan !== recomputed.loan_cents) {
+            patch.loan_cents = recomputed.loan_cents;
+            patch.settled_cents = recomputed.settled_cents;
+            stampSettlement += 1;
+          }
         }
         if (isSale) {
           const desired = row?.delivery_id ? 'cod_collection'
