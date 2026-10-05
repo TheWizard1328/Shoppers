@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 23; // v23: Added app_settings store (offline-first AppSettings reads)
+const DB_VERSION = 24; // v24: Added payroll_page_cache store (offline-first DriverPayroll page payload)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -37,7 +37,8 @@ const STORES = {
   DRIVER_DAILY_ACTIVITY: 'driver_daily_activity', // v20: driver on-duty activity segments
   SQUARE_LEDGER: 'square_ledger', // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
   SQUARE_BALANCES_SUMMARY: 'square_balances_summary', // v22: offline-first snapshot of the Square Balances summary (badge + page)
-  APP_SETTINGS: 'app_settings' // v23: offline-first AppSettings rows keyed by setting_key
+  APP_SETTINGS: 'app_settings', // v23: offline-first AppSettings rows keyed by setting_key
+  PAYROLL_PAGE_CACHE: 'payroll_page_cache' // v24: offline-first DriverPayroll full-year payload snapshot per year+city
 };
 
 // PHI-bearing stores — these get encrypted at rest via AES-GCM
@@ -48,6 +49,7 @@ const PHI_STORES = new Set([
   STORES.PAYROLL,
   STORES.SQUARE_TRANSACTIONS,
   STORES.RX_TEMP_LOGS,
+  STORES.PAYROLL_PAGE_CACHE, // contains patient names/addresses from the payroll payload
 ]);
 
 const isPHIStore = (storeName) => PHI_STORES.has(storeName);
@@ -431,6 +433,15 @@ const openDatabase = async () => {
       if (!db.objectStoreNames.contains(STORES.APP_SETTINGS)) {
         const appSettingsStore = db.createObjectStore(STORES.APP_SETTINGS, { keyPath: 'id' });
         appSettingsStore.createIndex('setting_key', 'setting_key', { unique: false });
+      }
+
+      // v24: payroll_page_cache — ONE record per year+city holding the full-year
+      // payroll page payload (deliveries, patients, stores, appUsers, drivers,
+      // payrollRecords) from getAdminMetricsAndPayrollData. Rendered instantly
+      // on page open; the page then resyncs silently in the background
+      // (owner report Oct 4 2026: ~30s spinner before any payroll data shows).
+      if (!db.objectStoreNames.contains(STORES.PAYROLL_PAGE_CACHE)) {
+        db.createObjectStore(STORES.PAYROLL_PAGE_CACHE, { keyPath: 'id' });
       }
 
       // v19: stat_holidays — statutory holidays for offline date lookups

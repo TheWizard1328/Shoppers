@@ -1,0 +1,50 @@
+{
+  "name": "PayrollSummary",
+  "type": "object",
+  "description": "Durable server-side payroll payload snapshot per city+year. Month records hold that month's payroll-whitelisted deliveries + referenced patients; the refs record holds stores/appUsers/cities/cityName/appFeeRate/payrollRecords. Served by getAdminMetricsAndPayrollData (summary-first fast path) and kept fresh by the completion-driven slicer cycle after every stop finish.",
+  "properties": {
+    "city_id": {
+      "type": "string",
+      "description": "City this snapshot belongs to"
+    },
+    "year": {
+      "type": "number",
+      "description": "Payroll year this snapshot covers"
+    },
+    "month": {
+      "type": "number",
+      "description": "Month (1-12) — only for kind='month' records"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["month", "refs"],
+      "description": "'month' = per-month deliveries+patients slice; 'refs' = shared year references (stores, appUsers, cities, cityName, appFeeRate, payrollRecords)"
+    },
+    "deliveries": {
+      "type": "array",
+      "description": "Month's deliveries, payroll field whitelist only (DELIVERY_FIELDS)"
+    },
+    "patients": {
+      "type": "array",
+      "description": "Patients referenced by this month's deliveries (PATIENT_FIELDS whitelist)"
+    },
+    "refs": {
+      "type": "object",
+      "description": "Shared refs object — only for kind='refs' records"
+    },
+    "delivery_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of deliveries in this month slice"
+    },
+    "calculated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this snapshot was last computed"
+    },
+    "summary_version": {
+      "type": "string",
+      "description": "Schema version — mismatch forces rebuild"
+    }
+  }
+}

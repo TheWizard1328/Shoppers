@@ -321,6 +321,7 @@ export default function DriverPayroll() {
   const [hasInitialized, setHasInitialized] = useState(false);
   const [payrollData, setPayrollData] = useState(null);
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
+  const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
@@ -977,7 +978,47 @@ export default function DriverPayroll() {
     };
   }, []);
 
-  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
+  // Offline-first payroll page payload cache (AdminMetrics pattern, Oct 4 2026).
+  // The full-year gather takes ~30s server-side; render the last saved payload
+  // instantly and resync quietly behind it.
+  const getPayrollPageCacheKey = useCallback((year, cityId) => `payroll-page-v1-${year}-${cityId}`, []);
+
+  const saveOfflinePayroll = useCallback(async (year, cityId, data) => {
+    if (!year || !cityId || !data) return;
+    try {
+      await offlineDB.save(offlineDB.STORES.PAYROLL_PAGE_CACHE, {
+        id: getPayrollPageCacheKey(year, cityId),
+        year: parseInt(year, 10),
+        city_id: cityId,
+        payrollData: data,
+        saved_date: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('⚠️ [DriverPayroll] Failed to save offline payroll cache:', e);
+    }
+  }, [getPayrollPageCacheKey]);
+
+  const loadOfflinePayroll = useCallback(async (year, cityId) => {
+    if (!year || !cityId) return false;
+    try {
+      const cached = await offlineDB.getById(offlineDB.STORES.PAYROLL_PAGE_CACHE, getPayrollPageCacheKey(year, cityId));
+      const data = cached?.payrollData;
+      if (!data || !Array.isArray(data.deliveries)) return false;
+      const cacheKey = `${year}-${cityId}`;
+      // Only apply when it matches the requested selection and there is no
+      // newer live data for this exact selection already rendered.
+      if (data.__cacheKey !== cacheKey) return false;
+      setPayrollData((prev) => (!prev || prev?.__cacheKey !== cacheKey) ? data : prev);
+      setPayrollRecords(data?.payrollRecords || []);
+      setLoadedFromOffline(true);
+      return true;
+    } catch (e) {
+      console.warn('⚠️ [DriverPayroll] No offline payroll cache:', e);
+      return false;
+    }
+  }, [getPayrollPageCacheKey]);
+
+  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false } = {}) => {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
 
     const cacheKey = `${selectedYear}-${selectedCityId}`;
@@ -1002,7 +1043,10 @@ export default function DriverPayroll() {
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId,
-          payrollPaginationMode: 'full_year'
+          payrollPaginationMode: 'full_year',
+          // Manual refresh: bypass the server-side PayrollSummary fast path and
+          // force a full re-gather (which rewrites the summary).
+          forceRefreshCurrentYear: bypassSummary
         });
         const rawData = response?.data?.payrollData || response?.payrollData;
         const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
@@ -1019,6 +1063,8 @@ export default function DriverPayroll() {
 
         setPayrollData(data);
         setPayrollRecords(data?.payrollRecords || []);
+        setLoadedFromOffline(false);
+        saveOfflinePayroll(selectedYear, selectedCityId, data);
         return data;
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
@@ -1032,14 +1078,14 @@ export default function DriverPayroll() {
 
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
-  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive]);
+  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive, saveOfflinePayroll]);
 
   const handleManualRefresh = useCallback(async () => {
     if (!selectedCityId) return;
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
     try {
-      await fetchPayroll(false, true);
+      await fetchPayroll(false, true, { bypassSummary: true });
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
@@ -1089,10 +1135,17 @@ export default function DriverPayroll() {
   // Trigger fetch when filters change (after initialization)
   // Force a fresh fetch when year changes so stale cached data for past years is replaced
   useEffect(() => {
-    if (hasInitialized && isPayrollPageActive && selectedCityId) {
-      fetchPayroll(false, true).catch(() => {});
-    }
-  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll]);
+    if (!hasInitialized || !isPayrollPageActive || !selectedCityId) return;
+    let cancelled = false;
+    (async () => {
+      // Instant render from the last saved payload, then refresh silently.
+      // First-ever visit (no cache) keeps the blocking spinner.
+      const gotOffline = await loadOfflinePayroll(selectedYear, selectedCityId).catch(() => false);
+      if (cancelled) return;
+      fetchPayroll(!!gotOffline, true).catch(() => {});
+    })();
+    return () => { cancelled = true; };
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll, loadOfflinePayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
@@ -1477,6 +1530,11 @@ export default function DriverPayroll() {
               
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
+              {loadedFromOffline && !isLoadingPayroll && (
+                <span className="text-xs text-slate-400 dark:text-slate-500 italic whitespace-nowrap" title="Showing your last saved payroll data — live sync running in the background">
+                  saved data • syncing…
+                </span>
+              )}
               <Button
  onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}

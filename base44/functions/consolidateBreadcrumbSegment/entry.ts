@@ -331,6 +331,113 @@ function edmontonDateDaysAgo(days) {
 // ── Cycle mode discovery: driver-date pairs with a master trail (stop_order = -1) ──
 // for today + yesterday (Edmonton). A late-night trail synced after midnight is
 // still picked up by the next morning's pass since yesterday is included.
+// ── PayrollSummary month sync (Oct 4 2026) ───────────────────────────────────
+// After a stop finishes, the affected PayrollSummary month record (per city) is
+// rebuilt so the payroll page's summary-first fast path stays fresh in real
+// time. Field whitelists MUST match getAdminMetricsAndPayrollData's
+// DELIVERY_FIELDS / PATIENT_FIELDS and its PAYROLL_SUMMARY_VERSION — update
+// both sides together.
+const PAYROLL_DELIVERY_FIELDS = ['id', 'delivery_date', 'delivery_id', 'driver_id', 'store_id', 'patient_id', 'status', 'after_hours_pickup', 'paid_km_override', 'travel_dist', 'oversized', 'no_charge', 'delivery_notes', 'actual_delivery_time'];
+const PAYROLL_PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store', 'address'];
+const PAYROLL_SUMMARY_VERSION = '1';
+
+const payrollPickFields = (record, fields) => {
+  const out = {};
+  (fields || []).forEach((f) => { out[f] = record?.[f]; });
+  return out;
+};
+
+async function rebuildPayrollMonthRecord(base44, cityId, year, month) {
+  const pad = String(month).padStart(2, '0');
+  const startStr = `${year}-${pad}-01`;
+  const endDay = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+  const endStr = `${year}-${pad}-${String(endDay).padStart(2, '0')}`;
+  const now = new Date().toISOString();
+
+  const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId }, '', 5000).catch(() => []);
+  const cityStoreIds = (cityStores || []).map((st) => st?.id).filter(Boolean);
+  if (cityStoreIds.length === 0) return { city: cityId, month, success: false, reason: 'no stores' };
+
+  const deliveryFilter = { delivery_date: { $gte: startStr, $lte: endStr }, store_id: { $in: cityStoreIds } };
+  const allDeliveries = [];
+  let skip = 0;
+  for (;;) {
+    const page = await base44.asServiceRole.entities.Delivery.filter(deliveryFilter, '-delivery_date', 1000, skip).catch(() => []);
+    if (!Array.isArray(page) || page.length === 0) break;
+    allDeliveries.push(...page);
+    if (page.length < 1000) break;
+    skip += page.length;
+    if (skip > 20000) break; // hard safety cap
+  }
+  const deliveries = allDeliveries.map((d) => payrollPickFields(d, PAYROLL_DELIVERY_FIELDS));
+
+  // Patients referenced by this month's deliveries (valid-object-id guard
+  // mirrors the gather path: temp ids crash the Patient query with a 500).
+  const isValidObjectId = (id) => typeof id === 'string' && /^[a-f0-9]{24}$/.test(id);
+  const patientIds = Array.from(new Set(deliveries.map((d) => d.patient_id).filter(isValidObjectId)));
+  const patients = [];
+  for (let i = 0; i < patientIds.length; i += 150) {
+    const chunk = patientIds.slice(i, i + 150);
+    const rows = await base44.asServiceRole.entities.Patient.filter({ id: { $in: chunk } }, '', 5000).catch(() => []);
+    (rows || []).forEach((p) => patients.push(payrollPickFields(p, PAYROLL_PATIENT_FIELDS)));
+  }
+
+  const payload = {
+    city_id: cityId,
+    year: Number(year),
+    month: Number(month),
+    kind: 'month',
+    deliveries,
+    patients,
+    delivery_count: deliveries.length,
+    calculated_at: now,
+    summary_version: PAYROLL_SUMMARY_VERSION
+  };
+  const existing = await base44.asServiceRole.entities.PayrollSummary.filter(
+    { city_id: cityId, year: Number(year), month: Number(month), kind: 'month' }, '', 20
+  ).catch(() => []);
+  const matches = existing || [];
+  if (matches.length === 0) {
+    await base44.asServiceRole.entities.PayrollSummary.create(payload);
+  } else {
+    for (const rec of matches) {
+      await base44.asServiceRole.entities.PayrollSummary.update(rec.id, payload);
+    }
+  }
+  return { city: cityId, month, success: true, deliveries: deliveries.length };
+}
+
+async function syncPayrollMonthSnapshots(base44, recentCompleted) {
+  if (!Array.isArray(recentCompleted) || recentCompleted.length === 0) return [];
+  const storeIds = Array.from(new Set(recentCompleted.map((d) => d?.store_id).filter(Boolean)));
+  if (storeIds.length === 0) return [];
+  const storeById = new Map();
+  for (let i = 0; i < storeIds.length; i += 150) {
+    const chunk = storeIds.slice(i, i + 150);
+    const rows = await base44.asServiceRole.entities.Store.filter({ id: { $in: chunk } }, '', 5000).catch(() => []);
+    (rows || []).forEach((st) => st?.id && storeById.set(st.id, st));
+  }
+  const pairs = new Map();
+  recentCompleted.forEach((d) => {
+    const cityId = storeById.get(d?.store_id)?.city_id;
+    const month = d?.delivery_date ? Number(String(d.delivery_date).slice(5, 7)) : 0;
+    const year = d?.delivery_date ? Number(String(d.delivery_date).slice(0, 4)) : 0;
+    if (!cityId || !month || !year) return;
+    pairs.set(`${cityId}|${year}|${month}`, { cityId, year, month });
+  });
+  const results = [];
+  for (const { cityId, year, month } of pairs.values()) {
+    try {
+      const r = await rebuildPayrollMonthRecord(base44, cityId, year, month);
+      results.push(r);
+      console.log(`💰 [payroll sync] ${r.success ? 'refreshed' : 'skipped'} city=${cityId} ${year}-${month} deliveries=${r.deliveries ?? 0}`);
+    } catch (e) {
+      results.push({ city: cityId, month, success: false, error: e?.message || String(e) });
+    }
+  }
+  return results;
+}
+
 // Completion-driven discovery: return ONLY the driver+date pairs whose route
 // just had a stop finish (status flipped to completed) within the lookback
 // window. The 5-min cron calls this constantly, but when no stop has finished
@@ -351,6 +458,7 @@ async function discoverSliceTargets(base44) {
   // limit — range objects are NOT supported by the backend filter), then
   // timestamp-check in code. Most-recent-200 completed is far more than any
   // 12-minute window, so recent finishes can't fall off the page.
+  const recentCompleted = [];
   try {
     const recs = await base44.asServiceRole.entities.Delivery.filter({ status: 'completed' }, '-updated_date', 200).catch(() => []);
     for (const r of recs || []) {
@@ -359,9 +467,10 @@ async function discoverSliceTargets(base44) {
       const t = Date.parse(ts);
       if (!Number.isFinite(t) || t < Date.now() - lookbackMs) continue;
       push(r?.driver_id, r?.delivery_date);
+      recentCompleted.push(r);
     }
   } catch (_) { /* fall through to empty list */ }
-  return [...byKey.values()];
+  return { targets: [...byKey.values()], recentCompleted };
 }
 
 // ── Per-driver slicing core (full or incremental mode) ──
@@ -1175,7 +1284,7 @@ Deno.serve(async (req) => {
     // (scissors button / Route Viewer) always carry driver_id+delivery_date.
     const isCycleTrigger = !body?.driver_id || !body?.delivery_date;
     if (isCycleTrigger) {
-      const targets = await discoverSliceTargets(base44);
+      const { targets, recentCompleted } = await discoverSliceTargets(base44);
       const outcomes = [];
       for (const t of targets) {
         try {
@@ -1186,7 +1295,16 @@ Deno.serve(async (req) => {
           outcomes.push({ driver_id: t.driver_id, delivery_date: t.delivery_date, success: false, error: e?.message || String(e) });
         }
       }
-      return Response.json({ success: true, mode: 'cycle', targets: targets.length, outcomes });
+      // Payroll freshness: rebuild the affected PayrollSummary month records so
+      // the payroll page's summary-first path serves data that includes this
+      // completion. Failures never break the slicing result.
+      let payrollSync = null;
+      try {
+        payrollSync = await syncPayrollMonthSnapshots(base44, recentCompleted);
+      } catch (e) {
+        payrollSync = [{ success: false, error: e?.message || String(e) }];
+      }
+      return Response.json({ success: true, mode: 'cycle', targets: targets.length, outcomes, payroll_sync: payrollSync });
     }
 
     // Direct invocation (client scissors / admin tools) — requires a user session.
