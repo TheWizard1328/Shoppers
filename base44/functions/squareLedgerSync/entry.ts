@@ -433,48 +433,53 @@ Deno.serve(async (req) => {
     let windowStart = payload?.startDate || new Date(Date.now() - monthsBack * 30.44 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
     const windowEnd = payload?.endDate || new Date().toISOString();
 
-    // ── CARD SPEND PROBE (owner Oct 5 2026): "where does money spent from the
-    // STORE Square Cards live?" Diagnostic only — nothing is persisted. For
-    // every ACTIVE location: last-N-day payouts (with full payout entries) and
-    // payments, so we can see how Square represents card purchases.
+    // ── CARD SPEND PROBE v2 (owner Oct 5 2026): find how Square represents
+    // MONEY SPENT from the store Square Cards. Scan payouts at every ACTIVE
+    // location over N days, page through, and report only "unusual" payouts:
+    // negative amounts or entries whose type is not the familiar funding mix
+    // (CHARGE / BALANCE_FOLDERS_TRANSFER / SQUARE_CAPITAL_PAYMENT).
     if (String(payload?.mode || '') === 'cardSpendProbe') {
-      const days = Math.min(180, Math.max(1, Math.round(Number(payload?.days || 90)) || 90));
+      const days = Math.min(365, Math.max(1, Math.round(Number(payload?.days || 90)) || 90));
       const since = new Date(Date.now() - days * 86400000).toISOString();
-      const out: any = { since, locations: [], locReports: [] };
+      const KNOWN = new Set(['CHARGE', 'BALANCE_FOLDERS_TRANSFER', 'SQUARE_CAPITAL_PAYMENT']);
+      const out: any = { since, locations: [], findings: [], scanned: 0 };
       try {
         const locsJson: any = await squareFetch('/v2/locations', 'GET', accessToken);
-        out.locations = (locsJson?.locations || []).map((l: any) => ({ id: l.id, name: l.name, type: l.type, status: l.status, mcc: l.mcc }));
+        out.locations = (locsJson?.locations || []).map((l: any) => ({ id: l.id, name: l.name, type: l.type, status: l.status }));
       } catch (e: any) { out.locationsError = e?.message || String(e); }
       for (const l of out.locations) {
         if (String(l?.status || '').toUpperCase() !== 'ACTIVE') continue;
-        const rep: any = { loc: l.name, locId: l.id, payouts: [], payments: [], errors: [] };
         try {
-          const pj: any = await squareFetch(`/v2/payouts?location_id=${encodeURIComponent(l.id)}&begin_time=${encodeURIComponent(since)}&sort_order=DESC&limit=50`, 'GET', accessToken);
-          for (const po of (pj?.payouts || []).slice(0, 4)) {
-            let ents: any = null;
-            try { const e: any = await squareFetch(`/v2/payouts/${po.id}/payout-entries`, 'GET', accessToken); ents = (e?.payout_entries || []).map((x: any) => ({ type: x.type, gross: x.gross_amount_money?.amount, net: x.net_amount_money?.amount, other: x.type_other_details || null, paymentId: x.type_charge_details?.payment_id || null })); } catch { /* best effort */ }
-            rep.payouts.push({ id: po.id, amount: po.amount_money?.amount, status: po.status, type: po.type, dest: po.destination?.type, created: po.created_at, entries: ents });
+          let cursor = '';
+          for (let page = 0; page < 12; page++) {
+            const path = `/v2/payouts?location_id=${encodeURIComponent(l.id)}&begin_time=${encodeURIComponent(since)}&sort_order=DESC&limit=100` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+            const pj: any = await squareFetch(path, 'GET', accessToken);
+            const pos = pj?.payouts || [];
+            out.scanned += pos.length;
+            for (const po of pos) {
+              const amt = Number(po?.amount_money?.amount || 0);
+              if (amt >= 0) continue; // card spends must be money OUT
+              let ents: any[] = [];
+              try { const e: any = await squareFetch(`/v2/payouts/${po.id}/payout-entries`, 'GET', accessToken); ents = e?.payout_entries || []; } catch { /* best effort */ }
+              const types = ents.map((x: any) => String(x?.type || ''));
+              const hasUnknown = types.some((t: any) => t && !KNOWN.has(t));
+              if (!hasUnknown && !types.length) continue;
+              out.findings.push({
+                loc: l.name, locId: l.id,
+                payout: { id: po.id, amount: amt, status: po.status, type: po.type, dest: po.destination?.type, created: po.created_at },
+                entries: ents.map((x: any) => ({ type: x.type, gross: x.gross_amount_money?.amount, net: x.net_amount_money?.amount, other: x.type_other_details || null, paymentId: x.type_charge_details?.payment_id || null }))
+              });
+              await sleep(60);
+            }
+            cursor = pj?.cursor || '';
+            if (!cursor || pos.length < 100) break;
             await sleep(80);
           }
-        } catch (e: any) { rep.errors.push(`payouts: ${e?.message || e}`); }
-        try {
-          const pm: any = await squareFetch(`/v2/payments?location_id=${encodeURIComponent(l.id)}&begin_time=${encodeURIComponent(since)}&sort_order=DESC&limit=10`, 'GET', accessToken);
-          rep.payments = (pm?.payments || []).map((p: any) => ({ id: p.id, amount: p.amount_money?.amount, status: p.status, source: p.source_type, at: p.created_at, note: p.note || null }));
-        } catch { /* best effort */ }
-        out.locReports.push(rep);
+        } catch (e: any) { out.findings.push({ loc: l.name, locId: l.id, error: e?.message || String(e) }); }
         await sleep(80);
       }
       return Response.json({ success: true, probe: out });
     }
-
-    // Active Square locations
-    const configsRaw = await base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []);
-    const configs = (configsRaw || []).filter((c: any) => c?.square_location_id && (!c?.status || c.status === 'active'));
-    // cardTopupBackfill mode: one-time import of card-location transfer
-    // history only (payments/orders/refunds/COD passes all skipped).
-    const isTopupBackfill = String(payload?.mode || '') === 'cardTopupBackfill';
-    if (isTopupBackfill) windowStart = new Date(Date.now() - 800 * 86400000).toISOString();
-    if (!configs.length && !isTopupBackfill) throw new HttpError(400, 'No active Square location configurations found');
 
     // ── RAW API PREVIEW (owner request Oct 4 2026): return the raw records
     // EXACTLY as the Square API delivered them — before any mapping, COD
