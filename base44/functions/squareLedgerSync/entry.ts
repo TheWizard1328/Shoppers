@@ -326,10 +326,24 @@ Deno.serve(async (req) => {
       // card_spend class comes ONLY from owner-managed business-card labels —
       // the 5-swipe heuristic proved unreliable for stamping (unlinked COD
       // sales look like store-card spends when the catalog link chain broke).
+      const saleFeeBySquareId = new Map<string, any>();
+      for (const r of scanned) {
+        const k = String(r?.entry_kind || '');
+        if ((k === 'sale' || k === 'collected') && r?.square_id && r?.fee_cents != null) {
+          if (!saleFeeBySquareId.has(String(r.square_id))) saleFeeBySquareId.set(String(r.square_id), r.fee_cents);
+        }
+      }
+      let stampedTopupFees = 0;
       for (const row of scanned) {
         if (!row?.id) continue;
         const kind = String(row.entry_kind || '');
         const patch: any = {};
+        if (kind === 'card_topup' && row.fee_cents == null) {
+          const tokens = String(row.reason || '').split(' | ').filter(Boolean);
+          const srcId = tokens.length ? tokens[tokens.length - 1] : '';
+          const fee = srcId ? saleFeeBySquareId.get(srcId) : undefined;
+          if (fee != null) { patch.fee_cents = fee; stampedTopupFees += 1; }
+        }
         if (kind === 'sale') { patch.entry_kind = 'collected'; renameSales += 1; }
         else if (kind === 'payout' || kind === 'card_spend') { payoutDeleteIds.push(row.id); }
         const isSale = kind === 'sale' || kind === 'collected';
@@ -409,6 +423,7 @@ Deno.serve(async (req) => {
         failed: pending.length,
         renamedSales: renameSales,
         deletedPayoutRows: deletedPayouts,
+        stampedTopupFees,
         settlementStamps: stampSettlement,
         saleClassStamps: stampClasses,
       });
@@ -768,30 +783,36 @@ Deno.serve(async (req) => {
       if (rec?.entry_kind !== 'card_topup') continue;
       const src = topupSrcByPayout.get(String(rec.square_id)) || null;
       if (!src) continue;
-      let storeLoc = entries.get(src)?.location_id || null;
-      if (!storeLoc) storeLoc = existingRowsBySquareId.get(src)?.[0]?.location_id || null;
+      // Resolve the SOURCE SALE ROW (not just its location) so the top-up can
+      // inherit the fee skimmed from that sale (owner report Oct 4 2026:
+      // top-ups showed no fee cents).
+      const srcRow = entries.get(src) || existingRowsBySquareId.get(src)?.[0] || null;
+      const storeLoc = srcRow?.location_id || null;
       if (storeLoc && storeLocIds.has(String(storeLoc))) {
         rec.attributed_location_id = String(storeLoc);
+        if (rec.fee_cents == null && srcRow?.fee_cents != null) rec.fee_cents = srcRow.fee_cents;
         topupsAttributed += 1;
       } else if (!storeLoc) {
         unresolvedSrcs.add(src);
       }
     }
-    const srcLocByPaymentId = new Map<string, string>();
+    const srcRowByPaymentId = new Map<string, any>();
     for (const src of unresolvedSrcs) {
       try {
         const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ square_id: src }).catch(() => [])) as any[];
         const row = (rows || []).find((r: any) => r?.location_id);
-        if (row?.location_id) srcLocByPaymentId.set(String(src), String(row.location_id));
+        if (row?.location_id) srcRowByPaymentId.set(String(src), row);
       } catch { /* best effort */ }
       await sleep(40);
     }
     for (const rec of allEntries) {
       if (rec?.entry_kind !== 'card_topup' || rec.attributed_location_id) continue;
       const src = topupSrcByPayout.get(String(rec.square_id)) || null;
-      const storeLoc = src ? srcLocByPaymentId.get(String(src)) || null : null;
+      const srcRow = src ? srcRowByPaymentId.get(String(src)) || null : null;
+      const storeLoc = srcRow?.location_id || null;
       if (storeLoc && storeLocIds.has(String(storeLoc))) {
         rec.attributed_location_id = storeLoc;
+        if (rec.fee_cents == null && srcRow?.fee_cents != null) rec.fee_cents = srcRow.fee_cents;
         topupsAttributed += 1;
       }
     }

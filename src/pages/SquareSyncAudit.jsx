@@ -150,6 +150,7 @@ export default function SquareSyncAudit() {
   const { currentUser, isLoadingUser } = useUser();
   const [activeTab, setActiveTab] = useState("ledger");
   const [entries, setEntries] = useState([]);
+  const [expandedRowKey, setExpandedRowKey] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState("");
   const [storesById, setStoresById] = useState({});
@@ -714,8 +715,12 @@ export default function SquareSyncAudit() {
                         const cardLabel = e.card_fingerprint
                           ? (labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}`)
                           : (e.tender_type === "CASH" ? "Cash" : e.tender_type || "");
+                        const rowKey = `${e.entry_kind}-${e.square_id}`;
+                        const isExpanded = expandedRowKey === rowKey;
+                        const rawFields = Object.entries(e).filter(([k]) => !["cls", "classCode", "wall"].includes(k));
                         return (
-                          <tr key={`${e.entry_kind}-${e.square_id}`} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                          <>
+                          <tr key={rowKey} onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/50 cursor-pointer">
                             <td className="px-3 py-2 whitespace-nowrap">{displayDateTime(e.wall)}</td>
                             <td className="px-3 py-2">{e.location_name || e.location_id}</td>
                             <td className="px-3 py-2 text-xs">{cardLabel}</td>
@@ -731,6 +736,18 @@ export default function SquareSyncAudit() {
                             <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
                             <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>{e.cod_item_name || e.reason || ""}</td>
                           </tr>
+                          {isExpanded && (
+                            <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">
+                              <td colSpan={12} className="px-3 py-2">
+                                <div className="text-[11px] font-mono leading-5 text-slate-600 dark:text-slate-300 max-h-64 overflow-y-auto">
+                                  {rawFields.map(([k, v]) => (
+                                    <div key={k}><span className="text-slate-400 dark:text-slate-500">{k}:</span> {v == null || v === "" ? "—" : String(v)}</div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </>
                         );
                       })}
                     </tbody>
