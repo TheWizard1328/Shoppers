@@ -33,6 +33,10 @@ const LEDGER_PAGE_SIZE = 100;
 
 const fmtCents = (c) => `$${(Math.abs(Number(c || 0)) / 100).toFixed(2)}`;
 
+// WIZARD WORXX = the business's own Square Card (mobile) locations where
+// top-ups/payouts land — not store activity (owner: hide from Summary tab).
+const isWizardWorxxCard = (name) => /wizard\s*worxx/i.test(String(name || ""));
+
 const wallOf = (occurredAt) => {
   if (!occurredAt) return "1970-01-01T00:00:00";
   const d = parseAnyTimestamp(occurredAt);
@@ -137,6 +141,10 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId) => {
   if (["payout", "card_spend"].includes(String(entry.entry_kind || ""))) return { code: "payout", sign: 0 };
   if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
     if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
+    // Backend stamps card_spend only for owner-managed business-card labels —
+    // treat that stamp as authoritative even if the label record is missing
+    // the is_business_card toggle (owner report Oct 4 2026: Spent $0).
+    if (entry.sale_class === "card_spend") return { code: "spend", sign: -1 };
     const label = entry.card_fingerprint ? labelsByFingerprint[entry.card_fingerprint] : null;
     if (label?.is_business_card) return { code: "spend", sign: -1 };
     return { code: "other", sign: 1 };
@@ -282,6 +290,10 @@ export default function SquareSyncAudit() {
     return locations.filter((l) => selectedLocations.includes(l.id));
   }, [locations, selectedLocations]);
 
+  // Summary tab only: hide the WIZARD WORXX card locations (owner request
+  // Oct 4 2026) — they still show in the Ledger tab rows for auditing.
+  const summaryLocations = useMemo(() => activeLocations.filter((l) => !isWizardWorxxCard(l.name)), [activeLocations]);
+
   const fingerprintStats = useMemo(() => {
     const stats = new Map();
     for (const e of entries || []) {
@@ -346,6 +358,10 @@ export default function SquareSyncAudit() {
     const locSet = selectedLocations.length ? new Set(selectedLocations) : null;
     const rows = new Map();
     for (const e of enhancedEntries) {
+      // WIZARD WORXX = the Square Card (mobile) locations — top-ups/payouts
+      // for the business's own cards, not store activity. Owner request Oct 4
+      // 2026: keep them out of the Summary tab entirely.
+      if (isWizardWorxxCard(e.location_name)) continue;
       if (locSet && !locSet.has(e.location_id)) continue;
       if (e.wall < from || e.wall > to) continue;
       const key = periodKeyOf(e.wall, granularity);
@@ -373,6 +389,9 @@ export default function SquareSyncAudit() {
   }, [enhancedEntries, fromDate, toDate, selectedLocations, granularity]);
 
   const netOf = (b) => b ? b.collected + b.other + b.refundIn - b.spent - b.refundOut : 0;
+  // Collected money at a store = every sale (COD-linked or not).
+  const collectedOf = (b) => b ? b.collected + b.other : 0;
+  const refundsOf = (b) => b ? b.refundIn - b.refundOut : 0;
 
   const totals = useMemo(() => {
     let collected = 0,spent = 0,other = 0,refundIn = 0,refundOut = 0,declines = 0;
@@ -380,7 +399,8 @@ export default function SquareSyncAudit() {
       collected += b.collected;spent += b.spent;other += b.other;
       refundIn += b.refundIn;refundOut += b.refundOut;declines += b.declines;
     }
-    return { collected, spent, other, refundIn, refundOut, declines, net: collected + other + refundIn - spent - refundOut };
+    const collectedAll = collected + other;
+    return { collected: collectedAll, codOnly: collected, spent, other, refundIn, refundOut, declines, net: collectedAll + refundIn - spent - refundOut };
   }, [summaryRows]);
 
   // ---------- red flags ----------
@@ -814,17 +834,18 @@ export default function SquareSyncAudit() {
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                         <th className="px-3 py-2">Period</th>
-                        {activeLocations.map((l) =>
-                    <th key={l.id} colSpan={3} className="px-3 py-2 border-l text-center">{l.name}</th>
+                        {summaryLocations.map((l) =>
+                    <th key={l.id} colSpan={4} className="px-3 py-2 border-l text-center">{l.name}</th>
                     )}
                         <th className="px-3 py-2 border-l text-right">All Net</th>
                       </tr>
                       <tr className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-400">
                         <th className="px-3 py-1"></th>
-                        {activeLocations.map((l) =>
+                        {summaryLocations.map((l) =>
                     <React.Fragment key={l.id}>
                             <th className="px-3 py-1 border-l text-right font-normal">Collected</th>
                             <th className="px-3 py-1 text-right font-normal">Spent</th>
+                            <th className="px-3 py-1 text-right font-normal">Refunds</th>
                             <th className="px-3 py-1 text-right font-normal">Net</th>
                           </React.Fragment>
                     )}
@@ -841,14 +862,16 @@ export default function SquareSyncAudit() {
                       return (
                         <tr key={pk} className="border-t hover:bg-slate-50 dark:hover:bg-slate-900/50">
                               <td className="px-3 py-2 font-medium whitespace-nowrap">{periodLabelOf(pk, granularity)}</td>
-                              {activeLocations.map((l) => {
+                              {summaryLocations.map((l) => {
                             const b = summaryRows.get(`${pk}::${l.id}`);
                             const net = netOf(b);
+                            const refunds = refundsOf(b);
                             allNet += net;
                             return (
                               <React.Fragment key={l.id}>
-                                    <td className="px-3 py-2 border-l text-right whitespace-nowrap">{b ? fmtCents(b.collected) : "–"}</td>
+                                    <td className="px-3 py-2 border-l text-right whitespace-nowrap">{b ? fmtCents(collectedOf(b)) : "–"}</td>
                                     <td className="px-3 py-2 text-right text-red-600 dark:text-red-400 whitespace-nowrap">{b?.spent ? `-${fmtCents(b.spent)}` : "–"}</td>
+                                    <td className={`px-3 py-2 text-right whitespace-nowrap ${refunds < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>{b ? fmtCents(refunds) : "–"}</td>
                                     <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fmtCents(net)}</td>
                                   </React.Fragment>);
 
@@ -862,7 +885,7 @@ export default function SquareSyncAudit() {
                   </table>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Declines excluded from net. Bank transfers shown in the ledger tab. Card spend/refund classification depends on card labels (Cards & Red Flags tab).
+                  Collected = all Square sales at the store (COD-linked or not — legacy sales can't be delivery-linked). Refunds = refunds to customers minus refunds of card spends. Declines excluded from net. Bank transfers and card top-ups stay in the ledger tab. WIZARD WORXX cards hidden. Card spend classification uses card labels (Cards & Red Flags tab).
                 </div>
               </CardContent>
             </Card>
