@@ -1016,6 +1016,9 @@ export default function DriverPayroll() {
       setPayrollData((prev) => (!prev || prev?.__cacheKey !== cacheKey) ? data : prev);
       setPayrollRecords(data?.payrollRecords || []);
       setLoadedFromOffline(true);
+      // Cached data is on screen now — never leave the page on the blocking
+      // spinner/banner waiting for the background refresh below to finish.
+      setIsLoadingPayroll(false);
       return true;
     } catch (e) {
       console.warn('⚠️ [DriverPayroll] No offline payroll cache:', e);
@@ -1077,7 +1080,10 @@ export default function DriverPayroll() {
         throw error;
       } finally {
         fetchPayrollInFlightRef.current = null;
-        if (!isAutoRefresh) setIsLoadingPayroll(false);
+        // Always clear: by the time any fetch (foreground or background)
+        // settles, there is something on screen (fresh data, cache, or an
+        // error toast) — the blocking state must never outlive the request.
+        setIsLoadingPayroll(false);
       }
     };
 
