@@ -432,6 +432,8 @@ Deno.serve(async (req) => {
     const monthsBack = Math.min(MAX_MONTHS_BACK, Math.max(1, Math.round(Number(payload?.monthsBack || DEFAULT_MONTHS_BACK)) || DEFAULT_MONTHS_BACK));
     let windowStart = payload?.startDate || new Date(Date.now() - monthsBack * 30.44 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
     const windowEnd = payload?.endDate || new Date().toISOString();
+    // Payout-only backfill mode (light chunks, no payments/orders/refunds).
+    const isTopupBackfill = String(payload?.mode || '') === 'topupBackfill';
 
     // ── CARD SPEND PROBE v2 (owner Oct 5 2026): find how Square represents
     // MONEY SPENT from the store Square Cards. Scan payouts at every ACTIVE
@@ -735,6 +737,61 @@ Deno.serve(async (req) => {
         refunds: refunds.length,
         payouts: 0, // payout rows removed Oct 4 2026 — sweeps derived from settled_cents
       });
+    }
+
+    // ── STORE-CARD SWEEP PAYOUTS (owner spec Oct 5 2026) ────────────────────────
+    // The Summaries page must be the CARD ledger: Collected = any amount
+    // ADDED to the store's Square Card, using the ACTUAL swept cents from
+    // Square payout records — NOT the settled_cents formula on sale rows
+    // (owner: "actual collected, not the settled amounts"). Each card sale's
+    // settled remainder sweeps from the location balance onto the store
+    // card's stored balance as a BATCH payout AT THE STORE LOCATION with
+    // destination SQUARE_STORED_BALANCE. SIMPLE payouts are folder transfers
+    // (not card money) -> skipped. Negative payouts driven by REFUND entries
+    // are refund reversals -> skipped (register refunds own that money). Any
+    // other negative payout is a real withdrawal from the card ->
+    // entry_kind 'store_withdraw' (Spent). Runs in BOTH the regular sync and
+    // mode:'topupBackfill' chunks.
+    const locNameById = new Map<string, string>();
+    try {
+      const locsJson2: any = await squareFetch('/v2/locations', 'GET', accessToken);
+      for (const l of (locsJson2?.locations || [])) locNameById.set(String(l?.id || ''), String(l?.name || l?.id || ''));
+    } catch { /* names best effort */ }
+    let storeTopupsFetched = 0;
+    for (const cfg of (configs as any[])) {
+      const locationId = String(cfg?.square_location_id || '');
+      if (!locationId) continue;
+      const locationName = locNameById.get(locationId) || cfg?.name || cfg?.store_name || locationId;
+      try {
+        const payoutsPath = `/v2/payouts?location_id=${encodeURIComponent(locationId)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=ASC`;
+        const pos = await paginatedSquareGet(payoutsPath, accessToken);
+        for (const po of pos || []) {
+          if (String(po?.destination?.type || '') !== 'SQUARE_STORED_BALANCE') continue;
+          const amt = Math.round(Number(po?.amount_money?.amount || 0));
+          if (!po?.id || amt === 0) continue;
+          if (amt > 0 && String(po?.type || '') !== 'BATCH') continue; // SIMPLE = folder transfer, never card money
+          let entryTypes: string[] = [];
+          if (amt < 0) {
+            try {
+              const entsJson: any = await squareFetch(`/v2/payouts/${po.id}/payout-entries`, 'GET', accessToken);
+              entryTypes = (entsJson?.payout_entries || []).map((x: any) => String(x?.type || '')).filter(Boolean);
+            } catch { /* best effort */ }
+            if (entryTypes.includes('REFUND')) continue; // refund reversal — refunds own it
+          }
+          entries.set(String(po.id), buildEntry({
+            square_id: String(po.id),
+            entry_kind: amt > 0 ? 'store_topup' : 'store_withdraw',
+            amount_cents: Math.abs(amt),
+            status: po.status,
+            occurred_at: po.created_at,
+            location_id: locationId,
+            location_name: locationName,
+            reason: [amt > 0 ? 'STORE_CARD_TOPUP' : 'STORE_CARD_WITHDRAW', po.type, entryTypes.join('/') || null].filter(Boolean).join(' | '),
+          }));
+          storeTopupsFetched += 1;
+          await sleep(60);
+        }
+      } catch (e: any) { syncErrors.push(`storePayouts(${locationName}): ${e?.message || e}`); }
     }
 
     // ── CARD LOCATIONS — fund transfers onto the Square Cards (owner request,
@@ -1292,6 +1349,7 @@ Deno.serve(async (req) => {
       locationStats,
       entriesFetched: allEntries.length,
       topupsFetched,
+      storeTopupsFetched,
       topupsAttributed,
       entriesUpserted: upserted,
       entriesFailed: failedUpserts,

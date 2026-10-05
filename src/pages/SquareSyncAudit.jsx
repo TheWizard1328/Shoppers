@@ -100,6 +100,7 @@ const monthWindowUtc = (monthsAgo) => {
 
 const CLASS_STYLES = {
   spend: { badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", amount: "text-rose-600 dark:text-rose-400", sign: -1 },
+  topup: { badge: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300", amount: "text-teal-600 dark:text-teal-400", sign: 1 },
   cod: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", amount: "text-emerald-600 dark:text-emerald-400", sign: 1 },
   spend: { badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300", amount: "text-red-600 dark:text-red-400", sign: -1 },
   other: { badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", amount: "text-sky-600 dark:text-sky-400", sign: 1 },
@@ -113,6 +114,7 @@ const CLASS_STYLES = {
 const CLASS_LABELS = {
   cod: "COD Collected",
   spend: "Card Spend (store)",
+  topup: "Card Top-Up (actual)",
   other: "Other Sale",
   decline: "Declined",
   refund_in: "Refund (charge)",
@@ -144,6 +146,12 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId, storeCardF
   if (String(entry.entry_kind || "") === "payout") return { code: "payout", sign: 0 };
   // Actual purchases made with the business Square Card = money spent.
   if (String(entry.entry_kind || "") === "card_spend") return { code: "spend", sign: -1 };
+  // Owner spec (Oct 5 2026): the Summaries page is the CARD ledger.
+  // store_topup = ACTUAL cents Square swept onto the store's card (from
+  // payout records, not the settled formula) -> Collected.
+  // store_withdraw = money taken back off the card -> Spent.
+  if (String(entry.entry_kind || "") === "store_topup") return { code: "topup", sign: 1 };
+  if (String(entry.entry_kind || "") === "store_withdraw") return { code: "spend", sign: -1 };
   if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
     if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
     // Owner rule (Oct 5 2026): a sale paid with a STORE CARD — a card swiped
@@ -388,23 +396,25 @@ export default function SquareSyncAudit() {
       b.count++;
       const amt = Number(e.amount_cents || 0);
       switch (e.classCode) {
-        case "cod":b.collected += amt;break;
+        // Owner spec (Oct 5 2026): Summary = CARD LEDGER. Collected = actual
+        // amounts swept ONTO each store card (store_topup rows). Spent =
+        // store-card swipes + withdrawals (money taken FROM the card).
+        // Register sales (cod/other) are NOT card flows — Ledger tab only.
+        case "topup":b.collected += amt;break;
         case "spend":b.spent += amt;break;
-        case "other":b.other += amt;break;
         case "refund_in":b.refundIn += amt;break;
         case "refund_out":b.refundOut += amt;break;
         case "decline":b.declines++;break;
-        case "payout":
-        case "card_spend":b.payout += amt;break;
         default:break;
       }
     }
     return rows;
   }, [enhancedEntries, fromDate, toDate, selectedLocations, granularity]);
 
-  const netOf = (b) => b ? b.collected + b.other + b.refundIn - b.spent - b.refundOut : 0;
-  // Collected money at a store = every sale (COD-linked or not).
-  const collectedOf = (b) => b ? b.collected + b.other : 0;
+  // CARD LEDGER math (owner spec Oct 5 2026): Collected - Spent - refunds = the
+  // store card's balance change (start + net ≈ current card balance).
+  const netOf = (b) => b ? b.collected + b.refundIn - b.spent - b.refundOut : 0;
+  const collectedOf = (b) => b ? b.collected : 0;
   const refundsOf = (b) => b ? b.refundIn - b.refundOut : 0;
 
   const totals = useMemo(() => {
@@ -413,7 +423,7 @@ export default function SquareSyncAudit() {
       collected += b.collected;spent += b.spent;other += b.other;
       refundIn += b.refundIn;refundOut += b.refundOut;declines += b.declines;
     }
-    const collectedAll = collected + other;
+    const collectedAll = collected;
     return { collected: collectedAll, codOnly: collected, spent, other, refundIn, refundOut, declines, net: collectedAll + refundIn - spent - refundOut };
   }, [summaryRows]);
 
@@ -725,6 +735,7 @@ export default function SquareSyncAudit() {
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="cod">COD Collected</SelectItem>
                       <SelectItem value="spend">Card Spends (store cards)</SelectItem>
+                      <SelectItem value="topup">Card Top-Ups (actual)</SelectItem>
                       <SelectItem value="other">Other Sales</SelectItem>
                       <SelectItem value="refund_in">Refunds (charge)</SelectItem>
                       <SelectItem value="refund_out">Refunds (customer)</SelectItem>
@@ -900,7 +911,7 @@ export default function SquareSyncAudit() {
                   </table>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Collected = all Square sales at the store (incl. My BMO / My TD collection swipes). Spent = STORE-CARD swipes: cards used 5+ times at one store that never match a COD — money spent from each store's Square Card (learned automatically, same rule as Square Balances). Refunds = refunds to customers minus refunds of card spends. Declines excluded from net. Bank transfers and card top-ups stay in the ledger tab. WIZARD WORXX cards hidden.
+                  CARD LEDGER (owner spec Oct 5): Collected = ACTUAL amounts Square swept ONTO each store's card (real payout records — not the settled formula). Spent = money taken FROM the card: store-card swipes (cards used 5+ times at one store that never match a COD, auto-learned) plus any withdrawals. Refunds are separate (never in Collected). Collected − Spent − Refunds = the card's balance change, so start + Net ≈ the current card balance (matches Square Balances). Register sales stay in the Transaction Ledger tab. WIZARD WORXX cards hidden.
                 </div>
               </CardContent>
             </Card>
