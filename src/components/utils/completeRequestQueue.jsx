@@ -105,7 +105,26 @@ const flushCompletionJob = async (entry) => {
   if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
     const validRecords = affectedFullRecords.filter((r) => r?.id);
     if (validRecords.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, validRecords).catch(() => null);
+      // ETA-RACE GUARD (Oct 5 2026): this queue runs concurrently with the
+      // terminal action's ETA cascade (stopCardStartActions step 6), which
+      // writes FRESH delivery_time_eta values to IDB/server. affectedFullRecords
+      // was built from the PRE-cascade stop objects, so its delivery_time_eta
+      // values are stale. This pre-seed can land AFTER the cascade's IDB write
+      // (both fire-and-forget), which clobbered the fresh ETAs back to the
+      // old values — the UI then bounced fresh→stale→fresh→stale on every
+      // smartRefresh poll until a refresh cycle rewrote the server. The queue's
+      // optimistic contract is status/isNextDelivery/stop_order only; the ETA
+      // cascade owns delivery_time_eta. Preserve the existing IDB ETA.
+      const mergedSeed = await Promise.all(validRecords.map(async (rec) => {
+        try {
+          const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, rec.id).catch(() => null);
+          if (existing?.delivery_time_eta != null && existing.delivery_time_eta !== rec.delivery_time_eta) {
+            return { ...rec, delivery_time_eta: existing.delivery_time_eta };
+          }
+        } catch (_) {}
+        return rec;
+      }));
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mergedSeed).catch(() => null);
     }
   }
 
@@ -162,7 +181,15 @@ const flushCompletionJob = async (entry) => {
           if (rec.signature_image_url != null) update.signature_image_url = rec.signature_image_url;
           if (rec.delivery_route_breadcrumbs != null) update.delivery_route_breadcrumbs = rec.delivery_route_breadcrumbs;
           if (typeof rec.travel_dist === 'number') update.travel_dist = rec.travel_dist;
-          if (rec.delivery_time_eta != null) update.delivery_time_eta = rec.delivery_time_eta;
+          // ETA-RACE GUARD (Oct 5 2026): DO NOT push delivery_time_eta here.
+          // affectedFullRecords carries PRE-cascade ETAs; this write raced the
+          // ETA cascade's fresh server writes (both fire-and-forget from the
+          // same terminal action), and when this one landed last the server
+          // held STALE ETAs while IDB/state held fresh ones — every
+          // smartRefresh poll then reverted the stop cards (owner report Oct
+          // 2026: ETAs update → revert → bounce → revert → stay stale until a
+          // refresh cycle). The ETA cascade persists ETAs to the server itself;
+          // this queue owns status/order/flags only.
           // If no meaningful fields to update, skip the server write entirely
           if (Object.keys(update).length === 0) return Promise.resolve(null);
           return base44.entities.Delivery.update(rec.id, update).catch(() => null);
@@ -229,6 +256,15 @@ const flushCompletionJob = async (entry) => {
                 // yet committed) — same rule as the WS receiving-side merge.
                 if (loc.encoded_polyline && !srv.encoded_polyline) out.encoded_polyline = loc.encoded_polyline;
                 if (loc.finished_leg_encoded_polyline && !srv.finished_leg_encoded_polyline) out.finished_leg_encoded_polyline = loc.finished_leg_encoded_polyline;
+                // ETA-RACE GUARD (Oct 5 2026): mid-terminal-action, the local
+                // IDB copy carries the ETA cascade's FRESH values while the
+                // server still holds the pre-cascade ones (the cascade's own
+                // server writes may still be in flight). Server-wins here
+                // bulkSaved STALE ETAs into IDB, re-seeding the revert loop
+                // for the poll, the WS broadcast, and the post-cascade re-read.
+                if (loc.delivery_time_eta != null && srv.delivery_time_eta !== loc.delivery_time_eta) {
+                  out.delivery_time_eta = loc.delivery_time_eta;
+                }
                 return out;
               })
               .filter(Boolean);
