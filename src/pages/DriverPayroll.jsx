@@ -321,6 +321,11 @@ export default function DriverPayroll() {
   const [hasInitialized, setHasInitialized] = useState(false);
   const [payrollData, setPayrollData] = useState(null);
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
+  // Grace timer: the first-ever load (no IDB cache) must wait on the full-year
+  // backend gather, which can run 25-60s. After LOAD_GRACE_MS we swap the
+  // blocking spinner for the page shell + a syncing banner so the screen is
+  // never a dead spinner. Later loads render instantly from IDB.
+  const [blockingGraceExpired, setBlockingGraceExpired] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -1147,6 +1152,15 @@ export default function DriverPayroll() {
     return () => { cancelled = true; };
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll, loadOfflinePayroll]);
 
+  // Grace timer for the blocking spinner: only counts when a blocking load is in
+  // flight (isAutoRefresh loads never set isLoadingPayroll).
+  useEffect(() => {
+    if (!isLoadingPayroll) return;
+    setBlockingGraceExpired(false);
+    const t = setTimeout(() => setBlockingGraceExpired(true), 10000);
+    return () => clearTimeout(t);
+  }, [isLoadingPayroll]);
+
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
   useEffect(() => {
@@ -1485,10 +1499,17 @@ export default function DriverPayroll() {
 
   if (!currentUser) return <>{eTransDialog}<div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400">Please log in to view payroll</span></div></>;
   if (needsCitySelection) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400">Select a city to view payroll.</span></div>{eTransDialog}</>;
-  if (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading payroll data...</span></div>{eTransDialog}</>;
+  const showBlockingSpinner = (isLoadingPayroll && !blockingGraceExpired) || payPeriod === null || selectedPeriodIndex === null;
+  if (showBlockingSpinner) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading payroll data...</span></div>{eTransDialog}</>;
 
   return <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
+        {isLoadingPayroll && blockingGraceExpired && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-slate-800 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></span>
+            First-time sync of this year's payroll data — this can take up to a minute. The page loads instantly on every visit after this.
+          </div>
+        )}
         {/* Header */}
         <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
