@@ -40,6 +40,18 @@ const IN_FLIGHT_STATUSES = ['en_route', 'in_transit'];
 // Module-level (survive component remounts): per-driver cooldown + in-flight lock
 const lastRegenAtByDriver = new Map();
 let regenInFlight = false;
+let regenInFlightAt = 0;
+// ── REGEN WATCHDOG (owner report Oct 5 2026) ────────────────────────────────
+// A regen attempt that never settles (dynamic import hang in a suspended
+// WebView, dead-socket Directions fetch) left regenInFlight true FOREVER —
+// every subsequent deviation check for the rest of the session hit the
+// in-flight gate and the current-leg polyline stayed stale until an app
+// RESTART reset the module flag (owner: 'took an app restart to update the
+// current leg polyline after deviation'; API log showed zero deviation regens
+// all drive, then one the moment the app restarted). A lock older than this
+// watchdog is treated as hung: the next check logs it, takes over the lock,
+// and regenerates anyway.
+const REGEN_WATCHDOG_MS = 45_000;
 // TEMPORARY live-path diagnostics (Sep 21 2026): reports said the deviation
 // check never ran while the app was foregrounded, only on resume. These
 // throttled warn lines (console.warn survives the production Terser pass and
@@ -71,10 +83,17 @@ function localDateString(d) {
 // on-duty deviation check (exported below). Owns the in-flight lock + the
 // per-driver cooldown stamp so the two can never double-regen.
 async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally, todayStr }) {
-  if (regenInFlight) return { regenerated: false, reason: 'in_flight' };
+  if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) return { regenerated: false, reason: 'in_flight' };
+  if (regenInFlight) console.warn('[RouteDeviation] regen lock was stuck >45s (hung import/fetch) — watchdog recovery, regenerating anyway');
   regenInFlight = true;
+  regenInFlightAt = Date.now();
   lastRegenAtByDriver.set(driverId, Date.now());
   try {
+    // Keep the lock fresh while the regen is genuinely still working —
+    // heartbeat pings let the watchdog distinguish 'slow but alive' from
+    // 'hung'. A cheap ping at each await boundary is unnecessary; the whole
+    // regen (import + 1 Directions call + 1 entity write) normally settles
+    // in <10s, far under the 45s watchdog.
     console.log(`[RouteDeviation] ${driverId === undefined ? '' : ''}regenerating CURRENT LEG ONLY via live-GPS via-point`);
     const { regenerateCurrentLegPolyline } = await import('@/components/utils/currentLegRegenerator');
     const result = await regenerateCurrentLegPolyline({
@@ -143,7 +162,11 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
         console.warn('[RouteDeviation] remaining-stop ETA cascade failed:', cascadeErr?.message || cascadeErr);
       }
     } else {
-      console.log(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
+      // console.warn (NOT console.log) — production Terser strips console.log,
+      // which is why failed regen attempts during drives were invisible to
+      // remoteLogger (Oct 5 2026: whole drive with zero deviation regens, no
+      // clue why; the skip reason needs to survive the build).
+      console.warn(`[RouteDeviation] current-leg regen skipped: ${result?.reason || 'unknown'}`);
     }
     // UI-gated: while the app is hidden the deliveriesUpdated re-render is
     // deferred and replays at resume (the entity/IDB writes above already ran).
@@ -169,6 +192,7 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
     return { regenerated: false, error: err?.message || String(err) };
   } finally {
     regenInFlight = false;
+    regenInFlightAt = 0;
   }
 }
 
@@ -211,9 +235,10 @@ export async function checkCurrentLegDeviationOnDuty({
   if (Date.now() - lastRegenAt < cooldownMs) {
     return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: 'cooldown' };
   }
-  if (regenInFlight) {
+  if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) {
     return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: 'in_flight' };
   }
+  if (regenInFlight) console.warn('[RouteDeviation] on-duty check: regen lock stuck >45s — watchdog recovery');
 
   console.log(`[RouteDeviation] on-duty check: driver ${Math.round(distance)}m off the current leg (threshold ${threshold}m) — regenerating CURRENT leg`);
   const regenResult = await _regenCurrentLeg({
@@ -323,7 +348,8 @@ export function useRouteDeviationMonitor({
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
       if (now - lastRegenAt < cooldownMs) { _diag('cooldown', `dist=${Math.round(distance)}m`); return; }
-      if (regenInFlight) { _diag('gate:regen_in_flight', `dist=${Math.round(distance)}m`); return; }
+      if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) { _diag('gate:regen_in_flight', `dist=${Math.round(distance)}m`); return; }
+      if (regenInFlight) { _diag('watchdog:regen_lock_stuck', `dist=${Math.round(distance)}m — forcing regen`); }
 
       // Scoped regen (Sep 17 2026): one 2-3 point Directions call for the current
       // leg only — origin (last finished stop / home) → live GPS → next stop.
