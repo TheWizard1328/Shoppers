@@ -227,6 +227,36 @@ Deno.serve(async (req) => {
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
     if (!accessToken) throw new HttpError(500, 'Square credentials not configured');
 
+    if (payload?.debugRawPayments === true && payload?.locationId) {
+      const beginTime = String(payload.beginTime || new Date(Date.now() - 30 * 86400000).toISOString());
+      const endTime = String(payload.endTime || new Date().toISOString());
+      const out = [];
+      let cursor;
+      do {
+        const url = `https://connect.squareup.com/v2/payments?location_id=${encodeURIComponent(payload.locationId)}&begin_time=${encodeURIComponent(beginTime)}&end_time=${encodeURIComponent(endTime)}&sort_order=DESC&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+        const j = await r.json().catch(() => ({}));
+        if (j?.errors) return Response.json({ error: j.errors }, { status: 500 });
+        out.push(...(j.payments || []));
+        cursor = j.cursor;
+      } while (cursor);
+      const slim = out.map((p) => ({
+        id: p.id, status: p.status, amount_cents: p.amount_money?.amount, currency: p.amount_money?.currency,
+        order_id: p.order_id, created_at: p.created_at, updated_at: p.updated_at,
+        card_brand: p.card_details?.card?.card_brand, last4: p.card_details?.card?.last_4,
+        entry_method: p.card_details?.entry_method, source_type: p.source_type,
+        receipt_number: p.receipt_number, location_id: p.location_id, note: p.note,
+        delay_action: p.delay_action, risk_evaluation: p.risk_evaluation?.risk_level,
+      }));
+      // Also try /v2/bank-accounts to see if a Square Card/Checking product exists separately
+      let bankAccounts = null;
+      try {
+        const br = await fetch('https://connect.squareup.com/v2/bank-accounts', { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+        bankAccounts = await br.json().catch(() => null);
+      } catch (e) { bankAccounts = { error: String(e) }; }
+      return Response.json({ count: slim.length, beginTime, endTime, payments: slim, bankAccounts });
+    }
+
     const rates = await loadBalanceRates(base44);
 
     // ── LEDGER BACKFILL (owner revamp, Oct 3 2026) ─────────────────────────
