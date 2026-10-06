@@ -281,7 +281,14 @@ Deno.serve(async (req) => {
         } while (pCursor && pPages < 10);
         payments = pOut.map((p) => ({ id: p.id, status: p.status, amount_cents: p.amount_money?.amount, location_id: p.location_id, order_id: p.order_id, created_at: p.created_at, card_brand: p.card_details?.card?.card_brand, last4: p.card_details?.card?.last_4, entry: p.card_details?.entry_method, source_type: p.source_type, note: p.note }));
       }
-      return Response.json({ since, locations: locIds, orderCount: allOrders.length, orders: allOrders, payments });
+      // Optional server-side amount filter so the response stays small
+      const amtFilter = Array.isArray(payload.amountFilter) ? payload.amountFilter.map((n) => Math.round(Number(n))) : null;
+      const amtMatch = (cents) => !!amtFilter && amtFilter.includes(Math.round(Number(cents)));
+      const filteredOrders = amtFilter
+        ? allOrders.filter((o) => amtMatch(o.total_cents) || (o.tenders || []).some((t) => amtMatch(t.amount_cents)) || (o.line_items || []).some((li) => amtMatch(li.base_cents)))
+        : allOrders;
+      const filteredPayments = amtFilter && Array.isArray(payments) ? payments.filter((p) => amtMatch(p.amount_cents)) : payments;
+      return Response.json({ since, locations: locIds, orderCount: allOrders.length, orderMatches: filteredOrders.length, orders: filteredOrders, payments: filteredPayments });
     }
 
     const rates = await loadBalanceRates(base44);
