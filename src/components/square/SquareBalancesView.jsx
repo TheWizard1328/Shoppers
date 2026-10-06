@@ -143,10 +143,20 @@ function CardCodList({ sections }) {
             // collected) the net amount returned to the card + the status
             // badge, whose word itself names the real tender (Cash / Debit /
             // Credit). Cash never shows a net amount — no card fees applied.
-            const statusLabel = r.collected ? (r.collectedLabel || 'Collected') : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending');
+            // Cash-already-collected rows (Oct 6 2026): the catalog item is
+            // deliberately kept alive after a cash collection until the
+            // driver's bank deposit is matched — by design (see
+            // squareCodSync.jsx), but it must look visually DIFFERENT from a
+            // COD nobody has collected yet, or it reads as a duplicate of the
+            // same delivery's "Collected today" row.
+            const statusLabel = r.collected
+              ? (r.collectedLabel || 'Collected')
+              : (r.cashAwaitingSquare ? 'Cash — Awaiting Deposit' : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending'));
             const statusColorCls = r.collected
               ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-              : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
+              : (r.cashAwaitingSquare
+                ? 'bg-teal-100 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300'
+                : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300');
             const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
             return (
               <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
@@ -308,11 +318,34 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         itemsPages.push(...list);
         if (list.length < 500) break;
       }
+      const itemsRaw = itemsPages;
+      // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
+      // looked like a plain duplicate between Collected Today and
+      // Uncollected). By design (squareCodSync.jsx desired-state table):
+      // "completed + cash -> item stays until squareReconcile matches the
+      // driver's deposit" — the catalog item deliberately survives a cash
+      // collection so the bank deposit can later be matched. That's correct
+      // bookkeeping, but with no visual distinction it looks exactly like a
+      // COD nobody has collected yet. Fetch just the deliveries referenced
+      // here (not the whole table) and tag rows whose delivery is already
+      // status 'completed' with a Cash payment.
+      const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
+      const cashCollectedDeliveryIds = new Set();
+      if (deliveryIdsForCashCheck.length) {
+        for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
+          const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
+          const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
+          for (const d of (rows || [])) {
+            if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
+              cashCollectedDeliveryIds.add(d.id);
+            }
+          }
+        }
+      }
       const [storesRaw, patientsRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.Patient.list().catch(() => []),
       ]);
-      const itemsRaw = itemsPages;
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const storeById = new Map();
       (storesRaw || []).forEach((s) => { if (s?.id) storeById.set(String(s.id), s); });
@@ -330,6 +363,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeColor: sInfo?.color || null,
           amount: Number(it.amount || 0),
           date: date || null,
+          cashAwaitingSquare: it.delivery_id ? cashCollectedDeliveryIds.has(it.delivery_id) : false,
         });
       }
       // DEFENSIVE DEDUP (Oct 6 2026, owner report: Emilen Brochu COD shown
@@ -1357,6 +1391,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   collected: false,
                   pendingPickup: !!it.pendingPickup,
                   hasCardSpend: swiped(it.delivery_id),
+                  cashAwaitingSquare: !!it.cashAwaitingSquare,
                 }));
                 // Future-dated en_route/in_transit CODs never have a Square
                 // catalog item either (same reconciler behavior) — merge them
@@ -1392,6 +1427,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   collected: false,
                   pendingPickup: !!it.pendingPickup,
                   hasCardSpend: swiped(it.delivery_id),
+                  cashAwaitingSquare: !!it.cashAwaitingSquare,
                 }));
                 const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
                 const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
