@@ -325,6 +325,39 @@ Deno.serve(async (req) => {
       return Response.json({ results });
     }
 
+    // ONE-OFF DIAGNOSTIC (Oct 6 2026): check Square's raw /v2/payments for
+    // PENDING/APPROVED statuses specifically (not just COMPLETED/FAILED),
+    // across all locations, to confirm whether the owner's "Pending" card
+    // spend entries (e.g. Elaine Ash 49.98) actually exist there.
+    if (payload?.probePending === true) {
+      const days = Number(payload.days || 10);
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const cfgs = await base44.entities.SquareLocationConfig.list('-updated_date', 100).catch(() => []);
+      const locIds = Array.from(new Set((cfgs || []).map((c) => c?.square_location_id).filter(Boolean)));
+      const allPending = [];
+      const statusCounts = {};
+      for (const locId of locIds) {
+        let cursor;
+        let pages = 0;
+        do {
+          const url = `https://connect.squareup.com/v2/payments?location_id=${encodeURIComponent(locId)}&begin_time=${encodeURIComponent(since)}&sort_order=DESC&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+          const j = await r.json().catch(() => ({}));
+          if (j?.errors) return Response.json({ error: j.errors, locId }, { status: 500 });
+          for (const p of (j.payments || [])) {
+            const st = String(p.status || 'UNKNOWN');
+            statusCounts[st] = (statusCounts[st] || 0) + 1;
+            if (st !== 'COMPLETED' && st !== 'FAILED') {
+              allPending.push({ id: p.id, status: p.status, amount_cents: p.amount_money?.amount, location_id: p.location_id, created_at: p.created_at, card_brand: p.card_details?.card?.card_brand, last4: p.card_details?.card?.last_4, note: p.note });
+            }
+          }
+          cursor = j.cursor;
+          pages++;
+        } while (cursor && pages < 5);
+      }
+      return Response.json({ since, locations: locIds, statusCounts, pendingOrApprovedCount: allPending.length, pendingOrApproved: allPending });
+    }
+
     const rates = await loadBalanceRates(base44);
 
     // ── LEDGER BACKFILL (owner revamp, Oct 3 2026) ─────────────────────────
