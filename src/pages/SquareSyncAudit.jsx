@@ -154,13 +154,12 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId, storeCardF
   if (String(entry.entry_kind || "") === "store_withdraw") return { code: "spend", sign: -1 };
   if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
     if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
-    // Owner rule (Oct 5 2026): a sale paid with a STORE CARD — a card swiped
-    // 5+ times at this location that never matches a COD, learned with the
-    // SAME rule as Square Balances — is the store spending from its own
-    // Square Card. Money OUT of the store card: shown in Spent, NOT in
-    // Collected. My BMO / My TD stay Collected (owner: they are collections
-    // going ONTO his cards, not store spends).
-    if (entry.card_fingerprint && storeCardFps?.has(String(entry.card_fingerprint))) return { code: "spend", sign: -1 };
+    // Owner rule (Oct 6 2026): ANY sale with a debit/credit card in the
+    // transaction data is obviously a Card Sale/Collection — ALWAYS positive,
+    // unless it is a refund. The old store-card fingerprint flip (Oct 5) is
+    // removed from the ledger: it mislabeled genuine COD card swipes (Lasaga
+    // $8.62) as negative spends. The 5-swipe fingerprint learning remains
+    // ONLY in the Square Balances matching pool, never in ledger signs.
     return { code: "other", sign: 1 };
   }
   return { code: "other", sign: 0 };
@@ -364,6 +363,10 @@ export default function SquareSyncAudit() {
       if (locSet && !locSet.has(e.location_id)) return false;
       if (from && e.wall < from) return false;
       if (to && e.wall > to) return false;
+      // Owner rule (Oct 6 2026): Card Top-Up (actual) rows duplicate the
+      // Settled To Card amounts on the sale rows — hide them from the
+      // Transaction Ledger list.
+      if (String(e.entry_kind || "") === "store_topup") return false;
       if (kindFilter !== "all" && e.classCode !== kindFilter) return false;
       if (search) {
         const hay = `${e.location_name || ""} ${e.cod_item_name || ""} ${e.reason || ""} ${e.card_brand || ""} ${e.card_last4 || ""}`.toLowerCase();
@@ -735,8 +738,7 @@ export default function SquareSyncAudit() {
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="cod">COD Collected</SelectItem>
                       <SelectItem value="spend">Card Spends (store cards)</SelectItem>
-                      <SelectItem value="topup">Card Top-Ups (actual)</SelectItem>
-                      <SelectItem value="other">Other Sales</SelectItem>
+                        <SelectItem value="other">Other Sales</SelectItem>
                       <SelectItem value="refund_in">Refunds (charge)</SelectItem>
                       <SelectItem value="refund_out">Refunds (customer)</SelectItem>
                       <SelectItem value="refund_unlinked">Refunds (unlinked)</SelectItem>
@@ -780,10 +782,7 @@ export default function SquareSyncAudit() {
                         <th className="px-3 py-2">Method</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2 text-right">Amount</th>
-                        <th className="px-3 py-2 text-right">Fee</th>
-                        <th className="px-3 py-2 text-right">Folder</th>
-                        <th className="px-3 py-2 text-right">Loan</th>
-                        <th className="px-3 py-2 text-right">Settled to Card</th>
+                        <th className="px-3 py-2 text-right">Fee/Folder/Loan → Settled</th>
                         <th className="px-3 py-2">Item / Reason</th>
                       </tr>
                     </thead>
@@ -808,15 +807,21 @@ export default function SquareSyncAudit() {
                             <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${style.amount}`}>
                               {e.cls.sign === -1 ? "-" : ""}{fmtCents(e.amount_cents)}
                             </td>
-                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.fee_cents != null ? fmtCents(e.fee_cents) : ""}</td>
-                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.folder_cents != null ? fmtCents(e.folder_cents) : ""}</td>
-                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.loan_cents != null ? fmtCents(e.loan_cents) : ""}</td>
-                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap" title={`fee ${e.fee_cents != null ? fmtCents(e.fee_cents) : "—"} / folder ${e.folder_cents != null ? fmtCents(e.folder_cents) : "—"} / loan ${e.loan_cents != null ? fmtCents(e.loan_cents) : "—"} → settled to card ${e.settled_cents != null ? fmtCents(e.settled_cents) : "—"}`}>
+                              {(() => {
+                                const bits = [];
+                                if (e.fee_cents != null) bits.push(fmtCents(e.fee_cents));
+                                if (e.folder_cents != null) bits.push(fmtCents(e.folder_cents));
+                                if (e.loan_cents != null) bits.push(fmtCents(e.loan_cents));
+                                const settled = e.settled_cents != null ? fmtCents(e.settled_cents) : "";
+                                return `${bits.join(" / ")}${settled ? ` → ${settled}` : ""}` || "";
+                              })()}
+                            </td>
                             <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>{e.cod_item_name || e.reason || ""}</td>
                           </tr>
                           {isExpanded &&
                         <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">
-                              <td colSpan={12} className="px-3 py-2">
+                              <td colSpan={9} className="px-3 py-2">
                                 <div className="text-[11px] font-mono leading-5 text-slate-600 dark:text-slate-300 max-h-64 overflow-y-auto">
                                   {rawFields.map(([k, v]) =>
                               <div key={k}><span className="text-slate-400 dark:text-slate-500">{k}:</span> {v == null || v === "" ? "—" : String(v)}</div>
