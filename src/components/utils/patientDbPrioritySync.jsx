@@ -81,22 +81,41 @@ export async function runPatientDbPrioritySync(currentUser) {
     // thousands of skeleton rows (id present, full_name/address empty). These
     // must NOT satisfy the threshold, otherwise the re-sync that would overwrite
     // them with full server data never runs and patient cards render blank.
-    const count = (allPatients || []).filter(p => p?.id && !p.id.startsWith('temp_') && (p.full_name || p.address)).length;
-
-    if (count >= PATIENT_THRESHOLD) {
-      console.log(`✅ [PatientPrioritySync] Offline patient DB has ${count} valid records — no sync needed`);
-      return;
-    }
-
-    console.log(`⚠️ [PatientPrioritySync] Only ${count} valid patients offline (threshold: ${PATIENT_THRESHOLD}). Starting priority sync...`);
-    _syncRunning = true;
+    const validPatients = (allPatients || []).filter(p => p?.id && !p.id.startsWith('temp_') && (p.full_name || p.address));
+    const count = validPatients.length;
 
     const [allStores, allAppUsers] = await Promise.all([
       offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
       offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
     ]);
 
-    const orderedStoreIds = getOrderedStoreIds(currentUser, allStores, allAppUsers);
+    // PER-STORE GAP DETECTION (Oct 6 2026): once a device crosses the global
+    // 3000-patient threshold the sync never runs again — so patients for a
+    // NEWLY onboarded store (e.g. Lakeland Ridge / Sherwood Pk Mall, whose
+    // patients were bulk-imported after the device was already full) never
+    // reach the offline mirror and the driver's patient search finds nothing
+    // for those stores. Detect stores with ZERO valid offline patients and
+    // sync just those even when over the threshold.
+    const patientStoreIds = new Set(validPatients.map(p => p?.store_id).filter(Boolean));
+    const missingStoreIds = (allStores || [])
+      .filter(s => s?.id && !patientStoreIds.has(s.id))
+      .map(s => s.id);
+
+    if (count >= PATIENT_THRESHOLD && missingStoreIds.length === 0) {
+      console.log(`✅ [PatientPrioritySync] Offline patient DB has ${count} valid records — no sync needed`);
+      return;
+    }
+
+    if (count >= PATIENT_THRESHOLD) {
+      console.log(`⚠️ [PatientPrioritySync] Over threshold (${count}) but ${missingStoreIds.length} store(s) have zero offline patients — gap-syncing those`);
+    } else {
+      console.log(`⚠️ [PatientPrioritySync] Only ${count} valid patients offline (threshold: ${PATIENT_THRESHOLD}). Starting priority sync...`);
+    }
+    _syncRunning = true;
+
+    const orderedStoreIds = count >= PATIENT_THRESHOLD
+      ? missingStoreIds
+      : getOrderedStoreIds(currentUser, allStores, allAppUsers);
 
     if (orderedStoreIds.length === 0) {
       console.warn('[PatientPrioritySync] No stores found to sync');

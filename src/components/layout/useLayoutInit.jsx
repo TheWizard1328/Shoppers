@@ -486,7 +486,7 @@ export function useLayoutInit({
           } catch { /* non-critical */ }
         }, 2000);
 
-        // ── STEP 3a: Patient DB priority sync — runs if offline DB < 3000 patients ──
+        // ── STEP 3a: Patient DB priority sync — runs if offline DB < 3000 patients or any store has zero offline patients ──
         // Non-blocking. Prioritises stores relevant to the current user's role.
         setTimeout(() => {
           runPatientDbPrioritySync(fetchedUser).catch(() => {});
