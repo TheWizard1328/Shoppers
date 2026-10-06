@@ -194,20 +194,24 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                            the owner tapped "Mark Spend": violet pill. The
                            moment a matching Square item IS found, state 1
                            takes over and the color reverts to sky.
-                        3. UNMARKED — owner-only "Mark Spend" button (same
-                           height as the pills) when neither exists. Cash
-                           rows never show it: cash never touches the card. */}
+                        3. UNMARKED — owner-only "Mark Spend" pill (Oct 6
+                           2026: restyled as a plain tappable badge, same
+                           look/size as every other pill here — not a
+                           button) when neither exists. Cash rows never show
+                           it: cash never touches the card. */}
                     {r.hasCardSpend ? (
                       <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
                     ) : r.manualCardSpend ? (
                       <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">Card Spend</span>
                     ) : (canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && !r.cashAwaitingSquare && onMarkSpend) ? (
-                      <button
-                        type="button"
+                      <span
+                        role="button"
+                        tabIndex={0}
                         onClick={() => onMarkSpend(r.delivery_id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onMarkSpend(r.delivery_id); } }}
                         title="Mark this COD as having a Card Spend in your Square app"
-                        className="rounded-full bg-slate-100 dark:bg-slate-800 border border-dashed border-slate-400 dark:border-slate-500 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                      >Mark Spend</button>
+                        className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                      >Mark Spend</span>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -246,6 +250,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // counter ensures only the most-recently-STARTED call's result is ever
   // committed to state.
   const catalogUncollectedSeqRef = useRef(0);
+  // FLICKER GUARD (Oct 6 2026, owner report persists after the sequence
+  // guard fix: Past uncollected rows appear then disappear). The
+  // SquareCatalogItems data itself can blip, a backend dedup/reconcile pass
+  // can momentarily delete-then-recreate an item for the same delivery
+  // (new row id, brief window where neither row matches status active), so
+  // even a perfectly-ordered, non-racing recompute can legitimately fetch an
+  // empty or missing row for a delivery that is still truly uncollected.
+  // Track consecutive misses per delivery_id; only drop a row from the list
+  // after it is missing on TWO CONSECUTIVE successful fetches (a real
+  // collection or removal stays missing both times; a blip self-heals
+  // within one cycle).
+  const catalogMissStreakRef = useRef(new Map());
+  const catalogUncollectedByLocRef = useRef({});
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -455,7 +472,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // this frontend list must never show a repeat even if a stale/duplicate
       // row briefly exists in SquareCatalogItems (e.g. mid-cleanup, racing
       // sync). Collapse by delivery_id, keeping the most recently created row.
-      const out = {};
+      const freshOut = {};
       for (const [locId, rowsRaw] of byLoc) {
         const byDelivery = new Map();
         const noDeliveryId = [];
@@ -464,7 +481,37 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const existing = byDelivery.get(r.delivery_id);
           if (!existing || String(r.key) > String(existing.key)) byDelivery.set(r.delivery_id, r);
         }
-        out[locId] = [...byDelivery.values(), ...noDeliveryId];
+        freshOut[locId] = [...byDelivery.values(), ...noDeliveryId];
+      }
+      // Carry-forward merge: a delivery_id present in the PREVIOUS rendered
+      // state but missing from this fresh fetch is kept for up to one extra
+      // cycle (a transient backend blip), then dropped once it has missed
+      // twice in a row (a real collection/removal).
+      const freshIdsByLoc = new Map();
+      for (const [locId, rows] of Object.entries(freshOut)) {
+        freshIdsByLoc.set(locId, new Set(rows.map((r) => r.delivery_id).filter(Boolean)));
+      }
+      const streak = catalogMissStreakRef.current;
+      const seenThisPass = new Set();
+      const out = { ...freshOut };
+      for (const [locId, prevRows] of Object.entries(catalogUncollectedByLocRef.current || {})) {
+        const freshIds = freshIdsByLoc.get(locId) || new Set();
+        for (const r of (prevRows || [])) {
+          if (!r.delivery_id) continue;
+          seenThisPass.add(r.delivery_id);
+          if (freshIds.has(r.delivery_id)) { streak.delete(r.delivery_id); continue; }
+          const misses = (streak.get(r.delivery_id) || 0) + 1;
+          if (misses >= 2) { streak.delete(r.delivery_id); continue; } // confirmed gone
+          streak.set(r.delivery_id, misses);
+          if (!out[locId]) out[locId] = [];
+          out[locId] = [...out[locId], r]; // carry forward one more cycle
+        }
+      }
+      // Any delivery_id that was present fresh resets its streak (handled
+      // above via streak.delete when found); prune streak entries for ids no
+      // longer seen anywhere to avoid an unbounded map.
+      for (const id of Array.from(streak.keys())) {
+        if (!seenThisPass.has(id)) streak.delete(id);
       }
       // Render the full list immediately — never let the list wait on, or be
       // wiped by, the slower cash-check below (Oct 6 2026 regression: an
@@ -477,6 +524,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return; // keep previous state; a later successful recompute replaces it
       }
       if (!isLatest()) return; // a newer call already started — don't stomp its result
+      catalogUncollectedByLocRef.current = out;
       setCatalogUncollectedByLoc(out);
 
       // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
@@ -509,6 +557,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
               ));
             }
+            catalogUncollectedByLocRef.current = next;
             return next;
           });
         }
