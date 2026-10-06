@@ -291,6 +291,40 @@ Deno.serve(async (req) => {
       return Response.json({ since, locations: locIds, orderCount: allOrders.length, orderMatches: filteredOrders.length, orders: filteredOrders, payments: filteredPayments });
     }
 
+    // ONE-OFF DIAGNOSTIC (Oct 6 2026): probe every Square endpoint that
+    // could expose the Square CARD / Square Checking activity feed (the
+    // negative "Card spend" entries the owner sees in the Square app).
+    // Records status codes + first bytes so we know definitively what the
+    // API surface offers.
+    if (payload?.probeEndpoints === true) {
+      const tryGet = async (label, url) => {
+        try {
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+          const text = await r.text();
+          return { label, status: r.status, body: text.slice(0, 900) };
+        } catch (e) {
+          return { label, error: String(e).slice(0, 200) };
+        }
+      };
+      const results = [];
+      results.push(await tryGet('list_wallets', 'https://connect.squareup.com/v2/wallets'));
+      results.push(await tryGet('list_cards', 'https://connect.squareup.com/v2/cards'));
+      const bankRaw = await fetch('https://connect.squareup.com/v2/bank-accounts', { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+      const bankJson = await bankRaw.json().catch(() => ({}));
+      results.push({ label: 'list_bank_accounts', status: bankRaw.status, ids: (bankJson.bank_accounts || []).map((b) => ({ id: b.id, name: b.bank_account_name, type: b.type, status: b.status })) });
+      for (const b of (bankJson.bank_accounts || []).slice(0, 2)) {
+        results.push(await tryGet(`bank_txns_${b.id}`, `https://connect.squareup.com/v2/bank-accounts/${b.id}/transactions`));
+      }
+      const cardsRaw = await fetch('https://connect.squareup.com/v2/cards', { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+      const cardsJson = await cardsRaw.json().catch(() => ({}));
+      for (const c of (cardsJson.cards || []).slice(0, 2)) {
+        results.push(await tryGet(`card_${c.id}`, `https://connect.squareup.com/v2/cards/${c.id}/transactions`));
+        results.push(await tryGet(`card_${c.id}_details`, `https://connect.squareup.com/v2/cards/${c.id}`));
+      }
+      results.push(await tryGet('payments_v1', 'https://connect.squareup.com/v1/me/payments'));
+      return Response.json({ results });
+    }
+
     const rates = await loadBalanceRates(base44);
 
     // ── LEDGER BACKFILL (owner revamp, Oct 3 2026) ─────────────────────────
