@@ -1182,6 +1182,7 @@ Deno.serve(async (req) => {
       // Completed deliveries with a COD requirement (bounded pages).
       type CodDelivery = { id: string; locId: string; cents: number; cents2: number; completedAt: number; date: string; patientId: any; patientName: string; abbr: string | null };
       const codDeliveries: CodDelivery[] = [];
+      const patientIdsToResolve = new Set<string>();
       const backfillFloorMs = new Date(new Date(windowStart).getTime() - 3 * 86400000).getTime();
       for (let page = 0; page < 4; page++) {
         const rows: any[] = (await base44.asServiceRole.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => [])) as any[];
@@ -1215,6 +1216,24 @@ Deno.serve(async (req) => {
             date: String(d?.delivery_date || ''), patientId: d?.patient_id || null,
             patientName: ledgerNormalizeText(d?.patient_name), abbr: storeAbbrById.get(String(d?.store_id || '')) || null,
           });
+          if (d?.patient_id && !ledgerNormalizeText(d?.patient_name)) patientIdsToResolve.add(String(d.patient_id));
+        }
+        // Resolve actual patient names for deliveries that only carry a
+        // patient_id (owner Oct 6: no more "Unknown Patient" in the ledger
+        // Item column when the id is known). One .get per id (bounded pool:
+        // completed CODs since the backfill floor), throttled.
+        const patientNameById = new Map<string, string>();
+        {
+          const ids = Array.from(patientIdsToResolve);
+          for (const pid of ids) {
+            const p: any = await base44.asServiceRole.entities.Patient.get(pid).catch(() => null);
+            if (p?.id) patientNameById.set(String(p.id), ledgerNormalizeText(p?.full_name || p?.name));
+            await sleep(40);
+          }
+          for (const d of codDeliveries) {
+            const resolved = d.patientId ? patientNameById.get(String(d.patientId)) : '';
+            if (resolved) d.patientName = resolved;
+          }
         }
         if (list.length < 2000) break;
         if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < backfillFloorMs) break;
