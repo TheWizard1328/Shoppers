@@ -210,6 +210,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
   const [cardSpendIds, setCardSpendIds] = useState(new Set()); // owner-only: delivery_ids with a real CARD swipe in Square tx data
   const [catalogUncollectedByLoc, setCatalogUncollectedByLoc] = useState(undefined); // owner-only: ACTIVE SquareCatalogItems = uncollected, all dates
+  // RACE GUARD (Oct 6 2026, owner report: "Past Uncollected shows up then
+  // disappears"). computeCatalogUncollected is triggered from several
+  // places — initial mount, manual sync, Delivery WS (8s debounce), and
+  // SquareCatalogItems WS (5s debounce) — and can run concurrently. If an
+  // OLDER call (slower network, or a retry delay) resolves AFTER a NEWER
+  // call, its stale/incomplete result stomps the fresh one. This sequence
+  // counter ensures only the most-recently-STARTED call's result is ever
+  // committed to state.
+  const catalogUncollectedSeqRef = useRef(0);
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -312,6 +321,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // uncollected lists as the App Owner (owner request, Oct 4 2026) — the
     // catalog-sourced list catches old items the windowed delivery query
     // misses, which is exactly what "Past uncollected" needs for drivers too.
+    const mySeq = ++catalogUncollectedSeqRef.current;
+    const isLatest = () => mySeq === catalogUncollectedSeqRef.current;
     try {
       // DISAPPEARING-ROWS GUARD (Oct 6 2026, owner report: Past uncollected
       // rows "show up then disappear"). A failed/empty fetch page MUST NOT
@@ -393,6 +404,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (totalItemsFetched === 0 && anyFetchFailed) {
         return; // keep previous state; a later successful recompute replaces it
       }
+      if (!isLatest()) return; // a newer call already started — don't stomp its result
       setCatalogUncollectedByLoc(out);
 
       // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
@@ -416,7 +428,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             }
           }
         }
-        if (cashCollectedDeliveryIds.size > 0) {
+        if (cashCollectedDeliveryIds.size > 0 && isLatest()) {
           setCatalogUncollectedByLoc((prev) => {
             if (!prev) return prev;
             const next = {};

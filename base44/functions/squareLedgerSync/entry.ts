@@ -355,7 +355,30 @@ Deno.serve(async (req) => {
           pages++;
         } while (cursor && pages < 5);
       }
-      return Response.json({ since, locations: locIds, statusCounts, pendingOrApprovedCount: allPending.length, pendingOrApproved: allPending });
+      // Also check /v2/payouts for PENDING/IN_PROGRESS statuses (store card
+      // top-ups/withdrawals use this endpoint, not /v2/payments).
+      const payoutStatusCounts = {};
+      const pendingPayouts = [];
+      for (const locId of locIds) {
+        let cursor;
+        let pages = 0;
+        do {
+          const url = `https://connect.squareup.com/v2/payouts?location_id=${encodeURIComponent(locId)}&begin_time=${encodeURIComponent(since)}&sort_order=DESC&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+          const j = await r.json().catch(() => ({}));
+          if (j?.errors) { payoutStatusCounts.__error = j.errors; break; }
+          for (const po of (j.payouts || [])) {
+            const st = String(po.status || 'UNKNOWN');
+            payoutStatusCounts[st] = (payoutStatusCounts[st] || 0) + 1;
+            if (st !== 'PAID' && st !== 'FAILED' && st !== 'CANCELLED') {
+              pendingPayouts.push({ id: po.id, status: po.status, amount_cents: po.amount_money?.amount, type: po.type, location_id: po.location_id, created_at: po.created_at, destination_type: po.destination?.type });
+            }
+          }
+          cursor = j.cursor;
+          pages++;
+        } while (cursor && pages < 5);
+      }
+      return Response.json({ since, locations: locIds, statusCounts, pendingOrApprovedCount: allPending.length, pendingOrApproved: allPending, payoutStatusCounts, pendingPayoutsCount: pendingPayouts.length, pendingPayouts });
     }
 
     const rates = await loadBalanceRates(base44);
