@@ -782,7 +782,10 @@ export default function SquareSyncAudit() {
                         <th className="px-3 py-2">Method</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2 text-right">Amount</th>
-                        <th className="px-3 py-2 text-right">Fee/Folder/Loan → Settled</th>
+                        <th className="px-3 py-2 text-right">Fee</th>
+                        <th className="px-3 py-2 text-right">Folder</th>
+                        <th className="px-3 py-2 text-right">Loan</th>
+                        <th className="px-3 py-2 text-right">Settled to Card</th>
                         <th className="px-3 py-2">Item / Reason</th>
                       </tr>
                     </thead>
@@ -807,21 +810,15 @@ export default function SquareSyncAudit() {
                             <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${style.amount}`}>
                               {e.cls.sign === -1 ? "-" : ""}{fmtCents(e.amount_cents)}
                             </td>
-                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap" title={`fee ${e.fee_cents != null ? fmtCents(e.fee_cents) : "—"} / folder ${e.folder_cents != null ? fmtCents(e.folder_cents) : "—"} / loan ${e.loan_cents != null ? fmtCents(e.loan_cents) : "—"} → settled to card ${e.settled_cents != null ? fmtCents(e.settled_cents) : "—"}`}>
-                              {(() => {
-                                const bits = [];
-                                if (e.fee_cents != null) bits.push(fmtCents(e.fee_cents));
-                                if (e.folder_cents != null) bits.push(fmtCents(e.folder_cents));
-                                if (e.loan_cents != null) bits.push(fmtCents(e.loan_cents));
-                                const settled = e.settled_cents != null ? fmtCents(e.settled_cents) : "";
-                                return `${bits.join(" / ")}${settled ? ` → ${settled}` : ""}` || "";
-                              })()}
-                            </td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.fee_cents != null ? fmtCents(e.fee_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.folder_cents != null ? fmtCents(e.folder_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.loan_cents != null ? fmtCents(e.loan_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
                             <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>{e.cod_item_name || e.reason || ""}</td>
                           </tr>
                           {isExpanded &&
                         <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">
-                              <td colSpan={9} className="px-3 py-2">
+                              <td colSpan={12} className="px-3 py-2">
                                 <div className="text-[11px] font-mono leading-5 text-slate-600 dark:text-slate-300 max-h-64 overflow-y-auto">
                                   {rawFields.map(([k, v]) =>
                               <div key={k}><span className="text-slate-400 dark:text-slate-500">{k}:</span> {v == null || v === "" ? "—" : String(v)}</div>

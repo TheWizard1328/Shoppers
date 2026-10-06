@@ -1180,23 +1180,38 @@ Deno.serve(async (req) => {
       }
 
       // Completed deliveries with a COD requirement (bounded pages).
-      type CodDelivery = { id: string; locId: string; cents: number; completedAt: number; date: string; patientId: any; patientName: string; abbr: string | null };
+      type CodDelivery = { id: string; locId: string; cents: number; cents2: number; completedAt: number; date: string; patientId: any; patientName: string; abbr: string | null };
       const codDeliveries: CodDelivery[] = [];
       const backfillFloorMs = new Date(new Date(windowStart).getTime() - 3 * 86400000).getTime();
       for (let page = 0; page < 4; page++) {
         const rows: any[] = (await base44.asServiceRole.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => [])) as any[];
         const list = rows || [];
         for (const d of list) {
-          if (d?.status !== 'completed' || d?.cod_confirmed_collected) continue;
+          // Owner spec (Oct 6 2026): confirmed-collected deliveries ARE the
+          // ones whose real card swipe exists — including them is what makes
+          // the patient-name link pass actually match. (Only the outstanding
+          // pass below still excludes them.)
+          if (d?.status !== 'completed') continue;
           const required = Number(d?.cod_total_amount_required || 0);
-          if (required <= 0) continue;
+          // Card-side amount first (Debit+Credit cod_payments sum, in cents),
+          // fallback to the required total — mirrors the Square Balances
+          // candidate-amount rule.
+          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+          const cardCents = payments
+            .filter((p: any) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))
+            .reduce((s: number, p: any) => s + Math.round(Number(p?.amount || 0) * 100), 0);
+          if (required <= 0 && cardCents <= 0) continue;
           const createdMs = new Date(d?.created_date || 0).getTime();
           if (Number.isFinite(createdMs) && createdMs < backfillFloorMs) continue;
           const locId = storeToLoc.get(String(d?.store_id || ''));
           if (!locId) continue;
           const completedAt = new Date(d?.actual_delivery_time || d?.updated_date || d?.created_date || 0).getTime();
+          const requiredCents = Math.round(required * 100);
           codDeliveries.push({
-            id: String(d.id), locId, cents: Math.round(required * 100), completedAt,
+            id: String(d.id), locId,
+            cents: cardCents > 0 ? cardCents : requiredCents,
+            cents2: cardCents > 0 && requiredCents > 0 && requiredCents !== cardCents ? requiredCents : 0,
+            completedAt,
             date: String(d?.delivery_date || ''), patientId: d?.patient_id || null,
             patientName: ledgerNormalizeText(d?.patient_name), abbr: storeAbbrById.get(String(d?.store_id || '')) || null,
           });
@@ -1275,16 +1290,35 @@ Deno.serve(async (req) => {
       };
 
       for (const d of codDeliveries) {
-        const pool = salePool.filter((x) =>
-          x.locId === d.locId && !usedSaleKeys.has(x.key) &&
-          !(x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint)) &&
-          x.at >= d.completedAt - WINDOW_BEFORE_MS && x.at <= d.completedAt + WINDOW_AFTER_MS
-        );
+        // Rough-date window (owner Oct 6 2026): the delivery's Edmonton
+        // calendar day, padded 6h on both edges (Edmonton midnight = 06:00Z
+        // in MDT / 07:00Z in MST; the pad absorbs both). Sales in this day
+        // window OR in the tight completion ring are candidates — same
+        // rough-date rule as catalog creation.
+        const dayAnchorMs = Date.parse(`${d.date || '1970-01-01'}T06:00:00Z`);
+        const dayStartMs = dayAnchorMs - 6 * 3600000;
+        const dayEndMs = dayAnchorMs + 24 * 3600000 + 6 * 3600000;
+        const anchorAt = d.completedAt > 0 ? d.completedAt : dayStartMs + 18 * 3600000;
+        const pool = salePool.filter((x) => {
+          if (x.locId !== d.locId || usedSaleKeys.has(x.key)) return false;
+          if (x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint)) return false;
+          const inRing = d.completedAt > 0 && x.at >= d.completedAt - WINDOW_BEFORE_MS && x.at <= d.completedAt + WINDOW_AFTER_MS;
+          const inDay = x.at >= dayStartMs && x.at <= dayEndMs;
+          return inRing || inDay;
+        });
         if (!pool.length) continue;
+        // Prefer closest-in-time candidates first (subset-sum picks in order).
+        pool.sort((a, b) => Math.abs(a.at - anchorAt) - Math.abs(b.at - anchorAt));
         // Prefer pool members whose ring follows a decline of the same amount
         // (owner: declined full-COD swipe, then successful parts that sum to it).
-        const anchored = pool.filter((x) => declineAnchors.some((a) => a.locId === d.locId && a.cents === d.cents && a.at >= d.completedAt - WINDOW_BEFORE_MS && a.at <= x.at));
-        const match = subsetSumMatch(anchored.length ? anchored : pool, d.cents);
+        const anchored = pool.filter((x) => declineAnchors.some((a) => a.locId === d.locId && (a.cents === d.cents || (d.cents2 > 0 && a.cents === d.cents2)) && (d.completedAt > 0 ? (a.at >= d.completedAt - WINDOW_BEFORE_MS && a.at <= x.at) : (a.at >= dayStartMs && a.at <= x.at))));
+        // Try the card-side amount first, then the required-total fallback.
+        const targets = [d.cents, ...(d.cents2 > 0 ? [d.cents2] : [])];
+        let match: SaleCandidate[] | null = null;
+        for (const t of targets) {
+          match = subsetSumMatch(anchored.length ? anchored : pool, t);
+          if (match) break;
+        }
         if (!match) continue;
         const catalogLink = catalogByDeliveryId.get(d.id);
         const patientId = catalogLink?.patient_id || d.patientId || null;
