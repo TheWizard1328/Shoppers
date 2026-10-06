@@ -811,6 +811,20 @@ export function useLayoutEventHandlers({
     // record (the duplicate return card that vanished on the next refresh).
     const handleOfflineDeliveryReplaced = (event) => {
       const { entity, oldId, record } = event.detail || {};
+      if (entity === 'Patient' && oldId && record?.id) {
+        // Queued patient create synced: swap the temp-id record in patients
+        // state for the real one (Oct 6 2026 — quick-created patients were
+        // rendering "Unknown" after their delivery linked the temp id).
+        setPatients((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((p) => [p.id, p]));
+          map.delete(oldId);
+          map.set(record.id, record);
+          const merged = Array.from(map.values());
+          if (typeof window !== 'undefined') window.__appPatients = merged;
+          return merged;
+        });
+        return;
+      }
       if (entity !== 'Delivery' || !oldId || !record?.id) return;
       setDeliveries((prev) => {
         const map = new Map(prev.filter(Boolean).map((d) => [d.id, d]));

@@ -304,10 +304,27 @@ export const createPatient = async (patientData, options = {}) => {
     }
 
     // Sync to backend
+    let backendPatient = null;
     try {
-      const backendPatient = await base44.entities.Patient.create(patientData);
+      backendPatient = await base44.entities.Patient.create(patientData);
+    } catch (error) {
+      console.warn('⚠️ [EntityMutations] Patient create failed; durable create retained:', error.message);
+      await restartSmartRefresh();
+      return localPatient;
+    }
+    // The record EXISTS server-side now — every failure below is local
+    // bookkeeping. NEVER fall back to the temp-id record here: the caller
+    // (Add to Route quick-create) links the new delivery's patient_id to
+    // whatever this function returns. Returning the temp record after a
+    // successful backend create orphans that delivery ("Unknown" stop card,
+    // no map marker) forever, because the queued create later syncs the
+    // patient under its REAL id. (Oct 6 2026 fix.)
+    try {
       await offlineDB.removePendingMutation(pendingMutationId);
-      
+    } catch (error) {
+      console.warn('⚠️ [EntityMutations] Patient create: failed to remove pending mutation (will self-heal on drain):', error.message);
+    }
+    try {
       // Replace temp with real in IndexedDB
       const db = await offlineDB.openDatabase();
       const tx = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
@@ -317,21 +334,26 @@ export const createPatient = async (patientData, options = {}) => {
         req.onerror = () => reject(req.error);
       });
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
-      await refreshOfflineEntitySnapshots('Patient', backendPatient);
-      
-      // Notify UI to replace temp with real
-      notifyMutation({ type: 'replace', entity: 'Patient', oldId: tempId, newId: backendPatient.id, data: backendPatient });
-      
-      // Broadcast to other devices
-      broadcastMutation('Patient', 'create', backendPatient.id, backendPatient);
-      
-      await restartSmartRefresh();
-      return backendPatient;
     } catch (error) {
-      console.warn('⚠️ [EntityMutations] Patient create failed; durable create retained:', error.message);
-      await restartSmartRefresh();
-      return localPatient;
+      console.warn('⚠️ [EntityMutations] Patient create: IDB bookkeeping failed (real record still returned):', error.message);
     }
+    refreshOfflineEntitySnapshots('Patient', backendPatient);
+
+    // Persist the temp→real mapping (queued offline deliveries created after
+    // this patient may still reference the temp id).
+    try {
+      const { recordTempPatientId } = await import('./tempPatientIdMap');
+      recordTempPatientId(tempId, backendPatient.id);
+    } catch (_) {}
+
+    // Notify UI to replace temp with real
+    notifyMutation({ type: 'replace', entity: 'Patient', oldId: tempId, newId: backendPatient.id, data: backendPatient });
+
+    // Broadcast to other devices
+    broadcastMutation('Patient', 'create', backendPatient.id, backendPatient);
+
+    await restartSmartRefresh();
+    return backendPatient;
   } catch (error) {
     await restartSmartRefresh();
     throw error;

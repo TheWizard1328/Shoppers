@@ -176,11 +176,22 @@ export const createPatientLocal = async (patientData) => {
     }
 
     // Try immediate backend sync
+    let backendPatient = null;
     try {
       const { base44 } = await import('@/api/base44Client');
-      const backendPatient = await base44.entities.Patient.create(patientData);
+      backendPatient = await base44.entities.Patient.create(patientData);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Patient create failed; durable create retained:', error.message);
+      smartRefreshManager.restart();
+      return localPatient;
+    }
+    // Backend create SUCCEEDED — never return the temp-id record (the caller
+    // links the new delivery's patient_id to this return value; a temp id
+    // orphans the delivery as an "Unknown" stop with no map marker).
+    try {
       await offlineDB.removePendingMutation(pendingMutationId);
-      
+    } catch (_) {}
+    try {
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
       const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
@@ -193,25 +204,27 @@ export const createPatientLocal = async (patientData) => {
       
       // Add real backend record to IndexedDB
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
-      
-      // Notify listeners to replace temp with real record
-      notifyMutation({ 
-        type: 'replace', 
-        entity: 'Patient', 
-        oldId: tempId,
-        newId: backendPatient.id,
-        data: backendPatient 
-      });
-      
-      
-      // CRITICAL: Restart smart refresh after sync (not resume)
-      smartRefreshManager.restart();
     } catch (error) {
-      console.warn('⚠️ [Sync] Patient create failed; durable create retained:', error.message);
-      smartRefreshManager.restart();
+      console.warn('⚠️ [Sync] Patient create: IDB bookkeeping failed (real record still returned):', error.message);
     }
     
-    return localPatient;
+    try {
+      const { recordTempPatientId } = await import('./tempPatientIdMap');
+      recordTempPatientId(tempId, backendPatient.id);
+    } catch (_) {}
+
+    // Notify listeners to replace temp with real record
+    notifyMutation({ 
+      type: 'replace', 
+      entity: 'Patient', 
+      oldId: tempId,
+      newId: backendPatient.id,
+      data: backendPatient 
+    });
+    
+    // CRITICAL: Restart smart refresh after sync (not resume)
+    smartRefreshManager.restart();
+    return backendPatient;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to create patient locally:', error);
     // CRITICAL: Restart smart refresh on error

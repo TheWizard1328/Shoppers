@@ -5,6 +5,7 @@ import { isDeleted, isDeletedByContent } from './deletedDeliveryRegistry';
 import { base44 } from '@/api/base44Client';
 import { sanitizeAppUserMutationPayload, hasPendingDriverStatusMutation } from './pendingAppUserMutations';
 import { invalidateEntityCache } from './dataSyncCoordinator';
+import { recordTempPatientId, resolveTempPatientId } from './tempPatientIdMap';
 
 // Terminal (finished) delivery statuses — see TERMINAL_STATUSES unification.
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
@@ -128,6 +129,15 @@ export const processPendingMutationsInternal = async () => {
           ? mutation.payload._stagedDeliveries[0]
           : mutation.payload;
         if (!source) return source;
+        // A queued delivery may reference a temp patient id created offline.
+        // Resolve it to the real id before the payload reaches the server.
+        if (source.patient_id && String(source.patient_id).startsWith('temp_patient_')) {
+          const resolvedPid = resolveTempPatientId(source.patient_id);
+          if (resolvedPid !== source.patient_id) {
+            source.patient_id = resolvedPid;
+            console.log(`🔗 [OfflineSync] Delivery payload: resolved temp patient id → ${resolvedPid}`);
+          }
+        }
         const {
           _isBatchSave,
           _stagedDeliveries,
@@ -194,6 +204,39 @@ export const processPendingMutationsInternal = async () => {
             await offlineDB.deleteRecord(storeName, mutation.recordId);
           }
           await offlineDB.bulkSave(storeName, [createdRecord]);
+        }
+        // CRITICAL (Oct 6 2026): when a queued PATIENT create syncs, deliveries
+        // created while offline may still reference the temp patient id
+        // (delivery.patient_id = temp_patient_...). Without a remap those stops
+        // render "Unknown" with no map marker forever — the patient exists in
+        // the DB under its real id. Remap IDB + server now.
+        if (mutation.entity === 'Patient' && mutation.recordId?.startsWith('temp_') && createdRecord?.id) {
+          // Persist the temp→real mapping so queued Delivery payloads created
+          // while offline (which still carry the temp patient id) resolve on drain.
+          recordTempPatientId(mutation.recordId, createdRecord.id);
+          try {
+            const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            const orphans = (allDeliveries || []).filter((d) => d && d.patient_id === mutation.recordId);
+            for (const orphan of orphans) {
+              const patched = { ...orphan, patient_id: createdRecord.id };
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [patched]);
+              try {
+                const entityClient = getMutationEntityClient('Delivery');
+                if (entityClient?.update) await entityClient.update(orphan.id, { patient_id: createdRecord.id });
+                else await base44.entities.Delivery.update(orphan.id, { patient_id: createdRecord.id });
+              } catch (dbErr) {
+                console.warn('⚠️ [OfflineSync] Patient remap: server delivery update failed for', orphan.id, dbErr?.message || dbErr);
+              }
+            }
+            if (orphans.length > 0) {
+              console.log(`🔗 [OfflineSync] Remapped ${orphans.length} delivery/deliveries from temp patient ${mutation.recordId} → ${createdRecord.id}`);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { triggeredBy: 'patient_temp_id_remap', fullReplacement: false }
+              }));
+            }
+          } catch (remapErr) {
+            console.warn('⚠️ [OfflineSync] Patient temp-id delivery remap failed:', remapErr?.message || remapErr);
+          }
         }
         if (typeof window !== 'undefined' && mutation.recordId?.startsWith('temp_')) {
           window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
