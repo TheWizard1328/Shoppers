@@ -227,6 +227,55 @@ Deno.serve(async (req) => {
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
     if (!accessToken) throw new HttpError(500, 'Square credentials not configured');
 
+    // ONE-OFF DIAGNOSTIC (Oct 6 2026): list Square ORDERS with tenders
+    // across all configured locations, plus account-wide payments, so we can
+    // see exactly how each COD catalog item was rung up (card vs cash vs
+    // never-rung) and whether the amounts the owner sees in the Square app's
+    // card feed exist as real payments ANYWHERE in the account.
+    if (payload?.debugOrders === true) {
+      const days = Number(payload.days || 10);
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const cfgs = await base44.entities.SquareLocationConfig.list('-updated_date', 100).catch(() => []);
+      const locIds = Array.from(new Set((cfgs || []).map((c) => c?.square_location_id).filter(Boolean)));
+      const allOrders = [];
+      for (const locId of locIds) {
+        let cursor;
+        let pages = 0;
+        do {
+          const url = `https://connect.squareup.com/v2/orders?location_ids=${encodeURIComponent(locId)}&query=${encodeURIComponent(JSON.stringify({ filter: { date_time_filter: { created_at: { start_at: since } } }, sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' } }))}&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+          const j = await r.json().catch(() => ({}));
+          if (j?.errors) return Response.json({ error: j.errors, locId }, { status: 500 });
+          allOrders.push(...(j.orders || []).map((o) => ({
+            id: o.id, state: o.state, created_at: o.created_at, location_id: o.location_id,
+            total_cents: o.total_money?.amount,
+            line_items: (o.line_items || []).map((li) => ({ name: li.name, qty: li.quantity, base_cents: li.base_price_money?.amount, catalog_object_id: li.catalog_object_id })),
+            tenders: (o.tenders || []).map((t) => ({ id: t.id, type: t.type, amount_cents: t.amount_money?.amount, card_brand: t.card_details?.card?.card_brand, last4: t.card_details?.card?.last_4, entry: t.card_details?.entry_method })),
+            refunds: (o.refunds || []).map((rf) => ({ id: rf.id, state: rf.state, amount_cents: rf.amount_money?.amount })),
+          })));
+          cursor = j.cursor;
+          pages++;
+        } while (cursor && pages < 8);
+      }
+      let payments = null;
+      if (payload.includePayments === true) {
+        const pOut = [];
+        let pCursor;
+        let pPages = 0;
+        do {
+          const url = `https://connect.squareup.com/v2/payments?begin_time=${encodeURIComponent(since)}&sort_order=DESC&limit=100${pCursor ? `&cursor=${encodeURIComponent(pCursor)}` : ''}`;
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+          const j = await r.json().catch(() => ({}));
+          if (j?.errors) return Response.json({ error: j.errors, paymentsPhase: true }, { status: 500 });
+          pOut.push(...(j.payments || []));
+          pCursor = j.cursor;
+          pPages++;
+        } while (pCursor && pPages < 10);
+        payments = pOut.map((p) => ({ id: p.id, status: p.status, amount_cents: p.amount_money?.amount, location_id: p.location_id, order_id: p.order_id, created_at: p.created_at, card_brand: p.card_details?.card?.card_brand, last4: p.card_details?.card?.last_4, entry: p.card_details?.entry_method, source_type: p.source_type, note: p.note }));
+      }
+      return Response.json({ since, locations: locIds, orderCount: allOrders.length, orders: allOrders, payments });
+    }
+
     const rates = await loadBalanceRates(base44);
 
     // ── LEDGER BACKFILL (owner revamp, Oct 3 2026) ─────────────────────────
