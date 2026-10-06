@@ -313,14 +313,35 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // catalog-sourced list catches old items the windowed delivery query
     // misses, which is exactly what "Past uncollected" needs for drivers too.
     try {
+      // DISAPPEARING-ROWS GUARD (Oct 6 2026, owner report: Past uncollected
+      // rows "show up then disappear"). A failed/empty fetch page MUST NOT
+      // wipe the visible list — each failed page retries once, and if the
+      // overall fetch still came back empty-with-errors we keep the previous
+      // state instead of overwriting it with an empty map (an entity fetch
+      // hiccup — e.g. a rate-limit volley from another Square load — would
+      // previously blank the section until the next successful recompute).
+      const fetchPage = async (skip, attempt) => {
+        try {
+          const rows = await base44.entities.SquareCatalogItems.filter({ status: 'active' }, undefined, 500, skip);
+          return { rows: rows || [], failed: false };
+        } catch (e) {
+          if (attempt < 2) {
+            await new Promise((res) => setTimeout(res, 2500));
+            return fetchPage(skip, attempt + 1);
+          }
+          return { rows: [], failed: true };
+        }
+      };
       const itemsPages = [];
+      let anyFetchFailed = false;
       for (let skip = 0; skip < 20000; skip += 500) {
-        const rows = await base44.entities.SquareCatalogItems.filter({ status: 'active' }, undefined, 500, skip).catch(() => []);
-        const list = rows || [];
+        const { rows: list, failed } = await fetchPage(skip, 1);
+        anyFetchFailed = anyFetchFailed || failed;
         itemsPages.push(...list);
         if (list.length < 500) break;
       }
       const itemsRaw = itemsPages;
+      const totalItemsFetched = itemsRaw.length;
       const [storesRaw, patientsRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.Patient.list().catch(() => []),
@@ -367,6 +388,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // earlier version computed cashAwaitingSquare inline before this
       // setState, and any failure/slowness in that step risked the whole
       // Uncollected/Past-uncollected catalog list going stale or empty).
+      // If the fetch itself failed AND produced nothing, keep the previous
+      // rows on screen rather than blanking the section.
+      if (totalItemsFetched === 0 && anyFetchFailed) {
+        return; // keep previous state; a later successful recompute replaces it
+      }
       setCatalogUncollectedByLoc(out);
 
       // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
