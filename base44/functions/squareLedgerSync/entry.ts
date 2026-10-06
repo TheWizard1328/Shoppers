@@ -242,8 +242,16 @@ Deno.serve(async (req) => {
         let cursor;
         let pages = 0;
         do {
-          const url = `https://connect.squareup.com/v2/orders?location_ids=${encodeURIComponent(locId)}&query=${encodeURIComponent(JSON.stringify({ filter: { date_time_filter: { created_at: { start_at: since } } }, sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' } }))}&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
-          const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+          const r = await fetch('https://connect.squareup.com/v2/orders/search', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              location_ids: [locId],
+              query: { filter: { date_time_filter: { created_at: { start_at: since } } }, sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' } },
+              limit: 50,
+              ...(cursor ? { cursor } : {}),
+            }),
+          });
           const j = await r.json().catch(() => ({}));
           if (j?.errors) return Response.json({ error: j.errors, locId }, { status: 500 });
           allOrders.push(...(j.orders || []).map((o) => ({
