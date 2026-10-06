@@ -18,6 +18,8 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { initializeDailyCleanup } from '../utils/messageCleaner';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { runBootstrapBackgroundSync } from '../utils/bootstrapBackgroundSync';
+import { connectionMonitor } from '../utils/connectionMonitor';
+import { subscribeToUserSettingsUpdates } from '../utils/userSettingsManager';
 import { indexInterStoreLocation, resetInterStoreLocationsCache } from '../utils/interStoreDisplayName';
 import { heartbeatService } from '../utils/heartbeatService';
 import { runPatientDbPrioritySync } from '../utils/patientDbPrioritySync';
@@ -113,7 +115,7 @@ export function useLayoutInit({
             offlineManifestResult,
             offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities,
             sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations,
-          ] = await _withTimeout(_bootstrapPromise, 15000, 'bootstrap Promise.all');
+          ] = await _withTimeout(_bootstrapPromise, 10000, 'bootstrap Promise.all');
         } catch (bootTimeoutErr) {
           console.error('❌ [Init] Bootstrap Promise.all timed out — continuing with empty IDB data:', bootTimeoutErr.message);
           offlineManifestResult = { _error: bootTimeoutErr };
@@ -171,8 +173,16 @@ export function useLayoutInit({
           // Wrap loadUserSettings in a timeout — if the throttler is stuck or the
           // UserSettings fetch hangs (mobile/laptop can stall here during the first
           // editor-preview boot), the boot would hang on the loading screen forever.
+          // BOOT STALL FIX (Oct 5 2026): do NOT queue loadUserSettings through
+          // requestThrottler — the queue serializes all 'critical' calls with
+          // 800ms spacing, so on a degraded connection this waited behind every
+          // other queued critical before even starting, adding seconds to the
+          // loading gate. loadUserSettings serves from IndexedDB (per-device
+          // profile cache) instantly for every established device; only a
+          // first-ever boot falls through to the network. The 10s timeout stays
+          // as the online budget for that rare path.
           const s = await _withTimeout(
-            requestThrottler.queue(() => loadUserSettings(fetchedUser.id), 'critical', 'loadUserSettings'),
+            loadUserSettings(fetchedUser.id),
             10000, 'loadUserSettings'
           );
           if (s.sidebar_width) setSidebarWidth(s.sidebar_width);
@@ -188,7 +198,28 @@ export function useLayoutInit({
           setUserSettingsLoaded(true);
         } catch {setUserSettingsLoaded(true);}
 
-        const ms = manifest.appSettings || {};
+        // MANIFEST KEY CACHE (Oct 5 2026): the slim manifest carries the HERE /
+        // polyline / routing keys + app version. On a degraded connection the
+        // manifest call times out and ms = {} — previously that meant a boot
+        // with NO keys at all (map tiles, route engine, and version display all
+        // broken) even though the device had perfectly good keys from the last
+        // successful boot. Persist the last-known slim appSettings and restore
+        // them whenever the fresh manifest didn't arrive.
+        const MANIFEST_SETTINGS_CACHE_KEY = 'rxdeliver_manifest_appsettings';
+        let ms = manifest.appSettings || {};
+        if (ms && Object.keys(ms).length > 0) {
+          try {
+            localStorage.setItem(MANIFEST_SETTINGS_CACHE_KEY, JSON.stringify({ ...ms, _savedAt: Date.now() }));
+          } catch {}
+        } else {
+          try {
+            const cachedMs = JSON.parse(localStorage.getItem(MANIFEST_SETTINGS_CACHE_KEY) || 'null');
+            if (cachedMs && (Date.now() - (cachedMs._savedAt || 0)) < 7 * 24 * 60 * 60 * 1000) {
+              ms = cachedMs;
+              console.log('📦 [Init] Manifest missing/degraded — restored last-known appSettings keys from cache');
+            }
+          } catch {}
+        }
         // Smart Refresh is always on — toggle/interval UI has been removed.
         smartRefreshManager._initialized = true;
         if (ms.appVersion) {const v = ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
@@ -227,20 +258,6 @@ export function useLayoutInit({
         }
         setCurrentUser(fetchedUser);setHasAccess(true);
 
-        // Start heartbeat — find this user's AppUser record id
-        try {
-          // Wrap in a timeout — a hung backend/throttler here would hold the
-          // loading gate open permanently on the first boot of a preview session.
-          const appUserRecords = await _withTimeout(
-            base44.entities.AppUser.filter({ user_id: fetchedUser.id }),
-            10000, 'heartbeat AppUser.filter'
-          );
-          const appUserRecord = appUserRecords?.[0];
-          if (appUserRecord?.id) {
-            const isDispatcherRole = userHasRole(fetchedUser, 'dispatcher') && !userHasRole(fetchedUser, 'driver');
-            heartbeatService.start(appUserRecord.id, isDispatcherRole, fetchedUser.id);
-          }
-        } catch { /* non-critical */ }
         // Apply cached branding IMMEDIATELY from localStorage (survives Android recreate)
         const _cached = getCachedBranding();
         if (_cached?.logo_url) {
@@ -248,38 +265,18 @@ export function useLayoutInit({
           const { applyBrandingStyles } = await import('../utils/brandingManager');
           applyBrandingStyles(_cached);
         }
-        // Fetch fresh branding from API. If it falls back to defaults (API failure
-        // or Company entity missing), use that as a SIGNAL that data load had a
-        // problem — force a full data reload to ensure entities are loaded correctly.
+        // BOOT STALL FIX (Oct 5 2026): the heartbeat AppUser lookup and the
+        // fresh branding fetch were BLOCKING the loading gate. On a degraded
+        // connection each hung to its full timeout (10s + 15s) BEFORE the app
+        // painted — while offline both reject instantly, which is exactly why
+        // offline boots fine but weak Wi-Fi "refuses to load". Both are
+        // non-critical cosmetics vs. the gate: heartbeat is a repeating ping
+        // service (starting it a minute late is harmless) and branding has a
+        // localStorage cache applied above. Both now start AFTER the gate
+        // releases, and only once connectionMonitor reports the network stable
+        // (online, not degraded, past the 429 hold) — no more stalling boot on
+        // a link that can't carry the requests.
         let _brandingFallback = false;
-        if (fetchedUser?.company_id) {
-          try {
-            // Wrap branding fetch in a timeout — if Company.filter hangs (throttler
-            // stuck / backend unresponsive) the boot would hang here forever, the
-            // loading spinner would cycle endlessly, and the 5s patient priority
-            // sync below would never fire — leaving patient cards blank.
-            const b = await _withTimeout(
-              getCompanyBranding(fetchedUser.company_id),
-              15000, 'getCompanyBranding'
-            );
-            // Preserve a previously-applied logo when the fresh fetch falls back or
-            // returns an empty logo_url (API timeout / failure / Company missing) —
-            // overwriting it with empty would blank the logo for the whole session.
-            setBranding((prev) => ({
-              ...prev,
-              ...b,
-              logo_url: b?.logo_url || prev?.logo_url || ''
-            }));
-            const { applyBrandingStyles } = await import('../utils/brandingManager');
-            applyBrandingStyles(b);
-            if (b?._fallback) {
-              _brandingFallback = true;
-              console.warn('🟢 [Init] Branding fallback triggered — forcing full data reload to verify entity integrity');
-            }
-          } catch {
-            _brandingFallback = true;
-          }
-        }
         // Branding fallback alone does NOT trigger a full entity reload.
         // The Company entity may simply be empty or the company_id may not match —
         // this doesn't mean other entities (cities, stores, app users) are broken.
@@ -400,6 +397,78 @@ export function useLayoutInit({
         markOfflineDBLoadComplete();
         setInitialGlobalFiltersSet(true);setDataLoaded(true);
         setIsLoadingLayout(false); // Release loading gate ONLY after all prerequisites confirmed
+
+        // ── POST-GATE: network-dependent tasks that used to stall boot ─────────
+        // All of these start only once the network is stable (per owner spec
+        // Oct 5 2026: check online state before pinging, don't stall boot). Each
+        // polls connectionMonitor and retries — none can hold the loading gate.
+        const _waitForStableNetwork = (onStable, pollMs = 15000, maxWaitMs = 30 * 60 * 1000) => {
+          const _startedAt = Date.now();
+          const _tick = () => {
+            if (Date.now() - _startedAt > maxWaitMs) return; // give up silently — service retries next boot
+            if (connectionMonitor.canAttemptNetwork()) {
+              onStable();
+              return;
+            }
+            setTimeout(_tick, pollMs);
+          };
+          _tick();
+        };
+
+        // Heartbeat: find this user's AppUser record id — IDB FIRST (AppUsers are
+        // mirrored offline), API filter only as fallback for a fresh install.
+        _waitForStableNetwork(async () => {
+          try {
+            let appUserRecord = null;
+            try {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const cachedAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []);
+              appUserRecord = (cachedAppUsers || []).find((au) => au?.user_id === fetchedUser.id) || null;
+            } catch {}
+            if (!appUserRecord?.id) {
+              const appUserRecords = await _withTimeout(
+                base44.entities.AppUser.filter({ user_id: fetchedUser.id }),
+                10000, 'heartbeat AppUser.filter'
+              );
+              appUserRecord = appUserRecords?.[0];
+            }
+            if (appUserRecord?.id) {
+              const isDispatcherRole = userHasRole(fetchedUser, 'dispatcher') && !userHasRole(fetchedUser, 'driver');
+              heartbeatService.start(appUserRecord.id, isDispatcherRole, fetchedUser.id);
+            }
+          } catch { /* non-critical */ }
+        }, 15000);
+
+        // Fresh branding fetch (cached branding already applied above)
+        if (fetchedUser?.company_id) {
+          _waitForStableNetwork(async () => {
+            try {
+              const b = await _withTimeout(
+                getCompanyBranding(fetchedUser.company_id),
+                15000, 'getCompanyBranding'
+              );
+              setBranding((prev) => ({
+                ...prev,
+                ...b,
+                logo_url: b?.logo_url || prev?.logo_url || ''
+              }));
+              const { applyBrandingStyles } = await import('../utils/brandingManager');
+              applyBrandingStyles(b);
+              if (b?._fallback) {
+                _brandingFallback = true;
+                console.warn('🟢 [Init] Branding fallback triggered (post-gate)');
+              }
+            } catch {
+              _brandingFallback = true;
+            }
+          }, 20000);
+        }
+
+        // UserSettings WS subscription — settings changed on another device (or
+        // by this user from a different browser) push in real time. The handler
+        // diffs only GLOBAL_SETTINGS keys (refreshGlobalSettings), so this is a
+        // "what changed" check, never a full sync (owner spec Oct 5 2026).
+        subscribeToUserSettingsUpdates(fetchedUser.id);
 
         // ── STEP 0: Load initial unread message count (non-blocking) ──
         setTimeout(async () => {

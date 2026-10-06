@@ -6,6 +6,7 @@
 
 import { UserSettings } from '@/entities/UserSettings';
 import { offlineManager } from './offlineManager';
+import { connectionMonitor } from './connectionMonitor';
 import { getUserAgentInfo, isMobileDeviceForTheme } from './deviceUtils';
 
 // In-memory cache for current session
@@ -233,7 +234,19 @@ async function loadGlobalSettings(userId) {
  * dispatches 'themePreferenceChanged' (Layout.jsx listens) when the theme
  * changed. Skips while offline and never touches keys with a pending save.
  */
-async function refreshGlobalSettings(userId) {
+async function refreshGlobalSettings(userId, _attempt = 0) {
+  // NETWORK STABILITY GATE (Oct 5 2026, owner spec): the "what changed after
+  // boot" check must only run once the network is stable — on a degraded link
+  // this UserSettings.filter call hangs and burns the throttler/bus for
+  // nothing. If not stable yet, retry every 30s (bounded so an all-day outage
+  // doesn't accumulate timers). A clean failure here is fine: the next WS
+  // push or next boot re-checks.
+  try {
+    if (_attempt < 20 && !connectionMonitor.canAttemptNetwork()) {
+      setTimeout(() => refreshGlobalSettings(userId, _attempt + 1).catch(() => {}), 30000);
+      return;
+    }
+  } catch {}
   try {
     if (!offlineManager.getOnlineStatus()) return;
     const deviceIdentifier = getDeviceIdentifier();
@@ -264,6 +277,41 @@ async function refreshGlobalSettings(userId) {
     }
     console.log(`🔄 [UserSettings] Global settings refreshed from server:`, updates);
   } catch (_) { /* non-critical background refresh */ }
+}
+
+/**
+ * Subscribe to UserSettings WebSocket broadcasts so settings changed on another
+ * device of the same user (or from the web while driving) apply here in near
+ * real time. The UserSettings entity is user-scoped, so the platform only
+ * delivers this user's own records. The handler is a DIFF CHECK, not a full
+ * sync (owner spec Oct 5 2026): it re-runs refreshGlobalSettings, which pulls
+ * the latest record and applies only GLOBAL_SETTINGS keys that actually
+ * changed, skipping keys with pending local saves. Throttled to at most one
+ * check per 5s — rapid multi-key saves collapse into a single check.
+ */
+let _userSettingsWsUnsub = null;
+let _lastWsRefreshAt = 0;
+export async function subscribeToUserSettingsUpdates(userId) {
+  if (!userId) return;
+  try {
+    if (typeof window !== 'undefined') {
+      if (window.__userSettingsWsSubscribed) return;
+      window.__userSettingsWsSubscribed = true;
+    }
+    if (_userSettingsWsUnsub) return;
+    const { base44 } = await import('@/api/base44Client');
+    _userSettingsWsUnsub = base44.entities.UserSettings.subscribe((event) => {
+      const now = Date.now();
+      if (now - _lastWsRefreshAt < 5000) return; // throttle
+      _lastWsRefreshAt = now;
+      // Only updates/creates matter; a delete keeps the cached values (defaults)
+      if (event?.type && event.type !== 'update' && event.type !== 'create') return;
+      refreshGlobalSettings(userId).catch(() => {});
+    });
+    console.log('✅ [UserSettings] WS subscription active — global settings sync via push');
+  } catch (e) {
+    console.warn('⚠️ [UserSettings] WS subscription failed:', e?.message);
+  }
 }
 
 export async function loadUserSettings(userId) {
