@@ -1,5 +1,38 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { purgeStaleServiceWorkerAndCaches } from "@/components/utils/ChunkErrorBoundary";
+
+// ── Stale-asset detection (Oct 5 2026) ───────────────────────────────────────
+// ChunkErrorBoundary (wraps App, OUTER) already auto-purges the stale service
+// worker + Cache Storage and reloads once for these exact error signatures —
+// but AppErrorBoundary (wraps Layout content, INNER) sits CLOSER to where
+// render errors are thrown, so React hands it the error FIRST. It only
+// recognized broad "network" errors (429/Rate limit/Network/fetch) as
+// ignorable; a stale-chunk signature like "Unable to preload CSS" or "Loading
+// chunk failed" matched none of those, so AppErrorBoundary swallowed the error
+// itself, rendered its own generic "Something went wrong" screen, and
+// ChunkErrorBoundary's purge logic was never reached. On a mobile non-admin
+// device (showErrorDetails=false) the screen shows ZERO details, and its two
+// buttons only clear a localStorage key + sessionStorage — never the Cache
+// Storage / service worker actually holding the stale build — so the SAME
+// broken asset gets re-requested on every tap and the screen reappears
+// indefinitely (owner report: Cherokee repeatedly stuck all day). Reuse
+// ChunkErrorBoundary's own signature list and the SAME one-shot reload flag
+// (shared with main.jsx's chunk-reload guard) so all three layers agree on
+// "have we already tried purging this session" and none of them loop.
+const STALE_ASSET_RELOAD_FLAG = 'rxdeliver_chunk_reload_attempted';
+const isStaleAssetError = (error) => {
+  if (!error) return false;
+  const msg = String(error.message || error.name || '');
+  return (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('Unable to preload CSS') ||
+    msg.includes('Loading chunk') ||
+    msg.includes('ChunkLoadError') ||
+    (error.name === 'TypeError' && msg.includes('Failed to fetch'))
+  );
+};
 
 const isSandboxEditMode = () =>
   window.location.search.includes('_preview_token') ||
@@ -123,6 +156,23 @@ export default class AppErrorBoundary extends React.Component {
       return { hasError: false };
     }
 
+    if (isStaleAssetError(error)) {
+      if (!sessionStorage.getItem(STALE_ASSET_RELOAD_FLAG)) {
+        sessionStorage.setItem(STALE_ASSET_RELOAD_FLAG, '1');
+        // Don't render the dead-end crash screen for a first-time stale asset —
+        // purge the real stale state (SW + Cache Storage) and reload once.
+        (async () => {
+          await purgeStaleServiceWorkerAndCaches();
+          window.location.reload();
+        })();
+        return { hasError: false, staleAssetRecovering: true };
+      }
+      // Already purged + reloaded once this session and it STILL fails — a
+      // manual button that only clears a localStorage key would loop forever.
+      // Fall through to hasError:true below, but flag it so render() offers
+      // the full purge instead of the generic buttons.
+    }
+
     try {
       localStorage.setItem('rxdeliver_last_error', JSON.stringify({
         message: error?.message || 'Unknown error',
@@ -131,12 +181,17 @@ export default class AppErrorBoundary extends React.Component {
       }));
     } catch {}
 
-    return { hasError: true, error };
+    return { hasError: true, error, isStaleAsset: isStaleAssetError(error) };
   }
 
   componentDidCatch(error, errorInfo) {
     if (shouldIgnoreError(error)) {
       this.setState({ hasError: false, error: null, errorInfo: null });
+      return;
+    }
+    if (isStaleAssetError(error) && this.state.staleAssetRecovering) {
+      // Purge+reload already kicked off from getDerivedStateFromError — don't
+      // also log/count this as a crash.
       return;
     }
 
@@ -205,6 +260,11 @@ export default class AppErrorBoundary extends React.Component {
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Something went wrong</h1>
           <p className="text-slate-600 dark:text-slate-400 mb-2">An error occurred while loading the app.</p>
+          {this.state.isStaleAsset && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 mb-2">
+              This looks like a leftover file from an app update. "Clear Cache & Refresh" below will remove it.
+            </p>
+          )}
           {this.state.crashCount > 1 && (
             <p className="text-sm text-amber-600 dark:text-amber-400 mb-2">
               This app has crashed {this.state.crashCount} times this session.
@@ -257,9 +317,19 @@ export default class AppErrorBoundary extends React.Component {
 
           <div className="flex gap-3 justify-center">
             <Button
-              onClick={() => {
+              onClick={async () => {
                 localStorage.removeItem('rxdeliver_last_error');
+                // STALE-ASSET FIX (Oct 5 2026): this used to only clear a
+                // localStorage key + sessionStorage, which never touched the
+                // actual stale service worker / Cache Storage holding an old
+                // build's chunk or CSS reference — so a genuinely stale asset
+                // kept re-triggering the SAME crash on every tap. Run the full
+                // purge (SW unregister + Cache Storage wipe + stale IDB
+                // cleanup) that ChunkErrorBoundary already uses, so this
+                // button actually fixes the stuck state instead of looping.
+                sessionStorage.removeItem('rxdeliver_chunk_reload_attempted');
                 sessionStorage.clear();
+                await purgeStaleServiceWorkerAndCaches();
                 window.location.reload();
               }}
               className="bg-emerald-600 hover:bg-emerald-700"
