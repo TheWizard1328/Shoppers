@@ -321,29 +321,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (list.length < 500) break;
       }
       const itemsRaw = itemsPages;
-      // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
-      // looked like a plain duplicate between Collected Today and
-      // Uncollected). By design (squareCodSync.jsx desired-state table):
-      // "completed + cash -> item stays until squareReconcile matches the
-      // driver's deposit" — the catalog item deliberately survives a cash
-      // collection so the bank deposit can later be matched. That's correct
-      // bookkeeping, but with no visual distinction it looks exactly like a
-      // COD nobody has collected yet. Fetch just the deliveries referenced
-      // here (not the whole table) and tag rows whose delivery is already
-      // status 'completed' with a Cash payment.
-      const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
-      const cashCollectedDeliveryIds = new Set();
-      if (deliveryIdsForCashCheck.length) {
-        for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
-          const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
-          const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
-          for (const d of (rows || [])) {
-            if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
-              cashCollectedDeliveryIds.add(d.id);
-            }
-          }
-        }
-      }
       const [storesRaw, patientsRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.Patient.list().catch(() => []),
@@ -365,7 +342,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeColor: sInfo?.color || null,
           amount: Number(it.amount || 0),
           date: date || null,
-          cashAwaitingSquare: it.delivery_id ? cashCollectedDeliveryIds.has(it.delivery_id) : false,
+          cashAwaitingSquare: false,
         });
       }
       // DEFENSIVE DEDUP (Oct 6 2026, owner report: Emilen Brochu COD shown
@@ -385,7 +362,47 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
         out[locId] = [...byDelivery.values(), ...noDeliveryId];
       }
+      // Render the full list immediately — never let the list wait on, or be
+      // wiped by, the slower cash-check below (Oct 6 2026 regression: an
+      // earlier version computed cashAwaitingSquare inline before this
+      // setState, and any failure/slowness in that step risked the whole
+      // Uncollected/Past-uncollected catalog list going stale or empty).
       setCatalogUncollectedByLoc(out);
+
+      // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
+      // looked like a plain duplicate between Collected Today and
+      // Uncollected). By design (squareCodSync.jsx desired-state table):
+      // "completed + cash -> item stays until squareReconcile matches the
+      // driver's deposit" — the catalog item deliberately survives a cash
+      // collection so the bank deposit can later be matched. Runs AFTER the
+      // list is already on screen, as a non-blocking background refinement;
+      // merges into existing state via functional setState so it can never
+      // regress rows that were already rendered.
+      const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
+      if (deliveryIdsForCashCheck.length) {
+        const cashCollectedDeliveryIds = new Set();
+        for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
+          const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
+          const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
+          for (const d of (rows || [])) {
+            if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
+              cashCollectedDeliveryIds.add(d.id);
+            }
+          }
+        }
+        if (cashCollectedDeliveryIds.size > 0) {
+          setCatalogUncollectedByLoc((prev) => {
+            if (!prev) return prev;
+            const next = {};
+            for (const [locId, rows] of Object.entries(prev)) {
+              next[locId] = rows.map((r) => (
+                r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
+              ));
+            }
+            return next;
+          });
+        }
+      }
     } catch (e) {
       console.error('catalog uncollected compute failed:', e);
     }
