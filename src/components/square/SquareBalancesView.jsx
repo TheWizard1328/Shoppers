@@ -149,14 +149,16 @@ function CardCodList({ sections }) {
             // squareCodSync.jsx), but it must look visually DIFFERENT from a
             // COD nobody has collected yet, or it reads as a duplicate of the
             // same delivery's "Collected today" row.
+            // Owner removed the "Cash — Awaiting Deposit" wording (Oct 6 2026) —
+            // cashAwaitingSquare rows are now filtered out of Uncollected/Past
+            // uncollected entirely upstream, so this branch is effectively
+            // unreachable here, but kept as a safe fallback.
             const statusLabel = r.collected
               ? (r.collectedLabel || 'Collected')
-              : (r.cashAwaitingSquare ? 'Cash — Awaiting Deposit' : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending'));
+              : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending');
             const statusColorCls = r.collected
               ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-              : (r.cashAwaitingSquare
-                ? 'bg-teal-100 dark:bg-teal-900/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300'
-                : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300');
+              : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
             const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
             return (
               <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
@@ -1380,7 +1382,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   }));
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
                 const swiped = (id) => !!id && cardSpendIds.has(String(id));
-                const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date >= todayStr) && !it.cashAwaitingSquare).map((it) => ({
                   key: it.key || `o-${it.delivery_id}`,
                   delivery_id: it.delivery_id || null,
                   patientName: it.patientName || it.patient || null,
@@ -1413,10 +1415,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     amount: it.amount,
                     sub: `${it.date} · upcoming`,
                     collected: false,
-                    pendingPickup: it.status === 'pending',
+                    pendingPickup: false,
                     hasCardSpend: swiped(it.delivery_id),
                   }));
-                const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
+                const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr && !it.cashAwaitingSquare).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
                   delivery_id: it.delivery_id || null,
                   patientName: it.patientName || it.patient || null,
@@ -1435,7 +1437,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <CardCodList
                     sections={[
                       { label: 'Collected today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
-                      { label: 'Uncollected', color: '#d97706', rows: [...uncollectedTodayRows, ...futurePendingRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
+                      { label: 'Uncollected', color: '#d97706', rows: [...futurePendingRows, ...uncollectedTodayRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
                       { label: 'Past uncollected', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
                     ]}
                   />
