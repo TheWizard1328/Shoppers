@@ -526,19 +526,27 @@ const save = async (storeName, record) => {
  * Save multiple records to a store (bulk insert/update)
  * CRITICAL: Deduplicates by ID before saving to prevent duplicates
  */
+// PERF: large writes (boot sync, full resync) can push 10,000-30,000+ records
+// in a single bulkSave call. One giant IDB transaction holds the readwrite
+// lock for the ENTIRE write and fires every onsuccess callback back-to-back on
+// the main thread — this blocks all concurrent reads (map renders, stop card
+// expansion, the stats/offline-DB-indicator counts) and was the real source of
+// recurring app-wide jank during sync, including the indicator sitting at 0
+// for several seconds (owner report Oct 6 2026). Chunking + yielding between
+// chunks releases the lock and the main thread periodically so reads/renders
+// can interleave instead of queueing behind the whole burst.
+const BULK_SAVE_CHUNK_SIZE = 300;
+
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
   }
 
-  // Encrypt PHI records before storing (batch encrypt for efficiency)
   const isPHI = isPHIStore(storeName);
-  let recordsToProcess = records;
-  if (isPHI && isCryptoActive()) {
-    recordsToProcess = await Promise.all(records.map(r => encryptRecord(r)));
-  }
 
-  // CRITICAL: Deduplicate by ID BEFORE saving.
+  // CRITICAL: Deduplicate by ID BEFORE saving (on the original, pre-encryption
+  // records — square_catalog_object_id/square_transaction_id fallbacks live
+  // on the raw record, not necessarily on the encrypted wrapper).
   // Fall back to square_catalog_object_id or square_transaction_id for records that
   // come directly from the Square API and don't yet have a Base44 entity id.
   const resolveKey = (record) =>
@@ -548,7 +556,7 @@ const bulkSave = async (storeName, records) => {
     null;
 
   const uniqueRecords = new Map();
-  recordsToProcess.forEach(record => {
+  records.forEach(record => {
     const key = resolveKey(record);
     if (key) {
       uniqueRecords.set(key, record);
@@ -556,38 +564,53 @@ const bulkSave = async (storeName, records) => {
       console.warn('[OfflineDB] bulkSave: record has no usable key, skipping', record);
     }
   });
-  
+
   const deduplicatedRecords = Array.from(uniqueRecords.values());
   const duplicatesRemoved = records.length - deduplicatedRecords.length;
-  
+
   if (duplicatesRemoved > 0) {
     console.warn(`[OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
   }
 
   _beginWrite();
   try {
-    const db = await openDatabase();
-    const transaction = db.transaction([storeName], 'readwrite');
-    const store = transaction.objectStore(storeName);
-
     let successCount = 0;
-    const promises = deduplicatedRecords.map(record => {
-      return new Promise((resolve, reject) => {
-        const request = store.put(record);
-        request.onsuccess = () => {
-          successCount++;
-          resolve();
-        };
-        request.onerror = () => reject(request.error);
-      });
-    });
 
-    try {
-      await withTimeout(Promise.all(promises), IDB_OPERATION_TIMEOUT_MS, `IDB bulkSave(${storeName})`);
-    } catch (error) {
-      try { transaction.abort(); } catch (_) {}
-      throw error;
+    for (let i = 0; i < deduplicatedRecords.length; i += BULK_SAVE_CHUNK_SIZE) {
+      const chunk = deduplicatedRecords.slice(i, i + BULK_SAVE_CHUNK_SIZE);
+      const chunkToWrite = (isPHI && isCryptoActive())
+        ? await Promise.all(chunk.map(r => encryptRecord(r)))
+        : chunk;
+
+      const db = await openDatabase();
+      const transaction = db.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+
+      const promises = chunkToWrite.map(record => {
+        return new Promise((resolve, reject) => {
+          const request = store.put(record);
+          request.onsuccess = () => {
+            successCount++;
+            resolve();
+          };
+          request.onerror = () => reject(request.error);
+        });
+      });
+
+      try {
+        await withTimeout(Promise.all(promises), IDB_OPERATION_TIMEOUT_MS, `IDB bulkSave(${storeName})`);
+      } catch (error) {
+        try { transaction.abort(); } catch (_) {}
+        throw error;
+      }
+
+      // Yield one tick between chunks (only when more remain) so queued reads
+      // and pending renders get a turn instead of waiting for the whole burst.
+      if (i + BULK_SAVE_CHUNK_SIZE < deduplicatedRecords.length) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
+
     return { success: true, count: successCount };
   } catch (error) {
     return { success: false, error: error.message };
