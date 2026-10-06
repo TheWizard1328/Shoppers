@@ -1231,6 +1231,22 @@ mark('after_collected_purge');
     const did = normalizeText(record?.delivery_id);
     if (did) liveCatalogDeliveryIds.add(did);
   }
+  // DUPLICATE-GUARD (Oct 6 2026, owner report: Emilen Brochu COD showed twice
+  // in Uncollected — DB had 2 ACTIVE SquareCatalogItems rows for the same
+  // delivery, VEP7... (empty description, created 17:36) and DTKQ...
+  // (correct description, created 02:53 next cycle). Root cause: step 4's
+  // delivery_id resolution for VEP7 depends on fuzzy name/amount/date-window
+  // matching succeeding for THIS run — a transient miss (date-proximity edge,
+  // live catalog pagination timing, etc.) leaves delivery_id null on that
+  // record, liveCatalogDeliveryIds doesn't see the delivery as covered, and
+  // this loop creates a brand-new item on top of the still-live original.
+  // formatItemName() is deterministic per delivery (date+store-abbrev+patient
+  // name), so an exact item-NAME collision in the live Square catalog is a
+  // bulletproof duplicate signal independent of delivery_id resolution —
+  // checked below before every create.
+  const liveCatalogItemNames = new Set(
+    (liveCatalogItems || []).map((i) => normalizeText(i?.item_data?.name).toLowerCase()).filter(Boolean)
+  );
   const createdCatalogRecords = [];
   for (const d of (activeDeliveriesWithAmounts || [])) {
     if (!deliveryNeedsCatalogItem(d)) continue;
@@ -1246,6 +1262,10 @@ mark('after_collected_purge');
       const rsa = getPreferredStoreAbbreviation(store);
       const ac = Math.round(Number(d.cod_total_amount_required) * 100);
       const iname = formatItemName(d.delivery_date, rsa, epn);
+      if (liveCatalogItemNames.has(normalizeText(iname).toLowerCase())) {
+        console.warn('[squareGetCodData2] duplicate-guard: skipped auto-create for', d.id, '— live Square item already named', iname);
+        continue;
+      }
       const catItem = await squareFetch('/v2/catalog/batch-upsert', 'POST', accessToken, { idempotency_key: `codauto-${d.id}-${ac}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: [{ type: 'ITEM', id: `#item-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: iname, description: `COD for ${epn} | Delivery ${d.id}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: ac, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
       const createdItem = (catItem.objects || []).find((o) => o.type === 'ITEM') || null;
       if (createdItem?.id) {

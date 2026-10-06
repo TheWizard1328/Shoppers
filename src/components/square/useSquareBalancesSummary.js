@@ -148,9 +148,31 @@ async function freshLedgerWindows(cfg, userId) {
   return w;
 }
 
+// FETCH-TRACKING FIX (Oct 6 2026, owner report: card balances way too high —
+// Bonnie Doon showed $123.76 when card_start+real net credits only computes to
+// ~$71.92). Root cause: ALL loaders (loadCardSales/loadCardPayouts/loadCardTopups)
+// share ONE windows record and ONE `saved_at` freshness stamp. loadSales() in
+// SquareBalancesView calls loadCardSales() FIRST — a cache miss fetches real
+// sales from the API and writeLedgerCache() stamps a fresh saved_at. The VERY
+// NEXT call, loadCardPayouts(), then calls freshLedgerWindows() — sees the
+// record IS fresh (saved_at just set by the sales write) and returns
+// `cached.payouts` — but payouts was NEVER actually fetched yet this session;
+// it's still the empty-array default from ledgerCache's initial shape. So
+// swept bank-sweeps silently serve as [] forever while credits (sales) are
+// real — the card estimate adds real money in but never subtracts the
+// matching sweep. Fix: track exactly which fields were populated by a REAL
+// fetch (not the initial default) in `fetched`; each loader's cache check
+// below now also requires `cached.fetched?.<key>` before trusting the cache
+// for THAT field, so an unfetched field always falls through to a real fetch
+// instead of silently returning stale/default data.
 function writeLedgerCache(patch, userId) {
-  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], topups: [], cod_sales: [], window_sales: [], window_since: null, evidence_sales: [], evidence_declines: [], evidence_since: null };
-  ledgerCache.data = { ...w, ...patch, saved_at: new Date().toISOString() };
+  const w = ledgerCache.data || { saved_at: null, trued_up_at: null, sales: [], payouts: [], topups: [], cod_sales: [], window_sales: [], window_since: null, evidence_sales: [], evidence_declines: [], evidence_since: null, fetched: {} };
+  const fetchedPatch = {};
+  for (const k of Object.keys(patch)) {
+    if (k === 'trued_up_at' || k === 'window_since' || k === 'evidence_since') continue; // metadata, not a data field
+    fetchedPatch[k] = true;
+  }
+  ledgerCache.data = { ...w, ...patch, fetched: { ...(w.fetched || {}), ...fetchedPatch }, saved_at: new Date().toISOString() };
   if (ledgerSaveTimer) clearTimeout(ledgerSaveTimer);
   // Single debounced flush — all loaders write the SAME IDB record.
   ledgerSaveTimer = setTimeout(() => {
@@ -204,7 +226,7 @@ function dedupeBySquareId(rows) {
 export async function loadCardSales(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached) return dedupeBySquareId(cached.sales);
+  if (cached && cached.fetched?.sales) return dedupeBySquareId(cached.sales);
   const out = [];
   let skip = 0;
   for (let page = 0; page < 40; page++) {
@@ -231,7 +253,7 @@ export async function loadCardSales(cfg, userId = null) {
 async function loadCodSales(cfg, userId = null) {
   const since = windowSinceFor(cfg);
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached && cached.window_since === since) return dedupeBySquareId(cached.cod_sales);
+  if (cached && cached.window_since === since && cached.fetched?.cod_sales) return dedupeBySquareId(cached.cod_sales);
   const out = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -253,7 +275,7 @@ async function loadCodSales(cfg, userId = null) {
 async function loadWindowSales(cfg, userId = null) {
   const since = windowSinceFor(cfg);
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached && cached.window_since === since) return dedupeBySquareId(cached.window_sales);
+  if (cached && cached.window_since === since && cached.fetched?.window_sales) return dedupeBySquareId(cached.window_sales);
   const out = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -284,7 +306,7 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
   // 10-minute TTL guard in freshLedgerWindows still bounds staleness).
   const since = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached && cached.evidence_since === since) {
+  if (cached && cached.evidence_since === since && cached.fetched?.evidence_sales && cached.fetched?.evidence_declines) {
     return { sales: dedupeBySquareId(cached.evidence_sales).filter(isSaleKind), declines: dedupeBySquareId(cached.evidence_declines) };
   }
   const sales = [];
@@ -332,7 +354,7 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
 export async function loadCardPayouts(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached) return cached.payouts || [];
+  if (cached && cached.fetched?.payouts) return cached.payouts || [];
   // SOURCE CHANGED (owner rule Oct 4 2026): payout/card_spend rows were
   // removed from the ledger (they duplicated folder_cents/settled_cents
   // already stamped on each collected card sale). Bank sweeps are now DERIVED:
@@ -380,7 +402,7 @@ export async function loadCardPayouts(cfg, userId = null) {
 export async function loadCardTopups(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
   const cached = await freshLedgerWindows(cfg, userId);
-  if (cached && Array.isArray(cached.topups)) return cached.topups;
+  if (cached && cached.fetched?.topups) return cached.topups || [];
   const rows = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {

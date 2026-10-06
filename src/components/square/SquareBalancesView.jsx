@@ -332,8 +332,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           date: date || null,
         });
       }
+      // DEFENSIVE DEDUP (Oct 6 2026, owner report: Emilen Brochu COD shown
+      // twice in Uncollected). The backend has a duplicate-guard against ever
+      // creating two live Square catalog items for the same delivery, but
+      // this frontend list must never show a repeat even if a stale/duplicate
+      // row briefly exists in SquareCatalogItems (e.g. mid-cleanup, racing
+      // sync). Collapse by delivery_id, keeping the most recently created row.
       const out = {};
-      for (const [locId, rows] of byLoc) out[locId] = rows;
+      for (const [locId, rowsRaw] of byLoc) {
+        const byDelivery = new Map();
+        const noDeliveryId = [];
+        for (const r of rowsRaw) {
+          if (!r.delivery_id) { noDeliveryId.push(r); continue; }
+          const existing = byDelivery.get(r.delivery_id);
+          if (!existing || String(r.key) > String(existing.key)) byDelivery.set(r.delivery_id, r);
+        }
+        out[locId] = [...byDelivery.values(), ...noDeliveryId];
+      }
       setCatalogUncollectedByLoc(out);
     } catch (e) {
       console.error('catalog uncollected compute failed:', e);
