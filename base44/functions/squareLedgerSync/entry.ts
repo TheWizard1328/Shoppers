@@ -1382,6 +1382,31 @@ Deno.serve(async (req) => {
           }
         } catch { /* non-fatal */ }
       }
+    // ALREADY-LINKED ROW NAME REPAIR (owner Oct 6): rows linked before the
+    // patient-name resolution exists still show "Unknown Patient" (the
+    // Square catalog item was named before the patient was known). If the
+    // delivery sits in this run's pool with a real resolved name, re-stamp.
+    try {
+      const itemNameByDeliveryId = new Map<string, string>();
+      for (const cd of codDeliveries) {
+        if (!itemNameByDeliveryId.has(cd.id)) {
+          itemNameByDeliveryId.set(cd.id, ledgerFormatItemName(cd.date, cd.abbr, cd.patientName));
+        }
+      }
+      for (const [sqid, rows] of existingRowsBySquareId) {
+        if (entries.has(sqid)) continue;
+        const row = rows[0];
+        if (!row?.delivery_id) continue;
+        if (!['sale', 'collected'].includes(String(row?.entry_kind || ''))) continue;
+        const current = String(row?.cod_item_name || '');
+        if (current && !current.includes('Unknown Patient')) continue;
+        const fixed = itemNameByDeliveryId.get(String(row.delivery_id));
+        if (!fixed || fixed.includes('Unknown Patient')) continue;
+        await base44.asServiceRole.entities.SquareLedgerEntry.update(row.id, { cod_item_name: fixed })
+          .then(() => { backfillRepairs += 1; }).catch(() => {});
+        await sleep(40);
+      }
+    } catch { /* non-fatal */ }
     } catch (e: any) {
       syncErrors.push(`backfill: ${e?.message || e}`);
     }
