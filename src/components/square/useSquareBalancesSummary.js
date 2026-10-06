@@ -312,15 +312,22 @@ export async function loadCardSpendEvidence(cfg, userId = null) {
   const sales = [];
   const declines = [];
   let skip = 0;
-  for (let page = 0; page < 20; page++) {
-    const rows = await base44.entities.SquareLedgerEntry.filter(
-      { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: since } },
-      'created_date', 500, skip
-    ).catch(() => []);
-    const list = rows || [];
-    sales.push(...list);
-    if (list.length < 500) break;
-    skip += 500;
+  // Owner report (Oct 6 2026): Square's own app shows some card-spend swipes
+  // under a "Pending" header — authorized but not yet settled (e.g. Elaine
+  // Ash's 49.98). Those must be eligible for the Card Spend badge too, not
+  // just COMPLETED ones, so pull all three in-flight-or-settled statuses.
+  for (const st of ['COMPLETED', 'APPROVED', 'PENDING']) {
+    skip = 0;
+    for (let page = 0; page < 20; page++) {
+      const rows = await base44.entities.SquareLedgerEntry.filter(
+        { tender_type: 'CARD', status: st, occurred_at: { $gte: since } },
+        'created_date', 500, skip
+      ).catch(() => []);
+      const list = rows || [];
+      sales.push(...list);
+      if (list.length < 500) break;
+      skip += 500;
+    }
   }
   skip = 0;
   for (let page = 0; page < 20; page++) {

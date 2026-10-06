@@ -532,7 +532,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       ].filter((e) =>
         ['sale', 'collected'].includes(String(e?.entry_kind || ''))
         && String(e?.tender_type || '').toUpperCase() === 'CARD'
-        && String(e?.status || '').toUpperCase() === 'COMPLETED'
+        // Owner report (Oct 6 2026): Square's app shows some swipes under a
+        // "Pending" header, still authorized but not yet settled — those
+        // must count toward the badge too (e.g. Elaine Ash 49.98), not just
+        // fully COMPLETED sales.
+        && ['COMPLETED', 'APPROVED', 'PENDING'].includes(String(e?.status || '').toUpperCase())
         && e?.location_id
         && !isStoreCard(e)));
       const declines = (evidence.declines || []).filter((e) => e?.location_id && e?.card_fingerprint && !isStoreCard(e));

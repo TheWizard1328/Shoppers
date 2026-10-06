@@ -758,7 +758,16 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        if (status !== 'COMPLETED') continue; // PENDING/APPROVED/CANCELED handled on later syncs
+        // CANCELED payments never settle — nothing to show.
+        if (status === 'CANCELED') continue;
+        // PENDING/APPROVED (owner report Oct 6 2026: Square's own app shows
+        // these under a "Pending" header — a card swipe/business-card spend
+        // that is authorized but not yet settled, e.g. Elaine Ash's 49.98).
+        // Store them with their real status so they're visible in the ledger
+        // and eligible for Card Spend badge matching; a later sync overwrites
+        // this same square_id with the COMPLETED version once it settles
+        // (buildEntry/entries.set is keyed by payment.id either way).
+        if (status !== 'COMPLETED' && status !== 'APPROVED' && status !== 'PENDING') continue;
 
         entries.set(payment.id, buildEntry({
           square_id: payment.id,
