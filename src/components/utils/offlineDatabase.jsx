@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 24; // v24: Added payroll_page_cache store (offline-first DriverPayroll page payload)
+const DB_VERSION = 25; // v25: Added crypto_meta store (idbCrypto key-material backup)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -38,6 +38,7 @@ const STORES = {
   SQUARE_LEDGER: 'square_ledger', // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
   SQUARE_BALANCES_SUMMARY: 'square_balances_summary', // v22: offline-first snapshot of the Square Balances summary (badge + page)
   APP_SETTINGS: 'app_settings', // v23: offline-first AppSettings rows keyed by setting_key
+  CRYPTO_META: 'crypto_meta', // v25: idbCrypto key-material backup (survives localStorage eviction)
   PAYROLL_PAGE_CACHE: 'payroll_page_cache' // v24: offline-first DriverPayroll full-year payload snapshot per year+city
 };
 
@@ -442,6 +443,15 @@ const openDatabase = async () => {
       // (owner report Oct 4 2026: ~30s spinner before any payroll data shows).
       if (!db.objectStoreNames.contains(STORES.PAYROLL_PAGE_CACHE)) {
         db.createObjectStore(STORES.PAYROLL_PAGE_CACHE, { keyPath: 'id' });
+      }
+
+      // v25: crypto_meta — the AES key material + salt used to encrypt PHI stores.
+      // Normally lives in localStorage, but Android WebView can evict localStorage
+      // while keeping IDB alive — without this backup the key regenerates and every
+      // encrypted record becomes undecryptable (full purge + resync, recurring).
+      // This store must NEVER be encrypted (it is read before the key exists).
+      if (!db.objectStoreNames.contains(STORES.CRYPTO_META)) {
+        db.createObjectStore(STORES.CRYPTO_META, { keyPath: 'id' });
       }
 
       // v19: stat_holidays — statutory holidays for offline date lookups

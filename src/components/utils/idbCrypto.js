@@ -129,6 +129,58 @@ const deriveKey = async () => {
   return key;
 };
 
+// ─── Key Backup (IndexedDB) ───────────────────────────────────────────────
+// Android WebView can evict localStorage while keeping IndexedDB alive. If the
+// key material in localStorage is lost, a NEW key gets derived and EVERY
+// existing encrypted record becomes undecryptable → the app purges and fully
+// re-downloads the offline DB (patients/deliveries/app_users "go to zeros",
+// recurring on every eviction — Sharuk's S26 Ultra, Oct 6 2026). Backing the
+// material up INSIDE IDB makes the key survive with the data it protects.
+// NOTE: the material is already stored in plaintext on disk (localStorage is
+// leveldb on the same storage) — this adds no new exposure surface.
+const KEY_BACKUP_ID = 'rxdeliver_idb_key_backup_v1';
+
+// Restore key material + salt from the IDB backup when localStorage lost them.
+// Must run BEFORE deriveKey (getOrCreate* generate a NEW key when missing).
+const restoreKeyMaterialFromIdb = async () => {
+  try {
+    if (localStorage.getItem(KEY_MATERIAL_STORAGE_KEY)) return false; // nothing lost
+    const offlineDB = (await import('./offlineDatabase.jsx')).offlineDB;
+    const backups = await offlineDB.getAll(offlineDB.STORES.CRYPTO_META).catch(() => []);
+    const backup = (backups || []).find(b => b?.id === KEY_BACKUP_ID && b?.material_hex && b?.salt_hex);
+    if (!backup) return false;
+    localStorage.setItem(KEY_MATERIAL_STORAGE_KEY, backup.material_hex);
+    if (!localStorage.getItem(SALT_STORAGE_KEY)) {
+      localStorage.setItem(SALT_STORAGE_KEY, backup.salt_hex);
+    }
+    console.log('[IDB-Crypto] RESTORED key material from IndexedDB backup — localStorage had been evicted');
+    return true;
+  } catch (e) {
+    console.warn('[IDB-Crypto] Key backup restore failed:', e?.message || e);
+    return false;
+  }
+};
+
+// Persist the current key material + salt to the IDB backup store (upsert).
+// Fire-and-forget safe — failure just means the next eviction refetches data.
+const backupKeyMaterialToIdb = async () => {
+  try {
+    const material_hex = localStorage.getItem(KEY_MATERIAL_STORAGE_KEY);
+    const salt_hex = localStorage.getItem(SALT_STORAGE_KEY);
+    if (!material_hex || !salt_hex) return;
+    const offlineDB = (await import('./offlineDatabase.jsx')).offlineDB;
+    await offlineDB.bulkSave(offlineDB.STORES.CRYPTO_META, [{
+      id: KEY_BACKUP_ID,
+      material_hex,
+      salt_hex,
+      saved_at: new Date().toISOString()
+    }]);
+  } catch (e) {
+    // non-fatal — the key is still valid this session
+    console.warn('[IDB-Crypto] Key backup write failed:', e?.message || e);
+  }
+};
+
 // ─── Public API ──────────────────────────────────────────────────────────
 
 /**
@@ -140,11 +192,18 @@ const deriveKey = async () => {
 export const initEncryption = async (authToken) => {
   if (_encryptionBypassed) return false;
   try {
+    // CRITICAL: restore the key from the IDB backup if localStorage was evicted.
+    // Without this, a fresh key orphans every existing encrypted record.
+    await restoreKeyMaterialFromIdb();
+
     // Derive the AES key from STABLE material (not the rotating auth token).
     // authToken is accepted for backward-compatible callers but ignored.
     _cryptoKey = await deriveKey();
     _isEncrypting = true;
     _isInitialized = true;
+
+    // Keep the IDB backup current (no-op when material just came from it).
+    backupKeyMaterialToIdb().catch(() => {});
 
     // One-time purge of records encrypted under the OLD (token-derived) key.
     // These can never be decrypted with the new stable key, so clear them out
@@ -498,8 +557,10 @@ export const migrateStore = async (storeName, progressCallback) => {
   // Encrypt each record
   const encryptedRecords = await Promise.all(allRecords.map(r => encryptRecord(r)));
 
-  // Write back (use clearStore + bulkSave to ensure clean replacement)
-  await db.clearStore(storeName);
+  // Write back with UPSERT-FIRST (bulkSave overwrites by id — keyPath 'id').
+  // The previous clearStore + bulkSave was a non-atomic wipe: UI read an empty
+  // store mid-migration (data "goes to zeros"), and a bulkSave timeout/abort
+  // AFTER the clear committed left the store permanently empty.
   await db.bulkSave(storeName, encryptedRecords);
 
   if (progressCallback) progressCallback(storeName, encryptedRecords.length);
