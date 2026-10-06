@@ -275,6 +275,22 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const handlePreviewPdf = async ({ startDate: dialogStartDate, endDate: dialogEndDate, useBarcodes } = {}) => {
     if (isExporting) return;
     setIsExporting(true);
+    // CRITICAL: open the placeholder tab NOW, synchronously inside the click
+    // gesture — BEFORE the (often 20s+) backend call. Browsers refuse
+    // window.open() long after the gesture, which silently swallowed the
+    // finished PDF (preview looked stuck at 0% and never showed anything).
+    const previewTab = window.open('', '_blank');
+    if (previewTab && !previewTab.closed) {
+      try {
+        previewTab.document.write(
+          '<!doctype html><html><head><title>Generating PDF…</title></head>' +
+          '<body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#334155;">' +
+          '<div style="text-align:center"><div style="font-size:18px;font-weight:600;margin-bottom:8px">Generating route manifest PDF…</div>' +
+          '<div style="font-size:13px;color:#64748b">This page will fill in automatically.</div></div></body></html>'
+        );
+        previewTab.document.close();
+      } catch (_) { /* keep tab even if write fails */ }
+    }
     try {
       const { startDate: effStart, endDate: effEnd } = resolveDateRange({ dialogStartDate, dialogEndDate, selectedDate });
       if (!role) return;
@@ -291,9 +307,13 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         useBarcodes: useBarcodes === true,
       });
 
-      const data = await previewRouteManifest(payload);
-      if (data?.error) { alert(data.error); return; }
+      const data = await previewRouteManifest(payload, { previewTab });
+      if (data?.error) {
+        try { if (previewTab && !previewTab.closed) previewTab.close(); } catch (_) {}
+        alert(data.error); return;
+      }
     } catch (error) {
+      try { if (previewTab && !previewTab.closed) previewTab.close(); } catch (_) {}
       alert(error?.response?.data?.error || error?.message || 'Route preview failed.');
     } finally {
       setIsExporting(false);

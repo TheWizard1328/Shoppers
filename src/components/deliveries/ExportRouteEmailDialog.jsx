@@ -333,7 +333,15 @@ export default function ExportRouteEmailDialog({
                   type="button"
                   variant="outline"
                   disabled={isExporting || isLoading || rangeTooBig}
-                  onClick={() => onPreviewPdf({ startDate, endDate, useBarcodes })}
+                  onClick={async () => {
+                    startProgressAnimation(dayCount);
+                    try {
+                      await onPreviewPdf({ startDate, endDate, useBarcodes });
+                      stopProgressAnimation(true);
+                    } catch {
+                      stopProgressAnimation(false);
+                    }
+                  }}
                   className="gap-1.5 whitespace-nowrap"
                 >
                   <Eye className="w-4 h-4" />
