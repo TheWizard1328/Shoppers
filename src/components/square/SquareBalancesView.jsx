@@ -205,11 +205,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                       <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">Card Spend</span>
                     ) : (canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && !r.cashAwaitingSquare && onMarkSpend) ? (
                       <span
-                        role="button"
-                        tabIndex={0}
                         onClick={() => onMarkSpend(r.delivery_id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onMarkSpend(r.delivery_id); } }}
                         title="Mark this COD as having a Card Spend in your Square app"
+                        // NOTE (Oct 6 2026): deliberately NO role="button" here —
+                        // src/index.css has a global accessibility rule,
+                        // [role="button"] { min-height: 44px }, that forced this
+                        // pill to a tap-target height far taller than every other
+                        // badge on the row. Plain onClick on a bare span keeps it
+                        // visually identical to the Pending/Collected/Card Spend
+                        // pills (same classes), just clickable.
                         className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
                       >Mark Spend</span>
                     ) : null}
