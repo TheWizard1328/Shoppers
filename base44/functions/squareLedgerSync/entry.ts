@@ -227,6 +227,36 @@ Deno.serve(async (req) => {
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
     if (!accessToken) throw new HttpError(500, 'Square credentials not configured');
 
+    // ONE-OFF DIAGNOSTIC (Oct 5 2026, owner report: Square dashboard shows
+    // several small Card-spent entries at Bonnie Doon that never reach
+    // SquareLedgerEntry). Dumps the RAW /v2/payments response for a location
+    // + window, completely unfiltered — no order matching, no sale_class, no
+    // dedup — so we can see exactly what Square's API itself returns and
+    // compare directly against the owner's dashboard screenshot. Safe no-op
+    // for normal sync calls (requires explicit debugRawPayments:true).
+    if (payload?.debugRawPayments === true && payload?.locationId) {
+      const beginTime = String(payload.beginTime || new Date(Date.now() - 3 * 86400000).toISOString());
+      const endTime = String(payload.endTime || new Date().toISOString());
+      const out = [];
+      let cursor;
+      do {
+        const url = `https://connect.squareup.com/v2/payments?location_id=${encodeURIComponent(payload.locationId)}&begin_time=${encodeURIComponent(beginTime)}&end_time=${encodeURIComponent(endTime)}&sort_order=DESC&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, 'Square-Version': '2025-01-23' } });
+        const j = await r.json().catch(() => ({}));
+        if (j?.errors) return Response.json({ error: j.errors }, { status: 500 });
+        out.push(...(j.payments || []));
+        cursor = j.cursor;
+      } while (cursor);
+      const slim = out.map((p) => ({
+        id: p.id, status: p.status, amount_cents: p.amount_money?.amount, currency: p.amount_money?.currency,
+        order_id: p.order_id, created_at: p.created_at, updated_at: p.updated_at,
+        card_brand: p.card_details?.card?.card_brand, last4: p.card_details?.card?.last_4,
+        entry_method: p.card_details?.entry_method, source_type: p.source_type,
+        receipt_number: p.receipt_number, location_id: p.location_id, note: p.note,
+      }));
+      return Response.json({ count: slim.length, beginTime, endTime, payments: slim });
+    }
+
     const rates = await loadBalanceRates(base44);
 
     // ── LEDGER BACKFILL (owner revamp, Oct 3 2026) ─────────────────────────
