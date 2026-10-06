@@ -964,20 +964,46 @@ const needsInitialSync = async (entityName) => {
 };
 
 /**
+ * Count records in a store WITHOUT materializing or decrypting them.
+ * getAll() decrypts + JSON.parses every record (thousands of encrypted PHI
+ * records) just to read .length — the stats card / sync indicator doing this
+ * across 7 stores was blocking reads for seconds and starving the UI (map +
+ * card jank, indicator showing 0 for 10-20s, Oct 6 2026). IDB count() is
+ * metadata-only and runs in milliseconds.
+ */
+const countStore = async (storeName) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readonly');
+    const request = transaction.objectStore(storeName).count();
+    return await withTimeout(new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => reject(request.error);
+    }), IDB_OPERATION_TIMEOUT_MS, `IDB count(${storeName})`);
+  } catch (error) {
+    console.warn(`[OfflineDB] count(${storeName}) failed:`, error.message);
+    return 0;
+  }
+};
+
+/**
  * Get database statistics
  * CRITICAL: Always return valid stats object, never null
  */
 const getStats = async () => {
   try {
+    // PERF: countStore (metadata-only) instead of getAll — the old full
+    // getAll on 7 stores decrypted + parsed every record (tens of thousands)
+    // every time the sync indicator refreshed, starving the main thread.
     const [patients, deliveries, appUsers, cities, stores, companies, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, companySync, squareTxSync] = await Promise.all([
-      getAll(STORES.PATIENTS),
-      getAll(STORES.DELIVERIES),
-      getAll(STORES.APP_USERS),
-      getAll(STORES.CITIES),
-      getAll(STORES.STORES),
-      getAll(STORES.COMPANIES),
-      getAll(STORES.SQUARE_TRANSACTIONS),
-      getAll(STORES.DRIVER_OVERVIEW_STATS),
+      countStore(STORES.PATIENTS),
+      countStore(STORES.DELIVERIES),
+      countStore(STORES.APP_USERS),
+      countStore(STORES.CITIES),
+      countStore(STORES.STORES),
+      countStore(STORES.COMPANIES),
+      countStore(STORES.SQUARE_TRANSACTIONS),
+      countStore(STORES.DRIVER_OVERVIEW_STATS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
@@ -989,35 +1015,35 @@ const getStats = async () => {
 
     return {
       patients: {
-        count: patients?.length || 0,
+        count: patients || 0,
         lastSync: patientSync?.lastSync || patientSync?.lastSyncDate || 'Never'
       },
       deliveries: {
-        count: deliveries?.length || 0,
+        count: deliveries || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       },
       appUsers: {
-        count: appUsers?.length || 0,
+        count: appUsers || 0,
         lastSync: appUserSync?.lastSync || appUserSync?.lastSyncDate || 'Never'
       },
       cities: {
-        count: cities?.length || 0,
+        count: cities || 0,
         lastSync: citySync?.lastSync || citySync?.lastSyncDate || 'Never'
       },
       stores: {
-        count: stores?.length || 0,
+        count: stores || 0,
         lastSync: storeSync?.lastSync || storeSync?.lastSyncDate || 'Never'
       },
       companies: {
-        count: companies?.length || 0,
+        count: companies || 0,
         lastSync: companySync?.lastSync || companySync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
-        count: squareTx?.length || 0,
+        count: squareTx || 0,
         lastSync: squareTxSync?.lastSync || squareTxSync?.lastSyncDate || 'Never'
       },
       driverOverviewStats: {
-        count: driverStats?.length || 0,
+        count: driverStats || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       }
     };
@@ -1608,6 +1634,7 @@ export const offlineDB = {
   save,
   bulkSave,
   getAll,
+  countStore,
   getAllStrict,
   waitForWritesToDrain,
   getById,

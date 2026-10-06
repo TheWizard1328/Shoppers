@@ -465,18 +465,23 @@ class LightweightRefreshManager {
         }
       }
 
-      // Offline sync reconciliation every 1 minute
+      // Offline sync reconciliation every 2 minutes
       if (this.shouldRefresh('offlineSync')) {
         try {
           console.log('💾 [LightweightRefresh] Offline sync reconciliation');
           const { offlineDB } = await import('./offlineDatabase');
-          
-          // Verify offline DB consistency
-          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
-          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users`);
+          // PERF: countStore (metadata-only) instead of getAll — the old full
+          // getAll on 3 PHI stores decrypted + parsed EVERY offline record
+          // (tens of thousands) every 2 minutes, starving the main thread and
+          // causing recurring map/card jank (owner report Oct 6 2026).
+          const [offlineDeliveries, offlinePatients, offlineAppUsers] = await Promise.all([
+            offlineDB.countStore(offlineDB.STORES.DELIVERIES),
+            offlineDB.countStore(offlineDB.STORES.PATIENTS),
+            offlineDB.countStore(offlineDB.STORES.APP_USERS)
+          ]);
+
+          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries || 0} deliveries, ${offlinePatients || 0} patients, ${offlineAppUsers || 0} users`);
           
           this.markRefreshed('offlineSync');
         } catch (e) {
