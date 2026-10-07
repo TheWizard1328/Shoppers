@@ -150,22 +150,20 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
             // collected) the net amount returned to the card + the status
             // badge, whose word itself names the real tender (Cash / Debit /
             // Credit). Cash never shows a net amount — no card fees applied.
-            // Cash-already-collected rows (Oct 6 2026): the catalog item is
-            // deliberately kept alive after a cash collection until the
-            // driver's bank deposit is matched — by design (see
-            // squareCodSync.jsx), but it must look visually DIFFERENT from a
-            // COD nobody has collected yet, or it reads as a duplicate of the
-            // same delivery's "Collected today" row.
-            // Owner removed the "Cash — Awaiting Deposit" wording (Oct 6 2026) —
-            // cashAwaitingSquare rows are now filtered out of Uncollected/Past
-            // uncollected entirely upstream, so this branch is effectively
-            // unreachable here, but kept as a safe fallback.
+            // Cash-already-collected rows (owner spec, Oct 6 2026): the
+            // catalog item deliberately stays alive after a cash collection
+            // until the deposit is processed back to the Square card — so the
+            // row stays in Uncollected / Past uncollected, but its status
+            // pill reads 'Cash' (emerald, same as a collected Cash row) so it
+            // looks visibly different from a COD nobody has collected yet
+            // (amber 'Pending'). Card Spend pills still render on these rows.
             const statusLabel = r.collected
               ? (r.collectedLabel || 'Collected')
-              : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending');
+              : (r.cashAwaitingSquare ? 'Cash' : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending'));
+            const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
             const statusColorCls = r.collected
-              ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-              : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
+              ? emeraldCls
+              : (r.cashAwaitingSquare ? emeraldCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300');
             const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
             return (
               <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
@@ -203,7 +201,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                       <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
                     ) : r.manualCardSpend ? (
                       <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">Card Spend</span>
-                    ) : (canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && !r.cashAwaitingSquare && onMarkSpend) ? (
+                    ) : (canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend) ? (
                       <span
                         onClick={() => onMarkSpend(r.delivery_id)}
                         title="Mark this COD as having a Card Spend in your Square app"
@@ -884,6 +882,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const sInfo = storeById.get(String(d?.store_id || ''));
           const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
           const nonCashPmt = payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash');
+          // Owner spec (Oct 6 2026): a pure CASH collection is NOT "Collected"
+          // — it is technically uncollected until processed back to the
+          // Square card. Its catalog item keeps it listed in Uncollected /
+          // Past uncollected with a Cash badge, so skip it here to avoid the
+          // same delivery reading as both Collected and Uncollected.
+          if (!nonCashPmt) continue;
           const grossB = Number(d.cod_total_amount_required || 0);
           const label = labelForPaymentType(nonCashPmt?.type);
           aggFor(locId).push({
@@ -1578,7 +1582,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
                 const swiped = (id) => !!id && cardSpendIds.has(String(id));
                 const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
-                const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date >= todayStr) && !it.cashAwaitingSquare).map((it) => ({
+                // Owner spec (Oct 6 2026): cash-collected CODs STAY in
+                // Uncollected / Past uncollected — they are technically
+                // uncollected until processed back to the Square card. They
+                // render with a 'Cash' status badge (CardCodList) and keep
+                // their Card Spend pills.
+                const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date >= todayStr)).map((it) => ({
                   key: it.key || `o-${it.delivery_id}`,
                   delivery_id: it.delivery_id || null,
                   patientName: it.patientName || it.patient || null,
@@ -1616,7 +1625,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     hasCardSpend: swiped(it.delivery_id),
                     manualCardSpend: manualMark(it.delivery_id),
                   }));
-                const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr && !it.cashAwaitingSquare).map((it) => ({
+                const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
                   delivery_id: it.delivery_id || null,
                   patientName: it.patientName || it.patient || null,
