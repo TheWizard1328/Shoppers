@@ -7,7 +7,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadCardSales, loadCardSpendEvidence, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadCardSales, loadCardSpendEvidence, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods, computePendingCodDeduction } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -184,20 +184,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                 <div className="shrink-0 flex flex-col items-end gap-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
-                    {/* Card Spend pill (owner spec Oct 6 2026), three states:
-                        1. AUTO — a real card swipe exists in the Square data
-                           (or settles later): primary sky pill.
-                        2. MANUAL — no Square data (the card-activity feed has
-                           no API, e.g. a pending -$49.98 pharmacy spend), so
-                           the owner tapped "Mark Spend": violet pill. The
-                           moment a matching Square item IS found, state 1
-                           takes over and the color reverts to sky.
-                        3. UNMARKED — owner-only "Mark Spend" pill (Oct 6
-                           2026: restyled as a plain tappable badge, same
-                           look/size as every other pill here — not a
-                           button) when neither exists. Cash rows never show
-                           it: cash never touches the card. */}
-                    {r.hasCardSpend ? (
+                    {/* Card Spend pill (owner spec Oct 6 2026) — TOGGLE on
+                        uncollected rows: Square's card-activity data proved too
+                        unreliable to auto-detect, so every uncollected COD
+                        defaults to "Card Spend" (sky). Tapping flips it to
+                        "Not Tapped" (violet) — the COD is added back to the
+                        card balance estimate — and tapping again flips back.
+                        Collected rows keep the legacy auto/manual evidence
+                        pills. */}
+                    {r.collected ? r.hasCardSpend ? (
                       <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
                     ) : r.manualCardSpend ? (
                       <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">Card Spend</span>
@@ -214,7 +209,26 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                         // pills (same classes), just clickable.
                         className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
                       >Mark Spend</span>
-                    ) : null}
+                    ) : null : (
+                      // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
+                      // toggle — every COD defaults to "Card Spend"; tapping it
+                      // flips to "Not Tapped" (the COD is added back to the card
+                      // balance), tapping again flips back. Owner-only tappable;
+                      // drivers see the static state.
+                      canMarkSpend && !!r.delivery_id && onMarkSpend ? (
+                        <span
+                          onClick={() => onMarkSpend(r.delivery_id)}
+                          className={r.notTapped
+                            ? 'cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300'
+                            : 'cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'}
+                        >{r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
+                      ) : (
+                        <span className={r.notTapped
+                          ? 'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300'
+                          : 'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'}
+                        >{r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
+                      )
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     {showNetAmount && (
@@ -335,7 +349,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const rows = await getAppSettingRows(SPEND_MARKS_KEY);
     if (seq !== spendMarksSeq.current) return;
     const rec = (rows || [])[0];
-    const value = rec?.setting_value && typeof rec.setting_value === 'object' ? rec.setting_value : {};
+    const raw = rec?.setting_value && typeof rec.setting_value === 'object' ? rec.setting_value : {};
+    // Oct 6 2026: the record now stores "Not Tapped" overrides
+    // ({ [deliveryId]: { notTappedAt, by } }). Entries without notTappedAt are
+    // legacy manual Card Spend marks from the old feature — dropped.
+    const value = {};
+    for (const [k, v] of Object.entries(raw)) if (v && typeof v === 'object' && v.notTappedAt) value[k] = v;
     spendMarksRecordIdRef.current = rec?.id || null;
     setManualSpendMarks(value);
     manualSpendMarksRef.current = value;
@@ -345,12 +364,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // those rows immediately.
     computeCodCollectedTodayRef.current?.();
   }, []);
+  // OWNER SPEC (Oct 6 2026): the Card Spend pill is now a TOGGLE. Every
+  // uncollected COD defaults to "Card Spend" (we assume the store's card gets
+  // charged — Square's card-activity feed was too unreliable to auto-detect).
+  // Tapping flips it to "Not Tapped"; tapping again flips back to "Card
+  // Spend". Balance rule: a pending/in-transit COD deducts from the card
+  // estimate, a "Not Tapped" one is added back (never deducts).
   const markCardSpend = useCallback(async (deliveryId) => {
     if (!ownerCanEdit || !deliveryId) return;
-    const nowIso = new Date().toISOString();
-    // Optimistic: show the marked badge instantly.
     const prev = manualSpendMarksRef.current || {};
-    const next = { ...prev, [String(deliveryId)]: { at: nowIso, by: currentUser?.id || null } };
+    const key = String(deliveryId);
+    const togglingBack = !!(prev?.[key]?.notTappedAt);
+    const next = { ...prev };
+    if (togglingBack) delete next[key];
+    else next[key] = { notTappedAt: new Date().toISOString(), by: currentUser?.id || null };
+    // Optimistic: flip the badge instantly.
     setManualSpendMarks(next);
     manualSpendMarksRef.current = next;
     computeCodCollectedTodayRef.current?.();
@@ -358,13 +386,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (spendMarksRecordIdRef.current) {
         await base44.entities.AppSettings.update(spendMarksRecordIdRef.current, { setting_value: next });
       } else {
-        const created = await base44.entities.AppSettings.create({ setting_key: SPEND_MARKS_KEY, setting_value: next, description: 'Owner-marked Card Spend confirmations (Square card-activity feed has no API)' });
+        const created = await base44.entities.AppSettings.create({ setting_key: SPEND_MARKS_KEY, setting_value: next, description: 'Card Spend toggle overrides — notTappedAt entries are "Not Tapped" CODs (added back to the card balance)' });
         spendMarksRecordIdRef.current = created?.id || null;
       }
-      toast.success('Marked as Card Spend');
+      toast.success(togglingBack ? 'Card Spend' : 'Not Tapped');
     } catch (e) {
       console.error('markCardSpend failed:', e);
-      toast.error('Could not save the mark');
+      toast.error('Could not save the toggle');
       setManualSpendMarks(prev);
       manualSpendMarksRef.current = prev;
     }
@@ -859,7 +887,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           sub: when.slice(11, 16),
           collected: true,
           hasCardSpend: swipedIds.has(String(e.delivery_id)),
-          manualCardSpend: !!manualSpendMarksRef.current?.[String(e.delivery_id)],
+          manualCardSpend: !!manualSpendMarksRef.current?.[String(e.delivery_id)]?.at,
           collectedLabel: label,
           // Cash never touches the card — no fee/loan/folder math applies.
           netAmount: label === 'Cash' ? null : computeNetCollected(grossA, { settledCents: e.settled_cents, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
@@ -909,7 +937,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             // sale in the ledger that was simply never linked — the fuzzy
             // match catches it, this hardcoded false was throwing it away.
             hasCardSpend: swipedIds.has(String(d.id)),
-            manualCardSpend: !!manualSpendMarksRef.current?.[String(d.id)],
+            manualCardSpend: !!manualSpendMarksRef.current?.[String(d.id)]?.at,
             collectedLabel: label,
             // No real Square tx for this one — estimate the fee from the
             // recorded card type (owner rate sheet, Oct 3 2026). Pure cash
@@ -1042,7 +1070,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
   useEffect(() => {
     const unsubs = [];
-    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null, codTimer = null, catalogTimer = null;
+    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null, codTimer = null, catalogTimer = null, cardCollectedTimer = null;
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
@@ -1076,8 +1104,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }));
     } catch (e) { console.error('Catalog subscribe failed:', e); }
     try {
-      unsubs.push(base44.entities.Delivery.subscribe(() => {
+      unsubs.push(base44.entities.Delivery.subscribe((event) => {
         scheduleCodRecompute();
+        // OWNER RULE (Oct 6 2026): the moment a delivery is marked Collected
+        // with a Debit or Credit payment, refresh the card balances with the
+        // real settled values — a short-debounce Square sync (owner tab only).
+        const ed = event?.data;
+        if (
+          ownerCanEditRef.current
+          && String(ed?.status || '') === 'completed'
+          && Array.isArray(ed?.cod_payments)
+          && ed.cod_payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()))
+        ) {
+          clearTimeout(cardCollectedTimer);
+          cardCollectedTimer = setTimeout(() => { syncRef.current?.(); }, 20000);
+        }
         // Full Square re-sync on sustained activity only (protects Square API rate limits)
         // — owner-only: a driver's open tab must never fire Square API syncs.
         clearTimeout(deliveryTimer);
@@ -1091,7 +1132,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeReordered', onRouteReordered);
     return () => {
-      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer); clearTimeout(codTimer); clearTimeout(catalogTimer);
+      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer); clearTimeout(codTimer); clearTimeout(catalogTimer); clearTimeout(cardCollectedTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeReordered', onRouteReordered);
@@ -1146,10 +1187,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // collect subtracts ONLY when payouts at this store equal it exactly
       // (single or combined subset) — matched payouts leave the sweep total
       // so the COD and its charge never double-count.
-      const { matched, chargedCents, chargedCount } = matchPayoutChargedCods(
+      const { matched, chargedCents, chargedCount, matchedItemIds } = matchPayoutChargedCods(
         (codOut?.items) || [],
         payoutCentsByLoc.get(loc.location_id) || []
       );
+      // Owner rule (Oct 6 2026): pending/in-transit CODs deduct from the card
+      // estimate; "Not Tapped" toggles and payout-matched CODs never deduct.
+      const notTappedIds = new Set(
+        Object.entries(manualSpendMarks || {}).filter(([, v]) => v?.notTappedAt).map(([k]) => String(k))
+      );
+      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction((codOut?.items) || [], notTappedIds, matchedItemIds);
       const payoutCents = payoutCentsByLoc.get(loc.location_id) || [];
       const swept = payoutCents.length ? payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100 : (payoutByLoc.get(loc.location_id) || 0);
       return {
@@ -1167,15 +1214,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Outstanding CODs stay visible as "owed, not yet swiped" and drive
         // the low-balance forecast, but do NOT subtract from the estimate.
         // BATCH bank sweeps since true-up leave the real card too (Oct 2 2026 fix)
-        cardEstimate: r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100),
+        cardEstimate: r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        pendingDeducted: r2(pendingDeductCents / 100),
+        pendingDeductCount,
         codOutstanding: codOut,
         lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
       };
     });
-  }, [config, sales, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc]);
+  }, [config, sales, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -1510,6 +1559,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.sweptOut)}</div>
                 </div>
               )}
+              {loc.pendingDeducted > 0 && (
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs to collect (pending, not "Not Tapped"{loc.pendingDeductCount ? `, ${loc.pendingDeductCount}` : ''})</div>
+                  <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
+                </div>
+              )}
               {loc.chargedToCard > 0 && (
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Charged CODs (payout-matched{loc.chargedCount ? `, ${loc.chargedCount}` : ''})</div>
@@ -1578,10 +1633,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     amount: it.amount,
                     date: it.date || null,
                     pendingPickup: true,
+                    notTapped: notTapped(it.delivery_id),
                   }));
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
                 const swiped = (id) => !!id && cardSpendIds.has(String(id));
                 const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
+                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTappedAt;
                 // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                 // Uncollected / Past uncollected — they are technically
                 // uncollected until processed back to the Square card. They
@@ -1599,6 +1656,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   pendingPickup: !!it.pendingPickup,
                   hasCardSpend: swiped(it.delivery_id),
                   manualCardSpend: manualMark(it.delivery_id),
+                  notTapped: notTapped(it.delivery_id),
                   cashAwaitingSquare: !!it.cashAwaitingSquare,
                 }));
                 // Future-dated en_route/in_transit CODs never have a Square
@@ -1624,6 +1682,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     pendingPickup: false,
                     hasCardSpend: swiped(it.delivery_id),
                     manualCardSpend: manualMark(it.delivery_id),
+                    notTapped: notTapped(it.delivery_id),
                   }));
                 const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
@@ -1637,6 +1696,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   pendingPickup: !!it.pendingPickup,
                   hasCardSpend: swiped(it.delivery_id),
                   manualCardSpend: manualMark(it.delivery_id),
+                  notTapped: notTapped(it.delivery_id),
                   cashAwaitingSquare: !!it.cashAwaitingSquare,
                 }));
                 const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];

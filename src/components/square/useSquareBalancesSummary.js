@@ -15,6 +15,9 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
  */
 
 const SETTING_KEY = 'square_balances';
+// Same key the SquareBalancesView toggle writes (Oct 6 2026): entries with
+// notTappedAt are "Not Tapped" overrides — their COD never deducts from the card.
+const SPEND_MARKS_KEY = 'square_card_spend_marks';
 
 // ── IDB-FIRST READS (owner report, Oct 2 2026: boot rate-limit storm) ────────
 // One badge reload used to fire ~25 entity API calls (3 full status scans,
@@ -779,10 +782,11 @@ export function learnStoreCardFingerprints(sales) {
 // double-count).
 export function matchPayoutChargedCods(outstandingItems, payoutCents) {
   const outs = (outstandingItems || [])
-    .map((it) => Math.round(Number(it?.amount || 0) * 100))
-    .filter((c) => Number.isFinite(c) && c > 0);
+    .map((it) => ({ cents: Math.round(Number(it?.amount || 0) * 100), id: it?.delivery_id ? String(it.delivery_id) : null }))
+    .filter((x) => Number.isFinite(x.cents) && x.cents > 0);
   const payouts = (payoutCents || []).map((c) => Math.round(Number(c) || 0));
   const matched = new Set();
+  const matchedItemIds = new Set();
   let chargedCents = 0;
   let chargedCount = 0;
   const available = () => payouts.map((c, i) => ({ c, i })).filter((x) => !matched.has(x.i) && x.c > 0);
@@ -800,12 +804,33 @@ export function matchPayoutChargedCods(outstandingItems, payoutCents) {
         }
       }
     }
-    if (hit) { hit.forEach((h) => matched.add(h.i)); chargedCents += target; chargedCount += 1; }
+    if (hit) { hit.forEach((h) => matched.add(h.i)); chargedCents += target.cents; chargedCount += 1; if (target.id) matchedItemIds.add(target.id); }
   }
-  return { matched, chargedCents, chargedCount };
+  return { matched, chargedCents, chargedCount, matchedItemIds };
 }
 
-function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed }) {
+// OWNER RULE (Oct 6 2026): every active pending / in-transit COD deducts its
+// amount-to-collect from the store card's balance estimate as soon as it
+// exists; a COD whose Card Spend badge is toggled to "Not Tapped" is added
+// back — it never deducts (the card was never charged). Payout-matched CODs
+// (their charge already hit via a payout, deducted through chargedCents) are
+// excluded so the same COD is never deducted twice. Collected debit/credit
+// CODs drop out of this deduction automatically — their real settled value
+// arrives as card sale credits via the Square Balances sync.
+export function computePendingCodDeduction(outstandingItems, notTappedIds, excludeIds) {
+  let deductCents = 0; let count = 0;
+  for (const it of outstandingItems || []) {
+    if (!['pending', 'in_transit', 'en_route'].includes(String(it?.status || ''))) continue;
+    const id = it?.delivery_id ? String(it.delivery_id) : null;
+    if (id && ((notTappedIds && notTappedIds.has(id)) || (excludeIds && excludeIds.has(id)))) continue;
+    const cents = Math.round(Number(it?.amount || 0) * 100);
+    if (!(cents > 0)) continue;
+    deductCents += cents; count += 1;
+  }
+  return { deductCents, count };
+}
+
+function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, notTappedIds }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
   const storeCardFps = learnStoreCardFingerprints(sales);
@@ -838,10 +863,13 @@ function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCen
     // its charge are never counted twice.
     const payoutCents = (payoutCentsByLoc?.get?.(loc.location_id) || []);
     const outstandingItems = (codOutstandingDetailed?.[loc.location_id]?.items) || [];
-    const { matched, chargedCents, chargedCount } = matchPayoutChargedCods(outstandingItems, payoutCents);
+    const { matched, chargedCents, chargedCount, matchedItemIds } = matchPayoutChargedCods(outstandingItems, payoutCents);
     const sweptRaw = payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100;
     const swept = payoutCentsByLoc?.has?.(loc.location_id) ? sweptRaw : Number(payoutsByLoc?.get?.(loc.location_id) || 0);
-    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept - chargedCents / 100) * 100) / 100;
+    // Owner rule Oct 6 2026: pending/in-transit CODs (not "Not Tapped", not
+    // payout-matched) deduct from the card balance estimate.
+    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, notTappedIds, matchedItemIds);
+    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
@@ -851,6 +879,8 @@ function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCen
       sweptOut: Math.round(swept * 100) / 100,
       chargedToCard: Math.round(chargedCents) / 100,
       chargedCount,
+      pendingDeducted: Math.round(pendingDeductCents) / 100,
+      pendingDeductCount,
       storeCardSpend: Math.round(storeCardSpend * 100) / 100,
       level: getBalanceLevel(cardEstimate, codAvg),
     });
@@ -898,11 +928,20 @@ async function loadSummary(force, uid) {
   if (inflight) return inflight;
   inflight = (async () => {
     const config = await loadConfig();
-    const [sales, stl, names] = await Promise.all([
+    const [sales, stl, names, spendMarkRows] = await Promise.all([
       config ? loadCardSales(config, uid).catch(() => []) : Promise.resolve([]),
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
+      // Not Tapped overrides (owner Card Spend badge toggle, Oct 6 2026) —
+      // a "Not Tapped" COD is added back to the card estimate, never deducted.
+      getAppSettingRows(SPEND_MARKS_KEY).catch(() => []),
     ]);
+    const spendMarksVal = spendMarkRows?.[0]?.setting_value;
+    const notTappedIds = new Set(
+      Object.entries(spendMarksVal && typeof spendMarksVal === 'object' ? spendMarksVal : {})
+        .filter(([, v]) => v && typeof v === 'object' && v.notTappedAt)
+        .map(([k]) => String(k))
+    );
     // One detailed pass — the totals map used by the card math is derived from
     // it, and the detailed output (items/patient names) is kept so the Square
     // Balances page can hydrate offline from the IDB snapshot without a
@@ -928,7 +967,7 @@ async function loadSummary(force, uid) {
       payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
     }
     const data = {
-      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed }) : new Map(),
+      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, notTappedIds }) : new Map(),
       payoutsByLoc: payoutsLoc,
       storeToLoc: stl,
       weeklyByStore: weekly,
