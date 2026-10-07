@@ -159,10 +159,14 @@ async function loadBalanceRates(base44: any): Promise<{ folderRate: number; loan
 function cardSettlementCents(rates: any, locId: any, amountCents: number, feeCents: number): { folder_cents: number; loan_cents: number; settled_cents: number } {
   const amount = Math.round(Number(amountCents) || 0);
   const fee = Math.round(Number(feeCents) || 0);
-  // Square TRUNCATES the per-sale folder/loan contribution (owner-verified
+  // Folder: Square TRUNCATES the per-sale contribution (owner-verified
   // Oct 4 2026: $87.33 x 2% = 174.66, Square moved 174) — never round up.
   const folder = Math.floor(amount * rates.folderRate);
-  const loan = Math.floor(amount * (rates.loanRateByLoc.get(String(locId || '')) || 0));
+  // Loan: ROUNDED to the nearest cent (owner spec Oct 6 2026 — truncation
+  // left loan fees/settled off by $0.01, e.g. $18.37 x 0.1725 = 316.88c
+  // truncated to $3.16 instead of $3.17; $14.47 x 0.1725 = 249.61c truncated
+  // to $2.49 instead of $2.50).
+  const loan = Math.round(amount * (rates.loanRateByLoc.get(String(locId || '')) || 0));
   return { folder_cents: folder, loan_cents: loan, settled_cents: amount - fee - folder - loan };
 }
 
@@ -516,8 +520,11 @@ Deno.serve(async (req) => {
           const amt = Math.round(Number(row.amount_cents) || 0);
           const fee = Math.round(Number(row.fee_cents) || 0);
           const recomputed = cardSettlementCents(rates, row.location_id, amt, fee);
+          // Era 1 (round-everything) folders are one cent high — floor them.
           const oldFolder = Math.round(amt * rates.folderRate);
-          const oldLoan = Math.round(amt * (rates.loanRateByLoc.get(String(row.location_id || '')) || 0));
+          // Era 2 (floor-everything) loans are one cent LOW (owner report
+          // Oct 6 2026) — lift them to the new rounded-loan spec.
+          const oldLoan = Math.floor(amt * (rates.loanRateByLoc.get(String(row.location_id || '')) || 0));
           const storedFolder = Number(row.folder_cents);
           const storedLoan = Number(row.loan_cents);
           if (storedFolder === oldFolder && oldFolder !== recomputed.folder_cents) {
