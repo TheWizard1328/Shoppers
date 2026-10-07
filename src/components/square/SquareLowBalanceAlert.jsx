@@ -26,9 +26,12 @@ import { BALANCE_LEVELS } from './useSquareBalancesSummary';
  *      balloon for the current low-state fingerprint (until the state worsens —
  *      a further ≥$25 drop or a newly-low card — or 24h pass).
  *   2. One push notification per low-state change, sent to the owner himself,
- *      deduped across his devices via an AppSettings fingerprint record so a
- *      low card doesn't trigger a push from every logged-in device at once.
- *      A low state that persists re-pushes at most once a day until topped up.
+ *      deduped across his devices via a shared AppSettings record so a low
+ *      card doesn't trigger a push from every logged-in device at once.
+ *      Owner spec Oct 7 2026 (was re-pushing ~once a minute): pushes are
+ *      PER-CARD — first detection (e.g. app boot), a ≥$5 balance change after
+ *      a 30-min cooldown, or an unchanged low balance re-pushes at most once
+ *      a day. Same low balance on a fresh boot stays silent.
  *
  * Data comes in as props from AppSidebar (which already mounts
  * useSquareBalancesSummary) — no second fetch pipeline here.
@@ -37,7 +40,9 @@ import { BALANCE_LEVELS } from './useSquareBalancesSummary';
 const DISMISS_KEY = 'rxdeliver_sq_lowbal_dismiss';
 const PUSH_DEDUP_KEY = 'square_low_balance_alert';
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;   // dismissal lasts a day (or until the state worsens)
-const PUSH_DEDUP_MS = 24 * 60 * 60 * 1000;    // same low state re-pushes at most once a day
+const PUSH_REFIRE_MS = 24 * 60 * 60 * 1000;   // an UNCHANGED low balance re-pushes at most once a day
+const PUSH_CARD_COOLDOWN_MS = 30 * 60 * 1000; // min gap between pushes for one card (balance changed)
+const PUSH_BALANCE_CHANGE_MIN = 5;            // $ — smaller estimate jitter never re-pushes
 const RESHOW_MS_MOBILE = 30 * 60 * 1000;      // mobile re-pop while the state stays low
 const AUTO_HIDE_MS = 12000;
 const BALLOON_WIDTH = 262;
@@ -252,26 +257,57 @@ export default function SquareLowBalanceAlert({ ready, byLocId, currentUser, sid
   const lowCardsRef = useRef(lowCards);
   lowCardsRef.current = lowCards;
 
-  // ── Push: one per fingerprint change, cross-device deduped via AppSettings ──
+  // ── Push (owner spec Oct 7 2026 — was firing ~once a minute): per-card
+  // cooldown + balance-change trigger, deduped across devices via one
+  // shared AppSettings record. Rules per low card:
+  //   · no record yet → push (first detection / boot)
+  //   · balance CHANGED by ≥$5 and ≥30 min since that card's last push → push
+  //   · balance basically UNCHANGED → re-push at most once per 24h (a boot
+  //     with the same low balance the owner already knows about stays silent)
+  // Cents-level estimate jitter never re-fires anything. The record keeps
+  // every low card's last balance, so unchanged cards never re-push just
+  // because a different card changed.
+  const lowCardsKey = useMemo(
+    () => (lowCards || []).map((c) => `${c.locId}:${Number(c.balance).toFixed(2)}`).join('|'),
+    [lowCards]
+  );
   useEffect(() => {
     if (!isOwner || !fp || !currentUser?.id) return undefined;
     let cancelled = false;
     (async () => {
       try {
         const rows = await getFreshAppSettingRows(PUSH_DEDUP_KEY);
-        const rec = (rows || [])[0];
+        // Pick the NEWEST record — early versions created several duplicates
+        // with this key and reading rows[0] (any stale copy) broke the dedup,
+        // re-pushing on nearly every summary refresh (owner report Oct 7).
+        const sorted = (rows || []).filter((r) => r?.setting_value);
+        sorted.sort((a, b) => Number(b.setting_value.updatedAt || b.setting_value.sentAt || 0) - Number(a.setting_value.updatedAt || a.setting_value.sentAt || 0));
+        const rec = sorted[0];
         const val = rec?.setting_value || {};
-        // Already notified for this exact low state (this device or another
-        // one — the record is shared server-side) within the dedup window.
-        if (val.fp === fp && Date.now() - Number(val.sentAt || 0) < PUSH_DEDUP_MS) return;
+        const prevCards = val.cards || null;
+        // Legacy single-fingerprint records: same low-state fingerprint within
+        // 24h → stay silent (one-time bridge to the new per-card format).
+        if (!prevCards && val.fp === fp && Date.now() - Number(val.sentAt || 0) < PUSH_REFIRE_MS) return;
         if (cancelled) return;
 
+        const now = Date.now();
         const cards = lowCardsRef.current;
+        // Which cards actually warrant a push under the per-card rules?
+        const pushCards = (cards || []).filter((c) => {
+          const prev = prevCards?.[c.locId] || null;
+          if (!prev) return true;
+          const changed = Math.abs(Number(prev.balance) - Number(c.balance)) >= PUSH_BALANCE_CHANGE_MIN;
+          const since = now - Number(prev.sentAt || 0);
+          if (changed) return since >= PUSH_CARD_COOLDOWN_MS;
+          return since >= PUSH_REFIRE_MS; // unchanged low balance: daily reminder max
+        });
+        if (pushCards.length === 0) return;
+        if (cancelled) return;
         let body;
-        if (cards.length === 1) {
-          body = `${cards[0].name} card is at $${Math.round(cards[0].balance).toLocaleString()} — a day of CODs needs ~$${Math.round(cards[0].codAvg).toLocaleString()}. Tap to review balances.`;
+        if (pushCards.length === 1) {
+          body = `${pushCards[0].name} card is at $${Math.round(pushCards[0].balance).toLocaleString()} — a day of CODs needs ~$${Math.round(pushCards[0].codAvg).toLocaleString()}. Tap to review balances.`;
         } else {
-          body = `${cards.length} Square cards are low: ${cards.slice(0, 3).map((c) => `${c.name} $${Math.round(c.balance).toLocaleString()}`).join(', ')}${cards.length > 3 ? '…' : ''}. Tap to review balances.`;
+          body = `${pushCards.length} Square cards are low: ${pushCards.slice(0, 3).map((c) => `${c.name} $${Math.round(c.balance).toLocaleString()}`).join(', ')}${pushCards.length > 3 ? '…' : ''}. Tap to review balances.`;
         }
         const res = await sendPushForNotification({
           receiverId: currentUser.id,
@@ -285,14 +321,23 @@ export default function SquareLowBalanceAlert({ ready, byLocId, currentUser, sid
         // Record only on a delivered push — a failed send retries on the next
         // boot/detection instead of being marked done.
         if (res?.sent > 0) {
-          const payload = { fp, sentAt: Date.now() };
+          // Record EVERY low card's balance (not just the pushed ones) so an
+          // unchanged card never re-pushes on a later refresh.
+          const cardsRec = {};
+          for (const c of cards || []) cardsRec[c.locId] = { balance: Math.round(Number(c.balance) * 100) / 100, sentAt: now };
+          const payload = { cards: cardsRec, updatedAt: now };
           if (rec?.id) await base44.entities.AppSettings.update(rec.id, { setting_value: payload }).catch(() => {});
           else await base44.entities.AppSettings.create({ setting_key: PUSH_DEDUP_KEY, setting_value: payload }).catch(() => {});
+          // Consolidate duplicate records from the old rows[0] bug (best-effort).
+          for (const r of sorted.slice(1)) {
+            if (r?.id && r.id !== rec?.id) await base44.entities.AppSettings.delete(r.id).catch(() => {});
+          }
         }
       } catch (_) { /* fire-and-forget */ }
     })();
     return () => { cancelled = true; };
-  }, [isOwner, fp, currentUser?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, fp, currentUser?.id, lowCardsKey]);
 
   if (!isOwner || lowCards.length === 0) return null;
 
