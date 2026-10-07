@@ -809,18 +809,21 @@ export function matchPayoutChargedCods(outstandingItems, payoutCents) {
   return { matched, chargedCents, chargedCount, matchedItemIds };
 }
 
-// OWNER RULE (Oct 6 2026): every active pending / in-transit COD deducts its
-// amount-to-collect from the store card's balance estimate as soon as it
-// exists; a COD whose Card Spend badge is toggled to "Not Tapped" is added
-// back — it never deducts (the card was never charged). Payout-matched CODs
-// (their charge already hit via a payout, deducted through chargedCents) are
-// excluded so the same COD is never deducted twice. Collected debit/credit
-// CODs drop out of this deduction automatically — their real settled value
-// arrives as card sale credits via the Square Balances sync.
+// OWNER RULE (Oct 6 2026, corrected same night): EVERY uncollected COD
+// deducts its amount from the store card's balance estimate — pending /
+// in-transit CODs the moment they exist, and completed CASH collections too
+// (the card WAS charged for the meds; the collected cash is not back on the
+// card until the office processes it). A COD whose Card Spend badge is
+// toggled to "Not Tapped" is added back — it never deducts (the card was
+// never charged). Payout-matched CODs (their charge already hit via a
+// payout, deducted through chargedCents) are excluded so the same COD is
+// never deducted twice. Collected debit/credit CODs drop out of this
+// deduction automatically — their real settled value arrives as card sale
+// credits via the Square Balances sync.
 export function computePendingCodDeduction(outstandingItems, notTappedIds, excludeIds) {
   let deductCents = 0; let count = 0;
   for (const it of outstandingItems || []) {
-    if (!['pending', 'in_transit', 'en_route'].includes(String(it?.status || ''))) continue;
+    if (!['pending', 'in_transit', 'en_route', 'completed'].includes(String(it?.status || ''))) continue;
     const id = it?.delivery_id ? String(it.delivery_id) : null;
     if (id && ((notTappedIds && notTappedIds.has(id)) || (excludeIds && excludeIds.has(id)))) continue;
     const cents = Math.round(Number(it?.amount || 0) * 100);
@@ -936,7 +939,10 @@ async function loadSummary(force, uid) {
       // a "Not Tapped" COD is added back to the card estimate, never deducted.
       getAppSettingRows(SPEND_MARKS_KEY).catch(() => []),
     ]);
-    const spendMarksVal = spendMarkRows?.[0]?.setting_value;
+    // Defensive: multiple records with the same setting_key have appeared
+    // before — always read the most recently updated one.
+    const marksRec = (spendMarkRows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
+    const spendMarksVal = marksRec?.setting_value;
     const notTappedIds = new Set(
       Object.entries(spendMarksVal && typeof spendMarksVal === 'object' ? spendMarksVal : {})
         .filter(([, v]) => v && typeof v === 'object' && v.notTappedAt)

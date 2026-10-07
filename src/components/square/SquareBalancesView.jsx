@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getAppSettingRows } from '@/components/utils/appSettingsCache';
+import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -346,9 +346,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const spendMarksSeq = useRef(0);
   const loadSpendMarks = useCallback(async () => {
     const seq = ++spendMarksSeq.current;
-    const rows = await getAppSettingRows(SPEND_MARKS_KEY);
+    // FRESH read (bypasses the 60s app-settings cache): a cached read here
+    // served the PRE-toggle value when the write's WS echo reloaded the marks,
+    // reverting the owner's badge flip (Oct 6 2026 "2 clicks" bug).
+    const rows = await getFreshAppSettingRows(SPEND_MARKS_KEY);
     if (seq !== spendMarksSeq.current) return;
-    const rec = (rows || [])[0];
+    // Defensive: duplicate records with this setting_key have existed —
+    // always read the most recently updated one.
+    const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
     const raw = rec?.setting_value && typeof rec.setting_value === 'object' ? rec.setting_value : {};
     // Oct 6 2026: the record now stores "Not Tapped" overrides
     // ({ [deliveryId]: { notTappedAt, by } }). Entries without notTappedAt are
@@ -1079,7 +1084,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
         if (event?.data?.setting_key === SPEND_MARKS_KEY) {
-          loadSpendMarks();
+          // Apply the broadcast record DIRECTLY (Oct 6 2026 "2 clicks" fix):
+          // re-reading (even freshly) can race the just-written value, and a
+          // cached read serves the pre-toggle state — either reverts the
+          // optimistic flip. The broadcast carries the authoritative record.
+          const seq = ++spendMarksSeq.current;
+          const raw = event?.data?.setting_value && typeof event.data.setting_value === 'object' ? event.data.setting_value : {};
+          const value = {};
+          for (const [k, v] of Object.entries(raw)) if (v && typeof v === 'object' && v.notTappedAt) value[k] = v;
+          if (event?.data?.id) spendMarksRecordIdRef.current = event.data.id;
+          if (seq !== spendMarksSeq.current) return;
+          setManualSpendMarks(value);
+          manualSpendMarksRef.current = value;
+          computeCodCollectedTodayRef.current?.();
           return;
         }
         if (event?.data?.setting_key !== SETTING_KEY) return;
@@ -1561,7 +1578,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               )}
               {loc.pendingDeducted > 0 && (
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs to collect (pending, not "Not Tapped"{loc.pendingDeductCount ? `, ${loc.pendingDeductCount}` : ''})</div>
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> Uncollected CODs (not "Not Tapped"{loc.pendingDeductCount ? `, ${loc.pendingDeductCount}` : ''})</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
                 </div>
               )}
