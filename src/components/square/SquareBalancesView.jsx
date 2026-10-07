@@ -584,13 +584,48 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
       if (deliveryIdsForCashCheck.length) {
         const cashCollectedDeliveryIds = new Set();
+        const alreadyConfirmedIds = new Set();
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
           for (const d of (rows || [])) {
             if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
               cashCollectedDeliveryIds.add(d.id);
+              if (d?.cod_confirmed_collected) alreadyConfirmedIds.add(d.id);
             }
+          }
+        }
+        // LEDGER-MATCHED AUTO-COLLECT (owner rule, Oct 7 2026): a
+        // cash-collected COD is CONSIDERED COLLECTED once its match shows up
+        // on the ledger — a COMPLETED cod_collection SquareLedgerEntry linked
+        // to the delivery (squareLedgerSync stamps delivery_id when the
+        // catalog item is rung in Square). Matched rows leave the
+        // Uncollected / Past uncollected lists, the delivery is stamped
+        // cod_confirmed_collected (fire-and-forget, so the outstanding math
+        // and reconcile agree), and it surfaces in Collected today with its
+        // real ledger data. Unmatched cash rows keep the emerald 'Cash'
+        // badge as before.
+        const ledgerSince = new Date(Date.now() - 14 * 86400000).toISOString();
+        const ledgerLinkedIds = new Set();
+        for (let skip = 0; skip < 20000; skip += 500) {
+          const led = await base44.entities.SquareLedgerEntry.filter(
+            { sale_class: 'cod_collection', created_date: { $gte: ledgerSince } }, undefined, 500, skip
+          ).catch(() => []);
+          const ledList = led || [];
+          for (const e of ledList) {
+            if (e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED') ledgerLinkedIds.add(String(e.delivery_id));
+          }
+          if (ledList.length < 500) break;
+        }
+        const confirmedIds = new Set([...alreadyConfirmedIds]);
+        for (const id of cashCollectedDeliveryIds) {
+          if (ledgerLinkedIds.has(String(id))) confirmedIds.add(id);
+        }
+        // Fire-and-forget stamp so every surface (badge outstanding math,
+        // backend reconcile, other devices) agrees the COD is collected.
+        for (const id of confirmedIds) {
+          if (!alreadyConfirmedIds.has(id)) {
+            base44.entities.Delivery.update(String(id), { cod_confirmed_collected: true }).catch(() => {});
           }
         }
         if (cashCollectedDeliveryIds.size > 0 && isLatest()) {
@@ -598,9 +633,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             if (!prev) return prev;
             const next = {};
             for (const [locId, rows] of Object.entries(prev)) {
-              next[locId] = rows.map((r) => (
-                r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
-              ));
+              next[locId] = rows
+                .filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
+                .map((r) => (
+                  r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
+                ));
             }
             catalogUncollectedByLocRef.current = next;
             return next;
