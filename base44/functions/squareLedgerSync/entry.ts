@@ -1603,7 +1603,15 @@ Deno.serve(async (req) => {
       if (splitPool.length) {
         // Candidate sales: unlinked, unclaimed by the exact pass, recent
         // CARD sales whose cents could be a single uncollected COD or a
-        // 2-3 item subset-sum of them.
+        // 2-3 item subset-sum of them. NOTE (owner report Oct 7 2026): the
+        // store-card fingerprint exclusion is deliberately NOT applied here
+        // — these grouped rings are tendered with the STORE'S OWN Square
+        // debit card (the office loads the collected cash back onto the
+        // card), so the 5-swipes-never-COD-linked heuristic would exclude
+        // exactly the sales this pass must split. Same lesson as the Oct 3
+        // Lasaga fix: the fingerprint heuristic must never block a genuine
+        // COD match. The exact-cents subset-sum (and, in strategy 1, the
+        // order line NAME match) is the precision guard instead.
         const nowMs = Date.now();
         const matchableSums = new Set<number>();
         for (const d of splitPool) matchableSums.add(d.cents);
@@ -1623,8 +1631,7 @@ Deno.serve(async (req) => {
         const candSales = salePool.filter((x) =>
           !usedSaleKeys.has(x.key) && x.orderId && x.cents > 0 &&
           (nowMs - x.at) < 30 * 86400000 &&
-          matchableSums.has(x.cents) &&
-          !(x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint))
+          matchableSums.has(x.cents)
         ).sort((a, b) => b.at - a.at).slice(0, 24);
 
         // Shared split mechanics: supersede the combined parent (delete its
@@ -1738,12 +1745,12 @@ Deno.serve(async (req) => {
           unresolved.push(c);
         }
 
-        // Sales with NO order_id at all go straight to strategy 2.
+        // Sales with NO order_id at all go straight to strategy 2 (no
+        // fingerprint exclusion either — see candSales note above).
         const orderlessCands = salePool.filter((x) =>
           !usedSaleKeys.has(x.key) && !x.orderId && x.cents > 0 &&
           (nowMs - x.at) < 30 * 86400000 &&
-          matchableSums.has(x.cents) &&
-          !(x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint))
+          matchableSums.has(x.cents)
         ).sort((a, b) => b.at - a.at).slice(0, 12);
         unresolved.push(...orderlessCands);
 
