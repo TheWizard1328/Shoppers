@@ -1,0 +1,45 @@
+{
+  "name": "Daily Message Cleanup",
+  "description": "Daily 8 AM Edmonton message cleanup: marks all unread messages as read (1:1 and group receipts) so every day starts with a clean inbox, and prunes messages older than 30 days to keep the Message table lean and the messaging UI fast.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 8 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "maintain_messages": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {},
+            "function_name": "messageDailyMaintenance"
+          },
+          "x-base44": {
+            "description": "Mark unread read + prune >30-day messages",
+            "title": "Run daily message maintenance"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "daily_message_cleanup",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
