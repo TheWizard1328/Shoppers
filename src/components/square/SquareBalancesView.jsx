@@ -1758,10 +1758,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     pendingPickup: true,
                     notTapped: notTapped(it.delivery_id),
                   }));
+                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
                 const swiped = (id) => !!id && cardSpendIds.has(String(id));
                 const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
-                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                 // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                 // Uncollected / Past uncollected — they are technically
                 // uncollected until processed back to the Square card. They
