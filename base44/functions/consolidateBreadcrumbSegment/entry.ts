@@ -527,6 +527,35 @@ async function discoverSliceTargets(base44) {
       recentCompleted.push(r);
     }
   } catch (_) { /* fall through to empty list */ }
+
+  // ── Stale-tiny-segment self-heal (owner report Oct 7 2026) ──────────────
+  // The completion-driven window above MISSES routes whose last finish was
+  // more than 12 min ago — exactly the routes that got stuck with 0-2 point
+  // stub legs while the slicer ran through a stale code window. Unscaled
+  // segments with <=2 points whose route has a real master trail are
+  // suspicious: re-slice them once they're between 1h and 7d stale (the 1h
+  // floor keeps freshly-cycled routes out — every pass rewrites their
+  // segments, so updated_date stays recent while the route is active).
+  try {
+    const staleSegs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter(
+      { saved_to_route: false }, '-updated_date', 200
+    ).catch(() => []);
+    const nowMs = Date.now();
+    let healAdded = 0;
+    for (const seg of (staleSegs || [])) {
+      if (healAdded >= 5) break; // bound work per tick — remaining pairs queue for later ticks
+      const pc = Number(seg?.point_count ?? -1);
+      if (pc < 0 || pc > 2) continue;
+      if (seg?.stop_order === -1 || !seg?.driver_id || !seg?.delivery_date) continue;
+      const upd = Date.parse(seg?.updated_date || seg?.created_date || '') || 0;
+      if (!upd || upd > nowMs - 60 * 60 * 1000 || upd < nowMs - 7 * 86400000) continue;
+      const key = `${seg.driver_id}|${seg.delivery_date}`;
+      if (byKey.has(key)) continue;
+      byKey.set(key, { driver_id: seg.driver_id, delivery_date: seg.delivery_date, heal: true });
+      healAdded++;
+    }
+    if (healAdded > 0) console.log(`🍞 [consolidateBreadcrumbSegment] Tiny-segment heal: ${healAdded} stale route(s) queued`);
+  } catch (_) { /* non-critical */ }
   return { targets: [...byKey.values()], recentCompleted };
 }
 
@@ -554,6 +583,26 @@ async function handleSingle(base44, body) {
     }
 
     const isIncremental = mode === 'incremental';
+
+    // INCREMENTAL RETIRED (owner report Oct 7 2026: auto-sliced legs collapsing
+    // to 0-2 pts while manual reclip works). Legacy production clients still
+    // invoke mode:'incremental' at each stop finish; combined with offline-drain
+    // bursts (the slicer invoke racing the master flush / reading a just-seeded
+    // 1-pt master) it wrote synthetic 1-2 point stubs leg after leg (same failure
+    // as the Sep 28 renumber-collapse bug, 6db0bb45a). The server-side slice
+    // cycle full-walks every route within ~5-12 min of each completion and
+    // self-heals earlier legs, so the per-stop incremental cut is now a NO-OP.
+    if (isIncremental) {
+      console.log(`🍞 [consolidateBreadcrumbSegment] Incremental mode retired — no-op (slice cycle handles ${driver_id}/${delivery_date} within minutes)`);
+      return Response.json({
+        success: true,
+        mode: 'incremental-retired',
+        driver_id,
+        delivery_date,
+        segments: [{ delivery_id: _triggeredDeliveryId, skipped: true, reason: 'incremental_retired' }],
+        total_segments: 0,
+      });
+    }
 
     // Normalize the optional selected_stop_orders into a Set<number> (empty = full route).
     const selectedSet = Array.isArray(selected_stop_orders) && selected_stop_orders.length > 0
