@@ -53,6 +53,7 @@ import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 const MATCH_RADIUS_M = 50;            // crumb qualifies by proximity
 const TIME_WINDOW_MS = 2 * 60 * 1000; // crumb qualifies by ±2 min of delivery time
 const TIME_WINDOW_WIDE_MS = 10 * 60 * 1000; // time-priority fallback window — a visited stop should always have a crumb within ±10 min
+const VISIT_RUN_MAX_M = 150;         // contiguous crumbs within this of the pin belong to one visit
 const NEAR_MISS_MAX_M = 200;          // closest approach beyond this → straight synthetic line
 const POLY_PRECISION = 1e7;           // breadcrumb trails are 1e7 (legacy 1e5 auto-detected)
 
@@ -288,53 +289,48 @@ function firstIndexWithin(masterPoints, from, lat, lng, radiusM) {
  *   closestIdx/closestDist     — closest approach regardless of qualification
  */
 function scanWindow(masterPoints, from, to, lat, lng, dtMs, arrMs = null) {
-  // Evidence order (Oct 7 2026 redesign — owner: some legs cut to 2 pts, others
-  // cut at the wrong start/end):
-  //  1. PROXIMITY  — crumb within 50m of the pin (closest wins).
-  //  2. DWELL      — no crumb within 50m, but the driver was PHYSICALLY at the
-  //                  stop between arrival_time (GPS-detected) and the completion
-  //                  tap. The crumb closest to the pin INSIDE that window is the
-  //                  cut, at any distance: pins are geocoded entrances 100-600m
-  //                  from where the phone actually sat, so an absolute distance
-  //                  cap (tried earlier today) collapsed legs to 2-pt stubs.
-  //  3. NEAR-MISS / TIME-PRIORITY — unchanged fallbacks via closest/timePriority.
-  // actual_delivery_time alone is the TAP moment and can trail arrival by 30+ min
-  // (batched taps), so it is never trusted by itself to define the physical
-  // visit. The dwell window is [min(arr,dt)-2min, max(arr,dt)+2min] when both
-  // exist, else ±2min around whichever exists.
+  // POSITION IS PRIMARY (Oct 7 2026 final redesign, validated on real data):
+  // recorded stop times (actual_delivery_time / arrival_time) can be 20-30 min
+  // away from when the phone was physically at the stop (batched / delayed taps;
+  // e.g. 10-06 stops 9-10 were logged ~25 min before the GPS trail reached
+  // them), so time can neither define a leg end nor bound the scan window.
+  //   1. VISIT: the first crumb at/after `from` within 50m of the pin starts a
+  //      visit; the crumb CLOSEST to the pin inside that contiguous visit
+  //      (<=150m run, max 400 crumbs) is the leg end.
+  //   2. NEAR-MISS / TIME-PRIORITY: unchanged fallbacks (closest approach; the
+  //      crumb nearest delivery time within +-10 min) when no visit exists.
   let qualifierIdx = null, qualifierDist = Infinity;
   let closestIdx = null, closestDist = Infinity;
   let timePriorityIdx = null, timePriorityDelta = Infinity;
-  let dwellIdx = null, dwellDist = Infinity;
+  const lo = Math.max(0, from);
+  const hi = Math.min(to, masterPoints.length);
 
-  let winLo = null, winHi = null;
-  const anchors = [dtMs, arrMs].filter((v) => v != null && Number.isFinite(v));
-  if (anchors.length > 0) {
-    winLo = Math.min(...anchors) - TIME_WINDOW_MS;
-    winHi = Math.max(...anchors) + TIME_WINDOW_MS;
-  }
-
-  for (let i = Math.max(0, from); i < to && i < masterPoints.length; i++) {
+  let firstVisit = -1;
+  for (let i = lo; i < hi; i++) {
     const mp = masterPoints[i];
     const dist = haversineMeters(lat, lng, mp[0], mp[1]);
     if (dist < closestDist) { closestDist = dist; closestIdx = i; }
-    const dt = mp[2] || 0;
-    if (dist <= MATCH_RADIUS_M && dist < qualifierDist) {
-      qualifierDist = dist; qualifierIdx = i;
-    }
-    if (winLo != null && dt > 0 && dt >= winLo && dt <= winHi && dist < dwellDist) {
-      dwellDist = dist; dwellIdx = i;
-    }
-    if (dtMs != null && dt > 0) {
-      const delta = Math.abs(dt - dtMs);
-      if (delta <= TIME_WINDOW_WIDE_MS && delta < timePriorityDelta) {
-        timePriorityDelta = delta; timePriorityIdx = i;
+    if (firstVisit === -1 && dist <= MATCH_RADIUS_M) firstVisit = i;
+    if (dtMs != null) {
+      const dt = mp[2] || 0;
+      if (dt > 0) {
+        const delta = Math.abs(dt - dtMs);
+        if (delta <= TIME_WINDOW_WIDE_MS && delta < timePriorityDelta) {
+          timePriorityDelta = delta; timePriorityIdx = i;
+        }
       }
     }
   }
-  // Dwell crumb is accepted as the qualifier when no proximity crumb exists.
-  if (qualifierIdx === null && dwellIdx !== null) {
-    qualifierIdx = dwellIdx; qualifierDist = dwellDist;
+  if (firstVisit !== -1) {
+    qualifierIdx = firstVisit;
+    qualifierDist = haversineMeters(lat, lng, masterPoints[firstVisit][0], masterPoints[firstVisit][1]);
+    let j = firstVisit;
+    while (j + 1 < hi && j + 1 - firstVisit < 400) {
+      const d = haversineMeters(lat, lng, masterPoints[j + 1][0], masterPoints[j + 1][1]);
+      if (d > VISIT_RUN_MAX_M) break;
+      j++;
+      if (d < qualifierDist) { qualifierDist = d; qualifierIdx = j; }
+    }
   }
   return { qualifierIdx, qualifierDist, closestIdx, closestDist, timePriorityIdx, timePriorityDelta };
 }
@@ -1093,27 +1089,20 @@ async function handleSingle(base44, body) {
         // makes the proximity bound trigger too early, excluding stop N's real
         // qualifier and forcing the unbounded fallback. The delivery-time bound
         // is immune to both: it lands at the true chronological handoff.
+        // Position-first window: the leg for stop N may run up to the FIRST
+        // visit of stop N+1 on the remaining trail (so a later drive-by of N
+        // after visiting N+1 cannot swallow N+1's leg). Time is NOT used to
+        // bound the window: recorded times can be 20-30 min off the GPS trail
+        // (validated Oct 7 2026) and a time bound landed BEFORE the real visit.
         let windowEnd = masterPoints.length;
         if (s < stopsWithCoords.length - 1) {
           const next = stopsWithCoords[s + 1];
-          // The next stop's leg physically begins when the driver LEAVES this
-          // stop, so the boundary must not run past the next stop's ARRIVAL.
-          // Prefer arrival_time (GPS) over its completion tap, which can trail
-          // arrival by 30+ min and would let this leg swallow the next one.
-          const nextBoundMs = (next.arrMs != null && (next.dtMs == null || next.arrMs <= next.dtMs)) ? next.arrMs : next.dtMs;
-          if (nextBoundMs != null) {
-            let bestIdx = -1, bestDelta = Infinity;
-            for (let i = cursor; i < masterPoints.length; i++) {
-              const dt = masterPoints[i][2] || 0;
-              if (dt <= 0) continue;
-              const delta = Math.abs(dt - nextBoundMs);
-              if (delta < bestDelta) { bestDelta = delta; bestIdx = i; }
-              if (dt > nextBoundMs + TIME_WINDOW_MS) break;
-            }
-            if (bestIdx !== -1 && bestIdx > cursor) windowEnd = bestIdx;
-          } else {
-            const proxBound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
-            if (proxBound !== -1 && proxBound > cursor) windowEnd = proxBound;
+          const proxBound = firstIndexWithin(masterPoints, cursor, next.coords.lat, next.coords.lng, MATCH_RADIUS_M);
+          if (proxBound !== -1 && proxBound > cursor) {
+            // Only bound when THIS stop also has a visit before it; otherwise a
+            // pin shared/near the next stop's pin would erase this leg.
+            const own = firstIndexWithin(masterPoints, cursor, stopLat, stopLng, MATCH_RADIUS_M);
+            if (own !== -1 && own < proxBound) windowEnd = proxBound;
           }
         }
 
@@ -1128,7 +1117,7 @@ async function handleSingle(base44, body) {
           pts = masterPoints.slice(cursor, win.qualifierIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
           if (s === 0 && homePrepend) pts.unshift(homePrepend);
           matchDistance = win.qualifierDist;
-          method = win.qualifierDist <= MATCH_RADIUS_M ? 'proximity-50m' : 'dwell-window';
+          method = win.qualifierDist <= MATCH_RADIUS_M ? 'proximity-50m' : 'visit';
           boundaryIdx = win.qualifierIdx;
           boundaryCoords = [masterPoints[win.qualifierIdx][0], masterPoints[win.qualifierIdx][1]];
           cursor = win.qualifierIdx + 1;
