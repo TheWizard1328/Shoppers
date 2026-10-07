@@ -355,11 +355,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // always read the most recently updated one.
     const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
     const raw = rec?.setting_value && typeof rec.setting_value === 'object' ? rec.setting_value : {};
-    // Oct 6 2026: the record now stores "Not Tapped" overrides
-    // ({ [deliveryId]: { notTappedAt, by } }). Entries without notTappedAt are
-    // legacy manual Card Spend marks from the old feature — dropped.
+    // Oct 7 2026: normalize to { [deliveryId]: { notTapped, touchedAt, by } }.
+    // touchedAt is kept even when the owner clicks BACK to Card Spend — the
+    // deduction rule needs to know an item was explicitly clicked since
+    // True-Up, not just its current state. Legacy {notTappedAt} entries
+    // (pre-touch-tracking) normalize to notTapped:true.
     const value = {};
-    for (const [k, v] of Object.entries(raw)) if (v && typeof v === 'object' && v.notTappedAt) value[k] = v;
+    for (const [k, v] of Object.entries(raw)) {
+      if (!v || typeof v !== 'object') continue;
+      if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };
+      else if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
+    }
     spendMarksRecordIdRef.current = rec?.id || null;
     setManualSpendMarks(value);
     manualSpendMarksRef.current = value;
@@ -379,10 +385,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     if (!ownerCanEdit || !deliveryId) return;
     const prev = manualSpendMarksRef.current || {};
     const key = String(deliveryId);
-    const togglingBack = !!(prev?.[key]?.notTappedAt);
-    const next = { ...prev };
-    if (togglingBack) delete next[key];
-    else next[key] = { notTappedAt: new Date().toISOString(), by: currentUser?.id || null };
+    const togglingBack = !!(prev?.[key]?.notTapped);
+    const nowIso = new Date().toISOString();
+    // Oct 7 2026: ALWAYS keep a record with the fresh touchedAt — never
+    // delete the key when toggling back to Card Spend. The deduction rule
+    // treats a pre-True-Up COD as neutral until it has been explicitly
+    // clicked since True-Up; deleting the key on toggle-back would erase
+    // that "I clicked this" evidence and silently revert it to neutral.
+    const next = { ...prev, [key]: { notTapped: !togglingBack, touchedAt: nowIso, by: currentUser?.id || null } };
     // Optimistic: flip the badge instantly.
     setManualSpendMarks(next);
     manualSpendMarksRef.current = next;
@@ -391,7 +401,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (spendMarksRecordIdRef.current) {
         await base44.entities.AppSettings.update(spendMarksRecordIdRef.current, { setting_value: next });
       } else {
-        const created = await base44.entities.AppSettings.create({ setting_key: SPEND_MARKS_KEY, setting_value: next, description: 'Card Spend toggle overrides — notTappedAt entries are "Not Tapped" CODs (added back to the card balance)' });
+        const created = await base44.entities.AppSettings.create({ setting_key: SPEND_MARKS_KEY, setting_value: next, description: 'Card Spend toggle state — {notTapped, touchedAt} per delivery; touchedAt proves an explicit owner click since the last True-Up' });
         spendMarksRecordIdRef.current = created?.id || null;
       }
       toast.success(togglingBack ? 'Card Spend' : 'Not Tapped');
@@ -1091,7 +1101,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const seq = ++spendMarksSeq.current;
           const raw = event?.data?.setting_value && typeof event.data.setting_value === 'object' ? event.data.setting_value : {};
           const value = {};
-          for (const [k, v] of Object.entries(raw)) if (v && typeof v === 'object' && v.notTappedAt) value[k] = v;
+          for (const [k, v] of Object.entries(raw)) {
+            if (!v || typeof v !== 'object') continue;
+            if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };
+            else if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
+          }
           if (event?.data?.id) spendMarksRecordIdRef.current = event.data.id;
           if (seq !== spendMarksSeq.current) return;
           setManualSpendMarks(value);
@@ -1208,12 +1222,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         (codOut?.items) || [],
         payoutCentsByLoc.get(loc.location_id) || []
       );
-      // Owner rule (Oct 6 2026): pending/in-transit CODs deduct from the card
-      // estimate; "Not Tapped" toggles and payout-matched CODs never deduct.
-      const notTappedIds = new Set(
-        Object.entries(manualSpendMarks || {}).filter(([, v]) => v?.notTappedAt).map(([k]) => String(k))
-      );
-      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction((codOut?.items) || [], notTappedIds, matchedItemIds);
+      // Owner rule (Oct 6-7 2026): a pre-True-Up COD stays neutral until the
+      // owner explicitly clicks its badge since that True-Up; a brand-new
+      // (post-True-Up) COD deducts by default. See computePendingCodDeduction.
+      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction((codOut?.items) || [], manualSpendMarks || {}, matchedItemIds, config?.trued_up_at || null);
       const payoutCents = payoutCentsByLoc.get(loc.location_id) || [];
       const swept = payoutCents.length ? payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100 : (payoutByLoc.get(loc.location_id) || 0);
       return {
@@ -1655,7 +1667,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
                 const swiped = (id) => !!id && cardSpendIds.has(String(id));
                 const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
-                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTappedAt;
+                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                 // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                 // Uncollected / Past uncollected — they are technically
                 // uncollected until processed back to the Square card. They

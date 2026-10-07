@@ -598,7 +598,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       if (outstanding <= 0) continue;
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
-      agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
+      agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
     }
   }
 
@@ -635,7 +635,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     }
     const agg = aggFor(locId);
     agg.total += cash; agg.awaitingCount += 1;
-    agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
+    agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
   }
 
   const out = {};
@@ -809,31 +809,40 @@ export function matchPayoutChargedCods(outstandingItems, payoutCents) {
   return { matched, chargedCents, chargedCount, matchedItemIds };
 }
 
-// OWNER RULE (Oct 6 2026, corrected same night): EVERY uncollected COD
-// deducts its amount from the store card's balance estimate — pending /
-// in-transit CODs the moment they exist, and completed CASH collections too
-// (the card WAS charged for the meds; the collected cash is not back on the
-// card until the office processes it). A COD whose Card Spend badge is
-// toggled to "Not Tapped" is added back — it never deducts (the card was
-// never charged). Payout-matched CODs (their charge already hit via a
-// payout, deducted through chargedCents) are excluded so the same COD is
-// never deducted twice. Collected debit/credit CODs drop out of this
-// deduction automatically — their real settled value arrives as card sale
-// credits via the Square Balances sync.
-export function computePendingCodDeduction(outstandingItems, notTappedIds, excludeIds) {
+// OWNER RULE (Oct 6-7 2026, corrected): the card_start counted at True-Up
+// already reflects every COD outstanding AT THAT MOMENT — deducting them
+// again would double-count. So an outstanding COD only affects the estimate
+// going forward when the owner takes an action AFTER true-up:
+//   - a brand-new delivery entered (created_date >= trued_up_at) deducts the
+//     moment it's pending/in-transit (default assumption: Card Spend), OR
+//   - an OLDER (pre-true-up) COD the owner explicitly clicks (its Card Spend
+//     mark's touchedAt >= trued_up_at) then participates from that click
+//     onward, using whatever state the click left it in.
+// Everything else (pre-existing, never touched since true-up) stays neutral
+// — "none of these should be added or deducted until I click a badge."
+// marksMap: { [deliveryId]: { notTapped: boolean, touchedAt: iso } }.
+export function computePendingCodDeduction(outstandingItems, marksMap, excludeIds, truedUpAt) {
   let deductCents = 0; let count = 0;
+  const tu = truedUpAt ? new Date(truedUpAt).getTime() : null;
   for (const it of outstandingItems || []) {
     if (!['pending', 'in_transit', 'en_route', 'completed'].includes(String(it?.status || ''))) continue;
     const id = it?.delivery_id ? String(it.delivery_id) : null;
-    if (id && ((notTappedIds && notTappedIds.has(id)) || (excludeIds && excludeIds.has(id)))) continue;
+    if (id && excludeIds && excludeIds.has(id)) continue;
     const cents = Math.round(Number(it?.amount || 0) * 100);
     if (!(cents > 0)) continue;
+    const mark = id ? marksMap?.[id] : null;
+    const createdT = it?.created_date ? new Date(it.created_date).getTime() : null;
+    const isNewSinceTrueUp = tu != null && createdT != null && createdT >= tu;
+    const touchedT = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+    const isTouchedSinceTrueUp = tu != null && touchedT != null && touchedT >= tu;
+    if (!isNewSinceTrueUp && !isTouchedSinceTrueUp) continue; // neutral — untouched pre-existing COD
+    if (mark?.notTapped === true) continue; // explicitly not tapped — never deducts
     deductCents += cents; count += 1;
   }
   return { deductCents, count };
 }
 
-function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, notTappedIds }) {
+function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt }) {
   const folderRate = Number(config.folder_rate ?? 0.02);
   const byLocId = new Map();
   const storeCardFps = learnStoreCardFingerprints(sales);
@@ -871,7 +880,7 @@ function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCen
     const swept = payoutCentsByLoc?.has?.(loc.location_id) ? sweptRaw : Number(payoutsByLoc?.get?.(loc.location_id) || 0);
     // Owner rule Oct 6 2026: pending/in-transit CODs (not "Not Tapped", not
     // payout-matched) deduct from the card balance estimate.
-    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, notTappedIds, matchedItemIds);
+    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, matchedItemIds, truedUpAt);
     const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
@@ -943,11 +952,14 @@ async function loadSummary(force, uid) {
     // before — always read the most recently updated one.
     const marksRec = (spendMarkRows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
     const spendMarksVal = marksRec?.setting_value;
-    const notTappedIds = new Set(
-      Object.entries(spendMarksVal && typeof spendMarksVal === 'object' ? spendMarksVal : {})
-        .filter(([, v]) => v && typeof v === 'object' && v.notTappedAt)
-        .map(([k]) => String(k))
-    );
+    // Normalize legacy {notTappedAt} shape and the new {notTapped,touchedAt}
+    // shape into one marksMap: { [id]: { notTapped, touchedAt } }.
+    const marksMap = {};
+    for (const [k, v] of Object.entries(spendMarksVal && typeof spendMarksVal === 'object' ? spendMarksVal : {})) {
+      if (!v || typeof v !== 'object') continue;
+      if (v.notTappedAt) marksMap[k] = { notTapped: true, touchedAt: v.notTappedAt };
+      else if (v.touchedAt) marksMap[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt };
+    }
     // One detailed pass — the totals map used by the card math is derived from
     // it, and the detailed output (items/patient names) is kept so the Square
     // Balances page can hydrate offline from the IDB snapshot without a
@@ -973,7 +985,7 @@ async function loadSummary(force, uid) {
       payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
     }
     const data = {
-      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, notTappedIds }) : new Map(),
+      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt: config?.trued_up_at || null }) : new Map(),
       payoutsByLoc: payoutsLoc,
       storeToLoc: stl,
       weeklyByStore: weekly,
