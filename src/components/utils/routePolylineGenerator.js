@@ -333,36 +333,59 @@ export async function generateRoutePolylines({
   //   • All legs present + current leg still anchored at the origin + no
   //     live-GPS via → SKIP generation entirely; the writeBatch carries no
   //     encoded_polyline so existing polylines are preserved server-side/IDB.
-  //   • Legs present but the current leg differs (origin anchor moved since
-  //     the last generation, or the driver's live GPS bends the current leg)
+  //   • Legs present and every stored leg still anchored at its current
+  //     predecessor, but the driver's live GPS bends the current leg
   //     → regenerate ONLY that first leg; remaining legs keep their polylines.
+  //   • Any stored leg NOT anchored at its current predecessor (Start Delivery
+  //     renumber jumps a stop to the front, shifting adjacency) → FULL
+  //     regeneration (owner report, Oct 7 2026).
   let polyTargets = stopsToPolyline;
   if (orderUnchanged && polyTargets.length > 0) {
     const allLegsPresent = polyTargets.every(s =>
       typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10
     );
-    let firstLegAnchoredAtOrigin = false;
-    if (allLegsPresent) {
-      try {
-        const _pts = decodeGooglePolyline(polyTargets[0].delivery.encoded_polyline);
-        if (Array.isArray(_pts) && _pts.length > 0 && Number.isFinite(_pts[0][0]) && Number.isFinite(_pts[0][1])) {
-          const _latRad = (Number(effectiveOrigin.lat) || 0) * Math.PI / 180;
-          const _dLatKm = (Number(_pts[0][0]) - Number(effectiveOrigin.lat)) * 111.32;
-          const _dLonKm = (Number(_pts[0][1]) - Number(effectiveOrigin.lon)) * 111.32 * Math.max(Math.cos(_latRad), 0.01);
-          firstLegAnchoredAtOrigin = Math.hypot(_dLatKm, _dLonKm) < 0.1; // within 100 m of the anchor
-        }
-      } catch (_) { /* decode failure → treat as unanchored */ }
-    }
     if (!allLegsPresent) {
       // Some leg is missing (e.g. stops just accepted, or a previous polyline
       // pass failed) → full generation; the skip must never leave gaps.
       console.log(`[routePolylineGenerator] ${source} — order unchanged but ${polyTargets.length - polyTargets.filter(s => typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10).length} leg(s) missing → full generation`);
-    } else if (!firstLegAnchoredAtOrigin || viaValid) {
-      console.log(`[routePolylineGenerator] ${source} — order unchanged → current-leg-only regeneration (${!firstLegAnchoredAtOrigin ? 'origin anchor moved' : 'live-GPS via point'}); ${polyTargets.length - 1} later leg(s) keep existing polylines`);
-      polyTargets = [polyTargets[0]];
     } else {
-      console.log(`[routePolylineGenerator] ${source} — ORDER UNCHANGED, all ${polyTargets.length} leg(s) present and anchored → polyline generation SKIPPED (ETAs still update from HERE sequencing)`);
-      return polylineByDeliveryId;
+      // ── Adjacency validation (owner report, Oct 7 2026) ────────────────────
+      // "Same stop order" does NOT prove the STORED legs match the current
+      // adjacency. Start Delivery renumbers locally BEFORE the coordinator
+      // runs (started stop jumps to position K+1, everything shifts), so the
+      // optimizer's order equals the pre-opt LOCAL order and the skip fired —
+      // leaving mid-route legs anchored at their OLD origin/destination
+      // (e.g. start stop 9 → stops 8 and 10 keep stale polylines). A stored
+      // leg is only reusable when its decoded FIRST point sits at its expected
+      // anchor: the origin for leg 0, the previous stop for every later leg.
+      // Any mismatch → full generation.
+      const _anchorKm = (pts, anchor) => {
+        if (!Array.isArray(pts) || pts.length === 0) return Infinity;
+        if (!Number.isFinite(Number(pts[0][0])) || !Number.isFinite(Number(pts[0][1]))) return Infinity;
+        const _latRad = (Number(anchor.lat) || 0) * Math.PI / 180;
+        const _dLatKm = (Number(pts[0][0]) - Number(anchor.lat)) * 111.32;
+        const _dLonKm = (Number(pts[0][1]) - Number(anchor.lon)) * 111.32 * Math.max(Math.cos(_latRad), 0.01);
+        return Math.hypot(_dLatKm, _dLonKm);
+      };
+      let _staleLegIdx = -1;
+      for (let i = 0; i < polyTargets.length; i++) {
+        const expectedAnchor = i === 0
+          ? { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
+          : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };
+        let _km = Infinity;
+        try { _km = _anchorKm(decodeGooglePolyline(polyTargets[i].delivery.encoded_polyline), expectedAnchor); }
+        catch (_) { /* decode failure → treat as stale */ }
+        if (!(_km < 0.15)) { _staleLegIdx = i; break; }
+      }
+      if (_staleLegIdx >= 0) {
+        console.log(`[routePolylineGenerator] ${source} — order unchanged but stored leg ${_staleLegIdx + 1}/${polyTargets.length} is not anchored at its current predecessor (Start-renumber / adjacency change) → full generation`);
+      } else if (viaValid) {
+        console.log(`[routePolylineGenerator] ${source} — order unchanged, all legs anchored → current-leg-only regeneration (live-GPS via point); ${polyTargets.length - 1} later leg(s) keep existing polylines`);
+        polyTargets = [polyTargets[0]];
+      } else {
+        console.log(`[routePolylineGenerator] ${source} — ORDER UNCHANGED, all ${polyTargets.length} leg(s) present and anchored → polyline generation SKIPPED (ETAs still update from HERE sequencing)`);
+        return polylineByDeliveryId;
+      }
     }
   }
 
