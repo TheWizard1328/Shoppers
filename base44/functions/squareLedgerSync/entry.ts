@@ -120,6 +120,52 @@ function resolveCodLink(order: any, catalogByObjectId: Map<string, any>) {
   return null;
 }
 
+// MULTI-COD ORDER SPLIT (owner report Oct 7 2026): a single Square order can
+// group several COD catalog items into ONE payment (e.g. a $4.53 COD and a
+// $23.60 COD swiped together as one $28.13 transaction). resolveCodLink only
+// ever returned the FIRST match, so the ledger entry (and its delivery_id
+// link) represented just one of the two deliveries — the other delivery
+// never got a matching ledger row and could never be auto-confirmed. This
+// returns EVERY distinct COD line item in the order, each with its own
+// money amount, so the caller can emit one ledger entry per delivery.
+function resolveCodLineItems(order: any, catalogByObjectId: Map<string, any>) {
+  const seenDeliveryIds = new Set<string>();
+  const out: any[] = [];
+  for (const li of order?.line_items || []) {
+    const link = li?.catalog_object_id ? catalogByObjectId.get(li.catalog_object_id) : null;
+    if (!link) continue;
+    const dedupeKey = link.delivery_id ? String(link.delivery_id) : `obj:${li.catalog_object_id}`;
+    if (seenDeliveryIds.has(dedupeKey)) continue;
+    seenDeliveryIds.add(dedupeKey);
+    const amount = Math.round(Number(li?.total_money?.amount ?? (Number(li?.base_price_money?.amount || 0) * Number(li?.quantity || 1))) || 0);
+    out.push({ ...link, catalogObjectId: li.catalog_object_id, amountCents: amount });
+  }
+  return out;
+}
+
+// Splits a full payment's amount/fee/folder/loan across its matched COD line
+// items in proportion to each item's own money (remainder cents go to the
+// last split so the parts always sum exactly to the whole — no money
+// created or lost). Returns [] when there is nothing to split.
+function splitPaymentAcrossCodLinks(codLinks: any[], fullAmountCents: number, fullFeeCents: number) {
+  const lineTotal = codLinks.reduce((s, l) => s + Math.max(0, l.amountCents || 0), 0);
+  if (lineTotal <= 0) return [];
+  const full = Math.round(Number(fullAmountCents) || 0);
+  const fee = Math.round(Number(fullFeeCents) || 0);
+  let amountLeft = full;
+  let feeLeft = fee;
+  const parts = codLinks.map((link, idx) => {
+    const isLast = idx === codLinks.length - 1;
+    const share = Math.max(0, link.amountCents || 0) / lineTotal;
+    const amount = isLast ? amountLeft : Math.round(full * share);
+    const feePart = isLast ? feeLeft : Math.round(fee * share);
+    amountLeft -= amount;
+    feeLeft -= feePart;
+    return { ...link, amountCents: amount, feeCents: feePart };
+  });
+  return parts;
+}
+
 // ── Fee rules (owner, Oct 3 2026) ─────────────────────────────────────────────
 // Interac/debit: $0.07 + 0.75%. Any credit card: 2.5% flat. KEYED credit
 // (card number typed in, not tapped): 3.3% + $0.15 (owner rule added after the
@@ -737,6 +783,11 @@ Deno.serve(async (req) => {
     const locationStats: any[] = [];
     let payoutsAvailable = true;
     const syncErrors: string[] = [];
+    // square_ids of pre-split combined rows (owner report Oct 7 2026: a
+    // multi-COD payment's old single ledger row is now replaced by one row
+    // per delivery) — deleted from the table below so the combined row never
+    // sits alongside its split children and double-counts the sale.
+    const supersededSquareIds = new Set<string>();
 
     // Fetch all locations' data in parallel (keeps each sync call fast enough
     // for the platform's client-side invoke timeout)
@@ -794,7 +845,8 @@ Deno.serve(async (req) => {
       // Card payments -> sale or decline entries
       for (const payment of payments) {
         const order = payment?.order_id ? orderById.get(payment.order_id) : null;
-        const codLink = order ? resolveCodLink(order, catalogByObjectId) : null;
+        const codLinksAll = order ? resolveCodLineItems(order, catalogByObjectId) : [];
+        const codLink = codLinksAll[0] || null;
         const card = payment?.card_details?.card;
         const status = String(payment?.status || '').toUpperCase();
 
@@ -832,6 +884,43 @@ Deno.serve(async (req) => {
         // (buildEntry/entries.set is keyed by payment.id either way).
         if (status !== 'COMPLETED' && status !== 'APPROVED' && status !== 'PENDING') continue;
 
+        // MULTI-COD SPLIT (Oct 7 2026): 2+ distinct CODs swiped as one
+        // payment each get their own ledger entry (own amount/fee/settlement),
+        // so each delivery can be individually matched and auto-confirmed.
+        // The pre-split combined row (keyed by payment.id alone) is stale once
+        // split and is deleted below via supersededSquareIds.
+        if (codLinksAll.length > 1) {
+          const fullFee = sumProcessingFees(payment);
+          const splitParts = splitPaymentAcrossCodLinks(codLinksAll, payment?.amount_money?.amount, fullFee);
+          if (splitParts.length) {
+            supersededSquareIds.add(String(payment.id));
+            for (const part of splitParts) {
+              entries.set(`${payment.id}:${part.catalogObjectId}`, buildEntry({
+                square_id: `${payment.id}:${part.catalogObjectId}`,
+                entry_kind: 'collected',
+                tender_type: 'CARD',
+                sale_class: 'cod_collection',
+                amount_cents: part.amountCents,
+                fee_cents: part.feeCents,
+                ...cardSettlementCents(rates, locationId, part.amountCents, part.feeCents),
+                status: payment.status,
+                occurred_at: payment.created_at,
+                location_id: locationId,
+                location_name: locationName,
+                order_id: payment.order_id || null,
+                delivery_id: part.delivery_id || null,
+                patient_id: part.patient_id || null,
+                cod_item_name: part.item_name || null,
+                card_fingerprint: card?.fingerprint || null,
+                card_last4: card?.last_4 || null,
+                card_brand: card?.card_brand || null,
+                entry_method: payment?.card_details?.entry_method || null,
+              }));
+            }
+            continue;
+          }
+        }
+
         entries.set(payment.id, buildEntry({
           square_id: payment.id,
           entry_kind: 'collected',
@@ -860,7 +949,35 @@ Deno.serve(async (req) => {
         for (const tender of order?.tenders || []) {
           if (!tender?.id) continue;
           if (tender.type === 'CARD' || tender.payment_id) continue; // already in payments pass
-          const codLink = resolveCodLink(order, catalogByObjectId);
+          const codLinksAll = resolveCodLineItems(order, catalogByObjectId);
+          const codLink = codLinksAll[0] || null;
+          // MULTI-COD SPLIT (Oct 7 2026) — same reasoning as the card-payment
+          // branch: a cash ring covering 2+ CODs in one tender needs one entry
+          // per delivery so each can be individually matched/confirmed.
+          if (codLinksAll.length > 1) {
+            const splitParts = splitPaymentAcrossCodLinks(codLinksAll, tender?.amount_money?.amount, 0);
+            if (splitParts.length) {
+              supersededSquareIds.add(`tender-${tender.id}`);
+              for (const part of splitParts) {
+                entries.set(`tender-${tender.id}:${part.catalogObjectId}`, buildEntry({
+                  square_id: `tender-${tender.id}:${part.catalogObjectId}`,
+                  entry_kind: 'collected',
+                  tender_type: tender.type || 'OTHER',
+                  sale_class: 'cod_collection',
+                  amount_cents: part.amountCents,
+                  status: order.state === 'COMPLETED' ? 'COMPLETED' : order.state,
+                  occurred_at: tender.created_at || order.created_at,
+                  location_id: locationId,
+                  location_name: locationName,
+                  order_id: order.id,
+                  delivery_id: part.delivery_id || null,
+                  patient_id: part.patient_id || null,
+                  cod_item_name: part.item_name || null,
+                }));
+              }
+              continue;
+            }
+          }
           entries.set(`tender-${tender.id}`, buildEntry({
             square_id: `tender-${tender.id}`,
             entry_kind: 'collected',
@@ -1097,6 +1214,20 @@ Deno.serve(async (req) => {
           .then(() => { duplicateRowsDeleted += 1; })
           .catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`dedupeDelete(${rows[i].id}): ${e?.message || e}`); });
       }
+    }
+
+    // SUPERSEDED COMBINED-ROW CLEANUP (Oct 7 2026 multi-COD split): a
+    // payment/tender that used to be ONE ledger row (before this fix split it
+    // into one row per delivery) must have its old combined row removed —
+    // otherwise the combined amount and its split children both count,
+    // double-booking the sale and its fee.
+    let supersededRowsDeleted = 0;
+    for (const sqid of supersededSquareIds) {
+      const existingId = existingIdBySquareId.get(sqid);
+      if (!existingId) continue;
+      await base44.asServiceRole.entities.SquareLedgerEntry.delete(existingId)
+        .then(() => { supersededRowsDeleted += 1; existingIdBySquareId.delete(sqid); })
+        .catch((e: any) => { if (syncErrors.length < 10) syncErrors.push(`supersededDelete(${existingId}): ${e?.message || e}`); });
     }
 
     // ── TOPUP ATTRIBUTION ─────────────────────────────────────────────────────
@@ -1608,6 +1739,7 @@ Deno.serve(async (req) => {
       entriesUpserted: upserted,
       entriesFailed: failedUpserts,
       duplicateRowsDeleted,
+      supersededRowsDeleted,
       payoutsAvailable,
       codLinks: allEntries.filter((e) => e.delivery_id).length,
       backfillLinks,
