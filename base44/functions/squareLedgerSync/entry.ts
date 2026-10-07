@@ -841,6 +841,7 @@ Deno.serve(async (req) => {
     }
 
     const entries: Map<string, any> = new Map();
+    const syncErrors: string[] = [];
 
     // EXISTING-ROW SCAN (moved ahead of the Square fetch loops Oct 7 2026):
     // the split-parent guard below needs to know which payments were already

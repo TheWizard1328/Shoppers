@@ -1083,11 +1083,53 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const out = res?.codOutstanding || [];
       const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
       setCodOutstandingByLoc(byLoc);
-      toast.success('Square data refreshed');
       // The sync just wrote NEW ledger rows (service-role — no WS echo reaches
       // us), so the IDB windows cache is stale: drop it before refresh() runs
       // loadSales, otherwise the page repaints the pre-sync cache.
       invalidateLedgerWindows();
+
+      // STEP 2 — COD CATALOG SYNC (owner spec, Oct 7 2026): the ledger sync
+      // above registers the real Square sales and stamps
+      // cod_confirmed_collected on cash-collected deliveries; the COD sync
+      // then clears their Square catalog items so those rows drop from the
+      // Uncollected lists on BOTH data sets (ledger + catalog). ORDER MATTERS:
+      // reversed, the catalog sync runs before the confirmations exist and
+      // nothing clears.
+      try {
+        const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
+        const nowMs = Date.now();
+        if (Number(localStorage.getItem(LS_INFLIGHT) || 0) > nowMs) {
+          // The Square COD page's full sync holds the shared lease — its run
+          // covers the same catalog reconcile, so don't double-fetch.
+          console.log('[SquareBalances] COD sync skipped — Square COD page sync already running');
+        } else {
+          // Take the same cross-page lease the Square COD page uses so the
+          // two syncs never run concurrently (shared Square rate-limit budget).
+          localStorage.setItem(LS_INFLIGHT, String(nowMs + 240000));
+          try {
+            // Incremental order fetch (same marker logic as the Square COD
+            // page): pass orderFetchSince when a recent sync exists so this
+            // pulls only the order tail instead of the full 90-day window.
+            // READ-ONLY use of the marker — this page does not replace-save
+            // the COD page's IDB transaction mirror, so the marker itself is
+            // NOT stamped here (the COD page's next sync re-covers this tail).
+            const lastOrderFetch = Number(localStorage.getItem('squareCod_lastOrderFetchAt') || 0);
+            const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
+              ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
+              : null;
+            await base44.functions.invoke('squareGetCodData2', {
+              forceDeliveryRefresh: true,
+              daysBack: 90,
+              ...(orderFetchSince ? { orderFetchSince } : {}),
+            });
+          } finally {
+            localStorage.removeItem(LS_INFLIGHT);
+          }
+        }
+      } catch (err) {
+        console.warn('[SquareBalances] COD catalog sync after ledger sync failed:', err);
+      }
+      toast.success('Square data refreshed');
       await refresh({ reloadConfig: false });
       computeLocalOutstanding();
       computeCodCollectedToday();
