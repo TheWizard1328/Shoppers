@@ -433,11 +433,205 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // regardless of delivery date — this catches old ones (e.g. 100 days back)
   // that the true-up-window delivery queries exclude. Statuses 'completed' and
   // 'deleted' mean the item was rung/removed = collected, so they're skipped.
-  // RETIRED (owner spec, Oct 7 2026): strictly-delivery-data balances. The
-  // SquareCatalogItems-based uncollected list is no longer used — the
-  // delivery-derived outstanding items are the single source. Kept as a no-op
-  // so existing refs/call sites stay wired without fetching Square data.
-  const computeCatalogUncollected = useCallback(async () => {}, []);
+    const computeCatalogUncollected = useCallback(async () => {
+    // MERGE ROLE (owner spec, Oct 7 2026 follow-up): the catalog list is
+    // MERGED into the Uncollected / Past uncollected sections alongside the
+    // delivery-derived rows, exactly like the old system — ACTIVE catalog
+    // items catch CODs whose delivery rows fall outside the delivery-derived
+    // window (e.g. week-old CODs). Drivers see the same merged lists.
+    const mySeq = ++catalogUncollectedSeqRef.current;
+    const isLatest = () => mySeq === catalogUncollectedSeqRef.current;
+    try {
+      // DISAPPEARING-ROWS GUARD (Oct 6 2026, owner report: Past uncollected
+      // rows "show up then disappear"). A failed/empty fetch page MUST NOT
+      // wipe the visible list — each failed page retries once, and if the
+      // overall fetch still came back empty-with-errors we keep the previous
+      // state instead of overwriting it with an empty map (an entity fetch
+      // hiccup — e.g. a rate-limit volley from another Square load — would
+      // previously blank the section until the next successful recompute).
+      const fetchPage = async (skip, attempt) => {
+        try {
+          const rows = await base44.entities.SquareCatalogItems.filter({ status: 'active' }, undefined, 500, skip);
+          return { rows: rows || [], failed: false };
+        } catch (e) {
+          if (attempt < 2) {
+            await new Promise((res) => setTimeout(res, 2500));
+            return fetchPage(skip, attempt + 1);
+          }
+          return { rows: [], failed: true };
+        }
+      };
+      const itemsPages = [];
+      let anyFetchFailed = false;
+      for (let skip = 0; skip < 20000; skip += 500) {
+        const { rows: list, failed } = await fetchPage(skip, 1);
+        anyFetchFailed = anyFetchFailed || failed;
+        itemsPages.push(...list);
+        if (list.length < 500) break;
+      }
+      const itemsRaw = itemsPages;
+      const totalItemsFetched = itemsRaw.length;
+      const [storesRaw, patientsRaw] = await Promise.all([
+        base44.entities.Store.list().catch(() => []),
+        base44.entities.Patient.list().catch(() => []),
+      ]);
+      const resolvePatientName = buildPatientResolver(patientsRaw);
+      const storeById = new Map();
+      (storesRaw || []).forEach((s) => { if (s?.id) storeById.set(String(s.id), s); });
+      const byLoc = new Map();
+      for (const it of (itemsRaw || [])) {
+        if (!it?.location_id) continue;
+        if (!byLoc.has(it.location_id)) byLoc.set(it.location_id, []);
+        const sInfo = storeById.get(String(it.store_id || ''));
+        const date = String(it.delivery_date || '').slice(0, 10);
+        byLoc.get(it.location_id).push({
+          key: `cat-${it.id || it.square_catalog_object_id}`,
+          delivery_id: it.delivery_id || null,
+          patientName: resolvePatientName(it.patient_id)?.full_name || extractNameFromCatalogDescription(it.description) || null,
+          storeAbbrev: sInfo?.abbreviation || null,
+          storeColor: sInfo?.color || null,
+          amount: Number(it.amount || 0),
+          date: date || null,
+          cashAwaitingSquare: false,
+        });
+      }
+      // DEFENSIVE DEDUP (Oct 6 2026, owner report: Emilen Brochu COD shown
+      // twice in Uncollected). The backend has a duplicate-guard against ever
+      // creating two live Square catalog items for the same delivery, but
+      // this frontend list must never show a repeat even if a stale/duplicate
+      // row briefly exists in SquareCatalogItems (e.g. mid-cleanup, racing
+      // sync). Collapse by delivery_id, keeping the most recently created row.
+      const freshOut = {};
+      for (const [locId, rowsRaw] of byLoc) {
+        const byDelivery = new Map();
+        const noDeliveryId = [];
+        for (const r of rowsRaw) {
+          if (!r.delivery_id) { noDeliveryId.push(r); continue; }
+          const existing = byDelivery.get(r.delivery_id);
+          if (!existing || String(r.key) > String(existing.key)) byDelivery.set(r.delivery_id, r);
+        }
+        freshOut[locId] = [...byDelivery.values(), ...noDeliveryId];
+      }
+      // Carry-forward merge: a delivery_id present in the PREVIOUS rendered
+      // state but missing from this fresh fetch is kept for up to one extra
+      // cycle (a transient backend blip), then dropped once it has missed
+      // twice in a row (a real collection/removal).
+      const freshIdsByLoc = new Map();
+      for (const [locId, rows] of Object.entries(freshOut)) {
+        freshIdsByLoc.set(locId, new Set(rows.map((r) => r.delivery_id).filter(Boolean)));
+      }
+      const streak = catalogMissStreakRef.current;
+      const seenThisPass = new Set();
+      const out = { ...freshOut };
+      for (const [locId, prevRows] of Object.entries(catalogUncollectedByLocRef.current || {})) {
+        const freshIds = freshIdsByLoc.get(locId) || new Set();
+        for (const r of (prevRows || [])) {
+          if (!r.delivery_id) continue;
+          seenThisPass.add(r.delivery_id);
+          if (freshIds.has(r.delivery_id)) { streak.delete(r.delivery_id); continue; }
+          const misses = (streak.get(r.delivery_id) || 0) + 1;
+          if (misses >= 2) { streak.delete(r.delivery_id); continue; } // confirmed gone
+          streak.set(r.delivery_id, misses);
+          if (!out[locId]) out[locId] = [];
+          out[locId] = [...out[locId], r]; // carry forward one more cycle
+        }
+      }
+      // Any delivery_id that was present fresh resets its streak (handled
+      // above via streak.delete when found); prune streak entries for ids no
+      // longer seen anywhere to avoid an unbounded map.
+      for (const id of Array.from(streak.keys())) {
+        if (!seenThisPass.has(id)) streak.delete(id);
+      }
+      // Render the full list immediately — never let the list wait on, or be
+      // wiped by, the slower cash-check below (Oct 6 2026 regression: an
+      // earlier version computed cashAwaitingSquare inline before this
+      // setState, and any failure/slowness in that step risked the whole
+      // Uncollected/Past-uncollected catalog list going stale or empty).
+      // If the fetch itself failed AND produced nothing, keep the previous
+      // rows on screen rather than blanking the section.
+      if (totalItemsFetched === 0 && anyFetchFailed) {
+        return; // keep previous state; a later successful recompute replaces it
+      }
+      if (!isLatest()) return; // a newer call already started — don't stomp its result
+      catalogUncollectedByLocRef.current = out;
+      setCatalogUncollectedByLoc(out);
+
+      // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
+      // looked like a plain duplicate between Collected Today and
+      // Uncollected). By design (squareCodSync.jsx desired-state table):
+      // "completed + cash -> item stays until squareReconcile matches the
+      // driver's deposit" — the catalog item deliberately survives a cash
+      // collection so the bank deposit can later be matched. Runs AFTER the
+      // list is already on screen, as a non-blocking background refinement;
+      // merges into existing state via functional setState so it can never
+      // regress rows that were already rendered.
+      const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
+      if (deliveryIdsForCashCheck.length) {
+        const cashCollectedDeliveryIds = new Set();
+        const alreadyConfirmedIds = new Set();
+        for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
+          const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
+          const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
+          for (const d of (rows || [])) {
+            if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
+              cashCollectedDeliveryIds.add(d.id);
+              if (d?.cod_confirmed_collected) alreadyConfirmedIds.add(d.id);
+            }
+          }
+        }
+        // LEDGER-MATCHED AUTO-COLLECT (owner rule, Oct 7 2026): a
+        // cash-collected COD is CONSIDERED COLLECTED once its match shows up
+        // on the ledger — a COMPLETED cod_collection SquareLedgerEntry linked
+        // to the delivery (squareLedgerSync stamps delivery_id when the
+        // catalog item is rung in Square). Matched rows leave the
+        // Uncollected / Past uncollected lists, the delivery is stamped
+        // cod_confirmed_collected (fire-and-forget, so the outstanding math
+        // and reconcile agree), and it surfaces in Collected today with its
+        // real ledger data. Unmatched cash rows keep the emerald 'Cash'
+        // badge as before.
+        const ledgerSince = new Date(Date.now() - 14 * 86400000).toISOString();
+        const ledgerLinkedIds = new Set();
+        for (let skip = 0; skip < 20000; skip += 500) {
+          const led = await base44.entities.SquareLedgerEntry.filter(
+            { sale_class: 'cod_collection', created_date: { $gte: ledgerSince } }, undefined, 500, skip
+          ).catch(() => []);
+          const ledList = led || [];
+          for (const e of ledList) {
+            if (e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED') ledgerLinkedIds.add(String(e.delivery_id));
+          }
+          if (ledList.length < 500) break;
+        }
+        const confirmedIds = new Set([...alreadyConfirmedIds]);
+        for (const id of cashCollectedDeliveryIds) {
+          if (ledgerLinkedIds.has(String(id))) confirmedIds.add(id);
+        }
+        // Fire-and-forget stamp so every surface (badge outstanding math,
+        // backend reconcile, other devices) agrees the COD is collected.
+        for (const id of confirmedIds) {
+          if (!alreadyConfirmedIds.has(id)) {
+            base44.entities.Delivery.update(String(id), { cod_confirmed_collected: true }).catch(() => {});
+          }
+        }
+        if (cashCollectedDeliveryIds.size > 0 && isLatest()) {
+          setCatalogUncollectedByLoc((prev) => {
+            if (!prev) return prev;
+            const next = {};
+            for (const [locId, rows] of Object.entries(prev)) {
+              next[locId] = rows
+                .filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
+                .map((r) => (
+                  r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
+                ));
+            }
+            catalogUncollectedByLocRef.current = next;
+            return next;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('catalog uncollected compute failed:', e);
+    }
+  }, []);
   // Owner-only: today's COLLECTED CODs per card.
   //   a) Square-confirmed cash collections (ledger cod_collection entries whose
   //      occurred_at lands on today's Edmonton date)
@@ -590,6 +784,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         await loadSales(cfg);
         computeLocalOutstanding();
         computeCodCollectedToday();
+        computeCatalogUncollected();
         loadDailyCod();
       } catch (e) {
         console.error('balances load failed:', e);
@@ -615,6 +810,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await loadSales(cfg);
       await computeLocalOutstanding(cfg);
       await computeCodCollectedToday();
+      computeCatalogUncollected();
       loadDailyCod();
       toast.success('Delivery data refreshed');
     } catch (err) {
@@ -651,7 +847,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
+      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); computeCatalogUncollectedRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -686,6 +882,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             loadSalesRef.current?.(configRef.current);
             computeLocalOutstandingRef.current?.();
             computeCodCollectedTodayRef.current?.();
+            computeCatalogUncollectedRef.current?.();
           }, 5000);
           return;
         }
@@ -705,8 +902,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }));
     } catch (e) { console.error('Ledger subscribe failed:', e); }
     try {
-      // SquareCatalogItems subscription retired (Oct 7 2026): the balances
-      // page is strictly delivery data — catalog items no longer feed it.
+      unsubs.push(base44.entities.SquareCatalogItems.subscribe(() => {
+        clearTimeout(catalogTimer);
+        catalogTimer = setTimeout(() => { computeCatalogUncollectedRef.current?.(); }, 5000);
+      }));
     } catch (e) { console.error('Catalog subscribe failed:', e); }
     try {
       unsubs.push(base44.entities.Delivery.subscribe((event) => {
@@ -1202,7 +1401,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
                 const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                 const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
-                const combinedSrc = outItems.map((it) => ({
+                // Delivery-derived active CODs (pendingPickup flag for
+                // pending status)…
+                const deliveryRows = outItems.map((it) => ({
                   key: `o-${it.delivery_id}`,
                   delivery_id: it.delivery_id,
                   patientName: it.patient || null,
@@ -1213,6 +1414,28 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   pendingPickup: it.status === 'pending',
                   notTapped: notTapped(it.delivery_id),
                 }));
+                // …MERGED with the SquareCatalogItems still ACTIVE in the
+                // register (owner spec, Oct 7 2026 follow-up — same as the
+                // old system: catalog items catch CODs whose delivery rows
+                // fall outside the delivery-derived window). Deduped by
+                // delivery_id — delivery-derived rows win; catalog rows with
+                // no delivery link always show.
+                const srcDeliveryIds = new Set(deliveryRows.map((it) => String(it.delivery_id)).filter((it) => it !== 'null' && it !== 'undefined'));
+                const catRows = (catalogUncollectedByLoc?.[loc.location_id] || [])
+                  .filter((it) => !it.delivery_id || !srcDeliveryIds.has(String(it.delivery_id)))
+                  .map((it) => ({
+                    key: it.key || `cat-${it.delivery_id || it.patientName}`,
+                    delivery_id: it.delivery_id || null,
+                    patientName: it.patientName || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    date: it.date || null,
+                    pendingPickup: false,
+                    notTapped: notTapped(it.delivery_id),
+                    cashAwaitingSquare: !!it.cashAwaitingSquare,
+                  }));
+                const combinedSrc = [...deliveryRows, ...catRows];
                 // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                 // Uncollected / Past uncollected — they are technically
                 // uncollected until processed back to the Square card. They
