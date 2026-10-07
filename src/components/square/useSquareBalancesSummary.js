@@ -664,9 +664,35 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     }
   }
 
+  // COLLECTED-COD DEDUCTION ITEMS (owner report, Oct 7 2026, the $53.05
+  // Londonderry case): a post-True-Up COD deducted from the estimate while it
+  // was out (the order's goods were charged to the Square card) must KEEP
+  // its deduction after the delivery completes — the charge already hit the
+  // card; only the collected net (loadDeliveryCardCredits) comes back on top.
+  // Without this, finishing a delivery released the pending deduction AND
+  // added the net credit, double-counting the gross amount. Items use the
+  // FULL required COD (not outstanding-minus-payments) — the charge was the
+  // whole amount. computePendingCodDeduction applies the same pre-True-Up /
+  // touched / not-Tapped / payout-matched rules via its whitelist ('completed').
+  const deductByLoc = new Map();
+  for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
+    const required = Number(d?.cod_total_amount_required || 0);
+    if (required <= 0 || !isCounted(d)) continue;
+    const locId = storeToLoc.get(String(d?.store_id || ''));
+    if (!locId) continue;
+    if (!deductByLoc.has(locId)) deductByLoc.set(locId, []);
+    deductByLoc.get(locId).push({
+      delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
+      reason: 'collected_charge', date: String(d.delivery_date || '').slice(0, 10),
+      created_date: d.created_date || null,
+    });
+  }
+
   const out = {};
-  for (const [locId, agg] of byLoc) {
-    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50) };
+  const allLocs = new Set([...byLoc.keys(), ...deductByLoc.keys()]);
+  for (const locId of allLocs) {
+    const agg = byLoc.get(locId) || { total: 0, pendingCount: 0, awaitingCount: 0, items: [] };
+    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50), deductItems: deductByLoc.get(locId) || [] };
   }
   return out;
 }
@@ -896,12 +922,21 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     // hit the card. Matched payouts drop out of the sweep total so the COD and
     // its charge are never counted twice.
     const payoutCents = (payoutCentsByLoc?.get?.(loc.location_id) || []);
-    const outstandingItems = (codOutstandingDetailed?.[loc.location_id]?.items) || [];
+    // Estimate-side COD list = ACTIVE uncollected items + the collected-charge
+    // deduction items (owner report Oct 7 2026: a deducted COD keeps its
+    // deduction after completion — the order's charge already hit the card).
+    // Payout matching runs over the COMBINED list so a collected COD's charge
+    // payout is excluded from sweeps instead of double-counting.
+    const outstandingItems = [
+      ...((codOutstandingDetailed?.[loc.location_id]?.items) || []),
+      ...((codOutstandingDetailed?.[loc.location_id]?.deductItems) || []),
+    ];
     const { matched, chargedCents, chargedCount, matchedItemIds } = matchPayoutChargedCods(outstandingItems, payoutCents);
     const sweptRaw = payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100;
     const swept = payoutCentsByLoc?.has?.(loc.location_id) ? sweptRaw : Number(payoutsByLoc?.get?.(loc.location_id) || 0);
-    // Owner rule Oct 6 2026: pending/in-transit CODs (not "Not Tapped", not
-    // payout-matched) deduct from the card balance estimate.
+    // Owner rule Oct 6 2026 + Oct 7 2026 fix: deducted CODs (active OR
+    // completed post-True-Up) keep deducting; "Not Tapped" marks and
+    // payout-matched charges never deduct.
     const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, matchedItemIds, truedUpAt);
     const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;

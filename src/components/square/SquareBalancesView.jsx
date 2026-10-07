@@ -984,18 +984,27 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const storeCardSpend = 0;
       const r2 = (x) => Math.round(x * 100) / 100;
       const codOut = localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || null;
-      // PAYOUT-MATCHED OUTSTANDING CODs (owner rule Oct 3 2026): the COD to
-      // collect subtracts ONLY when payouts at this store equal it exactly
-      // (single or combined subset) — matched payouts leave the sweep total
-      // so the COD and its charge never double-count.
+      // ESTIMATE-SIDE COD LIST = active uncollected items + collected-charge
+      // deduction items (owner report Oct 7 2026, $53.05 Londonderry case): a
+      // deducted COD KEEPS its deduction after completion — the order's goods
+      // were already charged to the Square card. Only the collected net
+      // (credits) comes back on top. Payout matching runs over the COMBINED
+      // list so a collected COD's charge payout leaves the sweep total
+      // instead of double-counting.
+      const estimateItems = [...(codOut?.items || []), ...(codOut?.deductItems || [])];
+      // PAYOUT-MATCHED CODs (owner rule Oct 3 2026): a COD subtracts via the
+      // charge ONLY when payouts at this store equal it exactly (single or
+      // combined subset) — matched payouts leave the sweep total so the COD
+      // and its charge are never counted twice.
       const { matched, chargedCents, chargedCount, matchedItemIds } = matchPayoutChargedCods(
-        (codOut?.items) || [],
+        estimateItems,
         payoutCentsByLoc.get(loc.location_id) || []
       );
       // Owner rule (Oct 6-7 2026): a pre-True-Up COD stays neutral until the
       // owner explicitly clicks its badge since that True-Up; a brand-new
-      // (post-True-Up) COD deducts by default. See computePendingCodDeduction.
-      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction((codOut?.items) || [], manualSpendMarks || {}, matchedItemIds, config?.trued_up_at || null);
+      // (post-True-Up) COD deducts by default and STAYS deducted after
+      // collection. See computePendingCodDeduction.
+      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(estimateItems, manualSpendMarks || {}, matchedItemIds, config?.trued_up_at || null);
       const payoutCents = payoutCentsByLoc.get(loc.location_id) || [];
       const swept = payoutCents.length ? payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100 : (payoutByLoc.get(loc.location_id) || 0);
       return {
@@ -1360,7 +1369,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               )}
               {loc.pendingDeducted > 0 && (
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> Uncollected CODs (not "Not Tapped"{loc.pendingDeductCount ? `, ${loc.pendingDeductCount}` : ''})</div>
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs charged to card{loc.pendingDeductCount ? ` (${loc.pendingDeductCount})` : ''}</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
                 </div>
               )}
