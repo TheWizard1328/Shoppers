@@ -1,5 +1,6 @@
 // driverCodBriefing — 9pm EVENING driver COD wrap-up (moved from 9am mornings).
-// v2 owner wrap-up format (Sep 28 2026) — cash collected reclassified to Outstanding.
+// v3 owner wrap-up format (Oct 6 2026) — outstanding lines mirror collected lines:
+// Cash/Cheque for finished in-hand payments, store abbreviation for future/unfinished.
 // Audience: ONLY drivers who worked today (>=1 non-cancelled, non-cycling
 // delivery today). Each such driver gets a push + in-app Message with the
 // day's COD summary: COLLECTED today (cash/debit/cheque, per-item amounts)
@@ -179,6 +180,12 @@ const isCashItem = (c) => (c.types || []).some((t) => String(t).toLowerCase() ==
 // A sync-stamped cash COD (cod_confirmed_collected) has already been rung
 // through the register — it counts as Collected like any Square tender.
 const isUnrungCash = (c) => isCashItem(c) && c.confirmed !== true;
+// v3 (owner spec, Oct 6 2026): cheques collected in-hand are ALSO not processed
+// through Square until deposited/rung — they render under Outstanding as
+// 'Cheque' alongside unrung cash, until confirmed-collected.
+const isChequeItem = (c) => (c.types || []).some((t) => String(t).toLowerCase() === 'cheque');
+const isUnrungManual = (c) => (isCashItem(c) || isChequeItem(c)) && c.confirmed !== true;
+const manualType = (c) => (isChequeItem(c) ? 'Cheque' : 'Cash');
 const firstNameUpper = (nm) => String(nm || '').trim().split(/\s+/)[0].toUpperCase();
 
 async function listAll(base44, entityName, sortField, limit = 2000) {
@@ -444,9 +451,12 @@ async function handleBriefing(base44, params = {}) {
       // drives — the All Drivers owner copy already covers him.
       if (ownerUser?.id && g.driver_id === ownerUser.id) continue;
       const hasCollected = g.collected_today.count > 0;
+      // v3 (Oct 6 2026): outstanding lines formatted like collected lines —
+      // $ amount-<store abbr>-<patient name> for future/unfinished deliveries.
+      // Older-than-today items keep the date as a suffix on the name.
       const outstandingItems = [
-        ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
-        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}` })),
+        ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation}-${c.patient_name}` })),
+        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation}-${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
       ];
       const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
       if (!hasCollected && outstandingCount === 0) continue; // worked today, zero COD activity — no push
@@ -514,12 +524,17 @@ async function handleBriefing(base44, params = {}) {
         for (const g of driverBriefings) {
           const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
           if (!hadCods) { sections.push({ name: firstNameUpper(g.driver_name), noActivity: true, deliveries: g.deliveries_today }); continue; }
-          const sq = g.collected_today.items.filter((c) => !isUnrungCash(c));
-          const cash = g.collected_today.items.filter(isUnrungCash);
+          const sq = g.collected_today.items.filter((c) => !isUnrungManual(c));
+          const cash = g.collected_today.items.filter(isUnrungManual);
+          // v3 (owner spec, Oct 6 2026): outstanding lines formatted like
+          // collected lines — 'Cash'/'Cheque' for finished (in-hand, not yet
+          // processed through Square) deliveries, store abbreviation for
+          // future/unfinished ones. Older-than-today items keep the date as a
+          // suffix on the name so aging info isn't lost.
           const out = [
-            ...cash.map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
-            ...g.uncollected_today.items.filter((c) => c.confirmed !== true).map((c) => ({ amount: c.amount, label: `${shortDate(today)}(${c.store_abbreviation})-${c.patient_name}` })),
-            ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_abbreviation})-${c.patient_name}` })),
+            ...cash.map((c) => ({ amount: c.amount, label: `${manualType(c)} · ${c.patient_name}` })),
+            ...g.uncollected_today.items.filter((c) => c.confirmed !== true).map((c) => ({ amount: c.amount, label: `${c.store_abbreviation} · ${c.patient_name}` })),
+            ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation} · ${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
           ];
           sections.push({
             name: firstNameUpper(g.driver_name),
@@ -535,7 +550,7 @@ async function handleBriefing(base44, params = {}) {
         for (const [driverId, items] of olderByDriver.entries()) {
           if (workedIds2.has(driverId) || !items.length) continue;
           const drvName = driverNameById.get(driverId) || 'Unknown driver';
-          const out = items.map((c) => ({ amount: c.amount, label: `${shortDate(c.delivery_date)}(${c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—'})-${c.patient_name}` }));
+          const out = items.map((c) => ({ amount: c.amount, label: `${c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—'} · ${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` }));
           noStopSections.push({ name: `${firstNameUpper(drvName)} (NO STOPS TODAY)`, out, outAmt: Math.round(out.reduce((acc, c) => acc + c.amount, 0) * 100) / 100 });
         }
         // Fleet totals across everything rendered.
@@ -666,8 +681,8 @@ async function handleBriefing(base44, params = {}) {
   // includes reclassified cash (not yet processed through Square).
   let tcCount = 0, tcAmt = 0, toCount = 0, toAmt = 0;
   for (const g of driverBriefings) {
-    const sq = g.collected_today.items.filter((c) => !isUnrungCash(c));
-    const cash = g.collected_today.items.filter(isUnrungCash);
+    const sq = g.collected_today.items.filter((c) => !isUnrungManual(c));
+    const cash = g.collected_today.items.filter(isUnrungManual);
     const uncollectedUnconfirmed = g.uncollected_today.items.filter((c) => c.confirmed !== true);
     tcCount += sq.length;
     tcAmt += sq.reduce((acc, c) => acc + c.amount, 0);
