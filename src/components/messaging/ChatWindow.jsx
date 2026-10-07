@@ -331,6 +331,10 @@ function ChatWindow({
 
         {messages.map((msg) => {
           const isOwnMessage = msg.sender_id === currentUser?.id;
+          // Stale (owner spec Oct 7 2026): messages older than 1 day render
+          // with a red accent so drivers/dispatchers instantly see old info.
+          const isStale = !!msg.created_date &&
+            (Date.now() - parseEntityTimestamp(msg.created_date).getTime()) > 86400000;
           const isImage = msg.message_type === 'image' && msg.attachment_url;
           return (
             <div key={msg.id} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
@@ -354,7 +358,8 @@ function ChatWindow({
                 className="rounded-2xl px-4 py-2 rounded-bl-sm max-w-[80%] shadow-sm"
                 style={{
                   background: isOwnMessage ? '#10b981' : 'var(--bg-white)',
-                  color: isOwnMessage ? '#ffffff' : 'var(--text-slate-900)'
+                  color: isOwnMessage ? '#ffffff' : 'var(--text-slate-900)',
+                  ...(isStale ? { border: '2px solid #ef4444' } : {})
                 }}>
                 
                   {isGroupMode && !isOwnMessage &&
@@ -363,8 +368,8 @@ function ChatWindow({
                     </p>
                 }
                   <p className="whitespace-pre-wrap break-words text-sm" style={{ fontFamily: "'Courier New', Courier, monospace" }}>{msg.content}</p>
-                  <p className="text-xs mt-1" style={{ color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'var(--text-slate-400)' }}>
-                    {msg.created_date && format(parseEntityTimestamp(msg.created_date), 'h:mm a')}
+                  <p className="text-xs mt-1" style={{ color: isStale ? '#ef4444' : (isOwnMessage ? 'rgba(255,255,255,0.7)' : 'var(--text-slate-400)') }}>
+                    {msg.created_date && format(parseEntityTimestamp(msg.created_date), 'h:mm a')}{isStale && ' • old'}
                     {isOwnMessage && isGroupMode && msg.read_by && msg.read_by.length > 1 && ` • Read by ${msg.read_by.length - 1}`}
                     {isOwnMessage && !isGroupMode && msg.read && ' • Read'}
                   </p>
