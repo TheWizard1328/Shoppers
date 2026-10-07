@@ -191,6 +191,117 @@ export function invalidateLedgerWindows() {
   ledgerCache.data = null; // keep idbRead so the stale IDB copy is NOT re-served
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Card fee sheet + net-collected math (owner spec Oct 7 2026: balances sync
+// STRICTLY through delivery data). A FINISHED delivery's recorded cod_payments
+// are the single authority for how much money came back onto the Square card:
+//   Debit (Interac): amount − ($0.07 + 0.75%) − loan% − folder%
+//   Credit:          amount − 2.5% − loan% − folder%
+//   Cash / Cheque:    never touch the card (no net shown, no credit math)
+// ═══════════════════════════════════════════════════════════════════════════
+export const DEFAULT_FOLDER_RATE = 0.02;
+export const CARD_FEE_SHEET = {
+  debit: (amt) => 0.07 + amt * 0.0075,     // Interac
+  interac: (amt) => 0.07 + amt * 0.0075,
+  credit: (amt) => amt * 0.025,            // flat-rate credit swipe
+};
+export function estimateCardFee(amount, cardType) {
+  const key = String(cardType || '').toLowerCase();
+  const fn = CARD_FEE_SHEET[key] || CARD_FEE_SHEET.credit; // default to credit's flat rate when unknown
+  return Math.max(0, fn(Number(amount) || 0));
+}
+export function computeNetCollected(grossAmount, { cardType = null, loanRate = 0, folderRate = DEFAULT_FOLDER_RATE } = {}) {
+  const gross = Number(grossAmount) || 0;
+  const fee = estimateCardFee(gross, cardType);
+  const loan = gross * Number(loanRate || 0);
+  const folder = gross * Number(folderRate ?? DEFAULT_FOLDER_RATE);
+  return Math.max(0, gross - fee - loan - folder);
+}
+
+/**
+ * loadDeliveryCardCredits — per-location card credits computed STRICTLY from
+ * finished deliveries since true-up (owner spec Oct 7 2026). Every Debit /
+ * Credit cod_payment on a completed, counted delivery brings money back onto
+ * the Square card: gross − fee (rate sheet) − loan% − folder%. Cash and Cheque
+ * payments never touch the card. Replaces the Square-ledger sale scan as the
+ * credit side of the balance estimate — the ledger only ever held half the
+ * collections (broken link chains, pending entries, unlinked manual rings).
+ * Returns Map(location_id → { gross, fees, loan, folder, credits, count, lastAt }).
+ */
+export async function loadDeliveryCardCredits(cfgArg, userId = null) {
+  void userId; // deliveries are fetched from the shared IDB mirror / API — no user scoping on reads
+  const cfg = cfgArg;
+  const folderRate = Number(cfg?.folder_rate ?? DEFAULT_FOLDER_RATE);
+  const loanRateByLoc = new Map();
+  (cfg?.locations || []).forEach((l) => { if (l?.location_id) loanRateByLoc.set(l.location_id, Number(l.loan_rate || 0)); });
+  const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
+  const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
+  const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
+  const [cfgsRaw, allDeliveries] = await Promise.all([
+    idbOrApi(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, 'locCfgs', IDB_REF_TTL, () => base44.entities.SquareLocationConfig.list(), 1),
+    getAllDeliveriesIdb(),
+  ]);
+  const cfgLoc = new Map();
+  (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
+  // store→location map needs Stores too
+  const storesRaw = await idbOrApi(offlineDB.STORES.STORES, 'stores', IDB_REF_TTL, () => base44.entities.Store.list(), 5);
+  const storeToLoc = new Map();
+  (storesRaw || []).forEach((st) => {
+    const loc = st?.square_location_config_id ? cfgLoc.get(st.square_location_config_id) : null;
+    if (st?.id && loc) storeToLoc.set(String(st.id), loc);
+  });
+  const byLoc = new Map();
+  const aggFor = (locId) => {
+    if (!byLoc.has(locId)) byLoc.set(locId, { gross: 0, fees: 0, loan: 0, folder: 0, credits: 0, count: 0, lastAt: null });
+    return byLoc.get(locId);
+  };
+  const collectFrom = (d) => {
+    if (d?.status !== 'completed' || !isCounted(d)) return;
+    const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+    const cardPayments = payments.filter((p) =>
+      ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount) > 0);
+    if (cardPayments.length === 0) return;
+    const locId = storeToLoc.get(String(d?.store_id || ''));
+    if (!locId) return;
+    const loanRate = loanRateByLoc.get(locId) || 0;
+    const agg = aggFor(locId);
+    for (const p of cardPayments) {
+      const amount = Number(p.amount);
+      const type = String(p.type || '').toLowerCase();
+      const fee = estimateCardFee(amount, type);
+      const loan = amount * loanRate;
+      const folder = amount * folderRate;
+      agg.gross += amount; agg.fees += fee; agg.loan += loan; agg.folder += folder;
+      agg.credits += amount - fee - loan - folder;
+      agg.count += 1;
+    }
+    const doneAt = String(d.actual_delivery_time || '');
+    if (doneAt && String(agg.lastAt || '') < doneAt) agg.lastAt = doneAt;
+  };
+  for (const d of (allDeliveries || [])) collectFrom(d);
+  // IDB prunes deliveries older than 60 days — sweep the API tail once when
+  // the true-up window extends beyond that horizon (same pattern as
+  // computeCodOutstandingDetailed).
+  const idbHorizon = new Date(Date.now() - 59 * 86400000).toISOString().slice(0, 10);
+  if (cutoffDate < idbHorizon) {
+    for (let page = 0; page < 4; page++) {
+      const list = await base44.entities.Delivery.list('-created_date', 2000, page * 2000).catch(() => []);
+      const rows = list || [];
+      for (const d of rows) {
+        if (String(d?.delivery_date || '') >= idbHorizon) continue; // IDB already covers these
+        collectFrom(d);
+      }
+      if (rows.length < 2000) break;
+    }
+  }
+  for (const agg of byLoc.values()) {
+    const r2 = (x) => Math.round(x * 100) / 100;
+    agg.gross = r2(agg.gross); agg.fees = r2(agg.fees); agg.loan = r2(agg.loan);
+    agg.folder = r2(agg.folder); agg.credits = r2(agg.credits);
+  }
+  return byLoc;
+}
+
 // Both ledger windows (card sales + unlinked-ring sales pool) use the same
 // Edmonton-day horizon: candidates are deliveries dated cutoff-onward, and a
 // confirming ring can land at most 3 days before that.
@@ -493,16 +604,15 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   // IDB-first for the app-synced reference data (no API cost); the Square
   // ledger scans stay on the API (ledger rows change only via squareLedgerSync,
   // so they are one bounded read each, windowed where possible).
-  const [storesRaw, cfgsRaw, codSalesRaw, allSalesRaw, patientsRaw, allDeliveries] = await Promise.all([
+  // OWNER SPEC (Oct 7 2026): outstanding is STRICTLY delivery data — pending /
+  // in_transit / en_route deliveries with a required COD. All Square-ledger
+  // reads are gone (they only ever held half the collections). A FINISHED
+  // delivery is collected: its money is calculated into the card estimate via
+  // loadDeliveryCardCredits (Debit/Credit) or lands as drawer cash (Cash badge)
+  // — finished rows no longer linger here as "awaiting Square".
+  const [storesRaw, cfgsRaw, patientsRaw, allDeliveries] = await Promise.all([
     idbOrApi(offlineDB.STORES.STORES, 'stores', IDB_REF_TTL, () => base44.entities.Store.list(), 5),
     idbOrApi(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, 'locCfgs', IDB_REF_TTL, () => base44.entities.SquareLocationConfig.list(), 1),
-    // Ledger scans are IDB-cached windows (Oct 2 2026 "100% offline-first"):
-    // loadCodSales/loadWindowSales serve the 10-min cache unless a true-up
-    // moved or a WS ledger write invalidated it. Cod collection rows are now
-    // WINDOWED (cutoff − 3d) and fully paged — previously an unwindowed
-    // un-paged scan whose results silently truncated at the default page size.
-    loadCodSales(cfgArg, userId),
-    loadWindowSales(cfgArg, userId),
     idbOrApi(offlineDB.STORES.PATIENTS, 'patients', IDB_REF_TTL, () => base44.entities.Patient.list(), 20),
     getAllDeliveriesIdb(),
   ]);
@@ -526,57 +636,9 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const si = sid ? storeInfoById.get(String(sid)) : null;
     return si ? { storeAbbrev: si.abbreviation, storeColor: si.color } : { storeAbbrev: null, storeColor: null };
   };
-  const confirmed = new Set(
-    (codSalesRaw || []).filter((e) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e) => String(e.delivery_id))
-  );
-  // ── UNLINKED-RING FALLBACK (Oct 2 2026) ────────────────────────────────
-  // The office sometimes rings a collected cash COD into Square as a MANUAL
-  // amount instead of tapping the delivery's "COD for …" catalog item. The
-  // order then has no catalog_object_id → resolveCodLink can't tie it to the
-  // delivery → sale_class stays null and the delivery NEVER gets confirmed.
-  // The estimate kept subtracting that COD as "cash awaiting Square" while the
-  // same money also counted as an arrived card sale — a double-penalty
-  // (owner report Oct 2: a $5.01 cash COD rung manually one minute before
-  // its delivery completed). Fallback match: an UNLINKED completed sale at
-  // the same location, EXACT same cents, rung within 90 minutes before the
-  // delivery's completion up to the end of its Edmonton delivery day. Each
-  // sale confirms at most ONE delivery (nearest completion time wins).
-  const usedSaleIds = new Set();
-  const unlinkedSalesByLoc = new Map();
-  for (const e of allSalesRaw || []) {
-    if (!e || e?.delivery_id || !e?.location_id || !e?.occurred_at) continue;
-    const cents = Math.round(Number(e.amount_cents || 0));
-    if (!Number.isFinite(cents) || cents <= 0) continue;
-    if (!unlinkedSalesByLoc.has(e.location_id)) unlinkedSalesByLoc.set(e.location_id, []);
-    unlinkedSalesByLoc.get(e.location_id).push({ key: String(e.square_id || e.id || `${e.location_id}:${cents}:${e.occurred_at}`), cents, wall: edmontonWallString(new Date(e.occurred_at)) });
-  }
-  const wallMinus90 = (naiveWall) => {
-    try {
-      const t = new Date(`${String(naiveWall).slice(0, 19)}Z`).getTime() - 90 * 60000;
-      if (!Number.isFinite(t)) return null;
-      return new Date(t).toISOString().slice(0, 19);
-    } catch (_) { return null; }
-  };
-  const matchesUnlinkedRing = (locId, cents, deliveryDate, actualTime) => {
-    const pool = unlinkedSalesByLoc.get(locId) || [];
-    const floor = actualTime ? wallMinus90(actualTime) : `${deliveryDate}T00:00:00`;
-    if (!floor) return false;
-    const ceil = `${deliveryDate}T23:59:59`;
-    let best = null;
-    for (const sale of pool) {
-      if (usedSaleIds.has(sale.key) || sale.cents !== cents) continue;
-      const w = String(sale.wall || '').slice(0, 19);
-      if (!w || w < floor || w > ceil) continue;
-      if (!best || w > best.w) best = { ...sale, w }; // latest in-window ring
-    }
-    if (!best) return false;
-    usedSaleIds.add(best.key);
-    return true;
-  };
   const cfg = cfgArg;
   const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
   const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
-  const createdFloor = new Date(new Date(cutoffDate + 'T00:00:00Z').getTime() - 3 * 86400000).getTime();
   const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
   const centsOf = (n) => Math.round(Number(n || 0) * 100);
   const byLoc = new Map();
@@ -600,42 +662,6 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       agg.total += outstanding; agg.pendingCount += 1;
       agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
     }
-  }
-
-  // Completed-cash scan from the IDB mirror (IDB prunes deliveries older than
-  // 60 days, so if the true-up window extends beyond that horizon, ALSO sweep
-  // the API pages once for the older tail — otherwise old uncollected CODs
-  // would silently vanish from the estimate).
-  const idbHorizon = new Date(Date.now() - 59 * 86400000).toISOString().slice(0, 10);
-  const completedRows = (allDeliveries || []).filter(
-    (d) => d?.status === 'completed' && !d?.cod_confirmed_collected && isCounted(d)
-  );
-  if (cutoffDate < idbHorizon) {
-    for (let page = 0; page < 4; page++) {
-      const list = await base44.entities.Delivery.list('-created_date', 2000, page * 2000);
-      for (const d of list || []) {
-        if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
-        if (String(d?.delivery_date || '') >= idbHorizon) continue; // IDB already covers these
-        completedRows.push(d);
-      }
-      if (list.length < 2000) break;
-      if (list.length && new Date(list[list.length - 1]?.created_date || 0).getTime() < createdFloor) break;
-    }
-  }
-  for (const d of completedRows) {
-    const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-    const cash = payments.filter((p) => String(p?.type || '').toLowerCase() === 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
-    if (cash <= 0 || confirmed.has(String(d.id))) continue;
-    const locId = storeToLoc.get(String(d?.store_id || ''));
-    if (!locId) continue;
-    // Manual/unlinked Square ring of this cash COD → treat as confirmed.
-    if (matchesUnlinkedRing(locId, cash, String(d.delivery_date || '').slice(0, 10), String(d.actual_delivery_time || ''))) {
-      confirmed.add(String(d.id));
-      continue;
-    }
-    const agg = aggFor(locId);
-    agg.total += cash; agg.awaitingCount += 1;
-    agg.items.push({ delivery_id: d.id, status: 'completed', amount: cash / 100, reason: 'cash_awaiting_square', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
   }
 
   const out = {};
@@ -842,22 +868,18 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
   return { deductCents, count };
 }
 
-function computeByLocId({ config, sales, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt }) {
-  const folderRate = Number(config.folder_rate ?? 0.02);
+function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt }) {
+  // OWNER SPEC (Oct 7 2026): the credit side of the estimate comes STRICTLY
+  // from delivery data — finished deliveries' Debit/Credit cod_payments,
+  // net of the rate-sheet fee + loan% + folder% (loadDeliveryCardCredits).
+  // The Square-ledger sale scan is gone: it only ever held half the
+  // collections (broken link chains, pending entries, unlinked rings).
   const byLocId = new Map();
-  const storeCardFps = learnStoreCardFingerprints(sales);
   for (const loc of (config.locations || [])) {
-    let credits = 0, loan = 0, storeCardSpend = 0;
-    for (const s of sales) {
-      if (s.location_id !== loc.location_id) continue;
-      const amount = Number(s.amount_cents || 0) / 100;
-      // Store-card spend (fingerprint-learned): money OUT on the store's own
-      // card — excluded from credit math and from the sale/loan/folder totals.
-      if (s.card_fingerprint && storeCardFps.has(String(s.card_fingerprint))) { storeCardSpend += amount; continue; }
-      const fee = Number(s.fee_cents || 0) / 100;
-      loan += amount * Number(loc.loan_rate || 0);
-      credits += amount - fee - amount * Number(loc.loan_rate || 0) - amount * folderRate;
-    }
+    const _dc = deliveryCredits?.get?.(loc.location_id) || {};
+    const credits = Number(_dc.credits || 0);
+    const loan = Number(_dc.loan || 0);
+    const storeCardSpend = 0;
     // UN-SWIPED CODs DO NOT REDUCE THE BALANCE (owner rule, Oct 2 2026,
     // Londonderry $528.17 report): a COD only registers as money removed from
     // the card once its actual card spend exists in the Square records. The
@@ -940,8 +962,8 @@ async function loadSummary(force, uid) {
   if (inflight) return inflight;
   inflight = (async () => {
     const config = await loadConfig();
-    const [sales, stl, names, spendMarkRows] = await Promise.all([
-      config ? loadCardSales(config, uid).catch(() => []) : Promise.resolve([]),
+    const [deliveryCredits, stl, names, spendMarkRows] = await Promise.all([
+      config ? loadDeliveryCardCredits(config, uid).catch(() => new Map()) : Promise.resolve(new Map()),
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
       // Not Tapped overrides (owner Card Spend badge toggle, Oct 6 2026) —
@@ -985,7 +1007,7 @@ async function loadSummary(force, uid) {
       payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
     }
     const data = {
-      byLocId: config ? computeByLocId({ config, sales, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt: config?.trued_up_at || null }) : new Map(),
+      byLocId: config ? computeByLocId({ config, deliveryCredits, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt: config?.trued_up_at || null }) : new Map(),
       payoutsByLoc: payoutsLoc,
       storeToLoc: stl,
       weeklyByStore: weekly,
@@ -993,7 +1015,8 @@ async function loadSummary(force, uid) {
       dailyRemainingByStore: dailyRemaining,
       codOutstandingDetailed,
       config: config || null,
-      sales: sales || [],
+      deliveryCredits: deliveryCredits || new Map(),
+      sales: [], // legacy field — sale-based math retired Oct 7 2026
       payouts: payouts || [],
     };
     summaryCache.at = Date.now();
@@ -1031,6 +1054,7 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
       dailyRemainingByStore: [...(data.dailyRemainingByStore || new Map())],
       codOutstandingDetailed: data.codOutstandingDetailed || {},
       config: data.config || null,
+      deliveryCredits: [...(data.deliveryCredits || new Map())],
       sales: data.sales || [],
       payouts: data.payouts || [],
       savedAt: new Date().toISOString(),

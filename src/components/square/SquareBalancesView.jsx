@@ -7,22 +7,28 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadCardSales, loadCardSpendEvidence, payoutsByLocation, learnStoreCardFingerprints, matchPayoutChargedCods, computePendingCodDeduction } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, matchPayoutChargedCods, computePendingCodDeduction } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
  *
- * Tracks, per Square location:
- *   - Card balance estimate: starting balance + Σ(collected card sale − fee − folder 2% − loan%)
- *   - Loan remaining: starting loan − Σ(loan_rate × card sale)
- *   - Folder (savings) total: Σ(2% × card sale) since last true-up
+ * Tracks, per Square location (OWNER SPEC, Oct 7 2026 — STRICTLY DELIVERY DATA):
+ *   - Card balance estimate: starting balance + Σ(finished delivery's Debit/Credit
+ *     cod_payment − fee (rate sheet) − loan% − folder 2%) − bank sweeps − pending COD deductions
+ *   - Loan remaining: starting loan − Σ(loan_rate × card payment)
+ *   - Folder (savings) total: Σ(2% × card payment) since last true-up
  *
  * Data sources:
  *   - AppSettings 'square_balances': { trued_up_at, folder_rate, locations: [{location_id, name, card_start, loan_start, loan_rate, folder_start}] }
- *   - SquareLedgerEntry: entry_kind 'collected' (legacy 'sale' also accepted), tender_type 'CARD', status COMPLETED, occurred_at >= trued_up_at
- *     (kept fresh by squareLedgerSync; the Refresh button invokes it for the window since true-up).
+ *   - Delivery.cod_payments — the single authority for what was collected and how
+ *     (Debit/Credit/Cash/Cheque). Active pending/in_transit/en_route CODs list as
+ *     Uncollected with the Card Spend pill; FINISHED deliveries calculate the money
+ *     back onto the card and badge Debit/Cash/Credit in Collected.
+ *   - SquareLedgerEntry: ONLY cached BATCH payout (bank sweep) + card topup rows.
+ *     NO Square API sync on this page anymore — the ledger only ever held half
+ *     the collections (broken link chains, pending entries, unlinked rings).
  *
  * The loan repayment and folder contribution are NOT exposed by Square's API — they are
  * computed here from owner-supplied rates. Numbers drift with any off-card spending; the
@@ -37,39 +43,10 @@ const SETTING_KEY = 'square_balances';
 // it settles into a real Square payment. This record stores owner-marked
 // confirmations: { [delivery_id]: { at: ISO, by: user_id } }.
 const SPEND_MARKS_KEY = 'square_card_spend_marks';
-const DEFAULT_FOLDER_RATE = 0.02;
+// DEFAULT_FOLDER_RATE + fee-sheet math now come from useSquareBalancesSummary.
 
 const fmtMoney = (n) => `$${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;
 
-// Collected-amount net math (owner spec, Oct 5 2026): the "Collected" row
-// shows amount to collect − service fee − folder fee (2%) − loan fee, same
-// formula as the card-balance credits math (owner-verified live: BATCH payout
-// = sale − fee − loan% − 2%). Two fee sources, authoritative wins:
-//   1. Real ledger match: settled_cents is Square's own post-fee figure for
-//      that exact sale — use it directly, no estimate needed.
-//   2. No ledger match (in-app recorded card payment with no Square tx,
-//      e.g. a Debit/Credit COD the driver keyed without a device swipe):
-//      estimate the fee from the recorded card type using the owner's rate
-//      sheet (Oct 3 2026 plan): Interac/Debit = $0.07 + 0.75%, Credit = 2.5%
-//      flat. Then still deduct the location's own loan_rate + folder_rate.
-const FEE_SHEET = {
-  debit: (amt) => 0.07 + amt * 0.0075,     // Interac
-  interac: (amt) => 0.07 + amt * 0.0075,
-  credit: (amt) => amt * 0.025,            // flat-rate credit swipe
-};
-function estimateCardFee(amount, cardType) {
-  const key = String(cardType || '').toLowerCase();
-  const fn = FEE_SHEET[key] || FEE_SHEET.credit; // default to credit's flat rate when unknown
-  return Math.max(0, fn(Number(amount) || 0));
-}
-function computeNetCollected(grossAmount, { settledCents = null, cardType = null, loanRate = 0, folderRate = DEFAULT_FOLDER_RATE } = {}) {
-  const gross = Number(grossAmount) || 0;
-  if (settledCents != null) return Math.abs(Number(settledCents)) / 100;
-  const fee = estimateCardFee(gross, cardType);
-  const loan = gross * Number(loanRate || 0);
-  const folder = gross * Number(folderRate ?? DEFAULT_FOLDER_RATE);
-  return Math.max(0, gross - fee - loan - folder);
-}
 
 function daysSince(iso) {
   const t = new Date(iso).getTime();
@@ -249,13 +226,17 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
 export default function SquareBalancesView({ currentUser, visibleLocationIds = null }) {
   const [config, setConfig] = useState(null);
   const [configRecordId, setConfigRecordId] = useState(null);
-  const [sales, setSales] = useState([]);
+  // OWNER SPEC (Oct 7 2026): card credits are computed STRICTLY from
+  // finished deliveries' recorded Debit/Credit cod_payments (net of the fee
+  // rate sheet + loan% + folder%) — the Square-ledger sale scan is retired
+  // (it only ever held half the collections). Map(location_id →
+  // { gross, fees, loan, folder, credits, count, lastAt }).
+  const [deliveryCredits, setDeliveryCredits] = useState(new Map());
   const [payouts, setPayouts] = useState([]); // BATCH bank sweeps since true-up
   const [topups, setTopups] = useState([]); // card_topup transfers onto the Square Cards since true-up
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
-  const [cardSpendIds, setCardSpendIds] = useState(new Set()); // owner-only: delivery_ids with a real CARD swipe in Square tx data
   const [catalogUncollectedByLoc, setCatalogUncollectedByLoc] = useState(undefined); // owner-only: ACTIVE SquareCatalogItems = uncollected, all dates
   // RACE GUARD (Oct 6 2026, owner report: "Past Uncollected shows up then
   // disappears"). computeCatalogUncollected is triggered from several
@@ -413,19 +394,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   }, [ownerCanEdit, currentUser]);
 
+  // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: this page no longer
+  // syncs through the Square API at all. "Loading the numbers" now means:
+  //   - card credits from FINISHED deliveries' recorded Debit/Credit
+  //     cod_payments (net of fee rate sheet + loan% + folder%) — complete by
+  //     construction, versus the ledger's half-coverage (broken link chains,
+  //     pending entries, unlinked manual rings);
+  //   - bank sweeps (BATCH payouts) + card topups from the existing ledger
+  //     rows (DB reads served by the 10-min IDB windows cache — no API call).
   const loadSales = useCallback(async (cfg) => {
-    if (!cfg?.trued_up_at) { setSales([]); setPayouts([]); return; }
+    if (!cfg?.trued_up_at) { setDeliveryCredits(new Map()); setPayouts([]); return; }
     const seq = ++loadSeq.current;
-    // IDB-cached windows (Oct 2 2026 "100% offline-first"): loadCardSales and
-    // loadCardPayouts both serve the shared 10-minute ledger windows cache —
-    // opening the page during/after a rate-limit storm paints instantly from
-    // IDB instead of joining the storm with 2-4 paginated API scans.
-    const out = await loadCardSales(cfg, currentUser?.id || null).catch(() => []);
-    // Bank sweeps (BATCH payouts) since true-up — they leave the real card, so
-    // the estimate must subtract them (Oct 2 2026 owner mismatch fix).
+    const creditsMap = await loadDeliveryCardCredits(cfg, currentUser?.id || null).catch(() => new Map());
     const payoutRows = await loadCardPayouts(cfg, currentUser?.id || null).catch(() => []);
     const topupRows = await loadCardTopups(cfg, currentUser?.id || null).catch(() => []);
-    if (seq === loadSeq.current) { setSales(out); setPayouts(payoutRows); setTopups(topupRows); }
+    if (seq === loadSeq.current) { setDeliveryCredits(creditsMap); setPayouts(payoutRows); setTopups(topupRows); }
   }, [currentUser?.id]);
 
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
@@ -450,236 +433,33 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // regardless of delivery date — this catches old ones (e.g. 100 days back)
   // that the true-up-window delivery queries exclude. Statuses 'completed' and
   // 'deleted' mean the item was rung/removed = collected, so they're skipped.
-  const computeCatalogUncollected = useCallback(async () => {
-    // Was owner-only; drivers now see the same full Uncollected/Past
-    // uncollected lists as the App Owner (owner request, Oct 4 2026) — the
-    // catalog-sourced list catches old items the windowed delivery query
-    // misses, which is exactly what "Past uncollected" needs for drivers too.
-    const mySeq = ++catalogUncollectedSeqRef.current;
-    const isLatest = () => mySeq === catalogUncollectedSeqRef.current;
-    try {
-      // DISAPPEARING-ROWS GUARD (Oct 6 2026, owner report: Past uncollected
-      // rows "show up then disappear"). A failed/empty fetch page MUST NOT
-      // wipe the visible list — each failed page retries once, and if the
-      // overall fetch still came back empty-with-errors we keep the previous
-      // state instead of overwriting it with an empty map (an entity fetch
-      // hiccup — e.g. a rate-limit volley from another Square load — would
-      // previously blank the section until the next successful recompute).
-      const fetchPage = async (skip, attempt) => {
-        try {
-          const rows = await base44.entities.SquareCatalogItems.filter({ status: 'active' }, undefined, 500, skip);
-          return { rows: rows || [], failed: false };
-        } catch (e) {
-          if (attempt < 2) {
-            await new Promise((res) => setTimeout(res, 2500));
-            return fetchPage(skip, attempt + 1);
-          }
-          return { rows: [], failed: true };
-        }
-      };
-      const itemsPages = [];
-      let anyFetchFailed = false;
-      for (let skip = 0; skip < 20000; skip += 500) {
-        const { rows: list, failed } = await fetchPage(skip, 1);
-        anyFetchFailed = anyFetchFailed || failed;
-        itemsPages.push(...list);
-        if (list.length < 500) break;
-      }
-      const itemsRaw = itemsPages;
-      const totalItemsFetched = itemsRaw.length;
-      const [storesRaw, patientsRaw] = await Promise.all([
-        base44.entities.Store.list().catch(() => []),
-        base44.entities.Patient.list().catch(() => []),
-      ]);
-      const resolvePatientName = buildPatientResolver(patientsRaw);
-      const storeById = new Map();
-      (storesRaw || []).forEach((s) => { if (s?.id) storeById.set(String(s.id), s); });
-      const byLoc = new Map();
-      for (const it of (itemsRaw || [])) {
-        if (!it?.location_id) continue;
-        if (!byLoc.has(it.location_id)) byLoc.set(it.location_id, []);
-        const sInfo = storeById.get(String(it.store_id || ''));
-        const date = String(it.delivery_date || '').slice(0, 10);
-        byLoc.get(it.location_id).push({
-          key: `cat-${it.id || it.square_catalog_object_id}`,
-          delivery_id: it.delivery_id || null,
-          patientName: resolvePatientName(it.patient_id)?.full_name || extractNameFromCatalogDescription(it.description) || null,
-          storeAbbrev: sInfo?.abbreviation || null,
-          storeColor: sInfo?.color || null,
-          amount: Number(it.amount || 0),
-          date: date || null,
-          cashAwaitingSquare: false,
-        });
-      }
-      // DEFENSIVE DEDUP (Oct 6 2026, owner report: Emilen Brochu COD shown
-      // twice in Uncollected). The backend has a duplicate-guard against ever
-      // creating two live Square catalog items for the same delivery, but
-      // this frontend list must never show a repeat even if a stale/duplicate
-      // row briefly exists in SquareCatalogItems (e.g. mid-cleanup, racing
-      // sync). Collapse by delivery_id, keeping the most recently created row.
-      const freshOut = {};
-      for (const [locId, rowsRaw] of byLoc) {
-        const byDelivery = new Map();
-        const noDeliveryId = [];
-        for (const r of rowsRaw) {
-          if (!r.delivery_id) { noDeliveryId.push(r); continue; }
-          const existing = byDelivery.get(r.delivery_id);
-          if (!existing || String(r.key) > String(existing.key)) byDelivery.set(r.delivery_id, r);
-        }
-        freshOut[locId] = [...byDelivery.values(), ...noDeliveryId];
-      }
-      // Carry-forward merge: a delivery_id present in the PREVIOUS rendered
-      // state but missing from this fresh fetch is kept for up to one extra
-      // cycle (a transient backend blip), then dropped once it has missed
-      // twice in a row (a real collection/removal).
-      const freshIdsByLoc = new Map();
-      for (const [locId, rows] of Object.entries(freshOut)) {
-        freshIdsByLoc.set(locId, new Set(rows.map((r) => r.delivery_id).filter(Boolean)));
-      }
-      const streak = catalogMissStreakRef.current;
-      const seenThisPass = new Set();
-      const out = { ...freshOut };
-      for (const [locId, prevRows] of Object.entries(catalogUncollectedByLocRef.current || {})) {
-        const freshIds = freshIdsByLoc.get(locId) || new Set();
-        for (const r of (prevRows || [])) {
-          if (!r.delivery_id) continue;
-          seenThisPass.add(r.delivery_id);
-          if (freshIds.has(r.delivery_id)) { streak.delete(r.delivery_id); continue; }
-          const misses = (streak.get(r.delivery_id) || 0) + 1;
-          if (misses >= 2) { streak.delete(r.delivery_id); continue; } // confirmed gone
-          streak.set(r.delivery_id, misses);
-          if (!out[locId]) out[locId] = [];
-          out[locId] = [...out[locId], r]; // carry forward one more cycle
-        }
-      }
-      // Any delivery_id that was present fresh resets its streak (handled
-      // above via streak.delete when found); prune streak entries for ids no
-      // longer seen anywhere to avoid an unbounded map.
-      for (const id of Array.from(streak.keys())) {
-        if (!seenThisPass.has(id)) streak.delete(id);
-      }
-      // Render the full list immediately — never let the list wait on, or be
-      // wiped by, the slower cash-check below (Oct 6 2026 regression: an
-      // earlier version computed cashAwaitingSquare inline before this
-      // setState, and any failure/slowness in that step risked the whole
-      // Uncollected/Past-uncollected catalog list going stale or empty).
-      // If the fetch itself failed AND produced nothing, keep the previous
-      // rows on screen rather than blanking the section.
-      if (totalItemsFetched === 0 && anyFetchFailed) {
-        return; // keep previous state; a later successful recompute replaces it
-      }
-      if (!isLatest()) return; // a newer call already started — don't stomp its result
-      catalogUncollectedByLocRef.current = out;
-      setCatalogUncollectedByLoc(out);
-
-      // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
-      // looked like a plain duplicate between Collected Today and
-      // Uncollected). By design (squareCodSync.jsx desired-state table):
-      // "completed + cash -> item stays until squareReconcile matches the
-      // driver's deposit" — the catalog item deliberately survives a cash
-      // collection so the bank deposit can later be matched. Runs AFTER the
-      // list is already on screen, as a non-blocking background refinement;
-      // merges into existing state via functional setState so it can never
-      // regress rows that were already rendered.
-      const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
-      if (deliveryIdsForCashCheck.length) {
-        const cashCollectedDeliveryIds = new Set();
-        const alreadyConfirmedIds = new Set();
-        for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
-          const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
-          const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
-          for (const d of (rows || [])) {
-            if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
-              cashCollectedDeliveryIds.add(d.id);
-              if (d?.cod_confirmed_collected) alreadyConfirmedIds.add(d.id);
-            }
-          }
-        }
-        // LEDGER-MATCHED AUTO-COLLECT (owner rule, Oct 7 2026): a
-        // cash-collected COD is CONSIDERED COLLECTED once its match shows up
-        // on the ledger — a COMPLETED cod_collection SquareLedgerEntry linked
-        // to the delivery (squareLedgerSync stamps delivery_id when the
-        // catalog item is rung in Square). Matched rows leave the
-        // Uncollected / Past uncollected lists, the delivery is stamped
-        // cod_confirmed_collected (fire-and-forget, so the outstanding math
-        // and reconcile agree), and it surfaces in Collected today with its
-        // real ledger data. Unmatched cash rows keep the emerald 'Cash'
-        // badge as before.
-        const ledgerSince = new Date(Date.now() - 14 * 86400000).toISOString();
-        const ledgerLinkedIds = new Set();
-        for (let skip = 0; skip < 20000; skip += 500) {
-          const led = await base44.entities.SquareLedgerEntry.filter(
-            { sale_class: 'cod_collection', created_date: { $gte: ledgerSince } }, undefined, 500, skip
-          ).catch(() => []);
-          const ledList = led || [];
-          for (const e of ledList) {
-            if (e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED') ledgerLinkedIds.add(String(e.delivery_id));
-          }
-          if (ledList.length < 500) break;
-        }
-        const confirmedIds = new Set([...alreadyConfirmedIds]);
-        for (const id of cashCollectedDeliveryIds) {
-          if (ledgerLinkedIds.has(String(id))) confirmedIds.add(id);
-        }
-        // Fire-and-forget stamp so every surface (badge outstanding math,
-        // backend reconcile, other devices) agrees the COD is collected.
-        for (const id of confirmedIds) {
-          if (!alreadyConfirmedIds.has(id)) {
-            base44.entities.Delivery.update(String(id), { cod_confirmed_collected: true }).catch(() => {});
-          }
-        }
-        if (cashCollectedDeliveryIds.size > 0 && isLatest()) {
-          setCatalogUncollectedByLoc((prev) => {
-            if (!prev) return prev;
-            const next = {};
-            for (const [locId, rows] of Object.entries(prev)) {
-              next[locId] = rows
-                .filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
-                .map((r) => (
-                  r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
-                ));
-            }
-            catalogUncollectedByLocRef.current = next;
-            return next;
-          });
-        }
-      }
-    } catch (e) {
-      console.error('catalog uncollected compute failed:', e);
-    }
-  }, []);
-
+  // RETIRED (owner spec, Oct 7 2026): strictly-delivery-data balances. The
+  // SquareCatalogItems-based uncollected list is no longer used — the
+  // delivery-derived outstanding items are the single source. Kept as a no-op
+  // so existing refs/call sites stay wired without fetching Square data.
+  const computeCatalogUncollected = useCallback(async () => {}, []);
   // Owner-only: today's COLLECTED CODs per card.
   //   a) Square-confirmed cash collections (ledger cod_collection entries whose
   //      occurred_at lands on today's Edmonton date)
   //   b) non-cash payments (debit/credit/cheque) collected today — recorded on
   //      the delivery itself, no Square transaction
   // Uncollected lists are derived from localOutstanding at render time.
+  // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: "Collected today" is
+  // every delivery FINISHED today with a COD, badged by its recorded payment
+  // type (Debit / Credit / Cheque / Cash). Debit & Credit rows show the net
+  // money back on the Square card (gross − fee rate sheet − loan% − folder%);
+  // Cash and Cheque never touch the card (no net shown). The Square-ledger
+  // sections and the fuzzy swipe-evidence matching (fingerprints, declines,
+  // near-time combos) are retired — the delivery's own cod_payments are the
+  // single authority.
   const computeCodCollectedToday = useCallback(async () => {
-    // Was owner-only; drivers now see "Collected today" the same as the App
-    // Owner (owner request, Oct 4 2026).
     try {
-      const [storesRaw, cfgsRaw, patientsRaw, codSalesPages] = await Promise.all([
+      const [storesRaw, cfgsRaw, patientsRaw] = await Promise.all([
         base44.entities.Store.list().catch(() => []),
         base44.entities.SquareLocationConfig.list().catch(() => []),
         base44.entities.Patient.list().catch(() => []),
-        (async () => {
-          const pages = [];
-          for (let skip = 0; skip < 20000; skip += 500) {
-            const rows = await base44.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }, 'created_date', 500, skip).catch(() => []);
-            const list = rows || [];
-            pages.push(...list);
-            if (list.length < 500) break;
-          }
-          return pages;
-        })(),
       ]);
-      const codSalesRaw = dedupeLedgerById(codSalesPages);
       const resolvePatientName = buildPatientResolver(patientsRaw);
-      // Fee-net math (owner spec, Oct 5 2026) needs each location's own
-      // loan_rate; folder_rate is account-wide. configRef.current may be null
-      // on first paint before config loads — net falls back to gross in that
-      // case (computeNetCollected treats missing loanRate as 0).
       const cfgNow = configRef.current || {};
       const folderRateNow = Number(cfgNow.folder_rate ?? DEFAULT_FOLDER_RATE);
       const loanRateByLoc = new Map();
@@ -688,10 +468,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
       const storeToLoc = new Map();
       const storeById = new Map();
-      (storesRaw || []).forEach((s) => {
-        const loc = s?.square_location_config_id ? cfgLoc.get(s.square_location_config_id) : null;
-        if (s?.id && loc) storeToLoc.set(String(s.id), loc);
-        if (s?.id) storeById.set(String(s.id), s);
+      (storesRaw || []).forEach((st) => {
+        const loc = st?.square_location_config_id ? cfgLoc.get(st.square_location_config_id) : null;
+        if (st?.id && loc) storeToLoc.set(String(st.id), loc);
+        if (st?.id) storeById.set(String(st.id), st);
       });
       const today = edmontonWallString(new Date()).slice(0, 10);
       const centsOf = (n) => Math.round(Number(n || 0) * 100);
@@ -701,302 +481,61 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return byLoc.get(locId);
       };
 
-      // Pull deliveries first — needed to resolve driver name + store badge for
-      // BOTH the Square-confirmed cash rows (a) and the non-cash rows (b).
-      const deliveryById = new Map();
+      // Deliveries finished TODAY (any created date) with a COD. A 30-day
+      // created-window comfortably covers completions of long-pending stops.
       const deliveryList = [];
-      // 30-day horizon (owner, Oct 3 2026): the card-spend fingerprint rule
-      // must cover the whole "Past uncollected" list (e.g. Sep 10 CODs on an
-      // Oct 3 view), not just the last 3 days.
       const since30 = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
       for (let page = 0; page < 20; page++) {
         const rows = await base44.entities.Delivery.filter({ created_date: { $gte: since30 } }, '-created_date', 500, page * 500).catch(() => []);
         const list = rows || [];
         deliveryList.push(...list);
-        list.forEach((d) => { if (d?.id) deliveryById.set(String(d.id), d); });
         if (list.length < 500) break;
       }
 
-      // ── Card-spend evidence (owner spec, Oct 3 2026). A delivery gets the
-      // sky "Card Spend" pill when there is a real CARD swipe in the Square
-      // data for its COD. Owner's description of how a swiped COD shows up in
-      // the ledger: either a SINGLE sale entry, or a COMBINATION of 2+ sale
-      // items totaling the COD amount to collect — all on the same date, on
-      // the same (customer) card at the store, with one or more FAILED
-      // entries registered on that card too (the card declined, then got
-      // charged, possibly in pieces). Rules, in order:
-      //   1. Direct link — squareLedgerSync's backfill stamped delivery_id
-      //      on the sale row (decline-anchored exact match).
-      //   2. Fingerprint story — same store + same Edmonton date + same
-      //      card_fingerprint, at least one DECLINE on that card that day,
-      //      and a subset (1-4) of that card's completed sales summing
-      //      EXACTLY to the COD amount. This is the owner's split-payment
-      //      pattern: declines, then partial charges.
-      //   3. Near-time fallback — a completed CARD sale (or combo of nearby
-      //      CODs) within ±90min of the completion whose amounts add up
-      //      EXACTLY. Catches the clean single swipe with no decline.
-      // Store-card fingerprints (5+ swipes at one location, never linked to
-      // a COD) are learned and excluded — those are the store's own card
-      // spends, not customer COD swipes.
-      const evidence = await loadCardSpendEvidence(configRef.current, currentUser?.id || null).catch(() => ({ sales: [], declines: [] }));
-      const storeCardFps = learnStoreCardFingerprints(evidence.sales || []);
-      const isStoreCard = (e) => !!e?.card_fingerprint && storeCardFps.has(e.card_fingerprint);
-      const cardSales = dedupeLedgerById([
-        ...(evidence.sales || []),
-        ...(codSalesRaw || []),
-      ].filter((e) =>
-        ['sale', 'collected'].includes(String(e?.entry_kind || ''))
-        && String(e?.tender_type || '').toUpperCase() === 'CARD'
-        // Owner report (Oct 6 2026): Square's app shows some swipes under a
-        // "Pending" header, still authorized but not yet settled — those
-        // must count toward the badge too (e.g. Elaine Ash 49.98), not just
-        // fully COMPLETED sales.
-        && ['COMPLETED', 'APPROVED', 'PENDING'].includes(String(e?.status || '').toUpperCase())
-        && e?.location_id
-        && !isStoreCard(e)));
-      const declines = (evidence.declines || []).filter((e) => e?.location_id && e?.card_fingerprint && !isStoreCard(e));
-      const swipedIds = new Set();
-      for (const e of cardSales) if (e?.delivery_id) swipedIds.add(String(e.delivery_id)); // rule 1
-
-      const saleKeyOf = (e) => String(e?.id || e?.square_id || '');
-      const usedSaleKeys = new Set();
-
-      // Candidate pool: completed deliveries with a COD to collect and a
-      // known completion time. Amount = the recorded debit/credit collection
-      // when present; otherwise the required COD amount (the split-swipe
-      // story must also surface for CODs the driver recorded as Cash — the
-      // exact-amount + same-card + decline-present guards keep it precise).
-      const candidatesByLoc = new Map();
       for (const d of deliveryList) {
-        // Owner rule (Oct 5 2026): the Card Spend pill must surface on EVERY
-        // delivery whose COD value exists in the Square data — including
-        // UNCOLLECTED ones (pending/in_transit/en_route). An active delivery
-        // whose swipe already landed in Square is exactly the mismatch the
-        // pill exists to flag. Completed deliveries anchor on completion time;
-        // active ones anchor on their own delivery_date (no completion yet).
-        if (!d?.id || swipedIds.has(String(d.id))) continue;
-        const dStatus = String(d?.status || '').toLowerCase();
-        const isCompleted = dStatus === 'completed';
-        if (!isCompleted && !['pending', 'in_transit', 'en_route'].includes(dStatus)) continue;
+        if (d?.status !== 'completed') continue;
+        const doneAt = String(d.actual_delivery_time || '');
+        if (!doneAt || doneAt.slice(0, 10) !== today) continue;
+        const required = centsOf(d?.cod_total_amount_required);
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-        let cardAmt = payments
-          .filter((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))
-          .reduce((sum, p) => sum + centsOf(p?.amount), 0);
-        if (cardAmt <= 0) cardAmt = centsOf(d?.cod_total_amount_required);
-        if (cardAmt <= 0) continue;
-        const doneAt = isCompleted && d.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
-        if (isCompleted && !doneAt) continue;
+        const paidSum = payments.reduce((s, pm) => s + centsOf(pm?.amount), 0);
+        if (required <= 0 && paidSum <= 0) continue;
         const locId = storeToLoc.get(String(d?.store_id || ''));
         if (!locId) continue;
-        if (!candidatesByLoc.has(locId)) candidatesByLoc.set(locId, []);
-        const day = isCompleted
-          ? edmontonWallString(new Date(doneAt)).slice(0, 10)
-          : String(d?.delivery_date || '').slice(0, 10);
-        candidatesByLoc.get(locId).push({ id: String(d.id), amt: cardAmt, t: doneAt, day });
-      }
-      // Find a combo (size 1-maxSize) within `items` summing EXACTLY to `target`.
-      const findExactSumCombo = (items, target, maxSize) => {
-        const n = items.length;
-        for (let size = 1; size <= Math.min(maxSize, n); size++) {
-          const idx = Array.from({ length: size }, (_, i) => i);
-          while (idx[0] <= n - size) {
-            const combo = idx.map((i) => items[i]);
-            if (combo.reduce((s, c) => s + c.amt, 0) === target) return combo;
-            let i = size - 1;
-            while (i >= 0 && idx[i] === n - size + i) i--;
-            if (i < 0) break;
-            idx[i]++;
-            for (let j = i + 1; j < size; j++) idx[j] = idx[j - 1] + 1;
-          }
-        }
-        return [];
-      };
+        const sInfo = storeById.get(String(d?.store_id || ''));
 
-      // Rule 2 — fingerprint story (owner, Oct 3 2026): group CARD sales and
-      // declines by store + Edmonton date + card fingerprint; a group with at
-      // least one decline that day whose sales contain an exact-amount
-      // subset of a COD is the swipe.
-      const groupsByLocDayFp = new Map();
-      const groupKey = (locId, day, fp) => `${locId}|${day}|${fp}`;
-      for (const e of cardSales) {
-        if (!e?.card_fingerprint || !e?.occurred_at) continue;
-        const day = edmontonWallString(new Date(e.occurred_at)).slice(0, 10);
-        const k = groupKey(e.location_id, day, e.card_fingerprint);
-        if (!groupsByLocDayFp.has(k)) groupsByLocDayFp.set(k, { sales: [], declineCount: 0, locId: e.location_id, day });
-        groupsByLocDayFp.get(k).sales.push(e);
-      }
-      for (const e of declines) {
-        if (!e?.occurred_at) continue;
-        const day = edmontonWallString(new Date(e.occurred_at)).slice(0, 10);
-        const k = groupKey(e.location_id, day, e.card_fingerprint);
-        if (!groupsByLocDayFp.has(k)) groupsByLocDayFp.set(k, { sales: [], declineCount: 0, locId: e.location_id, day });
-        groupsByLocDayFp.get(k).declineCount += 1;
-      }
-      for (const [locId, cands] of candidatesByLoc) {
-        for (const c of cands) {
-          if (swipedIds.has(c.id)) continue;
-          for (const g of groupsByLocDayFp.values()) {
-            if (g.locId !== locId || g.day !== c.day || g.declineCount < 1) continue;
-            const avail = g.sales.filter((x) => !usedSaleKeys.has(saleKeyOf(x)));
-            if (!avail.length) continue;
-            const combo = findExactSumCombo(avail.map((x) => ({ amt: Math.abs(Number(x.amount_cents || 0)), row: x })), c.amt, 4);
-            if (combo.length) {
-              swipedIds.add(c.id);
-              combo.forEach((x) => usedSaleKeys.add(saleKeyOf(x.row)));
-              break;
-            }
-          }
-        }
-      }
+        // Badge word from the recorded payment types (owner spec: "marking
+        // accordingly the debit cash and credit… badges"). Debit wins over
+        // Credit when both were recorded; Cheque shows as Cheque; anything
+        // else (or no payment rows) reads as Cash.
+        const types = payments.map((pm) => String(pm?.type || '').toLowerCase());
+        const isCard = types.includes('debit') || types.includes('credit');
+        const label = types.includes('debit') ? 'Debit'
+          : types.includes('credit') ? 'Credit'
+          : types.includes('cheque') ? 'Cheque'
+          : 'Cash';
 
-      // Rule 2b — clean swipe story (owner, Oct 5 2026): same store + same
-      // Edmonton date + same card_fingerprint, NO decline required — an exact
-      // subset (1-4) of that card's completed sales summing to the COD. The
-      // decline anchor (rule 2) covers the split-payment story; this covers
-      // the clean single swipe rung hours away from the completion, and
-      // UNCOLLECTED deliveries (pending/in_transit/en_route) which have no
-      // completion time for rule 3's ±90min window. Owner rule: every delivery
-      // whose value exists in the Square data gets the pill.
-      for (const [locId, cands] of candidatesByLoc) {
-        for (const c of cands) {
-          if (swipedIds.has(c.id)) continue;
-          for (const g of groupsByLocDayFp.values()) {
-            if (g.locId !== locId || g.day !== c.day) continue;
-            const avail = g.sales.filter((x) => !usedSaleKeys.has(saleKeyOf(x)));
-            if (!avail.length) continue;
-            const combo = findExactSumCombo(avail.map((x) => ({ amt: Math.abs(Number(x.amount_cents || 0)), row: x })), c.amt, 4);
-            if (combo.length) {
-              swipedIds.add(c.id);
-              combo.forEach((x) => usedSaleKeys.add(saleKeyOf(x.row)));
-              break;
-            }
-          }
-        }
-      }
-
-      // Rule 3 — near-time fallback: a completed CARD sale whose amount is
-      // an exact combo (1-3) of CODs completed within ±90 minutes of it.
-      const cardSalesByLoc = new Map();
-      for (const e of cardSales) {
-        if (!e?.location_id || usedSaleKeys.has(saleKeyOf(e))) continue;
-        if (!cardSalesByLoc.has(e.location_id)) cardSalesByLoc.set(e.location_id, []);
-        cardSalesByLoc.get(e.location_id).push(e);
-      }
-      for (const [locId, sales] of cardSalesByLoc) {
-        const pool = candidatesByLoc.get(locId) || [];
-        for (const sale of sales) {
-          if (!sale.occurred_at) continue;
-          const saleAmt = Math.abs(Number(sale.amount_cents || 0));
-          const saleT = new Date(sale.occurred_at).getTime();
-          const nearby = pool.filter((c) => c.t != null && !swipedIds.has(c.id) && Math.abs(c.t - saleT) <= 90 * 60000);
-          if (nearby.length === 0) continue;
-          const combo = findExactSumCombo(nearby, saleAmt, 3);
-          for (const c of combo) swipedIds.add(c.id);
-        }
-      }
-      setCardSpendIds(swipedIds);
-
-      // Owner spec (Oct 5 2026): the status badge word itself now reflects
-      // HOW the money came back — 'Cash' (no card fees ever applied, no net
-      // math shown), or 'Debit'/'Credit' (real card tender, net amount shown
-      // to its left = gross − fee − loan% − folder%). INTERAC tender reads
-      // as Debit, everything else CARD reads as Credit.
-      const labelForTender = (tenderType, cardBrand) => {
-        if (String(tenderType || '').toUpperCase() !== 'CARD') return 'Cash';
-        return String(cardBrand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
-      };
-      const labelForPaymentType = (t) => {
-        const k = String(t || '').toLowerCase();
-        if (k === 'debit') return 'Debit';
-        if (k === 'credit') return 'Credit';
-        return 'Cash';
-      };
-
-      // a) Square-confirmed collections that happened TODAY — the ledger
-      // entry is the authoritative source for both the real tender (so a
-      // cash-recorded COD that was actually swiped shows Debit/Credit, not
-      // Cash) and the real settled amount (no estimate needed).
-      const squareTodayIds = new Set();
-      for (const e of (codSalesRaw || [])) {
-        if (String(e?.status || '').toUpperCase() !== 'COMPLETED' || !e?.delivery_id) continue;
-        const when = e.occurred_at ? edmontonWallString(new Date(e.occurred_at)) : '';
-        if (!when || when.slice(0, 10) !== today) continue;
-        squareTodayIds.add(String(e.delivery_id));
-        const locId = e.location_id;
-        if (!locId) continue;
-        const linkedDelivery = deliveryById.get(String(e.delivery_id));
-        const sInfo = linkedDelivery ? storeById.get(String(linkedDelivery.store_id || '')) : null;
-        const txPatientName = resolvePatientName(e.patient_id || linkedDelivery?.patient_id)?.full_name || null;
-        const grossA = Math.abs(Number(e.amount_cents || 0)) / 100;
-        const label = labelForTender(e.tender_type, e.card_brand);
+        const gross = (required > 0 ? required : paidSum) / 100;
+        const mark = manualSpendMarksRef.current?.[String(d.id)];
         aggFor(locId).push({
-          key: `tx-${e.id || e.square_id}`,
-          delivery_id: String(e.delivery_id),
-          patientName: txPatientName,
+          key: `d-${d.id}`,
+          delivery_id: String(d.id),
+          patientName: resolvePatientName(d.patient_id)?.full_name || null,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
-          amount: grossA,
-          sub: when.slice(11, 16),
+          amount: gross,
+          sub: doneAt.slice(11, 16),
           collected: true,
-          hasCardSpend: swipedIds.has(String(e.delivery_id)),
-          manualCardSpend: !!manualSpendMarksRef.current?.[String(e.delivery_id)]?.at,
+          // Debit/Credit payments ARE card money by definition in the
+          // delivery-data model — the sky "Card Spend" pill marks them.
+          hasCardSpend: isCard,
+          manualCardSpend: !!(mark?.touchedAt || mark?.at),
           collectedLabel: label,
-          // Cash never touches the card — no fee/loan/folder math applies.
-          netAmount: label === 'Cash' ? null : computeNetCollected(grossA, { settledCents: e.settled_cents, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
+          // Cash / Cheque never touch the card — no fee/loan/folder math.
+          netAmount: isCard
+            ? computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow })
+            : null,
         });
-      }
-
-      // b) deliveries completed TODAY with no Square-ledger match — covers
-      // BOTH in-app recorded non-cash payments (Debit/Credit, estimated fee
-      // math) AND pure cash collections (Cash badge, no amount, no math),
-      // so every completed-today COD shows up with the right badge word.
-      {
-        const list = deliveryList;
-        for (const d of list) {
-          if (d?.status !== 'completed' || Number(d?.cod_total_amount_required || 0) <= 0) continue;
-          const doneAt = String(d.actual_delivery_time || '');
-          if (doneAt.slice(0, 10) !== today) continue;
-          if (squareTodayIds.has(String(d.id))) continue; // already reported via Square (block a)
-          const locId = storeToLoc.get(String(d?.store_id || ''));
-          if (!locId) continue;
-          const sInfo = storeById.get(String(d?.store_id || ''));
-          const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-          const nonCashPmt = payments.find((p) => String(p?.type || '').toLowerCase() !== 'cash');
-          // Owner spec (Oct 6 2026): a pure CASH collection is NOT "Collected"
-          // — it is technically uncollected until processed back to the
-          // Square card. Its catalog item keeps it listed in Uncollected /
-          // Past uncollected with a Cash badge, so skip it here to avoid the
-          // same delivery reading as both Collected and Uncollected.
-          if (!nonCashPmt) continue;
-          const grossB = Number(d.cod_total_amount_required || 0);
-          const label = labelForPaymentType(nonCashPmt?.type);
-          aggFor(locId).push({
-            key: `d-${d.id}`,
-            delivery_id: String(d.id),
-            patientName: resolvePatientName(d.patient_id)?.full_name || null,
-            storeAbbrev: sInfo?.abbreviation || null,
-            storeColor: sInfo?.color || null,
-            amount: grossB,
-            sub: doneAt.slice(11, 16),
-            collected: true,
-            // BUG FIX (Oct 5 2026): this used to be hardcoded false — "in-app
-            // recorded, not a Square-confirmed spend" — but swipedIds already
-            // holds every delivery the fuzzy rules (2/3) matched against a
-            // REAL card sale in the ledger (same amount, same day, near-time
-            // or fingerprint+decline story), even when the backend never
-            // stamped a direct delivery_id link. Verified live: Marlene Vis's
-            // $64.89 Debit COD has an exact-amount, exact-time (16:41) CARD
-            // sale in the ledger that was simply never linked — the fuzzy
-            // match catches it, this hardcoded false was throwing it away.
-            hasCardSpend: swipedIds.has(String(d.id)),
-            manualCardSpend: !!manualSpendMarksRef.current?.[String(d.id)]?.at,
-            collectedLabel: label,
-            // No real Square tx for this one — estimate the fee from the
-            // recorded card type (owner rate sheet, Oct 3 2026). Pure cash
-            // skips the math entirely per owner rule.
-            netAmount: label === 'Cash' ? null : computeNetCollected(grossB, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }),
-          });
-        }
       }
 
       const out = {};
@@ -1036,7 +575,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (data) {
             if (data.config) setConfig(data.config);
             if (data.configRecordId) setConfigRecordId(data.configRecordId);
-            setSales(data.sales || []);
+            setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
             setPayouts(data.payouts || []);
             if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
             setIsLoading(false);
@@ -1044,26 +583,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
       } catch (e) { /* snapshot is best-effort — server load below is authoritative */ }
       try {
+        // OWNER SPEC (Oct 7 2026): NO Square API sync on this page anymore —
+        // mount computes strictly from delivery data (credits, outstanding,
+        // collected-today) plus cached ledger payout/topup rows.
         const cfg = await loadConfig();
-        // Auto Square sync is owner-only — a driver's open tab must never hit the Square API.
-        if (cfg?.trued_up_at && ownerCanEditRef.current) {
-          setIsSyncing(true);
-          const res = await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at, includeCodOutstanding: true }).catch((e) => { console.error('auto ledger sync failed:', e); return null; });
-          const out = res?.codOutstanding || [];
-          const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
-          setCodOutstandingByLoc(byLoc);
-          setIsSyncing(false);
-          // Fresh ledger rows just landed via a service-role sync (no WS echo
-          // reaches us), so the IDB windows cache — including the card-spend
-          // evidence pool — is stale. Drop it BEFORE loadSales/computes run,
-          // otherwise new swipes badge only after the 10-min TTL (owner report
-          // Oct 5 2026: Card Spend pill showing intermittently).
-          if (res) invalidateLedgerWindows();
-        }
         await loadSales(cfg);
         computeLocalOutstanding();
         computeCodCollectedToday();
-        computeCatalogUncollected();
         loadDailyCod();
       } catch (e) {
         console.error('balances load failed:', e);
@@ -1075,72 +601,29 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     /* eslint-disable-next-line */
   }, []);
 
+  // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: the Sync button no
+  // longer calls the Square API (squareLedgerSync / squareGetCodData2 are
+  // retired on this page). It re-reads fresh DELIVERY data — credits from
+  // finished deliveries' cod_payments, outstanding from active deliveries,
+  // collected-today — plus cached ledger payout rows. The Square COD page and
+  // the Audit page keep their own syncs.
   const syncFromSquare = useCallback(async () => {
-    const startDate = config?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
     setIsSyncing(true);
     try {
-      const res = await base44.functions.invoke('squareLedgerSync', { startDate, includeCodOutstanding: true });
-      const out = res?.codOutstanding || [];
-      const byLoc = {}; out.forEach((o) => { byLoc[o.location_id] = o; });
-      setCodOutstandingByLoc(byLoc);
-      // The sync just wrote NEW ledger rows (service-role — no WS echo reaches
-      // us), so the IDB windows cache is stale: drop it before refresh() runs
-      // loadSales, otherwise the page repaints the pre-sync cache.
-      invalidateLedgerWindows();
-
-      // STEP 2 — COD CATALOG SYNC (owner spec, Oct 7 2026): the ledger sync
-      // above registers the real Square sales and stamps
-      // cod_confirmed_collected on cash-collected deliveries; the COD sync
-      // then clears their Square catalog items so those rows drop from the
-      // Uncollected lists on BOTH data sets (ledger + catalog). ORDER MATTERS:
-      // reversed, the catalog sync runs before the confirmations exist and
-      // nothing clears.
-      try {
-        const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
-        const nowMs = Date.now();
-        if (Number(localStorage.getItem(LS_INFLIGHT) || 0) > nowMs) {
-          // The Square COD page's full sync holds the shared lease — its run
-          // covers the same catalog reconcile, so don't double-fetch.
-          console.log('[SquareBalances] COD sync skipped — Square COD page sync already running');
-        } else {
-          // Take the same cross-page lease the Square COD page uses so the
-          // two syncs never run concurrently (shared Square rate-limit budget).
-          localStorage.setItem(LS_INFLIGHT, String(nowMs + 240000));
-          try {
-            // Incremental order fetch (same marker logic as the Square COD
-            // page): pass orderFetchSince when a recent sync exists so this
-            // pulls only the order tail instead of the full 90-day window.
-            // READ-ONLY use of the marker — this page does not replace-save
-            // the COD page's IDB transaction mirror, so the marker itself is
-            // NOT stamped here (the COD page's next sync re-covers this tail).
-            const lastOrderFetch = Number(localStorage.getItem('squareCod_lastOrderFetchAt') || 0);
-            const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
-              ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
-              : null;
-            await base44.functions.invoke('squareGetCodData2', {
-              forceDeliveryRefresh: true,
-              daysBack: 90,
-              ...(orderFetchSince ? { orderFetchSince } : {}),
-            });
-          } finally {
-            localStorage.removeItem(LS_INFLIGHT);
-          }
-        }
-      } catch (err) {
-        console.warn('[SquareBalances] COD catalog sync after ledger sync failed:', err);
-      }
-      toast.success('Square data refreshed');
-      await refresh({ reloadConfig: false });
-      computeLocalOutstanding();
-      computeCodCollectedToday();
-      computeCatalogUncollected();
+      let cfg = config;
+      if (!cfg?.trued_up_at) cfg = await loadConfig();
+      await loadSales(cfg);
+      await computeLocalOutstanding(cfg);
+      await computeCodCollectedToday();
+      loadDailyCod();
+      toast.success('Delivery data refreshed');
     } catch (err) {
-      console.error('squareLedgerSync failed:', err);
-      toast.error('Square refresh failed');
+      console.error('delivery-data refresh failed:', err);
+      toast.error('Refresh failed');
     } finally {
       setIsSyncing(false);
     }
-  }, [config, refresh]);
+  }, [config, loadConfig, loadSales, computeLocalOutstanding, computeCodCollectedToday]);
 
   loadSalesRef.current = loadSales;
   syncRef.current = syncFromSquare;
@@ -1168,7 +651,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); computeCatalogUncollectedRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
+      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -1203,7 +686,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             loadSalesRef.current?.(configRef.current);
             computeLocalOutstandingRef.current?.();
             computeCodCollectedTodayRef.current?.();
-            computeCatalogUncollectedRef.current?.();
           }, 5000);
           return;
         }
@@ -1223,10 +705,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }));
     } catch (e) { console.error('Ledger subscribe failed:', e); }
     try {
-      unsubs.push(base44.entities.SquareCatalogItems.subscribe(() => {
-        clearTimeout(catalogTimer);
-        catalogTimer = setTimeout(() => { computeCatalogUncollectedRef.current?.(); }, 5000);
-      }));
+      // SquareCatalogItems subscription retired (Oct 7 2026): the balances
+      // page is strictly delivery data — catalog items no longer feed it.
     } catch (e) { console.error('Catalog subscribe failed:', e); }
     try {
       unsubs.push(base44.entities.Delivery.subscribe((event) => {
@@ -1284,8 +764,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Per-location math from the sale records
   const perLocation = useMemo(() => {
     if (!config) return [];
-    const folderRate = Number(config.folder_rate ?? DEFAULT_FOLDER_RATE);
-    const storeCardFps = learnStoreCardFingerprints(sales);
     const payoutCentsByLoc = new Map();
     for (const pw of payouts || []) {
       if (!pw?.location_id) continue;
@@ -1293,19 +771,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
     }
     return (config.locations || []).map((loc) => {
-      const locSales = sales.filter((s) => s.location_id === loc.location_id);
-      let gross = 0, fees = 0, loan = 0, folder = 0, credits = 0, storeCardSpend = 0;
-      for (const s of locSales) {
-        const amount = Number(s.amount_cents || 0) / 100;
-        // Store-card spend (fingerprint-learned, owner plan Oct 3 2026): money
-        // OUT on the store's own card — excluded from the credit math.
-        if (s.card_fingerprint && storeCardFps.has(String(s.card_fingerprint))) { storeCardSpend += amount; continue; }
-        const fee = Number(s.fee_cents || 0) / 100;
-        const l = amount * Number(loc.loan_rate || 0);
-        const f = amount * folderRate;
-        gross += amount; fees += fee; loan += l; folder += f;
-        credits += amount - fee - l - f;
-      }
+      // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: gross/fees/loan/
+      // folder/credits come from FINISHED deliveries' recorded Debit/Credit
+      // cod_payments (loadDeliveryCardCredits), net of the fee rate sheet.
+      // The Square-ledger sale scan (and its store-card fingerprint
+      // exclusions) is retired on this page.
+      const dc = deliveryCredits.get(loc.location_id) || {};
+      const gross = Number(dc.gross || 0);
+      const fees = Number(dc.fees || 0);
+      const loan = Number(dc.loan || 0);
+      const folder = Number(dc.folder || 0);
+      const credits = Number(dc.credits || 0);
+      const storeCardSpend = 0;
       const r2 = (x) => Math.round(x * 100) / 100;
       const codOut = localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || null;
       // PAYOUT-MATCHED OUTSTANDING CODs (owner rule Oct 3 2026): the COD to
@@ -1324,7 +801,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const swept = payoutCents.length ? payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100 : (payoutByLoc.get(loc.location_id) || 0);
       return {
         ...loc,
-        saleCount: locSales.length,
+        saleCount: Number(dc.count || 0),
         gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
         sweptOut: r2(swept),
         chargedToCard: r2(chargedCents / 100),
@@ -1344,21 +821,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         pendingDeducted: r2(pendingDeductCents / 100),
         pendingDeductCount,
         codOutstanding: codOut,
-        lastSaleAt: locSales.length ? locSales.map((s) => s.occurred_at).sort().pop() : null,
+        lastSaleAt: dc.lastAt || null,
       };
     });
-  }, [config, sales, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks]);
+  }, [config, deliveryCredits, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
     if (!config) return 0;
-    const folderRate = Number(config.folder_rate ?? DEFAULT_FOLDER_RATE);
+    // STRICTLY DELIVERY DATA (Oct 7 2026): the folder accrues from finished
+    // deliveries' Debit/Credit card payments — loadDeliveryCardCredits already
+    // applied folder% per payment. No ledger rows involved.
     let total = Number(config.folder_start || 0);
-    for (const s of sales) {
-      total += (Number(s.amount_cents || 0) / 100) * folderRate;
-    }
+    for (const dc of deliveryCredits.values()) total += Number(dc.folder || 0);
     return Math.round(total * 100) / 100;
-  }, [config, sales]);
+  }, [config, deliveryCredits]);
 
   const startTrueUp = () => {
     const draft = {};
@@ -1712,21 +1189,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 // credits/gross/fees/loan/folder breakdown line above, which
                 // stay ownerCanEdit-gated.
                 const todayStr = edmontonWallString(new Date()).slice(0, 10);
-                // Uncollected rows come from the SquareCatalogItems database:
-                // ACTIVE catalog items = still sitting in the register, ALL
-                // dates included (the old true-up-window delivery query missed
-                // anything past the window, e.g. week-old CODs).
-                // Fallback to the delivery-derived items only while the
-                // catalog list hasn't loaded yet.
-                const catItems = catalogUncollectedByLoc?.[loc.location_id];
+                // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: the
+                // uncollected rows come from the delivery-derived outstanding
+                // list (pending / in_transit / en_route CODs). The
+                // SquareCatalogItems source is retired on this page — the
+                // catalog was only ever a partial mirror of the same
+                // deliveries. Pending-status rows (not yet picked up) are
+                // tagged pendingPickup for the "Awaiting Pickup" badge;
+                // everything else reads as Pending (out with a driver).
+                // Every row defaults to the Card Spend pill (owner rule) —
+                // tapping toggles it to "Not Tapped".
                 const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
-                // Pending-status ("impending pickup" — not yet picked up by a
-                // driver) deliveries never get a Square catalog item at all;
-                // the reconciler removes a delivery's item until the stop
-                // goes active (en_route/in_transit). Keep them OUT of the
-                // catalog-sourced list and handle them separately below so
-                // they can be tagged pendingPickup regardless of date.
-                const uncollectedSrc = catItems || outItems.filter((it) => it.status !== 'pending').map((it) => ({
+                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
+                const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
+                const combinedSrc = outItems.map((it) => ({
                   key: `o-${it.delivery_id}`,
                   delivery_id: it.delivery_id,
                   patientName: it.patient || null,
@@ -1734,34 +1210,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   storeColor: it.storeColor || null,
                   amount: it.amount,
                   date: it.date || null,
+                  pendingPickup: it.status === 'pending',
+                  notTapped: notTapped(it.delivery_id),
                 }));
-                const srcDeliveryIds = new Set(
-                  uncollectedSrc.map((it) => it.delivery_id).filter(Boolean)
-                );
-                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
-                // Pending-status deliveries with a COD to collect still need
-                // to show up in Uncollected/Past uncollected — just labeled
-                // "Card Spend" instead of "Pending" since the driver hasn't
-                // picked the order up yet (owner request, Oct 2 2026).
-                // Covers EVERY date (today, future, past), not just future —
-                // these were previously invisible entirely for today's date
-                // because catalog items don't exist for them yet.
-                const pendingPickupItems = outItems
-                  .filter((it) => it.status === 'pending' && !srcDeliveryIds.has(it.delivery_id))
-                  .map((it) => ({
-                    key: `pp-${it.delivery_id}`,
-                    delivery_id: it.delivery_id,
-                    patientName: it.patient || null,
-                    storeAbbrev: it.storeAbbrev || null,
-                    storeColor: it.storeColor || null,
-                    amount: it.amount,
-                    date: it.date || null,
-                    pendingPickup: true,
-                    notTapped: notTapped(it.delivery_id),
-                  }));
-                const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
-                const swiped = (id) => !!id && cardSpendIds.has(String(id));
-                const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
                 // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                 // Uncollected / Past uncollected — they are technically
                 // uncollected until processed back to the Square card. They
@@ -1777,36 +1228,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
                   collected: false,
                   pendingPickup: !!it.pendingPickup,
-                  hasCardSpend: swiped(it.delivery_id),
+                  hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                   manualCardSpend: manualMark(it.delivery_id),
                   notTapped: notTapped(it.delivery_id),
                   cashAwaitingSquare: !!it.cashAwaitingSquare,
                 }));
-                // Future-dated en_route/in_transit CODs never have a Square
-                // catalog item either (same reconciler behavior) — merge them
-                // in from the delivery-derived outstanding list (owner
-                // request, Oct 1 2026: "Uncollected" must also list pending
-                // CODs from future dates). Pending-status future items are
-                // already covered by pendingPickupItems above, so exclude
-                // anything already placed via combinedSrc.
-                const allKnownIds = new Set(combinedSrc.map((it) => it.delivery_id).filter(Boolean));
-                const futurePendingRows = outItems
-                  .filter((it) => it.date && it.date > todayStr)
-                  .filter((it) => !allKnownIds.has(it.delivery_id))
-                  .map((it) => ({
-                    key: `f-${it.delivery_id}`,
-                    delivery_id: it.delivery_id || null,
-                    patientName: it.patient || null,
-                    storeAbbrev: it.storeAbbrev || null,
-                    storeColor: it.storeColor || null,
-                    amount: it.amount,
-                    sub: `${it.date} · upcoming`,
-                    collected: false,
-                    pendingPickup: false,
-                    hasCardSpend: swiped(it.delivery_id),
-                    manualCardSpend: manualMark(it.delivery_id),
-                    notTapped: notTapped(it.delivery_id),
-                  }));
+                // combinedSrc already covers EVERY active-delivery COD (any
+                // date) — future-dated rows land in Uncollected via the
+                // today/past filters below, so no separate future merge is
+                // needed anymore.
+                const futurePendingRows = [];
                 const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                   key: it.key || `p-${it.delivery_id}`,
                   delivery_id: it.delivery_id || null,
@@ -1817,7 +1248,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   sub: it.sub || it.date,
                   collected: false,
                   pendingPickup: !!it.pendingPickup,
-                  hasCardSpend: swiped(it.delivery_id),
+                  hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                   manualCardSpend: manualMark(it.delivery_id),
                   notTapped: notTapped(it.delivery_id),
                   cashAwaitingSquare: !!it.cashAwaitingSquare,

@@ -68,6 +68,7 @@ export const deserializeSummary = (payload) => {
     codOutstandingDetailed: payload.codOutstandingDetailed || {},
     config: payload.config || null,
     configRecordId: payload.configRecordId || null,
+    deliveryCredits: map(payload.deliveryCredits),
     sales: Array.isArray(payload.sales) ? payload.sales : [],
     payouts: Array.isArray(payload.payouts) ? payload.payouts : [],
     savedAt: payload.savedAt || null,
