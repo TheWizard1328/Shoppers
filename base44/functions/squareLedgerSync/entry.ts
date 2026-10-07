@@ -1598,8 +1598,15 @@ Deno.serve(async (req) => {
         !!e?.delivery_id && String(e?.sale_class || '') === 'cod_collection' && String(e?.status || '').toUpperCase() === 'COMPLETED';
       for (const e of allEntries) if (isLinkedCodRow(e)) linkedCodDeliveryIds.add(String(e.delivery_id));
       for (const [, rows] of existingRowsBySquareId) if (rows[0] && isLinkedCodRow(rows[0])) linkedCodDeliveryIds.add(String(rows[0].delivery_id));
+      // Pool note (Oct 7 2026): do NOT exclude confirmed-collected deliveries
+      // here. A grouped ring's deliveries can be confirmed by an earlier run
+      // whose child rows failed to persist (or by a delivery-side confirm
+      // that ran before the ledger split landed) — a confirmed delivery with
+      // NO linked ledger row is exactly the stranded case this pass repairs.
+      // The real guards are: no existing linked COMPLETED cod_collection sale
+      // (linked) and not matched by another path this run.
       const splitPool = codDeliveries.filter((d: any) =>
-        !d.confirmed && !matchedDeliveryIds.has(d.id) && !linkedCodDeliveryIds.has(d.id) && d.cents > 0);
+        !matchedDeliveryIds.has(d.id) && !linkedCodDeliveryIds.has(d.id) && d.cents > 0);
       if (splitPool.length) {
         // Candidate sales: unlinked, unclaimed by the exact pass, recent
         // CARD sales whose cents could be a single uncollected COD or a
@@ -1644,10 +1651,23 @@ Deno.serve(async (req) => {
           const splitParts = splitPaymentAcrossCodLinks(parts.map((p) => ({ ...p, catalogObjectId: null })), parent.cents, parent.fee);
           if (!splitParts.length) return 0;
           supersededSquareIds.add(parent.key);
+          // Remove the parent from BOTH the upsert Map and the persist
+          // snapshot (allEntries is snapshotted before this pass — a child
+          // pushed only to `entries` would never persist, and the parent
+          // would be re-upserted by the snapshot copy).
           entries.delete(parent.key);
+          const pIdx = allEntries.indexOf(parentRow);
+          if (pIdx >= 0) allEntries.splice(pIdx, 1);
           usedSaleKeys.add(parent.key);
           let created = 0;
           let parentDbDeleted = false;
+          // The superseded-row cleanup earlier in the run ran BEFORE this
+          // pass added the parent, so delete the parent's stale DB copy here.
+          if (parent.existingId) {
+            await base44.asServiceRole.entities.SquareLedgerEntry.delete(parent.existingId)
+              .then(() => { parentDbDeleted = true; }).catch(() => {});
+            await sleep(40);
+          }
           for (const part of splitParts) {
             const childKey = `${parent.key}:${part.deliveryId || created}`;
             const child = buildEntry({
@@ -1665,9 +1685,9 @@ Deno.serve(async (req) => {
             });
             if (parentInEntries) {
               // In this run's upsert pool: children ride the normal persist
-              // loop; the superseded cleanup deletes the parent's stale DB
-              // copy (if any).
+              // loop (entries Map + the allEntries snapshot).
               entries.set(childKey, child);
+              allEntries.push(child);
               created += 1;
             } else {
               // Parent only exists in the DB (outside this run's Square
@@ -1675,11 +1695,6 @@ Deno.serve(async (req) => {
               await base44.asServiceRole.entities.SquareLedgerEntry.create(child)
                 .then(() => { created += 1; }).catch(() => {});
               await sleep(40);
-              if (parent.existingId && !parentDbDeleted) {
-                await base44.asServiceRole.entities.SquareLedgerEntry.delete(parent.existingId)
-                  .then(() => { parentDbDeleted = true; }).catch(() => {});
-                await sleep(40);
-              }
             }
             // Delivery-side confirmation: the swiped card is the authority.
             const codType = String(parent.brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
