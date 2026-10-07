@@ -1198,6 +1198,26 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
       scheduleCodReload();
     };
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    // Backend ledger-sync stamp (Oct 7 2026): squareLedgerSync writes
+    // AppSettings 'square_ledger_sync' when it changed links/splits/
+    // confirmations — its entity writes are service-role and produce NO
+    // SquareLedgerEntry broadcasts, so without this the badge never learns
+    // about splits. Heal the IDB delivery mirror too (cod_confirmed_collected
+    // stamped server-side never reaches the client otherwise).
+    const onLedgerSyncStamp = async (e) => {
+      const updated = e?.detail?.data || e?.detail;
+      if (updated?.setting_key !== 'square_ledger_sync') return;
+      invalidateLedgerWindows();
+      try {
+        const rows = await base44.entities.Delivery.list('-updated_date', 500, 0).catch(() => []);
+        if (rows?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows);
+        idbReadCaches.deliveries = { at: 0, rows: null };
+      } catch { /* non-critical */ }
+      if (!bootDelayFired) return; // quiet boot window — snapshot still showing
+      clearTimeout(cfgTimer);
+      cfgTimer = setTimeout(() => reload(true), 2500);
+    };
+    window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
     return () => {
       cancelled = true;
       firstLoadDone = true;
@@ -1205,6 +1225,7 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
       clearTimeout(cfgTimer); clearTimeout(codTimer);
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
     };
   }, [enabled, reload, apply]);
 

@@ -273,7 +273,17 @@ export default function SquareSyncAudit() {
       await Promise.all([fetchLedgerFromServer(), loadCardLabels(), loadStores()]);
       if (!cancelled) setIsLoading(false);
     })();
-    return () => {cancelled = true;};
+    // Backend ledger-sync stamp (Oct 7 2026): squareLedgerSync's
+    // splits/deletions are service-role writes — no WS echo reaches this
+    // page, so a mounted page kept showing the original grouped transaction.
+    // The stamp (AppSettings 'square_ledger_sync') broadcasts; refetch here.
+    const onLedgerSyncStamp = (e) => {
+      const updated = e?.detail?.data || e?.detail;
+      if (updated?.setting_key !== 'square_ledger_sync') return;
+      fetchLedgerFromServer().catch(() => {});
+    };
+    window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
+    return () => {cancelled = true; window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);};
   }, [isAdmin, fetchLedgerFromServer, loadCardLabels, loadStores]);
 
   // ---------- derived data ----------

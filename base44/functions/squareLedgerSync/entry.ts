@@ -841,9 +841,57 @@ Deno.serve(async (req) => {
     }
 
     const entries: Map<string, any> = new Map();
+
+    // EXISTING-ROW SCAN (moved ahead of the Square fetch loops Oct 7 2026):
+    // the split-parent guard below needs to know which payments were already
+    // split into per-delivery children in earlier runs BEFORE this run builds
+    // their combined parent row again.
+    const existingIdBySquareId = new Map<string, string>();
+    const existingRowsBySquareId = new Map<string, any[]>();
+    let scanOk = false;
+    let lastScanError: any = null;
+    for (let attempt = 0; attempt < 3 && !scanOk; attempt++) {
+      existingIdBySquareId.clear();
+      existingRowsBySquareId.clear();
+      try {
+        let skip = 0;
+        for (let page = 0; page < 50; page++) {
+          const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip)) as any[];
+          const list = rows || [];
+          for (const r of list) {
+            if (!r?.square_id) continue;
+            if (!existingRowsBySquareId.has(r.square_id)) existingRowsBySquareId.set(r.square_id, []);
+            existingRowsBySquareId.get(r.square_id)!.push(r);
+          }
+          if (list.length < 2000) break;
+          skip += 2000;
+        }
+        scanOk = true;
+      } catch (e: any) {
+        lastScanError = e;
+        syncErrors.push(`existingScan(attempt ${attempt + 1}): ${e?.message || e}`);
+        await sleep(2000);
+      }
+    }
+    if (!scanOk) {
+      return Response.json({
+        success: false,
+        error: `existingScan failed after 3 attempts (${lastScanError?.message || lastScanError}) — sync aborted before any Square fetch or write. No entries were written.`,
+        errors: syncErrors.slice(0, 10),
+      }, { status: 503 });
+    }
+    // Payments/tenders already split into per-delivery children ("<parentId>:<deliveryId>").
+    // Their combined parent row must NEVER be rebuilt — a resurrected parent
+    // double-books the sale next to its children (owner report Oct 7 2026:
+    // the audit page kept listing the original grouped transaction).
+    const splitParentKeys = new Set<string>();
+    for (const sqid of existingRowsBySquareId.keys()) {
+      const idx = sqid.indexOf(':');
+      if (idx > 0) splitParentKeys.add(sqid.slice(0, idx));
+    }
+
     const locationStats: any[] = [];
     let payoutsAvailable = true;
-    const syncErrors: string[] = [];
     // square_ids of pre-split combined rows (owner report Oct 7 2026: a
     // multi-COD payment's old single ledger row is now replaced by one row
     // per delivery) — deleted from the table below so the combined row never
@@ -905,8 +953,14 @@ Deno.serve(async (req) => {
 
       // Card payments -> sale or decline entries
       for (const payment of payments) {
+        // Already split into per-delivery children in an earlier run — never
+        // rebuild the combined parent; drop any stale DB copy instead.
+        if (splitParentKeys.has(String(payment.id))) {
+          supersededSquareIds.add(String(payment.id));
+          continue;
+        }
         const order = payment?.order_id ? orderById.get(payment.order_id) : null;
-        const codLinksAll = order ? resolveCodLineItems(order, catalogByObjectId) : [];
+        const codLinksAll = order ? resolveCodLineItems(order, catalogByObjectId, catalogByName) : [];
         const codLink = codLinksAll[0] || null;
         const card = payment?.card_details?.card;
         const status = String(payment?.status || '').toUpperCase();
@@ -1011,6 +1065,10 @@ Deno.serve(async (req) => {
         for (const tender of order?.tenders || []) {
           if (!tender?.id) continue;
           if (tender.type === 'CARD' || tender.payment_id) continue; // already in payments pass
+          if (splitParentKeys.has(`tender-${tender.id}`)) {
+            supersededSquareIds.add(`tender-${tender.id}`);
+            continue;
+          }
           const codLinksAll = resolveCodLineItems(order, catalogByObjectId, catalogByName);
           const codLink = codLinksAll[0] || null;
           // MULTI-COD SPLIT (Oct 7 2026) — same reasoning as the card-payment
@@ -1225,41 +1283,6 @@ Deno.serve(async (req) => {
     //      their older copies (self-heals the existing duplicates).
     //   3. Same square_id can never be double-written by this run (Map keys).
     const allEntries = Array.from(entries.values());
-    const existingIdBySquareId = new Map<string, string>();
-    const existingRowsBySquareId = new Map<string, any[]>();
-    let scanOk = false;
-    let lastScanError: any = null;
-    for (let attempt = 0; attempt < 3 && !scanOk; attempt++) {
-      existingIdBySquareId.clear();
-      existingRowsBySquareId.clear();
-      try {
-        let skip = 0;
-        for (let page = 0; page < 50; page++) {
-          const rows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.list('-occurred_at', 2000, skip)) as any[];
-          const list = rows || [];
-          for (const r of list) {
-            if (!r?.square_id) continue;
-            if (!existingRowsBySquareId.has(r.square_id)) existingRowsBySquareId.set(r.square_id, []);
-            existingRowsBySquareId.get(r.square_id)!.push(r);
-          }
-          if (list.length < 2000) break;
-          skip += 2000;
-        }
-        scanOk = true;
-      } catch (e: any) {
-        lastScanError = e;
-        syncErrors.push(`existingScan(attempt ${attempt + 1}): ${e?.message || e}`);
-        await sleep(2000);
-      }
-    }
-    if (!scanOk) {
-      return Response.json({
-        success: false,
-        error: `existingScan failed after 3 attempts (${lastScanError?.message || lastScanError}) — persist phase aborted to avoid creating duplicate ledger rows. No entries were written.`,
-        entriesFetched: allEntries.length,
-        errors: syncErrors.slice(0, 10),
-      }, { status: 503 });
-    }
     // Dedupe existing rows per square_id (keep newest updated_date) and
     // register the survivor for the update path below.
     let duplicateRowsDeleted = 0;
@@ -2020,6 +2043,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // SYNC STAMP (Oct 7 2026): service-role entity writes produce NO
+    // WebSocket broadcasts, so clients (Finance Audit page, Square Balances
+    // badge/page) that invalidate their caches on SquareLedgerEntry WS events
+    // never heard about backend splits/links — the audit page kept listing
+    // the original grouped transaction and balances kept stale data.
+    // AppSettings writes DO broadcast (appSettingsUpdated), so stamp here
+    // whenever this run changed any links/splits/confirmations; the clients
+    // listen for setting_key 'square_ledger_sync' and refresh.
+    let syncStampWritten = false;
+    try {
+      const changed = multiSplitChildren > 0 || supersededRowsDeleted > 0 || stampedConfirmations > 0
+        || backfillLinks > 0 || backfillRepairs > 0 || backfillTypeSyncs > 0;
+      if (changed) {
+        const stampValue = {
+          at: windowEnd,
+          multiSplitRings, multiSplitChildren,
+          supersededRowsDeleted, stampedConfirmations,
+          backfillLinks, backfillRepairs, backfillTypeSyncs,
+        };
+        const stampRows: any[] = (await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_ledger_sync' }).catch(() => [])) as any[];
+        if (stampRows?.[0]?.id) {
+          await base44.asServiceRole.entities.AppSettings.update(stampRows[0].id, { setting_value: stampValue }).catch(() => {});
+        } else {
+          await base44.asServiceRole.entities.AppSettings.create({ setting_key: 'square_ledger_sync', setting_value: stampValue }).catch(() => {});
+        }
+        syncStampWritten = true;
+      }
+    } catch { /* non-fatal */ }
+
     const result = {
       success: true,
       windowStart,
@@ -2037,6 +2089,7 @@ Deno.serve(async (req) => {
       multiSplitRings,
       multiSplitChildren,
       multiSplitOrdersRetrieved,
+      syncStampWritten,
       payoutsAvailable,
       codLinks: allEntries.filter((e) => e.delivery_id).length,
       backfillLinks,

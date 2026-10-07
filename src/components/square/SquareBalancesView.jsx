@@ -1150,6 +1150,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           computeCodCollectedTodayRef.current?.();
           return;
         }
+        // Backend ledger-sync stamp (Oct 7 2026): squareLedgerSync changed
+        // links/splits/confirmations server-side. Its entity writes are
+        // service-role — no SquareLedgerEntry WS echo ever reaches this
+        // page — so drop the ledger cache and reload sales from this stamp.
+        if (event?.data?.setting_key === 'square_ledger_sync') {
+          invalidateLedgerWindows();
+          clearTimeout(ledgerTimer);
+          ledgerTimer = setTimeout(() => {
+            loadSalesRef.current?.(configRef.current);
+            computeLocalOutstandingRef.current?.();
+            computeCodCollectedTodayRef.current?.();
+            computeCatalogUncollectedRef.current?.();
+          }, 5000);
+          return;
+        }
         if (event?.data?.setting_key !== SETTING_KEY) return;
         clearTimeout(cfgTimer);
         cfgTimer = setTimeout(async () => {
