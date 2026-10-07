@@ -7,7 +7,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, matchPayoutChargedCods, computePendingCodDeduction } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -963,6 +963,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Per-location math from the sale records
   const perLocation = useMemo(() => {
     if (!config) return [];
+    // Real card withdrawals per location since true-up (loadCardPayouts
+    // returns 'store_withdraw' rows with amount_cents).
     const payoutCentsByLoc = new Map();
     for (const pw of payouts || []) {
       if (!pw?.location_id) continue;
@@ -988,32 +990,27 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // deduction items (owner report Oct 7 2026, $53.05 Londonderry case): a
       // deducted COD KEEPS its deduction after completion — the order's goods
       // were already charged to the Square card. Only the collected net
-      // (credits) comes back on top. Payout matching runs over the COMBINED
-      // list so a collected COD's charge payout leaves the sweep total
-      // instead of double-counting.
+      // (credits) comes back on top.
       const estimateItems = [...(codOut?.items || []), ...(codOut?.deductItems || [])];
-      // PAYOUT-MATCHED CODs (owner rule Oct 3 2026): a COD subtracts via the
-      // charge ONLY when payouts at this store equal it exactly (single or
-      // combined subset) — matched payouts leave the sweep total so the COD
-      // and its charge are never counted twice.
-      const { matched, chargedCents, chargedCount, matchedItemIds } = matchPayoutChargedCods(
-        estimateItems,
-        payoutCentsByLoc.get(loc.location_id) || []
-      );
+      // REAL card withdrawals only (owner report Oct 7 2026): a card sale's
+      // settled/net cents auto-sweep FROM the store location ONTO the card
+      // ('store_topup' rows) — they ARRIVE, they never leave. Subtracting
+      // them while also crediting the collection netted each sale to ~zero
+      // while the real cards grew (the "way off since true-up" report). Only
+      // 'store_withdraw' payouts subtract now.
+      const withdrawn = (payoutCentsByLoc.get(loc.location_id) || []).reduce((sum, c) => sum + (Number(c) || 0), 0) / 100;
       // Owner rule (Oct 6-7 2026): a pre-True-Up COD stays neutral until the
       // owner explicitly clicks its badge since that True-Up; a brand-new
       // (post-True-Up) COD deducts by default and STAYS deducted after
       // collection. See computePendingCodDeduction.
-      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(estimateItems, manualSpendMarks || {}, matchedItemIds, config?.trued_up_at || null);
-      const payoutCents = payoutCentsByLoc.get(loc.location_id) || [];
-      const swept = payoutCents.length ? payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100 : (payoutByLoc.get(loc.location_id) || 0);
+      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(estimateItems, manualSpendMarks || {}, null, config?.trued_up_at || null);
       return {
         ...loc,
         saleCount: Number(dc.count || 0),
         gross: r2(gross), fees: r2(fees), loanPaid: r2(loan), folderContrib: r2(folder), netCredits: r2(credits),
-        sweptOut: r2(swept),
-        chargedToCard: r2(chargedCents / 100),
-        chargedCount,
+        sweptOut: r2(withdrawn), // real withdrawals since true-up
+        chargedToCard: 0, // payout-matching retired Oct 7: sale nets ARRIVE on the card
+        chargedCount: 0,
         storeCardSpend: r2(storeCardSpend),
         // UN-SWIPED CODs DO NOT REDUCE THE BALANCE (owner rule, Oct 2 2026,
         // Londonderry $528.17 report): a COD only counts as money removed from
@@ -1022,10 +1019,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Outstanding CODs stay visible as "owed, not yet swiped" and drive
         // the low-balance forecast, but do NOT subtract from the estimate.
         // BATCH bank sweeps since true-up leave the real card too (Oct 2 2026 fix)
-        cardEstimate: r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100),
+        cardEstimate: r2(Number(loc.card_start || 0) + credits - withdrawn - pendingDeductCents / 100),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - withdrawn - pendingDeductCents / 100), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         pendingDeducted: r2(pendingDeductCents / 100),
         pendingDeductCount,
         codOutstanding: codOut,
@@ -1363,7 +1360,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               )}
               {loc.sweptOut > 0 && (
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Swept to bank</div>
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Withdrawn from card</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.sweptOut)}</div>
                 </div>
               )}
@@ -1371,12 +1368,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs charged to card{loc.pendingDeductCount ? ` (${loc.pendingDeductCount})` : ''}</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
-                </div>
-              )}
-              {loc.chargedToCard > 0 && (
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Charged CODs (payout-matched{loc.chargedCount ? `, ${loc.chargedCount}` : ''})</div>
-                  <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.chargedToCard)}</div>
                 </div>
               )}
               {loc.storeCardSpend > 0 && (

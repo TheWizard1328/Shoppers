@@ -476,13 +476,17 @@ export async function loadCardPayouts(cfg, userId = null) {
   if (!cfg?.trued_up_at) return [];
   const cached = await freshLedgerWindows(cfg, userId);
   if (cached && cached.fetched?.payouts) return cached.payouts || [];
-  // SOURCE CHANGED (owner rule Oct 4 2026): payout/card_spend rows were
-  // removed from the ledger (they duplicated folder_cents/settled_cents
-  // already stamped on each collected card sale). Bank sweeps are now DERIVED:
-  // every COMPLETED card sale's settled_cents is the amount Square auto-swept
-  // to the bank for that sale (verified live: BATCH payout === settled_cents,
-  // same timestamp). Same shape as before, so sweep math and the
-  // outstanding-COD payout matching below are unchanged.
+  // OWNER REPORT Oct 7 2026 ("balances way off since true-up"): the previous
+  // model subtracted each card sale's settled_cents as a "bank sweep" — but
+  // that money never LEAVES the card. Square auto-sweeps each sale's net
+  // FROM the store location balance ONTO the card (BATCH payout, destination
+  // SQUARE_STORED_BALANCE — stored by squareLedgerSync as 'store_topup',
+  // owner spec Oct 5: "actual collected, not the settled amounts").
+  // Subtracting it while ALSO crediting the delivery net collection netted
+  // every collection to ~zero while the real cards grew (CW was ~$113 low).
+  // Only REAL withdrawals subtract now: negative payouts recorded by the
+  // sync as entry_kind 'store_withdraw'. Topups/arrivals are display-only —
+  // the delivery credits already represent them.
   const rows = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -497,15 +501,13 @@ export async function loadCardPayouts(cfg, userId = null) {
   const seenId = new Set();
   const out = [];
   for (const r of rows || []) {
-    const kind = String(r?.entry_kind || '');
-    if (kind !== 'collected' && kind !== 'sale') continue;
-    if (String(r?.tender_type || '').toUpperCase() !== 'CARD') continue;
-    if (String(r?.status || '').toUpperCase() !== 'COMPLETED') continue;
-    if (r?.settled_cents == null) continue;
-    if (!r?.id || !r?.square_id) continue;
-    if (seenId.has(r.square_id)) continue;
+    if (String(r?.entry_kind || '') !== 'store_withdraw') continue;
+    const st = String(r?.status || '').toUpperCase();
+    if (st === 'PENDING' || st === 'IN_PROGRESS' || st === 'FAILED') continue;
+    if (!r?.id || !r?.square_id || seenId.has(r.square_id)) continue;
     seenId.add(r.square_id);
-    out.push({ id: r.id, location_id: r.location_id, amount: Number(r.settled_cents || 0), occurred_at: r.occurred_at, status: 'PAID' });
+    const cents = Math.abs(Math.round(Number(r.amount_cents || 0)));
+    out.push({ id: r.id, location_id: r.location_id, amount: cents / 100, amount_cents: cents, occurred_at: r.occurred_at, status: r.status });
   }
   writeLedgerCache({ trued_up_at: cfg.trued_up_at, payouts: out }, userId);
   return out;
@@ -531,7 +533,11 @@ export async function loadCardTopups(cfg, userId = null) {
       { occurred_at: { $gte: cfg.trued_up_at } },
       'created_date', 500, skip
     ).catch(() => []);
-    rows.push(...(list || []).filter((r) => String(r?.entry_kind || '') === 'card_topup'));
+    // 'card_topup' = manual folder/card-to-card transfers; 'store_topup' =
+    // Square's auto-sweep of each card sale's net ONTO the card (owner spec
+    // Oct 5) — both are ARRIVALS, display-only (the estimate credits
+    // collections via delivery data, not these rows).
+    rows.push(...(list || []).filter((r) => ['card_topup', 'store_topup'].includes(String(r?.entry_kind || ''))));
     if ((list || []).length < 500) break;
     skip += 500;
   }
@@ -921,33 +927,32 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     // amount (or amounts combining to) exactly the COD cents — the charge has
     // hit the card. Matched payouts drop out of the sweep total so the COD and
     // its charge are never counted twice.
-    const payoutCents = (payoutCentsByLoc?.get?.(loc.location_id) || []);
+    // REAL card withdrawals only (owner report Oct 7 2026): a sale's
+    // settled/net cents auto-sweep ONTO the card ('store_topup'), they never
+    // leave it — subtracting them netted every collection to ~zero while the
+    // real cards grew. Only 'store_withdraw' payouts (negative BATCH
+    // reversals) are money leaving the card.
+    const withdrawn = (payoutCentsByLoc?.get?.(loc.location_id) || []).reduce((sum, c) => sum + (Number(c) || 0), 0) / 100;
     // Estimate-side COD list = ACTIVE uncollected items + the collected-charge
     // deduction items (owner report Oct 7 2026: a deducted COD keeps its
     // deduction after completion — the order's charge already hit the card).
-    // Payout matching runs over the COMBINED list so a collected COD's charge
-    // payout is excluded from sweeps instead of double-counting.
     const outstandingItems = [
       ...((codOutstandingDetailed?.[loc.location_id]?.items) || []),
       ...((codOutstandingDetailed?.[loc.location_id]?.deductItems) || []),
     ];
-    const { matched, chargedCents, chargedCount, matchedItemIds } = matchPayoutChargedCods(outstandingItems, payoutCents);
-    const sweptRaw = payoutCents.reduce((sum, c, i) => (matched.has(i) ? sum : sum + (Number(c) || 0)), 0) / 100;
-    const swept = payoutCentsByLoc?.has?.(loc.location_id) ? sweptRaw : Number(payoutsByLoc?.get?.(loc.location_id) || 0);
     // Owner rule Oct 6 2026 + Oct 7 2026 fix: deducted CODs (active OR
-    // completed post-True-Up) keep deducting; "Not Tapped" marks and
-    // payout-matched charges never deduct.
-    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, matchedItemIds, truedUpAt);
-    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - swept - chargedCents / 100 - pendingDeductCents / 100) * 100) / 100;
+    // completed post-True-Up) keep deducting; "Not Tapped" marks never deduct.
+    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, null, truedUpAt);
+    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - withdrawn - pendingDeductCents / 100) * 100) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
       cardEstimate,
       loanRemaining: Math.round(Math.max(0, Number(loc.loan_start || 0) - loan) * 100) / 100,
       codAvg,
-      sweptOut: Math.round(swept * 100) / 100,
-      chargedToCard: Math.round(chargedCents) / 100,
-      chargedCount,
+      sweptOut: Math.round(withdrawn * 100) / 100, // real withdrawals since true-up
+      chargedToCard: 0, // payout-matching retired Oct 7: sale nets ARRIVE on the card, they don't leave
+      chargedCount: 0,
       pendingDeducted: Math.round(pendingDeductCents) / 100,
       pendingDeductCount,
       storeCardSpend: Math.round(storeCardSpend * 100) / 100,
