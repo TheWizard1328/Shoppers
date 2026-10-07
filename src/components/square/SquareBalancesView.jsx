@@ -1738,6 +1738,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 const srcDeliveryIds = new Set(
                   uncollectedSrc.map((it) => it.delivery_id).filter(Boolean)
                 );
+                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                 // Pending-status deliveries with a COD to collect still need
                 // to show up in Uncollected/Past uncollected — just labeled
                 // "Card Spend" instead of "Pending" since the driver hasn't
@@ -1758,7 +1759,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     pendingPickup: true,
                     notTapped: notTapped(it.delivery_id),
                   }));
-                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                 const combinedSrc = [...uncollectedSrc, ...pendingPickupItems];
                 const swiped = (id) => !!id && cardSpendIds.has(String(id));
                 const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
