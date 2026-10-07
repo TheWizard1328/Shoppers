@@ -377,6 +377,29 @@ export default function SquareSyncAudit() {
     sort((a, b) => a.occurred_at < b.occurred_at ? 1 : -1);
   }, [enhancedEntries, fromDate, toDate, kindFilter, searchText, selectedLocations]);
 
+  // MULTI-ITEM RING GROUPS (owner request Oct 7 2026): squareLedgerSync splits
+  // a grouped transaction (2+ COD items in one swipe, e.g. $4.53 MD + $23.60 CW
+  // = one $28.13 debit) into one ledger row PER delivery — all sharing the same
+  // order_id. This tags each row with its position inside its group so the
+  // Item/Reason column can show "1 of 2", "2 of 2" and the owner can see the
+  // ring was fully attributed to individual deliveries.
+  const multiItemGroupInfo = useMemo(() => {
+    const info = new Map();
+    const groups = new Map();
+    for (const e of filteredEntries) {
+      const oid = e.order_id;
+      if (!oid || String(e.sale_class || "") !== "cod_collection") continue;
+      if (!groups.has(oid)) groups.set(oid, []);
+      groups.get(oid).push(e);
+    }
+    for (const [oid, rows] of groups) {
+      if (rows.length < 2) continue;
+      rows.sort((a, b) => (a.amount_cents || 0) - (b.amount_cents || 0));
+      rows.forEach((e, idx) => info.set(e.id, { position: idx + 1, total: rows.length, orderIds: oid }));
+    }
+    return info;
+  }, [filteredEntries]);
+
   const summaryRows = useMemo(() => {
     const from = fromDate ? `${fromDate}T00:00:00` : "0000";
     const to = toDate ? `${toDate}T23:59:59` : "9999";
@@ -814,7 +837,14 @@ export default function SquareSyncAudit() {
                             <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.folder_cents != null ? fmtCents(e.folder_cents) : ""}</td>
                             <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.loan_cents != null ? fmtCents(e.loan_cents) : ""}</td>
                             <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
-                            <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>{e.cod_item_name || e.reason || ""}</td>
+                            <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>
+                              {e.cod_item_name || e.reason || ""}
+                              {multiItemGroupInfo.get(e.id) && (
+                                <span className="ml-1.5 inline-flex items-center rounded border border-amber-300 bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300" title={`Multi-item transaction — item ${multiItemGroupInfo.get(e.id).position} of ${multiItemGroupInfo.get(e.id).total} in one grouped swipe`}>
+                                  {multiItemGroupInfo.get(e.id).position}/{multiItemGroupInfo.get(e.id).total} items
+                                </span>
+                              )}
+                            </td>
                           </tr>
                           {isExpanded &&
                         <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">

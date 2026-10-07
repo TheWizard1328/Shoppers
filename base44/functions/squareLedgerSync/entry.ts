@@ -128,19 +128,59 @@ function resolveCodLink(order: any, catalogByObjectId: Map<string, any>) {
 // never got a matching ledger row and could never be auto-confirmed. This
 // returns EVERY distinct COD line item in the order, each with its own
 // money amount, so the caller can emit one ledger entry per delivery.
-function resolveCodLineItems(order: any, catalogByObjectId: Map<string, any>) {
+// Matching is by catalog_object_id FIRST, then by line-item NAME (the
+// object-id link chain is often broken in Square — owner reports going back
+// to Oct 3; the POS still carries the item's name, e.g.
+// "10/06(MD)-Steve Magega", which is exactly the catalog item_name format).
+function normalizeCatalogName(v: any): string {
+  return String(v || '').replace(/\s+/g, '').toLowerCase();
+}
+function resolveCodLineItems(order: any, catalogByObjectId: Map<string, any>, catalogByName?: Map<string, any> | null) {
   const seenDeliveryIds = new Set<string>();
   const out: any[] = [];
   for (const li of order?.line_items || []) {
-    const link = li?.catalog_object_id ? catalogByObjectId.get(li.catalog_object_id) : null;
+    let link = li?.catalog_object_id ? catalogByObjectId.get(li.catalog_object_id) : null;
+    if (!link && catalogByName && li?.name) link = catalogByName.get(normalizeCatalogName(li.name)) || null;
     if (!link) continue;
-    const dedupeKey = link.delivery_id ? String(link.delivery_id) : `obj:${li.catalog_object_id}`;
+    const dedupeKey = link.delivery_id ? String(link.delivery_id) : `obj:${li.catalog_object_id || li.name}`;
     if (seenDeliveryIds.has(dedupeKey)) continue;
     seenDeliveryIds.add(dedupeKey);
     const amount = Math.round(Number(li?.total_money?.amount ?? (Number(li?.base_price_money?.amount || 0) * Number(li?.quantity || 1))) || 0);
-    out.push({ ...link, catalogObjectId: li.catalog_object_id, amountCents: amount });
+    out.push({ ...link, catalogObjectId: li.catalog_object_id || null, amountCents: amount });
   }
   return out;
+}
+
+// Delivery-side confirmation stamp shared by the exact-match backfill and the
+// multi-item ring split pass: card brand is the authority for the collection
+// type (INTERAC = Debit, any credit = Credit), and the delivery is marked
+// cod_confirmed_collected. Returns true when a write happened.
+async function confirmCodDeliveryWithCard(base44: any, deliveryId: string, codType: string, cents: number): Promise<boolean> {
+  try {
+    const del: any = await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
+    const payments = Array.isArray(del?.cod_payments) ? del.cod_payments : [];
+    const centsOf = (n: any) => Math.round(Number(n || 0) * 100);
+    let updated = false;
+    let nextPayments = payments.map((p: any) => ({ ...p }));
+    const exactIdx = nextPayments.findIndex((p: any) => centsOf(p?.amount) === cents);
+    if (exactIdx >= 0) {
+      if (nextPayments[exactIdx]?.type !== codType) { nextPayments[exactIdx] = { ...nextPayments[exactIdx], type: codType }; updated = true; }
+    } else if (nextPayments.length === 1) {
+      if (nextPayments[0]?.type !== codType) { nextPayments[0] = { ...nextPayments[0], type: codType }; updated = true; }
+    } else {
+      nextPayments = [...nextPayments, { type: codType, amount: cents / 100 }];
+      updated = true;
+    }
+    if (updated || !del?.cod_confirmed_collected) {
+      await base44.asServiceRole.entities.Delivery.update(deliveryId, {
+        ...(updated ? { cod_payments: nextPayments } : {}),
+        cod_confirmed_collected: true,
+        cod_confirmed_collected_at: new Date().toISOString(),
+      });
+      return true;
+    }
+  } catch { /* non-fatal */ }
+  return false;
 }
 
 // Splits a full payment's amount/fee/folder/loan across its matched COD line
@@ -754,7 +794,13 @@ Deno.serve(async (req) => {
     const configIds = new Set(configs.map((c: any) => String(c.square_location_id)));
 
     // COD link map: catalog object id -> { delivery_id, patient_id, item_name }
+    // plus a NAME-keyed map for orders whose line items lost their
+    // catalog_object_id (owner report Oct 7 2026: the Callingwood $4.53 MD +
+    // $23.60 CW grouped ring — Square's payment→order→line-item→catalog
+    // chain is routinely broken, but the line items still carry the
+    // catalog item NAME, which matches item_name exactly).
     const catalogByObjectId = new Map<string, any>();
+    const catalogByName = new Map<string, any>();
     let catalogSkip = 0;
     for (let round = 0; round < 30; round++) {
       const page = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000, catalogSkip).catch(() => []);
@@ -768,11 +814,26 @@ Deno.serve(async (req) => {
             const m = String(item.description || '').match(/Delivery\s+([A-Za-z0-9]{16,})/i);
             if (m) deliveryId = m[1];
           }
-          catalogByObjectId.set(item.square_catalog_object_id, {
+          const link = {
             delivery_id: deliveryId,
             patient_id: item.patient_id || null,
             item_name: item.item_name || null,
-          });
+          };
+          catalogByObjectId.set(item.square_catalog_object_id, link);
+          // NAME key: only when the row resolves to a delivery — and never
+          // let two different deliveries share one name key (ambiguous name
+          // = no match at all, safer than a wrong link).
+          if (deliveryId && link.item_name) {
+            const nk = normalizeCatalogName(link.item_name);
+            if (nk) {
+              const prev = catalogByName.get(nk);
+              if (prev) {
+                if (String(prev.delivery_id) !== String(deliveryId)) catalogByName.delete(nk);
+              } else {
+                catalogByName.set(nk, link);
+              }
+            }
+          }
         }
       }
       if (rows.length < 2000) break;
@@ -895,8 +956,9 @@ Deno.serve(async (req) => {
           if (splitParts.length) {
             supersededSquareIds.add(String(payment.id));
             for (const part of splitParts) {
-              entries.set(`${payment.id}:${part.catalogObjectId}`, buildEntry({
-                square_id: `${payment.id}:${part.catalogObjectId}`,
+              const splitSuffix = String(part.delivery_id || part.catalogObjectId || part.item_name || '').replace(/\s+/g, '');
+              entries.set(`${payment.id}:${splitSuffix}`, buildEntry({
+                square_id: `${payment.id}:${splitSuffix}`,
                 entry_kind: 'collected',
                 tender_type: 'CARD',
                 sale_class: 'cod_collection',
@@ -949,7 +1011,7 @@ Deno.serve(async (req) => {
         for (const tender of order?.tenders || []) {
           if (!tender?.id) continue;
           if (tender.type === 'CARD' || tender.payment_id) continue; // already in payments pass
-          const codLinksAll = resolveCodLineItems(order, catalogByObjectId);
+          const codLinksAll = resolveCodLineItems(order, catalogByObjectId, catalogByName);
           const codLink = codLinksAll[0] || null;
           // MULTI-COD SPLIT (Oct 7 2026) — same reasoning as the card-payment
           // branch: a cash ring covering 2+ CODs in one tender needs one entry
@@ -959,8 +1021,9 @@ Deno.serve(async (req) => {
             if (splitParts.length) {
               supersededSquareIds.add(`tender-${tender.id}`);
               for (const part of splitParts) {
-                entries.set(`tender-${tender.id}:${part.catalogObjectId}`, buildEntry({
-                  square_id: `tender-${tender.id}:${part.catalogObjectId}`,
+                const splitSuffix = String(part.delivery_id || part.catalogObjectId || part.item_name || '').replace(/\s+/g, '');
+                entries.set(`tender-${tender.id}:${splitSuffix}`, buildEntry({
+                  square_id: `tender-${tender.id}:${splitSuffix}`,
                   entry_kind: 'collected',
                   tender_type: tender.type || 'OTHER',
                   sale_class: 'cod_collection',
@@ -1294,6 +1357,9 @@ Deno.serve(async (req) => {
     let backfillTypeSyncs = 0;
     let backfillFeeChecks = 0;
     let backfillFeeMismatches = 0;
+    let multiSplitRings = 0;
+    let multiSplitChildren = 0;
+    let multiSplitOrdersRetrieved = 0;
     const storeFingerprintCounts: any = {};
     if (isTopupBackfill) { /* skipped: topup-only backfill */ } else try {
       // Reference data: stores (loc + abbreviation), catalog rows keyed by
@@ -1318,7 +1384,7 @@ Deno.serve(async (req) => {
       }
 
       // Completed deliveries with a COD requirement (bounded pages).
-      type CodDelivery = { id: string; locId: string; cents: number; cents2: number; completedAt: number; date: string; patientId: any; patientName: string; abbr: string | null };
+      type CodDelivery = { id: string; locId: string; cents: number; cents2: number; completedAt: number; date: string; patientId: any; patientName: string; abbr: string | null; confirmed: boolean };
       const codDeliveries: CodDelivery[] = [];
       const patientIdsToResolve = new Set<string>();
       const backfillFloorMs = new Date(new Date(windowStart).getTime() - 3 * 86400000).getTime();
@@ -1353,6 +1419,7 @@ Deno.serve(async (req) => {
             completedAt,
             date: String(d?.delivery_date || ''), patientId: d?.patient_id || null,
             patientName: ledgerNormalizeText(d?.patient_name), abbr: storeAbbrById.get(String(d?.store_id || '')) || null,
+            confirmed: !!d?.cod_confirmed_collected,
           });
           if (d?.patient_id && !ledgerNormalizeText(d?.patient_name)) patientIdsToResolve.add(String(d.patient_id));
         }
@@ -1379,7 +1446,7 @@ Deno.serve(async (req) => {
 
       // Unlinked completed CARD sales pool: current-window entries PLUS existing
       // ledger rows (window-independent repair). Declines are anchor evidence.
-      type SaleCandidate = { key: string; existingId: string | null; cents: number; at: number; brand: string | null; method: string | null; fee: number; locId: string | null; cardFingerprint: string | null };
+      type SaleCandidate = { key: string; existingId: string | null; cents: number; at: number; brand: string | null; method: string | null; fee: number; locId: string | null; cardFingerprint: string | null; orderId: string | null };
       const salePool: SaleCandidate[] = [];
       const declineAnchors: { cents: number; at: number; locId: string | null }[] = [];
       for (const e of allEntries) {
@@ -1398,6 +1465,7 @@ Deno.serve(async (req) => {
           key: String(e.square_id), existingId: existingIdBySquareId.get(String(e.square_id)) || null,
           cents, at, brand: e?.card_brand || null, method: e?.entry_method || null,
           fee: Math.round(Number(e?.fee_cents || 0)), locId: e?.location_id || null, cardFingerprint: e?.card_fingerprint || null,
+          orderId: e?.order_id ? String(e.order_id) : null,
         });
       }
       for (const [sqid, rows] of existingRowsBySquareId) {
@@ -1418,6 +1486,7 @@ Deno.serve(async (req) => {
           key: String(e.square_id), existingId: e?.id || null,
           cents, at, brand: e?.card_brand || null, method: e?.entry_method || null,
           fee: Math.round(Number(e?.fee_cents || 0)), locId: e?.location_id || null, cardFingerprint: e?.card_fingerprint || null,
+          orderId: e?.order_id ? String(e.order_id) : null,
         });
       }
 
@@ -1446,6 +1515,7 @@ Deno.serve(async (req) => {
         return null;
       };
 
+      const matchedDeliveryIds = new Set<string>(); // exact-pass matches — excluded from the multi-item split pass below
       for (const d of codDeliveries) {
         // Rough-date window (owner Oct 6 2026): the delivery's Edmonton
         // calendar day, padded 6h on both edges (Edmonton midnight = 06:00Z
@@ -1477,6 +1547,7 @@ Deno.serve(async (req) => {
           if (match) break;
         }
         if (!match) continue;
+        matchedDeliveryIds.add(d.id);
         const catalogLink = catalogByDeliveryId.get(d.id);
         const patientId = catalogLink?.patient_id || d.patientId || null;
         const itemName = catalogLink?.item_name || ledgerFormatItemName(d.date, d.abbr, d.patientName);
@@ -1496,30 +1567,231 @@ Deno.serve(async (req) => {
         }
         // Collection type sync (owner rule Oct 3): the swiped card is the
         // authority — INTERAC = Debit, any credit = Credit.
-        try {
-          const del: any = await base44.asServiceRole.entities.Delivery.get(d.id).catch(() => null);
-          const payments = Array.isArray(del?.cod_payments) ? del.cod_payments : [];
-          const centsOf = (n: any) => Math.round(Number(n || 0) * 100);
-          let updated = false;
-          let nextPayments = payments.map((p: any) => ({ ...p }));
-          const exactIdx = nextPayments.findIndex((p: any) => centsOf(p?.amount) === d.cents);
-          if (exactIdx >= 0) {
-            if (nextPayments[exactIdx]?.type !== codType) { nextPayments[exactIdx] = { ...nextPayments[exactIdx], type: codType }; updated = true; }
-          } else if (nextPayments.length === 1) {
-            if (nextPayments[0]?.type !== codType) { nextPayments[0] = { ...nextPayments[0], type: codType }; updated = true; }
-          } else {
-            nextPayments = [...nextPayments, { type: codType, amount: d.cents / 100 }];
-            updated = true;
-          }
-          if (updated || !del?.cod_confirmed_collected) {
-            await base44.asServiceRole.entities.Delivery.update(d.id, {
-              ...(updated ? { cod_payments: nextPayments } : {}),
-              cod_confirmed_collected: true,
-              cod_confirmed_collected_at: new Date().toISOString(),
-            }).then(() => { backfillTypeSyncs += 1; }).catch(() => {});
-          }
-        } catch { /* non-fatal */ }
+        if (await confirmCodDeliveryWithCard(base44, d.id, codType, d.cents)) backfillTypeSyncs += 1;
       }
+    // ── MULTI-ITEM RING SPLIT (owner report Oct 7 2026: "$4.53(MD) & $23.60(CW)
+    // swiped as one $28.13 Callingwood debit") ─────────────────────────────────
+    // The exact pass above matches WHOLE sales to one delivery. A grouped ring
+    // (2+ COD catalog items in ONE transaction) can never match whole, so the
+    // sale stays unlinked and NO delivery in the group ever confirms — both
+    // items sat in Past Uncollected even though the card was collected. This
+    // pass splits such sales into one ledger entry PER DELIVERY:
+    //   1. ORDER-LINE match — batch-retrieve the payment's Square order and
+    //      resolve its line items by catalog_object_id, falling back to the
+    //      line NAME (the catalog item_name format, e.g.
+    //      "10/06(MD)-Steve Magega" — the object-id chain is often broken).
+    //   2. SUBSET-SUM match (no order data) — the sale's exact cents equal
+    //      the sum of 2-3 UNCOLLECTED CODs whose Edmonton day falls within
+    //      [sale day - 3, sale day] (office rings collected cards up to a few
+    //      days after delivery; multiple stores share one card, so the split
+    //      is intentionally NOT scoped to the sale's location).
+    // Split children are individually linked per delivery (square_id
+    // "<parent>:<deliveryId>"), so the Finance Audit page Item/Reason column
+    // shows the individual items and Square Balances reconciles each
+    // delivery; the combined parent row is deleted so nothing double-counts.
+    try {
+      // Deliveries still awaiting their Square evidence (multi-split pool):
+      // never confirmed, never linked to a COMPLETED cod_collection sale
+      // (including links the exact pass just stamped this run).
+      const linkedCodDeliveryIds = new Set<string>();
+      const isLinkedCodRow = (e: any) =>
+        !!e?.delivery_id && String(e?.sale_class || '') === 'cod_collection' && String(e?.status || '').toUpperCase() === 'COMPLETED';
+      for (const e of allEntries) if (isLinkedCodRow(e)) linkedCodDeliveryIds.add(String(e.delivery_id));
+      for (const [, rows] of existingRowsBySquareId) if (rows[0] && isLinkedCodRow(rows[0])) linkedCodDeliveryIds.add(String(rows[0].delivery_id));
+      const splitPool = codDeliveries.filter((d: any) =>
+        !d.confirmed && !matchedDeliveryIds.has(d.id) && !linkedCodDeliveryIds.has(d.id) && d.cents > 0);
+      if (splitPool.length) {
+        // Candidate sales: unlinked, unclaimed by the exact pass, recent
+        // CARD sales whose cents could be a single uncollected COD or a
+        // 2-3 item subset-sum of them.
+        const nowMs = Date.now();
+        const matchableSums = new Set<number>();
+        for (const d of splitPool) matchableSums.add(d.cents);
+        const sumCap = splitPool.length <= 60 ? 3 : 2;
+        if (sumCap >= 2) {
+          for (let i = 0; i < splitPool.length; i++) {
+            for (let j = i + 1; j < splitPool.length; j++) {
+              matchableSums.add(splitPool[i].cents + splitPool[j].cents);
+              if (sumCap === 3) {
+                for (let k = j + 1; k < splitPool.length; k++) {
+                  matchableSums.add(splitPool[i].cents + splitPool[j].cents + splitPool[k].cents);
+                }
+              }
+            }
+          }
+        }
+        const candSales = salePool.filter((x) =>
+          !usedSaleKeys.has(x.key) && x.orderId && x.cents > 0 &&
+          (nowMs - x.at) < 30 * 86400000 &&
+          matchableSums.has(x.cents) &&
+          !(x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint))
+        ).sort((a, b) => b.at - a.at).slice(0, 24);
+
+        // Shared split mechanics: supersede the combined parent (delete its
+        // stale DB copy + remove it from this run's upsert), then emit one
+        // child entry per delivery with proportional fee/folder/loan.
+        const splitSaleAcrossDeliveries = async (parent: SaleCandidate, parts: { deliveryId: string; patientId: any; itemName: string | null; amountCents: number }[]) => {
+          const parentInEntries = entries.has(parent.key);
+          const parentRow = entries.get(parent.key) || existingRowsBySquareId.get(parent.key)?.[0] || null;
+          if (!parentRow) return 0;
+          const splitParts = splitPaymentAcrossCodLinks(parts.map((p) => ({ ...p, catalogObjectId: null })), parent.cents, parent.fee);
+          if (!splitParts.length) return 0;
+          supersededSquareIds.add(parent.key);
+          entries.delete(parent.key);
+          usedSaleKeys.add(parent.key);
+          let created = 0;
+          let parentDbDeleted = false;
+          for (const part of splitParts) {
+            const childKey = `${parent.key}:${part.deliveryId || created}`;
+            const child = buildEntry({
+              ...parentRow,
+              square_id: childKey,
+              entry_kind: 'collected',
+              tender_type: 'CARD',
+              sale_class: 'cod_collection',
+              amount_cents: part.amountCents,
+              fee_cents: part.feeCents,
+              ...cardSettlementCents(rates, parentRow.location_id || parent.locId, part.amountCents, part.feeCents),
+              delivery_id: part.deliveryId || null,
+              patient_id: part.patientId || null,
+              cod_item_name: part.itemName || null,
+            });
+            if (parentInEntries) {
+              // In this run's upsert pool: children ride the normal persist
+              // loop; the superseded cleanup deletes the parent's stale DB
+              // copy (if any).
+              entries.set(childKey, child);
+              created += 1;
+            } else {
+              // Parent only exists in the DB (outside this run's Square
+              // window): create children directly and delete the parent now.
+              await base44.asServiceRole.entities.SquareLedgerEntry.create(child)
+                .then(() => { created += 1; }).catch(() => {});
+              await sleep(40);
+              if (parent.existingId && !parentDbDeleted) {
+                await base44.asServiceRole.entities.SquareLedgerEntry.delete(parent.existingId)
+                  .then(() => { parentDbDeleted = true; }).catch(() => {});
+                await sleep(40);
+              }
+            }
+            // Delivery-side confirmation: the swiped card is the authority.
+            const codType = String(parent.brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
+            if (part.deliveryId) await confirmCodDeliveryWithCard(base44, part.deliveryId, codType, part.amountCents);
+          }
+          return created;
+        };
+
+        // STRATEGY 1: order-line resolution via batch-retrieve.
+        const unresolved: SaleCandidate[] = [];
+        const retrieveMap = new Map<string, SaleCandidate[]>();
+        for (const c of candSales) {
+          if (!retrieveMap.has(c.orderId!)) retrieveMap.set(c.orderId!, []);
+          retrieveMap.get(c.orderId!)!.push(c);
+        }
+        const orderIds = Array.from(retrieveMap.keys()).slice(0, 80);
+        const retrievedOrderById = new Map<string, any>();
+        for (let i = 0; i < orderIds.length; i += 20) {
+          try {
+            const json = await squareFetch('/v2/orders/batch-retrieve', 'POST', accessToken, { order_ids: orderIds.slice(i, i + 20) });
+            for (const o of json?.orders || []) retrievedOrderById.set(String(o.id), o);
+            multiSplitOrdersRetrieved += 1;
+            await sleep(150);
+          } catch { /* best effort — subset-sum pass still runs */ }
+        }
+        for (const c of candSales) {
+          const order = c.orderId ? retrievedOrderById.get(c.orderId) : null;
+          const links = order ? resolveCodLineItems(order, catalogByObjectId, catalogByName) : [];
+          const usable = links.filter((l: any) => l?.delivery_id &&
+            !linkedCodDeliveryIds.has(String(l.delivery_id)) && !matchedDeliveryIds.has(String(l.delivery_id)));
+          const catalogLinkOf = (deliveryId: string) => {
+            const cl = catalogByDeliveryId.get(deliveryId);
+            return cl?.item_name || null;
+          };
+          if (usable.length >= 2) {
+            const parts = usable.map((l: any) => ({
+              deliveryId: String(l.delivery_id),
+              patientId: l.patient_id || null,
+              itemName: l.item_name || catalogLinkOf(String(l.delivery_id)),
+              amountCents: l.amountCents,
+            }));
+            const n = await splitSaleAcrossDeliveries(c, parts);
+            if (n) { multiSplitRings += 1; multiSplitChildren += n; for (const p of parts) matchedDeliveryIds.add(p.deliveryId); }
+            continue;
+          }
+          if (usable.length === 1 && usable[0].amountCents === c.cents) {
+            // Single COD line covering the whole payment — plain link stamp.
+            const l = usable[0];
+            usedSaleKeys.add(c.key);
+            matchedDeliveryIds.add(String(l.delivery_id));
+            const stamp = { sale_class: 'cod_collection', delivery_id: l.delivery_id, patient_id: l.patient_id || null, cod_item_name: l.item_name || catalogLinkOf(String(l.delivery_id)) || null };
+            const rec = entries.get(c.key);
+            if (rec) { Object.assign(rec, stamp); backfillLinks += 1; }
+            else if (c.existingId) {
+              await base44.asServiceRole.entities.SquareLedgerEntry.update(c.existingId, stamp)
+                .then(() => { backfillRepairs += 1; }).catch(() => {});
+              await sleep(40);
+            }
+            const codType = String(c.brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
+            if (await confirmCodDeliveryWithCard(base44, String(l.delivery_id), codType, c.cents)) backfillTypeSyncs += 1;
+            continue;
+          }
+          unresolved.push(c);
+        }
+
+        // Sales with NO order_id at all go straight to strategy 2.
+        const orderlessCands = salePool.filter((x) =>
+          !usedSaleKeys.has(x.key) && !x.orderId && x.cents > 0 &&
+          (nowMs - x.at) < 30 * 86400000 &&
+          matchableSums.has(x.cents) &&
+          !(x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint))
+        ).sort((a, b) => b.at - a.at).slice(0, 12);
+        unresolved.push(...orderlessCands);
+
+        // STRATEGY 2: subset-sum across uncollected CODs, day-scoped.
+        const edmontonDayNum = (ms: number) => Math.floor((ms - 21600000) / 86400000);
+        const dayNumByDelivery = new Map<string, number>();
+        for (const d of splitPool) {
+          const anchor = Date.parse(`${d.date || '1970-01-01'}T06:00:00Z`);
+          dayNumByDelivery.set(d.id, Number.isFinite(anchor) ? edmontonDayNum(anchor) : -1);
+        }
+        for (const c of unresolved) {
+          const saleDay = edmontonDayNum(c.at);
+          const near = splitPool
+            .filter((d: any) => {
+              const dn = dayNumByDelivery.get(d.id) ?? -1;
+              return dn >= 0 && saleDay - dn >= 0 && saleDay - dn <= 3 && !matchedDeliveryIds.has(d.id);
+            })
+            .sort((a: any, b: any) => (dayNumByDelivery.get(b.id) ?? 0) - (dayNumByDelivery.get(a.id) ?? 0));
+          if (!near.length) continue;
+          const capped = near.slice(0, 30);
+          let combo: any[] | null = null;
+          outer2: for (let i = 0; i < capped.length && !combo; i++) {
+            for (let j = i + 1; j < capped.length; j++) {
+              if (capped[i].cents + capped[j].cents === c.cents) { combo = [capped[i], capped[j]]; break outer2; }
+              for (let k = j + 1; k < capped.length; k++) {
+                if (capped[i].cents + capped[j].cents + capped[k].cents === c.cents) { combo = [capped[i], capped[j], capped[k]]; break outer2; }
+              }
+            }
+          }
+          if (!combo) continue;
+          const parts = combo.map((d: any) => ({
+            deliveryId: d.id,
+            patientId: d.patientId || null,
+            itemName: catalogByDeliveryId.get(d.id)?.item_name || ledgerFormatItemName(d.date, d.abbr, d.patientName),
+            amountCents: d.cents,
+          }));
+          const n = await splitSaleAcrossDeliveries(c, parts);
+          if (n) {
+            multiSplitRings += 1;
+            multiSplitChildren += n;
+            for (const p of parts) matchedDeliveryIds.add(p.deliveryId);
+          }
+        }
+      }
+    } catch (e: any) {
+      syncErrors.push(`multiItemSplit: ${e?.message || e}`);
+    }
+
     // ALREADY-LINKED ROW NAME REPAIR (owner Oct 6): rows linked before the
     // patient-name resolution exists still show "Unknown Patient" (the
     // Square catalog item was named before the patient was known). If the
@@ -1740,6 +2012,9 @@ Deno.serve(async (req) => {
       entriesFailed: failedUpserts,
       duplicateRowsDeleted,
       supersededRowsDeleted,
+      multiSplitRings,
+      multiSplitChildren,
+      multiSplitOrdersRetrieved,
       payoutsAvailable,
       codLinks: allEntries.filter((e) => e.delivery_id).length,
       backfillLinks,
