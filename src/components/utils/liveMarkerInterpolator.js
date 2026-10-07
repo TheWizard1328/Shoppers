@@ -44,7 +44,7 @@ const MAX_INTERVAL_MS = 10000;      // clamp fix-pair interval (clock skew guard
 const SPEED_CAP_MPS = 40;           // ~144 km/h — clamp absurd GPS-derived speeds
 const LEAD_CAP_M = 180;             // bound worst-case lead distance (highway x gap)
 const MIN_LEAD_SPEED_MPS = 1.0;     // below ~3.6 km/h → stationary, dot holds on the fix
-const TURN_LEAD_LIMIT_DEG = 25;     // lead stops AT an upcoming corner sharper than this
+const TURN_LEAD_LIMIT_DEG = 135;    // only near-hairpin corners cap the lead; normal
 const RE_ANCHOR_MAX_M = 30;         // dot farther than this from a new fix → snap, don't arc
 const TRAIL_MIN_INTERVAL_MS = 2000; // trail mode: clamp heartbeat interval lower bound
 const TRAIL_MAX_INTERVAL_MS = 30000;// trail mode: clamp heartbeat interval upper bound
@@ -145,12 +145,14 @@ export function createLiveMarkerInterpolator(options = {}) {
   }
 
   /**
-   * Cap the lead at the first significant corner in (fromAlong, toAlong).
-   * A turn takes the driver ~2s while the next fix can be 5s out — leading
-   * THROUGH an intersection before the driver turns reads as a wide arc.
-   * The dot glides to the corner and waits for the next real fix (which lands
-   * on the new street) to carry it around. Gentle bends (< limit per vertex)
-   * are followed continuously — only sharp corners cap.
+   * Cap the lead at the first near-hairpin corner in (fromAlong, toAlong).
+   * Oct 7 2026 driver report: capping at ordinary 90-degree intersections
+   * parked the dot AT the corner for up to a full 5s fix-gap while the driver
+   * drove through — several seconds of lag exactly when the driver needs the
+   * dot to show the turn. Normal route corners are now followed through along
+   * the prescribed geometry (the driver is following this polyline); only
+   * geometry sharper than TURN_LEAD_LIMIT_DEG (near-hairpins) still stops
+   * the lead and holds at the vertex.
    */
   function capLeadAtTurn(fromAlong, toAlong) {
     const { pts, cum } = path;
@@ -275,9 +277,20 @@ export function createLiveMarkerInterpolator(options = {}) {
         let diff = Math.abs(bNew - bPrev);
         if (diff > Math.PI) diff = 2 * Math.PI - diff;
         if (diff > toRad(TURN_SNAP_DEG)) {
-          prevProj = path ? projectOnPath(path, fix) : null;
-          anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now + gapMs };
-          return;
+          // Oct 7 2026 driver report ("dot lags several seconds, missing
+          // turns"): holding a FULL fix-gap after every real corner left the
+          // dot parked while the driver drove away. When the prescribed route
+          // geometry exists and the new fix still sits ON the route, the
+          // bearing flip is just a route corner — let path-mode lead below
+          // steer the dot through it. Park only for true unknowns: no route
+          // geometry, or the fix landed off-route.
+          const onRoute = path ? projectOnPath(path, fix) : null;
+          const routeHandlesTurn = !!(path && onRoute && onRoute.offDist <= OFF_ROUTE_THRESHOLD_M);
+          if (!routeHandlesTurn) {
+            prevProj = path ? projectOnPath(path, fix) : null;
+            anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now + gapMs };
+            return;
+          }
         }
       }
 
