@@ -53,6 +53,8 @@ import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 const MATCH_RADIUS_M = 50;            // crumb qualifies by proximity
 const TIME_WINDOW_MS = 2 * 60 * 1000; // crumb qualifies by ±2 min of delivery time
 const TIME_WINDOW_WIDE_MS = 10 * 60 * 1000; // time-priority fallback window — a visited stop should always have a crumb within ±10 min
+const TIME_QUALIFIER_MAX_M = 300;    // time-only qualifier must still be within this of the stop
+const TIME_PRIORITY_MAX_M = 600;     // time-priority crumb must be within this of the stop
 const NEAR_MISS_MAX_M = 200;          // closest approach beyond this → straight synthetic line
 const POLY_PRECISION = 1e7;           // breadcrumb trails are 1e7 (legacy 1e5 auto-detected)
 
@@ -296,7 +298,14 @@ function scanWindow(masterPoints, from, to, lat, lng, dtMs) {
     const dist = haversineMeters(lat, lng, mp[0], mp[1]);
     if (dist < closestDist) { closestDist = dist; closestIdx = i; }
     const dt = mp[2] || 0;
-    const timeOk = dtMs != null && Math.abs(dt - dtMs) <= TIME_WINDOW_MS;
+    // Time-only qualification is distance-capped (TIME_QUALIFIER_MAX_M): a crumb
+    // ±2 min of the delivery time that is KILOMETRES from the stop is a wrong cut
+    // (stale/rounded actual_delivery_time, GPS gap, batched completion taps —
+    // owner report Oct 7 2026: manual snip cut far too early, nowhere near either
+    // stop of the leg; stop 11 on 10-06 matched at 16,646m via 'time-2min').
+    // Such crumbs fall through to near-miss / time-priority which anchor on the
+    // stop's own coordinates instead.
+    const timeOk = dtMs != null && Math.abs(dt - dtMs) <= TIME_WINDOW_MS && dist <= TIME_QUALIFIER_MAX_M;
     if ((dist <= MATCH_RADIUS_M || timeOk) && dist < qualifierDist) {
       qualifierDist = dist; qualifierIdx = i;
     }
@@ -305,7 +314,10 @@ function scanWindow(masterPoints, from, to, lat, lng, dtMs) {
     // stops where GPS drifted past 50m at the delivery moment.
     if (dtMs != null && dt > 0) {
       const delta = Math.abs(dt - dtMs);
-      if (delta <= TIME_WINDOW_WIDE_MS && delta < timePriorityDelta) {
+      // Distance-capped (TIME_PRIORITY_MAX_M): the crumb nearest in time can be
+      // km from the stop when the delivery timestamp is off — cutting there put
+      // the leg boundary nowhere near either stop (owner report Oct 7 2026).
+      if (delta <= TIME_WINDOW_WIDE_MS && dist <= TIME_PRIORITY_MAX_M && delta < timePriorityDelta) {
         timePriorityDelta = delta; timePriorityIdx = i;
       }
     }
@@ -1123,10 +1135,15 @@ async function handleSingle(base44, body) {
           // the ENTIRE remaining trail for the crumb closest in time to the
           // delivery — the driver was at the stop then, so that crumb is the
           // correct leg boundary even though it sits outside the drive-by window.
+          // Distance-capped: only crumbs within TIME_PRIORITY_MAX_M of the stop
+          // are eligible (a time-nearest crumb km away is a wrong cut). If none
+          // qualify the leg falls to the far-miss-synthetic branch below, which
+          // anchors on the stop's own coordinates.
           let ubIdx = -1, ubDelta = Infinity;
           for (let i = cursor; i < masterPoints.length; i++) {
             const dt = masterPoints[i][2] || 0;
             if (dt <= 0) continue;
+            if (haversineMeters(stopLat, stopLng, masterPoints[i][0], masterPoints[i][1]) > TIME_PRIORITY_MAX_M) continue;
             const delta = Math.abs(dt - swc.dtMs);
             if (delta < ubDelta) { ubDelta = delta; ubIdx = i; }
           }
