@@ -1420,12 +1420,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.sweptOut)}</div>
                 </div>
                 }
-              {loc.pendingDeducted > 0 &&
-                <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs charged to card{loc.pendingDeductCount ? ` (${loc.pendingDeductCount})` : ''}</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
                 </div>
-                }
               {loc.storeCardSpend > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Store-card spends (excluded)</div>
