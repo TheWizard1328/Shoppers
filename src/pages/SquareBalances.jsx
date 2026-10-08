@@ -34,12 +34,12 @@ export default function SquareBalances() {
       if (userHasRole(currentUser, "driver")) {
         const rows = await base44.entities.Delivery.filter({
           driver_id: currentUser.id,
-          delivery_date: today,
+          delivery_date: today
         }).catch(() => []);
         storeIds = [...new Set(
-          (rows || [])
-            .filter((d) => d?.status !== "cancelled" && d?.store_id)
-            .map((d) => String(d.store_id))
+          (rows || []).
+          filter((d) => d?.status !== "cancelled" && d?.store_id).
+          map((d) => String(d.store_id))
         )];
       }
       if (!storeIds.length) {
@@ -51,12 +51,12 @@ export default function SquareBalances() {
       )];
       if (!cancelled) setVisibleLocationIds(locIds);
     })();
-    return () => { cancelled = true; };
+    return () => {cancelled = true;};
   }, [currentUser]);
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-6 mx-auto w-full max-w-6xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Square Balances</h1>
@@ -65,6 +65,6 @@ export default function SquareBalances() {
         </div>
         <SquareBalancesView currentUser={currentUser} visibleLocationIds={visibleLocationIds} />
       </div>
-    </div>
-  );
+    </div>);
+
 }
