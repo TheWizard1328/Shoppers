@@ -215,8 +215,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   <span
                     onClick={() => onMarkSpend(r.delivery_id)}
                     className={r.notTapped ?
-                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[60px] px-2 py-1 min-w-[80px]" :
-                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[60px] px-2"}>
+                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[80px]" :
+                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2"}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
 
                   <span className={r.notTapped ?
@@ -1553,10 +1553,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                               Square Cards, pulled from the card (MOBILE) locations the per-store
-                               sync never saw before. Attributed = fed by that store's sale
-                               (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                               unattributed = folder / manual transfer with no sale link yet. */}
+                                Square Cards, pulled from the card (MOBILE) locations the per-store
+                                sync never saw before. Attributed = fed by that store's sale
+                                (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                                unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1675,7 +1675,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                               card (does not reset the window). One-way only — never card → folder. */}
+                                card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
