@@ -154,7 +154,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                         {r.storeAbbrev}
                       </span>
                   }
-                    <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] w-[3">{r.patientName || 'COD'}</p>
+                    <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] w-[36px]">{r.patientName || 'COD'}</p>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
                 </div>
@@ -162,13 +162,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
                     {/* Card Spend pill (owner spec Oct 6 2026) — TOGGLE on
-                      uncollected rows: Square's card-activity data proved too
-                      unreliable to auto-detect, so every uncollected COD
-                      defaults to "Card Spend" (sky). Tapping flips it to
-                      "Not Tapped" (violet) — the COD is added back to the
-                      card balance estimate — and tapping again flips back.
-                      Collected rows keep the legacy auto/manual evidence
-                      pills. */}
+                     uncollected rows: Square's card-activity data proved too
+                     unreliable to auto-detect, so every uncollected COD
+                     defaults to "Card Spend" (sky). Tapping flips it to
+                     "Not Tapped" (violet) — the COD is added back to the
+                     card balance estimate — and tapping again flips back.
+                     Collected rows keep the legacy auto/manual evidence
+                     pills. */}
                     {r.collected ? r.hasCardSpend ?
                   <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span> :
                   r.manualCardSpend ?
@@ -209,9 +209,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {/* Owner spec (Oct 7 2026): settled breakdown on the
-                      second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
-                      Debit". S = Square fee, F = folder%, L = loan%, then
-                      the settled net and the tender badge. Card rows only. */}
+                     second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
+                     Debit". S = Square fee, F = folder%, L = loan%, then
+                     the settled net and the tender badge. Card rows only. */}
                     {showNetAmount && r.feeParts &&
                   <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
                         {r.sub} | S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)} |
@@ -1524,10 +1524,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-            Square Cards, pulled from the card (MOBILE) locations the per-store
-            sync never saw before. Attributed = fed by that store's sale
-            (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-            unattributed = folder / manual transfer with no sale link yet. */}
+             Square Cards, pulled from the card (MOBILE) locations the per-store
+             sync never saw before. Attributed = fed by that store's sale
+             (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+             unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1646,7 +1646,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-            card (does not reset the window). One-way only — never card → folder. */}
+             card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
