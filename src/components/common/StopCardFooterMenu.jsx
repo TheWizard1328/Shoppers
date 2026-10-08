@@ -86,9 +86,14 @@ export default function StopCardFooterMenu(props) {
   // that is NOT the current next-delivery (the inline Complete button on the action row
   // already covers the isNextDelivery card). Applies to regular deliveries, store
   // pickups, and inter-store stops alike.
+  // OWNER SPEC (Oct 8 2026): on the isNextDelivery card the menu Complete APPEARS
+  // whenever no arrival time is recorded — that is exactly when the inline footer
+  // Complete is disabled — and it stays ENABLED as the deliberate bypass. The menu
+  // item hides again on that card once arrival_time is set (inline button takes
+  // over), so there is never more than one footer path at a time.
   const canShowComplete = !!(
     !isFinishedDelivery &&
-    !isNextDelivery &&
+    (!isNextDelivery || !delivery?.arrival_time) &&
     isActiveStop &&
     handleCompleteAction &&
     canManageStop

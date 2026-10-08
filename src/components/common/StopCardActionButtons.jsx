@@ -396,6 +396,12 @@ export default function StopCardActionButtons(props) {
             of stop type (patient delivery, store pickup, or inter-store). Only future dates,
             already-finished stops, and terminal statuses are excluded. */}
         {(() => {
+          // OWNER SPEC (Oct 8 2026): the footer Complete stays DISABLED on the
+          // active stop until an arrival time is recorded (the 30s-stationary
+          // GPS snap). The popup menu's Complete is the deliberate bypass and
+          // stays enabled — it remains hidden on this card until the inline
+          // button is disabled, so exactly one footer path is usable at a time.
+          const missingArrivalTime = isNextDelivery && !delivery?.arrival_time;
           const isCompleteEligible =
             isNextDelivery &&
             !isFutureDate &&
@@ -442,7 +448,7 @@ export default function StopCardActionButtons(props) {
                 }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-              }} size="sm" disabled={(codPayments?.length || 0) === 0 || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Save COD payment and complete this delivery">
+              }} size="sm" disabled={missingArrivalTime || (codPayments?.length || 0) === 0 || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title={missingArrivalTime ? "Arrival time not recorded yet — unlocks once arrival is captured (menu Complete still works)" : "Save COD payment and complete this delivery"}>
                 {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                 <span className="text-white">Save & Complete</span>
               </Button>
@@ -452,7 +458,7 @@ export default function StopCardActionButtons(props) {
           if (!isCompleteEligible) return null;
 
           return (
-            <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Complete this delivery">
+            <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={missingArrivalTime || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title={missingArrivalTime ? "Arrival time not recorded yet — unlocks once arrival is captured (menu Complete still works)" : "Complete this delivery"}>
               {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Complete</span>
             </Button>
