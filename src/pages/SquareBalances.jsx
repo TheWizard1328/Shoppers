@@ -56,7 +56,7 @@ export default function SquareBalances() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto p-6 mx-auto w-full max-w-6xl">
+      <div className="flex-1 overflow-y-auto mx-auto w-full max-w-6xl px-4 py-4">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Square Balances</h1>
