@@ -630,13 +630,6 @@ export default function SquareSyncAudit() {
     URL.revokeObjectURL(url);
   }, [filteredEntries, labelsByFingerprint]);
 
-  if (isLoadingUser || !currentUser) {
-    return <div className="p-6 text-slate-500 dark:text-slate-400">Loading…</div>;
-  }
-  if (!isAdmin) {
-    return <div className="p-6 text-slate-500 dark:text-slate-400">Admin access required.</div>;
-  }
-
   const loadRawPreview = useCallback(async () => {
     setRawPreviewLoading(true);
     try {
@@ -664,6 +657,13 @@ export default function SquareSyncAudit() {
       setRawPreviewLoading(false);
     }
   }, []);
+
+  if (isLoadingUser || !currentUser) {
+    return <div className="p-6 text-slate-500 dark:text-slate-400">Loading…</div>;
+  }
+  if (!isAdmin) {
+    return <div className="p-6 text-slate-500 dark:text-slate-400">Admin access required.</div>;
+  }
 
   const tabs = [
   { id: "ledger", label: "Transaction Ledger", icon: Table2 },

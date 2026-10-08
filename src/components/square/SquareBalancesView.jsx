@@ -143,7 +143,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
           r.cashAwaitingSquare ? emeraldCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
           const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
           return (
-            <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+            <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex flex-col gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     {r.storeAbbrev &&
@@ -158,8 +159,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
                 </div>
-                <div className="shrink-0 flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-1.5">
+                <div className="shrink-0 flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
                     {/* Card Spend pill (owner spec Oct 6 2026) — TOGGLE on
                      uncollected rows: Square's card-activity data proved too
@@ -207,7 +207,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
 
                   }
                   </div>
-                  <div className="flex items-center gap-1.5">
+              </div>
+                <div className="flex items-center justify-end gap-1.5">
                     {/* Owner spec (Oct 7 2026): settled breakdown on the
                      second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
                      Debit". S = Square fee, F = folder%, L = loan%, then
@@ -222,7 +223,6 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   }
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusColorCls}`}>{statusLabel}</span>
                   </div>
-                </div>
               </div>);
 
         })}
