@@ -189,9 +189,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     Collected rows keep the legacy auto/manual evidence
                     pills. */}
                     {r.collected ? r.hasCardSpend ?
-                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[60px]">Card Spend</span> :
+                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
                   r.manualCardSpend ?
-                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[60px]">Card Spend</span> :
+                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]">Card Spend</span> :
                   canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
                   <span
                     onClick={() => onMarkSpend(r.delivery_id)}
@@ -216,12 +216,12 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     onClick={() => onMarkSpend(r.delivery_id)}
                     className={r.notTapped ?
                     "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[80px]" :
-                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2"}>
+                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2 py-1 min-w-[80px]"}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
 
                   <span className={r.notTapped ?
-                  'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[60px]' :
-                  'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[60px]'}>
+                  'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]' :
+                  'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]'}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
 
                   }
