@@ -181,13 +181,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                 <div className="shrink-0 flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
                     {/* Card Spend pill (owner spec Oct 6 2026) — TOGGLE on
-                     uncollected rows: Square's card-activity data proved too
-                     unreliable to auto-detect, so every uncollected COD
-                     defaults to "Card Spend" (sky). Tapping flips it to
-                     "Not Tapped" (violet) — the COD is added back to the
-                     card balance estimate — and tapping again flips back.
-                     Collected rows keep the legacy auto/manual evidence
-                     pills. */}
+                    uncollected rows: Square's card-activity data proved too
+                    unreliable to auto-detect, so every uncollected COD
+                    defaults to "Card Spend" (sky). Tapping flips it to
+                    "Not Tapped" (violet) — the COD is added back to the
+                    card balance estimate — and tapping again flips back.
+                    Collected rows keep the legacy auto/manual evidence
+                    pills. */}
                     {r.collected ? r.hasCardSpend ?
                   <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span> :
                   r.manualCardSpend ?
@@ -230,12 +230,12 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                 <div className="flex items-center justify-between gap-1.5">
                     <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{r.sub}</span>
                     {/* Owner spec (Oct 8 2026): fees centered on row 2 —
-                     S = Square fee, F = folder%, L = loan%. Card rows only. */}
+                  S = Square fee, F = folder%, L = loan%. Card rows only. */}
                     {showNetAmount && r.feeParts &&
-                  <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
                         S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
                       </span>
-                  }
+                }
                     <div className="flex items-center gap-1.5">
                     {showNetAmount &&
                   <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
@@ -519,7 +519,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const sInfo = storeById.get(String(it.store_id || ''));
         const parsed = parseCatalogItemName(it.item_name);
         const parsedDate = catalogDateFromName(parsed, todayStrForParsing);
-        const date = parsedDate || (String(it.delivery_date || '').slice(0, 10) || null);
+        const date = parsedDate || String(it.delivery_date || '').slice(0, 10) || null;
         const abbrev = sInfo?.abbreviation || parsed?.abbrev || null;
         const sInfoByAbbrev = abbrev ? storeByAbbrev.get(String(abbrev).toUpperCase()) : null;
         byLoc.get(it.location_id).push({
@@ -1411,7 +1411,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               {loc.weeklyCodAvg > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs/day (7-day avg)</div>
-                  <div className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.weeklyCodAvg)}</div>
+                  <div className="font-semibold tabular-nums text-slate-900 dark:text-slate-50 text-lg">{fmtMoney(loc.weeklyCodAvg)}</div>
                 </div>
                 }
               {loc.sweptOut > 0 &&
@@ -1553,10 +1553,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-             Square Cards, pulled from the card (MOBILE) locations the per-store
-             sync never saw before. Attributed = fed by that store's sale
-             (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-             unattributed = folder / manual transfer with no sale link yet. */}
+              Square Cards, pulled from the card (MOBILE) locations the per-store
+              sync never saw before. Attributed = fed by that store's sale
+              (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+              unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1675,7 +1675,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-             card (does not reset the window). One-way only — never card → folder. */}
+              card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
