@@ -3,7 +3,7 @@ import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/ap
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
@@ -131,8 +131,29 @@ function buildPatientResolver(patientsRaw) {
 // Pickup). pendingPickup rows previously used the sky "Card Spend" pill as a
 // status; that wording now belongs to the transaction-evidence pill, so
 // their status pill reads "Awaiting Pickup".
-function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
-  if (!sections || !sections.some((s) => s.rows.length > 0)) return null;
+function CardCodList({ sections, canMarkSpend, onMarkSpend, loading }) {
+  const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
+  // Loading placeholder: show the three section headers (Collected today /
+  // Uncollected / Past uncollected) with a spinner while the delivery + COD
+  // data is still being fetched, so the user knows more data is coming shortly.
+  if (!hasRows && loading) {
+    return (
+      <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-[13px] py-1">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading COD data…
+        </div>
+        {(sections || []).map((sec) => (
+          <div key={sec.label} className="space-y-1">
+            <div className="flex items-center justify-between font-medium text-[13px]">
+              <span style={{ color: sec.color }}>{sec.label}</span>
+              <span className="text-slate-400 dark:text-slate-500 tabular-nums">…</span>
+            </div>
+            <div className="text-slate-300 dark:text-slate-600 text-[13px]">Loading…</div>
+          </div>
+        ))}
+      </div>);
+  }
+  if (!hasRows) return null;
   return (
     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
       {sections.map((sec) =>
@@ -1536,6 +1557,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     <CardCodList
                       canMarkSpend={ownerCanEdit}
                       onMarkSpend={markCardSpend}
+                      loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
                       { label: 'Uncollected', color: '#d97706', rows: [...futurePendingRows, ...uncollectedTodayRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
