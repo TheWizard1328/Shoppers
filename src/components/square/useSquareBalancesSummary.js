@@ -789,6 +789,32 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     loadFailedRefundEntries(cfg, userId).catch(() => []),
     loadFailedRefundMarksMap().catch(() => ({}))
   ]);
+  // LEGACY RETRY-PAIR INDEX (owner report Oct 8 2026, the $12.17 TR61/TR68
+  // pair): a failed COD retried BEFORE the cod_retried_at stamp shipped (or
+  // retried from a device still running pre-fix code, e.g. the lagging
+  // production APK) has no stamp — the failed original kept showing in
+  // Uncollected and kept its card-side total while the retry ALSO carried
+  // the COD, double-counting the amount off the card. Runtime dedupe
+  // (self-healing, no writes): a FAILED COD is hidden when a NEWER delivery
+  // exists for the SAME patient with the SAME COD amount that is active or
+  // completed — the retry signature. Index built once (patient → entries).
+  const retryCarriedByPatient = new Map();
+  for (const x of allDeliveries || []) {
+    if (!x?.patient_id || !x?.created_date) continue;
+    const amt = Math.round(centsOf(x?.cod_total_amount_required)); // cents
+    if (!(amt > 0)) continue;
+    if (!['pending', 'in_transit', 'en_route', 'completed'].includes(String(x?.status || ''))) continue;
+    const k = String(x.patient_id);
+    if (!retryCarriedByPatient.has(k)) retryCarriedByPatient.set(k, []);
+    retryCarriedByPatient.get(k).push({ amt, createdT: new Date(x.created_date).getTime() });
+  }
+  const isLegacyRetried = (d, amtCents) => {
+    const createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
+    for (const e of retryCarriedByPatient.get(String(d?.patient_id || '')) || []) {
+      if (e.amt === amtCents && e.createdT > createdT) return true;
+    }
+    return false;
+  };
   for (const status of ['pending', 'in_transit', 'en_route', 'failed']) {
     const rows = deliveriesWithStatus(allDeliveries, status);
     for (const d of rows || []) {
@@ -803,8 +829,9 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // FAILED + RETRIED (owner rule, Oct 8 2026): the retry delivery now
       // carries this COD — the original must NOT show at all and must stop
       // deducting, or the amount is taken off the card TWICE (original +
-      // retry would double-count the amount off the card).
-      if (status === 'failed' && d?.cod_retried_at) continue;
+      // retry would double-count the amount off the card). Covers BOTH the
+      // cod_retried_at stamp AND legacy stamp-less retry pairs (index above).
+      if (status === 'failed' && (d?.cod_retried_at || isLegacyRetried(d, Math.round(centsOf(required))))) continue;
       const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) };
       // FAILED + REFUNDED (auto or manual) → resolved: the refund put the
       // money back on the card, so the row leaves the Uncollected lists and
@@ -836,6 +863,17 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     if (required <= 0 || !isCounted(d)) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) continue;
+    // CASH/CHEQUE completions NEVER keep a deduction (owner spec Oct 8
+    // 2026, the $1.18 TR63 report): the collected_charge deduction models
+    // money charged to the Square card — a debit/credit collection pays the
+    // card back through loadDeliveryCardCredits, so the charge deduction
+    // stays until the true-up. A CASH (or cheque) collection never touched
+    // the card — the money sits in the drawer and is settled separately —
+    // so keeping the deduction took the amount off the card a second time
+    // after the owner already collected it.
+    const _pays = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+    const _cardCollected = _pays.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
+    if (!_cardCollected) continue;
     if (!deductByLoc.has(locId)) deductByLoc.set(locId, []);
     deductByLoc.get(locId).push({
       delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
