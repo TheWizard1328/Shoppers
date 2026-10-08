@@ -7,7 +7,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFee } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -743,11 +743,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // the settled story of the collection in one line. Cash / Cheque
           // rows have no card fees, so no breakdown.
           feeParts: isCard ? (function () {
-            const fee = estimateCardFee(gross, label);
+            // Cents-rounded components (owner spec Oct 7 2026) — same values
+            // that feed the settled net, so the S/F/L line always sums to
+            // gross − net exactly.
+            const grossC = Math.round(gross * 100);
             return {
-              fee,
-              folder: gross * folderRateNow,
-              loan: gross * Number(loanRateByLoc.get(locId) || 0),
+              fee: estimateCardFeeCents(grossC, label) / 100,
+              folder: folderCentsFor(grossC, folderRateNow) / 100,
+              loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100,
             };
           })() : null,
         });
@@ -1040,10 +1043,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Outstanding CODs stay visible as "owed, not yet swiped" and drive
         // the low-balance forecast, but do NOT subtract from the estimate.
         // BATCH bank sweeps since true-up leave the real card too (Oct 2 2026 fix)
-        cardEstimate: r2(Number(loc.card_start || 0) + credits - withdrawn - pendingDeductCents / 100),
+        // Full integer-cent estimate (owner spec Oct 7 2026, "CW $10.64 vs
+        // $10.65"): float dollar addition can land a cent off — sum cents,
+        // divide once.
+        cardEstimate: (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100,
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel(r2(Number(loc.card_start || 0) + credits - withdrawn - pendingDeductCents / 100), Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         pendingDeducted: r2(pendingDeductCents / 100),
         pendingDeductCount,
         codOutstanding: codOut,

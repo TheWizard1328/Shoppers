@@ -210,12 +210,34 @@ export function estimateCardFee(amount, cardType) {
   const fn = CARD_FEE_SHEET[key] || CARD_FEE_SHEET.credit; // default to credit's flat rate when unknown
   return Math.max(0, fn(Number(amount) || 0));
 }
+
+// OWNER SPEC (Oct 7 2026, "CW shows $10.64, should be $10.65"): every fee
+// component — Square fee, folder %, loan % — is rounded to the CENT per
+// transaction (exactly how Square itself charges), and the settled net is
+// computed in INTEGER CENTS. The old float-dollar math (0.07 + amt*0.0075,
+// summed as doubles, rounded once at the end) drifted a cent on the card
+// estimate.
+export function estimateCardFeeCents(amountCents, cardType) {
+  const key = String(cardType || '').toLowerCase();
+  const fn = CARD_FEE_SHEET[key] || CARD_FEE_SHEET.credit;
+  return Math.max(0, Math.round(fn(Number(amountCents || 0) / 100) * 100));
+}
+
+// Owner spec (Oct 7 2026, verified against Square's ACTUAL payouts): the
+// FOLDER % rounds DOWN to the cent (Square's SIMPLE payout truncates —
+// 16.38×2%=0.3276 pays 0.32; 34.49→0.68; 34.95→0.69; 54.42→1.08), while the
+// Square fee and loan % round to the NEAREST cent. Old round-everything /
+// float math was a cent low on some collections ($10.64 vs $10.65).
+export function folderCentsFor(grossC, folderRate) {
+  return Math.floor(grossC * Number(folderRate ?? DEFAULT_FOLDER_RATE));
+}
+
 export function computeNetCollected(grossAmount, { cardType = null, loanRate = 0, folderRate = DEFAULT_FOLDER_RATE } = {}) {
-  const gross = Number(grossAmount) || 0;
-  const fee = estimateCardFee(gross, cardType);
-  const loan = gross * Number(loanRate || 0);
-  const folder = gross * Number(folderRate ?? DEFAULT_FOLDER_RATE);
-  return Math.max(0, gross - fee - loan - folder);
+  const grossC = Math.round((Number(grossAmount) || 0) * 100);
+  const feeC = estimateCardFeeCents(grossC, cardType);
+  const loanC = Math.round(grossC * Number(loanRate || 0));
+  const folderC = folderCentsFor(grossC, folderRate);
+  return Math.max(0, grossC - feeC - loanC - folderC) / 100;
 }
 
 /**
@@ -266,13 +288,16 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
     const loanRate = loanRateByLoc.get(locId) || 0;
     const agg = aggFor(locId);
     for (const p of cardPayments) {
-      const amount = Number(p.amount);
+      // Integer cents per payment (owner spec Oct 7 2026): each component is
+      // rounded to the cent per transaction and accumulated in cents — float
+      // dollar sums drifted the card estimate by a cent.
+      const grossC = Math.round(Number(p.amount) * 100);
       const type = String(p.type || '').toLowerCase();
-      const fee = estimateCardFee(amount, type);
-      const loan = amount * loanRate;
-      const folder = amount * folderRate;
-      agg.gross += amount; agg.fees += fee; agg.loan += loan; agg.folder += folder;
-      agg.credits += amount - fee - loan - folder;
+      const feeC = estimateCardFeeCents(grossC, type);
+      const loanC = Math.round(grossC * loanRate);
+      const folderC = folderCentsFor(grossC, folderRate);
+      agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
+      agg.credits += grossC - feeC - loanC - folderC;
       agg.count += 1;
     }
     const doneAt = String(d.actual_delivery_time || '');
@@ -295,9 +320,9 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
     }
   }
   for (const agg of byLoc.values()) {
-    const r2 = (x) => Math.round(x * 100) / 100;
-    agg.gross = r2(agg.gross); agg.fees = r2(agg.fees); agg.loan = r2(agg.loan);
-    agg.folder = r2(agg.folder); agg.credits = r2(agg.credits);
+    // Accumulators are integer cents — divide once at the boundary.
+    agg.gross = agg.gross / 100; agg.fees = agg.fees / 100; agg.loan = agg.loan / 100;
+    agg.folder = agg.folder / 100; agg.credits = agg.credits / 100;
   }
   return byLoc;
 }
@@ -943,7 +968,9 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     // Owner rule Oct 6 2026 + Oct 7 2026 fix: deducted CODs (active OR
     // completed post-True-Up) keep deducting; "Not Tapped" marks never deduct.
     const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, null, truedUpAt);
-    const cardEstimate = Math.round((Number(loc.card_start || 0) + credits - withdrawn - pendingDeductCents / 100) * 100) / 100;
+    // Full integer-cent estimate (owner spec Oct 7 2026): float dollar
+    // addition (e.g. 96.85 + 97.64 − 53.05) can land a cent off — sum cents.
+    const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,

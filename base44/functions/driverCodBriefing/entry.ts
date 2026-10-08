@@ -604,33 +604,41 @@ async function handleBriefing(base44, params = {}) {
               '-occurred_at', 2000
             ).catch(() => []);
             const since = (sinceRows || []).filter((s) => ['sale', 'collected'].includes(String(s?.entry_kind || '')));
+            // INTEGER-CENT MATH (owner spec Oct 7 2026, "CW shows $10.64,
+            // should be $10.65"): every fee component is rounded to the cent
+            // per transaction and the whole estimate is summed in cents —
+            // float dollar math drifted a cent. Also fixes the TDZ bug that
+            // silently killed this BALANCES section (folderTotal was used
+            // above its `let` declaration, so the catch block swallowed a
+            // ReferenceError every night).
             const folderRate = Number(cfg.folder_rate ?? 0.02);
-            folderTotal += Number(cfg.folder_start || 0);
             const balParts = [];
             const balStrs = [];
-            let folderTotal = 0;
+            let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
             for (const loc of cfg.locations) {
-              let gross = 0, fees = 0, loan = 0, folder = 0;
+              let grossC = 0, feeC = 0, loanC = 0, folderC = 0;
               for (const s of since) {
                 if (s?.location_id !== loc.location_id) continue;
-                const amount = Number(s.amount_cents || 0) / 100;
-                const fee = Number(s.fee_cents || 0) / 100;
-                const l = amount * Number(loc.loan_rate || 0);
-                const f = amount * folderRate;
-                gross += amount; fees += fee; loan += l; folder += f;
+                const g = Math.round(Number(s.amount_cents || 0));
+                const f = Math.round(Number(s.fee_cents || 0));
+                const l = Math.round(g * Number(loc.loan_rate || 0));
+                const fo = Math.floor(g * folderRate); // folder % truncates (verified vs Square's SIMPLE payouts, Oct 7 2026)
+                grossC += g; feeC += f; loanC += l; folderC += fo;
               }
-              folderTotal += folder;
-              const cardEst = Number(loc.card_start || 0) + gross - fees - loan - folder - (codOutByLoc.get(loc.location_id) || 0);
-              const loanLeft = Math.max(0, Number(loc.loan_start || 0) - loan);
+              folderTotalC += folderC;
+              const cardEstC = Math.round(Number(loc.card_start || 0) * 100) + grossC - feeC - loanC - folderC - Math.round((codOutByLoc.get(loc.location_id) || 0) * 100);
+              const loanLeftC = Math.max(0, Math.round(Number(loc.loan_start || 0) * 100) - loanC);
               const name = String(loc.name || loc.location_id);
-              balParts.push({ name, card: Math.round(cardEst * 100) / 100, loan: Math.round(loanLeft * 100) / 100 });
-              balStrs.push(name, cardEst.toFixed(2), loanLeft.toFixed(2));
+              const card = cardEstC / 100;
+              const loan = loanLeftC / 100;
+              balParts.push({ name, card, loan });
+              balStrs.push(name, card.toFixed(2), loan.toFixed(2));
             }
             const bw = Math.max(...balStrs.map((x) => x.length), 5);
             const bmoney = (amt) => `$ ${amt.toFixed(2).padStart(bw)}`;
             lines.push('BALANCES (est):');
             for (const b of balParts) lines.push(`${b.name} Card ${bmoney(b.card)} Loan ${bmoney(b.loan)}`);
-            lines.push(`Folder ${bmoney(Math.round(folderTotal * 100) / 100)} (2% since true-up)`);
+            lines.push(`Folder ${bmoney(folderTotalC / 100)} (2% since true-up)`);
             lines.push(`CODs out ${bmoney(Math.round(codOutAll * 100) / 100)} (pending + cash awaiting Square)`);
             lines.push('');
           }
