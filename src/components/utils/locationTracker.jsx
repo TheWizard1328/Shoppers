@@ -56,6 +56,10 @@ class LocationTracker {
         this.maxFailedUpdates = 3;
         this.backoffTime = 0;
         this.lastSuccessfulUpdate = 0;
+        // Arrival gating backup (Oct 8 2026): set true once the first GPS fix after
+        // tracking start has run the immediate arrival check. Reset on every
+        // startTracking so going on duty again re-runs the boot check.
+        this._bootArrivalChecked = false;
         this.deviceCapabilities = null;
         this.locationProvider = getLocationProvider();
         this.isPrimaryDevice = false;
@@ -743,6 +747,19 @@ class LocationTracker {
       // which is never set from external callers.
       if (this.driverStatus === 'on_duty' && this.currentUser?.id) {
         const _todayEdmonton = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }); // yyyy-MM-dd
+        // Arrival gating backup (Oct 8 2026): the app may have been (re)loaded WHILE
+        // the driver was already parked at their next stop — the 30s-stationary timer
+        // only starts on this first fix, so the gate would hold an extra 30s, and if
+        // GPS jitter keeps resetting the 20m move threshold it can hold indefinitely.
+        // checkImmediateArrival (isNextDelivery + within geofence, no stationary
+        // requirement) stamps arrival instantly on that first fix. The footer-level
+        // useArrivalRecheck hook covers any later missed stamps.
+        if (!this._bootArrivalChecked) {
+          this._bootArrivalChecked = true;
+          arrivalTimeDetector
+            .checkImmediateArrival(latitude, longitude, this.currentUser.id, _todayEdmonton)
+            .catch((bErr) => console.warn('⚠️ [LocationTracker] Boot immediate arrival check failed:', bErr?.message));
+        }
         await arrivalTimeDetector.processLocationUpdate(
           latitude,
           longitude,
@@ -985,6 +1002,11 @@ class LocationTracker {
     if (this.isTracking) {
       return;
     }
+
+    // Arrival gating backup (Oct 8 2026): fresh tracking session → re-arm the
+    // boot immediate-arrival check (driver may be starting duty already parked
+    // at their next stop, or the app was reloaded mid-route).
+    this._bootArrivalChecked = false;
 
     // Set delivery date for arrival tracking
     if (deliveryDate) {

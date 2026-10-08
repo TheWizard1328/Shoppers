@@ -14,6 +14,7 @@ import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 import RestartConfirmDialog from "./RestartConfirmDialog";
 import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
+import { useArrivalRecheck } from './useArrivalRecheck';
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -107,6 +108,20 @@ export default function StopCardActionButtons(props) {
     deliveryDate: delivery?.delivery_date,
     todayDateString: _todayStr,
     currentTimeString: _nowTimeStr,
+  });
+
+  // Arrival gate is active on the current stop (blank arrival_time, non-retro).
+  // useArrivalRecheck is the SECONDARY path: it re-records the missing arrival_time
+  // (cumulative 35s in-radius, jitter-tolerant) so the Complete buttons re-enable
+  // even when the primary 30s-stationary flow missed the arrival (app reload while
+  // parked, failed write, or a stale sync wiping arrival_time).
+  const arrivalGateActive = isNextDelivery && !delivery?.arrival_time && !isRetroTiming;
+  useArrivalRecheck({
+    enabled: arrivalGateActive,
+    delivery,
+    patient,
+    store,
+    driverId: currentUser?.id,
   });
 
   const handleRestartClick = useCallback((e) => {
@@ -403,7 +418,7 @@ export default function StopCardActionButtons(props) {
           // RETRO TIMING BYPASS (Oct 8 2026): when isRetroTiming is active (today
           // after 21:00, or past-due dates) the completion flow backdates the
           // arrival time itself (retroactive timing), so the gate does NOT apply.
-          const missingArrivalTime = isNextDelivery && !delivery?.arrival_time && !isRetroTiming;
+          const missingArrivalTime = arrivalGateActive;
           const isCompleteEligible =
             isNextDelivery &&
             !isFutureDate &&

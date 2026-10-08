@@ -1132,6 +1132,14 @@ const subscribeToEntity = (entityName) => {
                     'stop_order', 'tracking_number', 'encoded_polyline',
                     'estimated_distance_km', 'estimated_duration_minutes',
                     'polyline_saved_at', 'transport_mode', 'travel_dist',
+                    // Arrival gating (Oct 8 2026): a stale WS echo or background fetch
+                    // whose server record predates the local arrival write (offline /
+                    // in-flight server write) carries a BLANK arrival_time and wiped the
+                    // locally recorded one — the Complete button then stayed gated at a
+                    // stop the driver was parked at. Ratchet: existing non-empty
+                    // arrival_time always beats an incoming empty one. No flow clears
+                    // arrival_time on an existing record (retry creates a NEW record).
+                    'arrival_time',
                   ]);
 
                   // Stamp pending→in_transit transitions so the ratchet below only
