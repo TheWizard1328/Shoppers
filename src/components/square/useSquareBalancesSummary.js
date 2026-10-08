@@ -258,7 +258,25 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
   (cfg?.locations || []).forEach((l) => { if (l?.location_id) loanRateByLoc.set(l.location_id, Number(l.loan_rate || 0)); });
   const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
   const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
-  const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
+  // OWNER SPEC (Oct 8 2026): the true-up value is the REAL card balance at the
+  // true-up instant — every collection already made (and every card-spend /
+  // not-tapped classification already on record) is baked into that number and
+  // must NOT be re-credited afterwards. The old date-window filter
+  // (delivery_date >= true-up − 6h) re-added all of today's earlier
+  // collections on top of the fresh true-up value. Credit a completed
+  // delivery ONLY when it finished AFTER the true-up instant; collections
+  // that finished before it are neutral. Deliveries missing a completion
+  // timestamp fall back to the true-up snapshot (trued_up_counted_ids).
+  const tuMs = tu ? tu.getTime() : null;
+  const countedSnapshot = new Set((cfg?.trued_up_counted_ids || []).map(String));
+  const isCounted = (d) => {
+    if (tuMs == null) return String(d?.delivery_date || '') >= cutoffDate;
+    const done = d?.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
+    if (done != null && Number.isFinite(done)) return done >= tuMs;
+    const id = d?.id ? String(d.id) : null;
+    if (id && countedSnapshot.has(id)) return false;
+    return String(d?.delivery_date || '') >= cutoffDate;
+  };
   const [cfgsRaw, allDeliveries] = await Promise.all([
     idbOrApi(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, 'locCfgs', IDB_REF_TTL, () => base44.entities.SquareLocationConfig.list(), 1),
     getAllDeliveriesIdb(),
