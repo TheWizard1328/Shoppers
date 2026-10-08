@@ -147,16 +147,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex flex-col gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    {r.storeAbbrev &&
-                  <span
-                    className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                    style={{ backgroundColor: r.storeColor || '#64748b' }}>
-                    
-                        {r.storeAbbrev}
-                      </span>
-                  }
-                    <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] w-[36px]">{r.patientName || 'COD'}</p>
-                  </div>
+                    <span
+                      className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                      style={{ backgroundColor: r.storeColor || '#64748b' }}>
+                      {r.storeAbbrev || '—'}
+                    </span>
+                    <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{r.patientName || 'COD'}</p>
+                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
