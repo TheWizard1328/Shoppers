@@ -203,11 +203,11 @@ export default function StopCardFooterMenu(props) {
           {canShowComplete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              {/* OWNER SPEC (Oct 8 2026, extended to ALL stop types — deliveries,
-                  pickups, inter-store, cycling markers): Complete is DISABLED until
-                  an arrival time is recorded on the stop, same rule as the inline
-                  footer Complete button on the next-delivery card. */}
-              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} disabled={!delivery?.arrival_time || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} title={delivery?.arrival_time ? undefined : "Arrival time not recorded yet"} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300 disabled:opacity-50">
+              {/* OWNER SPEC (Oct 8 2026): the menu Complete is the deliberate BYPASS
+                  and stays ENABLED even when the stop has no recorded arrival time
+                  (the inline footer Complete is disabled until arrival is captured,
+                  for all stop types). Never gate this item on arrival_time. */}
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300">
                 <CheckCircle className="w-5 h-5 mr-2" />Complete
               </DropdownMenuItem>
             </>
