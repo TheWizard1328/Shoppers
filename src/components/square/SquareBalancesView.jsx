@@ -157,7 +157,6 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   }
                     <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] w-[36px]">{r.patientName || 'COD'}</p>
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
@@ -209,13 +208,14 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   </div>
               </div>
                 <div className="flex items-center justify-end gap-1.5">
+                    <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{r.sub}</span>
                     {/* Owner spec (Oct 7 2026): settled breakdown on the
                      second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
                      Debit". S = Square fee, F = folder%, L = loan%, then
                      the settled net and the tender badge. Card rows only. */}
                     {showNetAmount && r.feeParts &&
                   <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
-                        {r.sub} | S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)} |
+                        | S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)} |
                       </span>
                   }
                     {showNetAmount &&
