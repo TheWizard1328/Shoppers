@@ -189,9 +189,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     Collected rows keep the legacy auto/manual evidence
                     pills. */}
                     {r.collected ? r.hasCardSpend ?
-                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center min-w-[60px]">Card Spend</span> :
+                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[60px]">Card Spend</span> :
                   r.manualCardSpend ?
-                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center min-w-[60px]">Card Spend</span> :
+                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[60px]">Card Spend</span> :
                   canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
                   <span
                     onClick={() => onMarkSpend(r.delivery_id)}
@@ -203,7 +203,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     // badge on the row. Plain onClick on a bare span keeps it
                     // visually identical to the Pending/Collected/Card Spend
                     // pills (same classes), just clickable.
-                    className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center min-w-[60px]">
+                    className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center leading-none min-w-[60px]">
                     Mark Spend</span> :
                   null :
                   // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
@@ -215,13 +215,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   <span
                     onClick={() => onMarkSpend(r.delivery_id)}
                     className={r.notTapped ?
-                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center min-w-[60px] px-2 py-0.5" :
-                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center min-w-[60px] px-2 py-0.5"}>
+                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[60px] px-2 py-0.5" :
+                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[60px] px-2 py-0.5"}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
 
                   <span className={r.notTapped ?
-                  'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center min-w-[60px]' :
-                  'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center min-w-[60px]'}>
+                  'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[60px]' :
+                  'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[60px]'}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
 
                   }
@@ -240,7 +240,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
-                    <span className={`rounded-full border px-2 py-0.5 font-medium text-[11px] text-center min-w-[60px] ${statusColorCls}`}>{statusLabel}</span>
+                    <span className={`rounded-full border px-2 py-0.5 font-medium text-[11px] text-center leading-none min-w-[80px] ${statusColorCls}`}>{statusLabel}</span>
                     </div>
                   </div>
               </div>);
