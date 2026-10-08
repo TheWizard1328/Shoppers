@@ -169,7 +169,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
             <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 my-1">
                     <span
                       className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
                       style={{ backgroundColor: r.storeColor || '#64748b' }}>
@@ -1553,10 +1553,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                       Square Cards, pulled from the card (MOBILE) locations the per-store
-                       sync never saw before. Attributed = fed by that store's sale
-                       (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                       unattributed = folder / manual transfer with no sale link yet. */}
+                        Square Cards, pulled from the card (MOBILE) locations the per-store
+                        sync never saw before. Attributed = fed by that store's sale
+                        (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                        unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1675,7 +1675,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                       card (does not reset the window). One-way only — never card → folder. */}
+                        card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
