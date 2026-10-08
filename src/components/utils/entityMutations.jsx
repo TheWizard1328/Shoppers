@@ -718,6 +718,15 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 
   await pauseSmartRefresh();
 
+  // [DeletePerf] stage timings — see useConfirmDelete for context.
+  const __dp_t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const __dp = (label) => {
+    try {
+      const ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - __dp_t0);
+      console.warn(`[DeletePerf] entity id=${String(deliveryId).slice(0, 8)} stage=${label} at=${ms}ms`);
+    } catch (_) {}
+  };
+
   try {
     // STEP 1: Check if exists in IndexedDB and delete (by ID — no full scan)
     let existedOffline = false;
@@ -734,6 +743,7 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       console.warn('⚠️ [EntityMutations] IndexedDB delete check failed:', offlineError.message);
     }
 
+    __dp('idb_deleted');
     // STEP 2: Square COD cleanup + backend delete — parallel independent network calls
     const squareCodPromise = (deletedDeliverySnapshot && Number(deletedDeliverySnapshot.cod_total_amount_required || 0) > 0)
       ? Promise.resolve(removeDeliverySquareCod(deliveryId, 'delivery_deleted'))
@@ -752,6 +762,7 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       });
 
     await Promise.all([squareCodPromise, backendDeletePromise]);
+    __dp('server_delete_done');
 
     // If delivery didn't exist in either DB, still remove it from UI/cache in case
     // it exists in React state but was already cleaned from both DBs.
@@ -797,8 +808,10 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       }
     } catch { /* sessionStorage unavailable — in-memory set is sufficient */ }
 
+    __dp('cache_cleanup_done');
     // STEP 5: Broadcast immediate delete so other devices update UI right away too
     await broadcastMutation('Delivery', 'delete', deliveryId, deletedDeliverySnapshot);
+    __dp('broadcast_done');
 
     // CRITICAL: Do NOT restart SmartRefresh after delete — same pattern as updateDelivery.
     // restartSmartRefresh() triggers a full server re-fetch cycle which causes the UI lag
