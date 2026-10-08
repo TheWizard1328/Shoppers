@@ -1585,9 +1585,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       onMarkSpend={markCardSpend}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
-                      { label: 'Collected today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
-                      { label: 'Uncollected', color: '#d97706', rows: [...futurePendingRows, ...uncollectedTodayRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
-                      { label: 'Past uncollected', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) }]
+                      { label: 'Collected Today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
+                      { label: 'Uncollected Today', color: '#d97706', rows: [...futurePendingRows, ...uncollectedTodayRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
+                      { label: 'Uncollected Past', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) }]
                       } />);
 
 
