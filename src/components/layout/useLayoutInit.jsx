@@ -82,6 +82,15 @@ export function useLayoutInit({
           setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;
         }
         if (!fetchedUser) {setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;}
+        // OWNER FIX (Oct 8 2026): Android WebView localStorage eviction wiped the
+        // device identifier → drivers were re-prompted to select a device from
+        // the device manager on every boot. Restore from the IDB backup first,
+        // then keep the backup current.
+        try {
+          const dm = await import('../utils/deviceManager.jsx');
+          await dm.restoreDeviceIdentifierFromIdb();
+          dm.backupDeviceIdentifierToIdb().catch(() => {});
+        } catch (e) { /* non-fatal — boot continues with whatever id exists */ }
         const deviceIdentifier = getDeviceIdentifier();
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const cachedReg = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
@@ -387,6 +396,12 @@ export function useLayoutInit({
         // Determine initial city for global filters
         let initialCityId = citiesData.find((c) => c && c.id === fetchedUser.city_id)?.id || null;
         if (!initialCityId && userHasRole(fetchedUser, 'admin') && citiesData.length > 0) initialCityId = citiesData[0].id;
+        // TRANSIENT-FAILURE GUARD (owner report Oct 8 2026): drivers with a SAVED
+        // city_id were being re-prompted to reselect a city whenever the City
+        // fetch failed or came back empty on a bad cellular boot. The saved
+        // city_id is authoritative — only a user with NO city at all should see
+        // the selection popup.
+        if (!initialCityId && fetchedUser?.city_id) initialCityId = fetchedUser.city_id;
         if (!initialCityId) {setShowCitySelectionPopup(true);globalFilters.setSelectedCityId('waiting-for-selection');setIsLoadingLayout(false);return;}
         globalFilters.setSelectedCityId(initialCityId);
 
