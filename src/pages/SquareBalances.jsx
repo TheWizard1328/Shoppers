@@ -65,7 +65,9 @@ export default function SquareBalances() {
             }
           </div>
         </div>
-        <SquareBalancesView currentUser={currentUser} visibleLocationIds={visibleLocationIds} />
+        {visibleLocationIds === undefined ?
+          <div className="text-sm text-slate-500 dark:text-slate-400 p-4">Loading balances…</div> :
+          <SquareBalancesView currentUser={currentUser} visibleLocationIds={visibleLocationIds} />}
       </div>
     </div>);
 
