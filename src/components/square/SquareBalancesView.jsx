@@ -207,21 +207,21 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   }
                   </div>
               </div>
-                <div className="flex items-center justify-end gap-1.5">
+                <div className="flex items-center justify-between gap-1.5">
                     <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{r.sub}</span>
-                    {/* Owner spec (Oct 7 2026): settled breakdown on the
-                     second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
-                     Debit". S = Square fee, F = folder%, L = loan%, then
-                     the settled net and the tender badge. Card rows only. */}
+                    {/* Owner spec (Oct 8 2026): fees centered on row 2 —
+                     S = Square fee, F = folder%, L = loan%. Card rows only. */}
                     {showNetAmount && r.feeParts &&
                   <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
-                        | S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)} |
+                        S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
                       </span>
                   }
+                    <div className="flex items-center gap-1.5">
                     {showNetAmount &&
                   <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
                   }
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusColorCls}`}>{statusLabel}</span>
+                    </div>
                   </div>
               </div>);
 
