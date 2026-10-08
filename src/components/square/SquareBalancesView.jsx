@@ -65,6 +65,29 @@ function extractNameFromCatalogDescription(description) {
   return m ? m[1].trim() : null;
 }
 
+// Square catalog item_name follows "MM/DD(ABBREV)-Patient Name" (see
+// formatItemName in squareCodHelpers). The store abbreviation in parentheses and
+// the leading Month/Day are the source of truth for the store badge and the
+// today-vs-past bucketing when a catalog row has no resolvable store_id or
+// delivery_date (owner report Oct 8 2026: Past uncollected rows lost their
+// store badge and landed in the wrong section).
+function parseCatalogItemName(raw) {
+  const m = String(raw || '').match(/^\s*(\d{1,2})\/(\d{1,2})\s*\(([^)]+)\)\s*-\s*(.+)$/);
+  if (!m) return null;
+  return { month: m[1], day: m[2], abbrev: m[3].trim(), patientName: m[4].trim() };
+}
+function catalogDateFromName(parsed, todayStr) {
+  if (!parsed) return null;
+  const year = Number(todayStr.slice(0, 4));
+  const mm = String(parsed.month).padStart(2, '0');
+  const dd = String(parsed.day).padStart(2, '0');
+  const todayMd = todayStr.slice(5);
+  // A month/day later than today's is almost certainly last year's uncollected
+  // COD carrying over — roll it back a year so it sorts into Past uncollected
+  // instead of reading as a future date.
+  return `${mm}-${dd}` > todayMd ? `${year - 1}-${mm}-${dd}` : `${year}-${mm}-${dd}`;
+}
+
 // Delivery only stores patient_id (no patient_name field) — resolve the real
 // name from the Patient entity, same dual-key lookup used across the app
 // Ledger rows are keyed on square_id upstream, but a mid-storm sync once
@@ -483,19 +506,28 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       );
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const storeById = new Map();
-      (storesRaw || []).forEach((s) => {if (s?.id) storeById.set(String(s.id), s);});
+      const storeByAbbrev = new Map();
+      (storesRaw || []).forEach((s) => {
+        if (s?.id) storeById.set(String(s.id), s);
+        if (s?.abbreviation) storeByAbbrev.set(String(s.abbreviation).toUpperCase(), s);
+      });
+      const todayStrForParsing = edmontonWallString(new Date()).slice(0, 10);
       const byLoc = new Map();
       for (const it of itemsRaw || []) {
         if (!it?.location_id) continue;
         if (!byLoc.has(it.location_id)) byLoc.set(it.location_id, []);
         const sInfo = storeById.get(String(it.store_id || ''));
-        const date = String(it.delivery_date || '').slice(0, 10);
+        const parsed = parseCatalogItemName(it.item_name);
+        const parsedDate = catalogDateFromName(parsed, todayStrForParsing);
+        const date = parsedDate || (String(it.delivery_date || '').slice(0, 10) || null);
+        const abbrev = sInfo?.abbreviation || parsed?.abbrev || null;
+        const sInfoByAbbrev = abbrev ? storeByAbbrev.get(String(abbrev).toUpperCase()) : null;
         byLoc.get(it.location_id).push({
           key: `cat-${it.id || it.square_catalog_object_id}`,
           delivery_id: it.delivery_id || null,
-          patientName: resolvePatientName(it.patient_id)?.full_name || extractNameFromCatalogDescription(it.description) || null,
-          storeAbbrev: sInfo?.abbreviation || null,
-          storeColor: sInfo?.color || null,
+          patientName: resolvePatientName(it.patient_id)?.full_name || parsed?.patientName || extractNameFromCatalogDescription(it.description) || null,
+          storeAbbrev: abbrev,
+          storeColor: sInfo?.color || sInfoByAbbrev?.color || null,
           amount: Number(it.amount || 0),
           date: date || null,
           cashAwaitingSquare: false
