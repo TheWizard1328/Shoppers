@@ -203,7 +203,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     // badge on the row. Plain onClick on a bare span keeps it
                     // visually identical to the Pending/Collected/Card Spend
                     // pills (same classes), just clickable.
-                    className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                    className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center min-w-[60px]">
                     Mark Spend</span> :
                   null :
                   // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
@@ -240,7 +240,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
-                    <span className={`rounded-full border px-2 font-medium text-[11px] min-w-[60px] ${statusColorCls}`}>{statusLabel}</span>
+                    <span className={`rounded-full border px-2 py-0.5 font-medium text-[11px] text-center min-w-[60px] ${statusColorCls}`}>{statusLabel}</span>
                     </div>
                   </div>
               </div>);
