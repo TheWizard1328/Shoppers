@@ -705,23 +705,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             base44.entities.Delivery.update(String(id), { cod_confirmed_collected: true }).catch(() => {});
           }
         }
-        // OWNER SPEC (Oct 8 2026, the $28.36 + $1.18 report): a delivery
-        // recorded CASH-collected on its own cod_payments is COLLECTED — it
-        // already shows in "Collected today" with its Cash badge, so ALSO
-        // keeping it in Uncollected / Past uncollected duplicated the row
-        // and read as money still owed/off the card. Cash-completed rows
-        // now LEAVE the Uncollected lists as soon as the cash check sees
-        // them (the catalog item itself stays alive in Square for the
-        // deposit match; cod_confirmed_collected stamping above is
-        // unchanged). Ledger-matched rows leave as before.
+        // OWNER SPEC (Oct 8 2026, REVISED same day): cash-completed rows
+        // STAY in Uncollected / Past uncollected with the emerald 'Cash'
+        // badge — the delivery is done but the money is not back on the
+        // Square card yet, so it is still technically uncollected (and NOT
+        // in Collected today — see computeCodCollectedToday). Only
+        // ledger-matched rows (confirmedIds — the deposit showed up in
+        // Square) leave the Uncollected lists.
         if (cashCollectedDeliveryIds.size > 0 && isLatest()) {
           setCatalogUncollectedByLoc((prev) => {
             if (!prev) return prev;
             const next = {};
             for (const [locId, rows] of Object.entries(prev)) {
               next[locId] = rows.
-              filter((r) => !(r.delivery_id && (cashCollectedDeliveryIds.has(r.delivery_id) || confirmedIds.has(String(r.delivery_id)))))
-              ;
+              filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
+              .map((r) =>
+              r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
+              );
             }
             catalogUncollectedByLocRef.current = next;
             return next;
@@ -804,6 +804,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // else (or no payment rows) reads as Cash.
         const types = payments.map((pm) => String(pm?.type || '').toLowerCase());
         const isCard = types.includes('debit') || types.includes('credit');
+        // OWNER SPEC (Oct 8 2026): a CASH (or cheque) collection is still
+        // technically UNCOLLECTED until the money is processed back onto the
+        // Square card — the delivery is complete but the card hasn't seen
+        // it. Such rows stay OUT of "Collected today" (they read in the
+        // Uncollected lists with their 'Cash' badge instead) and only
+        // surface here once cod_confirmed_collected stamps them (the
+        // ledger match / deposit), same rule as the driver briefing.
+        if (!isCard && !d?.cod_confirmed_collected) continue;
         const label = types.includes('debit') ? 'Debit' :
         types.includes('credit') ? 'Credit' :
         types.includes('cheque') ? 'Cheque' :
