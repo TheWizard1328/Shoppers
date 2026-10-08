@@ -925,7 +925,7 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
   return { deductCents, count };
 }
 
-function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt }) {
+function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt, countedIdsSet }) {
   // OWNER SPEC (Oct 7 2026): the credit side of the estimate comes STRICTLY
   // from delivery data — finished deliveries' Debit/Credit cod_payments,
   // net of the rate-sheet fee + loan% + folder% (loadDeliveryCardCredits).
@@ -967,7 +967,10 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     ];
     // Owner rule Oct 6 2026 + Oct 7 2026 fix: deducted CODs (active OR
     // completed post-True-Up) keep deducting; "Not Tapped" marks never deduct.
-    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, null, truedUpAt);
+    // Pre-True-Up CODs flagged "already counted" (Oct 8 2026): IDs snapshotted
+    // at true-up time are neutralized via excludeIds so the trued-up starting
+    // balance isn't re-deducted; only CODs created/collected after deduct.
+    const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, countedIdsSet || null, truedUpAt);
     // Full integer-cent estimate (owner spec Oct 7 2026): float dollar
     // addition (e.g. 96.85 + 97.64 − 53.05) can land a cent off — sum cents.
     const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;
@@ -1074,7 +1077,7 @@ async function loadSummary(force, uid) {
       payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
     }
     const data = {
-      byLocId: config ? computeByLocId({ config, deliveryCredits, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt: config?.trued_up_at || null }) : new Map(),
+      byLocId: config ? computeByLocId({ config, deliveryCredits, codOutstanding, weeklyAvgByLoc: weeklyAvgByLocFromStores(stl, weekly), payoutsByLoc: payoutsLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt: config?.trued_up_at || null, countedIdsSet: new Set((config?.trued_up_counted_ids || []).map(String)) }) : new Map(),
       payoutsByLoc: payoutsLoc,
       storeToLoc: stl,
       weeklyByStore: weekly,

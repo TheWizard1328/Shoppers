@@ -1034,6 +1034,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Bank-sweep totals per location since true-up
   const payoutByLoc = useMemo(() => payoutsByLocation(payouts), [payouts]);
 
+  // Pre-True-Up CODs flagged "already counted" (Oct 8 2026): the snapshot of
+  // delivery IDs that existed at true-up time is neutralized via excludeIds so
+  // the trued-up starting balance isn't re-deducted. Only CODs created or
+  // collected AFTER the true-up (absent from the snapshot) keep deducting.
+  const countedIdsSet = useMemo(() => new Set((config?.trued_up_counted_ids || []).map(String)), [config?.trued_up_counted_ids]);
+
   // Per-location math from the sale records
   const perLocation = useMemo(() => {
     if (!config) return [];
@@ -1077,7 +1083,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // owner explicitly clicks its badge since that True-Up; a brand-new
       // (post-True-Up) COD deducts by default and STAYS deducted after
       // collection. See computePendingCodDeduction.
-      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(estimateItems, manualSpendMarks || {}, null, config?.trued_up_at || null);
+      const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(estimateItems, manualSpendMarks || {}, countedIdsSet, config?.trued_up_at || null);
       return {
         ...loc,
         saleCount: Number(dc.count || 0),
@@ -1106,7 +1112,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         lastSaleAt: dc.lastAt || null
       };
     });
-  }, [config, deliveryCredits, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks]);
+  }, [config, deliveryCredits, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks, countedIdsSet]);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -1268,11 +1274,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       };
     });
     const folderVal = parseFloat(trueUpDraft.__folder);
+    // FLAG PRE-EXISTING CODs AS "ALREADY COUNTED" (owner rule, Oct 8 2026): the
+    // true-up value is the REAL card balance right now, so every COD already in
+    // the system (pending / in_transit / en_route, plus completed charges still
+    // deducting, plus anything collected today) is already baked into that
+    // number — none of them should add to or subtract from the trued-up
+    // starting point. We snapshot their delivery IDs here and store them on the
+    // config; computePendingCodDeduction then treats every one of them as
+    // neutral (excludeIds). Only CODs created (added as Pending) or collected
+    // AFTER this true-up — which are NOT in this snapshot — keep affecting the
+    // running estimate. A fresh true-up re-baselines the snapshot.
+    const countedIds = new Set();
+    const outstandingNow = localOutstanding || codOutstandingByLoc || {};
+    for (const loc of Object.values(outstandingNow)) {
+      (loc?.items || []).forEach((it) => { if (it?.delivery_id) countedIds.add(String(it.delivery_id)); });
+      (loc?.deductItems || []).forEach((it) => { if (it?.delivery_id) countedIds.add(String(it.delivery_id)); });
+    }
+    for (const rows of Object.values(codCollectedTodayByLoc || {})) {
+      (rows || []).forEach((r) => { if (r?.delivery_id) countedIds.add(String(r.delivery_id)); });
+    }
     const newConfig = {
       ...config,
       locations,
       folder_start: Number.isFinite(folderVal) ? folderVal : Number(config.folder_start || 0),
-      trued_up_at: new Date().toISOString()
+      trued_up_at: new Date().toISOString(),
+      trued_up_counted_ids: Array.from(countedIds)
     };
     setIsSaving(true);
     try {
