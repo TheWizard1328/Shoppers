@@ -141,7 +141,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
             <span style={{ color: sec.color }}>{sec.label}</span>
             <span className="text-slate-400 tabular-nums">{sec.rows.length} · {fmtMoney(sec.total)}</span>
           </div>
-          {sec.rows.length === 0 && <div className="text-[11px] text-slate-400">none</div>}
+          {sec.rows.length === 0 && <div className="text-slate-400 text-[13px]">none</div>}
           {sec.rows.map((r) => {
           // Owner spec (Oct 5 2026): left side is identity (name+store on
           // top, date/time below); right side is a 2x2 value/badge grid so
@@ -227,7 +227,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   }
                   </div>
               </div>
-                <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center justify-between gap-1.5 text-lg">
                     <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{r.sub}</span>
                     {/* Owner spec (Oct 8 2026): fees centered on row 2 —
                   S = Square fee, F = folder%, L = loan%. Card rows only. */}
@@ -1381,7 +1381,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
-                  <div className="text-[11px] text-slate-400">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
+                  <div className="text-slate-400 text-[13px]">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
                 </div>
                 {ownerCanEdit &&
                   <button
@@ -1553,10 +1553,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                   Square Cards, pulled from the card (MOBILE) locations the per-store
-                   sync never saw before. Attributed = fed by that store's sale
-                   (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                   unattributed = folder / manual transfer with no sale link yet. */}
+                    Square Cards, pulled from the card (MOBILE) locations the per-store
+                    sync never saw before. Attributed = fed by that store's sale
+                    (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                    unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1675,7 +1675,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                   card (does not reset the window). One-way only — never card → folder. */}
+                    card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
