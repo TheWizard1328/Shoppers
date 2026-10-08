@@ -228,19 +228,19 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   </div>
               </div>
                 <div className="flex items-center justify-between gap-1.5 text-lg">
-                    <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{r.sub}</span>
+                    <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">{r.sub}</span>
                     {/* Owner spec (Oct 8 2026): fees centered on row 2 —
                   S = Square fee, F = folder%, L = loan%. Card rows only. */}
                     {showNetAmount && r.feeParts &&
-                <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">
                         S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
                       </span>
                 }
                     <div className="flex items-center gap-1.5">
                     {showNetAmount &&
-                  <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
+                  <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusColorCls}`}>{statusLabel}</span>
+                    <span className={`rounded-full border px-2 py-0.5 font-medium text-[11px] ${statusColorCls}`}>{statusLabel}</span>
                     </div>
                   </div>
               </div>);
@@ -1553,10 +1553,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                    Square Cards, pulled from the card (MOBILE) locations the per-store
-                    sync never saw before. Attributed = fed by that store's sale
-                    (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                    unattributed = folder / manual transfer with no sale link yet. */}
+                     Square Cards, pulled from the card (MOBILE) locations the per-store
+                     sync never saw before. Attributed = fed by that store's sale
+                     (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                     unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1675,7 +1675,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                    card (does not reset the window). One-way only — never card → folder. */}
+                     card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
