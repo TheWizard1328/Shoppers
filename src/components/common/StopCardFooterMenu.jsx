@@ -86,14 +86,9 @@ export default function StopCardFooterMenu(props) {
   // that is NOT the current next-delivery (the inline Complete button on the action row
   // already covers the isNextDelivery card). Applies to regular deliveries, store
   // pickups, and inter-store stops alike.
-  // OWNER SPEC (Oct 8 2026): on the isNextDelivery card the menu Complete APPEARS
-  // whenever no arrival time is recorded — that is exactly when the inline footer
-  // Complete is disabled — and it stays ENABLED as the deliberate bypass. The menu
-  // item hides again on that card once arrival_time is set (inline button takes
-  // over), so there is never more than one footer path at a time.
   const canShowComplete = !!(
     !isFinishedDelivery &&
-    (!isNextDelivery || !delivery?.arrival_time) &&
+    !isNextDelivery &&
     isActiveStop &&
     handleCompleteAction &&
     canManageStop
@@ -208,7 +203,11 @@ export default function StopCardFooterMenu(props) {
           {canShowComplete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300">
+              {/* OWNER SPEC (Oct 8 2026, extended to ALL stop types — deliveries,
+                  pickups, inter-store, cycling markers): Complete is DISABLED until
+                  an arrival time is recorded on the stop, same rule as the inline
+                  footer Complete button on the next-delivery card. */}
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} disabled={!delivery?.arrival_time || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} title={delivery?.arrival_time ? undefined : "Arrival time not recorded yet"} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300 disabled:opacity-50">
                 <CheckCircle className="w-5 h-5 mr-2" />Complete
               </DropdownMenuItem>
             </>
