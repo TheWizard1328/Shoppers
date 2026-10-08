@@ -1432,11 +1432,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="font-semibold tabular-nums text-slate-400">{fmtMoney(loc.storeCardSpend)}</div>
                 </div>
                 }
-              {ownerCanEdit &&
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums hidden">
-                +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
-              </div>
-                }
+              
+
+
+
+                
               {(() => {
                   // Collected/Uncollected/Past uncollected list — owner request
                   // Oct 4 2026: drivers see this full section too (same as the
@@ -1553,10 +1553,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                         Square Cards, pulled from the card (MOBILE) locations the per-store
-                         sync never saw before. Attributed = fed by that store's sale
-                         (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                         unattributed = folder / manual transfer with no sale link yet. */}
+                          Square Cards, pulled from the card (MOBILE) locations the per-store
+                          sync never saw before. Attributed = fed by that store's sale
+                          (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                          unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -1675,7 +1675,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                         card (does not reset the window). One-way only — never card → folder. */}
+                          card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
