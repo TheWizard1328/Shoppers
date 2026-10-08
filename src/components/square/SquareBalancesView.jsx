@@ -7,7 +7,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFee } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -208,6 +208,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {/* Owner spec (Oct 7 2026): settled breakdown on the
+                        second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
+                        Debit". S = Square fee, F = folder%, L = loan%, then
+                        the settled net and the tender badge. Card rows only. */}
+                    {showNetAmount && r.feeParts && (
+                      <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                        {r.sub} | S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)} |
+                      </span>
+                    )}
                     {showNetAmount && (
                       <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
                     )}
@@ -729,6 +738,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           netAmount: isCard
             ? computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow })
             : null,
+          // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
+          // "HH:MM | S:fee F:folder L:loan | net Type" for card payments —
+          // the settled story of the collection in one line. Cash / Cheque
+          // rows have no card fees, so no breakdown.
+          feeParts: isCard ? (function () {
+            const fee = estimateCardFee(gross, label);
+            return {
+              fee,
+              folder: gross * folderRateNow,
+              loan: gross * Number(loanRateByLoc.get(locId) || 0),
+            };
+          })() : null,
         });
       }
 
