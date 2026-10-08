@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CheckCircle, Edit, History, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
 export default function StopCardFooterMenu(props) {
@@ -86,9 +87,25 @@ export default function StopCardFooterMenu(props) {
   // that is NOT the current next-delivery (the inline Complete button on the action row
   // already covers the isNextDelivery card). Applies to regular deliveries, store
   // pickups, and inter-store stops alike.
+  // OWNER SPEC (Oct 8 2026, backup rule): on the isNextDelivery (active stop)
+  // card the menu Complete APPEARS whenever the inline footer Complete is gated
+  // off (no recorded arrival_time, non-retro timing) — visible and ENABLED as
+  // the deliberate backup path. It hides again on that card once arrival_time
+  // is set or retro timing is active (the inline button covers completion).
+  // isRetroTimingLive mirrors StopCardActionButtons: retro = today after 21:00
+  // or past-due dates, computed via shouldUseRegularTiming.
+  const _nowForRetro = new Date();
+  const _todayStrForRetro = `${_nowForRetro.getFullYear()}-${String(_nowForRetro.getMonth() + 1).padStart(2, '0')}-${String(_nowForRetro.getDate()).padStart(2, '0')}`;
+  const _nowTimeStrForRetro = `${String(_nowForRetro.getHours()).padStart(2, '0')}:${String(_nowForRetro.getMinutes()).padStart(2, '0')}`;
+  const isRetroTimingLive = !!(delivery?.delivery_date && delivery.delivery_date <= _todayStrForRetro) && !shouldUseRegularTiming({
+    deliveryDate: delivery?.delivery_date,
+    todayDateString: _todayStrForRetro,
+    currentTimeString: _nowTimeStrForRetro,
+  });
+  const inlineCompleteGated = isNextDelivery && !delivery?.arrival_time && !isRetroTimingLive;
   const canShowComplete = !!(
     !isFinishedDelivery &&
-    !isNextDelivery &&
+    (!isNextDelivery || inlineCompleteGated) &&
     isActiveStop &&
     handleCompleteAction &&
     canManageStop
