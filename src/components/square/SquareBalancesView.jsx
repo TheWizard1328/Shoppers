@@ -1588,9 +1588,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         </div>
       }
 
+      {ownerCanEdit &&
       <div className="text-[11px] text-slate-400">
         Card = start + sales − fees − 2% folder − loan%. Loan and folder are computed from owner-supplied rates (not in Square's API). Off-card spending isn't tracked — use True-Up whenever the real Square numbers are checked.
       </div>
+      }
 
       {/* True-up overlay: enter the CURRENT real numbers from each Square dashboard */}
       {showTrueUp &&
