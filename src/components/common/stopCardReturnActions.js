@@ -97,11 +97,10 @@ export function useStopCardReturnActions({
           if ((delivery.cod_total_amount_required || 0) > 0) {
             // Catalog cleanup: returned → the Square register item is removed.
             backgroundTasks.push(Promise.resolve(syncDeliverySquareCod(delivery.id, { status: 'returned' })));
-            // SQUARE BALANCES (owner rule, Oct 8 2026): a RETURNED failed COD
-            // releases its amount back onto the card balance — the goods are
-            // going back to the store. cod_returned_at excludes the delivery
-            // from the Uncollected lists and from the pending deduction, so
-            // the estimate reads the amount back on the card.
+            // AUDIT STAMP (owner rule REVISED Oct 8 2026): cod_returned_at
+            // does NOT release the amount — the failed COD KEEPS showing on
+            // Square Balances and keeps its deduction until an actual Square
+            // refund is detected or manually marked on the red Failed badge.
             const _returnedStamp = { cod_returned_at: new Date().toISOString() };
             backgroundTasks.push(updateDeliveryLocal(delivery.id, _returnedStamp, { skipSmartRefresh: true }).catch(() => null));
             backgroundTasks.push(base44.entities.Delivery.update(delivery.id, _returnedStamp).catch(() => null));

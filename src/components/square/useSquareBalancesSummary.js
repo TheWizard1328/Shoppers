@@ -18,6 +18,11 @@ const SETTING_KEY = 'square_balances';
 // Same key the SquareBalancesView toggle writes (Oct 6 2026): entries with
 // notTappedAt are "Not Tapped" overrides — their COD never deducts from the card.
 const SPEND_MARKS_KEY = 'square_card_spend_marks';
+// OWNER SPEC (Oct 8 2026): manual "mark refunded" for FAILED CODs — the
+// backup when auto refund detection misses (broken Square link chains).
+// Clicking the red Failed badge writes {at, by} here; the delivery drops off
+// the Balances page and its amount returns to the card estimate.
+const FAILED_REFUND_MARKS_KEY = 'square_failed_refund_marks';
 
 // ── IDB-FIRST READS (owner report, Oct 2 2026: boot rate-limit storm) ────────
 // One badge reload used to fire ~25 entity API calls (3 full status scans,
@@ -381,7 +386,10 @@ export function isFailedCodRefunded(item, refundRows, locIdForStore) {
   if (!item) return false;
   const id = item.delivery_id ? String(item.delivery_id) : null;
   const cents = Math.round(Number(item.amount || 0) * 100);
-  const createdT = item.created_date ? new Date(item.created_date).getTime() : null;
+  // OWNER SPEC (Oct 8 2026): the refund must land ON OR AFTER the delivery's
+  // DELIVERY DATE (not the created_date — a refund before the delivery date
+  // is a different transaction, never this COD's release).
+  const delivDate = String(item.date || '').slice(0, 10);
   const locId = locIdForStore ? String(locIdForStore(item.store_id)) : null;
   for (const r of refundRows || []) {
     if (id && String(r?.delivery_id || '') === id) return true;
@@ -389,10 +397,40 @@ export function isFailedCodRefunded(item, refundRows, locIdForStore) {
       cents > 0 &&
       Math.round(Number(r?.amount_cents || 0)) === cents &&
       (!locId || String(r?.location_id || '') === locId) &&
-      (!createdT || !r?.occurred_at || new Date(r.occurred_at).getTime() >= createdT)
+      (!delivDate || !r?.occurred_at || String(edmontonWallString(new Date(r.occurred_at))).slice(0, 10) >= delivDate)
     ) return true;
   }
   return false;
+}
+
+// Manual refund marks ({deliveryId: {at, by}}) — the owner's backup path when
+// auto detection misses a refund (the red Failed badge click). Reads the most
+// recently updated record with the key (defensive: duplicate records have
+// appeared before).
+export async function loadFailedRefundMarksMap() {
+  const rows = await getAppSettingRows(FAILED_REFUND_MARKS_KEY).catch(() => []);
+  const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
+  const val = rec?.setting_value;
+  const out = {};
+  for (const [k, v] of Object.entries(val && typeof val === 'object' ? val : {})) {
+    if (v && typeof v === 'object' && (v.at || v.refundedAt)) out[k] = { at: v.at || v.refundedAt, by: v.by || null };
+  }
+  return out;
+}
+
+// Mark a FAILED COD as refunded (owner clicks the red Failed badge). Idempotent
+// upsert into the AppSettings record — safe to call repeatedly.
+export async function markFailedCodRefunded(deliveryId, byId = null) {
+  if (!deliveryId) return null;
+  const key = String(deliveryId);
+  const existing = await loadFailedRefundMarksMap().catch(() => ({}));
+  if (existing[key]) return existing;
+  const next = { ...existing, [key]: { at: new Date().toISOString(), by: byId || null } };
+  const rows = await getAppSettingRows(FAILED_REFUND_MARKS_KEY).catch(() => []);
+  const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
+  if (rec?.id) await base44.entities.AppSettings.update(rec.id, { setting_value: next });
+  else await base44.entities.AppSettings.create({ setting_key: FAILED_REFUND_MARKS_KEY, setting_value: next, description: 'Manual Refunded marks — {at, by} per failed delivery; clicking the Failed badge releases the COD back onto the card balance' });
+  return next;
 }
 
 function windowSinceFor(cfg) {
@@ -745,8 +783,12 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
 
   // 'failed' included (owner spec Oct 8 2026): a failed delivery's COD is
   // still uncollected money off the card — it stays in the Uncollected lists
-  // and keeps its pending deduction until a Square refund is registered.
-  const refundRows = await loadFailedRefundEntries(cfg, userId).catch(() => []);
+  // and keeps its pending deduction until a refund is detected (auto from the
+  // Square ledger, or manual via the owner clicking the red Failed badge).
+  const [refundRows, manualRefundMarks] = await Promise.all([
+    loadFailedRefundEntries(cfg, userId).catch(() => []),
+    loadFailedRefundMarksMap().catch(() => ({}))
+  ]);
   for (const status of ['pending', 'in_transit', 'en_route', 'failed']) {
     const rows = deliveriesWithStatus(allDeliveries, status);
     for (const d of rows || []) {
@@ -759,15 +801,19 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       const outstanding = Math.max(0, centsOf(required) - nonCash);
       if (outstanding <= 0) continue;
       // FAILED + RETRIED (owner rule, Oct 8 2026): the retry delivery now
-      // carries this COD — the original must stop deducting or the amount is
-      // taken off the card TWICE (original + retry).
-      if (status === 'failed' && (d?.cod_retried_at || d?.cod_returned_at)) continue;
+      // carries this COD — the original must NOT show at all and must stop
+      // deducting, or the amount is taken off the card TWICE (original +
+      // retry would double-count the amount off the card).
+      if (status === 'failed' && d?.cod_retried_at) continue;
       const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) };
-      // FAILED + refunded → resolved: the refund put the money back on the
-      // card, so it is no longer uncollected and no longer deducts.
-      // FAILED + RETURNED (owner rule, Oct 8 2026): the goods went back to
-      // the store — cod_returned_at above already released it.
-      if (status === 'failed' && isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')))) continue;
+      // FAILED + REFUNDED (auto or manual) → resolved: the refund put the
+      // money back on the card, so the row leaves the Uncollected lists and
+      // the pending deduction releases. NOTE (owner spec Oct 8 2026): a
+      // RETURNED failed COD KEEPS SHOWING here (cod_returned_at is audit
+      // only) — the goods went back to the store, but the card only gets its
+      // money back when the actual Square refund is detected or manually
+      // marked on the badge.
+      if (status === 'failed' && (manualRefundMarks[String(d.id)] || isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || ''))))) continue;
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
       agg.items.push(item);

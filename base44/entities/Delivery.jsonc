@@ -163,7 +163,7 @@
     "cod_returned_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Timestamp when a FAILED delivery with a COD was RETURNED (goods back to the store) — the amount to collect releases back onto the Square card balance; the delivery drops from the Uncollected lists"
+      "description": "Timestamp when a FAILED delivery with a COD was RETURNED (goods back to the store) — AUDIT ONLY (owner spec Oct 8 2026): the item KEEPS showing on Square Balances and keeps its deduction until an actual Square refund is detected or manually marked on the Failed badge"
     },
     "cod_retried_at": {
       "type": "string",

@@ -7,7 +7,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -131,7 +131,7 @@ function buildPatientResolver(patientsRaw) {
 // Pickup). pendingPickup rows previously used the sky "Card Spend" pill as a
 // status; that wording now belongs to the transaction-evidence pill, so
 // their status pill reads "Awaiting Pickup".
-function CardCodList({ sections, canMarkSpend, onMarkSpend, loading }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, loading }) {
   const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
   // Loading placeholder: show the three section headers (Collected today /
   // Uncollected / Past uncollected) with a spinner while the delivery + COD
@@ -269,7 +269,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, loading }) {
                     {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
-                    <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>
+                    {r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ? (
+                  <span
+                    onClick={() => onMarkRefunded(r.delivery_id)}
+                    title="Mark this failed COD as refunded — the amount returns to the card balance"
+                    // No role="button" (same min-height CSS trap as the pills).
+                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span>
+                ) : (
+                  <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>
+                )}
                     </div>
                   </div>
               </div>);
@@ -449,6 +457,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.error('Could not save the toggle');
       setManualSpendMarks(prev);
       manualSpendMarksRef.current = prev;
+    }
+  }, [currentUser]);
+
+  // OWNER SPEC (Oct 8 2026): manual "mark refunded" — the red Failed badge
+  // is clickable (owner only) as the backup when auto refund detection misses
+  // a refund in the Square ledger (broken link chains). Marking removes the
+  // failed delivery from the Uncollected lists and releases its amount back
+  // onto the card estimate. Idempotent server-side; local recompute follows.
+  const markFailedRefunded = useCallback(async (deliveryId) => {
+    if (!currentUser || !deliveryId) return;
+    try {
+      await markFailedCodRefunded(deliveryId, currentUser?.id || null);
+      toast.success('Marked refunded — amount returned to the card balance');
+      computeLocalOutstandingRef.current?.();
+      computeDailyCodRef.current?.();
+    } catch (e) {
+      console.error('markFailedRefunded failed:', e);
+      toast.error('Could not mark the COD as refunded');
     }
   }, [currentUser]);
 
@@ -1597,6 +1623,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     <CardCodList
                       canMarkSpend={!!currentUser}
                       onMarkSpend={markCardSpend}
+                      onMarkRefunded={markFailedRefunded}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected Today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
