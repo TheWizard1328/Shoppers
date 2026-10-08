@@ -25,7 +25,7 @@ import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager"; import { queueEntityRequest } from "@/components/utils/requestQueue";
 import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
-import { loadUserSettings, saveSetting } from "@/components/utils/userSettingsManager";
+import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import useLiveBreadcrumbsSync from '@/components/dashboard/useLiveBreadcrumbsSync';
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { notifyDriverRetry } from "@/components/utils/deliveryMessaging";
@@ -966,7 +966,7 @@ function Dashboard() {
       window._cancelInFlightNextFit = true;
       window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+      if (currentUser?.id && (!isAdmin || selectedDriverIdRef.current === currentUser.id)) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
       // Unlock after 500ms so the overview fits bounds, then lets the driver pan freely
       const exp = Date.now() + 500;
       mapLockExpiresAtRef.current = exp;
@@ -1105,7 +1105,7 @@ function Dashboard() {
       // or a pending immersive toggle can't fire a second fitBounds and bounce the view.
       window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
+      if (currentUser?.id && (!isAdmin || selectedDriverId === currentUser.id)) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
       if (unlockMs != null) {
         const exp = Date.now() + unlockMs;
@@ -1888,7 +1888,7 @@ function Dashboard() {
     // the saved phase. Phase 2/3 are unavailable when every stop is finished, so
     // restoring a saved phase 2/3 would leave the FAB visually stuck.
     const routeDone = !!isRouteComplete && !!completedRouteCity;
-    const _sp = routeDone ? 1 : (([1,2,3].includes(Number(initialFabPhase))) ? Number(initialFabPhase) : 1);
+    const _ownRoute = !!currentUser && (isAdmin ? selectedDriverId === currentUser.id : isDriver); const _ps = _ownRoute ? Number(getSetting('fab_map_cycle_phase')) : Number(initialFabPhase); const _sp = routeDone ? 1 : (([1,2,3].includes(_ps)) ? _ps : 1);
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
     // Phases 2 & 3: restore locked so map positions to saved phase and next FAB click cycles forward.
