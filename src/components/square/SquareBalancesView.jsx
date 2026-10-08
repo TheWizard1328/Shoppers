@@ -112,49 +112,49 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
   if (!sections || !sections.some((s) => s.rows.length > 0)) return null;
   return (
     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-      {sections.map((sec) => (
-        <div key={sec.label} className="space-y-1">
+      {sections.map((sec) =>
+      <div key={sec.label} className="space-y-1">
           <div className="flex items-center justify-between text-[11px] font-medium">
             <span style={{ color: sec.color }}>{sec.label}</span>
             <span className="text-slate-400 tabular-nums">{sec.rows.length} · {fmtMoney(sec.total)}</span>
           </div>
           {sec.rows.length === 0 && <div className="text-[11px] text-slate-400">none</div>}
           {sec.rows.map((r) => {
-            // Owner spec (Oct 5 2026): left side is identity (name+store on
-            // top, date/time below); right side is a 2x2 value/badge grid so
-            // every number and pill stays lined up on the far right —
-            // row 1 = amount to collect + Card Spend flag, row 2 = (once
-            // collected) the net amount returned to the card + the status
-            // badge, whose word itself names the real tender (Cash / Debit /
-            // Credit). Cash never shows a net amount — no card fees applied.
-            // Cash-already-collected rows (owner spec, Oct 6 2026): the
-            // catalog item deliberately stays alive after a cash collection
-            // until the deposit is processed back to the Square card — so the
-            // row stays in Uncollected / Past uncollected, but its status
-            // pill reads 'Cash' (emerald, same as a collected Cash row) so it
-            // looks visibly different from a COD nobody has collected yet
-            // (amber 'Pending'). Card Spend pills still render on these rows.
-            const statusLabel = r.collected
-              ? (r.collectedLabel || 'Collected')
-              : (r.cashAwaitingSquare ? 'Cash' : (r.pendingPickup ? 'Awaiting Pickup' : 'Pending'));
-            const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
-            const statusColorCls = r.collected
-              ? emeraldCls
-              : (r.cashAwaitingSquare ? emeraldCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300');
-            const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
-            return (
-              <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+          // Owner spec (Oct 5 2026): left side is identity (name+store on
+          // top, date/time below); right side is a 2x2 value/badge grid so
+          // every number and pill stays lined up on the far right —
+          // row 1 = amount to collect + Card Spend flag, row 2 = (once
+          // collected) the net amount returned to the card + the status
+          // badge, whose word itself names the real tender (Cash / Debit /
+          // Credit). Cash never shows a net amount — no card fees applied.
+          // Cash-already-collected rows (owner spec, Oct 6 2026): the
+          // catalog item deliberately stays alive after a cash collection
+          // until the deposit is processed back to the Square card — so the
+          // row stays in Uncollected / Past uncollected, but its status
+          // pill reads 'Cash' (emerald, same as a collected Cash row) so it
+          // looks visibly different from a COD nobody has collected yet
+          // (amber 'Pending'). Card Spend pills still render on these rows.
+          const statusLabel = r.collected ?
+          r.collectedLabel || 'Collected' :
+          r.cashAwaitingSquare ? 'Cash' : r.pendingPickup ? 'Awaiting Pickup' : 'Pending';
+          const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
+          const statusColorCls = r.collected ?
+          emeraldCls :
+          r.cashAwaitingSquare ? emeraldCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
+          const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
+          return (
+            <div key={r.key} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
                 <div className="min-w-0 flex flex-col gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    {r.storeAbbrev && (
-                      <span
-                        className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                        style={{ backgroundColor: r.storeColor || '#64748b' }}
-                      >
+                    {r.storeAbbrev &&
+                  <span
+                    className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                    style={{ backgroundColor: r.storeColor || '#64748b' }}>
+                    
                         {r.storeAbbrev}
                       </span>
-                    )}
-                    <p className="font-semibold text-[13px] leading-4 text-slate-900 dark:text-slate-50 truncate">{r.patientName || 'COD'}</p>
+                  }
+                    <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] w">{r.patientName || 'COD'}</p>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.sub}</p>
                 </div>
@@ -162,74 +162,74 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
                     {/* Card Spend pill (owner spec Oct 6 2026) — TOGGLE on
-                        uncollected rows: Square's card-activity data proved too
-                        unreliable to auto-detect, so every uncollected COD
-                        defaults to "Card Spend" (sky). Tapping flips it to
-                        "Not Tapped" (violet) — the COD is added back to the
-                        card balance estimate — and tapping again flips back.
-                        Collected rows keep the legacy auto/manual evidence
-                        pills. */}
-                    {r.collected ? r.hasCardSpend ? (
-                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span>
-                    ) : r.manualCardSpend ? (
-                      <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">Card Spend</span>
-                    ) : (canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend) ? (
-                      <span
-                        onClick={() => onMarkSpend(r.delivery_id)}
-                        title="Mark this COD as having a Card Spend in your Square app"
-                        // NOTE (Oct 6 2026): deliberately NO role="button" here —
-                        // src/index.css has a global accessibility rule,
-                        // [role="button"] { min-height: 44px }, that forced this
-                        // pill to a tap-target height far taller than every other
-                        // badge on the row. Plain onClick on a bare span keeps it
-                        // visually identical to the Pending/Collected/Card Spend
-                        // pills (same classes), just clickable.
-                        className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
-                      >Mark Spend</span>
-                    ) : null : (
-                      // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
-                      // toggle — every COD defaults to "Card Spend"; tapping it
-                      // flips to "Not Tapped" (the COD is added back to the card
-                      // balance), tapping again flips back. Owner-only tappable;
-                      // drivers see the static state.
-                      canMarkSpend && !!r.delivery_id && onMarkSpend ? (
-                        <span
-                          onClick={() => onMarkSpend(r.delivery_id)}
-                          className={r.notTapped
-                            ? 'cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300'
-                            : 'cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'}
-                        >{r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
-                      ) : (
-                        <span className={r.notTapped
-                          ? 'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300'
-                          : 'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'}
-                        >{r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
-                      )
-                    )}
+                       uncollected rows: Square's card-activity data proved too
+                       unreliable to auto-detect, so every uncollected COD
+                       defaults to "Card Spend" (sky). Tapping flips it to
+                       "Not Tapped" (violet) — the COD is added back to the
+                       card balance estimate — and tapping again flips back.
+                       Collected rows keep the legacy auto/manual evidence
+                       pills. */}
+                    {r.collected ? r.hasCardSpend ?
+                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">Card Spend</span> :
+                  r.manualCardSpend ?
+                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">Card Spend</span> :
+                  canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
+                  <span
+                    onClick={() => onMarkSpend(r.delivery_id)}
+                    title="Mark this COD as having a Card Spend in your Square app"
+                    // NOTE (Oct 6 2026): deliberately NO role="button" here —
+                    // src/index.css has a global accessibility rule,
+                    // [role="button"] { min-height: 44px }, that forced this
+                    // pill to a tap-target height far taller than every other
+                    // badge on the row. Plain onClick on a bare span keeps it
+                    // visually identical to the Pending/Collected/Card Spend
+                    // pills (same classes), just clickable.
+                    className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                    Mark Spend</span> :
+                  null :
+                  // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
+                  // toggle — every COD defaults to "Card Spend"; tapping it
+                  // flips to "Not Tapped" (the COD is added back to the card
+                  // balance), tapping again flips back. Owner-only tappable;
+                  // drivers see the static state.
+                  canMarkSpend && !!r.delivery_id && onMarkSpend ?
+                  <span
+                    onClick={() => onMarkSpend(r.delivery_id)}
+                    className={r.notTapped ?
+                    'cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300' :
+                    'cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'}>
+                    {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
+
+                  <span className={r.notTapped ?
+                  'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300' :
+                  'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'}>
+                    {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
+
+                  }
                   </div>
                   <div className="flex items-center gap-1.5">
                     {/* Owner spec (Oct 7 2026): settled breakdown on the
-                        second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
-                        Debit". S = Square fee, F = folder%, L = loan%, then
-                        the settled net and the tender badge. Card rows only. */}
-                    {showNetAmount && r.feeParts && (
-                      <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                       second row — "16:56 | S:0.47 F:1.06 L:9.15 | 42.37
+                       Debit". S = Square fee, F = folder%, L = loan%, then
+                       the settled net and the tender badge. Card rows only. */}
+                    {showNetAmount && r.feeParts &&
+                  <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
                         {r.sub} | S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)} |
                       </span>
-                    )}
-                    {showNetAmount && (
-                      <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
-                    )}
+                  }
+                    {showNetAmount &&
+                  <span className="text-[12px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmtMoney(r.netAmount)}</span>
+                  }
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusColorCls}`}>{statusLabel}</span>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              </div>);
+
+        })}
         </div>
-      ))}
-    </div>
-  );
+      )}
+    </div>);
+
 }
 
 export default function SquareBalancesView({ currentUser, visibleLocationIds = null }) {
@@ -353,8 +353,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const value = {};
     for (const [k, v] of Object.entries(raw)) {
       if (!v || typeof v !== 'object') continue;
-      if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };
-      else if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
+      if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };else
+      if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
     }
     spendMarksRecordIdRef.current = rec?.id || null;
     setManualSpendMarks(value);
@@ -375,7 +375,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     if (!ownerCanEdit || !deliveryId) return;
     const prev = manualSpendMarksRef.current || {};
     const key = String(deliveryId);
-    const togglingBack = !!(prev?.[key]?.notTapped);
+    const togglingBack = !!prev?.[key]?.notTapped;
     const nowIso = new Date().toISOString();
     // Oct 7 2026: ALWAYS keep a record with the fresh touchedAt — never
     // delete the key when toggling back to Card Spend. The deduction rule
@@ -412,12 +412,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   //   - bank sweeps (BATCH payouts) + card topups from the existing ledger
   //     rows (DB reads served by the 10-min IDB windows cache — no API call).
   const loadSales = useCallback(async (cfg) => {
-    if (!cfg?.trued_up_at) { setDeliveryCredits(new Map()); setPayouts([]); return; }
+    if (!cfg?.trued_up_at) {setDeliveryCredits(new Map());setPayouts([]);return;}
     const seq = ++loadSeq.current;
     const creditsMap = await loadDeliveryCardCredits(cfg, currentUser?.id || null).catch(() => new Map());
     const payoutRows = await loadCardPayouts(cfg, currentUser?.id || null).catch(() => []);
     const topupRows = await loadCardTopups(cfg, currentUser?.id || null).catch(() => []);
-    if (seq === loadSeq.current) { setDeliveryCredits(creditsMap); setPayouts(payoutRows); setTopups(topupRows); }
+    if (seq === loadSeq.current) {setDeliveryCredits(creditsMap);setPayouts(payoutRows);setTopups(topupRows);}
   }, [currentUser?.id]);
 
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
@@ -442,7 +442,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // regardless of delivery date — this catches old ones (e.g. 100 days back)
   // that the true-up-window delivery queries exclude. Statuses 'completed' and
   // 'deleted' mean the item was rung/removed = collected, so they're skipped.
-    const computeCatalogUncollected = useCallback(async () => {
+  const computeCatalogUncollected = useCallback(async () => {
     // MERGE ROLE (owner spec, Oct 7 2026 follow-up): the catalog list is
     // MERGED into the Uncollected / Past uncollected sections alongside the
     // delivery-derived rows, exactly like the old system — ACTIVE catalog
@@ -481,14 +481,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const itemsRaw = itemsPages;
       const totalItemsFetched = itemsRaw.length;
       const [storesRaw, patientsRaw] = await Promise.all([
-        base44.entities.Store.list().catch(() => []),
-        base44.entities.Patient.list().catch(() => []),
-      ]);
+      base44.entities.Store.list().catch(() => []),
+      base44.entities.Patient.list().catch(() => [])]
+      );
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const storeById = new Map();
-      (storesRaw || []).forEach((s) => { if (s?.id) storeById.set(String(s.id), s); });
+      (storesRaw || []).forEach((s) => {if (s?.id) storeById.set(String(s.id), s);});
       const byLoc = new Map();
-      for (const it of (itemsRaw || [])) {
+      for (const it of itemsRaw || []) {
         if (!it?.location_id) continue;
         if (!byLoc.has(it.location_id)) byLoc.set(it.location_id, []);
         const sInfo = storeById.get(String(it.store_id || ''));
@@ -501,7 +501,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeColor: sInfo?.color || null,
           amount: Number(it.amount || 0),
           date: date || null,
-          cashAwaitingSquare: false,
+          cashAwaitingSquare: false
         });
       }
       // DEFENSIVE DEDUP (Oct 6 2026, owner report: Emilen Brochu COD shown
@@ -515,7 +515,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const byDelivery = new Map();
         const noDeliveryId = [];
         for (const r of rowsRaw) {
-          if (!r.delivery_id) { noDeliveryId.push(r); continue; }
+          if (!r.delivery_id) {noDeliveryId.push(r);continue;}
           const existing = byDelivery.get(r.delivery_id);
           if (!existing || String(r.key) > String(existing.key)) byDelivery.set(r.delivery_id, r);
         }
@@ -534,12 +534,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const out = { ...freshOut };
       for (const [locId, prevRows] of Object.entries(catalogUncollectedByLocRef.current || {})) {
         const freshIds = freshIdsByLoc.get(locId) || new Set();
-        for (const r of (prevRows || [])) {
+        for (const r of prevRows || []) {
           if (!r.delivery_id) continue;
           seenThisPass.add(r.delivery_id);
-          if (freshIds.has(r.delivery_id)) { streak.delete(r.delivery_id); continue; }
+          if (freshIds.has(r.delivery_id)) {streak.delete(r.delivery_id);continue;}
           const misses = (streak.get(r.delivery_id) || 0) + 1;
-          if (misses >= 2) { streak.delete(r.delivery_id); continue; } // confirmed gone
+          if (misses >= 2) {streak.delete(r.delivery_id);continue;} // confirmed gone
           streak.set(r.delivery_id, misses);
           if (!out[locId]) out[locId] = [];
           out[locId] = [...out[locId], r]; // carry forward one more cycle
@@ -581,7 +581,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
-          for (const d of (rows || [])) {
+          for (const d of rows || []) {
             if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
               cashCollectedDeliveryIds.add(d.id);
               if (d?.cod_confirmed_collected) alreadyConfirmedIds.add(d.id);
@@ -626,11 +626,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             if (!prev) return prev;
             const next = {};
             for (const [locId, rows] of Object.entries(prev)) {
-              next[locId] = rows
-                .filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
-                .map((r) => (
-                  r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
-                ));
+              next[locId] = rows.
+              filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
+              .map((r) =>
+              r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
+              );
             }
             catalogUncollectedByLocRef.current = next;
             return next;
@@ -658,17 +658,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeCodCollectedToday = useCallback(async () => {
     try {
       const [storesRaw, cfgsRaw, patientsRaw] = await Promise.all([
-        base44.entities.Store.list().catch(() => []),
-        base44.entities.SquareLocationConfig.list().catch(() => []),
-        base44.entities.Patient.list().catch(() => []),
-      ]);
+      base44.entities.Store.list().catch(() => []),
+      base44.entities.SquareLocationConfig.list().catch(() => []),
+      base44.entities.Patient.list().catch(() => [])]
+      );
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const cfgNow = configRef.current || {};
       const folderRateNow = Number(cfgNow.folder_rate ?? DEFAULT_FOLDER_RATE);
       const loanRateByLoc = new Map();
-      (cfgNow.locations || []).forEach((l) => { if (l?.location_id) loanRateByLoc.set(l.location_id, Number(l.loan_rate || 0)); });
+      (cfgNow.locations || []).forEach((l) => {if (l?.location_id) loanRateByLoc.set(l.location_id, Number(l.loan_rate || 0));});
       const cfgLoc = new Map();
-      (cfgsRaw || []).forEach((c) => { if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id); });
+      (cfgsRaw || []).forEach((c) => {if (c?.id && c?.square_location_id) cfgLoc.set(c.id, c.square_location_id);});
       const storeToLoc = new Map();
       const storeById = new Map();
       (storesRaw || []).forEach((st) => {
@@ -713,10 +713,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // else (or no payment rows) reads as Cash.
         const types = payments.map((pm) => String(pm?.type || '').toLowerCase());
         const isCard = types.includes('debit') || types.includes('credit');
-        const label = types.includes('debit') ? 'Debit'
-          : types.includes('credit') ? 'Credit'
-          : types.includes('cheque') ? 'Cheque'
-          : 'Cash';
+        const label = types.includes('debit') ? 'Debit' :
+        types.includes('credit') ? 'Credit' :
+        types.includes('cheque') ? 'Cheque' :
+        'Cash';
 
         const gross = (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
@@ -735,14 +735,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           manualCardSpend: !!(mark?.touchedAt || mark?.at),
           collectedLabel: label,
           // Cash / Cheque never touch the card — no fee/loan/folder math.
-          netAmount: isCard
-            ? computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow })
-            : null,
+          netAmount: isCard ?
+          computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
+          null,
           // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
           // "HH:MM | S:fee F:folder L:loan | net Type" for card payments —
           // the settled story of the collection in one line. Cash / Cheque
           // rows have no card fees, so no breakdown.
-          feeParts: isCard ? (function () {
+          feeParts: isCard ? function () {
             // Cents-rounded components (owner spec Oct 7 2026) — same values
             // that feed the settled net, so the S/F/L line always sums to
             // gross − net exactly.
@@ -750,9 +750,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             return {
               fee: estimateCardFeeCents(grossC, label) / 100,
               folder: folderCentsFor(grossC, folderRateNow) / 100,
-              loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100,
+              loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100
             };
-          })() : null,
+          }() : null
         });
       }
 
@@ -799,7 +799,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             setIsLoading(false);
           }
         }
-      } catch (e) { /* snapshot is best-effort — server load below is authoritative */ }
+      } catch (e) {/* snapshot is best-effort — server load below is authoritative */}
       try {
         // OWNER SPEC (Oct 7 2026): NO Square API sync on this page anymore —
         // mount computes strictly from delivery data (credits, outstanding,
@@ -863,15 +863,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Manual Card Spend marks: load on mount, keep fresh on AppSettings
   // broadcasts (marking on one device instantly shows the violet pill on
   // every open device).
-  useEffect(() => { loadSpendMarks(); }, [loadSpendMarks]);
+  useEffect(() => {loadSpendMarks();}, [loadSpendMarks]);
 
   useEffect(() => {
     const unsubs = [];
-    let cfgTimer = null, ledgerTimer = null, deliveryTimer = null, codTimer = null, catalogTimer = null, cardCollectedTimer = null;
+    let cfgTimer = null,ledgerTimer = null,deliveryTimer = null,codTimer = null,catalogTimer = null,cardCollectedTimer = null;
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => { computeLocalOutstandingRef.current?.(); computeCodCollectedTodayRef.current?.(); computeCatalogUncollectedRef.current?.(); loadDailyCodRef.current?.(); }, 8000);
+      codTimer = setTimeout(() => {computeLocalOutstandingRef.current?.();computeCodCollectedTodayRef.current?.();computeCatalogUncollectedRef.current?.();loadDailyCodRef.current?.();}, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -885,8 +885,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const value = {};
           for (const [k, v] of Object.entries(raw)) {
             if (!v || typeof v !== 'object') continue;
-            if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };
-            else if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
+            if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };else
+            if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
           }
           if (event?.data?.id) spendMarksRecordIdRef.current = event.data.id;
           if (seq !== spendMarksSeq.current) return;
@@ -917,20 +917,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (cfg) await loadSalesRef.current?.(cfg);
         }, 2000);
       }));
-    } catch (e) { console.error('AppSettings subscribe failed:', e); }
+    } catch (e) {console.error('AppSettings subscribe failed:', e);}
     try {
       unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
         invalidateLedgerWindows(); // windows cache is stale — force refetch inside loadSales
         clearTimeout(ledgerTimer);
         ledgerTimer = setTimeout(() => loadSalesRef.current?.(configRef.current), 5000);
       }));
-    } catch (e) { console.error('Ledger subscribe failed:', e); }
+    } catch (e) {console.error('Ledger subscribe failed:', e);}
     try {
       unsubs.push(base44.entities.SquareCatalogItems.subscribe(() => {
         clearTimeout(catalogTimer);
-        catalogTimer = setTimeout(() => { computeCatalogUncollectedRef.current?.(); }, 5000);
+        catalogTimer = setTimeout(() => {computeCatalogUncollectedRef.current?.();}, 5000);
       }));
-    } catch (e) { console.error('Catalog subscribe failed:', e); }
+    } catch (e) {console.error('Catalog subscribe failed:', e);}
     try {
       unsubs.push(base44.entities.Delivery.subscribe((event) => {
         scheduleCodRecompute();
@@ -939,20 +939,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // real settled values — a short-debounce Square sync (owner tab only).
         const ed = event?.data;
         if (
-          ownerCanEditRef.current
-          && String(ed?.status || '') === 'completed'
-          && Array.isArray(ed?.cod_payments)
-          && ed.cod_payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()))
-        ) {
+        ownerCanEditRef.current &&
+        String(ed?.status || '') === 'completed' &&
+        Array.isArray(ed?.cod_payments) &&
+        ed.cod_payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase())))
+        {
           clearTimeout(cardCollectedTimer);
-          cardCollectedTimer = setTimeout(() => { syncRef.current?.(); }, 20000);
+          cardCollectedTimer = setTimeout(() => {syncRef.current?.();}, 20000);
         }
         // Full Square re-sync on sustained activity only (protects Square API rate limits)
         // — owner-only: a driver's open tab must never fire Square API syncs.
         clearTimeout(deliveryTimer);
-        deliveryTimer = setTimeout(() => { if (ownerCanEditRef.current) syncRef.current?.(); }, 300000);
+        deliveryTimer = setTimeout(() => {if (ownerCanEditRef.current) syncRef.current?.();}, 300000);
       }));
-    } catch (e) { console.error('Delivery subscribe failed:', e); }
+    } catch (e) {console.error('Delivery subscribe failed:', e);}
     // Same-device delivery edits (DeliveryForm/StopCard dispatch these) — WS echo
     // suppression blocks our own writes for 5 min, so also listen to the app events.
     const onDeliveriesUpdated = () => scheduleCodRecompute();
@@ -960,8 +960,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.addEventListener('routeReordered', onRouteReordered);
     return () => {
-      clearTimeout(cfgTimer); clearTimeout(ledgerTimer); clearTimeout(deliveryTimer); clearTimeout(codTimer); clearTimeout(catalogTimer); clearTimeout(cardCollectedTimer);
-      unsubs.forEach((u) => { try { u?.(); } catch {} });
+      clearTimeout(cfgTimer);clearTimeout(ledgerTimer);clearTimeout(deliveryTimer);clearTimeout(codTimer);clearTimeout(catalogTimer);clearTimeout(cardCollectedTimer);
+      unsubs.forEach((u) => {try {u?.();} catch {}});
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('routeReordered', onRouteReordered);
     };
@@ -971,9 +971,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const loadDailyCod = useCallback(async () => {
     try {
       const [stl, weekly] = await Promise.all([
-        buildStoreToLocMap(),
-        computeWeeklyCodTotalsByStore(),
-      ]);
+      buildStoreToLocMap(),
+      computeWeeklyCodTotalsByStore()]
+      );
       setWeeklyCodAvgByLoc(weeklyAvgByLocFromStores(stl, weekly));
     } catch (e) {
       console.error('weekly COD average load failed:', e);
@@ -1053,7 +1053,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         pendingDeducted: r2(pendingDeductCents / 100),
         pendingDeductCount,
         codOutstanding: codOut,
-        lastSaleAt: dc.lastAt || null,
+        lastSaleAt: dc.lastAt || null
       };
     });
   }, [config, deliveryCredits, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks]);
@@ -1081,7 +1081,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
   const startTopUp = () => {
     const draft = {};
-    (config?.locations || []).forEach((loc) => { draft[loc.location_id] = ''; });
+    (config?.locations || []).forEach((loc) => {draft[loc.location_id] = '';});
     setTopUpDraft(draft);
     setShowTopUp(true);
   };
@@ -1098,9 +1098,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const saveTransfer = async () => {
     if (!config || !transferFromLoc) return;
     const amt = parseFloat(transferAmount);
-    if (!Number.isFinite(amt) || amt <= 0) { toast.error('Enter a transfer amount greater than 0'); return; }
-    if (!transferToLocId) { toast.error('Pick a destination card'); return; }
-    if (transferToLocId === transferFromLoc.location_id) { toast.error('Destination must be a different card'); return; }
+    if (!Number.isFinite(amt) || amt <= 0) {toast.error('Enter a transfer amount greater than 0');return;}
+    if (!transferToLocId) {toast.error('Pick a destination card');return;}
+    if (transferToLocId === transferFromLoc.location_id) {toast.error('Destination must be a different card');return;}
     const locations = (config.locations || []).map((loc) => {
       if (loc.location_id === transferFromLoc.location_id) return { ...loc, card_start: Number(loc.card_start || 0) - amt };
       if (loc.location_id === transferToLocId) return { ...loc, card_start: Number(loc.card_start || 0) + amt };
@@ -1134,18 +1134,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const saveFolderTransfer = async () => {
     if (!config) return;
     const amt = parseFloat(folderTransferAmount);
-    if (!Number.isFinite(amt) || amt <= 0) { toast.error('Enter a transfer amount greater than 0'); return; }
-    if (!folderTransferToLocId) { toast.error('Pick a destination card'); return; }
-    if (amt > folderTotal + 0.001) { toast.error(`Amount exceeds the folder total (${fmtMoney(folderTotal)})`); return; }
+    if (!Number.isFinite(amt) || amt <= 0) {toast.error('Enter a transfer amount greater than 0');return;}
+    if (!folderTransferToLocId) {toast.error('Pick a destination card');return;}
+    if (amt > folderTotal + 0.001) {toast.error(`Amount exceeds the folder total (${fmtMoney(folderTotal)})`);return;}
     const locations = (config.locations || []).map((loc) =>
-      loc.location_id === folderTransferToLocId
-        ? { ...loc, card_start: Number(loc.card_start || 0) + amt }
-        : loc
+    loc.location_id === folderTransferToLocId ?
+    { ...loc, card_start: Number(loc.card_start || 0) + amt } :
+    loc
     );
     const newConfig = {
       ...config,
       folder_start: Number(config.folder_start || 0) - amt,
-      locations,
+      locations
     };
     setIsSaving(true);
     try {
@@ -1176,7 +1176,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const amt = parseFloat(topUpDraft[loc.location_id]);
       return {
         ...loc,
-        card_start: Number.isFinite(amt) && amt !== 0 ? Number(loc.card_start || 0) + amt : loc.card_start,
+        card_start: Number.isFinite(amt) && amt !== 0 ? Number(loc.card_start || 0) + amt : loc.card_start
       };
     });
     setIsSaving(true);
@@ -1214,7 +1214,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         ...loc,
         card_start: Number.isFinite(card) ? card : loc.card_start,
         loan_start: Number.isFinite(loan) ? loan : loc.loan_start,
-        loan_rate: Number.isFinite(rate) ? rate : loc.loan_rate,
+        loan_rate: Number.isFinite(rate) ? rate : loc.loan_rate
       };
     });
     const folderVal = parseFloat(trueUpDraft.__folder);
@@ -1222,7 +1222,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       ...config,
       locations,
       folder_start: Number.isFinite(folderVal) ? folderVal : Number(config.folder_start || 0),
-      trued_up_at: new Date().toISOString(),
+      trued_up_at: new Date().toISOString()
     };
     setIsSaving(true);
     try {
@@ -1258,8 +1258,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="text-sm font-medium mb-1">No cards assigned to your stores today</div>
         <div className="text-xs text-slate-500">The Square card balance badge in the sidebar will update once you have stops from a Square-linked store.</div>
-      </div>
-    );
+      </div>);
+
   }
 
   if (!config) {
@@ -1267,8 +1267,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="text-sm font-medium mb-1">No balance config yet</div>
         <div className="text-xs text-slate-500">Ask the agent to seed the AppSettings 'square_balances' record (locations, starting balances, loan rates), then reload this tab.</div>
-      </div>
-    );
+      </div>);
+
   }
 
   const trueUpDays = daysSince(config.trued_up_at);
@@ -1281,46 +1281,46 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           Estimates since true-up {new Date(config.trued_up_at).toLocaleString()} ({trueUpDays}d ago)
         </div>
         <div className="ml-auto flex gap-2">
-          {ownerCanEdit && (
+          {ownerCanEdit &&
           <Button size="sm" variant="outline" onClick={syncFromSquare} disabled={isSyncing || isLoading}>
             <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
             {isSyncing ? 'Syncing…' : 'Refresh Square'}
           </Button>
-          )}
-          {ownerCanEdit && (
-            <Button size="sm" variant="outline" onClick={startTopUp} disabled={isSaving || isLoading}>
+          }
+          {ownerCanEdit &&
+          <Button size="sm" variant="outline" onClick={startTopUp} disabled={isSaving || isLoading}>
               Top Up Cards
             </Button>
-          )}
-          {ownerCanEdit && (
-            <Button size="sm" onClick={startTrueUp} disabled={isSaving}>
+          }
+          {ownerCanEdit &&
+          <Button size="sm" onClick={startTrueUp} disabled={isSaving}>
               True-Up Balances
             </Button>
-          )}
+          }
         </div>
       </div>
 
       {/* Single combined Folder total — owner/admin view only (spans all cards) */}
-      {!restricted && (
+      {!restricted &&
       <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300"><PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Folder (all cards, 2% per sale)</div>
         <div className="flex items-center gap-2">
           <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtMoney(folderTotal)}</div>
-          {ownerCanEdit && (
-            <button
-              type="button"
-              title="Transfer from folder to a card"
-              aria-label="Transfer from folder to a card"
-              className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
-              onClick={() => { setFolderTransferAmount(''); setFolderTransferToLocId(''); setFolderTransferOpen(true); }}
-              disabled={isSaving || isLoading}
-            >
+          {ownerCanEdit &&
+          <button
+            type="button"
+            title="Transfer from folder to a card"
+            aria-label="Transfer from folder to a card"
+            className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
+            onClick={() => {setFolderTransferAmount('');setFolderTransferToLocId('');setFolderTransferOpen(true);}}
+            disabled={isSaving || isLoading}>
+            
               <ArrowLeftRight className="w-3.5 h-3.5" />
             </button>
-          )}
+          }
         </div>
       </div>
-      )}
+      }
 
       {/* Color legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
@@ -1345,7 +1345,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
           return (
-          <div key={loc.location_id}
+            <div key={loc.location_id}
             className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden"
             style={lvl ? { borderColor: lvl.border, backgroundImage: `linear-gradient(0deg, ${lvl.tint}, ${lvl.tint})` } : { borderColor: 'var(--border-slate-200, #e2e8f0)' }}>
             <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -1354,18 +1354,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
                   <div className="text-[11px] text-slate-400">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
                 </div>
-                {ownerCanEdit && (
+                {ownerCanEdit &&
                   <button
                     type="button"
                     title="Funds transfer"
                     aria-label={`Funds transfer from ${loc.name || loc.location_id}`}
                     className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
-                    onClick={(e) => { e.stopPropagation(); openTransfer(loc); }}
-                    disabled={isSaving || isLoading}
-                  >
+                    onClick={(e) => {e.stopPropagation();openTransfer(loc);}}
+                    disabled={isSaving || isLoading}>
+                    
                     <ArrowLeftRight className="w-3.5 h-3.5" />
                   </button>
-                )}
+                  }
               </div>
             </div>
             <div className="px-4 py-3 space-y-2">
@@ -1373,84 +1373,84 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Wallet className="w-3.5 h-3.5" /> Card</div>
                 <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(loc.cardEstimate)}</div>
               </div>
-              {ownerCanEdit && (
-              <div className="flex items-center justify-between">
+              {ownerCanEdit &&
+                <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
                 <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.loanRemaining)}</div>
               </div>
-              )}
-              {loc.weeklyCodAvg > 0 && (
+                }
+              {loc.weeklyCodAvg > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs/day (7-day avg)</div>
                   <div className="font-semibold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(loc.weeklyCodAvg)}</div>
                 </div>
-              )}
-              {loc.sweptOut > 0 && (
+                }
+              {loc.sweptOut > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Withdrawn from card</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.sweptOut)}</div>
                 </div>
-              )}
-              {loc.pendingDeducted > 0 && (
+                }
+              {loc.pendingDeducted > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs charged to card{loc.pendingDeductCount ? ` (${loc.pendingDeductCount})` : ''}</div>
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
                 </div>
-              )}
-              {loc.storeCardSpend > 0 && (
+                }
+              {loc.storeCardSpend > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Store-card spends (excluded)</div>
                   <div className="font-semibold tabular-nums text-slate-400">{fmtMoney(loc.storeCardSpend)}</div>
                 </div>
-              )}
-              {ownerCanEdit && (
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
+                }
+              {ownerCanEdit &&
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 tabular-nums">
                 +{fmtMoney(loc.netCredits)} net credits · {fmtMoney(loc.gross)} gross − {fmtMoney(loc.fees)} fees − {fmtMoney(loc.loanPaid)} loan ({(Number(loc.loan_rate) * 100).toFixed(2)}%) − {fmtMoney(loc.folderContrib)} folder (2%)
               </div>
-              )}
+                }
               {(() => {
-                // Collected/Uncollected/Past uncollected list — owner request
-                // Oct 4 2026: drivers see this full section too (same as the
-                // App Owner), just without the Loan left row and the net
-                // credits/gross/fees/loan/folder breakdown line above, which
-                // stay ownerCanEdit-gated.
-                const todayStr = edmontonWallString(new Date()).slice(0, 10);
-                // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: the
-                // uncollected rows come from the delivery-derived outstanding
-                // list (pending / in_transit / en_route CODs). The
-                // SquareCatalogItems source is retired on this page — the
-                // catalog was only ever a partial mirror of the same
-                // deliveries. Pending-status rows (not yet picked up) are
-                // tagged pendingPickup for the "Awaiting Pickup" badge;
-                // everything else reads as Pending (out with a driver).
-                // Every row defaults to the Card Spend pill (owner rule) —
-                // tapping toggles it to "Not Tapped".
-                const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
-                const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
-                const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
-                // Delivery-derived active CODs (pendingPickup flag for
-                // pending status)…
-                const deliveryRows = outItems.map((it) => ({
-                  key: `o-${it.delivery_id}`,
-                  delivery_id: it.delivery_id,
-                  patientName: it.patient || null,
-                  storeAbbrev: it.storeAbbrev || null,
-                  storeColor: it.storeColor || null,
-                  amount: it.amount,
-                  date: it.date || null,
-                  pendingPickup: it.status === 'pending',
-                  notTapped: notTapped(it.delivery_id),
-                }));
-                // …MERGED with the SquareCatalogItems still ACTIVE in the
-                // register (owner spec, Oct 7 2026 follow-up — same as the
-                // old system: catalog items catch CODs whose delivery rows
-                // fall outside the delivery-derived window). Deduped by
-                // delivery_id — delivery-derived rows win; catalog rows with
-                // no delivery link always show.
-                const srcDeliveryIds = new Set(deliveryRows.map((it) => String(it.delivery_id)).filter((it) => it !== 'null' && it !== 'undefined'));
-                const catRows = (catalogUncollectedByLoc?.[loc.location_id] || [])
-                  .filter((it) => !it.delivery_id || !srcDeliveryIds.has(String(it.delivery_id)))
-                  .map((it) => ({
+                  // Collected/Uncollected/Past uncollected list — owner request
+                  // Oct 4 2026: drivers see this full section too (same as the
+                  // App Owner), just without the Loan left row and the net
+                  // credits/gross/fees/loan/folder breakdown line above, which
+                  // stay ownerCanEdit-gated.
+                  const todayStr = edmontonWallString(new Date()).slice(0, 10);
+                  // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: the
+                  // uncollected rows come from the delivery-derived outstanding
+                  // list (pending / in_transit / en_route CODs). The
+                  // SquareCatalogItems source is retired on this page — the
+                  // catalog was only ever a partial mirror of the same
+                  // deliveries. Pending-status rows (not yet picked up) are
+                  // tagged pendingPickup for the "Awaiting Pickup" badge;
+                  // everything else reads as Pending (out with a driver).
+                  // Every row defaults to the Card Spend pill (owner rule) —
+                  // tapping toggles it to "Not Tapped".
+                  const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
+                  const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
+                  const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
+                  // Delivery-derived active CODs (pendingPickup flag for
+                  // pending status)…
+                  const deliveryRows = outItems.map((it) => ({
+                    key: `o-${it.delivery_id}`,
+                    delivery_id: it.delivery_id,
+                    patientName: it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    date: it.date || null,
+                    pendingPickup: it.status === 'pending',
+                    notTapped: notTapped(it.delivery_id)
+                  }));
+                  // …MERGED with the SquareCatalogItems still ACTIVE in the
+                  // register (owner spec, Oct 7 2026 follow-up — same as the
+                  // old system: catalog items catch CODs whose delivery rows
+                  // fall outside the delivery-derived window). Deduped by
+                  // delivery_id — delivery-derived rows win; catalog rows with
+                  // no delivery link always show.
+                  const srcDeliveryIds = new Set(deliveryRows.map((it) => String(it.delivery_id)).filter((it) => it !== 'null' && it !== 'undefined'));
+                  const catRows = (catalogUncollectedByLoc?.[loc.location_id] || []).
+                  filter((it) => !it.delivery_id || !srcDeliveryIds.has(String(it.delivery_id))).
+                  map((it) => ({
                     key: it.key || `cat-${it.delivery_id || it.patientName}`,
                     delivery_id: it.delivery_id || null,
                     patientName: it.patientName || null,
@@ -1460,76 +1460,76 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     date: it.date || null,
                     pendingPickup: false,
                     notTapped: notTapped(it.delivery_id),
-                    cashAwaitingSquare: !!it.cashAwaitingSquare,
+                    cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                const combinedSrc = [...deliveryRows, ...catRows];
-                // Owner spec (Oct 6 2026): cash-collected CODs STAY in
-                // Uncollected / Past uncollected — they are technically
-                // uncollected until processed back to the Square card. They
-                // render with a 'Cash' status badge (CardCodList) and keep
-                // their Card Spend pills.
-                const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date >= todayStr)).map((it) => ({
-                  key: it.key || `o-${it.delivery_id}`,
-                  delivery_id: it.delivery_id || null,
-                  patientName: it.patientName || it.patient || null,
-                  storeAbbrev: it.storeAbbrev || null,
-                  storeColor: it.storeColor || null,
-                  amount: it.amount,
-                  sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
-                  collected: false,
-                  pendingPickup: !!it.pendingPickup,
-                  hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
-                  manualCardSpend: manualMark(it.delivery_id),
-                  notTapped: notTapped(it.delivery_id),
-                  cashAwaitingSquare: !!it.cashAwaitingSquare,
-                }));
-                // combinedSrc already covers EVERY active-delivery COD (any
-                // date) — future-dated rows land in Uncollected via the
-                // today/past filters below, so no separate future merge is
-                // needed anymore.
-                const futurePendingRows = [];
-                const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
-                  key: it.key || `p-${it.delivery_id}`,
-                  delivery_id: it.delivery_id || null,
-                  patientName: it.patientName || it.patient || null,
-                  storeAbbrev: it.storeAbbrev || null,
-                  storeColor: it.storeColor || null,
-                  amount: it.amount,
-                  sub: it.sub || it.date,
-                  collected: false,
-                  pendingPickup: !!it.pendingPickup,
-                  hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
-                  manualCardSpend: manualMark(it.delivery_id),
-                  notTapped: notTapped(it.delivery_id),
-                  cashAwaitingSquare: !!it.cashAwaitingSquare,
-                }));
-                const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
-                const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
-                return (
-                  <CardCodList
-                    canMarkSpend={ownerCanEdit}
-                    onMarkSpend={markCardSpend}
-                    sections={[
+                  const combinedSrc = [...deliveryRows, ...catRows];
+                  // Owner spec (Oct 6 2026): cash-collected CODs STAY in
+                  // Uncollected / Past uncollected — they are technically
+                  // uncollected until processed back to the Square card. They
+                  // render with a 'Cash' status badge (CardCodList) and keep
+                  // their Card Spend pills.
+                  const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                    key: it.key || `o-${it.delivery_id}`,
+                    delivery_id: it.delivery_id || null,
+                    patientName: it.patientName || it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
+                    collected: false,
+                    pendingPickup: !!it.pendingPickup,
+                    hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
+                    manualCardSpend: manualMark(it.delivery_id),
+                    notTapped: notTapped(it.delivery_id),
+                    cashAwaitingSquare: !!it.cashAwaitingSquare
+                  }));
+                  // combinedSrc already covers EVERY active-delivery COD (any
+                  // date) — future-dated rows land in Uncollected via the
+                  // today/past filters below, so no separate future merge is
+                  // needed anymore.
+                  const futurePendingRows = [];
+                  const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
+                    key: it.key || `p-${it.delivery_id}`,
+                    delivery_id: it.delivery_id || null,
+                    patientName: it.patientName || it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    sub: it.sub || it.date,
+                    collected: false,
+                    pendingPickup: !!it.pendingPickup,
+                    hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
+                    manualCardSpend: manualMark(it.delivery_id),
+                    notTapped: notTapped(it.delivery_id),
+                    cashAwaitingSquare: !!it.cashAwaitingSquare
+                  }));
+                  const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
+                  const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+                  return (
+                    <CardCodList
+                      canMarkSpend={ownerCanEdit}
+                      onMarkSpend={markCardSpend}
+                      sections={[
                       { label: 'Collected today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
                       { label: 'Uncollected', color: '#d97706', rows: [...futurePendingRows, ...uncollectedTodayRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
-                      { label: 'Past uncollected', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
-                    ]}
-                  />
-                );
-              })()}
+                      { label: 'Past uncollected', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) }]
+                      } />);
+
+
+                })()}
             </div>
-          </div>
-          );
+          </div>);
+
         })}
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-          Square Cards, pulled from the card (MOBILE) locations the per-store
-          sync never saw before. Attributed = fed by that store's sale
-          (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-          unattributed = folder / manual transfer with no sale link yet. */}
-      {topups.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
+           Square Cards, pulled from the card (MOBILE) locations the per-store
+           sync never saw before. Attributed = fed by that store's sale
+           (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+           unattributed = folder / manual transfer with no sale link yet. */}
+      {topups.length > 0 &&
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
               <ArrowLeftRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Card Transfers (since true-up)
@@ -1540,10 +1540,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           </div>
           <div className="space-y-1 max-h-56 overflow-y-auto">
             {topups.slice().sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0)).map((t) => {
-              const storeName = config?.locations?.find((l) => l.location_id === t.attributed_location_id)?.name || null;
-              const isFolder = !storeName && !/CHARGE/.test(String(t.reason || ''));
-              return (
-                <div key={t.id || t.square_id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40">
+            const storeName = config?.locations?.find((l) => l.location_id === t.attributed_location_id)?.name || null;
+            const isFolder = !storeName && !/CHARGE/.test(String(t.reason || ''));
+            return (
+              <div key={t.id || t.square_id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40">
                   <div className="min-w-0">
                     <span className="font-medium text-slate-700 dark:text-slate-200">{t.card_name || 'Square Card'}</span>
                     <span className="text-slate-400 dark:text-slate-500"> · {new Date(t.occurred_at || Date.now()).toLocaleString()}</span>
@@ -1554,54 +1554,54 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     </span>
                     <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">+{fmtMoney(Number(t.amount) || 0)}</span>
                   </div>
-                </div>
-              );
-            })}
+                </div>);
+
+          })}
           </div>
         </div>
-      )}
+      }
 
       <div className="text-[11px] text-slate-400">
         Card = start + sales − fees − 2% folder − loan%. Loan and folder are computed from owner-supplied rates (not in Square's API). Off-card spending isn't tracked — use True-Up whenever the real Square numbers are checked.
       </div>
 
       {/* True-up overlay: enter the CURRENT real numbers from each Square dashboard */}
-      {showTrueUp && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTrueUp(false)}>
+      {showTrueUp &&
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTrueUp(false)}>
           <div ref={trueUpPanelRef} className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blank fields keep the existing value. This resets the tracking window to now.</div>
             </div>
-            {(config.locations || []).map((loc) => (
-              <div key={loc.location_id} className="space-y-1.5">
+            {(config.locations || []).map((loc) =>
+          <div key={loc.location_id} className="space-y-1.5">
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
                 <div className="grid grid-cols-3 gap-1.5 items-end">
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Card balance
                     <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.card_start)}
-                      value={trueUpDraft[loc.location_id]?.card ?? ''}
-                      onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), card: e.target.value } }))} />
+                value={trueUpDraft[loc.location_id]?.card ?? ''}
+                onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), card: e.target.value } }))} />
                   </label>
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan remaining
                     <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.loan_start)}
-                      value={trueUpDraft[loc.location_id]?.loan ?? ''}
-                      onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan: e.target.value } }))} />
+                value={trueUpDraft[loc.location_id]?.loan ?? ''}
+                onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan: e.target.value } }))} />
                   </label>
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan rate
                     <Input type="number" step="0.0001" className="mt-0.5 px-2 text-xs" placeholder={String(loc.loan_rate)}
-                      value={trueUpDraft[loc.location_id]?.loan_rate ?? ''}
-                      onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan_rate: e.target.value } }))} />
+                value={trueUpDraft[loc.location_id]?.loan_rate ?? ''}
+                onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan_rate: e.target.value } }))} />
                   </label>
                 </div>
               </div>
-            ))}
+          )}
             <div className="space-y-1.5">
               <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Folder (combined)</div>
               <div className="grid grid-cols-3 gap-1.5 items-end">
                 <label className="text-[10px] text-slate-500 dark:text-slate-400">Folder balance
                   <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(config.folder_start || 0)}
-                    value={trueUpDraft.__folder ?? ''}
-                    onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: e.target.value }))} />
+                value={trueUpDraft.__folder ?? ''}
+                onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: e.target.value }))} />
                 </label>
               </div>
             </div>
@@ -1611,30 +1611,30 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </div>
           </div>
         </div>
-      )}
+      }
 
       {/* Top-Up overlay: add money to each card's balance (does not reset the window) */}
-      {showTopUp && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTopUp(false)}>
+      {showTopUp &&
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTopUp(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Top Up Cards</div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter the amount to ADD to each card's current balance. Blank fields are skipped. This does not reset the tracking window.</div>
             </div>
-            {(config?.locations || []).map((loc) => (
-              <label key={loc.location_id} className="block space-y-1">
+            {(config?.locations || []).map((loc) =>
+          <label key={loc.location_id} className="block space-y-1">
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{loc.name || loc.location_id}</span>
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder={`current ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
-                  value={topUpDraft[loc.location_id] ?? ''}
-                  disabled={isSaving}
-                  onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: e.target.value }))}
-                />
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder={`current ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
+              value={topUpDraft[loc.location_id] ?? ''}
+              disabled={isSaving}
+              onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: e.target.value }))} />
+            
               </label>
-            ))}
+          )}
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowTopUp(false)} disabled={isSaving}>Cancel</Button>
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveTopUp} disabled={isSaving}>
@@ -1643,12 +1643,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </div>
           </div>
         </div>
-      )}
+      }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-          card (does not reset the window). One-way only — never card → folder. */}
-      {folderTransferOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
+           card (does not reset the window). One-way only — never card → folder. */}
+      {folderTransferOpen &&
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Folder Transfer</div>
@@ -1661,28 +1661,28 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             <label className="block space-y-1">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Amount</span>
               <Input
-                type="number"
-                step="0.01"
-                min="0"
-                max={folderTotal}
-                placeholder={`available ${fmtMoney(folderTotal)}`}
-                value={folderTransferAmount}
-                disabled={isSaving}
-                onChange={(e) => setFolderTransferAmount(e.target.value)}
-              />
+              type="number"
+              step="0.01"
+              min="0"
+              max={folderTotal}
+              placeholder={`available ${fmtMoney(folderTotal)}`}
+              value={folderTransferAmount}
+              disabled={isSaving}
+              onChange={(e) => setFolderTransferAmount(e.target.value)} />
+            
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">To card</span>
               <select
-                className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50"
-                value={folderTransferToLocId}
-                disabled={isSaving}
-                onChange={(e) => setFolderTransferToLocId(e.target.value)}
-              >
+              className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50"
+              value={folderTransferToLocId}
+              disabled={isSaving}
+              onChange={(e) => setFolderTransferToLocId(e.target.value)}>
+              
                 <option value="">Select destination card…</option>
-                {(config?.locations || []).map((loc) => (
-                  <option key={loc.location_id} value={loc.location_id}>{loc.name || loc.location_id}</option>
-                ))}
+                {(config?.locations || []).map((loc) =>
+              <option key={loc.location_id} value={loc.location_id}>{loc.name || loc.location_id}</option>
+              )}
               </select>
             </label>
             <div className="flex gap-2 justify-end">
@@ -1693,11 +1693,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </div>
           </div>
         </div>
-      )}
+      }
 
       {/* Funds Transfer overlay: move money from one card to another (does not reset the window) */}
-      {transferFromLoc && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setTransferFromLoc(null)}>
+      {transferFromLoc &&
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setTransferFromLoc(null)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Funds Transfer</div>
@@ -1710,27 +1710,27 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             <label className="block space-y-1">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Amount</span>
               <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder={`available ~${fmtMoney(perLocation.find((l) => l.location_id === transferFromLoc.location_id)?.cardEstimate || 0)}`}
-                value={transferAmount}
-                disabled={isSaving}
-                onChange={(e) => setTransferAmount(e.target.value)}
-              />
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder={`available ~${fmtMoney(perLocation.find((l) => l.location_id === transferFromLoc.location_id)?.cardEstimate || 0)}`}
+              value={transferAmount}
+              disabled={isSaving}
+              onChange={(e) => setTransferAmount(e.target.value)} />
+            
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">To card</span>
               <select
-                className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50"
-                value={transferToLocId}
-                disabled={isSaving}
-                onChange={(e) => setTransferToLocId(e.target.value)}
-              >
+              className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50"
+              value={transferToLocId}
+              disabled={isSaving}
+              onChange={(e) => setTransferToLocId(e.target.value)}>
+              
                 <option value="">Select destination card…</option>
-                {(config?.locations || []).filter((loc) => loc.location_id !== transferFromLoc.location_id).map((loc) => (
-                  <option key={loc.location_id} value={loc.location_id}>{loc.name || loc.location_id}</option>
-                ))}
+                {(config?.locations || []).filter((loc) => loc.location_id !== transferFromLoc.location_id).map((loc) =>
+              <option key={loc.location_id} value={loc.location_id}>{loc.name || loc.location_id}</option>
+              )}
               </select>
             </label>
             <div className="flex gap-2 justify-end">
@@ -1741,7 +1741,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
