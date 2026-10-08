@@ -400,7 +400,10 @@ export default function StopCardActionButtons(props) {
           // stop has no recorded arrival time (the 30s-stationary GPS snap), on
           // every stop type. The popup menu's Complete item is the deliberate
           // bypass and stays ENABLED — do not gate it on arrival_time.
-          const missingArrivalTime = isNextDelivery && !delivery?.arrival_time;
+          // RETRO TIMING BYPASS (Oct 8 2026): when isRetroTiming is active (today
+          // after 21:00, or past-due dates) the completion flow backdates the
+          // arrival time itself (retroactive timing), so the gate does NOT apply.
+          const missingArrivalTime = isNextDelivery && !delivery?.arrival_time && !isRetroTiming;
           const isCompleteEligible =
             isNextDelivery &&
             !isFutureDate &&
