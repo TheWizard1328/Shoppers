@@ -413,7 +413,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Spend". Balance rule: a pending/in-transit COD deducts from the card
   // estimate, a "Not Tapped" one is added back (never deducts).
   const markCardSpend = useCallback(async (deliveryId) => {
-    if (!ownerCanEdit || !deliveryId) return;
+    if (!currentUser || !deliveryId) return;
     const prev = manualSpendMarksRef.current || {};
     const key = String(deliveryId);
     const togglingBack = !!prev?.[key]?.notTapped;
@@ -442,7 +442,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       setManualSpendMarks(prev);
       manualSpendMarksRef.current = prev;
     }
-  }, [ownerCanEdit, currentUser]);
+  }, [currentUser]);
 
   // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: this page no longer
   // syncs through the Square API at all. "Loading the numbers" now means:
@@ -1581,7 +1581,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
                   return (
                     <CardCodList
-                      canMarkSpend={ownerCanEdit}
+                      canMarkSpend={!!currentUser}
                       onMarkSpend={markCardSpend}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
