@@ -60,7 +60,9 @@ async function getAllDeliveriesIdb() {
   // per cold start; warmed IDB makes every later reload IDB-only.
   const apiFetch = async () => {
     const all = [];
-    for (const status of ['pending', 'in_transit', 'en_route', 'completed']) {
+    // 'failed' included (owner spec Oct 8 2026): a failed delivery keeps its
+    // COD in the Uncollected lists and deducted off the card until refunded.
+    for (const status of ['pending', 'in_transit', 'en_route', 'failed', 'completed']) {
       all.push(...await filterAllDeliveries(status));
     }
     return all;
@@ -348,6 +350,51 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
 // Both ledger windows (card sales + unlinked-ring sales pool) use the same
 // Edmonton-day horizon: candidates are deliveries dated cutoff-onward, and a
 // confirming ring can land at most 3 days before that.
+// FAILED-DELIVERY REFUNDS (owner spec, Oct 8 2026): a failed delivery's COD
+// stays deducted off the card ("the card spend amount still needs to be
+// registered as off the card") and stays in the Uncollected lists — the amount
+// only comes back on the card once the Square charge is actually refunded.
+// Refunds are detected from the ledger (squareLedgerSync writes them as
+// entry_kind 'refund', delivery_id-linked when the catalog link chain holds).
+export async function loadFailedRefundEntries(cfgArg, userId = null) {
+  const since = windowSinceFor(cfgArg);
+  const out = [];
+  let skip = 0;
+  for (let page = 0; page < 20; page++) {
+    const rows = await base44.entities.SquareLedgerEntry.filter(
+      { entry_kind: 'refund', occurred_at: { $gte: since } },
+      'created_date', 500, skip
+    ).catch(() => []);
+    const list = rows || [];
+    out.push(...list);
+    if (list.length < 500) break;
+    skip += 500;
+  }
+  return dedupeBySquareId(out);
+}
+
+// A failed COD is released (money back on the card) when a refund entry is
+// linked to its delivery_id, OR (link chains are routinely broken) by exact
+// cents + same card location, with the refund landing after the delivery was
+// created. Conservative: only releases on the exact amount match.
+export function isFailedCodRefunded(item, refundRows, locIdForStore) {
+  if (!item) return false;
+  const id = item.delivery_id ? String(item.delivery_id) : null;
+  const cents = Math.round(Number(item.amount || 0) * 100);
+  const createdT = item.created_date ? new Date(item.created_date).getTime() : null;
+  const locId = locIdForStore ? String(locIdForStore(item.store_id)) : null;
+  for (const r of refundRows || []) {
+    if (id && String(r?.delivery_id || '') === id) return true;
+    if (
+      cents > 0 &&
+      Math.round(Number(r?.amount_cents || 0)) === cents &&
+      (!locId || String(r?.location_id || '') === locId) &&
+      (!createdT || !r?.occurred_at || new Date(r.occurred_at).getTime() >= createdT)
+    ) return true;
+  }
+  return false;
+}
+
 function windowSinceFor(cfg) {
   const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
   const cutoffD = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
@@ -696,7 +743,11 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     return byLoc.get(locId);
   };
 
-  for (const status of ['pending', 'in_transit', 'en_route']) {
+  // 'failed' included (owner spec Oct 8 2026): a failed delivery's COD is
+  // still uncollected money off the card — it stays in the Uncollected lists
+  // and keeps its pending deduction until a Square refund is registered.
+  const refundRows = await loadFailedRefundEntries(cfg, userId).catch(() => []);
+  for (const status of ['pending', 'in_transit', 'en_route', 'failed']) {
     const rows = deliveriesWithStatus(allDeliveries, status);
     for (const d of rows || []) {
       const required = Number(d?.cod_total_amount_required || 0);
@@ -707,9 +758,13 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
       const outstanding = Math.max(0, centsOf(required) - nonCash);
       if (outstanding <= 0) continue;
+      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) };
+      // FAILED + refunded → resolved: the refund put the money back on the
+      // card, so it is no longer uncollected and no longer deducts.
+      if (status === 'failed' && isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')))) continue;
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
-      agg.items.push({ delivery_id: d.id, status, amount: outstanding / 100, reason: 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) });
+      agg.items.push(item);
     }
   }
 
@@ -782,7 +837,9 @@ export async function computeDailyCodRemainingByStore() {
     const centsOf = (n) => Math.round(Number(n || 0) * 100);
     const byStore = new Map();
     const allRows = await getAllDeliveriesIdb();
-    for (const status of ['pending', 'in_transit', 'en_route']) {
+    // 'failed' included (owner spec Oct 8 2026): a failed stop today still
+    // holds its COD off the card — it counts toward the day's remaining.
+    for (const status of ['pending', 'in_transit', 'en_route', 'failed']) {
       const rows = deliveriesWithStatus(allRows, status);
       for (const d of rows || []) {
         if (String(d?.delivery_date || '') !== today) continue;
@@ -926,7 +983,9 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
   let deductCents = 0; let count = 0;
   const tu = truedUpAt ? new Date(truedUpAt).getTime() : null;
   for (const it of outstandingItems || []) {
-    if (!['pending', 'in_transit', 'en_route', 'completed'].includes(String(it?.status || ''))) continue;
+    // 'failed' included (owner spec Oct 8 2026): a failed delivery keeps its
+    // COD off the card (card spend already registered) until refunded.
+    if (!['pending', 'in_transit', 'en_route', 'failed', 'completed'].includes(String(it?.status || ''))) continue;
     const id = it?.delivery_id ? String(it.delivery_id) : null;
     if (id && excludeIds && excludeIds.has(id)) continue;
     const cents = Math.round(Number(it?.amount || 0) * 100);

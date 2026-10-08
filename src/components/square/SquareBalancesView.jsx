@@ -179,15 +179,20 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, loading }) {
           // looks visibly different from a COD nobody has collected yet
           // (amber 'Pending'). Card Spend pills still render on these rows.
           // OWNER SPEC (Oct 8 2026): pending-status rows read 'Awaiting Pickup';
-          // in_transit rows read 'In Transit'; everything else uncollected
-          // stays 'Pending' (e.g., en_route, catalog rows without status).
+          // in_transit rows read 'In Transit'; FAILED deliveries read a red
+          // 'Failed' badge — the COD stays in Uncollected and stays deducted off
+          // the card until a Square refund is registered (owner rule: a failed
+          // delivery must NOT put the amount back on the card); everything else
+          // uncollected stays 'Pending' (e.g., en_route, catalog rows without
+          // status).
           const statusLabel = r.collected ?
           r.collectedLabel || 'Collected' :
-          r.cashAwaitingSquare ? 'Cash' : r.pendingPickup ? 'Awaiting Pickup' : r.inTransit ? 'In Transit' : 'Pending';
+          r.cashAwaitingSquare ? 'Cash' : r.failed ? 'Failed' : r.pendingPickup ? 'Awaiting Pickup' : r.inTransit ? 'In Transit' : 'Pending';
           const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
+          const redCls = 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300';
           const statusColorCls = r.collected ?
           emeraldCls :
-          r.cashAwaitingSquare ? emeraldCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
+          r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
           const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
           return (
             <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
@@ -1517,6 +1522,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     date: it.date || null,
                     pendingPickup: it.status === 'pending',
                     inTransit: it.status === 'in_transit',
+                    failed: it.status === 'failed',
                     notTapped: notTapped(it.delivery_id)
                   }));
                   // …MERGED with the SquareCatalogItems still ACTIVE in the
@@ -1557,6 +1563,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     collected: false,
                     pendingPickup: !!it.pendingPickup,
                     inTransit: !!it.inTransit,
+                    failed: !!it.failed,
                     hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
@@ -1578,6 +1585,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     collected: false,
                     pendingPickup: !!it.pendingPickup,
                     inTransit: !!it.inTransit,
+                    failed: !!it.failed,
                     hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
