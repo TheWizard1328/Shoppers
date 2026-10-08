@@ -160,6 +160,20 @@
       "format": "date-time",
       "description": "Timestamp when an Archived COD was Unarchived back to outstanding cash status; the Square page keeps unarchived CODs visible (NOT COLLECTED + catalog lists) past the normal 90-day window"
     },
+    "cod_returned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when a FAILED delivery with a COD was RETURNED (goods back to the store) — the amount to collect releases back onto the Square card balance; the delivery drops from the Uncollected lists"
+    },
+    "cod_retried_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when a FAILED delivery with a COD was RETRIED (a new retry delivery now carries the COD) — prevents duplicate deduction of the amount off the Square card balance"
+    },
+    "cod_retry_delivery_id": {
+      "type": "string",
+      "description": "The retry delivery's id (set together with cod_retried_at)"
+    },
     "cod_scan_at": {
       "title": "COD wide-scan timestamp",
       "type": "string",

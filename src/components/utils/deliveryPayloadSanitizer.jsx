@@ -54,6 +54,9 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   // ── COD / payments ────────────────────────────────────────────────────────
   'cod_total_amount_required',
   'cod_payments',
+  'cod_returned_at',
+  'cod_retried_at',
+  'cod_retry_delivery_id',
   'cp_envelopes',
   // ── Delivery attributes ───────────────────────────────────────────────────
   'signature_needed',

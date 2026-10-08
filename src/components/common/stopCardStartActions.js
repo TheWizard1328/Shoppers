@@ -106,6 +106,16 @@ export function useStopCardStartActions({
             syncDeliverySquareCod(delivery.id, { status: 'failed' });
             // Retry delivery is active with a COD — reconciler creates its item.
             if (retryDeliveryId && !isPickup) syncDeliverySquareCod(retryDeliveryId, { status: 'in_transit', cod_total_amount_required: delivery.cod_total_amount_required, patient_name: patient?.full_name || delivery.patient_name || '', delivery_date: retryDate, store_id: delivery.store_id });
+            // SQUARE BALANCES (owner rule, Oct 8 2026): the RETRY delivery now
+            // carries this COD — stamp the ORIGINAL so the balances math never
+            // deducts the same amount twice (original + retry both 'failed'/
+            // 'in_transit' would double-count the amount off the card).
+            // cod_retried_at excludes the original from the Uncollected lists
+            // and from computePendingCodDeduction; cod_retry_delivery_id is the
+            // audit trail to the retry that owns the COD now.
+            const _retryStamp = { cod_retried_at: new Date().toISOString(), ...(retryDeliveryId ? { cod_retry_delivery_id: retryDeliveryId } : {}) };
+            updateDeliveryLocal(delivery.id, _retryStamp, { skipSmartRefresh: true }).catch(() => null);
+            base44.entities.Delivery.update(delivery.id, _retryStamp).catch(() => null);
           }
           await ensureDriverOnline();
           // Run the route optimizer + polyline generator on the RETRY delivery's date (retryDate),

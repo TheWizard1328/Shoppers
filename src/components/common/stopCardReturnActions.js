@@ -5,7 +5,9 @@
  * (create/merge via onCreateReturn + COD cleanup + driver notification), cancel.
  */
 import { useCallback } from "react";
+import { base44 } from '@/api/base44Client';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
+import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { findExistingReturnDelivery, getEdmontonDate } from '@/components/utils/returnDeliveryBuilder';
 import { notifyDriverReturn } from "../utils/deliveryMessaging";
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
@@ -92,7 +94,18 @@ export function useStopCardReturnActions({
           if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
             backgroundTasks.push(import('../utils/stopCompletionGpsFix').then(({ recordStopCompletionGpsFix }) => recordStopCompletionGpsFix({ currentUser, deliveryDate: _returnDeliveryDate || delivery.delivery_date })));
           }
-          if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(Promise.resolve(syncDeliverySquareCod(delivery.id, { status: 'returned' })));
+          if ((delivery.cod_total_amount_required || 0) > 0) {
+            // Catalog cleanup: returned → the Square register item is removed.
+            backgroundTasks.push(Promise.resolve(syncDeliverySquareCod(delivery.id, { status: 'returned' })));
+            // SQUARE BALANCES (owner rule, Oct 8 2026): a RETURNED failed COD
+            // releases its amount back onto the card balance — the goods are
+            // going back to the store. cod_returned_at excludes the delivery
+            // from the Uncollected lists and from the pending deduction, so
+            // the estimate reads the amount back on the card.
+            const _returnedStamp = { cod_returned_at: new Date().toISOString() };
+            backgroundTasks.push(updateDeliveryLocal(delivery.id, _returnedStamp, { skipSmartRefresh: true }).catch(() => null));
+            backgroundTasks.push(base44.entities.Delivery.update(delivery.id, _returnedStamp).catch(() => null));
+          }
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery: createdReturnDelivery || delivery, store, appUsers }));
           await Promise.allSettled(backgroundTasks);
         } catch {}

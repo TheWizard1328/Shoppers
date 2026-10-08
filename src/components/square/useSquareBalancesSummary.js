@@ -758,9 +758,15 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
       const outstanding = Math.max(0, centsOf(required) - nonCash);
       if (outstanding <= 0) continue;
+      // FAILED + RETRIED (owner rule, Oct 8 2026): the retry delivery now
+      // carries this COD — the original must stop deducting or the amount is
+      // taken off the card TWICE (original + retry).
+      if (status === 'failed' && (d?.cod_retried_at || d?.cod_returned_at)) continue;
       const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) };
       // FAILED + refunded → resolved: the refund put the money back on the
       // card, so it is no longer uncollected and no longer deducts.
+      // FAILED + RETURNED (owner rule, Oct 8 2026): the goods went back to
+      // the store — cod_returned_at above already released it.
       if (status === 'failed' && isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')))) continue;
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
