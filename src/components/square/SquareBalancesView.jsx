@@ -240,7 +240,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend }) {
                     {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
-                    <span className={`rounded-full border px-2 font-medium text-[11px] min-w-[ ${statusColorCls}`}>{statusLabel}</span>
+                    <span className={`rounded-full border px-2 font-medium text-[11px] min-w-[20px ${statusColorCls}`}>{statusLabel}</span>
                     </div>
                   </div>
               </div>);
