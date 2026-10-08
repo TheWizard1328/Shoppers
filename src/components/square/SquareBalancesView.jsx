@@ -178,9 +178,12 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, loading }) {
           // pill reads 'Cash' (emerald, same as a collected Cash row) so it
           // looks visibly different from a COD nobody has collected yet
           // (amber 'Pending'). Card Spend pills still render on these rows.
+          // OWNER SPEC (Oct 8 2026): pending-status rows read 'Awaiting Pickup';
+          // in_transit rows read 'In Transit'; everything else uncollected
+          // stays 'Pending' (e.g., en_route, catalog rows without status).
           const statusLabel = r.collected ?
           r.collectedLabel || 'Collected' :
-          r.cashAwaitingSquare ? 'Cash' : r.pendingPickup ? 'Awaiting Pickup' : 'Pending';
+          r.cashAwaitingSquare ? 'Cash' : r.pendingPickup ? 'Awaiting Pickup' : r.inTransit ? 'In Transit' : 'Pending';
           const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
           const statusColorCls = r.collected ?
           emeraldCls :
@@ -1513,6 +1516,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     amount: it.amount,
                     date: it.date || null,
                     pendingPickup: it.status === 'pending',
+                    inTransit: it.status === 'in_transit',
                     notTapped: notTapped(it.delivery_id)
                   }));
                   // …MERGED with the SquareCatalogItems still ACTIVE in the
@@ -1552,6 +1556,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     sub: `${it.date || todayStr}${it.sub ? ` · ${it.sub}` : ''}`,
                     collected: false,
                     pendingPickup: !!it.pendingPickup,
+                    inTransit: !!it.inTransit,
                     hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
@@ -1572,6 +1577,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     sub: it.sub || it.date,
                     collected: false,
                     pendingPickup: !!it.pendingPickup,
+                    inTransit: !!it.inTransit,
                     hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
