@@ -331,9 +331,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         </div>
       )}
       {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
-           Cash badge opens the Debit / Credit choice as a small button menu
-           right at the badge — below it when there's room, above when it sits
-           near the bottom of the screen. Tap anywhere else to dismiss. */}
+            Cash badge opens the Debit / Credit choice as a small button menu
+            right at the badge — below it when there's room, above when it sits
+            near the bottom of the screen. Tap anywhere else to dismiss. */}
       {cashPick &&
       <>
         <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
@@ -349,8 +349,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
-                 (/_at) so the fee/loan/folder credit and ledger confirmation
-                 stop counting it (owner rule Oct 9 2026). */}
+                  (/_at) so the fee/loan/folder credit and ledger confirmation
+                  stop counting it (owner rule Oct 9 2026). */}
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
           </div>
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
@@ -1993,10 +1993,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                                 Square Cards, pulled from the card (MOBILE) locations the per-store
-                                 sync never saw before. Attributed = fed by that store's sale
-                                 (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                                 unattributed = folder / manual transfer with no sale link yet. */}
+                                  Square Cards, pulled from the card (MOBILE) locations the per-store
+                                  sync never saw before. Attributed = fed by that store's sale
+                                  (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                                  unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -2128,7 +2128,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                                 card (does not reset the window). One-way only — never card → folder. */}
+                                  card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -2226,9 +2226,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* HOW THE BADGES WORK (owner request Oct 9 2026): short usage guide
-           for the clickable badges, collapsed by default at the bottom of the
-           page. The S/F/L line is owner-only (drivers see settled amounts
-           only). Drivers see a scope note — they only see their own rows. */}
+            for the clickable badges, collapsed by default at the bottom of the
+            page. The S/F/L line is owner-only (drivers see settled amounts
+            only). Drivers see a scope note — they only see their own rows. */}
       <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
         <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
           How the badges work
@@ -2256,11 +2256,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             <span>On collected rows: S = Square fee, F = folder, L = loan — the amount after them is what settled back onto the card.</span>
           </div>
           }
-          {driverScopeId &&
-          <div className="pt-1 border-t border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 hidden">
-            You only see the delivery items assigned to you. Card balances are the store's real totals.
-          </div>
-          }
+          
+
+
+
+          
         </div>
       </details>
     </div>);
