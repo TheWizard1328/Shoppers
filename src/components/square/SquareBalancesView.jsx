@@ -131,7 +131,14 @@ function buildPatientResolver(patientsRaw) {
 // Pickup). pendingPickup rows previously used the sky "Card Spend" pill as a
 // status; that wording now belongs to the transaction-evidence pill, so
 // their status pill reads "Awaiting Pickup".
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, loading }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading }) {
+  // OWNER SPEC (Oct 8 2026, night): a COLLECTED row's 'Cash' badge is
+  // clickable — the owner can correct the recorded tender to Debit or
+  // Credit (which re-does the fee/settled math and appends the
+  // "Paid Via Drivers [Debit/Credit] card." note). Only collected rows;
+  // uncollected cash-awaiting-square rows keep a static badge.
+  const [cashPickRow, setCashPickRow] = useState(null);
+  const [cashPickBusy, setCashPickBusy] = useState(false);
   const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
   // Loading placeholder: show the three section headers (Collected today /
   // Uncollected / Past uncollected) with a spinner while the delivery + COD
@@ -277,6 +284,12 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, load
                     title="Mark this failed COD as refunded — the amount returns to the card balance"
                     // No role="button" (same min-height CSS trap as the pills).
                     className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span>
+                ) : r.collected && statusLabel === 'Cash' && canMarkSpend && !!r.delivery_id && onCashToCard ? (
+                  <span
+                    onClick={() => setCashPickRow(r)}
+                    title="Tap to correct this collection to Debit or Credit"
+                    // No role="button" (same min-height CSS trap as the pills).
+                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-emerald-400/60 dark:ring-emerald-500/50`}>{statusLabel}</span>
                 ) : (
                   <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>
                 )}
@@ -287,6 +300,21 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, load
         })}
         </div>
       )}
+      {cashPickRow &&
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !cashPickBusy && setCashPickRow(null)}>
+          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Change Cash collection</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Set this COD's payment to:</div>
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPickRow.delivery_id, 'Debit'); setCashPickRow(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
+              <Button size="sm" className="flex-1" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPickRow.delivery_id, 'Credit'); setCashPickRow(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" disabled={cashPickBusy} onClick={() => setCashPickRow(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      }
     </div>);
 
 }
@@ -430,6 +458,44 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // Tapping flips it to "Not Tapped"; tapping again flips back to "Card
   // Spend". Balance rule: a pending/in-transit COD deducts from the card
   // estimate, a "Not Tapped" one is added back (never deducts).
+  // OWNER SPEC (Oct 8 2026, night): correct a cash-collected completed COD to
+  // Debit or Credit. Rewrites the delivery's cod_payments (cash → chosen
+  // type), appends "Paid Via Drivers [Debit/Credit] card." to the delivery
+  // note, and lets the existing fee/settled math take over — a Debit/Credit
+  // payment automatically accrues Square fee + loan% + folder% in Collected
+  // today, loadDeliveryCardCredits (card estimate), loan remaining and the
+  // folder total.
+  const cashToCard = useCallback(async (deliveryId, newType) => {
+    try {
+      const rows = await base44.entities.Delivery.filter({ id: String(deliveryId) }, undefined, 1, 0).catch(() => []);
+      const d = (rows || [])[0];
+      if (!d) {toast.error('Could not find that delivery');return false;}
+      const payments = Array.isArray(d.cod_payments) ? d.cod_payments : [];
+      let changed = false;
+      const nextPayments = payments.map((p) => {
+        if (p && String(p?.type || '').toLowerCase() === 'cash') {changed = true; return { ...p, type: newType };}
+        return p;
+      });
+      if (!changed) {toast.error('No cash payment on that COD');return false;}
+      const noteSuffix = `Paid Via Drivers ${newType} card.`;
+      const existingNote = String(d.delivery_notes || '');
+      const nextNote = existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix;
+      await base44.entities.Delivery.update(String(deliveryId), { cod_payments: nextPayments, delivery_notes: nextNote });
+      toast.success(`COD payment set to ${newType}`);
+      // Recompute the collected rows, balance estimate (fees/net) and the
+      // outstanding lists from the updated delivery.
+      computeCodCollectedTodayRef.current?.();
+      refreshDeliveryCreditsRef.current?.();
+      computeLocalOutstandingRef.current?.();
+      computeCatalogUncollectedRef.current?.();
+      return true;
+    } catch (e) {
+      console.error('cash→card update failed:', e);
+      toast.error('Could not update the COD payment');
+      return false;
+    }
+  }, []);
+
   const markCardSpend = useCallback(async (deliveryId) => {
     if (!currentUser || !deliveryId) return;
     const prev = manualSpendMarksRef.current || {};
@@ -1742,6 +1808,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       canMarkSpend={!!currentUser}
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
+                      onCashToCard={cashToCard}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected Today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
