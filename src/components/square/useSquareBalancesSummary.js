@@ -1025,9 +1025,12 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   // clickable 'Cash' badge. cod_confirmed_collected alone does NOT count
   // (Londonderry report): a cash tender is drawer money, not card money,
   // even when a ledger stamp exists.
-  // DISPLAY ONLY (cashItems): drawer cash never counts in the outstanding
-  // total or the pending-deduction / low-balance math — those stay driven by
-  // `items`, so a completed cash row cannot take money off the card.
+  // cashItems drives the Uncollected 'Cash' rows. Since Oct 9 2026 the
+  // SAME completed cash CODs also sit in deductItems (reason
+  // 'cash_awaiting_card') and keep their deduction until converted — the
+  // money is still not back on the card. They are excluded from `agg.total`
+  // (display total unchanged); the deduction math runs off items +
+  // deductItems in computeByLocId.
   const cashByLoc = new Map();
   for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
     const required = Number(d?.cod_total_amount_required || 0);
@@ -1063,21 +1066,27 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     if (required <= 0 || !isCounted(d)) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) continue;
-    // CASH/CHEQUE completions NEVER keep a deduction (owner spec Oct 8
-    // 2026, the $1.18 TR63 report): the collected_charge deduction models
-    // money charged to the Square card — a debit/credit collection pays the
-    // card back through loadDeliveryCardCredits, so the charge deduction
-    // stays until the true-up. A CASH (or cheque) collection never touched
-    // the card — the money sits in the drawer and is settled separately —
-    // so keeping the deduction took the amount off the card a second time
-    // after the owner already collected it.
+    // CASH/CHEQUE completions KEEP their deduction (owner report Oct 9
+    // 2026, the $29.26 Hamptons/callingwood case, SUPERSEDES the Oct 8 rule):
+    // the collected_charge deduction models money charged to the Square card
+    // when the order was fulfilled. A debit/credit collection pays the card
+    // back immediately through loadDeliveryCardCredits. A CASH (or cheque)
+    // collection does NOT — the money sits in the drawer and NOTHING is
+    // returned to the card until the owner converts the tender (Cash badge
+    // → Debit/Credit combined swipe), which creates the card payment and
+    // lands the net credit. So a completed cash COD keeps deducting the full
+    // amount until converted; once converted it stays in this pool like any
+    // card collection (deduction until true-up, net credit on top — the
+    // balance then correctly reflects only fees/loan/folder lost). Balance
+    // math for the report case: card 135.18 with the 29.26 deduction still
+    // held = 105.92, matching the real card.
     const _pays = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const _cardCollected = _pays.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
-    if (!_cardCollected) continue;
     if (!deductByLoc.has(locId)) deductByLoc.set(locId, []);
     deductByLoc.get(locId).push({
       delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
-      reason: 'collected_charge', date: String(d.delivery_date || '').slice(0, 10),
+      reason: _cardCollected ? 'collected_charge' : 'cash_awaiting_card',
+      date: String(d.delivery_date || '').slice(0, 10),
       created_date: d.created_date || null,
     });
   }

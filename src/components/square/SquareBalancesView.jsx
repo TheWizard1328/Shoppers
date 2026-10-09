@@ -2340,11 +2340,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           </div>
           <div className="flex items-start gap-2">
             <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">Cash</span>
-            <span>Tap a Cash badge to correct the tender. Tick other items to combine them into <span className="font-semibold">one swipe</span>, then pick Debit or Credit — fees, are computed on the swipe total.</span>
+            <span>A cash-collected COD still keeps its amount deducted from the card — the drawer money isn't back on the card yet. Tap the badge to correct the tender: tick other items to combine them into <span className="font-semibold">one swipe</span>, then pick Debit or Credit — fees are computed on the swipe total and the net settles onto the card.</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-700/40 dark:text-slate-300">Debit / Credit</span>
-            <span>Tap to switch the tender type, or revert to Cash — drawer money stops counting toward the card balance.</span>
+            <span>Tap to switch the tender type, or revert to Cash — reverting puts the money back in the drawer, so the full amount deducts from the card balance again.</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/40 dark:text-red-300">Failed</span>
