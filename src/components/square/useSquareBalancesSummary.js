@@ -52,6 +52,10 @@ const IDB_FRESH_INSTALL_MIN_ROWS = 20;
 // fees stayed stale and the converted row double-showed (cash in IDB-driven
 // lists, card in the server-driven Collected list).
 export function invalidateIdbReadCache(key) {
+  // The shared server overlay rides on the deliveries read cache — any
+  // deliveries invalidation (local tender conversion, mirror heal) must drop
+  // it too or a 60s-cached overlay would mask the change.
+  if (!key || key === 'deliveries') { serverOverlay.at = 0; serverOverlay.rows = null; }
   const c = key ? idbReadCaches[key] : null;
   if (c) {c.at = 0;c.rows = null;return;}
   Object.values(idbReadCaches).forEach((c2) => {c2.at = 0;c2.rows = null;});
@@ -72,7 +76,61 @@ async function readIdbRows(storeName, cacheKey, ttlMs) {
 // ALL statuses — callers filter client-side. If the local DB clearly hasn't
 // been bootstrapped yet (fresh install / pre-sync), fall back to the API so
 // the badge is still correct on first runs.
+// SHARED SERVER OVERLAY (owner report Oct 9 2026): three instances showed
+// three different 7-day averages, folder balances and Londonderry totals
+// because every figure was computed from each device's OWN IDB mirror
+// (20,816 vs 30,905 rows) — and server-side writes (ledger confirmations,
+// card-spend stamps, backfills) never broadcast, so a mirror can hold a stale
+// shape forever. The Square math only ever needs recent COD-bearing rows
+// (7-day averages, true-up window, outstanding/deduction scans), a few hundred
+// records. So every device now pulls that window from the SERVER in one
+// paged query (cached 60s, shared by badge + page) and overlays it onto its
+// IDB rows BY ID — the server version always wins. All devices therefore
+// compute from the identical data set, no matter how stale their mirror is.
+const SERVER_OVERLAY_DAYS = 45;
+const serverOverlay = { at: 0, rows: null, inflight: null };
+async function loadServerDeliveryOverlay() {
+  if (serverOverlay.rows && Date.now() - serverOverlay.at < IDB_DELIVERIES_TTL) return serverOverlay.rows;
+  if (serverOverlay.inflight) return serverOverlay.inflight;
+  serverOverlay.inflight = (async () => {
+    const since = new Date(Date.now() - SERVER_OVERLAY_DAYS * 86400000).toISOString().slice(0, 10);
+    const out = [];
+    let skip = 0;
+    for (let page = 0; page < 20; page++) {
+      const list = await base44.entities.Delivery.filter(
+        { delivery_date: { $gte: since } }, '-delivery_date', 500, skip
+      );
+      out.push(...(list || []));
+      if ((list || []).length < 500) break;
+      skip += 500;
+    }
+    serverOverlay.rows = out; serverOverlay.at = Date.now();
+    return out;
+  })().finally(() => { serverOverlay.inflight = null; });
+  return serverOverlay.inflight;
+}
+export function invalidateServerOverlay() { serverOverlay.at = 0; serverOverlay.rows = null; }
+
 async function getAllDeliveriesIdb() {
+  const idbRows = await getAllDeliveriesIdbRaw();
+  try {
+    const fresh = await loadServerDeliveryOverlay();
+    if (!fresh?.length) return idbRows;
+    const byId = new Map();
+    for (const d of idbRows || []) if (d?.id) byId.set(String(d.id), d);
+    // Server wins by id; rows the server window doesn't cover stay as IDB has them.
+    for (const d of fresh) if (d?.id) byId.set(String(d.id), d);
+    // Heal the local mirror in the background so the rest of the app also
+    // converges (non-blocking, chunked inside bulkSave).
+    try { offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fresh).catch(() => {}); } catch {}
+    return [...byId.values()];
+  } catch {
+    // Offline / rate-limited: fall back to the local mirror (offline-first).
+    return idbRows;
+  }
+}
+
+async function getAllDeliveriesIdbRaw() {
   // API fallback backfills fresh installs (no synced data yet) — one volley
   // per cold start; warmed IDB makes every later reload IDB-only.
   const apiFetch = async () => {
@@ -1543,6 +1601,7 @@ function startSummaryStore(userId) {
     const updated = e?.detail?.data || e?.detail;
     if (updated?.setting_key !== 'square_ledger_sync') return;
     invalidateLedgerWindows();
+    invalidateServerOverlay();
     await healDeliveryMirror();
     if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
     clearTimeout(storeCfgTimer);
@@ -1555,6 +1614,7 @@ function startSummaryStore(userId) {
   // 10-min-stale ledger windows) while the page shows fresh card totals.
   const onSquareBalancesRefreshed = () => {
     invalidateLedgerWindows();
+    invalidateServerOverlay();
     clearTimeout(storeCfgTimer);
     storeReload(true);
   };
@@ -1570,6 +1630,7 @@ function startSummaryStore(userId) {
     const ageMs = Date.now() - (storeLastAppliedAt || 0);
     if (ageMs < 15 * 60 * 1000) return;
     clearTimeout(storeCfgTimer);
+    invalidateServerOverlay();
     // Heal the delivery mirror FIRST — the reload's credit/deduction math
     // reads the IDB mirror, so refreshing stale records (server-side
     // confirmation/backfill writes that never broadcast) is what lets a
