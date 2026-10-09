@@ -3,6 +3,7 @@ import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
 import { edmontonBusinessDayKey, edmontonWallString } from '@/components/utils/albertaTime';
 import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedgerWindows, getLedgerWindows } from '@/components/square/squareBalancesOfflineManager';
+import { buildSummaryPayload, publishSharedSnapshot, fetchLatestSharedSnapshot, subscribeSharedSnapshot } from '@/components/square/squareBalancesSharedSnapshot';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
@@ -1519,23 +1520,20 @@ let storeCfgTimer = null;
 let storeCodTimer = null;
 let storeHealTimer = null;
 let storeLastAppliedAt = 0;
+// SHARED ONLINE SNAPSHOT (owner spec Oct 9 2026): version of the last
+// snapshot APPLIED or PUBLISHED by this device (echo + staleness guard —
+// Date.now() at compute time is monotonic across devices).
+let storeSharedVersion = 0;
+let storeSharedPullTimer = null;
+let storeSharedSubTimer = null;
 
 const persistSnapshotModule = (data) => {
   if (!data) return;
-  const payload = {
-    byLocId: [...(data.byLocId || new Map())],
-    payoutsByLoc: [...(data.payoutsByLoc || new Map())],
-    storeToLoc: [...(data.storeToLoc || new Map())],
-    weeklyByStore: [...(data.weeklyByStore || new Map())],
-    storeNames: [...(data.storeNames || new Map())],
-    dailyRemainingByStore: [...(data.dailyRemainingByStore || new Map())],
-    codOutstandingDetailed: data.codOutstandingDetailed || {},
-    config: data.config || null,
-    deliveryCredits: [...(data.deliveryCredits || new Map())],
-    sales: data.sales || [],
-    payouts: data.payouts || [],
-    savedAt: new Date().toISOString(),
-  };
+  const payload = buildSummaryPayload(data);
+  if (!payload) return;
+  // Carry the shared-snapshot version so a boot-hydrated device knows how
+  // fresh its mirror is and never applies an OLDER remote snapshot over it.
+  payload.sharedVersion = storeSharedVersion || 0;
   saveSummarySnapshot(storeUserId, payload).catch?.(() => {});
 };
 
@@ -1574,9 +1572,9 @@ const storeApply = (data) => {
 // Hard failures retry with backoff (2s, 4s, 8s); 429s use the slow path.
 const storeReload = async (force = false, attempt = 0) => {
   const seq = ++storeSeq;
-  let data, degraded;
+  let data, degraded, cached;
   try {
-    ({ data, degraded } = await loadSummary(force, storeUserId));
+    ({ data, degraded, cached } = await loadSummary(force, storeUserId));
   } catch (e) {
     const msg = String(e?.message || e);
     const status = Number(e?.status || e?.response?.status || 0);
@@ -1600,6 +1598,17 @@ const storeReload = async (force = false, attempt = 0) => {
   if (storeIsOwner && storeUserId && Array.isArray(data?.autoRefundedFailed) && data.autoRefundedFailed.length) {
     void sendFailedRefundAlerts(data.config, data.autoRefundedFailed, storeUserId);
   }
+  // SHARED ONLINE SNAPSHOT (owner spec Oct 9 2026): only a FRESH (non-cached)
+  // compute publishes — cached refreshes render identical numbers, and
+  // applying a REMOTE snapshot must never publish (echo loop guard). Owner
+  // devices are the single writer; the monotonic version makes concurrent
+  // owner publishes last-write-wins with identical server-sourced data.
+  if (storeIsOwner && storeUserId && cached !== true) {
+    const ver = Date.now();
+    publishSharedSnapshot(data, { version: ver, userId: storeUserId }).then((published) => {
+      if (published) storeSharedVersion = published;
+    }).catch(() => {});
+  }
   // A degraded run (COD-outstanding fetch failed twice) freezes the badge
   // with wrong totals because updates are event-driven — schedule ONE 30s
   // forced reload to self-heal.
@@ -1607,6 +1616,29 @@ const storeReload = async (force = false, attempt = 0) => {
     if (storeHealTimer) clearTimeout(storeHealTimer);
     storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, 30000);
   }
+};
+
+// Apply a remote shared snapshot (whole-database pull): paint UI + refresh
+// the IDB mirror. Never republishes (that only happens on fresh local
+// computes), so a publish → broadcast → apply chain can never loop.
+const applyRemoteSharedSnapshot = (rec) => {
+  try {
+    const ver = Number(rec?.version || 0);
+    if (!ver || ver <= storeSharedVersion) return false; // stale / echo / already applied
+    const data = deserializeSummary(rec?.payload);
+    if (!data) return false;
+    storeSharedVersion = ver;
+    storeApply(data);
+    persistSnapshotModule(data);
+    return true;
+  } catch (e) {
+    console.error('[useSquareBalancesSummary] remote snapshot apply failed:', e);
+    return false;
+  }
+};
+const pullAndApplySharedSnapshot = async () => {
+  const rec = await fetchLatestSharedSnapshot().catch(() => null);
+  if (rec) applyRemoteSharedSnapshot(rec);
 };
 
 function startSummaryStore(userId, isOwner = false) {
@@ -1631,6 +1663,7 @@ function startSummaryStore(userId, isOwner = false) {
     // snapshot.
     if (snap?.payload && (!snap.user_id || snap.user_id === storeUserId)) {
       const data = deserializeSummary(snap.payload);
+      storeSharedVersion = Number(snap.payload?.sharedVersion || 0); // don't apply an older remote snapshot over the mirror
       if (data && !storeBootDelayFired) {
         storeApply(data);
         storeHydratedFromIdb = true;
@@ -1746,12 +1779,28 @@ function startSummaryStore(userId, isOwner = false) {
   };
   document.addEventListener('visibilitychange', onVisibility);
 
+  // SHARED ONLINE SNAPSHOT: one cheap whole-record pull on any publish
+  // broadcast (debounced — a compute can flip several events) and every 5
+  // minutes as the background freshness backstop (covers offline gaps and
+  // WS-suppressed echoes). One early pull ~10s after boot converges a fresh
+  // device without waiting for the first full compute.
+  const scheduleSharedPull = (delay = 3000) => {
+    clearTimeout(storeSharedSubTimer);
+    storeSharedSubTimer = setTimeout(() => { storeSharedSubTimer = null; void pullAndApplySharedSnapshot(); }, delay);
+  };
+  unsubs.push(subscribeSharedSnapshot(() => scheduleSharedPull()));
+  const sharedBootPull = setTimeout(() => void pullAndApplySharedSnapshot(), 10000);
+  const sharedInterval = setInterval(() => void pullAndApplySharedSnapshot(), 5 * 60 * 1000);
+
   teardownStore = () => {
     storeFirstLoadDone = true;
     if (storeBootTimer) clearTimeout(storeBootTimer);
     clearTimeout(storeCfgTimer);
     clearTimeout(storeCodTimer);
     if (storeHealTimer) clearTimeout(storeHealTimer);
+    clearTimeout(storeSharedSubTimer);
+    clearTimeout(sharedBootPull);
+    clearInterval(sharedInterval);
     unsubs.forEach((u) => { try { u?.(); } catch {} });
     window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
