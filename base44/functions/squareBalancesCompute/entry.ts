@@ -482,7 +482,7 @@ async function computeSummary(b44, userId) {
     dailyRemainingByStore: [...dailyRemainingByStore],
     codOutstandingDetailed,
     config,
-    configRecordId,
+    configRecordId: cfgRecordId,
     deliveryCredits: [...deliveryCredits],
     sales: [],
     payouts: payouts || [],
