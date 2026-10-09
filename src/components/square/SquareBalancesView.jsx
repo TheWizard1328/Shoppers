@@ -935,6 +935,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await computeCodCollectedToday();
       computeCatalogUncollected();
       loadDailyCod();
+      // SIDEBAR BADGE SYNC (owner report Oct 8 2026: Refresh Square updated
+      // the page cards but the sidebar badge kept a stale total): this refresh
+      // is strictly local re-reads — no server write, so no WS broadcast ever
+      // reaches the badge hook. Drop the shared ledger-windows cache (same
+      // cache the badge computes from, up to 10 min stale) and broadcast a
+      // local event so the sidebar badge force-reloads with fresh numbers on
+      // the SAME device that clicked Refresh.
+      invalidateLedgerWindows();
+      window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
       toast.success('Delivery data refreshed');
     } catch (err) {
       console.error('delivery-data refresh failed:', err);

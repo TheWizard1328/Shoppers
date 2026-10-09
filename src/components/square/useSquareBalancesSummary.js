@@ -1479,6 +1479,18 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
       cfgTimer = setTimeout(() => reload(true), 2500);
     };
     window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
+    // Same-device Refresh Square click (Oct 8 2026): the page's refresh is
+    // strictly local re-reads — no entity write, no WS echo — so without
+    // this the sidebar badge keeps rendering its stale summary (60s cache +
+    // up to 10-min-stale ledger windows) while the page shows fresh card
+    // totals. The page already dropped the windows cache before dispatching,
+    // so a forced reload recomputes from fresh data.
+    const onSquareBalancesRefreshed = () => {
+      invalidateLedgerWindows();
+      clearTimeout(cfgTimer);
+      reload(true);
+    };
+    window.addEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
     return () => {
       cancelled = true;
       firstLoadDone = true;
@@ -1487,6 +1499,7 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
       unsubs.forEach((u) => { try { u?.(); } catch {} });
       window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
       window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
+      window.removeEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
     };
   }, [enabled, reload, apply]);
 
