@@ -69,10 +69,21 @@ export default function CyclingLocationSearch({
 
   // Fetch locations when cityId changes
   const fetchLocations = useCallback(async () => {
-    if (!cityId) return;
     setIsLoading(true);
     try {
-      const all = await base44.entities.CyclingLocation.filter({ city_id: cityId });
+      // City-scoped query first (nearest city / driver's city).
+      let all = cityId
+        ? await base44.entities.CyclingLocation.filter({ city_id: cityId })
+        : null;
+      // FALLBACK (owner report Oct 9 2026: "couldn't find any data for past
+      // saved locations"): after a force close GPS is cold and the city
+      // resolution can land on a city with no cycling locations (or none at
+      // all — the old code bailed out with cityId null and never fetched).
+      // The whole entity is a handful of rows — if the scoped query comes up
+      // empty, load everything and let the distance sort rank them.
+      if (!all || all.length === 0) {
+        all = await base44.entities.CyclingLocation.list();
+      }
 
       // Driver's current position for as-the-crow-flies distance ranking.
       // Falls back to null when GPS is unavailable — those locations sort last.

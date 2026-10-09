@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { restoreTokenFromBridge } from '@/lib/authTokenBridge';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
@@ -39,8 +40,14 @@ export const AuthProvider = ({ children }) => {
   const deepLinkHandledRef = useRef(false);
 
   useEffect(() => {
-    checkAppState();
-    setupDeepLinkHandler();
+    // PERF/UX (owner report Oct 9 2026: force close forced re-login): restore
+    // the access token from the IDB bridge BEFORE the auth check — Android
+    // WebView can evict localStorage (losing the session) while keeping
+    // IndexedDB alive. No-op when the token is still present.
+    restoreTokenFromBridge().finally(() => {
+      checkAppState();
+      setupDeepLinkHandler();
+    });
   }, []);
 
   // ─── Native OAuth deep link handler ─────────────────────────────
