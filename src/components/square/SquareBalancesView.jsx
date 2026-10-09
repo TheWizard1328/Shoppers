@@ -1773,13 +1773,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         <span className="text-slate-400">(average = total CODs to collect over the last 7 days, excluding today, ÷ 7)</span>
       </div>
 
-      {/* Location cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Location cards — CENTERED per row (owner request Oct 9 2026):
+          no matter how many store cards exist, each row's cards are
+          horizontally centered (flex-wrap + justify-center with a fixed
+          card basis, so a lone last card sits mid-row instead of hugging
+          the left edge like a 3-col grid would do). */}
+      <div className="flex flex-wrap justify-center gap-3">
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
           return (
             <div key={loc.location_id}
-            className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden"
+            className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden w-full md:w-[calc(33.333%-0.667rem)]"
             style={lvl ? { borderColor: lvl.border, backgroundImage: `linear-gradient(0deg, ${lvl.tint}, ${lvl.tint})` } : { borderColor: 'var(--border-slate-200, #e2e8f0)' }}>
             <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-start justify-between gap-2">
