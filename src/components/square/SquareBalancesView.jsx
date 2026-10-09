@@ -2315,6 +2315,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-700/40 dark:text-slate-300">Debit / Credit</span>
             <span>Tap to switch the tender type, or revert to Cash — drawer money stops counting toward the card balance.</span>
           </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/40 dark:text-red-300">Failed</span>
+            <span>A failed delivery's COD stays in Uncollected and keeps deducting from the card (the goods were charged). Tap the badge once the refund is registered in Square — the amount returns to the card balance and the row clears.</span>
+          </div>
           {ownerCanEdit &&
           <div className="flex items-start gap-2">
             <span className="mt-0.5 shrink-0 font-mono text-[10px] font-semibold text-slate-500 dark:text-slate-400">S: F: L:</span>
