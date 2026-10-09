@@ -862,7 +862,10 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // retry would double-count the amount off the card). Covers BOTH the
       // cod_retried_at stamp AND legacy stamp-less retry pairs (index above).
       if (status === 'failed' && (d?.cod_retried_at || isLegacyRetried(d, Math.round(centsOf(required))))) continue;
-      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id) };
+      // driver_id rides along so the Square Balances page can scope the
+      // visible rows per driver (owner rule Oct 9 2026: a driver only sees
+      // the delivery items assigned to them).
+      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id) };
       // FAILED + REFUNDED (auto or manual) → resolved: the refund put the
       // money back on the card, so the row leaves the Uncollected lists and
       // the pending deduction releases. NOTE (owner spec Oct 8 2026): a
@@ -901,7 +904,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
       reason: 'cash_collected', date: String(d.delivery_date || '').slice(0, 10),
       created_date: d.created_date || null,
-      patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id)
+      patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id)
     });
   }
 

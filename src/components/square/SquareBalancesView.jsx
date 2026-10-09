@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { isAppOwner } from "@/components/utils/userRoles";
+import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
@@ -457,6 +457,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeCatalogUncollectedRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
+  // DRIVER SCOPE (owner rule Oct 9 2026): a driver only sees the delivery
+  // items assigned to them — balance/card math stays global (it is the
+  // store's real card money), only the row lists are scoped.
+  const driverScopeId = (!ownerCanEdit && currentUser?.id && userHasRole(currentUser, 'driver')) ? String(currentUser.id) : null;
   // null = show every card (admins/owner); array = only these cards (drivers see the
   // cards assigned to their stores for the current date).
   const restricted = Array.isArray(visibleLocationIds);
@@ -768,6 +772,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           return { rows: [], failed: true };
         }
       };
+      // DRIVER SCOPE (owner rule Oct 9 2026): stamp each catalog row with
+      // the linked delivery's driver so drivers only see their own items.
+      // Rows with no delivery link get no driver and stay owner-only.
+      const scopeId = (!isAppOwner(currentUser) && currentUser?.id && userHasRole(currentUser, 'driver')) ? String(currentUser.id) : null;
+      const driverByDelivery = new Map();
+      if (scopeId) {
+        try {
+          const allDel = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          (allDel || []).forEach((dd) => { if (dd?.id && dd?.driver_id) driverByDelivery.set(String(dd.id), String(dd.driver_id)); });
+        } catch { /* fall through — unstamped catalog rows are driver-hidden */ }
+      }
       const itemsPages = [];
       let anyFetchFailed = false;
       for (let skip = 0; skip < 20000; skip += 500) {
@@ -803,6 +818,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         byLoc.get(it.location_id).push({
           key: `cat-${it.id || it.square_catalog_object_id}`,
           delivery_id: it.delivery_id || null,
+          driver_id: driverByDelivery.get(String(it.delivery_id || '')) || null,
           patientName: resolvePatientName(it.patient_id)?.full_name || parsed?.patientName || extractNameFromCatalogDescription(it.description) || null,
           storeAbbrev: abbrev,
           storeColor: sInfo?.color || sInfoByAbbrev?.color || null,
@@ -954,7 +970,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } catch (e) {
       console.error('catalog uncollected compute failed:', e);
     }
-  }, []);
+  }, [currentUser]);
   // Owner-only: today's COLLECTED CODs per card.
   //   a) Square-confirmed cash collections (ledger cod_collection entries whose
   //      occurred_at lands on today's Edmonton date)
@@ -1046,6 +1062,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         aggFor(locId).push({
           key: `d-${d.id}`,
           delivery_id: String(d.id),
+          // driver scoping (owner rule Oct 9 2026): drivers only see rows
+          // for deliveries assigned to them.
+          driver_id: String(d.driver_id || '') || null,
           patientName: resolvePatientName(d.patient_id)?.full_name || null,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
@@ -1852,6 +1871,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const deliveryRows = [...outItems.map((it) => ({
                     key: `o-${it.delivery_id}`,
                     delivery_id: it.delivery_id,
+                    driver_id: it.driver_id || null,
                     patientName: it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -1864,6 +1884,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   })), ...cashItems.map((it) => ({
                     key: `c-${it.delivery_id}`,
                     delivery_id: it.delivery_id,
+                    driver_id: it.driver_id || null,
                     patientName: it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -1887,6 +1908,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   map((it) => ({
                     key: it.key || `cat-${it.delivery_id || it.patientName}`,
                     delivery_id: it.delivery_id || null,
+                    driver_id: it.driver_id || null,
                     patientName: it.patientName || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -1896,7 +1918,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     notTapped: notTapped(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                  const combinedSrc = [...deliveryRows, ...catRows];
+                  // DRIVER SCOPE (owner rule Oct 9 2026): drivers only see
+                  // the delivery items assigned to them. The card/balance
+                  // math above stays global — it is the store's real card
+                  // money — only the visible rows are scoped.
+                  const combinedSrc = (!driverScopeId ? [...deliveryRows, ...catRows] : [...deliveryRows, ...catRows].filter((it) => String(it.driver_id || '') === driverScopeId));
                   // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                   // Uncollected / Past uncollected — they are technically
                   // uncollected until processed back to the Square card. They
@@ -1943,7 +1969,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     notTapped: notTapped(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                  const collectedTodayRows = codCollectedTodayByLoc[loc.location_id] || [];
+                  const collectedTodayRows = (!driverScopeId ? (codCollectedTodayByLoc[loc.location_id] || []) : (codCollectedTodayByLoc[loc.location_id] || []).filter((r) => String(r.driver_id || '') === driverScopeId));
                   const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
                   return (
                     <CardCodList
@@ -2198,6 +2224,45 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           </div>
         </div>
       }
+
+      {/* HOW THE BADGES WORK (owner request Oct 9 2026): short usage guide
+          for the clickable badges, collapsed by default at the bottom of the
+          page. The S/F/L line is owner-only (drivers see settled amounts
+          only). Drivers see a scope note — they only see their own rows. */}
+      <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
+        <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
+          How the badges work
+        </summary>
+        <div className="mt-3 space-y-2.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:border-sky-800 dark:bg-sky-900/40 dark:text-sky-300">Card Spend</span>
+            <span>A pending COD with this pill is charged to the card and deducts from that card's balance estimate. Tap it to mark it <span className="font-semibold">Not Tapped</span> — the deduction stops.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:border-violet-800 dark:bg-violet-900/40 dark:text-violet-300">Not Tapped</span>
+            <span>Tap the pill again to flip it back to <span className="font-semibold">Card Spend</span> — the pending COD deducts from the card estimate again.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">Cash</span>
+            <span>Tap a Cash badge to correct the tender. Tick other same-store cash items to combine them into <span className="font-semibold">one swipe</span>, then pick Debit or Credit — fees, loan and folder are computed on the swipe total.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-700/40 dark:text-slate-300">Debit / Credit</span>
+            <span>Tap to switch the tender type, or revert to Cash — drawer money stops counting toward the card balance.</span>
+          </div>
+          {ownerCanEdit &&
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 font-mono text-[10px] font-semibold text-slate-500 dark:text-slate-400">S: F: L:</span>
+            <span>On collected rows: S = Square fee, F = folder, L = loan — the amount after them is what settled back onto the card.</span>
+          </div>
+          }
+          {driverScopeId &&
+          <div className="pt-1 border-t border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
+            You only see the delivery items assigned to you. Card balances are the store's real totals.
+          </div>
+          }
+        </div>
+      </details>
     </div>);
 
 }
