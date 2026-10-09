@@ -283,16 +283,16 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                     title="Mark this failed COD as refunded — the amount returns to the card balance"
                     // No role="button" (same min-height CSS trap as the pills).
                     className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span>
-                ) : (r.collected || r.cashAwaitingSquare) && statusLabel === 'Cash' && canMarkSpend && !!r.delivery_id && onCashToCard ? (
+                ) : (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ? (
                   <span
                     onClick={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const below = window.innerHeight - rect.bottom > 150;
-                      setCashPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                      setCashPick({ row: r, label: statusLabel, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                     }}
-                    title="Tap to correct this collection to Debit or Credit"
+                    title="Tap to change this tender (Debit / Credit / Cash)"
                     // No role="button" (same min-height CSS trap as the pills).
-                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-emerald-400/60 dark:ring-emerald-500/50`}>{statusLabel}</span>
+                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span>
                 ) : (
                   <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>
                 )}
@@ -318,9 +318,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             bottom: cashPick.anchorBottom ? Math.max(8, window.innerHeight - cashPick.y + 6) : undefined
           }}>
           <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set tender</div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <Button size="sm" className="h-9" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Debit'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
-            <Button size="sm" className="h-9" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Credit'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
+          <div className="grid grid-cols-3 gap-1.5">
+            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Debit'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
+            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Credit'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
+            {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
+                (/_at) so the fee/loan/folder credit and ledger confirmation
+                stop counting it (owner rule Oct 9 2026). */}
+            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Cash'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
           </div>
           <div className="text-center">
             <span className="text-[11px] text-slate-400 cursor-pointer select-none" onClick={() => !cashPickBusy && setCashPick(null)}>Cancel</span>
@@ -480,25 +484,37 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // folder total.
   const cashToCardSyncTimerRef = useRef(null);
   const cashToCard = useCallback(async (deliveryId, newType) => {
+    const toType = String(newType || '');
+    const target = toType.toLowerCase();
     try {
       const rows = await base44.entities.Delivery.filter({ id: String(deliveryId) }, undefined, 1, 0).catch(() => []);
       const d = (rows || [])[0];
       if (!d) {toast.error('Could not find that delivery');return false;}
       const payments = Array.isArray(d.cod_payments) ? d.cod_payments : [];
+      // Cash -> Debit/Credit converts cash payments; Debit/Credit -> Cash
+      // (owner rule Oct 9 2026) converts card payments back to drawer cash.
+      const convertible = target === 'cash' ? ['debit', 'credit'] : ['cash'];
       let changed = false;
       const nextPayments = payments.map((p) => {
-        if (p && String(p?.type || '').toLowerCase() === 'cash') {changed = true; return { ...p, type: newType };}
+        if (p && convertible.includes(String(p?.type || '').toLowerCase())) {changed = true; return { ...p, type: toType };}
         return p;
       });
-      if (!changed) {toast.error('No cash payment on that COD');return false;}
-      const noteSuffix = `Paid Via Drivers ${newType} card.`;
+      if (!changed) {toast.error(`Payment is already ${toType}`);return false;}
+      const noteSuffix = target === 'cash' ? 'Collected in cash.' : `Paid Via Drivers ${toType} card.`;
       const existingNote = String(d.delivery_notes || '');
       const nextNote = existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix;
-      // Stamp the conversion instant: this card payment is NEW money the
-      // true-up did not bake in, so the credit math must count it even when
-      // the delivery finished before trued_up_at (see loadDeliveryCardCredits).
-      const spendStamp = new Date().toISOString();
-      await base44.entities.Delivery.update(String(deliveryId), { cod_payments: nextPayments, delivery_notes: nextNote, cod_card_spend_at: spendStamp });
+      // CARD -> CASH: drawer money is NOT card money — clear every collection
+      // stamp (owner rule Oct 9 2026) so the fee/loan/folder credit stops
+      // counting it (cod_card_spend_at) and any ledger confirmation
+      // (cod_confirmed_collected / _at) no longer holds. CASH -> CARD: stamp
+      // the conversion instant — this card payment is NEW money the true-up
+      // did not bake in, so the credit math must count it even when the
+      // delivery finished before trued_up_at (see loadDeliveryCardCredits).
+      const stampUpdate = target === 'cash'
+        ? { cod_card_spend_at: '', cod_confirmed_collected: false, cod_confirmed_collected_at: '' }
+        : { cod_card_spend_at: new Date().toISOString() };
+      const updatePayload = { cod_payments: nextPayments, delivery_notes: nextNote, ...stampUpdate };
+      await base44.entities.Delivery.update(String(deliveryId), updatePayload);
       // ROOT-CAUSE FIX (owner report Oct 8 2026 late: fees didn't update, page
       // "lost other items", UI inconsistent): the fee / outstanding math reads
       // the local IDB delivery mirror, and our own write's WS echo is
@@ -507,9 +523,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // IDB-driven lists, card in Collected today) and the fee values
       // (Square fee / folder / loan) kept the old math. Update the mirror +
       // drop the read cache FIRST so every recompute below sees fresh data.
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, cod_payments: nextPayments, delivery_notes: nextNote, cod_card_spend_at: spendStamp }]).catch(() => {});
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, ...updatePayload }]).catch(() => {});
       invalidateIdbReadCache('deliveries');
-      toast.success(`COD payment set to ${newType}`);
+      toast.success(`COD payment set to ${toType}`);
       // Recompute the collected rows, balance estimate (fees/net) and the
       // outstanding lists from the updated delivery.
       computeCodCollectedTodayRef.current?.();
