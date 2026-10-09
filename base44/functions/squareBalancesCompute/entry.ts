@@ -473,6 +473,69 @@ async function computeSummary(b44, userId) {
     });
   }
 
+  // ── tender cross-check (owner spec Oct 9 2026): double-verify that CODs ──
+  // marked Debit/Credit match the REAL card Square saw. Ledger cod_collection
+  // rows carry card_brand (INTERAC vs credit) + entry_method. Fixes single
+  // card-entry type mismatches and stamps card_brand/entry_method; reports
+  // cash-marked-but-swiped and mixed-brand cases WITHOUT rewriting them.
+  const tenderFixes = [];
+  const tenderMismatches = [];
+  {
+    const tenderSince = new Date(Date.now() - 7 * 86400000).toISOString();
+    const codRows = await pagedFilter(b44, 'SquareLedgerEntry', { sale_class: 'cod_collection', occurred_at: { $gte: tenderSince } }, '-occurred_at', 10).catch(() => []);
+    const brandByDelivery = new Map();
+    for (const r of codRows || []) {
+      const id = r?.delivery_id ? String(r.delivery_id) : null;
+      const brand = String(r?.card_brand || '').toUpperCase();
+      if (!id || !brand) continue;
+      const rec = brandByDelivery.get(id) || { brands: new Set(), entries: new Set() };
+      rec.brands.add(brand);
+      if (r?.entry_method) rec.entries.add(String(r.entry_method).toUpperCase());
+      brandByDelivery.set(id, rec);
+    }
+    const deliveryById = new Map(allDeliveries.map((d) => [String(d?.id), d]));
+    for (const [id, rec] of brandByDelivery.entries()) {
+      const d = deliveryById.get(id);
+      if (!d) continue; // delivery outside the compute window — skip
+      const payments = Array.isArray(d?.cod_payments) ? d.cod_payments.filter(Boolean) : [];
+      if (!payments.length) continue;
+      const brands = [...rec.brands];
+      const isDebit = brands.length === 1 && brands[0] === 'INTERAC';
+      const isCredit = brands.length >= 1 && brands.every((b) => b !== 'INTERAC');
+      const cardIdx = payments.map((p, i) => ({ p, i })).filter(({ p }) => p?.type === 'Debit' || p?.type === 'Credit');
+      if (!cardIdx.length) {
+        tenderMismatches.push({ delivery_id: id, issue: 'swiped_but_marked_noncard', brands });
+        continue;
+      }
+      if (!isDebit && !isCredit) {
+        tenderMismatches.push({ delivery_id: id, issue: 'mixed_brands', brands });
+        continue;
+      }
+      const realTender = isDebit ? 'Debit' : 'Credit';
+      const brand = isDebit ? 'INTERAC' : brands[0];
+      const entryMethod = [...rec.entries][0] || null;
+      const nextPayments = payments.map((p) => ({ ...p }));
+      let changed = false;
+      if (cardIdx.length === 1) {
+        const t = nextPayments[cardIdx[0].i];
+        if (t.type !== realTender) { t.type = realTender; changed = true; }
+        if (t.card_brand !== brand) { t.card_brand = brand; changed = true; }
+        if (entryMethod && t.entry_method !== entryMethod) { t.entry_method = entryMethod; changed = true; }
+      } else {
+        // Multiple card entries (combined swipe split): only stamp missing
+        // brands, never re-type — the per-entry split is authoritative.
+        for (const { i } of cardIdx) {
+          const t = nextPayments[i];
+          if (!t.card_brand) { t.card_brand = brand; if (entryMethod && !t.entry_method) t.entry_method = entryMethod; changed = true; }
+        }
+      }
+      if (changed) {
+        const ok = await b44.entities.Delivery.update(id, { cod_payments: nextPayments }).then(() => true).catch(() => false);
+        if (ok) tenderFixes.push({ delivery_id: id, tender: realTender, card_brand: brand, entry_method: entryMethod });
+      }
+    }
+  }
+
   const payload = {
     byLocId: [...byLocId],
     payoutsByLoc: [...payoutsByLocMap],
@@ -486,6 +549,8 @@ async function computeSummary(b44, userId) {
     deliveryCredits: [...deliveryCredits],
     sales: [],
     payouts: payouts || [],
+    tenderFixes: tenderFixes.slice(0, 50),
+    tenderMismatches: tenderMismatches.slice(0, 50),
     savedAt: new Date().toISOString(),
   };
   return { payload, autoRefundedFailed };
