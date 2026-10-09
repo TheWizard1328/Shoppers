@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
+import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -477,6 +478,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // payment automatically accrues Square fee + loan% + folder% in Collected
   // today, loadDeliveryCardCredits (card estimate), loan remaining and the
   // folder total.
+  const cashToCardSyncTimerRef = useRef(null);
   const cashToCard = useCallback(async (deliveryId, newType) => {
     try {
       const rows = await base44.entities.Delivery.filter({ id: String(deliveryId) }, undefined, 1, 0).catch(() => []);
@@ -493,18 +495,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const existingNote = String(d.delivery_notes || '');
       const nextNote = existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix;
       await base44.entities.Delivery.update(String(deliveryId), { cod_payments: nextPayments, delivery_notes: nextNote });
+      // ROOT-CAUSE FIX (owner report Oct 8 2026 late: fees didn't update, page
+      // "lost other items", UI inconsistent): the fee / outstanding math reads
+      // the local IDB delivery mirror, and our own write's WS echo is
+      // suppressed for 5 minutes — so the mirror still said CASH while the
+      // server said Debit. The row then double-showed (cash in the
+      // IDB-driven lists, card in Collected today) and the fee values
+      // (Square fee / folder / loan) kept the old math. Update the mirror +
+      // drop the read cache FIRST so every recompute below sees fresh data.
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, cod_payments: nextPayments, delivery_notes: nextNote }]).catch(() => {});
+      invalidateIdbReadCache('deliveries');
       toast.success(`COD payment set to ${newType}`);
       // Recompute the collected rows, balance estimate (fees/net) and the
-      // outstanding lists from the updated delivery, then run the Square
-      // sync (same path as a fresh debit/credit collection) so the ledger
-      // match stamps cod_confirmed_collected and the catalog reconcile
-      // clears the register item — the page re-renders with the real
-      // settled fees from the sync.
+      // outstanding lists from the updated delivery.
       computeCodCollectedTodayRef.current?.();
       refreshDeliveryCreditsRef.current?.();
       computeLocalOutstandingRef.current?.();
       computeCatalogUncollectedRef.current?.();
-      syncRef.current?.();
+      // Square sync (same path as a fresh debit/credit collection: ledger
+      // match stamps cod_confirmed_collected, catalog reconcile clears the
+      // register item) on the SAME 20s debounce as a card-collected WS
+      // event — running it inline mid-render churned the whole page's sales
+      // state and made sections blink empty; the local recomputes above
+      // already refresh the fees immediately.
+      clearTimeout(cashToCardSyncTimerRef.current);
+      cashToCardSyncTimerRef.current = setTimeout(() => {syncRef.current?.();}, 20000);
       return true;
     } catch (e) {
       console.error('cash→card update failed:', e);

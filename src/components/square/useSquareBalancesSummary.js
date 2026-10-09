@@ -45,6 +45,18 @@ const idbReadCaches = {
 };
 const IDB_FRESH_INSTALL_MIN_ROWS = 20;
 
+// OWNER FIX (Oct 8 2026, late): page-side writes (e.g. the Cash→Debit/Credit
+// tender conversion) must also update the local IDB delivery mirror + this
+// in-memory read cache — the fee / outstanding math reads IDB, and the WS
+// echo for our own write is suppressed for 5 minutes, so without this the
+// fees stayed stale and the converted row double-showed (cash in IDB-driven
+// lists, card in the server-driven Collected list).
+export function invalidateIdbReadCache(key) {
+  const c = key ? idbReadCaches[key] : null;
+  if (c) {c.at = 0;c.rows = null;return;}
+  Object.values(idbReadCaches).forEach((c2) => {c2.at = 0;c2.rows = null;});
+}
+
 async function readIdbRows(storeName, cacheKey, ttlMs) {
   const c = idbReadCaches[cacheKey];
   if (c.rows && Date.now() - c.at < ttlMs) return c.rows;
