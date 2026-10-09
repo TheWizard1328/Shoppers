@@ -1201,12 +1201,65 @@ function recordHasCod(d) {
     || (Array.isArray(d.cod_payments) && d.cod_payments.length > 0)
     || !!d.cod_confirmed_collected);
 }
+// ── COD-DATA-CHANGE RELEVANCE (owner spec Oct 9 2026: "limit it to only if
+// the COD data for a delivery changes — anything on a delivery with a COD
+// makes it fire") ───────────────────────────────────────────────────────────
+// The old filter returned true for ANY event on a record that merely HAS a
+// COD — status flips, stop_order writes, address edits, accepts, GPS-adjacent
+// field writes all forced a compute. Only the fields below can move the
+// balance math, so an event is relevant only when one of THEM actually
+// changed value (per-delivery signature dedup — WS platforms that omit
+// changedFields still get correct gating).
+const COD_SIG_FIELDS = [
+  'status', // completed/failed/returned moves outstanding ↔ collected
+  'actual_delivery_time', // finished-after-true-up credit rule
+  'driver_id', // driver scoping of rows (driver devices' own computes)
+  'cod_total_amount_required',
+  'cod_payments', // tender conversions, combined-swipe split cents
+  'cod_confirmed_collected',
+  'cod_card_spend_at',
+  'cod_returned_at',
+  'cod_retried_at',
+  'cod_retry_delivery_id'
+];
+const codEventSigs = new Map(); // delivery id → last seen signature
+const _codSig = (d) => {
+  if (!d) return 'NONE';
+  const parts = COD_SIG_FIELDS.map((f) => {
+    const v = d[f];
+    return `${f}=${typeof v === 'object' && v !== null ? JSON.stringify(v) : (v ?? '')}`;
+  });
+  return parts.join('|');
+};
 function isCodRelevantEvent(ev) {
   if (!ev) return false;
+  if (ev.type === 'delete') {
+    if (ev?.data?.id) codEventSigs.delete(ev.data.id);
+    return ev.data ? recordHasCod(ev.data) : true;
+  }
+  const d = ev.data || ev;
+  if (!d?.id) return false;
+  // Bound the signature map (45-day window scrolls; IDs never reused).
+  if (codEventSigs.size > 4000) codEventSigs.clear();
+  const sig = _codSig(d);
+  const prevSig = codEventSigs.get(d.id);
+  codEventSigs.set(d.id, sig);
+  if (prevSig === sig) return false; // same COD-relevant values — pure noise
+  if (prevSig === undefined) {
+    // First sighting: fire only if the record actually carries a COD now
+    // (a plain non-COD delivery must not trigger a compute on boot).
+    return recordHasCod(d);
+  }
+  // Known record: fire only when a COD-relevant field actually changed.
   const changed = ev.changedFields || ev.changed_fields || [];
-  if (changed.some((f) => String(f).startsWith('cod_'))) return true;
-  if (ev.type === 'delete') return ev.data ? recordHasCod(ev.data) : true;
-  return recordHasCod(ev.data);
+  if (Array.isArray(changed) && changed.length > 0) {
+    const relevantChange = changed.some((f) =>
+      String(f).startsWith('cod_') || COD_SIG_FIELDS.includes(String(f)));
+    return relevantChange;
+  }
+  // No changedFields metadata: the signature already proved something
+  // COD-relevant moved (or the record gained/lost its COD).
+  return true;
 }
 
 // ── Owner reconcile plan (Oct 3 2026) ───────────────────────────────────────
