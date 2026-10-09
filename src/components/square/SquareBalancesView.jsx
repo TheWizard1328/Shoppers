@@ -1837,14 +1837,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           <label key={loc.location_id} className="block space-y-1">
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{loc.name || loc.location_id}</span>
                 <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder={`current ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
-              value={topUpDraft[loc.location_id] ?? ''}
+              type="text"
+              inputMode="decimal"
+              placeholder={`add to ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
+              value={fmtTrueUpField(topUpDraft[loc.location_id])}
               disabled={isSaving}
-              onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: e.target.value }))} />
-            
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: trueUpCentsValue(e.target.value) }))} />
+
               </label>
           )}
             <div className="flex gap-2 justify-end">
