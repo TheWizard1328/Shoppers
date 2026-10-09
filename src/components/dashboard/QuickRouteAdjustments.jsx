@@ -7,6 +7,7 @@ import { GripVertical } from 'lucide-react';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { isInterStoreDelivery, resolveInterStoreFromName } from '../utils/interStoreDisplayName';
+import { getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
 import useSloppyTouchSensor from './useSloppyTouchSensor';
 import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 
@@ -137,6 +138,11 @@ export default function QuickRouteAdjustments({
   }, [localOrder]);
 
   const getStopName = (delivery) => {
+    // Cycling Start/End markers (owner report Oct 9 2026): they carry no
+    // patient_id, so they fell through to the store-pickup label. Use the
+    // canonical marker classifier (delivery_notes, then transport_mode).
+    const cyc = getCyclingMarkerDisplayInfo(delivery);
+    if (cyc.isCyclingMarker) return cyc.cyclingName;
     // ISP/ISD inter-store deliveries
     if (isInterStoreDelivery(delivery.delivery_id)) {
       if (interStoreNames[delivery.id]) return interStoreNames[delivery.id];
@@ -157,7 +163,15 @@ export default function QuickRouteAdjustments({
 
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 min-h-0">
+      {/* SCROLLABLE LIST (owner report Oct 9 2026): with many stops the
+          Reoptimize/Cancel buttons were pushed off the dialog (the dialog is
+          overflow-hidden). The stop list now scrolls inside its own region
+          and the footer below stays pinned and always reachable. */}
+      <div
+        className="overflow-y-auto overscroll-contain pr-0.5"
+        style={{ maxHeight: 'calc(80vh - 150px)', WebkitOverflowScrolling: 'touch' }}
+      >
       <DragDropContext
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -170,8 +184,7 @@ export default function QuickRouteAdjustments({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="space-y-1"
-            style={{ touchAction: 'none' }}>
+            className="space-y-1">
             
               {localOrder.map((delivery, index) => {
               const isNext = delivery.isNextDelivery === true;
@@ -182,8 +195,7 @@ export default function QuickRouteAdjustments({
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing select-none"
+                      className="flex items-center gap-2 p-2 rounded-lg border select-none"
                       style={{
                         ...provided.draggableProps.style,
                         background: snapshot.isDragging ?
@@ -193,12 +205,22 @@ export default function QuickRouteAdjustments({
                         boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
                         userSelect: 'none',
                         pointerEvents: 'auto',
-                        touchAction: 'none',
                         WebkitUserSelect: 'none',
                         WebkitTouchCallout: 'none'
                       }}>
                       
-                          <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+                          {/* DRAG HANDLE (owner report Oct 9 2026): the list now
+                              scrolls, so only the grip starts a drag — swiping
+                              anywhere else on the row scrolls the list. Wide
+                              touch target + touch-action:none on the handle only. */}
+                          <div
+                            {...provided.dragHandleProps}
+                            className="flex items-center justify-center self-stretch -my-2 -ml-2 pl-2 pr-2 cursor-grab active:cursor-grabbing flex-shrink-0"
+                            style={{ touchAction: 'none', minWidth: 32 }}
+                            aria-label="Drag to reorder"
+                          >
+                            <GripVertical className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
+                          </div>
                           <div className="flex-1 min-w-0 flex items-center gap-2">
                             <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-slate-400)' }}>#{originalOrders[delivery.id] ?? '?'}</span>
                             <span className="text-sm font-medium truncate flex-1 text-body">{getStopName(delivery)}</span>
@@ -217,8 +239,9 @@ export default function QuickRouteAdjustments({
           }
         </Droppable>
       </DragDropContext>
+      </div>
 
-      <div className="flex gap-2 pt-2 border-t pb-2 border-surface">
+      <div className="flex gap-2 pt-2 border-t pb-2 border-surface flex-shrink-0">
         <Button variant="outline" className="flex-1" onClick={onCancel} disabled={isOptimizing}>Cancel</Button>
         <Button 
           className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed" 
