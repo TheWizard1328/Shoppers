@@ -723,32 +723,102 @@ export default function Layout({ children, currentPageName }) {
     }
   }, []);
 
-  // Granular AppUser update function for immediate UI synchronization
-  const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
-    if (isFullReplacement) {
-      setAppUsers((prev) => {
-        const next = newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev;
-        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
-        // state immediately — before the useEffect in AppDataContext fires after paint.
-        if (typeof window !== 'undefined') window.__appUsers = next;
-        return next;
-      });
-    } else {
-      setAppUsers((prevAppUsers) => {
-        const updatesMap = new Map(newAppUsers.map((u) => [u.id, u]));
-        const next = prevAppUsers.map((appUser) => {
-          if (!appUser) return appUser;
-          const update = updatesMap.get(appUser.id);
-          if (update) return { ...appUser, ...update };
-          return appUser;
-        });
-        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
-        // state immediately — before the useEffect in AppDataContext fires after paint.
-        if (typeof window !== 'undefined') window.__appUsers = next;
-        return next;
-      });
+  // PERF (Oct 9 2026 deep dive, GPS re-render fix): every remote driver GPS
+  // tick used to commit a brand-new appUsers array, re-rendering the whole
+  // Layout/Dashboard tree (map, header, dialogs) several times a minute.
+  // Location-only changes are now coalesced to at most ONE React commit per
+  // second; the window.__appUsers mirror stays synchronous (flushRealtimeBatch
+  // and merge paths still see fresh coords instantly), and any non-location
+  // change (duty status, name, role, ...) commits immediately, flushing any
+  // pending GPS coalescing first so ordering is preserved.
+  const LOC_ONLY_USER_FIELDS = new Set(['current_latitude', 'current_longitude', 'location_updated_at', 'last_seen_at', 'last_seen_device', 'updated_date']);
+  const isLocationOnlyUserDiff = (a, b) => {
+    if (!a || !b) return false;
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const k of keys) {
+      if (a[k] === b[k]) continue;
+      if (LOC_ONLY_USER_FIELDS.has(k)) continue;
+      return false;
+    }
+    return true;
+  };
+  const pendingLocOnlyUsersRef = useRef(null);
+  const locOnlyFlushTimerRef = useRef(null);
+  const locOnlyEpochRef = useRef(0); // bumped by every immediate (non-loc) commit
+  const committedAppUsersRef = useRef([]); // last committed array (mirror of window.__appUsers)
+  const committedAppUsersSync = () => {
+    const arr = committedAppUsersRef.current;
+    if (typeof window !== 'undefined') window.__appUsers = arr;
+    return arr;
+  };
+  const commitAppUsersCoalesced = useCallback((next) => {
+    committedAppUsersRef.current = next;
+    const prev = committedAppUsersSync();
+    if (next === prev) return;
+    let locOnly = false;
+    if (prev.length === next.length) {
+      locOnly = true;
+      const byId = new Map(prev.filter(Boolean).map((u) => [u.id, u]));
+      for (const nu of next) {
+        if (!nu?.id) continue;
+        const pu = byId.get(nu.id);
+        if (pu === nu) continue;
+        if (!isLocationOnlyUserDiff(pu, nu)) { locOnly = false; break; }
+      }
+    }
+    if (typeof window !== 'undefined') window.__appUsers = next; // sync mirror always fresh
+    if (!locOnly) {
+      // Non-location change (or shape change): commit immediately and drop the timer.
+      locOnlyEpochRef.current += 1; // invalidates any pending coalesced GPS commit
+      if (locOnlyFlushTimerRef.current) { clearTimeout(locOnlyFlushTimerRef.current); locOnlyFlushTimerRef.current = null; }
+      pendingLocOnlyUsersRef.current = null;
+      setAppUsers(next);
+      return;
+    }
+    // Location-only: coalesce — commit at most once per second.
+    pendingLocOnlyUsersRef.current = next;
+    if (!locOnlyFlushTimerRef.current) {
+      const epoch = locOnlyEpochRef.current;
+      locOnlyFlushTimerRef.current = setTimeout(() => {
+        locOnlyFlushTimerRef.current = null;
+        const pending = pendingLocOnlyUsersRef.current;
+        pendingLocOnlyUsersRef.current = null;
+        // A full/merge commit happened since scheduling — pending is stale, drop it.
+        if (epoch !== locOnlyEpochRef.current || !pending) return;
+        setAppUsers(pending);
+      }, 1000);
     }
   }, []);
+
+  // Granular AppUser update function for immediate UI synchronization
+  const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
+    // PERF: computed OUTSIDE setAppUsers (the committed-array mirror is the
+    // synchronous source the merge paths already rely on) so the location
+    // coalescer can classify the diff before committing.
+    const prev = committedAppUsersRef.current || [];
+    let next;
+    if (isFullReplacement) {
+      next = newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev;
+    } else {
+      const updatesMap = new Map((newAppUsers || []).map((u) => [u.id, u]));
+      next = prev.map((appUser) => {
+        if (!appUser) return appUser;
+        const update = updatesMap.get(appUser.id);
+        if (update) return { ...appUser, ...update };
+        return appUser;
+      });
+    }
+    commitAppUsersCoalesced(next);
+  }, [commitAppUsersCoalesced]);
+
+  // WS realtime sync AppUser changes (upserts + deletes) — same coalescer.
+  const applyAppUserChangesLocally = useCallback(({ upserts = [], deleteIds = [] } = {}) => {
+    const prev = committedAppUsersRef.current || [];
+    const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+    (deleteIds || []).forEach((id) => map.delete(id));
+    (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); });
+    commitAppUsersCoalesced(Array.from(map.values()));
+  }, [commitAppUsersCoalesced]);
 
   // Callback to update state from smartRefreshManager
   const updateAppDataState = useCallback(async (updates) => {
@@ -782,6 +852,8 @@ export default function Layout({ children, currentPageName }) {
         if (updatedAppUserForCurrentUser && !hasOnlyTransientChanges) {
           if (hasCurrentUserRefreshImpact(currentUser, updatedAppUserForCurrentUser)) {
             isReloadingFromAppUserChange.current = true;
+            committedAppUsersRef.current = updates.appUsers;
+            if (typeof window !== 'undefined') window.__appUsers = updates.appUsers;
             setAppUsers(updates.appUsers);
             clearUserCache();
             invalidate('AppUser');
@@ -802,6 +874,8 @@ export default function Layout({ children, currentPageName }) {
         }
       }
 
+      committedAppUsersRef.current = updates.appUsers;
+      if (typeof window !== 'undefined') window.__appUsers = updates.appUsers;
       setAppUsers(updates.appUsers);
     }
     if (updates.users) setUsers(updates.users);
@@ -970,7 +1044,11 @@ export default function Layout({ children, currentPageName }) {
         ));
         setUsers(initialUsers);
         setDrivers(activeDrivers);
-        if (appUsers && appUsers.length > 0) setAppUsers(appUsers);
+        if (appUsers && appUsers.length > 0) {
+          committedAppUsersRef.current = appUsers;
+          if (typeof window !== 'undefined') window.__appUsers = appUsers;
+          setAppUsers(appUsers);
+        }
         // CRITICAL: Merge deliveries — never replace. A full replacement wipes other
         // drivers' data if the incoming set is date-scoped or city-filtered.
         updateDeliveriesLocally(deliveries || [], false);
@@ -1555,7 +1633,7 @@ export default function Layout({ children, currentPageName }) {
           squareLocationConfigs: squareLocationConfigs || [],
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,
           applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) {const existing = map.get(item.id);const base = existing ? { ...existing, ...item } : item;/* applyRealtimeMergeWithLockout applies the global terminal-stickiness guard even when no per-delivery lock is armed (receiving devices) — prevents stale WS/server payloads from resurrecting just-terminal stops. */map.set(item.id, existing ? applyRealtimeMergeWithLockout(item.id, base, existing) : base);}});return Array.from(map.values());}),
-          applyAppUserChangesLocally: ({ upserts = [], deleteIds = [] }) => setAppUsers((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
+          applyAppUserChangesLocally,
           applyPatientChangesLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});const _next = Array.from(map.values());if (typeof window !== 'undefined') window.__appPatients = _next;return _next;}),
           updatePatientsLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});const _next = Array.from(map.values());if (typeof window !== 'undefined') window.__appPatients = _next;return _next;}),
           isFormOverlayOpen: isFormOverlayOpen, setIsFormOverlayOpen: setIsFormOverlayOpen, isEntityUpdating: isEntityUpdating, setIsEntityUpdating: setIsEntityUpdating,
