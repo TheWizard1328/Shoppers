@@ -491,6 +491,72 @@ export function isFailedCodRefunded(item, refundRows, locIdForStore) {
   return false;
 }
 
+// ============================================================================
+// REFUND-POSTED ALERT (owner spec Oct 9 2026): when a FAILED COD's refund is
+// auto-detected in the Square ledger, notify the App Owner AND the delivery's
+// assigned driver — ONE in-app message + ONE push each, deduped to a single
+// send when the owner and driver are the same user.
+//   "Refund for [Patient] from [Date] has been posted."
+//   "Funds are now available on the [Store] card."
+// Idempotent per delivery via AppSettings 'square_refund_alerts'
+// ({deliveryId: {at, by}}). Refunds older than 14 days are marked silently
+// (no historical flood on first deploy). Owner-gated: only devices whose
+// user id is the owner send (ownerId is null otherwise) — driver devices
+// detect but never send, avoiding duplicate pushes.
+const SQUARE_REFUND_ALERTS_KEY = 'square_refund_alerts';
+const REFUND_ALERT_MAX_AGE_MS = 14 * 86400000;
+async function loadRefundAlertMarksMap() {
+  const rows = await getAppSettingRows(SQUARE_REFUND_ALERTS_KEY).catch(() => []);
+  const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
+  const val = rec?.setting_value;
+  if (!val || typeof val !== 'object') return { marks: {}, recordId: rec?.id || null };
+  const marks = {};
+  for (const [k, v] of Object.entries(val)) if (v && typeof v === 'object' && v.at) marks[k] = v;
+  return { marks, recordId: rec?.id || null };
+}
+export async function sendFailedRefundAlerts(cfg, refundedFailed, ownerId) {
+  try {
+    if (!ownerId || !Array.isArray(refundedFailed) || refundedFailed.length === 0) return;
+    const { marks, recordId } = await loadRefundAlertMarksMap();
+    const now = Date.now();
+    const fresh = refundedFailed.filter((x) => x?.delivery_id && !marks[String(x.delivery_id)]);
+    if (!fresh.length) return;
+    const { sendDeliveryMessage, sendPushForNotification } = await import('../utils/deliveryMessaging');
+    const locName = (locId) => ((cfg?.locations || []).find((l) => l?.location_id === locId)?.name) || 'store';
+    const nextMarks = { ...marks };
+    let changed = false;
+    for (const x of fresh) {
+      const key = String(x.delivery_id);
+      const refundT = x.refund_at ? new Date(x.refund_at).getTime() : null;
+      if (refundT != null && Number.isFinite(refundT) && now - refundT > REFUND_ALERT_MAX_AGE_MS) {
+        nextMarks[key] = { at: new Date().toISOString(), by: ownerId }; changed = true; // stale — mark silently
+        continue;
+      }
+      const dateLabel = (() => { const dd = String(x.date || ''); const m = dd.slice(5, 7); const day = dd.slice(8, 10); return (m && day) ? `${m}/${day}` : dd; })();
+      // OWNER SPEC: exactly 2 lines.
+      const content = `Refund for ${x.patient || 'the patient'} from ${dateLabel} has been posted.
+Funds are now available on the ${locName(x.loc_id)} card.`;
+      const recipients = [...new Set([ownerId, x.driver_id].filter(Boolean))]; // owner==driver → single send
+      let delivered = false;
+      for (const rid of recipients) {
+        const msg = await sendDeliveryMessage({
+          senderId: ownerId, senderName: 'RxDeliver', receiverId: rid, receiverName: null, content
+        }).catch(() => null);
+        const res = await sendPushForNotification({
+          receiverId: rid, senderName: 'RxDeliver', titleOverride: 'Refund Posted', content, url: '/squarebalances'
+        }).catch(() => null);
+        if (msg?.id || res?.sent > 0) delivered = true;
+      }
+      if (delivered) { nextMarks[key] = { at: new Date().toISOString(), by: ownerId }; changed = true; }
+    }
+    if (!changed) return;
+    if (recordId) await base44.entities.AppSettings.update(recordId, { setting_value: nextMarks });
+    else await base44.entities.AppSettings.create({ setting_key: SQUARE_REFUND_ALERTS_KEY, setting_value: nextMarks, description: 'Auto refund-posted alerts — {at, by} per failed delivery whose Square refund was detected (owner + driver notified once)' });
+  } catch (e) {
+    console.error('[useSquareBalancesSummary] refund alert failed:', e);
+  }
+}
+
 // Manual refund marks ({deliveryId: {at, by}}) — the owner's backup path when
 // auto detection misses a refund (the red Failed badge click). Reads the most
 // recently updated record with the key (defensive: duplicate records have
@@ -903,6 +969,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     }
     return false;
   };
+  const autoRefundedFailed = []; // owner+driver refund-posted alert payload
   for (const status of ['pending', 'in_transit', 'en_route', 'failed']) {
     const rows = deliveriesWithStatus(allDeliveries, status);
     for (const d of rows || []) {
@@ -931,7 +998,20 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // only) — the goods went back to the store, but the card only gets its
       // money back when the actual Square refund is detected or manually
       // marked on the badge.
-      if (status === 'failed' && (manualRefundMarks[String(d.id)] || isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || ''))))) continue;
+      if (status === 'failed') {
+        if (manualRefundMarks[String(d.id)]) continue; // manual mark — no alert (owner did it himself)
+        if (isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')))) {
+          // AUTO-DETECTED refund — collect for the refund-posted alert
+          // (owner spec Oct 9 2026: notify owner + assigned driver, one
+          // message each, deduped when they are the same user).
+          const amtC = Math.round(centsOf(required));
+          const rr = (refundRows || []).find((r) =>
+            String(r?.delivery_id || '') === String(d.id) ||
+            (Math.round(Number(r?.amount_cents || 0)) === amtC && String(r?.location_id || '') === locId));
+          autoRefundedFailed.push({ ...item, loc_id: locId, refund_at: rr?.occurred_at || null });
+          continue;
+        }
+      }
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
       agg.items.push(item);
@@ -1002,6 +1082,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   }
 
   const out = {};
+  if (autoRefundedFailed.length) out.autoRefundedFailed = autoRefundedFailed;
   const allLocs = new Set([...byLoc.keys(), ...deductByLoc.keys(), ...cashByLoc.keys()]);
   for (const locId of allLocs) {
     const agg = byLoc.get(locId) || { total: 0, pendingCount: 0, awaitingCount: 0, items: [] };
@@ -1354,7 +1435,10 @@ async function loadSummary(force, uid) {
     const degraded = codDetailedRaw === null;
     const codOutstandingDetailed = degraded ? {} : (codDetailedRaw || {});
     const codOutstanding = {};
-    for (const [locId, agg] of Object.entries(codOutstandingDetailed)) codOutstanding[locId] = agg?.total ?? agg;
+    for (const [locId, agg] of Object.entries(codOutstandingDetailed)) {
+      if (locId === 'autoRefundedFailed') continue; // alert payload, not a location
+      codOutstanding[locId] = agg?.total ?? agg;
+    }
     const payoutsLoc = payoutsByLocation(payouts);
     const payoutCentsByLoc = new Map();
     for (const pw of payouts || []) {
@@ -1370,6 +1454,7 @@ async function loadSummary(force, uid) {
       storeNames: names,
       dailyRemainingByStore: dailyRemaining,
       codOutstandingDetailed,
+      autoRefundedFailed: codOutstandingDetailed?.autoRefundedFailed || [],
       config: config || null,
       deliveryCredits: deliveryCredits || new Map(),
       sales: [], // legacy field — sale-based math retired Oct 7 2026
@@ -1409,6 +1494,7 @@ let teardownStore = null;
 
 // ── module-level pipeline state (was per-hook-instance) ──
 let storeUserId = null;
+let storeIsOwner = false;
 let storeSeq = 0;
 let storeHydratedFromIdb = false;
 let storeBootDelayFired = false;
@@ -1494,6 +1580,11 @@ const storeReload = async (force = false, attempt = 0) => {
   if (seq !== storeSeq) return;
   storeApply(data);
   persistSnapshotModule(data);
+  // REFUND-POSTED ALERT: owner devices notify owner + driver when a failed
+  // COD's refund is auto-detected (once per delivery, AppSettings-guarded).
+  if (storeIsOwner && storeUserId && Array.isArray(data?.autoRefundedFailed) && data.autoRefundedFailed.length) {
+    void sendFailedRefundAlerts(data.config, data.autoRefundedFailed, storeUserId);
+  }
   // A degraded run (COD-outstanding fetch failed twice) freezes the badge
   // with wrong totals because updates are event-driven — schedule ONE 30s
   // forced reload to self-heal.
@@ -1503,11 +1594,12 @@ const storeReload = async (force = false, attempt = 0) => {
   }
 };
 
-function startSummaryStore(userId) {
+function startSummaryStore(userId, isOwner = false) {
   if (storeRunningFor === String(userId)) return;
   if (teardownStore) { try { teardownStore(); } catch {} teardownStore = null; }
   storeRunningFor = String(userId);
   storeUserId = String(userId);
+  storeIsOwner = !!isOwner;
   storeHydratedFromIdb = false;
   storeBootDelayFired = false;
   storeFirstLoadDone = false;
@@ -1653,7 +1745,7 @@ function startSummaryStore(userId) {
   };
 }
 
-export function useSquareBalancesSummary(enabled = true, userId = null) {
+export function useSquareBalancesSummary(enabled = true, userId = null, isOwner = false) {
   const subscribe = useCallback((cb) => {
     storeSubs.add(cb);
     return () => storeSubs.delete(cb);
@@ -1661,8 +1753,8 @@ export function useSquareBalancesSummary(enabled = true, userId = null) {
   // ONE pipeline for the whole app (see SINGLETON note above) — every
   // consumer reads the same state object and updates at the same instant.
   useEffect(() => {
-    if (enabled && userId) startSummaryStore(String(userId));
-  }, [enabled, userId]);
+    if (enabled && userId) startSummaryStore(String(userId), isOwner);
+  }, [enabled, userId, isOwner]);
   const state = useSyncExternalStore(subscribe, () => storeCurrent, () => storeCurrent);
   if (!enabled) return EMPTY_SUMMARY_STATE;
   return state;

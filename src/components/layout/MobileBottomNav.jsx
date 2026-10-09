@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { createPageUrl } from '@/utils';
-import { userHasRole } from '@/components/utils/userRoles';
+import { userHasRole , isAppOwner } from '@/components/utils/userRoles';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 import { useBookedOffBadge } from './useBookedOffBadge';
 import ShiftCoverageBalloon from './ShiftCoverageBalloon';
@@ -37,7 +37,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   const isDriverNav = userHasRole(currentUser, 'driver');
   const isDispatcherNav = userHasRole(currentUser, 'dispatcher');
   const isAdminNav = userHasRole(currentUser, 'admin');
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null);
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
   const sqNavAmount = React.useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let total = 0;

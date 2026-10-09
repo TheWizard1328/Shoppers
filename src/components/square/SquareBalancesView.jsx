@@ -8,7 +8,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
@@ -758,10 +758,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     try {
       const out = await computeCodOutstandingDetailed(cfgArg || configRef.current, currentUser?.id || null);
       setLocalOutstanding(out);
+      // REFUND-POSTED ALERT (owner spec Oct 9 2026): owner devices notify the
+      // owner + the assigned driver when a failed COD's Square refund is
+      // auto-detected (idempotent per delivery; drivers never send).
+      if (ownerCanEdit && Array.isArray(out?.autoRefundedFailed) && out.autoRefundedFailed.length) {
+        void sendFailedRefundAlerts(cfgArg || configRef.current, out.autoRefundedFailed, currentUser?.id || null);
+      }
     } catch (e) {
       console.error('local COD outstanding failed:', e);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, ownerCanEdit]);
 
   // Owner-only: UNCOLLECTED CODs taken from the SquareCatalogItems database.
   // An ACTIVE catalog item = the COD is still sitting in the Square register,

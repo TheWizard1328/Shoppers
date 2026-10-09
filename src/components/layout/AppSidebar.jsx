@@ -154,7 +154,7 @@ export default function AppSidebar({
   // Dispatchers can't open the balances page — clicking the Square Balances
   // link opens a dialog that asks the App Owner for more money on a card.
   const [showBalanceRequest, setShowBalanceRequest] = useState(false);
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames, dailyRemainingByStore: sqDailyRemaining } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null);
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames, dailyRemainingByStore: sqDailyRemaining } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let storeIds = null;
