@@ -12,8 +12,16 @@ const DB_NAME = 'rxdeliver_auth_bridge';
 const STORE_NAME = 'tokens';
 const RECORD_KEY = 'current';
 
-function openBridgeDb() {
+function openBridgeDb(timeoutMs = 3000) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    // BOOT-SAFETY (owner report Oct 9 2026: fresh reloads hang on the load
+    // screen): this open runs BEFORE checkAppState on every boot — a wedged
+    // or blocked IDB open (Android WebView storage eviction races, another
+    // connection holding an old version) must never stall boot forever.
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; reject(new Error('authBridge open timeout')); }
+    }, timeoutMs);
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -21,8 +29,9 @@ function openBridgeDb() {
         db.createObjectStore(STORE_NAME);
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { if (!settled) { settled = true; clearTimeout(timer); resolve(req.result); } };
+    req.onerror = () => { if (!settled) { settled = true; clearTimeout(timer); reject(req.error); } };
+    req.onblocked = () => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error('authBridge open blocked')); } };
   });
 }
 
@@ -57,17 +66,24 @@ let intervalHandle = null;
  */
 export async function restoreTokenFromBridge() {
   if (typeof window === 'undefined' || !window.indexedDB) return false;
+  // HARD CEILING: never hold boot hostage on a wedged IDB (the restore is
+  // best-effort — a miss just falls through to the normal login flow).
+  const withTimeout = (p, ms) => Promise.race([
+    p,
+    new Promise((resolve) => setTimeout(() => resolve(null), ms))
+  ]);
   try {
     const existing = window.localStorage.getItem('base44_access_token') || window.localStorage.getItem('token');
     if (existing) return false;
-    const db = await openBridgeDb();
-    const rec = await new Promise((resolve, reject) => {
+    const db = await withTimeout(openBridgeDb(), 3000);
+    if (!db) return false;
+    const rec = await withTimeout(new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const req = tx.objectStore(STORE_NAME).get(RECORD_KEY);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
-    });
-    db.close();
+    }), 3000) || null;
+    try { db.close(); } catch {}
     if (!rec?.token) return false;
     window.localStorage.setItem('base44_access_token', rec.token);
     window.localStorage.setItem('token', rec.token);
