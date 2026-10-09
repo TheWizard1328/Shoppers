@@ -145,7 +145,7 @@ function splitSwipeCents(total, weights) {
   const base = raw.map(Math.floor);
   let left = totalC - base.reduce((a, b) => a + b, 0);
   const order = raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]);
-  for (const [, i] of order) { if (left <= 0) break; base[i] += 1; left -= 1; }
+  for (const [, i] of order) {if (left <= 0) break;base[i] += 1;left -= 1;}
   return base;
 }
 
@@ -167,15 +167,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-[13px] py-1">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading COD data…
         </div>
-        {(sections || []).map((sec) => (
-          <div key={sec.label} className="space-y-1">
+        {(sections || []).map((sec) =>
+        <div key={sec.label} className="space-y-1">
             <div className="flex items-center justify-between font-medium text-[13px]">
               <span style={{ color: sec.color }}>{sec.label}</span>
               <span className="text-slate-400 dark:text-slate-500 tabular-nums">…</span>
             </div>
             <div className="text-slate-300 dark:text-slate-600 text-[13px]">Loading…</div>
           </div>
-        ))}
+        )}
       </div>);
   }
   if (!hasRows) return null;
@@ -294,13 +294,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                     {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
-                    {r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ? (
+                    {r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ?
                   <span
                     onClick={() => onMarkRefunded(r.delivery_id)}
                     title="Mark this failed COD as refunded — the amount returns to the card balance"
                     // No role="button" (same min-height CSS trap as the pills).
-                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span>
-                ) : (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ? (
+                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
+                  (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
                   <span
                     onClick={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -311,18 +311,18 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                       // computed on the swipe TOTAL (owner report: marking
                       // $1.18 and $28.36 separately charged the flat $0.07
                       // twice and left the settled amount off by $0.05).
-                      const cashRows = statusLabel === 'Cash' ? (sections || []).flatMap((sec) => (sec?.rows || []))
-                        .filter((x) => x && !!x.delivery_id && x.cashAwaitingSquare &&
-                          String(x.delivery_id) !== String(r.delivery_id) &&
-                          (!x.date || !r.date || String(x.date) === String(r.date))) : [];
+                      const cashRows = statusLabel === 'Cash' ? (sections || []).flatMap((sec) => sec?.rows || []).
+                      filter((x) => x && !!x.delivery_id && x.cashAwaitingSquare &&
+                      String(x.delivery_id) !== String(r.delivery_id) && (
+                      !x.date || !r.date || String(x.date) === String(r.date))) : [];
                       setCashPick({ row: r, label: statusLabel, cashRows, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                     }}
                     title="Tap to change this tender (Debit / Credit / Cash)"
                     // No role="button" (same min-height CSS trap as the pills).
-                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span>
-                ) : (
+                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span> :
+
                   <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>
-                )}
+                  }
                     </div>
                   </div>
               </div>);
@@ -331,9 +331,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         </div>
       )}
       {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
-          Cash badge opens the Debit / Credit choice as a small button menu
-          right at the badge — below it when there's room, above when it sits
-          near the bottom of the screen. Tap anywhere else to dismiss. */}
+           Cash badge opens the Debit / Credit choice as a small button menu
+           right at the badge — below it when there's room, above when it sits
+           near the bottom of the screen. Tap anywhere else to dismiss. */}
       {cashPick &&
       <>
         <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
@@ -346,25 +346,25 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           }}>
           <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set tender</div>
           <div className="grid grid-cols-3 gap-1.5">
-            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true); try { const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]); await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids); setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
-            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true); try { const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]); await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids); setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
+            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
+            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
-                (/_at) so the fee/loan/folder credit and ledger confirmation
-                stop counting it (owner rule Oct 9 2026). */}
-            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Cash'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
+                 (/_at) so the fee/loan/folder credit and ledger confirmation
+                 stop counting it (owner rule Oct 9 2026). */}
+            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
           </div>
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
           <div className="pt-1 border-t border-slate-100 dark:border-slate-700 space-y-0.5">
             <div className="text-[10px] font-medium text-slate-400 text-center leading-tight">Combine into one swipe</div>
-            {(cashPick.cashRows || []).map((c) => (
-              <div key={c.delivery_id}
-                onClick={(e) => {e.stopPropagation(); if (cashPickBusy) return; setCashPick((p) => p ? ({ ...p, sel: { ...(p.sel || {}), [c.delivery_id]: !(p.sel || {})[c.delivery_id] } }) : p);}}
-                className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+            {(cashPick.cashRows || []).map((c) =>
+            <div key={c.delivery_id}
+            onClick={(e) => {e.stopPropagation();if (cashPickBusy) return;setCashPick((p) => p ? { ...p, sel: { ...(p.sel || {}), [c.delivery_id]: !(p.sel || {})[c.delivery_id] } } : p);}}
+            className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
                 <input type="checkbox" className="accent-emerald-600" readOnly checked={!!(cashPick.sel || {})[c.delivery_id]} />
                 <span className="truncate flex-1 text-[11px] text-slate-600 dark:text-slate-300">{c.patientName || c.sub || 'COD'}</span>
                 <span className="tabular-nums text-[11px] font-medium text-slate-600 dark:text-slate-300">${Number(c.amount || 0).toFixed(2)}</span>
               </div>
-            ))}
+            )}
             {(() => {
               const selRows = (cashPick.cashRows || []).filter((c) => (cashPick.sel || {})[c.delivery_id]);
               const total = [cashPick.row, ...selRows].reduce((sm, x) => sm + Number(x?.amount || 0), 0);
@@ -460,7 +460,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // DRIVER SCOPE (owner rule Oct 9 2026): a driver only sees the delivery
   // items assigned to them — balance/card math stays global (it is the
   // store's real card money), only the row lists are scoped.
-  const driverScopeId = (!ownerCanEdit && currentUser?.id && userHasRole(currentUser, 'driver')) ? String(currentUser.id) : null;
+  const driverScopeId = !ownerCanEdit && currentUser?.id && userHasRole(currentUser, 'driver') ? String(currentUser.id) : null;
   // null = show every card (admins/owner); array = only these cards (drivers see the
   // cards assigned to their stores for the current date).
   const restricted = Array.isArray(visibleLocationIds);
@@ -557,7 +557,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const recPayments = Array.isArray(rec.cod_payments) ? rec.cod_payments : [];
         const convIdx = [];
         const nextPayments = recPayments.map((p, i) => {
-          if (p && convertible.includes(String(p?.type || '').toLowerCase())) {convIdx.push(i); return { ...p, type: toType };}
+          if (p && convertible.includes(String(p?.type || '').toLowerCase())) {convIdx.push(i);return { ...p, type: toType };}
           return p;
         });
         return { rec, nextPayments, convIdx, convCents: convIdx.reduce((sm, i) => sm + Math.round(Number(recPayments[i]?.amount || 0) * 100), 0), changed: convIdx.length > 0 };
@@ -577,7 +577,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const folderRateNow = Number.isFinite(Number(config?.folder_rate)) ? Number(config.folder_rate) : 0.02;
         const feeC = estimateCardFeeCents(totalCents, toType);
         const locId = storeToLoc.get(String(d.store_id || '')) || null;
-        const loanC = Math.round(totalCents * (locId ? (loanRateByLoc.get(String(locId)) || 0) : 0));
+        const loanC = Math.round(totalCents * (locId ? loanRateByLoc.get(String(locId)) || 0 : 0));
         const folderC = folderCentsFor(totalCents, folderRateNow);
         const itemWeights = plan.map((x) => x.convCents);
         const feeSplit = splitSwipeCents(feeC, itemWeights);
@@ -591,7 +591,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const folderP = splitSwipeCents(folderSplit[k], pWeights);
           x.convIdx.forEach((pi, j) => {
             const grossP = Math.round(Number(x.rec.cod_payments[pi]?.amount || 0) * 100);
-            const f = feeP[j], l = loanP[j], fo = folderP[j];
+            const f = feeP[j],l = loanP[j],fo = folderP[j];
             x.nextPayments[pi] = { ...x.nextPayments[pi], fee_c: f, loan_c: l, folder_c: fo, settled_c: Math.max(0, grossP - f - l - fo), swipe_total_c: totalCents };
           });
         });
@@ -611,9 +611,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // the conversion instant — this card payment is NEW money the true-up
       // did not bake in, so the credit math must count it even when the
       // delivery finished before trued_up_at (see loadDeliveryCardCredits).
-      const stampUpdate = target === 'cash'
-        ? { cod_card_spend_at: '', cod_confirmed_collected: false, cod_confirmed_collected_at: '' }
-        : { cod_card_spend_at: new Date().toISOString() };
+      const stampUpdate = target === 'cash' ?
+      { cod_card_spend_at: '', cod_confirmed_collected: false, cod_confirmed_collected_at: '' } :
+      { cod_card_spend_at: new Date().toISOString() };
       const updatedRecs = [];
       for (const x of plan) {
         const existingNote = String(x.rec.delivery_notes || '');
@@ -775,13 +775,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // DRIVER SCOPE (owner rule Oct 9 2026): stamp each catalog row with
       // the linked delivery's driver so drivers only see their own items.
       // Rows with no delivery link get no driver and stay owner-only.
-      const scopeId = (!isAppOwner(currentUser) && currentUser?.id && userHasRole(currentUser, 'driver')) ? String(currentUser.id) : null;
+      const scopeId = !isAppOwner(currentUser) && currentUser?.id && userHasRole(currentUser, 'driver') ? String(currentUser.id) : null;
       const driverByDelivery = new Map();
       if (scopeId) {
         try {
           const allDel = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          (allDel || []).forEach((dd) => { if (dd?.id && dd?.driver_id) driverByDelivery.set(String(dd.id), String(dd.driver_id)); });
-        } catch { /* fall through — unstamped catalog rows are driver-hidden */ }
+          (allDel || []).forEach((dd) => {if (dd?.id && dd?.driver_id) driverByDelivery.set(String(dd.id), String(dd.driver_id));});
+        } catch {/* fall through — unstamped catalog rows are driver-hidden */}
       }
       const itemsPages = [];
       let anyFetchFailed = false;
@@ -1081,12 +1081,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // fee/folder/loan/settled cents on the payment (fee_c etc.) —
           // those are splits of ONE swipe's fees and are authoritative.
           storedCardP: (() => payments.find((pm) =>
-            ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) &&
-            Number.isFinite(Number(pm?.fee_c)) && Number.isFinite(Number(pm?.folder_c)) && Number.isFinite(Number(pm?.loan_c))) || null)(),
+          ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) &&
+          Number.isFinite(Number(pm?.fee_c)) && Number.isFinite(Number(pm?.folder_c)) && Number.isFinite(Number(pm?.loan_c))) || null)(),
           netAmount: isCard ?
-          (payments.some((pm) => ['debit','credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(Number(pm?.settled_c)))
-            ? Math.max(0, payments.filter((pm) => ['debit','credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(Number(pm?.settled_c))).reduce((sum2, pm) => sum2 + Math.round(Number(pm.settled_c)), 0)) / 100
-            : computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow })) :
+          payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(Number(pm?.settled_c))) ?
+          Math.max(0, payments.filter((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(Number(pm?.settled_c))).reduce((sum2, pm) => sum2 + Math.round(Number(pm.settled_c)), 0)) / 100 :
+          computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
           null,
           // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
           // "HH:MM | S:fee F:folder L:loan | net Type" for card payments —
@@ -1094,8 +1094,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // rows have no card fees, so no breakdown.
           feeParts: isCard ? function () {
             const sp = payments.find((pm) =>
-              ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) &&
-              Number.isFinite(Number(pm?.fee_c)) && Number.isFinite(Number(pm?.folder_c)) && Number.isFinite(Number(pm?.loan_c)));
+            ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) &&
+            Number.isFinite(Number(pm?.fee_c)) && Number.isFinite(Number(pm?.folder_c)) && Number.isFinite(Number(pm?.loan_c)));
             if (sp) return { fee: Math.round(Number(sp.fee_c)) / 100, folder: Math.round(Number(sp.folder_c)) / 100, loan: Math.round(Number(sp.loan_c)) / 100 };
             // Cents-rounded components (owner spec Oct 7 2026) — same values
             // that feed the settled net, so the S/F/L line always sums to
@@ -1644,11 +1644,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const countedIds = new Set();
     const outstandingNow = localOutstanding || codOutstandingByLoc || {};
     for (const loc of Object.values(outstandingNow)) {
-      (loc?.items || []).forEach((it) => { if (it?.delivery_id) countedIds.add(String(it.delivery_id)); });
-      (loc?.deductItems || []).forEach((it) => { if (it?.delivery_id) countedIds.add(String(it.delivery_id)); });
+      (loc?.items || []).forEach((it) => {if (it?.delivery_id) countedIds.add(String(it.delivery_id));});
+      (loc?.deductItems || []).forEach((it) => {if (it?.delivery_id) countedIds.add(String(it.delivery_id));});
     }
     for (const rows of Object.values(codCollectedTodayByLoc || {})) {
-      (rows || []).forEach((r) => { if (r?.delivery_id) countedIds.add(String(r.delivery_id)); });
+      (rows || []).forEach((r) => {if (r?.delivery_id) countedIds.add(String(r.delivery_id));});
     }
     const newConfig = {
       ...config,
@@ -1922,7 +1922,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // the delivery items assigned to them. The card/balance
                   // math above stays global — it is the store's real card
                   // money — only the visible rows are scoped.
-                  const combinedSrc = (!driverScopeId ? [...deliveryRows, ...catRows] : [...deliveryRows, ...catRows].filter((it) => String(it.driver_id || '') === driverScopeId));
+                  const combinedSrc = !driverScopeId ? [...deliveryRows, ...catRows] : [...deliveryRows, ...catRows].filter((it) => String(it.driver_id || '') === driverScopeId);
                   // Owner spec (Oct 6 2026): cash-collected CODs STAY in
                   // Uncollected / Past uncollected — they are technically
                   // uncollected until processed back to the Square card. They
@@ -1969,7 +1969,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     notTapped: notTapped(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                  const collectedTodayRows = (!driverScopeId ? (codCollectedTodayByLoc[loc.location_id] || []) : (codCollectedTodayByLoc[loc.location_id] || []).filter((r) => String(r.driver_id || '') === driverScopeId));
+                  const collectedTodayRows = !driverScopeId ? codCollectedTodayByLoc[loc.location_id] || [] : (codCollectedTodayByLoc[loc.location_id] || []).filter((r) => String(r.driver_id || '') === driverScopeId);
                   const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
                   return (
                     <CardCodList
@@ -1993,10 +1993,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                                Square Cards, pulled from the card (MOBILE) locations the per-store
-                                sync never saw before. Attributed = fed by that store's sale
-                                (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                                unattributed = folder / manual transfer with no sale link yet. */}
+                                 Square Cards, pulled from the card (MOBILE) locations the per-store
+                                 sync never saw before. Attributed = fed by that store's sale
+                                 (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                                 unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -2040,13 +2040,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       {showTrueUp &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTrueUp(false)}>
           <div ref={trueUpPanelRef} className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              // OWNER SPEC (Oct 8 2026): Enter on ANY field saves the True-Up.
-              if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !isSaving) {
-                e.preventDefault();
-                saveTrueUp();
-              }
-            }}>
+        onKeyDown={(e) => {
+          // OWNER SPEC (Oct 8 2026): Enter on ANY field saves the True-Up.
+          if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !isSaving) {
+            e.preventDefault();
+            saveTrueUp();
+          }
+        }}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blank fields keep the existing value. This resets the tracking window to now. Enter saves.</div>
@@ -2128,7 +2128,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                                card (does not reset the window). One-way only — never card → folder. */}
+                                 card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -2226,9 +2226,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* HOW THE BADGES WORK (owner request Oct 9 2026): short usage guide
-          for the clickable badges, collapsed by default at the bottom of the
-          page. The S/F/L line is owner-only (drivers see settled amounts
-          only). Drivers see a scope note — they only see their own rows. */}
+           for the clickable badges, collapsed by default at the bottom of the
+           page. The S/F/L line is owner-only (drivers see settled amounts
+           only). Drivers see a scope note — they only see their own rows. */}
       <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
         <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
           How the badges work
@@ -2257,7 +2257,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           </div>
           }
           {driverScopeId &&
-          <div className="pt-1 border-t border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="pt-1 border-t border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 hidden">
             You only see the delivery items assigned to you. Card balances are the store's real totals.
           </div>
           }
