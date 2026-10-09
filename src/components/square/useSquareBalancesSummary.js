@@ -1579,6 +1579,11 @@ const storeApply = (data) => {
 // just return a degraded result) — e.g. during the boot-loader race where
 // the pipeline starts before the SDK's auth token is actually attached.
 // Hard failures retry with backoff (2s, 4s, 8s); 429s use the slow path.
+// EVENT-PATH COMPUTE COOLDOWN (rate-limit storm fix, Oct 9 2026): see
+// scheduleEventForcedReload in startSummaryStore.
+const STORE_EVENT_COMPUTE_COOLDOWN_MS = 90_000;
+let storeLastEventComputeAt = 0;
+let storeEventTimers = {};
 // SERVER-SIDE COMPUTE (owner spec Oct 9 2026, "take the load off the drivers'
 // devices"): the whole badge/balance summary now runs in the
 // squareBalancesCompute backend function — devices invoke it (page load,
@@ -1721,20 +1726,47 @@ function startSummaryStore(userId, isOwner = false) {
     unsubs.push(base44.entities.AppSettings.subscribe((ev) => {
       if (![SETTING_KEY, SPEND_MARKS_KEY].includes(ev?.data?.setting_key)) return;
       if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
-      clearTimeout(storeCfgTimer);
-      storeCfgTimer = setTimeout(() => storeReload(true), 2500);
+      scheduleEventForcedReload('cfg');
     }));
   } catch {}
-  const scheduleCodReload = () => {
+  // RATE-LIMIT STORM FIX (owner report Oct 9 2026: "lots of rate limits" +
+  // polyline render flicker): every COD-relevant Delivery/SquareLedgerEntry
+  // broadcast forced a FULL squareBalancesCompute invoke on EVERY device
+  // 2.5s later (isCodRelevantEvent matches ~any write to a COD delivery —
+  // status flips, stop_order writes, accepts). Busy afternoons = a heavy
+  // invoke every few seconds per device; the resulting 429s then failed
+  // unrelated delivery/polyline writes → straight-line fallbacks →
+  // re-optimization retries → more 429s (the flicker loop). Now: entity-event
+  // paths run a FORCED compute at most once per 90s per device; anything
+  // arriving inside the cooldown converges via the cheap shared-snapshot
+  // pull (the device that DID compute publishes; one small read instead of
+  // a heavy invoke). Explicit user paths (Refresh button, foreground heal,
+  // first load) are NOT cooldown-gated.
+  const scheduleEventForcedReload = (timerKey, delay = 2500) => {
     if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
-    clearTimeout(storeCodTimer);
-    // FORCED (Oct 9 2026): the sync is ONE backend-function call now — the
-    // client 2.5s debounce coalesces the WS burst, and force=true makes sure
-    // the server compute includes the change that triggered it (the
-    // function's own 90s debounce is bypassed by force, which is exactly
-    // what the ACTING device needs; passive devices converge via broadcast).
-    storeCodTimer = setTimeout(() => storeReload(true), 2500);
+    const now = Date.now();
+    if (now - storeLastEventComputeAt < STORE_EVENT_COMPUTE_COOLDOWN_MS) {
+      // Cooldown active — converge via the shared snapshot now, and queue ONE
+      // trailing compute at cooldown expiry so the triggering change is
+      // eventually computed + published even if no further events fire.
+      scheduleSharedPull(3000);
+      const waitMs = STORE_EVENT_COMPUTE_COOLDOWN_MS - (now - storeLastEventComputeAt) + 1000;
+      clearTimeout(storeEventTimers.cooldownExpiry);
+      storeEventTimers.cooldownExpiry = setTimeout(() => {
+        storeEventTimers.cooldownExpiry = null;
+        storeLastEventComputeAt = Date.now();
+        storeReload(true);
+      }, waitMs);
+      return;
+    }
+    clearTimeout(storeEventTimers[timerKey]);
+    storeEventTimers[timerKey] = setTimeout(() => {
+      storeEventTimers[timerKey] = null;
+      storeLastEventComputeAt = Date.now();
+      storeReload(true);
+    }, delay);
   };
+  const scheduleCodReload = () => scheduleEventForcedReload('cod');
   // Remote WS delivery events — refresh only when the changed record is
   // COD-relevant.
   try {
@@ -1749,8 +1781,7 @@ function startSummaryStore(userId, isOwner = false) {
     unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
       invalidateLedgerWindows();
       if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
-      clearTimeout(storeCfgTimer);
-      storeCfgTimer = setTimeout(() => storeReload(true), 2500);
+      scheduleEventForcedReload('ledger');
     }));
   } catch {}
   // Same-device user actions — WS echoes are suppressed after local writes,
@@ -1772,8 +1803,7 @@ function startSummaryStore(userId, isOwner = false) {
     invalidateServerOverlay();
     await healDeliveryMirror();
     if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
-    clearTimeout(storeCfgTimer);
-    storeCfgTimer = setTimeout(() => storeReload(true), 2500);
+    scheduleEventForcedReload('ledgerStamp');
   };
   window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
   // Same-device Refresh Square click (Oct 8 2026): the page's refresh is
@@ -1825,6 +1855,7 @@ function startSummaryStore(userId, isOwner = false) {
     if (storeBootTimer) clearTimeout(storeBootTimer);
     clearTimeout(storeCfgTimer);
     clearTimeout(storeCodTimer);
+    Object.keys(storeEventTimers).forEach((k) => { clearTimeout(storeEventTimers[k]); delete storeEventTimers[k]; });
     if (storeHealTimer) clearTimeout(storeHealTimer);
     clearTimeout(storeSharedSubTimer);
     clearTimeout(sharedBootPull);
