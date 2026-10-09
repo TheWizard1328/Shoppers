@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
-import { edmontonWallString } from '@/components/utils/albertaTime';
+import { edmontonBusinessDayKey, edmontonWallString } from '@/components/utils/albertaTime';
 import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedgerWindows, getLedgerWindows } from '@/components/square/squareBalancesOfflineManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
@@ -949,7 +949,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
  */
 export async function computeWeeklyCodTotalsByStore() {
   try {
-    const today = edmontonWallString(new Date()).slice(0, 10);
+    const today = edmontonBusinessDayKey(new Date());
     const from = new Date(new Date(today + 'T00:00:00Z').getTime() - 7 * 86400000).toISOString().slice(0, 10);
     const byStore = new Map();
     const list = await getAllDeliveriesIdb();
@@ -972,7 +972,7 @@ export async function computeWeeklyCodTotalsByStore() {
 // in-transit/en-route dated today, minus non-cash payments, not confirmed collected).
 export async function computeDailyCodRemainingByStore() {
   try {
-    const today = edmontonWallString(new Date()).slice(0, 10);
+    const today = edmontonBusinessDayKey(new Date());
     const centsOf = (n) => Math.round(Number(n || 0) * 100);
     const byStore = new Map();
     const allRows = await getAllDeliveriesIdb();

@@ -64,6 +64,16 @@ export const edmontonWallString = (date) => {
   return `${w.y}-${pad(w.mo)}-${pad(w.d)}T${pad(w.h)}:${pad(w.mi)}:${pad(w.s)}`;
 };
 
+// Square Balances business day (owner rule Oct 9 2026): the day rolls at
+// 05:00 Edmonton — between midnight and 5am, sales/collections still count
+// as the PREVIOUS calendar day's bucket on the Square Balances page.
+export const edmontonBusinessDayKey = (date = new Date()) => {
+  const w = edmontonWallString(date);
+  if (Number(w.slice(11, 13)) >= 5) return w.slice(0, 10);
+  const y = Number(w.slice(0, 4)), mo = Number(w.slice(5, 7)), d = Number(w.slice(8, 10));
+  return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
+};
+
 // Is a timestamp string naive (no Z / no +/- offset)?
 export const isNaiveTimestamp = (str) =>
   typeof str === 'string' && !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str);

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
-import { edmontonWallString } from "@/components/utils/albertaTime";
+import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
@@ -686,7 +686,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (s?.id) storeById.set(String(s.id), s);
         if (s?.abbreviation) storeByAbbrev.set(String(s.abbreviation).toUpperCase(), s);
       });
-      const todayStrForParsing = edmontonWallString(new Date()).slice(0, 10);
+      const todayStrForParsing = edmontonBusinessDayKey(new Date());
       const byLoc = new Map();
       for (const it of itemsRaw || []) {
         if (!it?.location_id) continue;
@@ -887,7 +887,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (st?.id && loc) storeToLoc.set(String(st.id), loc);
         if (st?.id) storeById.set(String(st.id), st);
       });
-      const today = edmontonWallString(new Date()).slice(0, 10);
+      const today = edmontonBusinessDayKey(new Date());
       const centsOf = (n) => Math.round(Number(n || 0) * 100);
       const byLoc = new Map();
       const aggFor = (locId) => {
@@ -1711,7 +1711,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // App Owner), just without the Loan left row and the net
                   // credits/gross/fees/loan/folder breakdown line above, which
                   // stay ownerCanEdit-gated.
-                  const todayStr = edmontonWallString(new Date()).slice(0, 10);
+                  const todayStr = edmontonBusinessDayKey(new Date());
                   // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: the
                   // uncollected rows come from the delivery-derived outstanding
                   // list (pending / in_transit / en_route CODs). The
