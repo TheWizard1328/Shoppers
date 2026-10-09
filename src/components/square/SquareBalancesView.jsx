@@ -979,7 +979,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // Fast path: COD add/remove on any delivery → recompute outstanding locally (8s debounce).
     const scheduleCodRecompute = () => {
       clearTimeout(codTimer);
-      codTimer = setTimeout(() => {computeLocalOutstandingRef.current?.();computeCodCollectedTodayRef.current?.();computeCatalogUncollectedRef.current?.();loadDailyCodRef.current?.();}, 8000);
+      codTimer = setTimeout(() => {computeLocalOutstandingRef.current?.();computeCodCollectedTodayRef.current?.();computeCatalogUncollectedRef.current?.();loadDailyCodRef.current?.();refreshDeliveryCreditsRef.current?.();}, 8000);
     };
     try {
       unsubs.push(base44.entities.AppSettings.subscribe((event) => {
@@ -1088,6 +1088,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   }, []);
   loadDailyCodRef.current = loadDailyCod;
+
+  // FEE CONSISTENCY (owner report Oct 8 2026: folder/loan fees "not constantly
+  // added/subtracted" to the corresponding balances): loan remaining, folder
+  // total and the card estimate all derive from `deliveryCredits`, which only
+  // refreshed inside loadSales — and the WS delivery full re-sync is 5 minutes.
+  // Collected-today rows (the S/F/L fee parts) updated on the 8s fast path, so
+  // fees visibly appeared while the balances sat stale. The 8s COD recompute
+  // now ALSO reloads delivery credits so folder/loan/card totals move with
+  // every card collection.
+  const creditsSeqRef = useRef(0);
+  const refreshDeliveryCredits = useCallback(async () => {
+    const cfg = configRef.current;
+    if (!cfg?.trued_up_at) return;
+    const seq = ++creditsSeqRef.current;
+    const creditsMap = await loadDeliveryCardCredits(cfg, currentUser?.id || null).catch(() => null);
+    if (!creditsMap || seq !== creditsSeqRef.current) return;
+    setDeliveryCredits(creditsMap);
+  }, [currentUser?.id]);
+  const refreshDeliveryCreditsRef = useRef(refreshDeliveryCredits);
+  refreshDeliveryCreditsRef.current = refreshDeliveryCredits;
 
   // Bank-sweep totals per location since true-up
   const payoutByLoc = useMemo(() => payoutsByLocation(payouts), [payouts]);
@@ -1315,6 +1335,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // ── True-Up field formatting (owner spec Oct 8 2026) ──
+  // Auto-decimal exactly like the COD amount-to-collect input: digits only,
+  // typed digits are CENTS ("1234" → $12.34, "5" → 0.05 for a loan rate),
+  // display always shows 2 decimals while typing. Clearing a field returns
+  // it to blank (keeps the existing value on save).
+  const trueUpCentsValue = (raw) => {
+    const cleaned = String(raw).replace(/\D/g, '');
+    if (!cleaned) return '';
+    return (parseInt(cleaned, 10) || 0) / 100;
+  };
+  const fmtTrueUpField = (v) => {
+    if (v === '' || v === undefined || v === null) return '';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '';
+    return n.toFixed(2);
+  };
+  const setTrueUpCentsField = (locId, field, raw) => {
+    setTrueUpDraft((d) => ({ ...d, [locId]: { ...(d[locId] || {}), [field]: trueUpCentsValue(raw) } }));
   };
 
   const saveTrueUp = async () => {
@@ -1710,41 +1750,71 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       {/* True-up overlay: enter the CURRENT real numbers from each Square dashboard */}
       {showTrueUp &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTrueUp(false)}>
-          <div ref={trueUpPanelRef} className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div ref={trueUpPanelRef} className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              // OWNER SPEC (Oct 8 2026): Enter on ANY field saves the True-Up.
+              if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !isSaving) {
+                e.preventDefault();
+                saveTrueUp();
+              }
+            }}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blank fields keep the existing value. This resets the tracking window to now.</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blank fields keep the existing value. This resets the tracking window to now. Enter saves.</div>
             </div>
-            {(config.locations || []).map((loc) =>
-          <div key={loc.location_id} className="space-y-1.5">
-                <div className="text-sm font-medium text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
-                <div className="grid grid-cols-3 gap-1.5 items-end">
-                  <label className="text-[10px] text-slate-500 dark:text-slate-400">Card balance
-                    <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.card_start)}
-                value={trueUpDraft[loc.location_id]?.card ?? ''}
-                onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), card: e.target.value } }))} />
-                  </label>
-                  <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan remaining
-                    <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.loan_start)}
-                value={trueUpDraft[loc.location_id]?.loan ?? ''}
-                onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan: e.target.value } }))} />
-                  </label>
-                  <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan rate
-                    <Input type="number" step="0.0001" className="mt-0.5 px-2 text-xs" placeholder={String(loc.loan_rate)}
-                value={trueUpDraft[loc.location_id]?.loan_rate ?? ''}
-                onChange={(e) => setTrueUpDraft((d) => ({ ...d, [loc.location_id]: { ...(d[loc.location_id] || {}), loan_rate: e.target.value } }))} />
-                  </label>
-                </div>
-              </div>
-          )}
+            {/* TAB ORDER (owner spec Oct 8 2026): Card Balances 1,2,3 → Folder → Loan Remaining 1,2,3 → Loan Rate 1,2,3 */}
             <div className="space-y-1.5">
-              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Folder (combined)</div>
-              <div className="grid grid-cols-3 gap-1.5 items-end">
-                <label className="text-[10px] text-slate-500 dark:text-slate-400">Folder balance
-                  <Input type="number" step="0.01" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(config.folder_start || 0)}
-                value={trueUpDraft.__folder ?? ''}
-                onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: e.target.value }))} />
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Card Balances</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(config.locations || []).map((loc) => (
+                  <label key={loc.location_id} className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {loc.name || loc.location_id}
+                    <Input type="text" inputMode="decimal" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.card_start)}
+                      value={fmtTrueUpField(trueUpDraft[loc.location_id]?.card)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setTrueUpCentsField(loc.location_id, 'card', e.target.value)} />
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Folder Balances</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <label className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Folder (combined)
+                  <Input type="text" inputMode="decimal" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(config.folder_start || 0)}
+                    value={fmtTrueUpField(trueUpDraft.__folder)}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: trueUpCentsValue(e.target.value) }))} />
                 </label>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Loan Remaining</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(config.locations || []).map((loc) => (
+                  <label key={loc.location_id} className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {loc.name || loc.location_id}
+                    <Input type="text" inputMode="decimal" className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.loan_start)}
+                      value={fmtTrueUpField(trueUpDraft[loc.location_id]?.loan)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setTrueUpCentsField(loc.location_id, 'loan', e.target.value)} />
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Loan Rate</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(config.locations || []).map((loc) => (
+                  <label key={loc.location_id} className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {loc.name || loc.location_id}
+                    <Input type="text" inputMode="decimal" className="mt-0.5 px-2 text-xs" placeholder={String(loc.loan_rate ?? '')}
+                      value={fmtTrueUpField(trueUpDraft[loc.location_id]?.loan_rate)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setTrueUpCentsField(loc.location_id, 'loan_rate', e.target.value)} />
+                  </label>
+                ))}
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-1">
