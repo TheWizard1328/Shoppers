@@ -1380,6 +1380,21 @@ const persistSnapshotModule = (data) => {
   saveSummarySnapshot(storeUserId, payload).catch?.(() => {});
 };
 
+// HEAL THE IDB DELIVERY MIRROR (owner report Oct 9 2026): balance math
+// credits/deductions are computed from the local IDB mirror, but
+// server-side writes (ledger sync confirmations, owner backfills via
+// service context) never broadcast — so a phone's mirror can keep a
+// stale record shape indefinitely and its badge computes a different
+// number than a desktop that saw the write. Pull the most-recently-
+// updated deliveries into the mirror, drop the read cache, THEN reload.
+async function healDeliveryMirror() {
+  try {
+    const rows = await base44.entities.Delivery.list('-updated_date', 500, 0).catch(() => []);
+    if (rows?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows);
+    idbReadCaches.deliveries = { at: 0, rows: null };
+  } catch { /* non-critical */ }
+}
+
 const storeApply = (data) => {
   storeLastAppliedAt = Date.now();
   storeCurrent = {
@@ -1528,11 +1543,7 @@ function startSummaryStore(userId) {
     const updated = e?.detail?.data || e?.detail;
     if (updated?.setting_key !== 'square_ledger_sync') return;
     invalidateLedgerWindows();
-    try {
-      const rows = await base44.entities.Delivery.list('-updated_date', 500, 0).catch(() => []);
-      if (rows?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows);
-      idbReadCaches.deliveries = { at: 0, rows: null };
-    } catch { /* non-critical */ }
+    await healDeliveryMirror();
     if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
     clearTimeout(storeCfgTimer);
     storeCfgTimer = setTimeout(() => storeReload(true), 2500);
@@ -1559,7 +1570,11 @@ function startSummaryStore(userId) {
     const ageMs = Date.now() - (storeLastAppliedAt || 0);
     if (ageMs < 15 * 60 * 1000) return;
     clearTimeout(storeCfgTimer);
-    storeCfgTimer = setTimeout(() => storeReload(true), 1500);
+    // Heal the delivery mirror FIRST — the reload's credit/deduction math
+    // reads the IDB mirror, so refreshing stale records (server-side
+    // confirmation/backfill writes that never broadcast) is what lets a
+    // phone converge with the desktop badge (Londonderry $23.51 report).
+    storeCfgTimer = setTimeout(async () => { await healDeliveryMirror(); storeReload(true); }, 1500);
   };
   document.addEventListener('visibilitychange', onVisibility);
 
