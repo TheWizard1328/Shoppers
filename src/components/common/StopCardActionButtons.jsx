@@ -65,6 +65,7 @@ export default function StopCardActionButtons(props) {
     isCompleting,
     isGlobalCompleteLocked,
     isGlobalRestartLocked,
+    driverWithinStopRange,
     handleStartAction,
     isCurrentCardStartLocked,
     onStartDelivery,
@@ -115,7 +116,16 @@ export default function StopCardActionButtons(props) {
   // (cumulative 35s in-radius, jitter-tolerant) so the Complete buttons re-enable
   // even when the primary 30s-stationary flow missed the arrival (app reload while
   // parked, failed write, or a stale sync wiping arrival_time).
-  const arrivalGateActive = isNextDelivery && !delivery?.arrival_time && !isRetroTiming;
+  // BACKUP RULE (owner spec Oct 8 2026, preview-APK report: driver parked at the
+  // destination but Complete never activated): the arrival gate ALSO lifts when
+  // the driver is within 100m of the stop per the SAME live GPS proximity check
+  // that swaps the Navigate button into the "Update GPS" button on the active
+  // stop card (isWithinActiveStopRange in StopCard, <=100m haversine on the live
+  // driver location). If the button swapped, the driver is at the destination —
+  // the footer Complete must be usable even if the 30s-stationary snap and the
+  // recheck both missed. Completing still stamps a missing arrival_time with
+  // the completion time (stopCardCompletionActions).
+  const arrivalGateActive = isNextDelivery && !delivery?.arrival_time && !isRetroTiming && !driverWithinStopRange;
   useArrivalRecheck({
     enabled: arrivalGateActive,
     delivery,
@@ -315,7 +325,7 @@ export default function StopCardActionButtons(props) {
             }
             <div className="relative z-[60] pointer-events-auto">
               <StopCardFooterMenu
-                blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} store={store}
+                blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} driverWithinStopRange={driverWithinStopRange} store={store}
               />
             </div>
           </div>
@@ -489,7 +499,7 @@ export default function StopCardActionButtons(props) {
         }
         <div className="relative z-[60] pointer-events-auto">
           <StopCardFooterMenu
-            blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} store={store}
+            blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} driverWithinStopRange={driverWithinStopRange} store={store}
           />
         </div>
       </div>

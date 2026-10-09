@@ -21,6 +21,7 @@ export default function StopCardFooterMenu(props) {
     userHasRole,
     onEdit,
     isStrippedForDispatcher,
+    driverWithinStopRange,
     delivery,
     onEditPatient,
     patient,
@@ -102,7 +103,11 @@ export default function StopCardFooterMenu(props) {
     todayDateString: _todayStrForRetro,
     currentTimeString: _nowTimeStrForRetro,
   });
-  const inlineCompleteGated = isNextDelivery && !delivery?.arrival_time && !isRetroTimingLive;
+  // Mirrors StopCardActionButtons' arrivalGateActive including the Oct 8 2026
+  // proximity BACKUP: within 100m (the Navigate→"Update GPS" swap signal) the
+  // gate lifts, so the popup menu's Complete hides again and the footer buttons
+  // carry the completion, keeping both surfaces consistent.
+  const inlineCompleteGated = isNextDelivery && !delivery?.arrival_time && !isRetroTimingLive && !driverWithinStopRange;
   const canShowComplete = !!(
     !isFinishedDelivery &&
     (!isNextDelivery || inlineCompleteGated) &&

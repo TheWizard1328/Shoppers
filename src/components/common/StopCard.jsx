@@ -1366,6 +1366,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           }
 
           <StopCardFooter
+            driverWithinStopRange={isWithinActiveStopRange}
             shouldAnchorExpandedCard={shouldAnchorExpandedCard}
             showCenteredIncompleteCollapsed={showCenteredIncompleteCollapsed}
             shouldCondenseCompletedRouteForDriver={shouldCondenseCompletedRouteForDriver}
