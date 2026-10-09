@@ -218,8 +218,25 @@ async function handlePoll(base44, params) {
   // 0. Stored snapshot — read EARLY: staleness guard + (on client-triggered
   //    refresh) the union of previously stored cities so the bar can refresh
   //    even when nobody is currently on duty.
-  const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: SETTINGS_KEY }).catch(() => []);
-  const rec = settings?.[0] || null;
+  // Sort by -updated_date so the record pick is DETERMINISTIC when
+  // duplicates exist, and ABORT on read failure instead of creating a fresh
+  // record (the Oct 9 2026 root cause: a transient filter failure fell into
+  // .catch(() => []) → rec=null → create → SIX same-key records each holding
+  // values from a different era, and the client bar bounced between them).
+  const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: SETTINGS_KEY }, '-updated_date', 50, 0).catch(() => null);
+  if (!settings) {
+    return { success: false, skipped_reason: 'settings read failed — aborting instead of risking a duplicate record', duration_ms: Date.now() - startedAt };
+  }
+  const rec = settings[0] || null;
+  // Duplicate cleanup (Oct 9 2026): if more than one record exists for this
+  // key, delete the extras so every reader converges on this one record.
+  let deletedDuplicates = 0;
+  for (const extra of settings.slice(1)) {
+    if (extra?.id && extra.id !== rec?.id) {
+      await base44.asServiceRole.entities.AppSettings.delete(extra.id).catch(() => {});
+      deletedDuplicates += 1;
+    }
+  }
   const prevCities = (rec?.setting_value?.cities) || {};
   const fetchedAtRaw = rec?.setting_value?.fetched_at;
   const storedAgeMs = fetchedAtRaw ? Date.now() - new Date(fetchedAtRaw).getTime() : Infinity;
@@ -291,7 +308,8 @@ async function handlePoll(base44, params) {
       const touch = { cities: merged, fetched_at: new Date().toISOString() };
       if (rec?.id) {
         await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: touch }).catch(() => {});
-      } else {
+      } else if (settings.length === 0) {
+        // Only create when the key genuinely has NO record yet.
         await base44.asServiceRole.entities.AppSettings.create({ setting_key: SETTINGS_KEY, setting_value: touch }).catch(() => {});
       }
     }
@@ -311,7 +329,7 @@ async function handlePoll(base44, params) {
 
   if (rec?.id) {
     await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: payload, description: 'Dashboard weather thermometer bar — per-city current/high/low + server-tracked day_high/day_low (High only raises, Low only drops), refreshed every 5 min for all cities' });
-  } else {
+  } else if (settings.length === 0) {
     await base44.asServiceRole.entities.AppSettings.create({
       setting_key: SETTINGS_KEY,
       setting_value: payload,
@@ -324,6 +342,7 @@ async function handlePoll(base44, params) {
     dry_run: dryRun,
     changed: true,
     broadcast: true,
+    deleted_duplicates: deletedDuplicates,
     active_cities: Object.keys(newCities).length,
     weather_failures: failures,
     duration_ms: Date.now() - startedAt,

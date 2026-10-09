@@ -56,9 +56,18 @@ const _bindWsListener = () => {
 const _loadIdbRows = async (settingKey) => {
   try {
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
-    return await offlineDB.getByIndex(offlineDB.STORES.APP_SETTINGS, 'setting_key', settingKey);
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.APP_SETTINGS, 'setting_key', settingKey);
+    return _sortFreshest(rows);
   } catch (_) { return null; }
 };
+
+// Oct 9 2026: a settings key can end up with MULTIPLE records (a backend
+// writer creating a fresh record on a transient read failure — the weather
+// bar bounced for hours between 6 same-key records). Every read path now
+// sorts by updated_date desc so rows[0] is always the freshest record.
+const _sortFreshest = (rows) => (rows || [])
+  .filter(Boolean)
+  .sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')));
 
 const _saveIdbRows = async (settingKey, rows) => {
   try {
@@ -82,7 +91,7 @@ const _fetchFromApi = (settingKey) => {
   if (p) return p;
   p = queueEntityRequest(async () => {
     const rows = await base44.entities.AppSettings.filter({ setting_key: settingKey });
-    const list = rows || [];
+    const list = _sortFreshest(rows);
     _memory.set(settingKey, { rows: list, fetchedAt: Date.now() });
     await _saveIdbRows(settingKey, list);
     return list;

@@ -521,8 +521,15 @@ async function handleBriefing(base44, params = {}) {
   const weatherSettings = { updated: false, cities: [] };
   if (!dryRun) {
     try {
-      const rows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'dashboard_weather' }).catch(() => []);
+      // Deterministic pick + duplicate cleanup (Oct 9 2026): sort by
+      // -updated_date; abort seeding on read failure rather than creating a
+      // duplicate record (which previously split the weather bar's history).
+      const rows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'dashboard_weather' }, '-updated_date', 50, 0).catch(() => null);
+      if (!rows) { console.log('[weather-briefing] dashboard_weather read failed — skipping seed (no duplicate create)'); }
       const rec = rows?.[0] || null;
+      if (rows) for (const extra of rows.slice(1)) {
+        if (extra?.id && extra.id !== rec?.id) await base44.asServiceRole.entities.AppSettings.delete(extra.id).catch(() => {});
+      }
       const value = rec?.setting_value ? { ...rec.setting_value, cities: { ...(rec.setting_value.cities || {}) } } : { cities: {} };
       const seenCityIds = new Set();
       let touched = false;
@@ -546,7 +553,7 @@ async function handleBriefing(base44, params = {}) {
       if (touched) {
         if (rec?.id) {
           await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: value });
-        } else {
+        } else if (rows && rows.length === 0) {
           await base44.asServiceRole.entities.AppSettings.create({
             setting_key: 'dashboard_weather',
             setting_value: value,
