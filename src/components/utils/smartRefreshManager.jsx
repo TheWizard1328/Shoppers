@@ -398,7 +398,10 @@ class LightweightRefreshManager {
             // lag by several seconds during high-frequency GPS writes). Never let a poll
             // regress coords that were delivered more recently via WebSocket.
             const { offlineDB } = await import('./offlineDatabase');
-            const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            // PERF (Oct 9 2026): was getAll(APP_USERS) (full-store decrypt +
+            // write-drain wait) on every appUser sync; read only the rows the
+            // server batch actually contains.
+            const cachedUsers = await offlineDB.getByIds(offlineDB.STORES.APP_USERS, (allAppUsers || []).map(u => u?.id));
             const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
 
             const freshnessGuarded = allAppUsers.map(serverUser => {
@@ -551,7 +554,10 @@ class LightweightRefreshManager {
       if (freshAppUsers && freshAppUsers.length > 0) {
         // FRESHNESS GUARD: preserve cached coords if they are newer than the server snapshot
         const { offlineDB } = await import('./offlineDatabase');
-        const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        // PERF (Oct 9 2026): was getAll(APP_USERS) every location poll;
+        // targeted read of just the server rows (no full-store decrypt,
+        // no write-drain gate).
+        const cachedUsers = await offlineDB.getByIds(offlineDB.STORES.APP_USERS, (freshAppUsers || []).map(u => u?.id));
         const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
         const guardedUsers = freshAppUsers.map(serverUser => {
           const cached = cacheMap.get(serverUser.id);

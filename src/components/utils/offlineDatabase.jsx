@@ -632,6 +632,30 @@ const withTimeout = (promise, ms, label = 'operation') =>
     ),
   ]);
 
+// PERF (Oct 9 2026 deep dive): targeted batch read by primary key. Unlike
+// getAll it skips the write-drain gate and decrypts ONLY the requested rows
+// instead of materializing the whole store — used by the driver-location
+// freshness guards that used to getAll(APP_USERS) on every 2-min poll + WS
+// location event.
+const getByIds = async (storeName, ids) => {
+  const wanted = [...new Set((ids || []).filter(Boolean).map(String))];
+  if (!wanted.length) return [];
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readonly');
+    const store = transaction.objectStore(storeName);
+    const rows = await Promise.all(wanted.map((id) => new Promise((resolve) => {
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    })));
+    const raw = rows.filter(Boolean);
+    return isPHIStore(storeName) ? await decryptRecords(raw) : raw;
+  } catch {
+    return [];
+  }
+};
+
 const getAll = async (storeName) => {
   try {
     // If write transactions are in progress (boot sync, pull-to-sync), wait
@@ -1657,6 +1681,7 @@ export const offlineDB = {
   save,
   bulkSave,
   getAll,
+  getByIds,
   countStore,
   getAllStrict,
   waitForWritesToDrain,

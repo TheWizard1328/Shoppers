@@ -160,8 +160,14 @@ export async function runDeliverySubmitSideEffects({
       setTimeout(async () => {
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
-          const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const remainingForOldRoute = (all || []).filter(
+          // PERF (Oct 9 2026 deep dive): was a full offlineDB.getAll(DELIVERIES)
+          // (20-30k records decrypt+parse) on every edit that moves a stop between
+          // routes. The compound 'date_driver' index reads ONLY the old route's
+          // rows — same result, a few dozen records instead of the whole store.
+          const routeRows = await offlineDB.getByCompoundIndex(
+            offlineDB.STORES.DELIVERIES, 'date_driver', [oldDate, oldDriverId]
+          ).catch(() => null);
+          const remainingForOldRoute = (routeRows || []).filter(
             (d) => d && d.driver_id === oldDriverId && d.delivery_date === oldDate && d.id !== delivery.id
           );
           const { checkAndToggleOffDutyAfterDelete } = await import('../utils/postDeleteDutyCheck');
