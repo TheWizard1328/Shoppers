@@ -1208,6 +1208,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           }
         } catch (e) {/* snapshot is best-effort — server load below is authoritative */}
       }
+      // PAGE LOAD INITIATES THE SERVER-SIDE SYNC (owner spec Oct 9 2026):
+      // the paint above is already showing — this forces the
+      // squareBalancesCompute backend function to run once on page open (the
+      // initiating device receives the fresh payload and publishes the
+      // shared record, broadcasting every other device to convergence).
+      window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
       try {
         // OWNER SPEC (Oct 7 2026): NO Square API sync on this page anymore —
         // mount computes strictly from delivery data (credits, outstanding,

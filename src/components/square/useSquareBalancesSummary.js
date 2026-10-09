@@ -1579,51 +1579,68 @@ const storeApply = (data) => {
 // just return a degraded result) — e.g. during the boot-loader race where
 // the pipeline starts before the SDK's auth token is actually attached.
 // Hard failures retry with backoff (2s, 4s, 8s); 429s use the slow path.
+// SERVER-SIDE COMPUTE (owner spec Oct 9 2026, "take the load off the drivers'
+// devices"): the whole badge/balance summary now runs in the
+// squareBalancesCompute backend function — devices invoke it (page load,
+// Refresh, debounced COD delivery events), apply the finished payload, and
+// the INITIATING device writes the shared snapshot record client-side (a
+// client entity write broadcasts over WS, converging every other device with
+// one small read). No 5-minute schedule — delivery events, page load and
+// Refresh are the only initiators. The local loadSummary pipeline stays as
+// the FALLBACK for the deploy window and function failures.
 const storeReload = async (force = false, attempt = 0) => {
   const seq = ++storeSeq;
-  let data, degraded, cached;
   try {
-    ({ data, degraded, cached } = await loadSummary(force, storeUserId));
-  } catch (e) {
-    const msg = String(e?.message || e);
-    const status = Number(e?.status || e?.response?.status || 0);
-    const rateLimited = status === 429 || /429|rate limit|too many/i.test(msg);
-    console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1}${rateLimited ? ' (rate-limited)' : ''} failed:`, msg);
+    const res = await base44.functions.invoke('squareBalancesCompute', { force: force !== false });
+    const fdata = deserializeSummary(res?.payload);
+    if (!fdata) throw new Error('compute returned no payload');
     if (seq !== storeSeq) return;
-    if (attempt < 3) {
-      // RATE-AWARE BACKOFF (Oct 2 2026): a 429 means the per-minute quota
-      // bucket is exhausted — the badge already renders the IDB snapshot, so
-      // retries only need to EVENTUALLY succeed, never fast.
-      const wait = rateLimited ? [30000, 90000, 180000][attempt] : 2000 * Math.pow(2, attempt);
-      setTimeout(() => storeReload(true, attempt + 1), wait);
+    storeSharedVersion = Number(res?.version) || Date.now();
+    fdata.autoRefundedFailed = res?.autoRefundedFailed || [];
+    storeApply(fdata);
+    persistSnapshotModule(fdata);
+    // REFUND-POSTED ALERT: owner devices notify owner + driver when a failed
+    // COD's refund is auto-detected (once per delivery, AppSettings-guarded).
+    if (storeIsOwner && storeUserId && Array.isArray(fdata.autoRefundedFailed) && fdata.autoRefundedFailed.length) {
+      void sendFailedRefundAlerts(fdata.config, fdata.autoRefundedFailed, storeUserId);
     }
+    // ACK → BROADCAST (owner spec Oct 9 2026): this device initiated the
+    // sync, so IT publishes the shared record — the client-side entity
+    // write fires the WS broadcast that pings every other device to its own
+    // small pull. Publishing happens ONLY here and on the local-fallback
+    // path (a remote-snapshot apply never publishes), so no loop.
+    publishSharedSnapshot(fdata, { version: storeSharedVersion, userId: storeUserId }).catch?.(() => {});
     return;
-  }
-  if (seq !== storeSeq) return;
-  storeApply(data);
-  persistSnapshotModule(data);
-  // REFUND-POSTED ALERT: owner devices notify owner + driver when a failed
-  // COD's refund is auto-detected (once per delivery, AppSettings-guarded).
-  if (storeIsOwner && storeUserId && Array.isArray(data?.autoRefundedFailed) && data.autoRefundedFailed.length) {
-    void sendFailedRefundAlerts(data.config, data.autoRefundedFailed, storeUserId);
-  }
-  // SHARED ONLINE SNAPSHOT (owner spec Oct 9 2026): only a FRESH (non-cached)
-  // compute publishes — cached refreshes render identical numbers, and
-  // applying a REMOTE snapshot must never publish (echo loop guard). Owner
-  // devices are the single writer; the monotonic version makes concurrent
-  // owner publishes last-write-wins with identical server-sourced data.
-  if (storeIsOwner && storeUserId && cached !== true) {
-    const ver = Date.now();
-    publishSharedSnapshot(data, { version: ver, userId: storeUserId }).then((published) => {
-      if (published) storeSharedVersion = published;
-    }).catch(() => {});
-  }
-  // A degraded run (COD-outstanding fetch failed twice) freezes the badge
-  // with wrong totals because updates are event-driven — schedule ONE 30s
-  // forced reload to self-heal.
-  if (degraded) {
-    if (storeHealTimer) clearTimeout(storeHealTimer);
-    storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, 30000);
+  } catch (e) {
+    // Deploy-window / function failure — the local pipeline still works.
+    console.warn('[useSquareBalancesSummary] server compute unavailable, using local compute:', String(e?.message || e));
+    try {
+      const { data, degraded } = await loadSummary(true, storeUserId);
+      if (seq !== storeSeq) return;
+      storeApply(data);
+      persistSnapshotModule(data);
+      if (storeIsOwner && storeUserId && Array.isArray(data?.autoRefundedFailed) && data.autoRefundedFailed.length) {
+        void sendFailedRefundAlerts(data.config, data.autoRefundedFailed, storeUserId);
+      }
+      publishSharedSnapshot(data, { version: Date.now(), userId: storeUserId }).catch?.(() => {});
+      if (degraded) {
+        if (storeHealTimer) clearTimeout(storeHealTimer);
+        storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, 30000);
+      }
+      return;
+    } catch (e2) {
+      const msg = String(e2?.message || e2);
+      const status = Number(e2?.status || e2?.response?.status || 0);
+      const rateLimited = status === 429 || /429|rate limit|too many/i.test(msg);
+      console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1}${rateLimited ? ' (rate-limited)' : ''} failed:`, msg);
+      if (seq !== storeSeq) return;
+      if (attempt < 3) {
+        // RATE-AWARE BACKOFF (Oct 2 2026): retries only need to EVENTUALLY
+        // succeed — the badge renders the IDB snapshot meanwhile.
+        const wait = rateLimited ? [30000, 90000, 180000][attempt] : 2000 * Math.pow(2, attempt);
+        setTimeout(() => storeReload(true, attempt + 1), wait);
+      }
+    }
   }
 };
 
@@ -1683,11 +1700,10 @@ function startSummaryStore(userId, isOwner = false) {
       // load — nothing to render offline.
       storeBootTimer = setTimeout(runFirstLoad, 4000);
     } else {
-      // 60s (Oct 2 2026): the badge already renders the snapshot instantly,
-      // so the first network refresh has nothing to win by racing the boot
-      // read-storm. One minute of (already visible) snapshot data is the
-      // cheaper trade.
-      storeBootTimer = setTimeout(runFirstLoad, 60000);
+      // 10s (Oct 9 2026): the first load is now ONE backend-function invoke
+      // (the heavy compute left the device entirely), so it no longer needs
+      // to hide from the boot read-storm behind a 60s delay.
+      storeBootTimer = setTimeout(runFirstLoad, 10000);
     }
   })();
 
@@ -1712,9 +1728,12 @@ function startSummaryStore(userId, isOwner = false) {
   const scheduleCodReload = () => {
     if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
     clearTimeout(storeCodTimer);
-    // NON-FORCED (Oct 2 2026 rate-limit fix): the 60s summary cache coalesces
-    // WS bursts — a delivery-change volley runs at most once a minute.
-    storeCodTimer = setTimeout(() => storeReload(false), 2500);
+    // FORCED (Oct 9 2026): the sync is ONE backend-function call now — the
+    // client 2.5s debounce coalesces the WS burst, and force=true makes sure
+    // the server compute includes the change that triggered it (the
+    // function's own 90s debounce is bypassed by force, which is exactly
+    // what the ACTING device needs; passive devices converge via broadcast).
+    storeCodTimer = setTimeout(() => storeReload(true), 2500);
   };
   // Remote WS delivery events — refresh only when the changed record is
   // COD-relevant.
@@ -1789,17 +1808,17 @@ function startSummaryStore(userId, isOwner = false) {
   document.addEventListener('visibilitychange', onVisibility);
 
   // SHARED ONLINE SNAPSHOT: one cheap whole-record pull on any publish
-  // broadcast (debounced — a compute can flip several events) and every 5
-  // minutes as the background freshness backstop (covers offline gaps and
-  // WS-suppressed echoes). One early pull ~10s after boot converges a fresh
-  // device without waiting for the first full compute.
+  // broadcast (debounced — a sync can flip several events). One early pull
+  // ~10s after boot converges a fresh device. NO 5-minute schedule (owner
+  // spec Oct 9 2026): COD delivery events, page load and the Refresh button
+  // are the only sync initiators — passive devices converge via the WS
+  // broadcast, the boot pull and the foreground heal.
   const scheduleSharedPull = (delay = 3000) => {
     clearTimeout(storeSharedSubTimer);
     storeSharedSubTimer = setTimeout(() => { storeSharedSubTimer = null; void pullAndApplySharedSnapshot(); }, delay);
   };
   unsubs.push(subscribeSharedSnapshot(() => scheduleSharedPull()));
   const sharedBootPull = setTimeout(() => void pullAndApplySharedSnapshot(), 10000);
-  const sharedInterval = setInterval(() => void pullAndApplySharedSnapshot(), 5 * 60 * 1000);
 
   teardownStore = () => {
     storeFirstLoadDone = true;
@@ -1809,7 +1828,6 @@ function startSummaryStore(userId, isOwner = false) {
     if (storeHealTimer) clearTimeout(storeHealTimer);
     clearTimeout(storeSharedSubTimer);
     clearTimeout(sharedBootPull);
-    clearInterval(sharedInterval);
     unsubs.forEach((u) => { try { u?.(); } catch {} });
     window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
