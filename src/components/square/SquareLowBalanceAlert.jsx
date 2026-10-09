@@ -305,7 +305,7 @@ export default function SquareLowBalanceAlert({ ready, byLocId, currentUser, sid
         if (cancelled) return;
         let body;
         if (pushCards.length === 1) {
-          body = `${pushCards[0].name} card is at $${Math.round(pushCards[0].balance).toLocaleString()} — a day of CODs needs ~$${Math.round(pushCards[0].codAvg).toLocaleString()}. Tap to review balances.`;
+          body = `${pushCards[0].name} card is at $${Math.round(pushCards[0].balance).toLocaleString()} — a day of C.O.D's needs about $${Math.round(pushCards[0].codAvg).toLocaleString()}. Tap to review balances.`;
         } else {
           body = `${pushCards.length} Square cards are low: ${pushCards.slice(0, 3).map((c) => `${c.name} $${Math.round(c.balance).toLocaleString()}`).join(', ')}${pushCards.length > 3 ? '…' : ''}. Tap to review balances.`;
         }
