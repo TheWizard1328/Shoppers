@@ -149,7 +149,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -313,10 +313,16 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                       // computed on the swipe TOTAL (owner report: marking
                       // $1.18 and $28.36 separately charged the flat $0.07
                       // twice and left the settled amount off by $0.05).
-                      const cashRows = statusLabel === 'Cash' ? (sections || []).flatMap((sec) => sec?.rows || []).
-                      filter((x) => x && !!x.delivery_id && x.cashAwaitingSquare &&
-                      String(x.delivery_id) !== String(r.delivery_id) && (
-                      !x.date || !r.date || String(x.date) === String(r.date))) : [];
+                      // COMBINE CANDIDATES (owner rule Oct 9 2026): the
+                      // checkbox list is every UNCOLLECTED item on the card —
+                      // not just cash-collected ones — and stores SHARE cards,
+                      // so candidates span ALL cards on the page (cross-store
+                      // swipes), not just this store's sections.
+                      const candSrc = Array.isArray(combineCandidates) && combineCandidates.length ?
+                      combineCandidates :
+                      (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
+                      const cashRows = statusLabel === 'Cash' ?
+                      candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id)) : [];
                       setCashPick({ row: r, label: statusLabel, cashRows, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                     }}
                     title="Tap to change this tender (Debit / Credit / Cash)"
@@ -363,6 +369,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             onClick={(e) => {e.stopPropagation();if (cashPickBusy) return;setCashPick((p) => p ? { ...p, sel: { ...(p.sel || {}), [c.delivery_id]: !(p.sel || {})[c.delivery_id] } } : p);}}
             className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
                 <input type="checkbox" className="accent-emerald-600" readOnly checked={!!(cashPick.sel || {})[c.delivery_id]} />
+                {c.storeAbbrev && <span className="text-[9px] font-bold leading-none px-1 py-0.5 rounded-full text-white flex-shrink-0" style={{ backgroundColor: c.storeColor || '#64748b' }}>{c.storeAbbrev}</span>}
                 <span className="truncate flex-1 text-[11px] text-slate-600 dark:text-slate-300">{c.patientName || c.sub || 'COD'}</span>
                 <span className="tabular-nums text-[11px] font-medium text-slate-600 dark:text-slate-300">${Number(c.amount || 0).toFixed(2)}</span>
               </div>
@@ -562,7 +569,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (p && convertible.includes(String(p?.type || '').toLowerCase())) {convIdx.push(i);return { ...p, type: toType };}
           return p;
         });
-        return { rec, nextPayments, convIdx, convCents: convIdx.reduce((sm, i) => sm + Math.round(Number(recPayments[i]?.amount || 0) * 100), 0), changed: convIdx.length > 0 };
+        // UNCOLLECTED ITEM IN A COMBINED SWIPE (owner rule Oct 9 2026): a
+        // pending COD has no payments yet — the swipe IS its collection.
+        // Create its card payment for the outstanding amount so it joins the
+        // swipe's fee/loan/folder split like any cash item.
+        if (!convIdx.length && target !== 'cash') {
+          const requiredC = Math.round(Number(rec?.cod_total_amount_required || 0) * 100);
+          const nonCashC = recPayments.filter((p) => ['debit', 'credit', 'cheque'].includes(String(p?.type || '').toLowerCase())).reduce((sm, p) => sm + Math.round(Number(p?.amount || 0) * 100), 0);
+          const addC = Math.max(0, requiredC - nonCashC);
+          if (addC > 0) {
+            nextPayments.push({ type: toType, amount: addC / 100 });
+            convIdx.push(nextPayments.length - 1);
+          }
+        }
+        // convCents reads nextPayments (not the original record) — created
+        // entries for uncollected items only exist there.
+        return { rec, nextPayments, convIdx, convCents: convIdx.reduce((sm, i) => sm + Math.round(Number(nextPayments[i]?.amount || 0) * 100), 0), changed: convIdx.length > 0 };
       });
       if (!plan[0].changed) {toast.error(`Payment is already ${toType}`);return false;}
       if (others.length && !plan.every((x) => x.changed)) {toast.error('A combined item has no matching payment');return false;}
@@ -1680,6 +1702,41 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   };
 
+  // PAGE-WIDE COMBINE CANDIDATES (owner rule Oct 9 2026): the Set-tender
+  // popup's checkbox list covers every UNCOLLECTED item on the card — not
+  // just cash-collected ones — and stores SHARE cards, so candidates are
+  // gathered across ALL locations on the page (cross-store swipes). Deduped
+  // by delivery_id with delivery-derived rows winning over catalog rows;
+  // failed CODs are excluded (their path is a refund, not a swipe).
+  // Driver scoping applies like the row lists: drivers only get candidates
+  // for deliveries assigned to them.
+  const combineCandidates = (() => {
+    const byId = new Map();
+    const push = (it) => {
+      if (!it?.delivery_id) return;
+      const key = String(it.delivery_id);
+      if (byId.has(key)) return;
+      byId.set(key, {
+        delivery_id: it.delivery_id,
+        patientName: it.patient || it.patientName || null,
+        storeAbbrev: it.storeAbbrev || null,
+        storeColor: it.storeColor || null,
+        amount: Number(it.amount || 0),
+        driver_id: it.driver_id || null
+      });
+    };
+    const locIds = new Set([...Object.keys(localOutstanding || {}), ...Object.keys(codOutstandingByLoc || {})]);
+    locIds.forEach((locId) => {
+      const agg = (localOutstanding && localOutstanding[locId]) || codOutstandingByLoc[locId] || {};
+      (agg.items || []).forEach((it) => { if (it?.reason !== 'failed_uncollected') push(it); });
+      (agg.cashItems || []).forEach((it) => push(it));
+    });
+    Object.keys(catalogUncollectedByLoc || {}).forEach((locId) =>
+      (catalogUncollectedByLoc[locId] || []).forEach((it) => push(it)));
+    const all = [...byId.values()];
+    return driverScopeId ? all.filter((it) => String(it.driver_id || '') === driverScopeId) : all;
+  })();
+
   if (isLoading && !config) {
     return <div className="text-sm text-slate-500 p-4">Loading balances…</div>;
   }
@@ -1981,6 +2038,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     <CardCodList
                       canMarkSpend={!!currentUser}
                       isOwner={ownerCanEdit}
+                      combineCandidates={combineCandidates}
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
