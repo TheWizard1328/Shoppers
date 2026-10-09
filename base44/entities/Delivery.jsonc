@@ -207,6 +207,26 @@
           },
           "amount": {
             "type": "number"
+          },
+          "fee_c": {
+            "type": "number",
+            "description": "Square card fee in cents for this payment (combined-swipe proportional share, Square Balances tender conversion)"
+          },
+          "loan_c": {
+            "type": "number",
+            "description": "Loan repayment withheld in cents (combined-swipe proportional share)"
+          },
+          "folder_c": {
+            "type": "number",
+            "description": "Folder (2%) withheld in cents (combined-swipe proportional share)"
+          },
+          "settled_c": {
+            "type": "number",
+            "description": "Net amount credited to the card in cents (amount - fee - loan - folder)"
+          },
+          "swipe_total_c": {
+            "type": "number",
+            "description": "Total of the combined swipe in cents this payment belongs to"
           }
         },
         "required": [
@@ -214,7 +234,7 @@
           "amount"
         ]
       },
-      "description": "Array of collected COD payments with type and amount"
+      "description": "Array of collected COD payments with type and amount; card payments converted on Square Balances also carry per-payment fee/loan/folder/settled cents"
     },
     "signature_needed": {
       "type": "boolean",
