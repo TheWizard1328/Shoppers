@@ -149,7 +149,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -284,8 +284,10 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                 <div className="flex items-center justify-between text-lg gap-1.5">
                     <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">{r.sub}</span>
                     {/* Owner spec (Oct 8 2026): fees centered on row 2 —
-                  S = Square fee, F = folder%, L = loan%. Card rows only. */}
-                    {showNetAmount && r.feeParts &&
+                  S = Square fee, F = folder%, L = loan%. Card rows only.
+                  OWNER-ONLY (owner rule Oct 9 2026): drivers see the settled
+                  net amount but NOT the S/F/L fee breakdown. */}
+                    {showNetAmount && isOwner && r.feeParts &&
                 <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">
                         S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
                       </span>
@@ -1978,6 +1980,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   return (
                     <CardCodList
                       canMarkSpend={!!currentUser}
+                      isOwner={ownerCanEdit}
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
