@@ -10,6 +10,7 @@ import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
+import { fetchLatestSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 
 /**
@@ -1163,27 +1164,50 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // true-up, then read the ledger. The 9pm briefing also freshens the ledger,
   // and the Refresh button does it on demand.
   useEffect(() => {
+    let pageBootCancelled = false;
+    const applySnapshotData = (data) => {
+      if (!data || pageBootCancelled) return false;
+      if (data.config) setConfig(data.config);
+      if (data.configRecordId) setConfigRecordId(data.configRecordId);
+      setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
+      setPayouts(data.payouts || []);
+      if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
+      setIsLoading(false);
+      return true;
+    };
     (async () => {
+      // PAINT ORDER (owner report Oct 9 2026: page showed a sync state for
+      // 10-30s before store cards appeared, and uncollected rows showed
+      // 'Pending' for 1-2 min before flipping to 'Cash'):
+      // 1. SHARED ONLINE SNAPSHOT (SquareBalancesSnapshot entity) — one
+      //    small entity read, no IDB involvement. The boot write-storm holds
+      //    IDB reads in a write-drain gate for tens of seconds, but the
+      //    shared record paints the full page (cards + rows + cash badges,
+      //    cashAwaitingSquare is baked into the items) in ~1-2s.
+      // 2. IDB snapshot — offline fallback when the entity read fails.
+      // 3. Local compute chain below — still authoritative, it overwrites
+      //    everything once done.
+      // Driver row-scoping stays at render (driverScopeId filters), so the
+      // shared payload is safe on driver devices too.
+      let painted = false;
+      try {
+        const rec = await fetchLatestSharedSnapshot().catch(() => null);
+        if (rec?.payload) painted = applySnapshotData(deserializeSummary(rec.payload));
+      } catch { /* fall through to IDB */ }
       // OFFLINE-FIRST (Oct 2 2026): paint the last IDB snapshot instantly so
       // the page opens with real numbers even before the network round-trips
       // (config + sales + payouts + CODs outstanding all live in the snapshot
       // the sidebar hook writes after every successful load). User-scoped:
       // never render another account's balances. Server loads below then
       // overwrite everything with fresh data.
-      try {
-        const snap = await getSummarySnapshot().catch(() => null);
-        if (snap?.payload && (!snap.user_id || snap.user_id === currentUser?.id)) {
-          const data = deserializeSummary(snap.payload);
-          if (data) {
-            if (data.config) setConfig(data.config);
-            if (data.configRecordId) setConfigRecordId(data.configRecordId);
-            setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
-            setPayouts(data.payouts || []);
-            if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
-            setIsLoading(false);
+      if (!painted) {
+        try {
+          const snap = await getSummarySnapshot().catch(() => null);
+          if (snap?.payload && (!snap.user_id || snap.user_id === currentUser?.id)) {
+            applySnapshotData(deserializeSummary(snap.payload));
           }
-        }
-      } catch (e) {/* snapshot is best-effort — server load below is authoritative */}
+        } catch (e) {/* snapshot is best-effort — server load below is authoritative */}
+      }
       try {
         // OWNER SPEC (Oct 7 2026): NO Square API sync on this page anymore —
         // mount computes strictly from delivery data (credits, outstanding,
@@ -1201,6 +1225,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         setIsSyncing(false);
       }
     })();
+    return () => { pageBootCancelled = true; };
     /* eslint-disable-next-line */
   }, []);
 
