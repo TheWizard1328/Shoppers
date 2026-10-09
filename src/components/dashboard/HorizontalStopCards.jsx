@@ -445,10 +445,19 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     fabInteractionLockRef.current = 0;
     manualSwipeUnlockUntilRef.current = Date.now() + 3500;
     if (typeof window !== 'undefined') {
-      window.__isUserCardSwipe = true;
+      // BUG FIX (Oct 8 2026, owner report: FAB phase 2 locks after completing a
+      // stop, then "deactivates and unlocks itself moments later"): this flag
+      // used to be armed on EVERY touch — even a plain tap on the Complete
+      // button — and stayed true until the next scroll settled. The
+      // completion flow's programmatic card scrollIntoView (and the FAB's own
+      // 500ms-later centerNextDeliveryCard) then fired scroll events that read
+      // as a "user card swipe" and unlocked the freshly locked FAB. The flag is
+      // now armed ONLY by a real horizontal swipe (handleTouchMove), and the
+      // scroll handler additionally requires the swipe to be recent.
+      window.__isUserCardSwipe = false;
       window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
     }
-    // Unlock FAB visually so the UI matches the actual lock state when user swipes cards
+    // Unlock FAB visually so the UI matches the actual lock state when user taps/swipes cards
     fabControlEvents.notifyUserMapInteraction();
     if (isDesktopFanLayout) return;
   }, [isDesktopFanLayout]);
@@ -468,6 +477,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     manualSwipeUnlockUntilRef.current = Date.now() + 2500;
     if (typeof window !== 'undefined') {
       window.__isUserCardSwipe = true;
+      window.__lastRealCardSwipeAt = Date.now();
       window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
     }
   }, []);
@@ -482,7 +492,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     fabInteractionLockRef.current = 0;
     manualSwipeUnlockUntilRef.current = Date.now() + 1500;
     if (typeof window !== 'undefined') {
-      window.__isUserCardSwipe = true;
+      // Do NOT re-arm __isUserCardSwipe here (Oct 8 2026 bug fix): this ran
+      // after a plain TAP too, leaving a stale armed flag for the next
+      // programmatic scrollIntoView to trip on. A real swipe keeps the flag
+      // armed from handleTouchMove; momentum scroll continues to work.
       window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
     }
 
