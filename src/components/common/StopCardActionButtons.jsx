@@ -9,6 +9,7 @@ import { _cachedSquareAppId as _sharedSquareAppIdCache } from "./StopCard";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
+import { recordSquarePosLaunch } from "../utils/squareTenderVerify";
 import { remoteLogger } from "../utils/remoteLogger";
 import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 import RestartConfirmDialog from "./RestartConfirmDialog";
@@ -286,9 +287,18 @@ export default function StopCardActionButtons(props) {
       toast.error('No COD amount set for this delivery.');
       return;
     }
+    // AUTO-TENDER (owner spec Oct 9 2026): remember this launch so the COD
+    // panel can ask Square for the swipe's real card type when the app
+    // regains focus (INTERAC → Debit, any credit brand → Credit).
+    recordSquarePosLaunch({
+      deliveryId: delivery?.id,
+      amountCents,
+      locationId: currentSquareLocationId,
+      driverName: driverNameForPeek,
+    });
     const notes = generateSquareItemName(delivery, patient, store);
     launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', notes, locationId: currentSquareLocationId });
-  }, [delivery, patient, store, squareAppId, currentSquareLocationId, squareLocationStatus, isFirstCodOfDay]);
+  }, [delivery, patient, store, squareAppId, currentSquareLocationId, squareLocationStatus, isFirstCodOfDay, driverNameForPeek]);
 
 
 

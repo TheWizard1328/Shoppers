@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,6 +7,8 @@ import { userHasRole } from '../utils/userRoles';
 import { invalidate } from '../utils/dataManager';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
+import { getPendingSquarePosLaunch, verifySquareTender, clearPendingSquarePosLaunch } from '../utils/squareTenderVerify';
+import { toast } from 'sonner';
 
 export default function StopCardCODCollection({
   delivery,
@@ -76,6 +78,69 @@ export default function StopCardCODCollection({
   const handleRemoveCODPayment = (index) => {
     setCodPayments(codPayments.filter((_, i) => i !== index));
   };
+
+  // ── AUTO-TENDER FROM THE REAL SQUARE SWIPE (owner spec Oct 9 2026) ────────
+  // When the driver comes back from Square POS, ask the backend for the
+  // swipe's card type and stamp the matching payment entry: INTERAC → Debit,
+  // Visa / Mastercard / any credit brand → Credit. Falls back silently to
+  // the manually chosen type when no match is found (pre-existing behaviour).
+  const tenderVerifyAttemptedRef = useRef(false);
+  const tenderVerifyBusyRef = useRef(false);
+  const applySquareTenderResult = (res, pending) => {
+    if (!res?.matched || !res?.tender) return false;
+    const stamp = { card_brand: res.card_brand, entry_method: res.entry_method };
+    setCodPayments((prev) => {
+      // Prefer the card entry seeded by the Square button (matches the swipe
+      // amount), else any card-typed entry without a brand stamp.
+      const amount = (Number(pending?.amountCents) || 0) / 100;
+      let idx = prev.findIndex((p) => Math.abs((parseFloat(p?.amount) || 0) - amount) < 0.005
+        && (p?.type === 'Debit' || p?.type === 'Credit'));
+      if (idx === -1) idx = prev.findIndex((p) => (p?.type === 'Debit' || p?.type === 'Credit') && !p?.card_brand);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], type: res.tender, ...stamp };
+      return next;
+    });
+    clearPendingSquarePosLaunch();
+    const brand = res.card_brand ? res.card_brand[0] + res.card_brand.slice(1).toLowerCase() : '';
+    toast.success(
+      res.entry_method === 'KEYED'
+        ? `Tender set to ${res.tender} (keyed ${brand})`
+        : `Tender set to ${res.tender} (${brand})`,
+      { duration: 4000 }
+    );
+    return true;
+  };
+  const runTenderVerify = async () => {
+    if (tenderVerifyBusyRef.current || !delivery?.id || !showCODCollection) return;
+    const pending = getPendingSquarePosLaunch(delivery.id);
+    if (!pending) return;
+    tenderVerifyBusyRef.current = true;
+    try {
+      const res = await verifySquareTender(pending, { deliveryId: delivery.id });
+      if (res?.matched) {
+        applySquareTenderResult(res, pending);
+      } else if (!tenderVerifyAttemptedRef.current) {
+        // Square may still be finalizing the payment on the very first
+        // return — retry once shortly after, then give up (the manual
+        // tender stays in place).
+        tenderVerifyAttemptedRef.current = true;
+        setTimeout(() => { void runTenderVerify(); }, 20000);
+      }
+    } finally {
+      tenderVerifyBusyRef.current = false;
+    }
+  };
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void runTenderVerify();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    // Panel open with the POS already done (e.g. driver re-expanded the card)
+    void runTenderVerify();
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCODCollection, delivery?.id]);
 
   return (
     <AnimatePresence>

@@ -227,6 +227,14 @@
           "swipe_total_c": {
             "type": "number",
             "description": "Total of the combined swipe in cents this payment belongs to"
+          },
+          "card_brand": {
+            "type": "string",
+            "description": "Real Square card brand of the swipe (INTERAC, VISA, MASTERCARD, ...) — auto-tender verification"
+          },
+          "entry_method": {
+            "type": "string",
+            "description": "Square entry method of the swipe (SWIPE, CHIP, TAP, KEYED) — KEYED credit carries the higher fee"
           }
         },
         "required": [
