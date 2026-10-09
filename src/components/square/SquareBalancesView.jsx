@@ -137,7 +137,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
   // correct the recorded tender to Debit or Credit (which re-does the
   // fee/settled math and appends the "Paid Via Drivers [Debit/Credit]
   // card." note).
-  const [cashPickRow, setCashPickRow] = useState(null);
+  const [cashPick, setCashPick] = useState(null); // { row, x, y, anchorBottom }
   const [cashPickBusy, setCashPickBusy] = useState(false);
   const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
   // Loading placeholder: show the three section headers (Collected today /
@@ -284,7 +284,11 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                     className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span>
                 ) : (r.collected || r.cashAwaitingSquare) && statusLabel === 'Cash' && canMarkSpend && !!r.delivery_id && onCashToCard ? (
                   <span
-                    onClick={() => setCashPickRow(r)}
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const below = window.innerHeight - rect.bottom > 150;
+                      setCashPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                    }}
                     title="Tap to correct this collection to Debit or Credit"
                     // No role="button" (same min-height CSS trap as the pills).
                     className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-emerald-400/60 dark:ring-emerald-500/50`}>{statusLabel}</span>
@@ -298,20 +302,30 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         })}
         </div>
       )}
-      {cashPickRow &&
-      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !cashPickBusy && setCashPickRow(null)}>
-          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Change Cash collection</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Set this COD's payment to:</div>
-            <div className="flex gap-2">
-              <Button size="sm" className="flex-1" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPickRow.delivery_id, 'Debit'); setCashPickRow(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
-              <Button size="sm" className="flex-1" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPickRow.delivery_id, 'Credit'); setCashPickRow(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
-            </div>
-            <div className="flex justify-end">
-              <Button size="sm" variant="outline" disabled={cashPickBusy} onClick={() => setCashPickRow(null)}>Cancel</Button>
-            </div>
+      {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
+          Cash badge opens the Debit / Credit choice as a small button menu
+          right at the badge — below it when there's room, above when it sits
+          near the bottom of the screen. Tap anywhere else to dismiss. */}
+      {cashPick &&
+      <>
+        <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
+        <div
+          className="fixed z-50 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-2 space-y-1"
+          style={{
+            left: Math.max(8, Math.min(cashPick.x, window.innerWidth - 200)),
+            top: cashPick.anchorBottom ? undefined : cashPick.y,
+            bottom: cashPick.anchorBottom ? Math.max(8, window.innerHeight - cashPick.y + 6) : undefined
+          }}>
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set tender</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button size="sm" className="h-9" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Debit'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
+            <Button size="sm" className="h-9" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true); try { await onCashToCard?.(cashPick.row.delivery_id, 'Credit'); setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
+          </div>
+          <div className="text-center">
+            <span className="text-[11px] text-slate-400 cursor-pointer select-none" onClick={() => !cashPickBusy && setCashPick(null)}>Cancel</span>
           </div>
         </div>
+      </>
       }
     </div>);
 
