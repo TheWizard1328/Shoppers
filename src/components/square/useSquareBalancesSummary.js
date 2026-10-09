@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
 import { edmontonBusinessDayKey, edmontonWallString } from '@/components/utils/albertaTime';
@@ -1324,245 +1324,246 @@ async function loadSummary(force, uid) {
   return inflight;
 }
 
-export function useSquareBalancesSummary(enabled = true, userId = null) {
-  const [ready, setReady] = useState(false);
-  const [byLocId, setByLocId] = useState(new Map());
-  const [storeToLoc, setStoreToLoc] = useState(new Map());
-  const [weeklyByStore, setWeeklyByStore] = useState(new Map());
-  const [storeNames, setStoreNames] = useState(new Map());
-  const [dailyRemainingByStore, setDailyRemainingByStore] = useState(new Map());
-  const [payoutsByLoc, setPayoutsByLoc] = useState(new Map());
-  const reloadSeq = useRef(0);
-  const userIdRef = useRef(userId);
-  userIdRef.current = userId;
-  // True once an IDB snapshot has been applied at boot — controls whether the
-  // deferred first-load band-aid still applies (fresh installs only).
-  const hydratedFromIdbRef = useRef(false);
+// ─── SINGLETON SUMMARY STORE (owner report Oct 9 2026) ──────────────────────
+// Every hook instance (sidebar badge, mobile bottom-nav badge) used to run
+// its OWN pipeline: own boot snapshot load, own event subscriptions, own
+// reloads, own 429 backoffs. Two pipelines doubled the API quota draw and
+// could diverge — one instance rate-limited while the other succeeded — so
+// the mobile nav balance lagged behind the sidebar badge (owner saw it stuck
+// ~$23 off). Now ONE pipeline lives at module level; every consumer
+// subscribes to the SAME state object and every badge updates at the same
+// instant from the same numbers.
 
-  // Serialize the summary for the IDB snapshot. Maps become entry arrays;
-  // deserializeSummary() rebuilds them. Fire-and-forget, never blocks the UI.
-  const persistSnapshot = useCallback((data) => {
-    if (!data) return;
-    const payload = {
-      byLocId: [...(data.byLocId || new Map())],
-      payoutsByLoc: [...(data.payoutsByLoc || new Map())],
-      storeToLoc: [...(data.storeToLoc || new Map())],
-      weeklyByStore: [...(data.weeklyByStore || new Map())],
-      storeNames: [...(data.storeNames || new Map())],
-      dailyRemainingByStore: [...(data.dailyRemainingByStore || new Map())],
-      codOutstandingDetailed: data.codOutstandingDetailed || {},
-      config: data.config || null,
-      deliveryCredits: [...(data.deliveryCredits || new Map())],
-      sales: data.sales || [],
-      payouts: data.payouts || [],
-      savedAt: new Date().toISOString(),
-    };
-    saveSummarySnapshot(userIdRef.current, payload).catch?.(() => {});
-  }, []);
+const EMPTY_SUMMARY_STATE = {
+  ready: false,
+  byLocId: new Map(),
+  storeToLoc: new Map(),
+  weeklyByStore: new Map(),
+  storeNames: new Map(),
+  dailyRemainingByStore: new Map(),
+  payoutsByLoc: new Map(),
+};
 
-  const apply = useCallback((data) => {
-    setByLocId(data.byLocId);
-    setStoreToLoc(data.storeToLoc);
-    setWeeklyByStore(data.weeklyByStore);
-    setStoreNames(data.storeNames);
-    setDailyRemainingByStore(data.dailyRemainingByStore);
-    setPayoutsByLoc(data.payoutsByLoc || new Map());
-    setReady(true);
-  }, []);
+let storeCurrent = EMPTY_SUMMARY_STATE;
+const storeSubs = new Set();
+let storeRunningFor = null; // userId currently served by the pipeline
+let teardownStore = null;
 
-  const healTimerRef = useRef(null);
-  // RETRY (Oct 2 2026): loadSummary()/loadConfig() can throw outright (not
-  // just return a degraded result) — e.g. during the boot-loader race where
-  // this hook's mount effect fires before the SDK's auth token is actually
-  // attached, so the very first Store/SquareLocationConfig/etc. list() calls
-  // reject. Previously that throw propagated out of this async function with
-  // nothing catching it (an unhandled rejection) — `ready` never became true
-  // and, since updates are event-driven only, the badge/page stayed stuck
-  // showing nothing until a manual full reload. Now a hard failure retries
-  // with backoff (2s, 4s, 8s) same as the softer "degraded" self-heal below.
-  const reload = useCallback(async (force = false, attempt = 0) => {
-    const seq = ++reloadSeq.current;
-    let data, degraded;
-    try {
-      ({ data, degraded } = await loadSummary(force, userIdRef.current || null));
-    } catch (e) {
-      const msg = String(e?.message || e);
-      const status = Number(e?.status || e?.response?.status || 0);
-      const rateLimited = status === 429 || /429|rate limit|too many/i.test(msg);
-      console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1}${rateLimited ? ' (rate-limited)' : ''} failed:`, msg);
-      if (seq !== reloadSeq.current) return;
-      if (attempt < 3) {
-        // RATE-AWARE BACKOFF (Oct 2 2026, tuned for offline-first): a 429
-        // means the per-minute quota bucket is exhausted — the badge already
-        // renders the IDB snapshot (and the ledger windows cache keeps the
-        // compute offline), so retries only need to EVENTUALLY succeed, never
-        // fast. Long waits also stop the retry loop itself from feeding the
-        // storm (observed: attempts 1-4 back-to-back made the dots worse).
-        const wait = rateLimited ? [30000, 90000, 180000][attempt] : 2000 * Math.pow(2, attempt);
-        setTimeout(() => reload(true, attempt + 1), wait);
-      }
-      return;
+// ── module-level pipeline state (was per-hook-instance) ──
+let storeUserId = null;
+let storeSeq = 0;
+let storeHydratedFromIdb = false;
+let storeBootDelayFired = false;
+let storeFirstLoadDone = false;
+let storeBootTimer = null;
+let storeCfgTimer = null;
+let storeCodTimer = null;
+let storeHealTimer = null;
+
+const persistSnapshotModule = (data) => {
+  if (!data) return;
+  const payload = {
+    byLocId: [...(data.byLocId || new Map())],
+    payoutsByLoc: [...(data.payoutsByLoc || new Map())],
+    storeToLoc: [...(data.storeToLoc || new Map())],
+    weeklyByStore: [...(data.weeklyByStore || new Map())],
+    storeNames: [...(data.storeNames || new Map())],
+    dailyRemainingByStore: [...(data.dailyRemainingByStore || new Map())],
+    codOutstandingDetailed: data.codOutstandingDetailed || {},
+    config: data.config || null,
+    deliveryCredits: [...(data.deliveryCredits || new Map())],
+    sales: data.sales || [],
+    payouts: data.payouts || [],
+    savedAt: new Date().toISOString(),
+  };
+  saveSummarySnapshot(storeUserId, payload).catch?.(() => {});
+};
+
+const storeApply = (data) => {
+  storeCurrent = {
+    ready: true,
+    byLocId: data.byLocId,
+    storeToLoc: data.storeToLoc,
+    weeklyByStore: data.weeklyByStore,
+    storeNames: data.storeNames,
+    dailyRemainingByStore: data.dailyRemainingByStore,
+    payoutsByLoc: data.payoutsByLoc || new Map(),
+  };
+  storeSubs.forEach((fn) => { try { fn(); } catch {} });
+};
+
+// RETRY (Oct 2 2026): loadSummary()/loadConfig() can throw outright (not
+// just return a degraded result) — e.g. during the boot-loader race where
+// the pipeline starts before the SDK's auth token is actually attached.
+// Hard failures retry with backoff (2s, 4s, 8s); 429s use the slow path.
+const storeReload = async (force = false, attempt = 0) => {
+  const seq = ++storeSeq;
+  let data, degraded;
+  try {
+    ({ data, degraded } = await loadSummary(force, storeUserId));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = Number(e?.status || e?.response?.status || 0);
+    const rateLimited = status === 429 || /429|rate limit|too many/i.test(msg);
+    console.warn(`[useSquareBalancesSummary] reload attempt ${attempt + 1}${rateLimited ? ' (rate-limited)' : ''} failed:`, msg);
+    if (seq !== storeSeq) return;
+    if (attempt < 3) {
+      // RATE-AWARE BACKOFF (Oct 2 2026): a 429 means the per-minute quota
+      // bucket is exhausted — the badge already renders the IDB snapshot, so
+      // retries only need to EVENTUALLY succeed, never fast.
+      const wait = rateLimited ? [30000, 90000, 180000][attempt] : 2000 * Math.pow(2, attempt);
+      setTimeout(() => storeReload(true, attempt + 1), wait);
     }
-    if (seq !== reloadSeq.current) return;
-    apply(data);
-    persistSnapshot(data);
-    // A degraded run (COD-outstanding fetch failed twice) freezes the badge
-    // with wrong totals because updates are event-driven — nothing else will
-    // fix it. Schedule ONE 30s forced reload to self-heal.
-    if (degraded) {
-      if (healTimerRef.current) clearTimeout(healTimerRef.current);
-      healTimerRef.current = setTimeout(() => { healTimerRef.current = null; reload(true); }, 30000);
-    }
-  }, [apply, persistSnapshot]);
+    return;
+  }
+  if (seq !== storeSeq) return;
+  storeApply(data);
+  persistSnapshotModule(data);
+  // A degraded run (COD-outstanding fetch failed twice) freezes the badge
+  // with wrong totals because updates are event-driven — schedule ONE 30s
+  // forced reload to self-heal.
+  if (degraded) {
+    if (storeHealTimer) clearTimeout(storeHealTimer);
+    storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, 30000);
+  }
+};
 
-  // ── Event-driven ONLY updates (owner spec, Oct 1 2026) ────────────────────
-  // The badge refreshes ONLY when a user changes a COD delivery (create/edit/
-  // delete/collect/status) or performs a True-Up. No periodic re-checking, no
-  // timers, no refresh on non-COD activity (GPS, route ops, plain deliveries).
-  useEffect(() => {
-    if (!enabled) return undefined;
-    // OFFLINE-FIRST BOOT (owner report, Oct 2 2026): the summary was NOT in
-    // IDB, so every boot started from an empty badge and the only way to load
-    // it without joining the boot read-storm was the artificial 4s defer +
-    // 'lightweightRefreshComplete' band-aid. Now the LAST snapshot is read
-    // from IDB and applied INSTANTLY — the badge shows real numbers at boot,
-    // even fully offline — and the fixed boot delay is REMOVED. The first
-    // fresh server load still rides the boot wave event (right when the quota
-    // bucket frees up); a short 20s silent fallback covers the rare boot where
-    // no wave event fires, and it is invisible because the badge is already
-    // rendered from the snapshot. Fresh installs (no snapshot yet) keep the
-    // original deferred behavior — there is nothing to render otherwise.
-    let cancelled = false;
-    let bootDelayFired = false;
-    let bootTimer = null;
-    let firstLoadDone = false;
-    const runFirstLoad = () => {
-      if (bootDelayFired || firstLoadDone) return;
-      bootDelayFired = true;
-      if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
-      reload();
-    };
-    (async () => {
-      const snap = await getSummarySnapshot().catch(() => null);
-      if (cancelled) return;
-      // Card balances are role/user-scoped (admin sees all cards, drivers
-      // their stores) — never render another user's snapshot.
-      if (snap?.payload && (!snap.user_id || snap.user_id === userIdRef.current)) {
-        const data = deserializeSummary(snap.payload);
-        if (data && !bootDelayFired) {
-          apply(data);
-          setReady(true);
-          hydratedFromIdbRef.current = true;
-        }
+function startSummaryStore(userId) {
+  if (storeRunningFor === String(userId)) return;
+  if (teardownStore) { try { teardownStore(); } catch {} teardownStore = null; }
+  storeRunningFor = String(userId);
+  storeUserId = String(userId);
+  storeHydratedFromIdb = false;
+  storeBootDelayFired = false;
+  storeFirstLoadDone = false;
+
+  const runFirstLoad = () => {
+    if (storeBootDelayFired || storeFirstLoadDone) return;
+    storeBootDelayFired = true;
+    if (storeBootTimer) { clearTimeout(storeBootTimer); storeBootTimer = null; }
+    storeReload();
+  };
+  (async () => {
+    const snap = await getSummarySnapshot().catch(() => null);
+    // Card balances are role/user-scoped — never render another user's
+    // snapshot.
+    if (snap?.payload && (!snap.user_id || snap.user_id === storeUserId)) {
+      const data = deserializeSummary(snap.payload);
+      if (data && !storeBootDelayFired) {
+        storeApply(data);
+        storeHydratedFromIdb = true;
       }
-      if (!hydratedFromIdbRef.current) {
-        // No usable snapshot (fresh install / cleared cache): keep the old
-        // deferred first load — nothing to render offline.
-        bootTimer = setTimeout(runFirstLoad, 4000);
-      } else {
-        // 60s (Oct 2 2026, was 20s + boot-wave): the badge already renders the
-        // snapshot instantly, so the first network refresh has nothing to
-        // win by racing the boot read-storm — every 429 here was a red/orange
-        // heartbeat dot on the owner's stats card. One minute of (already
-        // visible) snapshot data is the cheaper trade.
-        bootTimer = setTimeout(runFirstLoad, 60000);
-      }
-    })();
-    const unsubs = [];
-    let cfgTimer = null, codTimer = null;
-    // True-Up writes AppSettings — the one non-delivery event that directly
-    // changes the card starting balances, so it refreshes the badge too.
-    try {
-      unsubs.push(base44.entities.AppSettings.subscribe((ev) => {
-        if (ev?.data?.setting_key !== SETTING_KEY) return;
-        if (!bootDelayFired) return; // quiet boot window — snapshot still showing
-        clearTimeout(cfgTimer);
-        cfgTimer = setTimeout(() => reload(true), 2500);
-      }));
-    } catch {}
-    const scheduleCodReload = () => {
-      if (!bootDelayFired) return; // quiet boot window — snapshot still showing
-      clearTimeout(codTimer);
-      // NON-forced (Oct 2 2026 rate-limit fix): the 60s summary cache
-      // coalesces WS bursts — a delivery-change volley runs at most once a
-      // minute instead of on every 2.5s-debounced event. True-Up still
-      // forces (card_start changed).
-      codTimer = setTimeout(() => reload(false), 2500);
-    };
-    // Remote WS delivery events — refresh only when the changed record is
-    // COD-relevant (has a COD amount/payments/confirmation, a cod_* field was
-    // just edited, or a record with a COD was deleted).
-    try {
-      unsubs.push(base44.entities.Delivery.subscribe((ev) => {
-        if (!isCodRelevantEvent(ev)) return;
-        scheduleCodReload();
-      }));
-    } catch {}
-    // SquareLedgerEntry broadcasts (page sync / manual ring bookkeeping):
-    // the ledger windows cache MUST be dropped — the next reload refetches.
-    // This is what keeps the IDB cache trustworthy without a polling timer:
-    // any change to the badge's money data invalidates it exactly on time.
-    try {
-      unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
-        invalidateLedgerWindows();
-        if (!bootDelayFired) return; // quiet boot window — snapshot still showing
-        clearTimeout(cfgTimer);
-        cfgTimer = setTimeout(() => reload(true), 2500);
-      }));
-    } catch {}
-    // Same-device user actions — WS echoes are suppressed after local writes,
-    // so the app's own window event is the local signal. When the event
-    // carries the changed records, filter by COD relevance; when it doesn't,
-    // trigger conservatively (these only fire on explicit user actions).
-    const onDeliveriesUpdated = (e) => {
-      const records = e?.detail?.freshDeliveries;
-      if (Array.isArray(records) && records.length && !records.some(isCodRelevantEvent)) return;
+    }
+    if (!storeHydratedFromIdb) {
+      // No usable snapshot (fresh install / cleared cache): deferred first
+      // load — nothing to render offline.
+      storeBootTimer = setTimeout(runFirstLoad, 4000);
+    } else {
+      // 60s (Oct 2 2026): the badge already renders the snapshot instantly,
+      // so the first network refresh has nothing to win by racing the boot
+      // read-storm. One minute of (already visible) snapshot data is the
+      // cheaper trade.
+      storeBootTimer = setTimeout(runFirstLoad, 60000);
+    }
+  })();
+
+  const unsubs = [];
+  // True-Up writes AppSettings — the one non-delivery event that directly
+  // changes the card starting balances, so it refreshes the badge too.
+  try {
+    unsubs.push(base44.entities.AppSettings.subscribe((ev) => {
+      if (ev?.data?.setting_key !== SETTING_KEY) return;
+      if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
+      clearTimeout(storeCfgTimer);
+      storeCfgTimer = setTimeout(() => storeReload(true), 2500);
+    }));
+  } catch {}
+  const scheduleCodReload = () => {
+    if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
+    clearTimeout(storeCodTimer);
+    // NON-FORCED (Oct 2 2026 rate-limit fix): the 60s summary cache coalesces
+    // WS bursts — a delivery-change volley runs at most once a minute.
+    storeCodTimer = setTimeout(() => storeReload(false), 2500);
+  };
+  // Remote WS delivery events — refresh only when the changed record is
+  // COD-relevant.
+  try {
+    unsubs.push(base44.entities.Delivery.subscribe((ev) => {
+      if (!isCodRelevantEvent(ev)) return;
       scheduleCodReload();
-    };
-    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
-    // Backend ledger-sync stamp (Oct 7 2026): squareLedgerSync writes
-    // AppSettings 'square_ledger_sync' when it changed links/splits/
-    // confirmations — its entity writes are service-role and produce NO
-    // SquareLedgerEntry broadcasts, so without this the badge never learns
-    // about splits. Heal the IDB delivery mirror too (cod_confirmed_collected
-    // stamped server-side never reaches the client otherwise).
-    const onLedgerSyncStamp = async (e) => {
-      const updated = e?.detail?.data || e?.detail;
-      if (updated?.setting_key !== 'square_ledger_sync') return;
+    }));
+  } catch {}
+  // SquareLedgerEntry broadcasts (page sync / manual ring bookkeeping): the
+  // ledger windows cache MUST be dropped — the next reload refetches.
+  try {
+    unsubs.push(base44.entities.SquareLedgerEntry.subscribe(() => {
       invalidateLedgerWindows();
-      try {
-        const rows = await base44.entities.Delivery.list('-updated_date', 500, 0).catch(() => []);
-        if (rows?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows);
-        idbReadCaches.deliveries = { at: 0, rows: null };
-      } catch { /* non-critical */ }
-      if (!bootDelayFired) return; // quiet boot window — snapshot still showing
-      clearTimeout(cfgTimer);
-      cfgTimer = setTimeout(() => reload(true), 2500);
-    };
-    window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
-    // Same-device Refresh Square click (Oct 8 2026): the page's refresh is
-    // strictly local re-reads — no entity write, no WS echo — so without
-    // this the sidebar badge keeps rendering its stale summary (60s cache +
-    // up to 10-min-stale ledger windows) while the page shows fresh card
-    // totals. The page already dropped the windows cache before dispatching,
-    // so a forced reload recomputes from fresh data.
-    const onSquareBalancesRefreshed = () => {
-      invalidateLedgerWindows();
-      clearTimeout(cfgTimer);
-      reload(true);
-    };
-    window.addEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
-    return () => {
-      cancelled = true;
-      firstLoadDone = true;
-      if (bootTimer) clearTimeout(bootTimer);
-      clearTimeout(cfgTimer); clearTimeout(codTimer);
-      unsubs.forEach((u) => { try { u?.(); } catch {} });
-      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
-      window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
-      window.removeEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
-    };
-  }, [enabled, reload, apply]);
+      if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
+      clearTimeout(storeCfgTimer);
+      storeCfgTimer = setTimeout(() => storeReload(true), 2500);
+    }));
+  } catch {}
+  // Same-device user actions — WS echoes are suppressed after local writes,
+  // so the app's own window event is the local signal.
+  const onDeliveriesUpdated = (e) => {
+    const records = e?.detail?.freshDeliveries;
+    if (Array.isArray(records) && records.length && !records.some(isCodRelevantEvent)) return;
+    scheduleCodReload();
+  };
+  window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+  // Backend ledger-sync stamp (Oct 7 2026): squareLedgerSync writes AppSettings
+  // 'square_ledger_sync' when it changed links/splits/confirmations — its
+  // entity writes are service-role and produce NO SquareLedgerEntry
+  // broadcasts. Heal the IDB delivery mirror too.
+  const onLedgerSyncStamp = async (e) => {
+    const updated = e?.detail?.data || e?.detail;
+    if (updated?.setting_key !== 'square_ledger_sync') return;
+    invalidateLedgerWindows();
+    try {
+      const rows = await base44.entities.Delivery.list('-updated_date', 500, 0).catch(() => []);
+      if (rows?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows);
+      idbReadCaches.deliveries = { at: 0, rows: null };
+    } catch { /* non-critical */ }
+    if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
+    clearTimeout(storeCfgTimer);
+    storeCfgTimer = setTimeout(() => storeReload(true), 2500);
+  };
+  window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
+  // Same-device Refresh Square click (Oct 8 2026): the page's refresh is
+  // strictly local re-reads — no entity write, no WS echo — so without this
+  // the badges keep rendering the stale summary (60s cache + up to
+  // 10-min-stale ledger windows) while the page shows fresh card totals.
+  const onSquareBalancesRefreshed = () => {
+    invalidateLedgerWindows();
+    clearTimeout(storeCfgTimer);
+    storeReload(true);
+  };
+  window.addEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
 
-  return { ready, byLocId, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore, payoutsByLoc };
+  teardownStore = () => {
+    storeFirstLoadDone = true;
+    if (storeBootTimer) clearTimeout(storeBootTimer);
+    clearTimeout(storeCfgTimer);
+    clearTimeout(storeCodTimer);
+    if (storeHealTimer) clearTimeout(storeHealTimer);
+    unsubs.forEach((u) => { try { u?.(); } catch {} });
+    window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
+    window.removeEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
+  };
+}
+
+export function useSquareBalancesSummary(enabled = true, userId = null) {
+  const subscribe = useCallback((cb) => {
+    storeSubs.add(cb);
+    return () => storeSubs.delete(cb);
+  }, []);
+  // ONE pipeline for the whole app (see SINGLETON note above) — every
+  // consumer reads the same state object and updates at the same instant.
+  useEffect(() => {
+    if (enabled && userId) startSummaryStore(String(userId));
+  }, [enabled, userId]);
+  const state = useSyncExternalStore(subscribe, () => storeCurrent, () => storeCurrent);
+  if (!enabled) return EMPTY_SUMMARY_STATE;
+  return state;
 }
