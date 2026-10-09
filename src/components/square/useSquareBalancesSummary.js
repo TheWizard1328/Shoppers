@@ -1359,6 +1359,7 @@ let storeBootTimer = null;
 let storeCfgTimer = null;
 let storeCodTimer = null;
 let storeHealTimer = null;
+let storeLastAppliedAt = 0;
 
 const persistSnapshotModule = (data) => {
   if (!data) return;
@@ -1380,6 +1381,7 @@ const persistSnapshotModule = (data) => {
 };
 
 const storeApply = (data) => {
+  storeLastAppliedAt = Date.now();
   storeCurrent = {
     ready: true,
     byLocId: data.byLocId,
@@ -1468,11 +1470,18 @@ function startSummaryStore(userId) {
   })();
 
   const unsubs = [];
-  // True-Up writes AppSettings — the one non-delivery event that directly
-  // changes the card starting balances, so it refreshes the badge too.
+  // True-Up writes AppSettings (SETTING_KEY) — the one non-delivery event
+  // that directly changes the card starting balances. Card Spend marks
+  // (SPEND_MARKS_KEY: pending CODs flipping between deducting and not) are a
+  // SEPARATE record — owner report Oct 9 2026: the desktop badge showed
+  // $197.64 while mobile stayed at $174.13 because a marks change from the
+  // desktop never refreshed the mobile badge (filter was SETTING_KEY-only
+  // and no COD delivery event fired afterwards). Both keys now force a
+  // reload; reload must be FORCED because a marks change is invisible to the
+  // 60s summary cache.
   try {
     unsubs.push(base44.entities.AppSettings.subscribe((ev) => {
-      if (ev?.data?.setting_key !== SETTING_KEY) return;
+      if (![SETTING_KEY, SPEND_MARKS_KEY].includes(ev?.data?.setting_key)) return;
       if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
       clearTimeout(storeCfgTimer);
       storeCfgTimer = setTimeout(() => storeReload(true), 2500);
@@ -1539,6 +1548,20 @@ function startSummaryStore(userId) {
     storeReload(true);
   };
   window.addEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
+  // FOREGROUND FRESHNESS HEAL (owner report Oct 9 2026): updates are
+  // event-driven only, so a backgrounded phone with no COD activity since
+  // its last fetch can show a stale balance indefinitely. When the app
+  // returns to the foreground and the last applied summary is >15 min old,
+  // run ONE forced reload (fresh ledger windows + marks + config).
+  const onVisibility = () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!storeBootDelayFired) return;
+    const ageMs = Date.now() - (storeLastAppliedAt || 0);
+    if (ageMs < 15 * 60 * 1000) return;
+    clearTimeout(storeCfgTimer);
+    storeCfgTimer = setTimeout(() => storeReload(true), 1500);
+  };
+  document.addEventListener('visibilitychange', onVisibility);
 
   teardownStore = () => {
     storeFirstLoadDone = true;
@@ -1550,6 +1573,7 @@ function startSummaryStore(userId) {
     window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
     window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);
     window.removeEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
+    document.removeEventListener('visibilitychange', onVisibility);
   };
 }
 
