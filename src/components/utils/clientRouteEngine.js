@@ -1615,11 +1615,77 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     if (addedDeliveryIds.has(del.id)) continue;
     blocks.push({ startMin: parseTimeToMinutes(del.delivery_time_start || '99:99'), items: [{ delivery: del, isPickup: false }] });
   }
-  blocks.sort((a, b) => a.startMin - b.startMin);
-  const orderedStops = blocks.flatMap(b => b.items);
+  // OWNER SPEC (Oct 9 2026) — a start window means "deliverable ANY TIME
+  // AFTER this time", never "deliver AS CLOSE TO THIS TIME AS POSSIBLE":
+  //   (1) PAST/OPEN windows are not anchors. On today's pre-start route
+  //       (this path also runs before 9am for TODAY) a window whose start
+  //       has already passed when the optimization runs (e.g. an 08:00
+  //       window at an 08:45 optimize) must NOT pin the stop to that clock
+  //       value — the stop is servable RIGHT NOW, so its anchor clamps to
+  //       "now" and it collapses into the servable-now group instead of
+  //       sorting as an absolute morning time.
+  //   (2) BLANK start times carry no time information. The old sort pinned
+  //       them by pseudo-time anyway ('99:99' pushed blank blocks to the
+  //       route tail, '00:00' internal pickup sort) — per the owner, blank
+  //       stops are sequenced by DISTANCE (nearest-neighbor from the route
+  //       origin), never by time. The same rule the live-route path applies
+  //       (servable-now stops take the "now" band, which sorts FIRST, ties
+  //       broken by the distance optimizer).
+  const _BLANK_ANCHOR = parseTimeToMinutes('99:99'); // sentinel — anything >= is a blank anchor
+  const routeIsTodayPreStart = deliveryDate === getEdmontonTodayDateString();
+  if (routeIsTodayPreStart) {
+    for (const b of blocks) {
+      if (Number.isFinite(b.startMin) && b.startMin < currentMinutes) b.startMin = currentMinutes;
+    }
+  }
+  const windowedBlocks = blocks.filter(b => Number.isFinite(b.startMin) && b.startMin < _BLANK_ANCHOR);
+  windowedBlocks.sort((a, b) => a.startMin - b.startMin);
+  const blankBlocks = blocks.filter(b => !windowedBlocks.includes(b));
+
+  let orderedStops;
+  if (blankBlocks.length === 0) {
+    orderedStops = windowedBlocks.flatMap(b => b.items);
+  } else {
+    // Distance-sequence the blank (servable-now) blocks as UNITS — a blank
+    // pickup keeps its block cohesion (pickup first, its pending deliveries
+    // attached in block order); blank in-hand deliveries are single-stop
+    // units. Nearest-neighbor from the route origin (driver home → first
+    // windowed stop → first blank unit), matching the polyline origin rule.
+    // The NOW group LEADS the route; windowed blocks follow chronologically.
+    const _unitCoords = (b) => {
+      const first = b.items[0]?.delivery || null;
+      const c = first ? getDeliveryCoords(first, patientMap, storeMap) : null;
+      return (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) ? c : null;
+    };
+    const firstWindowedCoords = windowedBlocks.length ? _unitCoords(windowedBlocks[0]) : null;
+    let cursor = driverHomeLocation || firstWindowedCoords || _unitCoords(blankBlocks[0]);
+    const remainingBlank = blankBlocks.slice();
+    const blankSeq = [];
+    while (remainingBlank.length) {
+      let bestIdx = 0; let bestDist = Infinity;
+      for (let i = 0; i < remainingBlank.length; i++) {
+        const c = _unitCoords(remainingBlank[i]);
+        if (!c || !cursor) { bestIdx = i; break; }
+        const d = calculateCrowFliesDistance(cursor.lat, cursor.lng, c.lat, c.lng);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      blankSeq.push(remainingBlank.splice(bestIdx, 1)[0]);
+      cursor = _unitCoords(blankSeq[blankSeq.length - 1]) || cursor;
+    }
+    console.log(`[clientRouteEngine] ${source} — FUTURE/pre-start route: ${blankBlocks.length} blank-start block(s) sequenced by DISTANCE from origin (${driverHomeLocation ? 'driver_home' : firstWindowedCoords ? 'first_windowed_stop' : 'first_blank_unit'}), leading the route; ${windowedBlocks.length} windowed block(s) follow chronologically${routeIsTodayPreStart ? ' (past windows clamped to now)' : ''}`);
+    orderedStops = [...blankSeq.flatMap(b => b.items), ...windowedBlocks.flatMap(b => b.items)];
+  }
 
   const firstStop = orderedStops[0];
-  let cumulativeTime = firstStop ? parseTimeToMinutes(firstStop.delivery.delivery_time_start || '00:00') : currentMinutes;
+  // ETA base: the first stop's own window when it has one; otherwise the
+  // first windowed anchor (blank-led routes still start at the first REAL
+  // window — blank stops have no time to anchor to), else now/9am floor.
+  let _etaBase = firstStop ? parseTimeToMinutes(firstStop.delivery.delivery_time_start || '') : NaN;
+  if (!Number.isFinite(_etaBase) || _etaBase >= _BLANK_ANCHOR) {
+    const _firstWindowedAnchor = windowedBlocks.find(b => Number.isFinite(b.startMin) && b.startMin < _BLANK_ANCHOR)?.startMin;
+    _etaBase = Number.isFinite(_firstWindowedAnchor) ? _firstWindowedAnchor : Math.max(currentMinutes, 9 * 60);
+  }
+  let cumulativeTime = Number.isFinite(_etaBase) ? _etaBase : currentMinutes;
   const etaMap = new Map();
   for (let i = 0; i < orderedStops.length; i++) {
     const { delivery, isPickup } = orderedStops[i];
