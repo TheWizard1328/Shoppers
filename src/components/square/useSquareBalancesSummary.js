@@ -1272,6 +1272,10 @@ export function matchPayoutChargedCods(outstandingItems, payoutCents) {
 export function computePendingCodDeduction(outstandingItems, marksMap, excludeIds, truedUpAt) {
   let deductCents = 0; let count = 0;
   const tu = truedUpAt ? new Date(truedUpAt).getTime() : null;
+  // Delivery-date cutoff the true-up compute used (mirrors isCounted in
+  // computeCodOutstandingDetailed) — decides whether a delivery was IN the
+  // true-up snapshot's compute scope.
+  const tuCutoffDate = tu != null ? new Date(tu - 6 * 3600000).toISOString().slice(0, 10) : null;
   for (const it of outstandingItems || []) {
     // 'failed' included (owner spec Oct 8 2026): a failed delivery keeps its
     // COD off the card (card spend already registered) until refunded.
@@ -1283,9 +1287,20 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
     const mark = id ? marksMap?.[id] : null;
     const createdT = it?.created_date ? new Date(it.created_date).getTime() : null;
     const isNewSinceTrueUp = tu != null && createdT != null && createdT >= tu;
+    // AMOUNT ENTERED SINCE TRUE-UP (owner report Oct 9 2026, the $29.26
+    // Hamptons COD on the Callingwood card): a delivery created BEFORE the
+    // true-up but whose COD amount was entered AFTER it was a plain
+    // delivery at true-up time — it was in the true-up's compute scope
+    // (delivery_date >= the true-up cutoff) yet absent from
+    // trued_up_counted_ids, so the true-up balance never baked this charge
+    // in. It must deduct like any new post-true-up COD. Only trusted when a
+    // counted-ids snapshot exists; ids captured in the snapshot never
+    // reach here (skipped above).
+    const inScopeAtTrueUp = tuCutoffDate != null && excludeIds != null && String(it?.date || '') >= tuCutoffDate;
+    const amountAddedSinceTrueUp = !isNewSinceTrueUp && inScopeAtTrueUp;
     const touchedT = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
     const isTouchedSinceTrueUp = tu != null && touchedT != null && touchedT >= tu;
-    if (!isNewSinceTrueUp && !isTouchedSinceTrueUp) continue; // neutral — untouched pre-existing COD
+    if (!isNewSinceTrueUp && !amountAddedSinceTrueUp && !isTouchedSinceTrueUp) continue; // neutral — untouched pre-existing COD
     if (mark?.notTapped === true) continue; // explicitly not tapped — never deducts
     deductCents += cents; count += 1;
   }
