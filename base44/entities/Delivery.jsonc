@@ -147,6 +147,11 @@
       "type": "number",
       "description": "Total COD amount required to be collected for this delivery"
     },
+    "cod_card_spend_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when a CASH-collected COD's tender was corrected to Debit/Credit on the Square Balances page — the card payment is NEW money the true-up did not bake in, so the delivery gets its fee/loan/folder/settled credit even when completed before trued_up_at"
+    },
     "cod_confirmed_collected": {
       "type": "boolean",
       "description": "True once a matching COMPLETED Square order confirmed the COD was collected at the register (stamped when the SquareTransaction/SquareCatalogItems rows are purged)"

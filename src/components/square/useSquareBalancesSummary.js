@@ -290,6 +290,15 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
   const countedSnapshot = new Set((cfg?.trued_up_counted_ids || []).map(String));
   const isCounted = (d) => {
     if (tuMs == null) return String(d?.delivery_date || '') >= cutoffDate;
+    // OWNER FIX (Oct 9 2026): a CASH-collected delivery converted to Debit /
+    // Credit AFTER the true-up (cod_card_spend_at stamped by the Square
+    // Balances tender conversion) is NEW card money — at true-up it was
+    // drawer cash and was NOT baked into the card balance, so it must get
+    // its credit (fees/loan/folder/settled) even though the delivery
+    // finished before trued_up_at. Without this, converting a pre-true-up
+    // completion moved nothing on the page (Londonderry $1.18 report).
+    const spendAt = d?.cod_card_spend_at ? new Date(d.cod_card_spend_at).getTime() : null;
+    if (spendAt != null && Number.isFinite(spendAt) && spendAt >= tuMs) return true;
     const done = d?.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : null;
     if (done != null && Number.isFinite(done)) return done >= tuMs;
     const id = d?.id ? String(d.id) : null;

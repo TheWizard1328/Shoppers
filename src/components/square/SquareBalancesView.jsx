@@ -494,7 +494,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const noteSuffix = `Paid Via Drivers ${newType} card.`;
       const existingNote = String(d.delivery_notes || '');
       const nextNote = existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix;
-      await base44.entities.Delivery.update(String(deliveryId), { cod_payments: nextPayments, delivery_notes: nextNote });
+      // Stamp the conversion instant: this card payment is NEW money the
+      // true-up did not bake in, so the credit math must count it even when
+      // the delivery finished before trued_up_at (see loadDeliveryCardCredits).
+      const spendStamp = new Date().toISOString();
+      await base44.entities.Delivery.update(String(deliveryId), { cod_payments: nextPayments, delivery_notes: nextNote, cod_card_spend_at: spendStamp });
       // ROOT-CAUSE FIX (owner report Oct 8 2026 late: fees didn't update, page
       // "lost other items", UI inconsistent): the fee / outstanding math reads
       // the local IDB delivery mirror, and our own write's WS echo is
@@ -503,7 +507,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // IDB-driven lists, card in Collected today) and the fee values
       // (Square fee / folder / loan) kept the old math. Update the mirror +
       // drop the read cache FIRST so every recompute below sees fresh data.
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, cod_payments: nextPayments, delivery_notes: nextNote }]).catch(() => {});
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, cod_payments: nextPayments, delivery_notes: nextNote, cod_card_spend_at: spendStamp }]).catch(() => {});
       invalidateIdbReadCache('deliveries');
       toast.success(`COD payment set to ${newType}`);
       // Recompute the collected rows, balance estimate (fees/net) and the

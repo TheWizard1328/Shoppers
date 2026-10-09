@@ -54,6 +54,7 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   // ── COD / payments ────────────────────────────────────────────────────────
   'cod_total_amount_required',
   'cod_payments',
+  'cod_card_spend_at',
   'cod_returned_at',
   'cod_retried_at',
   'cod_retry_delivery_id',
