@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { fetchDriverDailyActivityCached } from '@/components/utils/driverDailyActivityCache';
 import { isAppOwner } from '@/components/utils/userRoles';
-import { useInterStoreLocation, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
+import { useInterStoreLocation, useInterStoreDisplayName, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import WinterModeBanner from "@/components/dashboard/WinterModeBanner";
 import DashboardWeatherBar from "@/components/dashboard/DashboardWeatherBar";
@@ -285,8 +285,17 @@ function DashboardView({
 
   // Detect ISP/ISD inter-store deliveries and look up their location record
   const immersiveIsInterStore = !!immersiveOverlayDelivery && isInterStoreDelivery(immersiveOverlayDelivery.delivery_id);
-  // Use the async hook so it resolves from cache or fetches if needed
+  // Use the async hooks so they resolve from cache or fetch if needed
   const immersiveInterStoreLocation = useInterStoreLocation(immersiveIsInterStore ? immersiveOverlayDelivery?.delivery_id : null);
+  // Same hook the StopCard uses — keeps the panel name in parity with the card
+  // (e.g. "Kingsway(ISP)" instead of the bare location name "Kingsway").
+  const immersiveIspDisplayName = useInterStoreDisplayName(immersiveIsInterStore ? immersiveOverlayDelivery?.delivery_id : null);
+  const immersiveInterStoreType = (() => {
+    const id = String(immersiveOverlayDelivery?.delivery_id || '').toUpperCase();
+    if (id.startsWith('ISP-')) return 'ISP';
+    if (id.startsWith('ISD-')) return 'ISD';
+    return null;
+  })();
 
   const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id;
   const immersiveOverlayStoreColor = immersiveOverlayStore?.color || '#10B981';
@@ -298,8 +307,13 @@ function DashboardView({
     return notes.includes('end') ? 'end' : 'start';
   })();
 
+  // Name parity with the StopCard (useDeliveryDisplayInfo finalDisplayName):
+  // ISP → "{Store}(ISP)", ISD → "InterStore DropOff", then the existing
+  // cycling / pickup / patient chain.
   const immersiveOverlayDisplayName = immersiveIsInterStore
-    ? (immersiveInterStoreLocation?.store_name || immersiveOverlayDelivery?.patient_name || 'Inter-Store Stop')
+    ? (immersiveInterStoreType === 'ISD'
+        ? 'InterStore DropOff'
+        : (immersiveIspDisplayName || (immersiveInterStoreLocation?.store_name ? `${immersiveInterStoreLocation.store_name}(ISP)` : null) || immersiveOverlayDelivery?.patient_name || 'Inter-Store Stop'))
     : immersiveIsCyclingMarker
       ? (immersiveOverlayDelivery?.cycling_location_name || (immersiveCyclingType === 'end' ? 'Cycling End' : 'Cycling Start'))
       : immersiveOverlayIsPickup
