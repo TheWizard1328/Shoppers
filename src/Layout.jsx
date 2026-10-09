@@ -98,6 +98,7 @@ const DEFAULT_APP_VERSION = 'v1.0.0';
 
 import QuickStats from './components/layout/DashboardQuickStats';
 import { initTileCacheManager } from '@/components/utils/tileCacheManager';
+import { installGlobalFocusTrap } from '@/components/utils/focusTrapManager';
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
@@ -210,6 +211,12 @@ export default function Layout({ children, currentPageName }) {
     window.addEventListener('themePreferenceChanged', onThemePreferenceChanged);
     return () => window.removeEventListener('themePreferenceChanged', onThemePreferenceChanged);
   }, []);
+
+  // GLOBAL FOCUS TRAP (owner request Oct 8 2026): while any hand-rolled dialog
+  // or form overlay is open, Tab cycles only through that overlay's elements
+  // (Radix/shadcn dialogs already trap their own focus). One listener for the
+  // whole app — installed once here, never per-dialog.
+  useEffect(() => installGlobalFocusTrap(), []);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
   const [branding, setBranding] = useState({
     // Default to the actual App Logo served by the platform so freshly-installed /
