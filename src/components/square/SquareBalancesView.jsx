@@ -1681,7 +1681,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
                   // Delivery-derived active CODs (pendingPickup flag for
                   // pending status)…
-                  const deliveryRows = outItems.map((it) => ({
+                  // …plus CASH-COLLECTED completed CODs (owner rule Oct 8
+                  // 2026 night): every cash collection stays listed under
+                  // Uncollected until the tender is actually set as collected
+                  // (Debit/Credit via the clickable 'Cash' badge, or ledger
+                  // confirmation) — these rows render with the emerald 'Cash'
+                  // badge and take dedup precedence over catalog rows.
+                  const cashItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).cashItems || [];
+                  const deliveryRows = [...outItems.map((it) => ({
                     key: `o-${it.delivery_id}`,
                     delivery_id: it.delivery_id,
                     patientName: it.patient || null,
@@ -1693,7 +1700,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     inTransit: it.status === 'in_transit',
                     failed: it.status === 'failed',
                     notTapped: notTapped(it.delivery_id)
-                  }));
+                  })), ...cashItems.map((it) => ({
+                    key: `c-${it.delivery_id}`,
+                    delivery_id: it.delivery_id,
+                    patientName: it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    date: it.date || null,
+                    pendingPickup: false,
+                    inTransit: false,
+                    failed: false,
+                    notTapped: notTapped(it.delivery_id),
+                    cashAwaitingSquare: true
+                  }))];
                   // …MERGED with the SquareCatalogItems still ACTIVE in the
                   // register (owner spec, Oct 7 2026 follow-up — same as the
                   // old system: catalog items catch CODs whose delivery rows

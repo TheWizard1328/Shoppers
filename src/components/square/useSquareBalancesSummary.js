@@ -847,6 +847,32 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     }
   }
 
+  // CASH-COLLECTED completed CODs (owner rule, Oct 8 2026 night): a CASH
+  // collection stays listed under the Uncollected sections until the COD is
+  // actually set as collected — converted to Debit/Credit via the clickable
+  // 'Cash' badge, or confirmed by the ledger match (cod_confirmed_collected).
+  // DISPLAY ONLY (cashItems): drawer cash never counts in the outstanding
+  // total or the pending-deduction / low-balance math — those stay driven by
+  // `items`, so a completed cash row cannot take money off the card.
+  const cashByLoc = new Map();
+  for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
+    const required = Number(d?.cod_total_amount_required || 0);
+    if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
+    const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+    const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
+    const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
+    if (!hasCash || hasCard) continue;
+    const locId = storeToLoc.get(String(d?.store_id || ''));
+    if (!locId) continue;
+    if (!cashByLoc.has(locId)) cashByLoc.set(locId, []);
+    cashByLoc.get(locId).push({
+      delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
+      reason: 'cash_collected', date: String(d.delivery_date || '').slice(0, 10),
+      created_date: d.created_date || null,
+      patient: patientNameOf(d.patient_id), store_id: d.store_id, ...storeBadgeOf(d.store_id)
+    });
+  }
+
   // COLLECTED-COD DEDUCTION ITEMS (owner report, Oct 7 2026, the $53.05
   // Londonderry case): a post-True-Up COD deducted from the estimate while it
   // was out (the order's goods were charged to the Square card) must KEEP
@@ -883,10 +909,10 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   }
 
   const out = {};
-  const allLocs = new Set([...byLoc.keys(), ...deductByLoc.keys()]);
+  const allLocs = new Set([...byLoc.keys(), ...deductByLoc.keys(), ...cashByLoc.keys()]);
   for (const locId of allLocs) {
     const agg = byLoc.get(locId) || { total: 0, pendingCount: 0, awaitingCount: 0, items: [] };
-    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50), deductItems: deductByLoc.get(locId) || [] };
+    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50), deductItems: deductByLoc.get(locId) || [], cashItems: cashByLoc.get(locId) || [] };
   }
   return out;
 }
