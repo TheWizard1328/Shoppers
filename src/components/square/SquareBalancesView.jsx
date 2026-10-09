@@ -132,11 +132,11 @@ function buildPatientResolver(patientsRaw) {
 // status; that wording now belongs to the transaction-evidence pill, so
 // their status pill reads "Awaiting Pickup".
 function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading }) {
-  // OWNER SPEC (Oct 8 2026, night): a COLLECTED row's 'Cash' badge is
-  // clickable — the owner can correct the recorded tender to Debit or
-  // Credit (which re-does the fee/settled math and appends the
-  // "Paid Via Drivers [Debit/Credit] card." note). Only collected rows;
-  // uncollected cash-awaiting-square rows keep a static badge.
+  // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
+  // uncollected cash-awaiting-square row is clickable — the owner can
+  // correct the recorded tender to Debit or Credit (which re-does the
+  // fee/settled math and appends the "Paid Via Drivers [Debit/Credit]
+  // card." note).
   const [cashPickRow, setCashPickRow] = useState(null);
   const [cashPickBusy, setCashPickBusy] = useState(false);
   const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
@@ -200,9 +200,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           const statusColorCls = r.collected ?
           emeraldCls :
           r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
-          // Cash rows show the net/fee line only when their fees were
-          // calculated (cash-no-catalog rows, owner spec Oct 8 evening).
-          const showNetAmount = r.collected && r.netAmount != null && (statusLabel !== 'Cash' || r.cashFeesApplied);
+          const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
           return (
             <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
               <div className="flex items-start justify-between gap-2">
@@ -284,7 +282,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                     title="Mark this failed COD as refunded — the amount returns to the card balance"
                     // No role="button" (same min-height CSS trap as the pills).
                     className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span>
-                ) : r.collected && statusLabel === 'Cash' && canMarkSpend && !!r.delivery_id && onCashToCard ? (
+                ) : (r.collected || r.cashAwaitingSquare) && statusLabel === 'Cash' && canMarkSpend && !!r.delivery_id && onCashToCard ? (
                   <span
                     onClick={() => setCashPickRow(r)}
                     title="Tap to correct this collection to Debit or Credit"
@@ -483,11 +481,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await base44.entities.Delivery.update(String(deliveryId), { cod_payments: nextPayments, delivery_notes: nextNote });
       toast.success(`COD payment set to ${newType}`);
       // Recompute the collected rows, balance estimate (fees/net) and the
-      // outstanding lists from the updated delivery.
+      // outstanding lists from the updated delivery, then run the Square
+      // sync (same path as a fresh debit/credit collection) so the ledger
+      // match stamps cod_confirmed_collected and the catalog reconcile
+      // clears the register item — the page re-renders with the real
+      // settled fees from the sync.
       computeCodCollectedTodayRef.current?.();
       refreshDeliveryCreditsRef.current?.();
       computeLocalOutstandingRef.current?.();
       computeCatalogUncollectedRef.current?.();
+      syncRef.current?.();
       return true;
     } catch (e) {
       console.error('cash→card update failed:', e);
@@ -854,29 +857,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (list.length < 500) break;
       }
 
-      // OWNER SPEC (Oct 8 2026, evening): which completed-today CASH CODs
-      // still have a live Square catalog item sitting in the register
-      // awaiting the deposit? Completed cash CODs WITHOUT one are considered
-      // COLLECTED (see the loop below) — there is nothing in Square waiting
-      // to be rung, so the COD is settled in cash. A failed fetch chunk is
-      // treated conservatively (rows stay on the old uncollected rule) so a
-      // blip can never falsely mark money as collected.
-      const cashCandidateIds = deliveryList.filter((d) =>
-        d?.status === 'completed' &&
-        String(d?.actual_delivery_time || '').slice(0, 10) === today &&
-        !d?.cod_confirmed_collected &&
-        !(Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()))
-      ).map((d) => String(d.id));
-      const activeCatalogDeliveryIds = new Set();
-      for (let i = 0; i < cashCandidateIds.length; i += 400) {
-        const chunk = cashCandidateIds.slice(i, i + 400);
-        const rows = await base44.entities.SquareCatalogItems.filter({ delivery_id: { $in: chunk } }, undefined, 400).catch(() => null);
-        if (!rows) { chunk.forEach((id) => activeCatalogDeliveryIds.add(id)); continue; } // conservative: treat as still-open
-        for (const it of rows || []) {
-          if (it?.delivery_id && String(it?.status || '').toLowerCase() === 'active') activeCatalogDeliveryIds.add(String(it.delivery_id));
-        }
-      }
-
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
         const doneAt = String(d.actual_delivery_time || '');
@@ -906,15 +886,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Uncollected lists with their 'Cash' badge instead) and only
         // surface here once cod_confirmed_collected stamps them (the
         // ledger match / deposit), same rule as the driver briefing.
-        // OWNER SPEC (Oct 8 2026, evening): EXCEPTION — a CASH-collected COD
-        // with NO matching ACTIVE Square catalog item is considered
-        // COLLECTED right away: nothing is sitting in the Square register
-        // awaiting the deposit, so the COD is settled in cash. Its fees are
-        // calculated too (cash tender has no Square processing fee — S:0 —
-        // but folder% and loan% still apply). Cheque keeps the old rule.
-        const cashCollectedNoCatalog = !isCard && !d?.cod_confirmed_collected &&
-        label === 'Cash' && !activeCatalogDeliveryIds.has(String(d.id));
-        if (!isCard && !d?.cod_confirmed_collected && !cashCollectedNoCatalog) continue;
+        // OWNER RULE (Oct 8 2026, night): the no-matching-catalog-item
+        // "considered Collected" exception is RETIRED — the badge stays
+        // CLICKABLE (see CardCodList) so the tender can be corrected to
+        // Debit/Credit, which moves the row here with real fee math.
+        if (!isCard && !d?.cod_confirmed_collected) continue;
 
         const gross = (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
@@ -932,24 +908,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           hasCardSpend: isCard,
           manualCardSpend: !!(mark?.touchedAt || mark?.at),
           collectedLabel: label,
-          // Cash / Cheque never touch the card — no fee/loan/folder math —
-          // EXCEPT the cash-no-catalog rows (owner spec Oct 8 evening): those
-          // are settled collections, so their folder% and loan% fees are
-          // calculated (S stays 0 — cash tender has no Square processing fee).
+          // Cash / Cheque never touch the card — no fee/loan/folder math.
           netAmount: isCard ?
           computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
-          cashCollectedNoCatalog ? function () {
-            const grossC = Math.round(gross * 100);
-            const loanC = Math.round(grossC * Number(loanRateByLoc.get(locId) || 0));
-            const folderC = folderCentsFor(grossC, folderRateNow);
-            return Math.max(0, grossC - loanC - folderC) / 100;
-          }() : null,
-          cashFeesApplied: cashCollectedNoCatalog,
+          null,
           // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
           // "HH:MM | S:fee F:folder L:loan | net Type" for card payments —
           // the settled story of the collection in one line. Cash / Cheque
-          // rows have no card fees, so no breakdown — except the
-          // cash-no-catalog rows, which show S:0 + folder + loan.
+          // rows have no card fees, so no breakdown.
           feeParts: isCard ? function () {
             // Cents-rounded components (owner spec Oct 7 2026) — same values
             // that feed the settled net, so the S/F/L line always sums to
@@ -957,13 +923,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             const grossC = Math.round(gross * 100);
             return {
               fee: estimateCardFeeCents(grossC, label) / 100,
-              folder: folderCentsFor(grossC, folderRateNow) / 100,
-              loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100
-            };
-          }() : cashCollectedNoCatalog ? function () {
-            const grossC = Math.round(gross * 100);
-            return {
-              fee: 0,
               folder: folderCentsFor(grossC, folderRateNow) / 100,
               loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100
             };
