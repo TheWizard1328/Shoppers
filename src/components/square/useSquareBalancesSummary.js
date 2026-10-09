@@ -847,17 +847,19 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     }
   }
 
-  // CASH-COLLECTED completed CODs (owner rule, Oct 8 2026 night): a CASH
+  // CASH-COLLECTED completed CODs (owner rule, Oct 8 2026 late): a CASH
   // collection stays listed under the Uncollected sections until the COD is
-  // actually set as collected — converted to Debit/Credit via the clickable
-  // 'Cash' badge, or confirmed by the ledger match (cod_confirmed_collected).
+  // actually set as collected — its tender converted to Debit/Credit via the
+  // clickable 'Cash' badge. cod_confirmed_collected alone does NOT count
+  // (Londonderry report): a cash tender is drawer money, not card money,
+  // even when a ledger stamp exists.
   // DISPLAY ONLY (cashItems): drawer cash never counts in the outstanding
   // total or the pending-deduction / low-balance math — those stay driven by
   // `items`, so a completed cash row cannot take money off the card.
   const cashByLoc = new Map();
   for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
     const required = Number(d?.cod_total_amount_required || 0);
-    if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
+    if (required <= 0 || !isCounted(d)) continue;
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));

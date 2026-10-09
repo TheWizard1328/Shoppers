@@ -879,18 +879,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         types.includes('credit') ? 'Credit' :
         types.includes('cheque') ? 'Cheque' :
         'Cash';
-        // OWNER SPEC (Oct 8 2026): a CASH (or cheque) collection is still
-        // technically UNCOLLECTED until the money is processed back onto the
-        // Square card — the delivery is complete but the card hasn't seen
-        // it. Such rows stay OUT of "Collected today" (they read in the
-        // Uncollected lists with their 'Cash' badge instead) and only
-        // surface here once cod_confirmed_collected stamps them (the
-        // ledger match / deposit), same rule as the driver briefing.
-        // OWNER RULE (Oct 8 2026, night): the no-matching-catalog-item
-        // "considered Collected" exception is RETIRED — the badge stays
-        // CLICKABLE (see CardCodList) so the tender can be corrected to
-        // Debit/Credit, which moves the row here with real fee math.
-        if (!isCard && !d?.cod_confirmed_collected) continue;
+        // OWNER RULE (Oct 8 2026, late): a CASH (or cheque) collection is
+        // UNCOLLECTED, period — it never appears in "Collected today", even
+        // when cod_confirmed_collected is stamped (the Londonderry report:
+        // ledger-confirmed cash rows must NOT surface as Collected). Only a
+        // Debit/Credit tender is collected: cash rows read in the Uncollected
+        // lists with their CLICKABLE 'Cash' badge (CardCodList) until the
+        // tender is corrected to Debit/Credit, which moves the row here with
+        // real fee math.
+        if (!isCard) continue;
 
         const gross = (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
