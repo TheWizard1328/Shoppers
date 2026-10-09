@@ -339,11 +339,20 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
       // dollar sums drifted the card estimate by a cent.
       const grossC = Math.round(Number(p.amount) * 100);
       const type = String(p.type || '').toLowerCase();
-      const feeC = estimateCardFeeCents(grossC, type);
-      const loanC = Math.round(grossC * loanRate);
-      const folderC = folderCentsFor(grossC, folderRate);
+      // COMBINED-SWIPE SUPPORT (owner rule Oct 9 2026): the tender conversion
+      // on the Square Balances page stores per-item fee/folder/loan/settled
+      // cents ON the payment (fee_c etc.) — for a COMBINED swipe those are
+      // proportional splits of ONE swipe's fees (total x 0.75% + $0.07,
+      // loan% and folder% on the swipe TOTAL), NOT per-item estimates.
+      // Marking items individually double-charges the flat $0.07 and lands
+      // the settled amount cents off (owner's Londonderry $1.18 + $28.36 =
+      // one $29.54 swipe report: settled off by $0.05). Stored cents win.
+      const storedC = Number.isFinite(Number(p?.fee_c)) && Number.isFinite(Number(p?.folder_c)) && Number.isFinite(Number(p?.loan_c));
+      const feeC = storedC ? Math.round(Number(p.fee_c)) : estimateCardFeeCents(grossC, type);
+      const loanC = storedC ? Math.round(Number(p.loan_c)) : Math.round(grossC * loanRate);
+      const folderC = storedC ? Math.round(Number(p.folder_c)) : folderCentsFor(grossC, folderRate);
       agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
-      agg.credits += grossC - feeC - loanC - folderC;
+      agg.credits += Number.isFinite(Number(p?.settled_c)) ? Math.round(Number(p.settled_c)) : grossC - feeC - loanC - folderC;
       agg.count += 1;
     }
     const doneAt = String(d.actual_delivery_time || '');
