@@ -193,7 +193,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, load
           const statusColorCls = r.collected ?
           emeraldCls :
           r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
-          const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
+          // Cash rows show the net/fee line only when their fees were
+          // calculated (cash-no-catalog rows, owner spec Oct 8 evening).
+          const showNetAmount = r.collected && r.netAmount != null && (statusLabel !== 'Cash' || r.cashFeesApplied);
           return (
             <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
               <div className="flex items-start justify-between gap-2">
@@ -786,6 +788,29 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (list.length < 500) break;
       }
 
+      // OWNER SPEC (Oct 8 2026, evening): which completed-today CASH CODs
+      // still have a live Square catalog item sitting in the register
+      // awaiting the deposit? Completed cash CODs WITHOUT one are considered
+      // COLLECTED (see the loop below) — there is nothing in Square waiting
+      // to be rung, so the COD is settled in cash. A failed fetch chunk is
+      // treated conservatively (rows stay on the old uncollected rule) so a
+      // blip can never falsely mark money as collected.
+      const cashCandidateIds = deliveryList.filter((d) =>
+        d?.status === 'completed' &&
+        String(d?.actual_delivery_time || '').slice(0, 10) === today &&
+        !d?.cod_confirmed_collected &&
+        !(Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()))
+      ).map((d) => String(d.id));
+      const activeCatalogDeliveryIds = new Set();
+      for (let i = 0; i < cashCandidateIds.length; i += 400) {
+        const chunk = cashCandidateIds.slice(i, i + 400);
+        const rows = await base44.entities.SquareCatalogItems.filter({ delivery_id: { $in: chunk } }, undefined, 400).catch(() => null);
+        if (!rows) { chunk.forEach((id) => activeCatalogDeliveryIds.add(id)); continue; } // conservative: treat as still-open
+        for (const it of rows || []) {
+          if (it?.delivery_id && String(it?.status || '').toLowerCase() === 'active') activeCatalogDeliveryIds.add(String(it.delivery_id));
+        }
+      }
+
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
         const doneAt = String(d.actual_delivery_time || '');
@@ -804,6 +829,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // else (or no payment rows) reads as Cash.
         const types = payments.map((pm) => String(pm?.type || '').toLowerCase());
         const isCard = types.includes('debit') || types.includes('credit');
+        const label = types.includes('debit') ? 'Debit' :
+        types.includes('credit') ? 'Credit' :
+        types.includes('cheque') ? 'Cheque' :
+        'Cash';
         // OWNER SPEC (Oct 8 2026): a CASH (or cheque) collection is still
         // technically UNCOLLECTED until the money is processed back onto the
         // Square card — the delivery is complete but the card hasn't seen
@@ -811,11 +840,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Uncollected lists with their 'Cash' badge instead) and only
         // surface here once cod_confirmed_collected stamps them (the
         // ledger match / deposit), same rule as the driver briefing.
-        if (!isCard && !d?.cod_confirmed_collected) continue;
-        const label = types.includes('debit') ? 'Debit' :
-        types.includes('credit') ? 'Credit' :
-        types.includes('cheque') ? 'Cheque' :
-        'Cash';
+        // OWNER SPEC (Oct 8 2026, evening): EXCEPTION — a CASH-collected COD
+        // with NO matching ACTIVE Square catalog item is considered
+        // COLLECTED right away: nothing is sitting in the Square register
+        // awaiting the deposit, so the COD is settled in cash. Its fees are
+        // calculated too (cash tender has no Square processing fee — S:0 —
+        // but folder% and loan% still apply). Cheque keeps the old rule.
+        const cashCollectedNoCatalog = !isCard && !d?.cod_confirmed_collected &&
+        label === 'Cash' && !activeCatalogDeliveryIds.has(String(d.id));
+        if (!isCard && !d?.cod_confirmed_collected && !cashCollectedNoCatalog) continue;
 
         const gross = (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
@@ -833,14 +866,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           hasCardSpend: isCard,
           manualCardSpend: !!(mark?.touchedAt || mark?.at),
           collectedLabel: label,
-          // Cash / Cheque never touch the card — no fee/loan/folder math.
+          // Cash / Cheque never touch the card — no fee/loan/folder math —
+          // EXCEPT the cash-no-catalog rows (owner spec Oct 8 evening): those
+          // are settled collections, so their folder% and loan% fees are
+          // calculated (S stays 0 — cash tender has no Square processing fee).
           netAmount: isCard ?
           computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
-          null,
+          cashCollectedNoCatalog ? function () {
+            const grossC = Math.round(gross * 100);
+            const loanC = Math.round(grossC * Number(loanRateByLoc.get(locId) || 0));
+            const folderC = folderCentsFor(grossC, folderRateNow);
+            return Math.max(0, grossC - loanC - folderC) / 100;
+          }() : null,
+          cashFeesApplied: cashCollectedNoCatalog,
           // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
           // "HH:MM | S:fee F:folder L:loan | net Type" for card payments —
           // the settled story of the collection in one line. Cash / Cheque
-          // rows have no card fees, so no breakdown.
+          // rows have no card fees, so no breakdown — except the
+          // cash-no-catalog rows, which show S:0 + folder + loan.
           feeParts: isCard ? function () {
             // Cents-rounded components (owner spec Oct 7 2026) — same values
             // that feed the settled net, so the S/F/L line always sums to
@@ -848,6 +891,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             const grossC = Math.round(gross * 100);
             return {
               fee: estimateCardFeeCents(grossC, label) / 100,
+              folder: folderCentsFor(grossC, folderRateNow) / 100,
+              loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100
+            };
+          }() : cashCollectedNoCatalog ? function () {
+            const grossC = Math.round(gross * 100);
+            return {
+              fee: 0,
               folder: folderCentsFor(grossC, folderRateNow) / 100,
               loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100
             };
