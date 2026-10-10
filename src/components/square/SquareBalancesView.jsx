@@ -151,7 +151,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null, locationOrder = [] }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -325,7 +325,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                       (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
                       const cashRows = statusLabel === 'Cash' ?
                       candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id)) : [];
-                      setCashPick({ row: r, label: statusLabel, cashRows, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                      setCashPick({ row: r, label: statusLabel, cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                     }}
                     title="Tap to change this tender (Debit / Credit / Cash)"
                     // No role="button" (same min-height CSS trap as the pills).
@@ -380,7 +380,16 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                 if (!groups.has(k)) groups.set(k, { name: c.locName || 'Other', items: [] });
                 groups.get(k).items.push(c);
               });
+              // TAPPED CARD FIRST (owner request Oct 9 23:38): the card whose
+              // Cash badge was tapped lists first (tap a Callingwood row →
+              // Callingwood deliveries on top), then the other cards in page
+              // order.
+              const tapped = cashPick.tappedLocId || null;
               const keys = [...groups.keys()].sort((a, b) => {
+                if (tapped) {
+                  if (a === tapped && b !== tapped) return -1;
+                  if (b === tapped && a !== tapped) return 1;
+                }
                 const ia = order.indexOf(a), ib = order.indexOf(b);
                 return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
               });
@@ -2361,7 +2370,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     <CardCodList
                       canMarkSpend={!!currentUser}
                       isOwner={ownerCanEdit}
-                      combineCandidates={combineCandidates} locationOrder={(config?.locations || []).map((l) => l.location_id)}
+                      combineCandidates={combineCandidates} locationOrder={(config?.locations || []).map((l) => l.location_id)} cardLocId={loc.location_id}
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
