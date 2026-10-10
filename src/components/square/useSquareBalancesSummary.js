@@ -1039,6 +1039,12 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
     if (!hasCash || hasCard) continue;
+    // PAID OFF (owner rule Oct 9 2026): the driver banked the cash and
+    // topped the card from their personal debit (bank transfer/top-up —
+    // no Square swipe, no fees). The item is settled: it leaves the
+    // Uncollected 'Cash' rows and stops deducting (the top-up scan adds
+    // the money back to the card estimate).
+    if (d?.cod_paid_off_at) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) continue;
     if (!cashByLoc.has(locId)) cashByLoc.set(locId, []);
@@ -1082,6 +1088,11 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     // held = 105.92, matching the real card.
     const _pays = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const _cardCollected = _pays.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
+    // PAID OFF (owner rule Oct 9 2026): cash banked via the driver's
+    // personal debit — the top-up returns the money to the card, so the
+    // deduction releases. Without this the paid amount was taken off the
+    // card twice (deduction + the top-up landing on the balance).
+    if (!_cardCollected && d?.cod_paid_off_at) continue;
     if (!deductByLoc.has(locId)) deductByLoc.set(locId, []);
     deductByLoc.get(locId).push({
       delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
@@ -1218,6 +1229,7 @@ const COD_SIG_FIELDS = [
   'cod_payments', // tender conversions, combined-swipe split cents
   'cod_confirmed_collected',
   'cod_card_spend_at',
+  'cod_paid_off_at',
   'cod_returned_at',
   'cod_retried_at',
   'cod_retry_delivery_id'
