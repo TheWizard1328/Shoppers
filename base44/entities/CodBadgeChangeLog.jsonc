@@ -1,0 +1,71 @@
+{
+  "name": "CodBadgeChangeLog",
+  "type": "object",
+  "properties": {
+    "changed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the badge/tender change was made"
+    },
+    "action": {
+      "type": "string",
+      "description": "Change category: spend_toggle (Card Spend <-> Not Tapped), tender_convert (Cash -> Debit/Credit, Debit/Credit -> Cash), refund_mark (Failed -> Refunded)"
+    },
+    "detail": {
+      "type": "string",
+      "description": "Human-readable change, e.g. 'Card Spend -> Not Tapped', 'Cash -> Debit (combined swipe, 3 items)'"
+    },
+    "delivery_id": {
+      "type": "string",
+      "description": "Primary delivery the change was made on"
+    },
+    "delivery_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "All deliveries included in the change (all items for a combined swipe)"
+    },
+    "patient_names": {
+      "type": "string",
+      "description": "Patient name(s), comma-joined for combined swipes"
+    },
+    "store_name": {
+      "type": "string",
+      "description": "Store name(s), comma-joined when a change spans stores"
+    },
+    "amount_cents": {
+      "type": "integer",
+      "description": "Total amount affected, in cents"
+    },
+    "fee_c": {
+      "type": "integer",
+      "description": "Square fee on the swipe total, cents (Debit/Credit conversions only)"
+    },
+    "loan_c": {
+      "type": "integer",
+      "description": "Loan share on the swipe total, cents (Debit/Credit conversions only)"
+    },
+    "folder_c": {
+      "type": "integer",
+      "description": "Folder share on the swipe total, cents (Debit/Credit conversions only)"
+    },
+    "settled_c": {
+      "type": "integer",
+      "description": "Amount that settled back onto the card (amount - fee - loan - folder), cents"
+    },
+    "changed_by": {
+      "type": "string",
+      "description": "Base44 auth id of the user who made the change"
+    },
+    "changed_by_name": {
+      "type": "string",
+      "description": "Display name/email of the user who made the change"
+    }
+  },
+  "required": [
+    "changed_at",
+    "action",
+    "detail"
+  ]
+}

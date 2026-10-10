@@ -475,6 +475,30 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // cards assigned to their stores for the current date).
   const restricted = Array.isArray(visibleLocationIds);
 
+  // ── Badge change log (owner request Oct 9 2026) ─────────────────────────
+  // Running audit of every COD collection-type flag/tender change made from
+  // this page: Card Spend ↔ Not Tapped toggles, Cash → Debit/Credit
+  // conversions (incl. combined swipes), Debit/Credit → Cash reverts, and
+  // Failed → Refunded marks. Displayed owner-only at the bottom of the page.
+  const [badgeChangeLog, setBadgeChangeLog] = useState([]);
+  const loadBadgeChangeLog = useCallback(async () => {
+    try {
+      const rows = await base44.entities.CodBadgeChangeLog.filter({}, '-changed_at', 50, 0);
+      setBadgeChangeLog(Array.isArray(rows) ? rows : []);
+    } catch (_) { /* entity not deployed yet on this env */ }
+  }, []);
+  useEffect(() => { if (ownerCanEdit) loadBadgeChangeLog(); }, [ownerCanEdit, loadBadgeChangeLog]);
+  const logBadgeChange = useCallback((entry) => {
+    const row = {
+      changed_at: new Date().toISOString(),
+      changed_by: currentUser?.id || null,
+      changed_by_name: currentUser?.full_name || currentUser?.email || null,
+      ...entry,
+    };
+    setBadgeChangeLog((prev) => [row, ...prev].slice(0, 50));
+    base44.entities.CodBadgeChangeLog.create(row).catch((e) => console.warn('badge log write failed:', e?.message || e));
+  }, [currentUser]);
+
   const loadConfig = useCallback(async () => {
     const seq = ++configLoadSeq.current;
     const rows = await getAppSettingRows(SETTING_KEY);
@@ -590,6 +614,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (!plan[0].changed) {toast.error(`Payment is already ${toType}`);return false;}
       if (others.length && !plan.every((x) => x.changed)) {toast.error('A combined item has no matching payment');return false;}
       const totalCents = plan.reduce((sm, x) => sm + x.convCents, 0);
+      let feeTotC = 0, loanTotC = 0, folderTotC = 0;
       if (target !== 'cash') {
         // ONE SWIPE, ONE FEE SET (owner rule Oct 9 2026): fees / loan / folder
         // are computed on the COMBINED swipe total — (Del1+Del2) x 0.75% +
@@ -604,6 +629,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const locId = storeToLoc.get(String(d.store_id || '')) || null;
         const loanC = Math.round(totalCents * (locId ? loanRateByLoc.get(String(locId)) || 0 : 0));
         const folderC = folderCentsFor(totalCents, folderRateNow);
+        feeTotC = feeC; loanTotC = loanC; folderTotC = folderC;
         const itemWeights = plan.map((x) => x.convCents);
         const feeSplit = splitSwipeCents(feeC, itemWeights);
         const loanSplit = splitSwipeCents(loanC, itemWeights);
@@ -657,6 +683,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // drop the read cache FIRST so every recompute below sees fresh data.
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRecs).catch(() => {});
       invalidateIdbReadCache('deliveries');
+      // Badge change log (owner request Oct 9 2026): one entry per tender
+      // conversion, carrying the combined-swipe fee/loan/folder totals.
+      try {
+        logBadgeChange({
+          action: 'tender_convert',
+          detail: target === 'cash'
+            ? `Debit/Credit → Cash${others.length ? ` (${plan.length} items)` : ''}`
+            : `Cash → ${toType}${others.length ? ` (combined swipe, ${plan.length} items)` : ''}`,
+          delivery_id: mainId,
+          delivery_ids: plan.map((x) => String(x.rec.id)),
+          patient_names: plan.map((x) => x.rec?.patient_name).filter(Boolean).join(', ') || null,
+          store_name: [...new Set(plan.map((x) => x.rec?.store_name).filter(Boolean))].join(', ') || null,
+          amount_cents: totalCents,
+          ...(target !== 'cash' ? { fee_c: feeTotC, loan_c: loanTotC, folder_c: folderTotC, settled_c: Math.max(0, totalCents - feeTotC - loanTotC - folderTotC) } : {}),
+        });
+      } catch (_) {}
       toast.success(target === 'cash' ? 'COD payment set to Cash' : `COD payment set to ${toType}${others.length ? ` (${plan.length} items, one swipe)` : ''}`);
       // Recompute the collected rows, balance estimate (fees/net) and the
       // outstanding lists from the updated delivery.
@@ -678,7 +720,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.error('Could not update the COD payment');
       return false;
     }
-  }, [config]);
+  }, [config, logBadgeChange]);
 
   const markCardSpend = useCallback(async (deliveryId) => {
     if (!currentUser || !deliveryId) return;
@@ -704,13 +746,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         spendMarksRecordIdRef.current = created?.id || null;
       }
       toast.success(togglingBack ? 'Card Spend' : 'Not Tapped');
+      // Badge change log (owner request Oct 9 2026): every Card Spend ↔
+      // Not Tapped flip is recorded with the delivery's context.
+      offlineDB.getById(offlineDB.STORES.DELIVERIES, String(deliveryId)).then((rec) => {
+        logBadgeChange({
+          action: 'spend_toggle',
+          detail: togglingBack ? 'Not Tapped → Card Spend' : 'Card Spend → Not Tapped',
+          delivery_id: String(deliveryId),
+          delivery_ids: [String(deliveryId)],
+          patient_names: rec?.patient_name || null,
+          store_name: rec?.store_name || null,
+          amount_cents: Math.round(Number(rec?.cod_total_amount_required || 0) * 100),
+        });
+      }).catch(() => {});
     } catch (e) {
       console.error('markCardSpend failed:', e);
       toast.error('Could not save the toggle');
       setManualSpendMarks(prev);
       manualSpendMarksRef.current = prev;
     }
-  }, [currentUser]);
+  }, [currentUser, logBadgeChange]);
 
   // OWNER SPEC (Oct 8 2026): manual "mark refunded" — the red Failed badge
   // is clickable (owner only) as the backup when auto refund detection misses
@@ -724,11 +779,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.success('Marked refunded — amount returned to the card balance');
       computeLocalOutstandingRef.current?.();
       computeDailyCodRef.current?.();
+      // Badge change log (owner request Oct 9 2026): manual refund marks are
+      // recorded alongside the badge/tender changes.
+      offlineDB.getById(offlineDB.STORES.DELIVERIES, String(deliveryId)).then((rec) => {
+        logBadgeChange({
+          action: 'refund_mark',
+          detail: 'Failed → Refunded',
+          delivery_id: String(deliveryId),
+          delivery_ids: [String(deliveryId)],
+          patient_names: rec?.patient_name || null,
+          store_name: rec?.store_name || null,
+          amount_cents: Math.round(Number(rec?.cod_total_amount_required || 0) * 100),
+        });
+      }).catch(() => {});
     } catch (e) {
       console.error('markFailedRefunded failed:', e);
       toast.error('Could not mark the COD as refunded');
     }
-  }, [currentUser]);
+  }, [currentUser, logBadgeChange]);
 
   // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: this page no longer
   // syncs through the Square API at all. "Loading the numbers" now means:
@@ -2369,6 +2437,35 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           
         </div>
       </details>
+
+      {/* BADGE CHANGE LOG (owner request Oct 9 2026): running audit of every
+          COD collection-type flag/tender change made from this page —
+          toggles, conversions, reverts, refund marks. Owner-only. */}
+      {ownerCanEdit &&
+      <details className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
+        <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
+          Badge change log {badgeChangeLog.length ? `(${badgeChangeLog.length})` : ''}
+        </summary>
+        <div className="mt-3 space-y-1.5">
+          {badgeChangeLog.length === 0 &&
+          <div className="text-xs text-slate-500 dark:text-slate-400">No badge or tender changes logged yet.</div>}
+          {badgeChangeLog.map((r) => (
+            <div key={r.id || `${r.changed_at}-${r.detail}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 dark:border-slate-700/40 pb-1 text-xs text-slate-600 dark:text-slate-300">
+              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                {(() => { try { return new Date(r.changed_at).toLocaleString('en-CA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } })()}
+              </span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">{r.detail}</span>
+              {r.patient_names && <span>· {r.patient_names}</span>}
+              {r.store_name && <span className="text-slate-400 dark:text-slate-500">({r.store_name})</span>}
+              {r.amount_cents > 0 && <span className="font-medium">${(r.amount_cents / 100).toFixed(2)}</span>}
+              {r.fee_c != null && <span className="text-[10px] text-slate-400 dark:text-slate-500">S ${(r.fee_c / 100).toFixed(2)} · F ${(r.folder_c / 100).toFixed(2)} · L ${(r.loan_c / 100).toFixed(2)} → settled ${(r.settled_c / 100).toFixed(2)}</span>}
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">by {r.changed_by_name || r.changed_by || 'unknown'}</span>
+            </div>
+          ))}
+          <button type="button" onClick={() => loadBadgeChangeLog()} className="mt-1 text-[11px] text-sky-600 dark:text-sky-400 hover:underline">Refresh</button>
+        </div>
+      </details>
+      }
     </div>);
 
 }
