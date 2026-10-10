@@ -1,5 +1,5 @@
 import React from "react";
-import { edmontonWallString } from "@/components/utils/albertaTime";
+import { edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 
 /**
  * Payment Discrepancies list (owner-only).
@@ -45,8 +45,16 @@ export default function PaymentDiscrepanciesList({
         {discrepancies.map((r) => {
           // 1) Date & time — original delivery date + actual delivery time.
           const dtDate = r.delivery_date ? String(r.delivery_date).slice(0, 10) : null;
+          // TZ FIX (owner report Oct 10 00:10: Patricia Dalpe showed 11:13,
+          // actual 10:13; Freda Muth 13:06 vs 12:06): actual_delivery_time is
+          // a NAIVE Edmonton wall string — `new Date()` parses naive input as
+          // DEVICE-LOCAL time, and on machines with a premature tz database
+          // (Edmonton read as UTC-7) the round-trip through edmontonWallString
+          // shifted it +1h. parseAnyTimestamp treats naive strings as
+          // Edmonton wall time by convention, so the wall string round-trips
+          // byte-identical on every device.
           const dtTime = r.actual_delivery_time
-            ? (() => { try { return edmontonWallString(new Date(r.actual_delivery_time)); } catch (_) { return null; } })()
+            ? (() => { try { return edmontonWallString(parseAnyTimestamp(r.actual_delivery_time)); } catch (_) { return null; } })()
             : null;
           const dtLabel = dtDate
             ? (dtTime ? `${dtDate} ${dtTime.slice(11, 16)}` : dtDate)
