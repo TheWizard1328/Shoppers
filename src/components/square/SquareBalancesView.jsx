@@ -788,7 +788,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await markFailedCodRefunded(deliveryId, currentUser?.id || null);
       toast.success('Marked refunded — amount returned to the card balance');
       computeLocalOutstandingRef.current?.();
-      computeDailyCodRef.current?.();
+      computeCodCollectedTodayRef.current?.();
       // Badge change log (owner request Oct 9 2026): manual refund marks are
       // recorded alongside the badge/tender changes.
       offlineDB.getById(offlineDB.STORES.DELIVERIES, String(deliveryId)).then((rec) => {
