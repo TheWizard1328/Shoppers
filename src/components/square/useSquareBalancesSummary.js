@@ -406,12 +406,15 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
       // Marking items individually double-charges the flat $0.07 and lands
       // the settled amount cents off (owner's Londonderry $1.18 + $28.36 =
       // one $29.54 swipe report: settled off by $0.05). Stored cents win.
-      const storedC = Number.isFinite(Number(p?.fee_c)) && Number.isFinite(Number(p?.folder_c)) && Number.isFinite(Number(p?.loan_c));
+      // NULL-SAFE (owner report Oct 9 2026 night): Number(null)===0 is
+      // "finite" — API reads return explicit nulls, which made driver-tapped
+      // card payments read as stored 0-cent splits (fees/credits all 0).
+      const storedC = Number.isFinite(p?.fee_c) && Number.isFinite(p?.folder_c) && Number.isFinite(p?.loan_c);
       const feeC = storedC ? Math.round(Number(p.fee_c)) : estimateCardFeeCents(grossC, type);
       const loanC = storedC ? Math.round(Number(p.loan_c)) : Math.round(grossC * loanRate);
       const folderC = storedC ? Math.round(Number(p.folder_c)) : folderCentsFor(grossC, folderRate);
       agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
-      agg.credits += Number.isFinite(Number(p?.settled_c)) ? Math.round(Number(p.settled_c)) : grossC - feeC - loanC - folderC;
+      agg.credits += Number.isFinite(p?.settled_c) ? Math.round(Number(p.settled_c)) : grossC - feeC - loanC - folderC;
       agg.count += 1;
     }
     const doneAt = String(d.actual_delivery_time || '');

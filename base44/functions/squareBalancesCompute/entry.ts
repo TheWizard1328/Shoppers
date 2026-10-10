@@ -210,12 +210,18 @@ async function computeSummary(b44, userId) {
     for (const p of cardPayments) {
       const grossC = Math.round(Number(p.amount) * 100);
       const type = String(p.type || '').toLowerCase();
-      const storedC = Number.isFinite(Number(p?.fee_c)) && Number.isFinite(Number(p?.folder_c)) && Number.isFinite(Number(p?.loan_c));
+      // NULL-SAFE (owner report Oct 9 2026 night, fees/settled all ZERO):
+      // Number(null) === 0 is "finite", so server reads (explicit nulls for
+      // absent fields) made every driver-tapped card payment look like it
+      // carried stored 0-cent splits — fee/loan/folder/credits all 0 and the
+      // card estimate missed the whole day's settlements. Number.isFinite
+      // alone does NOT coerce: null/undefined correctly fail the check.
+      const storedC = Number.isFinite(p?.fee_c) && Number.isFinite(p?.folder_c) && Number.isFinite(p?.loan_c);
       const feeC = storedC ? Math.round(Number(p.fee_c)) : estimateCardFeeCents(grossC, type);
       const loanC = storedC ? Math.round(Number(p.loan_c)) : Math.round(grossC * loanRate);
       const folderC = storedC ? Math.round(Number(p.folder_c)) : folderCentsFor(grossC, folderRate);
       agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
-      agg.credits += Number.isFinite(Number(p?.settled_c)) ? Math.round(Number(p.settled_c)) : grossC - feeC - loanC - folderC;
+      agg.credits += Number.isFinite(p?.settled_c) ? Math.round(Number(p.settled_c)) : grossC - feeC - loanC - folderC;
       agg.count += 1;
     }
     const doneAt = String(d.actual_delivery_time || '');

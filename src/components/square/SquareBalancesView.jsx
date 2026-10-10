@@ -1190,10 +1190,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // those are splits of ONE swipe's fees and are authoritative.
           storedCardP: (() => payments.find((pm) =>
           ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) &&
-          Number.isFinite(Number(pm?.fee_c)) && Number.isFinite(Number(pm?.folder_c)) && Number.isFinite(Number(pm?.loan_c))) || null)(),
+          Number.isFinite(pm?.fee_c) && Number.isFinite(pm?.folder_c) && Number.isFinite(pm?.loan_c)) || null)(),
           netAmount: isCard ?
-          payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(Number(pm?.settled_c))) ?
-          Math.max(0, payments.filter((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(Number(pm?.settled_c))).reduce((sum2, pm) => sum2 + Math.round(Number(pm.settled_c)), 0)) / 100 :
+          payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(pm?.settled_c)) ?
+          Math.max(0, payments.filter((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(pm?.settled_c)).reduce((sum2, pm) => sum2 + Math.round(Number(pm.settled_c)), 0)) / 100 :
           computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
           null,
           // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
@@ -1203,7 +1203,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           feeParts: isCard ? function () {
             const sp = payments.find((pm) =>
             ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) &&
-            Number.isFinite(Number(pm?.fee_c)) && Number.isFinite(Number(pm?.folder_c)) && Number.isFinite(Number(pm?.loan_c)));
+            Number.isFinite(pm?.fee_c) && Number.isFinite(pm?.folder_c) && Number.isFinite(pm?.loan_c));
             if (sp) return { fee: Math.round(Number(sp.fee_c)) / 100, folder: Math.round(Number(sp.folder_c)) / 100, loan: Math.round(Number(sp.loan_c)) / 100 };
             // Cents-rounded components (owner spec Oct 7 2026) — same values
             // that feed the settled net, so the S/F/L line always sums to

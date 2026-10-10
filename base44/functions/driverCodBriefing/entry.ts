@@ -435,7 +435,30 @@ async function handleBriefing(base44, params = {}) {
       outstanding_total: Math.round(outstandingTotal * 100) / 100,
     });
   }
-  driverBriefings.sort((a, b) => (b.collected_today.amount + b.outstanding_total) - (a.collected_today.amount + a.outstanding_total));
+  // OWNER SPEC (Oct 9 2026 night): drivers must appear in the SAME order the
+  // app shows them — AppUser.sort_order first, then name (parity with the
+  // client's sortUsers in src/components/utils/sorting.jsx). Replaces the old
+  // amount-descending order. Keyed on BOTH AppUser.user_id and AppUser.id
+  // (delivery driver_id is the platform user id).
+  const appUserOrder = new Map();
+  try {
+    const appUsers = await listAll(base44, 'AppUser', '-updated_date').catch(() => []);
+    for (const au of appUsers || []) {
+      const so = Number.isFinite(au?.sort_order) ? Number(au.sort_order) : null;
+      if (so == null) continue;
+      if (au?.id) appUserOrder.set(String(au.id), so);
+      if (au?.user_id) appUserOrder.set(String(au.user_id), so);
+    }
+  } catch (_) { /* ordering falls back to name sort */ }
+  const orderOf = (b) => {
+    const o = appUserOrder.get(String(b.driver_id));
+    return o != null ? o : Infinity;
+  };
+  driverBriefings.sort((a, b) => {
+    const oa = orderOf(a), ob = orderOf(b);
+    if (oa !== ob) return oa - ob;
+    return String(a.driver_name || '').localeCompare(String(b.driver_name || ''));
+  });
 
   // Resolve the App Owner once — used both to skip his individual driver
   // briefing (he gets the All Drivers copy instead) and to deliver it.
