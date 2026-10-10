@@ -90,6 +90,23 @@
     "square_id": {
       "type": "string",
       "description": "Square payment id of the actual swipe (when known)"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Original delivery_date of the affected delivery (discrepancy rows) \u2014 used for the Date & Time display instead of the detection time"
+    },
+    "actual_delivery_time": {
+      "type": "string",
+      "description": "Original actual_delivery_time (ISO) of the affected delivery (discrepancy rows) \u2014 used for the Date & Time display"
+    },
+    "store_abbrev": {
+      "type": "string",
+      "description": "Store abbreviation for badge rendering (discrepancy rows)"
+    },
+    "store_color": {
+      "type": "string",
+      "description": "Store hex color for badge rendering (discrepancy rows)"
     }
   },
   "required": [

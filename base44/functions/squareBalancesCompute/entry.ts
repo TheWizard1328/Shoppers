@@ -587,6 +587,7 @@ async function computeSummary(b44, userId) {
       const prevStatus = prev ? String(prev?.status || 'open') : null;
       const cents = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
       const storeName = storeNames.get(String(d?.store_id || '')) || null;
+      const si = storeInfoById.get(String(d?.store_id || '')) || null;
       const patientName = d?.patient_id ? discPatientNames[String(d.patient_id)] || null : null;
       if (!det) {
         // mismatch healed (e.g. confirm already applied) — resolve open rows
@@ -602,8 +603,12 @@ async function computeSummary(b44, userId) {
         detail: det.detail,
         delivery_id: id,
         delivery_ids: [id],
+        delivery_date: String(d?.delivery_date || '') || null,
+        actual_delivery_time: d?.actual_delivery_time ? String(d.actual_delivery_time) : null,
         patient_names: patientName,
         store_name: storeName,
+        store_abbrev: si?.abbreviation || null,
+        store_color: si?.color || null,
         amount_cents: cents,
         discrepancy_kind: det.kind,
         recorded_type: det.recorded || null,
@@ -614,7 +619,18 @@ async function computeSummary(b44, userId) {
       };
       if (prev) {
         const same = String(prev?.detail || '') === det.detail && String(prev?.discrepancy_kind || '') === det.kind && Math.round(Number(prev?.amount_cents || 0)) === cents;
-        if (!same) await b44.entities.CodBadgeChangeLog.update(prev.id, row).catch(() => {});
+        if (!same) {
+          await b44.entities.CodBadgeChangeLog.update(prev.id, row).catch(() => {});
+        } else {
+          // Backfill the display-only fields onto legacy rows (created before
+          // these fields existed) without resetting changed_at — one-time patch.
+          const backfill = {};
+          if (prev.store_abbrev == null && row.store_abbrev) backfill.store_abbrev = row.store_abbrev;
+          if (prev.store_color == null && row.store_color) backfill.store_color = row.store_color;
+          if (prev.delivery_date == null && row.delivery_date) backfill.delivery_date = row.delivery_date;
+          if (prev.actual_delivery_time == null && row.actual_delivery_time) backfill.actual_delivery_time = row.actual_delivery_time;
+          if (Object.keys(backfill).length > 0) await b44.entities.CodBadgeChangeLog.update(prev.id, backfill).catch(() => {});
+        }
       } else {
         await b44.entities.CodBadgeChangeLog.create(row).catch(() => {});
       }

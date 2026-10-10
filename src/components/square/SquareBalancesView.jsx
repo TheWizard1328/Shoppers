@@ -12,6 +12,7 @@ import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromSt
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
+import PaymentDiscrepanciesList from "./PaymentDiscrepanciesList";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -2461,36 +2462,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
            applies the recorded→actual fix with normal fee/loan/folder math,
            Dismiss closes it after review. Owner-only. */}
       {ownerCanEdit && paymentDiscrepancies.length > 0 &&
-      <div className="mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-red-700 dark:text-red-300">
-            Payment discrepancies ({paymentDiscrepancies.length}) — recorded type vs Square
-          </span>
-          <button type="button" onClick={() => loadPaymentDiscrepancies()} className="text-[11px] text-red-600 dark:text-red-400 hover:underline">Refresh</button>
-        </div>
-        <div className="mt-2 space-y-1.5">
-          {paymentDiscrepancies.map((r) =>
-          <div key={r.id || `${r.changed_at}-${r.delivery_id}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-red-100 dark:border-red-900/50 pb-1 text-xs text-slate-700 dark:text-slate-200">
-              <span className="font-mono text-slate-400 dark:text-slate-500 text-sm">
-                {(() => {try {return new Date(r.changed_at).toLocaleString('en-CA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });} catch (_) {return '';}})()}
-              </span>
-              <span className="font-semibold">{r.detail}</span>
-              {r.patient_names && <span>· {r.patient_names}</span>}
-              {r.store_name && <span className="text-slate-400 dark:text-slate-500">({r.store_name})</span>}
-              {r.amount_cents > 0 && <span className="font-medium">${(r.amount_cents / 100).toFixed(2)}</span>}
-              {['cash_swiped', 'type_mismatch'].includes(r.discrepancy_kind) &&
-            <button type="button" disabled={discrepancyBusy} onClick={() => confirmDiscrepancy(r)} className="ml-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
-                Confirm {r.actual_type === 'debit' ? 'Debit' : 'Credit'}
-              </button>}
-              <button type="button" disabled={discrepancyBusy} onClick={() => dismissDiscrepancy(r)} className="rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
-                Dismiss
-              </button>
-              <span className="text-slate-400 dark:text-slate-500 text-xs">detected {r.changed_at ? new Date(r.changed_at).toLocaleDateString('en-CA', { month: '2-digit', day: '2-digit' }) : ''} by Square sync</span>
-            </div>
-          )}
-        </div>
-      </div>
+      <PaymentDiscrepanciesList
+         discrepancies={paymentDiscrepancies}
+         discrepancyBusy={discrepancyBusy}
+         onConfirm={confirmDiscrepancy}
+         onDismiss={dismissDiscrepancy}
+         onRefresh={loadPaymentDiscrepancies}
+       />
       }
-    </div>);
+      </div>);
 
 }
