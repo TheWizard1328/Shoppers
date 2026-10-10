@@ -56,7 +56,7 @@ export default function SquareBalances() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto mx-auto w-full max-w-6xl px-4 py-4">
+      <div className="flex-1 overflow-y-auto mx-auto w-full px-4 py-4 max-w-7xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Square Balances</h1>
@@ -66,8 +66,8 @@ export default function SquareBalances() {
           </div>
         </div>
         {visibleLocationIds === undefined ?
-          <div className="text-sm text-slate-500 dark:text-slate-400 p-4">Loading balances…</div> :
-          <SquareBalancesView currentUser={currentUser} visibleLocationIds={visibleLocationIds} />}
+        <div className="text-sm text-slate-500 dark:text-slate-400 p-4">Loading balances…</div> :
+        <SquareBalancesView currentUser={currentUser} visibleLocationIds={visibleLocationIds} />}
       </div>
     </div>);
 
