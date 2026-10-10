@@ -1318,19 +1318,29 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // squareBalancesCompute backend function to run once on page open (the
       // initiating device receives the fresh payload and publishes the
       // shared record, broadcasting every other device to convergence).
-      // OWNER REQUEST (Oct 9 2026 night): SYNC THE SQUARE CODs FIRST — the
-      // compute reads the ledger (swiped-cash credits + payment
-      // discrepancies), so the owner's device pulls fresh Square payments
-      // (squareLedgerSync, window since true-up) BEFORE the compute fires.
-      // The heavy catalog reconcile stays on the Sync button.
-      if (ownerCanEditRef.current) {
-        try {
-          const tu = configRef.current?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
-          await base44.functions.invoke('squareLedgerSync', { startDate: tu, includeCodOutstanding: true });
-          invalidateLedgerWindows();
-        } catch (e) {
-          console.warn('[SquareBalances] page-load COD sync failed (compute will use cached ledger):', e?.message || e);
-        }
+      // OWNER REQUEST (Oct 9 2026 night): SYNC THE SQUARE CODs BEFORE the
+      // balance compute reads the ledger — but NON-BLOCKING (owner report
+      // 22:50: awaiting the 40s+ squareLedgerSync here froze the boot chain
+      // BEFORE computeCodCollectedToday ran, and since the shared snapshot
+      // paint carries no Collected-today data, every store showed an EMPTY
+      // Collected-today list for the whole sync). The ledger pull rides in
+      // the background; the compute chain below fills Collected-today
+      // immediately; when the background sync lands, the ledger cache drops
+      // and a second 'squareBalancesRefreshed' re-runs the backend compute on
+      // fresh ledger rows (swiped-cash credits + discrepancies). The heavy
+      // catalog reconcile stays on the Sync button.
+      if (ownerCanEditRef.current && !pageBootCancelled) {
+        void (async () => {
+          try {
+            const tu = configRef.current?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
+            await base44.functions.invoke('squareLedgerSync', { startDate: tu, includeCodOutstanding: true });
+            if (pageBootCancelled) return;
+            invalidateLedgerWindows();
+            window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
+          } catch (e) {
+            console.warn('[SquareBalances] page-load COD sync failed (compute keeps cached ledger):', e?.message || e);
+          }
+        })();
       }
       window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
       try {
