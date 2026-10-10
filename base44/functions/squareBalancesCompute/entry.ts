@@ -619,6 +619,22 @@ async function computeSummary(b44, userId) {
         await b44.entities.CodBadgeChangeLog.create(row).catch(() => {});
       }
     }
+    // CONCURRENT-RUN HEAL (owner report Oct 10 2026, 221 records with
+    // per-delivery duplicates on the first scan): two computes racing (two
+    // devices' page loads within the same seconds) both see "no existing
+    // record" and double-create the same delivery's flag. Sweep the open
+    // rows once more and delete older duplicates per delivery_id (sorted
+    // -changed_at, first hit is the newest) — self-heals on every compute.
+    const after = await pagedFilter(b44, 'CodBadgeChangeLog', { action: 'discrepancy', status: 'open' }, '-changed_at', 40).catch(() => []);
+    const seenOpen = new Set();
+    const dupIds = [];
+    for (const r of after || []) {
+      const k = String(r?.delivery_id || '');
+      if (!k) continue;
+      if (seenOpen.has(k)) dupIds.push(r.id);
+      else seenOpen.add(k);
+    }
+    for (const id of dupIds) await b44.entities.CodBadgeChangeLog.delete(id).catch(() => {});
   }
 
   const payload = {
