@@ -1290,6 +1290,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // squareBalancesCompute backend function to run once on page open (the
       // initiating device receives the fresh payload and publishes the
       // shared record, broadcasting every other device to convergence).
+      // OWNER REQUEST (Oct 9 2026 night): SYNC THE SQUARE CODs FIRST — the
+      // compute reads the ledger (swiped-cash credits + payment
+      // discrepancies), so the owner's device pulls fresh Square payments
+      // (squareLedgerSync, window since true-up) BEFORE the compute fires.
+      // The heavy catalog reconcile stays on the Sync button.
+      if (ownerCanEditRef.current) {
+        try {
+          const tu = configRef.current?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
+          await base44.functions.invoke('squareLedgerSync', { startDate: tu, includeCodOutstanding: true });
+          invalidateLedgerWindows();
+        } catch (e) {
+          console.warn('[SquareBalances] page-load COD sync failed (compute will use cached ledger):', e?.message || e);
+        }
+      }
       window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
       try {
         // OWNER SPEC (Oct 7 2026): NO Square API sync on this page anymore —
@@ -1323,6 +1337,61 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     try {
       let cfg = config;
       if (!cfg?.trued_up_at) cfg = await loadConfig();
+
+      // ── OWNER REQUEST (Oct 9 2026 night): SYNC THE SQUARE CODs FIRST.
+      // The balances math reads the LEDGER (swiped-cash settled credits +
+      // payment discrepancies), so the SquareLedgerEntry rows must be fresh
+      // BEFORE the balance compute runs. Same two-step order as the Square
+      // COD page (Oct 7 spec): squareLedgerSync FIRST (pulls real Square
+      // payments, splits grouped rings, stamps cod_confirmed_collected),
+      // THEN squareGetCodData2 catalog reconcile (sees the confirmations and
+      // clears the matched catalog items). Owner-only — drivers keep the
+      // local-only refresh.
+      let codSyncNote = '';
+      if (ownerCanEdit) {
+        const startDate = cfg?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
+        try {
+          const res = await base44.functions.invoke('squareLedgerSync', { startDate, includeCodOutstanding: true });
+          const out = res?.codOutstanding || [];
+          const byLoc = {}; out.forEach((o) => {byLoc[o.location_id] = o;});
+          setCodOutstandingByLoc(byLoc);
+          // The sync wrote NEW ledger rows service-side (no WS echo reaches
+          // us) — drop the windows cache before the computes below re-read.
+          invalidateLedgerWindows();
+          codSyncNote = 'Square CODs synced';
+        } catch (err) {
+          console.warn('[SquareBalances] squareLedgerSync failed (continuing with cached ledger):', err?.message || err);
+          codSyncNote = 'COD sync failed — used cached ledger';
+        }
+        // STEP 2 — COD CATALOG SYNC: shares the Square COD page's localStorage
+        // lease so the two syncs never run concurrently (shared Square
+        // rate-limit budget). orderFetchSince is READ-ONLY here — the marker
+        // is not stamped (the COD page's IDB tx mirror re-covers the tail).
+        try {
+          const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
+          const nowMs = Date.now();
+          if (Number(localStorage.getItem(LS_INFLIGHT) || 0) > nowMs) {
+            console.log('[SquareBalances] COD catalog sync skipped — Square COD page sync already running');
+          } else {
+            localStorage.setItem(LS_INFLIGHT, String(nowMs + 240000));
+            try {
+              const lastOrderFetch = Number(localStorage.getItem('squareCod_lastOrderFetchAt') || 0);
+              const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
+                ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
+                : null;
+              await base44.functions.invoke('squareGetCodData2', {
+                forceDeliveryRefresh: true,
+                daysBack: 90,
+                ...(orderFetchSince ? { orderFetchSince } : {}),
+              });
+            } finally {
+              localStorage.removeItem(LS_INFLIGHT);
+            }
+          }
+        } catch (err) {
+          console.warn('[SquareBalances] COD catalog sync after ledger sync failed:', err);
+        }
+      }
       await loadSales(cfg);
       await computeLocalOutstanding(cfg);
       await computeCodCollectedToday();
@@ -1341,7 +1410,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // the SAME device that clicked Refresh.
       invalidateLedgerWindows();
       window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
-      toast.success('Delivery data refreshed');
+      toast.success(codSyncNote ? `${codSyncNote}, delivery data refreshed` : 'Delivery data refreshed');
     } catch (err) {
       console.error('delivery-data refresh failed:', err);
       toast.error('Refresh failed');
