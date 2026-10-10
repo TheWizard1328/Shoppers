@@ -1124,10 +1124,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeCodCollectedToday = useCallback(async () => {
     try {
       const [storesRaw, cfgsRaw, patientsRaw] = await Promise.all([
-      base44.entities.Store.list().catch(() => []),
-      base44.entities.SquareLocationConfig.list().catch(() => []),
+      base44.entities.Store.list().catch(() => null),
+      base44.entities.SquareLocationConfig.list().catch(() => null),
       base44.entities.Patient.list().catch(() => [])]
       );
+      // FAILED-READ GUARD (owner report Oct 9 23:00: rows show up, then after
+      // the sync they disappear): the sync's Square volley (ledger pull +
+      // catalog reconcile + backend compute) eats the API budget, and the
+      // recompute right after it hits 429s. A failed Store/config read used
+      // to look like "no stores" → every row failed the locId lookup → an
+      // EMPTY set overwrote the Collected-today lists. Failed reads now keep
+      // the previous rows instead of wiping them.
+      if (!Array.isArray(storesRaw) || !Array.isArray(cfgsRaw)) {
+        console.warn('[SquareBalances] collected-today store/config read failed — keeping previous rows');
+        return;
+      }
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const cfgNow = configRef.current || {};
       const folderRateNow = Number(cfgNow.folder_rate ?? DEFAULT_FOLDER_RATE);
@@ -1155,7 +1166,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const deliveryList = [];
       const since30 = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
       for (let page = 0; page < 20; page++) {
-        const rows = await base44.entities.Delivery.filter({ created_date: { $gte: since30 } }, '-created_date', 500, page * 500).catch(() => []);
+        const rows = await base44.entities.Delivery.filter({ created_date: { $gte: since30 } }, '-created_date', 500, page * 500).catch(() => null);
+        // Same failed-read guard: an empty page vs a FAILED page are different
+        // things — a failure must never wipe the lists.
+        if (rows === null) {
+          console.warn('[SquareBalances] collected-today delivery read failed — keeping previous rows');
+          return;
+        }
         const list = rows || [];
         deliveryList.push(...list);
         if (list.length < 500) break;
