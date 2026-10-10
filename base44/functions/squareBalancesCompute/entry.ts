@@ -473,65 +473,150 @@ async function computeSummary(b44, userId) {
     });
   }
 
-  // ── tender cross-check (owner spec Oct 9 2026): double-verify that CODs ──
-  // marked Debit/Credit match the REAL card Square saw. Ledger cod_collection
-  // rows carry card_brand (INTERAC vs credit) + entry_method. Fixes single
-  // card-entry type mismatches and stamps card_brand/entry_method; reports
-  // cash-marked-but-swiped and mixed-brand cases WITHOUT rewriting them.
-  const tenderFixes = [];
-  const tenderMismatches = [];
+  // ── PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night): flag every COD
+  // whose RECORDED collection type in the app disagrees with what Square
+  // actually saw, over the last 60 days — NO auto-updates of the in-app
+  // collection type (the previous auto tender-fix cross-check is retired).
+  // The owner reviews the flags in the Payment discrepancies viewer and
+  // CONFIRMS each one there; the confirm applies the type fix + normal
+  // fee/loan/folder math client-side. Flag kinds:
+  //   cash_swiped     — recorded Cash, but Square shows a Debit/Credit swipe
+  //   type_mismatch   — recorded Debit but Square shows Credit (or reverse)
+  //   mixed_tenders   — delivery carries BOTH Debit and Credit entries vs one Square brand
+  //   missing_payment — recorded Debit/Credit but no Square payment found
+  //                     (only flagged once 3 days old, past ledger-sync lag)
+  // Matching: ledger cod_collection rows linked by delivery_id (squareLedgerSync
+  // stamps the split rows of grouped rings too), else an exact
+  // amount+location+day match among UNLINKED rows. Records live in the
+  // CodBadgeChangeLog entity (action='discrepancy'): open rows are upserted,
+  // rows whose mismatch heals are auto-marked 'resolved', and confirmed /
+  // dismissed rows are never touched or recreated.
   {
-    const tenderSince = new Date(Date.now() - 7 * 86400000).toISOString();
-    const codRows = await pagedFilter(b44, 'SquareLedgerEntry', { sale_class: 'cod_collection', occurred_at: { $gte: tenderSince } }, '-occurred_at', 10).catch(() => []);
-    const brandByDelivery = new Map();
-    for (const r of codRows || []) {
-      const id = r?.delivery_id ? String(r.delivery_id) : null;
-      const brand = String(r?.card_brand || '').toUpperCase();
-      if (!id || !brand) continue;
-      const rec = brandByDelivery.get(id) || { brands: new Set(), entries: new Set() };
-      rec.brands.add(brand);
-      if (r?.entry_method) rec.entries.add(String(r.entry_method).toUpperCase());
-      brandByDelivery.set(id, rec);
+    const nowIso = new Date().toISOString();
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+    const tenderSince = new Date(Date.now() - 60 * 86400000).toISOString();
+    // 60-day completed COD deliveries (filter narrowed by $gt; fallback
+    // fetches the bare date window and narrows in code if $gt unsupported).
+    let codDeliveries = [];
+    try {
+      codDeliveries = await pagedFilter(b44, 'Delivery', { status: 'completed', delivery_date: { $gte: sixtyDaysAgo }, cod_total_amount_required: { $gt: 0 } }, '-delivery_date', 40);
+    } catch (_) {
+      const rawRows = await pagedFilter(b44, 'Delivery', { status: 'completed', delivery_date: { $gte: sixtyDaysAgo } }, '-delivery_date', 40).catch(() => []);
+      codDeliveries = (rawRows || []).filter((d) => Number(d?.cod_total_amount_required || 0) > 0);
     }
-    const deliveryById = new Map(allDeliveries.map((d) => [String(d?.id), d]));
-    for (const [id, rec] of brandByDelivery.entries()) {
-      const d = deliveryById.get(id);
-      if (!d) continue; // delivery outside the compute window — skip
+    // Ledger cod_collection rows (60d): linked index by delivery_id + an
+    // unlinked index by amount|location|Edmonton-day for fallback matching.
+    const codRows = await pagedFilter(b44, 'SquareLedgerEntry', { sale_class: 'cod_collection', occurred_at: { $gte: tenderSince } }, '-occurred_at', 40).catch(() => []);
+    const brandByDelivery = new Map(); // delivery_id -> { brands:Set, squareIds:[], tender: 'debit'|'credit' }
+    const unlinkedIdx = new Map(); // `${loc}|${day}|${cents}` -> [entry,...]
+    for (const r of codRows || []) {
+      if (String(r?.status || '').toUpperCase() !== 'COMPLETED') continue;
+      const brand = String(r?.card_brand || '').toUpperCase();
+      const day = r?.occurred_at ? String(edmontonWallString(new Date(r.occurred_at))).slice(0, 10) : null;
+      const cents = Math.round(Number(r?.amount_cents || 0));
+      const tender = brand === 'INTERAC' ? 'debit' : (brand ? 'credit' : null);
+      if (r?.delivery_id) {
+        const id = String(r.delivery_id);
+        const rec = brandByDelivery.get(id) || { brands: new Set(), squareIds: [], tender: null };
+        if (brand) rec.brands.add(brand);
+        if (tender) rec.tender = tender;
+        if (r?.square_id) rec.squareIds.push(r.square_id);
+        brandByDelivery.set(id, rec);
+      } else if (day && cents > 0 && tender) {
+        const k = `${r?.location_id || ''}|${day}|${cents}`;
+        if (!unlinkedIdx.has(k)) unlinkedIdx.set(k, []);
+        unlinkedIdx.get(k).push({ tender, square_id: r?.square_id || null, occurred_at: r?.occurred_at || null });
+      }
+    }
+    const todayKey = edmontonBusinessDayKey(new Date());
+    const lagCutoffMs = Date.now() - 3 * 86400000;
+    const detected = new Map(); // delivery_id -> {kind, actual, detail, square_id}
+    for (const d of codDeliveries || []) {
+      if (!d?.id) continue;
       const payments = Array.isArray(d?.cod_payments) ? d.cod_payments.filter(Boolean) : [];
-      if (!payments.length) continue;
-      const brands = [...rec.brands];
-      const isDebit = brands.length === 1 && brands[0] === 'INTERAC';
-      const isCredit = brands.length >= 1 && brands.every((b) => b !== 'INTERAC');
-      const cardIdx = payments.map((p, i) => ({ p, i })).filter(({ p }) => p?.type === 'Debit' || p?.type === 'Credit');
-      if (!cardIdx.length) {
-        tenderMismatches.push({ delivery_id: id, issue: 'swiped_but_marked_noncard', brands });
-        continue;
-      }
-      if (!isDebit && !isCredit) {
-        tenderMismatches.push({ delivery_id: id, issue: 'mixed_brands', brands });
-        continue;
-      }
-      const realTender = isDebit ? 'Debit' : 'Credit';
-      const brand = isDebit ? 'INTERAC' : brands[0];
-      const entryMethod = [...rec.entries][0] || null;
-      const nextPayments = payments.map((p) => ({ ...p }));
-      let changed = false;
-      if (cardIdx.length === 1) {
-        const t = nextPayments[cardIdx[0].i];
-        if (t.type !== realTender) { t.type = realTender; changed = true; }
-        if (t.card_brand !== brand) { t.card_brand = brand; changed = true; }
-        if (entryMethod && t.entry_method !== entryMethod) { t.entry_method = entryMethod; changed = true; }
-      } else {
-        // Multiple card entries (combined swipe split): only stamp missing
-        // brands, never re-type — the per-entry split is authoritative.
-        for (const { i } of cardIdx) {
-          const t = nextPayments[i];
-          if (!t.card_brand) { t.card_brand = brand; if (entryMethod && !t.entry_method) t.entry_method = entryMethod; changed = true; }
+      if (!payments.length) continue; // nothing recorded — no recorded type to compare
+      const cardEntries = payments.filter((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
+      const recordedIsCash = !cardEntries.length;
+      const recCardTypes = [...new Set(cardEntries.map((p) => String(p?.type || '').toLowerCase()))];
+      const recordedLabel = recordedIsCash ? 'Cash' : (recCardTypes.length > 1 ? 'mixed Debit+Credit' : (recCardTypes[0] === 'debit' ? 'Debit' : 'Credit'));
+      // actual Square tender: linked rows first, else exact unlinked match
+      let actual = null; let squareId = null;
+      const linked = brandByDelivery.get(String(d.id));
+      if (linked?.tender) { actual = linked.tender; squareId = linked.squareIds[0] || null; }
+      if (!actual) {
+        const locId = storeToLoc.get(String(d?.store_id || '')) || '';
+        const day = String(d?.delivery_date || '').slice(0, 10);
+        const tryCents = [...new Set([Math.round(Number(d?.cod_total_amount_required || 0) * 100), ...cardEntries.map((p) => Math.round(Number(p?.amount || 0) * 100))])].filter((c) => c > 0);
+        for (const c of tryCents) {
+          const hit = (unlinkedIdx.get(`${locId}|${day}|${c}`) || [])[0];
+          if (hit) { actual = hit.tender; squareId = hit.square_id; break; }
         }
       }
-      if (changed) {
-        const ok = await b44.entities.Delivery.update(id, { cod_payments: nextPayments }).then(() => true).catch(() => false);
-        if (ok) tenderFixes.push({ delivery_id: id, tender: realTender, card_brand: brand, entry_method: entryMethod });
+      const actualLabel = actual === 'debit' ? 'Debit' : (actual === 'credit' ? 'Credit' : null);
+      if (recordedIsCash && actual) {
+        detected.set(String(d.id), { kind: 'cash_swiped', recorded: 'cash', actual, detail: `Recorded Cash · Square shows ${actualLabel}`, square_id: squareId });
+      } else if (!recordedIsCash && actual) {
+        if (recCardTypes.length > 1) {
+          detected.set(String(d.id), { kind: 'mixed_tenders', recorded: 'mixed', actual, detail: `Recorded ${recordedLabel} · Square shows ${actualLabel}`, square_id: squareId });
+        } else if (recCardTypes[0] !== actual) {
+          detected.set(String(d.id), { kind: 'type_mismatch', recorded: recCardTypes[0], actual, detail: `Recorded ${recordedLabel} · Square shows ${actualLabel}`, square_id: squareId });
+        }
+      } else if (!recordedIsCash && !actual) {
+        // no Square payment found — only flag once past the ledger-sync lag
+        const delivMs = d?.delivery_date ? new Date(`${String(d.delivery_date).slice(0, 10)}T12:00:00Z`).getTime() : 0;
+        if (delivMs && delivMs < lagCutoffMs) {
+          detected.set(String(d.id), { kind: 'missing_payment', recorded: recCardTypes.length > 1 ? 'mixed' : recCardTypes[0], actual: null, detail: `Recorded ${recordedLabel} · no payment found on Square`, square_id: null });
+        }
+      }
+      void todayKey;
+    }
+    // Upsert into CodBadgeChangeLog (action='discrepancy').
+    const existingRows = await pagedFilter(b44, 'CodBadgeChangeLog', { action: 'discrepancy' }, '-changed_at', 40).catch(() => []);
+    const byDelivRec = new Map(); // delivery_id -> newest record
+    for (const r of existingRows || []) {
+      if (!r?.delivery_id) continue;
+      const prev = byDelivRec.get(String(r.delivery_id));
+      if (!prev || String(r?.changed_at || '') > String(prev?.changed_at || '')) byDelivRec.set(String(r.delivery_id), r);
+    }
+    const patientIds = (codDeliveries || []).map((d) => d?.patient_id).filter(Boolean);
+    const discPatientNames = await fetchPatientNames(b44, patientIds);
+    for (const d of codDeliveries || []) {
+      const id = String(d?.id);
+      const det = detected.get(id);
+      const prev = byDelivRec.get(id);
+      const prevStatus = prev ? String(prev?.status || 'open') : null;
+      const cents = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+      const storeName = storeNames.get(String(d?.store_id || '')) || null;
+      const patientName = d?.patient_id ? discPatientNames[String(d.patient_id)] || null : null;
+      if (!det) {
+        // mismatch healed (e.g. confirm already applied) — resolve open rows
+        if (prev && (prevStatus === 'open' || prevStatus === 'resolved')) {
+          if (prevStatus === 'open') await b44.entities.CodBadgeChangeLog.update(prev.id, { status: 'resolved' }).catch(() => {});
+        }
+        continue;
+      }
+      if (prev && (prevStatus === 'confirmed' || prevStatus === 'dismissed')) continue; // owner already handled — never recreate
+      const row = {
+        changed_at: nowIso,
+        action: 'discrepancy',
+        detail: det.detail,
+        delivery_id: id,
+        delivery_ids: [id],
+        patient_names: patientName,
+        store_name: storeName,
+        amount_cents: cents,
+        discrepancy_kind: det.kind,
+        recorded_type: det.recorded || null,
+        actual_type: det.actual,
+        square_id: det.square_id,
+        status: 'open',
+        changed_by_name: 'Square sync (auto)',
+      };
+      if (prev) {
+        const same = String(prev?.detail || '') === det.detail && String(prev?.discrepancy_kind || '') === det.kind && Math.round(Number(prev?.amount_cents || 0)) === cents;
+        if (!same) await b44.entities.CodBadgeChangeLog.update(prev.id, row).catch(() => {});
+      } else {
+        await b44.entities.CodBadgeChangeLog.create(row).catch(() => {});
       }
     }
   }
@@ -549,8 +634,6 @@ async function computeSummary(b44, userId) {
     deliveryCredits: [...deliveryCredits],
     sales: [],
     payouts: payouts || [],
-    tenderFixes: tenderFixes.slice(0, 50),
-    tenderMismatches: tenderMismatches.slice(0, 50),
     savedAt: new Date().toISOString(),
   };
   return { payload, autoRefundedFailed };

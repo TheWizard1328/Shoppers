@@ -465,11 +465,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const loadDailyCodRef = useRef(null);
   const computeCodCollectedTodayRef = useRef(null);
   const computeCatalogUncollectedRef = useRef(null);
-  // Badge-log dedup for Square auto-detections (owner request Oct 9 2026):
-  // delivery ids already logged as 'auto-detected on Square' — seeded from
-  // the server log on load so a detection is never logged twice across
-  // sessions or devices.
-  const autoDetectedLoggedRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
   // DRIVER SCOPE (owner rule Oct 9 2026): a driver only sees the delivery
@@ -480,34 +475,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // cards assigned to their stores for the current date).
   const restricted = Array.isArray(visibleLocationIds);
 
-  // ── Badge change log (owner request Oct 9 2026) ─────────────────────────
-  // Running audit of every COD collection-type flag/tender change made from
-  // this page: Card Spend ↔ Not Tapped toggles, Cash → Debit/Credit
-  // conversions (incl. combined swipes), Debit/Credit → Cash reverts, and
-  // Failed → Refunded marks. Displayed owner-only at the bottom of the page.
-  const [badgeChangeLog, setBadgeChangeLog] = useState([]);
-  const loadBadgeChangeLog = useCallback(async () => {
+  // ── PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night) ──────────────────
+  // The backend Square Balances updater (squareBalancesCompute) compares every
+  // recorded COD collection type against what Square actually saw (60-day
+  // window) and writes action='discrepancy' records here. The viewer below is
+  // ALWAYS visible while open discrepancies exist; the owner CONFIRMS a
+  // record to apply the recorded→actual type fix (with the normal
+  // fee/loan/folder math) or DISMISSES it after review. No auto-updates of
+  // the in-app collection type happen anywhere — detection only flags.
+  const [paymentDiscrepancies, setPaymentDiscrepancies] = useState([]);
+  const [discrepancyBusy, setDiscrepancyBusy] = useState(false);
+  const loadPaymentDiscrepancies = useCallback(async () => {
     try {
-      const rows = await base44.entities.CodBadgeChangeLog.filter({}, '-changed_at', 50, 0);
-      setBadgeChangeLog(Array.isArray(rows) ? rows : []);
-      // seed the auto-detection dedup set from the loaded log tail
-      if (autoDetectedLoggedRef.current) {
-        (rows || []).forEach((r) => { if (r?.action === 'auto_card_detected' && r?.delivery_id) autoDetectedLoggedRef.current.add(String(r.delivery_id)); });
-      }
-    } catch (_) { /* entity not deployed yet on this env */ }
+      const rows = await base44.entities.CodBadgeChangeLog.filter({ action: 'discrepancy', status: 'open' }, '-changed_at', 100, 0);
+      setPaymentDiscrepancies(Array.isArray(rows) ? rows : []);
+    } catch (_) { /* entity/filter not available on this env */ }
   }, []);
-  useEffect(() => { if (ownerCanEdit) loadBadgeChangeLog(); }, [ownerCanEdit, loadBadgeChangeLog]);
-  const logBadgeChange = useCallback((entry) => {
-    if (!autoDetectedLoggedRef.current) autoDetectedLoggedRef.current = new Set();
-    const row = {
-      changed_at: new Date().toISOString(),
-      changed_by: currentUser?.id || null,
-      changed_by_name: currentUser?.full_name || currentUser?.email || null,
-      ...entry,
-    };
-    setBadgeChangeLog((prev) => [row, ...prev].slice(0, 50));
-    base44.entities.CodBadgeChangeLog.create(row).catch((e) => console.warn('badge log write failed:', e?.message || e));
-  }, [currentUser]);
+  useEffect(() => { if (ownerCanEdit) loadPaymentDiscrepancies(); }, [ownerCanEdit, loadPaymentDiscrepancies]);
 
   const loadConfig = useCallback(async () => {
     const seq = ++configLoadSeq.current;
@@ -693,22 +677,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // drop the read cache FIRST so every recompute below sees fresh data.
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRecs).catch(() => {});
       invalidateIdbReadCache('deliveries');
-      // Badge change log (owner request Oct 9 2026): one entry per tender
-      // conversion, carrying the combined-swipe fee/loan/folder totals.
-      try {
-        logBadgeChange({
-          action: 'tender_convert',
-          detail: target === 'cash'
-            ? `Debit/Credit → Cash${others.length ? ` (${plan.length} items)` : ''}`
-            : `Cash → ${toType}${others.length ? ` (combined swipe, ${plan.length} items)` : ''}`,
-          delivery_id: mainId,
-          delivery_ids: plan.map((x) => String(x.rec.id)),
-          patient_names: plan.map((x) => x.rec?.patient_name).filter(Boolean).join(', ') || null,
-          store_name: [...new Set(plan.map((x) => x.rec?.store_name).filter(Boolean))].join(', ') || null,
-          amount_cents: totalCents,
-          ...(target !== 'cash' ? { fee_c: feeTotC, loan_c: loanTotC, folder_c: folderTotC, settled_c: Math.max(0, totalCents - feeTotC - loanTotC - folderTotC) } : {}),
-        });
-      } catch (_) {}
       toast.success(target === 'cash' ? 'COD payment set to Cash' : `COD payment set to ${toType}${others.length ? ` (${plan.length} items, one swipe)` : ''}`);
       // Recompute the collected rows, balance estimate (fees/net) and the
       // outstanding lists from the updated delivery.
@@ -730,7 +698,97 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.error('Could not update the COD payment');
       return false;
     }
-  }, [config, logBadgeChange]);
+  }, [config]);
+
+  // PAYMENT DISCREPANCY CONFIRM (owner spec Oct 9 2026 night): applies the
+  // recorded→actual tender fix with the normal fee/loan/folder math.
+  //   cash_swiped   → the standard Cash→Debit/Credit conversion (cashToCard)
+  //   type_mismatch → retype the card payment + recompute its stored cents
+  //   mixed_tenders / missing_payment → not confirmable (review + Dismiss)
+  const fixTenderType = useCallback(async (deliveryId, actualType) => {
+    const toType = String(actualType || '').toLowerCase() === 'debit' ? 'Debit' : 'Credit';
+    try {
+      const rows = await base44.entities.Delivery.filter({ id: String(deliveryId) }, undefined, 1, 0).catch(() => []);
+      const d = (rows || [])[0];
+      if (!d) {toast.error('Could not find that delivery');return false;}
+      const payments = Array.isArray(d.cod_payments) ? d.cod_payments : [];
+      const storeToLoc = await buildStoreToLocMap().catch(() => new Map());
+      const loanRateByLoc = new Map((config?.locations || []).map((l) => [String(l.location_id), Number(l.loan_rate) || 0]));
+      const folderRateNow = Number.isFinite(Number(config?.folder_rate)) ? Number(config.folder_rate) : 0.02;
+      const locId = storeToLoc.get(String(d.store_id || '')) || null;
+      const loanRate = locId ? loanRateByLoc.get(String(locId)) || 0 : 0;
+      let changed = false;
+      const nextPayments = payments.map((p) => {
+        if (!p || !['debit', 'credit'].includes(String(p?.type || '').toLowerCase())) return p;
+        if (String(p?.type || '') === toType) return p;
+        changed = true;
+        const grossC = Math.round(Number(p.amount || 0) * 100);
+        const feeC = estimateCardFeeCents(grossC, toType);
+        const loanC = Math.round(grossC * loanRate);
+        const folderC = folderCentsFor(grossC, folderRateNow);
+        return { ...p, type: toType, fee_c: feeC, loan_c: loanC, folder_c: folderC, settled_c: Math.max(0, grossC - feeC - loanC - folderC) };
+      });
+      if (!changed) {toast.error(`Payment is already ${toType}`);return false;}
+      const noteSuffix = `Tender corrected to ${toType} (payment discrepancy confirm).`;
+      const existingNote = String(d.delivery_notes || '');
+      const updatePayload = { cod_payments: nextPayments, delivery_notes: existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix };
+      await base44.entities.Delivery.update(String(d.id), updatePayload);
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, ...updatePayload }]).catch(() => {});
+      invalidateIdbReadCache('deliveries');
+      toast.success(`Tender corrected to ${toType} — fee/loan/folder recalculated`);
+      computeCodCollectedTodayRef.current?.();
+      refreshDeliveryCreditsRef.current?.();
+      computeLocalOutstandingRef.current?.();
+      computeCatalogUncollectedRef.current?.();
+      return true;
+    } catch (e) {
+      console.error('fixTenderType failed:', e);
+      toast.error('Could not correct the tender');
+      return false;
+    }
+  }, [config]);
+
+  const confirmDiscrepancy = useCallback(async (rec) => {
+    if (!rec?.delivery_id || discrepancyBusy) return;
+    setDiscrepancyBusy(true);
+    try {
+      let ok = false;
+      if (rec.discrepancy_kind === 'cash_swiped') {
+        ok = await cashToCard(rec.delivery_id, String(rec.actual_type || '').toLowerCase() === 'debit' ? 'Debit' : 'Credit');
+      } else if (rec.discrepancy_kind === 'type_mismatch') {
+        ok = await fixTenderType(rec.delivery_id, rec.actual_type);
+      } else {
+        toast.error('This discrepancy type is review-only — dismiss it once checked');
+        return;
+      }
+      if (!ok) return;
+      await base44.entities.CodBadgeChangeLog.update(String(rec.id), {
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+        confirmed_by_name: currentUser?.full_name || currentUser?.email || null,
+      }).catch(() => {});
+      setPaymentDiscrepancies((prev) => prev.filter((x) => x.id !== rec.id));
+      toast.success('Discrepancy confirmed and applied');
+    } finally {
+      setDiscrepancyBusy(false);
+    }
+  }, [cashToCard, fixTenderType, currentUser, discrepancyBusy]);
+
+  const dismissDiscrepancy = useCallback(async (rec) => {
+    if (!rec?.id || discrepancyBusy) return;
+    setDiscrepancyBusy(true);
+    try {
+      await base44.entities.CodBadgeChangeLog.update(String(rec.id), {
+        status: 'dismissed',
+        confirmed_at: new Date().toISOString(),
+        confirmed_by_name: currentUser?.full_name || currentUser?.email || null,
+      }).catch(() => {});
+      setPaymentDiscrepancies((prev) => prev.filter((x) => x.id !== rec.id));
+      toast.success('Discrepancy dismissed');
+    } finally {
+      setDiscrepancyBusy(false);
+    }
+  }, [currentUser, discrepancyBusy]);
 
   const markCardSpend = useCallback(async (deliveryId) => {
     if (!currentUser || !deliveryId) return;
@@ -756,26 +814,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         spendMarksRecordIdRef.current = created?.id || null;
       }
       toast.success(togglingBack ? 'Card Spend' : 'Not Tapped');
-      // Badge change log (owner request Oct 9 2026): every Card Spend ↔
-      // Not Tapped flip is recorded with the delivery's context.
-      offlineDB.getById(offlineDB.STORES.DELIVERIES, String(deliveryId)).then((rec) => {
-        logBadgeChange({
-          action: 'spend_toggle',
-          detail: togglingBack ? 'Not Tapped → Card Spend' : 'Card Spend → Not Tapped',
-          delivery_id: String(deliveryId),
-          delivery_ids: [String(deliveryId)],
-          patient_names: rec?.patient_name || null,
-          store_name: rec?.store_name || null,
-          amount_cents: Math.round(Number(rec?.cod_total_amount_required || 0) * 100),
-        });
-      }).catch(() => {});
     } catch (e) {
       console.error('markCardSpend failed:', e);
       toast.error('Could not save the toggle');
       setManualSpendMarks(prev);
       manualSpendMarksRef.current = prev;
     }
-  }, [currentUser, logBadgeChange]);
+  }, [currentUser]);
 
   // OWNER SPEC (Oct 8 2026): manual "mark refunded" — the red Failed badge
   // is clickable (owner only) as the backup when auto refund detection misses
@@ -788,25 +833,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await markFailedCodRefunded(deliveryId, currentUser?.id || null);
       toast.success('Marked refunded — amount returned to the card balance');
       computeLocalOutstandingRef.current?.();
-      computeCodCollectedTodayRef.current?.();
-      // Badge change log (owner request Oct 9 2026): manual refund marks are
-      // recorded alongside the badge/tender changes.
-      offlineDB.getById(offlineDB.STORES.DELIVERIES, String(deliveryId)).then((rec) => {
-        logBadgeChange({
-          action: 'refund_mark',
-          detail: 'Failed → Refunded',
-          delivery_id: String(deliveryId),
-          delivery_ids: [String(deliveryId)],
-          patient_names: rec?.patient_name || null,
-          store_name: rec?.store_name || null,
-          amount_cents: Math.round(Number(rec?.cod_total_amount_required || 0) * 100),
-        });
-      }).catch(() => {});
-    } catch (e) {
+      computeCodCollectedTodayRef.current?.();    } catch (e) {
       console.error('markFailedRefunded failed:', e);
       toast.error('Could not mark the COD as refunded');
     }
-  }, [currentUser, logBadgeChange]);
+  }, [currentUser]);
 
   // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: this page no longer
   // syncs through the Square API at all. "Loading the numbers" now means:
@@ -1009,98 +1040,32 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
       if (deliveryIdsForCashCheck.length) {
         const cashCollectedDeliveryIds = new Set();
-        const alreadyConfirmedIds = new Set();
-        const cashDeliveryById = new Map();
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
           for (const d of rows || []) {
             if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
               cashCollectedDeliveryIds.add(d.id);
-              if (d?.cod_confirmed_collected) alreadyConfirmedIds.add(d.id);
-              cashDeliveryById.set(String(d.id), d);
             }
           }
-        }
-        // LEDGER-MATCHED AUTO-COLLECT (owner rule, Oct 7 2026): a
-        // cash-collected COD is CONSIDERED COLLECTED once its match shows up
-        // on the ledger — a COMPLETED cod_collection SquareLedgerEntry linked
-        // to the delivery (squareLedgerSync stamps delivery_id when the
-        // catalog item is rung in Square). Matched rows leave the
-        // Uncollected / Past uncollected lists, the delivery is stamped
-        // cod_confirmed_collected (fire-and-forget, so the outstanding math
-        // and reconcile agree), and it surfaces in Collected today with its
-        // real ledger data. Unmatched cash rows keep the emerald 'Cash'
-        // badge as before.
-        const ledgerSince = new Date(Date.now() - 14 * 86400000).toISOString();
-        const ledgerLinkedById = new Map();
-        for (let skip = 0; skip < 20000; skip += 500) {
-          const led = await base44.entities.SquareLedgerEntry.filter(
-            { sale_class: 'cod_collection', created_date: { $gte: ledgerSince } }, undefined, 500, skip
-          ).catch(() => []);
-          const ledList = led || [];
-          for (const e of ledList) {
-            if (e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED') ledgerLinkedById.set(String(e.delivery_id), e);
-          }
-          if (ledList.length < 500) break;
-        }
-        const confirmedIds = new Set([...alreadyConfirmedIds]);
-        for (const id of cashCollectedDeliveryIds) {
-          if (ledgerLinkedById.has(String(id))) confirmedIds.add(id);
-        }
-        // Fire-and-forget stamp so every surface (badge outstanding math,
-        // backend reconcile, other devices) agrees the COD is collected.
-        for (const id of confirmedIds) {
-          if (!alreadyConfirmedIds.has(id)) {
-            base44.entities.Delivery.update(String(id), { cod_confirmed_collected: true }).catch(() => {});
-          }
-        }
-        // BADGE CHANGE LOG (owner request Oct 9 2026): every cash COD the
-        // balance check detects as COLLECTED ON SQUARE (its cod_collection
-        // payment shows up in the ledger) is listed in the owner's Badge
-        // change log — same log as the manual badge changes. Deduped via
-        // the session ref (seeded from the log) plus a server check, so a
-        // detection is logged once even across sessions/devices.
-        for (const id of cashCollectedDeliveryIds) {
-          const led = ledgerLinkedById.get(String(id));
-          if (!led) continue;
-          if (!autoDetectedLoggedRef.current) autoDetectedLoggedRef.current = new Set();
-          if (autoDetectedLoggedRef.current.has(String(id))) continue;
-          try {
-            const prev = await base44.entities.CodBadgeChangeLog.filter({ action: 'auto_card_detected', delivery_id: String(id) }, undefined, 1, 0).catch(() => null);
-            if (Array.isArray(prev) && prev.length) { autoDetectedLoggedRef.current.add(String(id)); continue; }
-          } catch (_) {}
-          autoDetectedLoggedRef.current.add(String(id));
-          const d = cashDeliveryById.get(String(id)) || null;
-          const isDebit = String(led?.tender_type || '').toUpperCase() === 'INTERAC';
-          const amtC = Math.round(Number(d?.cod_total_amount_required || 0) * 100) || Math.round(Number(led?.amount_cents || 0));
-          logBadgeChange({
-            action: 'auto_card_detected',
-            detail: `Cash → ${isDebit ? 'Debit' : 'Credit'} (auto-detected on Square)`,
-            delivery_id: String(id),
-            delivery_ids: [String(id)],
-            patient_names: d?.patient_name || null,
-            store_name: d?.store_name || led?.location_name || null,
-            amount_cents: amtC,
-            changed_by: null,
-            changed_by_name: 'Square sync (auto)',
-          });
         }
         // OWNER SPEC (Oct 8 2026, REVISED same day): cash-completed rows
         // STAY in Uncollected / Past uncollected with the emerald 'Cash'
         // badge — the delivery is done but the money is not back on the
         // Square card yet, so it is still technically uncollected (and NOT
-        // in Collected today — see computeCodCollectedToday). Only
-        // ledger-matched rows (confirmedIds — the deposit showed up in
-        // Square) leave the Uncollected lists.
+        // in Collected today — see computeCodCollectedToday). Since the
+        // PAYMENT DISCREPANCIES spec (owner, Oct 9 2026 night) there is NO
+        // ledger-match auto-collect here either: a cash COD that Square
+        // shows as swiped is flagged in the Payment discrepancies viewer
+        // (backend squareBalancesCompute) and stays listed until the owner
+        // CONFIRMS the fix there — no in-app auto updates.
         if (cashCollectedDeliveryIds.size > 0 && isLatest()) {
           setCatalogUncollectedByLoc((prev) => {
             if (!prev) return prev;
             const next = {};
             for (const [locId, rows] of Object.entries(prev)) {
               next[locId] = rows.
-              filter((r) => !(r.delivery_id && confirmedIds.has(String(r.delivery_id)))) // ledger-matched → collected
-              .map((r) =>
+              map((r) =>
               r.delivery_id && cashCollectedDeliveryIds.has(r.delivery_id) ? { ...r, cashAwaitingSquare: true } : r
               );
             }
@@ -1112,7 +1077,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } catch (e) {
       console.error('catalog uncollected compute failed:', e);
     }
-  }, [currentUser, logBadgeChange]);
+  }, [currentUser]);
   // Owner-only: today's COLLECTED CODs per card.
   //   a) Square-confirmed cash collections (ledger cod_collection entries whose
   //      occurred_at lands on today's Edmonton date)
@@ -1362,6 +1327,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await computeCodCollectedToday();
       computeCatalogUncollected();
       loadDailyCod();
+      // PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night): the backend
+      // balances updater flags recorded-vs-Square tender mismatches during
+      // the compute this sync triggers — pull the fresh open list after it.
+      if (ownerCanEdit) loadPaymentDiscrepancies();
       // SIDEBAR BADGE SYNC (owner report Oct 8 2026: Refresh Square updated
       // the page cards but the sidebar badge kept a stale total): this refresh
       // is strictly local re-reads — no server write, so no WS broadcast ever
@@ -1378,7 +1347,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } finally {
       setIsSyncing(false);
     }
-  }, [config, loadConfig, loadSales, computeLocalOutstanding, computeCodCollectedToday]);
+  }, [config, loadConfig, loadSales, computeLocalOutstanding, computeCodCollectedToday, ownerCanEdit, loadPaymentDiscrepancies]);
 
   loadSalesRef.current = loadSales;
   syncRef.current = syncFromSquare;
@@ -2485,33 +2454,42 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         </div>
       </details>
 
-      {/* BADGE CHANGE LOG (owner request Oct 9 2026): running audit of every
-          COD collection-type flag/tender change made from this page —
-          toggles, conversions, reverts, refund marks. Owner-only. */}
-      {ownerCanEdit &&
-      <details className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
-        <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
-          Badge change log {badgeChangeLog.length ? `(${badgeChangeLog.length})` : ''}
-        </summary>
-        <div className="mt-3 space-y-1.5">
-          {badgeChangeLog.length === 0 &&
-          <div className="text-xs text-slate-500 dark:text-slate-400">No badge or tender changes logged yet.</div>}
-          {badgeChangeLog.map((r) => (
-            <div key={r.id || `${r.changed_at}-${r.detail}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 dark:border-slate-700/40 pb-1 text-xs text-slate-600 dark:text-slate-300">
+      {/* PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night): every COD whose
+          recorded collection type disagrees with what Square actually saw
+          (60-day scan, flagged by the backend balances updater — no in-app
+          auto-updates). ALWAYS visible while open flags exist; Confirm
+          applies the recorded→actual fix with normal fee/loan/folder math,
+          Dismiss closes it after review. Owner-only. */}
+      {ownerCanEdit && paymentDiscrepancies.length > 0 &&
+      <div className="mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-red-700 dark:text-red-300">
+            Payment discrepancies ({paymentDiscrepancies.length}) — recorded type vs Square
+          </span>
+          <button type="button" onClick={() => loadPaymentDiscrepancies()} className="text-[11px] text-red-600 dark:text-red-400 hover:underline">Refresh</button>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {paymentDiscrepancies.map((r) => (
+            <div key={r.id || `${r.changed_at}-${r.delivery_id}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-red-100 dark:border-red-900/50 pb-1 text-xs text-slate-700 dark:text-slate-200">
               <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
                 {(() => { try { return new Date(r.changed_at).toLocaleString('en-CA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } })()}
               </span>
-              <span className="font-semibold text-slate-700 dark:text-slate-200">{r.detail}</span>
+              <span className="font-semibold">{r.detail}</span>
               {r.patient_names && <span>· {r.patient_names}</span>}
               {r.store_name && <span className="text-slate-400 dark:text-slate-500">({r.store_name})</span>}
               {r.amount_cents > 0 && <span className="font-medium">${(r.amount_cents / 100).toFixed(2)}</span>}
-              {r.fee_c != null && <span className="text-[10px] text-slate-400 dark:text-slate-500">S ${(r.fee_c / 100).toFixed(2)} · F ${(r.folder_c / 100).toFixed(2)} · L ${(r.loan_c / 100).toFixed(2)} → settled ${(r.settled_c / 100).toFixed(2)}</span>}
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">by {r.changed_by_name || r.changed_by || 'unknown'}</span>
+              {['cash_swiped', 'type_mismatch'].includes(r.discrepancy_kind) &&
+              <button type="button" disabled={discrepancyBusy} onClick={() => confirmDiscrepancy(r)} className="ml-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
+                Confirm {r.actual_type === 'debit' ? 'Debit' : 'Credit'}
+              </button>}
+              <button type="button" disabled={discrepancyBusy} onClick={() => dismissDiscrepancy(r)} className="rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
+                Dismiss
+              </button>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">detected {r.changed_at ? new Date(r.changed_at).toLocaleDateString('en-CA', { month: '2-digit', day: '2-digit' }) : ''} by Square sync</span>
             </div>
           ))}
-          <button type="button" onClick={() => loadBadgeChangeLog()} className="mt-1 text-[11px] text-sky-600 dark:text-sky-400 hover:underline">Refresh</button>
         </div>
-      </details>
+      </div>
       }
     </div>);
 

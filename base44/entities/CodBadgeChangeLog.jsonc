@@ -9,7 +9,7 @@
     },
     "action": {
       "type": "string",
-      "description": "Change category: spend_toggle (Card Spend <-> Not Tapped), tender_convert (Cash -> Debit/Credit, Debit/Credit -> Cash), refund_mark (Failed -> Refunded)"
+      "description": "Record category: discrepancy (payment type mismatch vs Square), spend_toggle, tender_convert, refund_mark, auto_card_detected"
     },
     "detail": {
       "type": "string",
@@ -60,7 +60,36 @@
     },
     "changed_by_name": {
       "type": "string",
-      "description": "Display name/email of the user who made the change"
+      "description": "Display name/email of the user who made the change ('Square sync (auto)' for backend-detected discrepancies)"
+    },
+    "discrepancy_kind": {
+      "type": "string",
+      "description": "Discrepancy category: cash_swiped (recorded Cash, Square shows a card swipe), type_mismatch (Debit vs Credit), mixed_tenders, missing_payment (recorded card, nothing on Square)"
+    },
+    "recorded_type": {
+      "type": "string",
+      "description": "Collection type recorded in the app: cash / debit / credit / mixed"
+    },
+    "actual_type": {
+      "type": "string",
+      "description": "Collection type Square actually saw: debit / credit (null for missing_payment)"
+    },
+    "status": {
+      "type": "string",
+      "description": "Discrepancy lifecycle: open, confirmed (owner applied the fix), dismissed (owner reviewed, no change), resolved (mismatch healed on its own)"
+    },
+    "confirmed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the owner confirmed the discrepancy fix"
+    },
+    "confirmed_by_name": {
+      "type": "string",
+      "description": "Display name of the owner who confirmed the fix"
+    },
+    "square_id": {
+      "type": "string",
+      "description": "Square payment id of the actual swipe (when known)"
     }
   },
   "required": [
