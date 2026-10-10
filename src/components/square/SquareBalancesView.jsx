@@ -8,7 +8,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
@@ -1349,9 +1349,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (ownerCanEditRef.current && !pageBootCancelled) {
         void (async () => {
           try {
+            // Same cooldown as the Sync button: only pull when a cash
+            // collection happened since the last COD sync.
+            if (!(await codSyncDue())) {
+              console.log('[SquareBalances] page-load COD sync skipped — up to date');
+              return;
+            }
             const tu = configRef.current?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
             await base44.functions.invoke('squareLedgerSync', { startDate: tu, includeCodOutstanding: true });
             if (pageBootCancelled) return;
+            localStorage.setItem(LS_BAL_COD_SYNC, String(Date.now()));
             invalidateLedgerWindows();
             window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
           } catch (e) {
@@ -1387,6 +1394,42 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // finished deliveries' cod_payments, outstanding from active deliveries,
   // collected-today — plus cached ledger payout rows. The Square COD page and
   // the Audit page keep their own syncs.
+  // ── SQUARE COD SYNC COOLDOWN (owner request Oct 9 23:32) ──────────────
+  // The COD sync (squareLedgerSync + catalog reconcile) only needs to re-run
+  // when a CASH COD has been collected since the last sync — that's the
+  // only event that adds something new for Square to register. The marker
+  // also credits the Square COD page's own full sync
+  // (squareCod_lastOrderFetchAt) so the two pages never double-run.
+  const LS_BAL_COD_SYNC = 'squareBalances_lastCodSyncAt';
+  const LS_CODPAGE_SYNC = 'squareCod_lastOrderFetchAt';
+  const lastCodSyncAtMs = () => Math.max(
+    Number(localStorage.getItem(LS_BAL_COD_SYNC) || 0),
+    Number(localStorage.getItem(LS_CODPAGE_SYNC) || 0)
+  );
+  const lastCashCodCollectionMs = async () => {
+    try {
+      const rows = await getAllDeliveriesIdb();
+      let latest = 0;
+      for (const d of rows || []) {
+        if (String(d?.status || '') !== 'completed') continue;
+        const hasCash = (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
+          .some((p) => String(p?.type || '').toLowerCase() === 'cash' && Number(p?.amount || 0) > 0);
+        if (!hasCash) continue;
+        const t = new Date(String(d?.actual_delivery_time || '')).getTime();
+        if (Number.isFinite(t) && t > latest) latest = t;
+      }
+      return latest;
+    } catch { return 0; }
+  };
+  // True when the COD sync should run (no sync yet, or a cash collection
+  // landed after the last one).
+  const codSyncDue = async () => {
+    const lastSync = lastCodSyncAtMs();
+    if (!lastSync) return true;
+    const lastCash = await lastCashCodCollectionMs();
+    return lastCash > lastSync;
+  };
+
   const syncFromSquare = useCallback(async () => {
     setIsSyncing(true);
     try {
@@ -1403,7 +1446,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // clears the matched catalog items). Owner-only — drivers keep the
       // local-only refresh.
       let codSyncNote = '';
-      if (ownerCanEdit) {
+      // COOLDOWN: skip the Square COD steps entirely when the last sync
+      // already covers the latest cash collection.
+      const due = ownerCanEdit ? await codSyncDue() : false;
+      if (ownerCanEdit && !due) {
+        console.log('[SquareBalances] COD sync skipped — no cash collections since the last COD sync');
+        codSyncNote = 'COD sync up to date';
+      }
+      if (ownerCanEdit && due) {
         const startDate = cfg?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
         setSyncStatusText('Syncing Square payments…');
         try {
@@ -1415,6 +1465,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // us) — drop the windows cache before the computes below re-read.
           invalidateLedgerWindows();
           codSyncNote = 'Square CODs synced';
+          localStorage.setItem(LS_BAL_COD_SYNC, String(Date.now()));
         } catch (err) {
           console.warn('[SquareBalances] squareLedgerSync failed (continuing with cached ledger):', err?.message || err);
           codSyncNote = 'COD sync failed — used cached ledger';

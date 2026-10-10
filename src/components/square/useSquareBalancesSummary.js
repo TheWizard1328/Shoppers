@@ -112,7 +112,7 @@ async function loadServerDeliveryOverlay() {
 }
 export function invalidateServerOverlay() { serverOverlay.at = 0; serverOverlay.rows = null; }
 
-async function getAllDeliveriesIdb() {
+export async function getAllDeliveriesIdb() {
   const idbRows = await getAllDeliveriesIdbRaw();
   try {
     const fresh = await loadServerDeliveryOverlay();
