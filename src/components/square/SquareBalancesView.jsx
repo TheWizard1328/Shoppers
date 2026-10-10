@@ -475,6 +475,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const loadDailyCodRef = useRef(null);
   const computeCodCollectedTodayRef = useRef(null);
   const computeCatalogUncollectedRef = useRef(null);
+  // Badge-log dedup for Square auto-detections (owner request Oct 9 2026):
+  // delivery ids already logged as 'auto-detected on Square' — seeded from
+  // the server log on load so a detection is never logged twice across
+  // sessions or devices.
+  const autoDetectedLoggedRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
   // DRIVER SCOPE (owner rule Oct 9 2026): a driver only sees the delivery
@@ -495,10 +500,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     try {
       const rows = await base44.entities.CodBadgeChangeLog.filter({}, '-changed_at', 50, 0);
       setBadgeChangeLog(Array.isArray(rows) ? rows : []);
+      // seed the auto-detection dedup set from the loaded log tail
+      if (autoDetectedLoggedRef.current) {
+        (rows || []).forEach((r) => { if (r?.action === 'auto_card_detected' && r?.delivery_id) autoDetectedLoggedRef.current.add(String(r.delivery_id)); });
+      }
     } catch (_) { /* entity not deployed yet on this env */ }
   }, []);
   useEffect(() => { if (ownerCanEdit) loadBadgeChangeLog(); }, [ownerCanEdit, loadBadgeChangeLog]);
   const logBadgeChange = useCallback((entry) => {
+    if (!autoDetectedLoggedRef.current) autoDetectedLoggedRef.current = new Set();
     const row = {
       changed_at: new Date().toISOString(),
       changed_by: currentUser?.id || null,
@@ -1066,6 +1076,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (deliveryIdsForCashCheck.length) {
         const cashCollectedDeliveryIds = new Set();
         const alreadyConfirmedIds = new Set();
+        const cashDeliveryById = new Map();
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
@@ -1073,6 +1084,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
               cashCollectedDeliveryIds.add(d.id);
               if (d?.cod_confirmed_collected) alreadyConfirmedIds.add(d.id);
+              cashDeliveryById.set(String(d.id), d);
             }
           }
         }
@@ -1087,20 +1099,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // real ledger data. Unmatched cash rows keep the emerald 'Cash'
         // badge as before.
         const ledgerSince = new Date(Date.now() - 14 * 86400000).toISOString();
-        const ledgerLinkedIds = new Set();
+        const ledgerLinkedById = new Map();
         for (let skip = 0; skip < 20000; skip += 500) {
           const led = await base44.entities.SquareLedgerEntry.filter(
             { sale_class: 'cod_collection', created_date: { $gte: ledgerSince } }, undefined, 500, skip
           ).catch(() => []);
           const ledList = led || [];
           for (const e of ledList) {
-            if (e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED') ledgerLinkedIds.add(String(e.delivery_id));
+            if (e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED') ledgerLinkedById.set(String(e.delivery_id), e);
           }
           if (ledList.length < 500) break;
         }
         const confirmedIds = new Set([...alreadyConfirmedIds]);
         for (const id of cashCollectedDeliveryIds) {
-          if (ledgerLinkedIds.has(String(id))) confirmedIds.add(id);
+          if (ledgerLinkedById.has(String(id))) confirmedIds.add(id);
         }
         // Fire-and-forget stamp so every surface (badge outstanding math,
         // backend reconcile, other devices) agrees the COD is collected.
@@ -1108,6 +1120,37 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (!alreadyConfirmedIds.has(id)) {
             base44.entities.Delivery.update(String(id), { cod_confirmed_collected: true }).catch(() => {});
           }
+        }
+        // BADGE CHANGE LOG (owner request Oct 9 2026): every cash COD the
+        // balance check detects as COLLECTED ON SQUARE (its cod_collection
+        // payment shows up in the ledger) is listed in the owner's Badge
+        // change log — same log as the manual badge changes. Deduped via
+        // the session ref (seeded from the log) plus a server check, so a
+        // detection is logged once even across sessions/devices.
+        for (const id of cashCollectedDeliveryIds) {
+          const led = ledgerLinkedById.get(String(id));
+          if (!led) continue;
+          if (!autoDetectedLoggedRef.current) autoDetectedLoggedRef.current = new Set();
+          if (autoDetectedLoggedRef.current.has(String(id))) continue;
+          try {
+            const prev = await base44.entities.CodBadgeChangeLog.filter({ action: 'auto_card_detected', delivery_id: String(id) }, undefined, 1, 0).catch(() => null);
+            if (Array.isArray(prev) && prev.length) { autoDetectedLoggedRef.current.add(String(id)); continue; }
+          } catch (_) {}
+          autoDetectedLoggedRef.current.add(String(id));
+          const d = cashDeliveryById.get(String(id)) || null;
+          const isDebit = String(led?.tender_type || '').toUpperCase() === 'INTERAC';
+          const amtC = Math.round(Number(d?.cod_total_amount_required || 0) * 100) || Math.round(Number(led?.amount_cents || 0));
+          logBadgeChange({
+            action: 'auto_card_detected',
+            detail: `Cash → ${isDebit ? 'Debit' : 'Credit'} (auto-detected on Square)`,
+            delivery_id: String(id),
+            delivery_ids: [String(id)],
+            patient_names: d?.patient_name || null,
+            store_name: d?.store_name || led?.location_name || null,
+            amount_cents: amtC,
+            changed_by: null,
+            changed_by_name: 'Square sync (auto)',
+          });
         }
         // OWNER SPEC (Oct 8 2026, REVISED same day): cash-completed rows
         // STAY in Uncollected / Past uncollected with the emerald 'Cash'
@@ -1135,7 +1178,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } catch (e) {
       console.error('catalog uncollected compute failed:', e);
     }
-  }, [currentUser]);
+  }, [currentUser, logBadgeChange]);
   // Owner-only: today's COLLECTED CODs per card.
   //   a) Square-confirmed cash collections (ledger cod_collection entries whose
   //      occurred_at lands on today's Edmonton date)
