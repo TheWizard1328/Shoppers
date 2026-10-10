@@ -433,6 +433,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  // SYNC STATUS (owner request Oct 9 2026 night): live text shown just left of
+  // the Refresh Square button — "Syncing Catalog Items. (Adding/Deleting
+  // [name - $amount])" then "Syncing Square Balances."
+  const [syncStatusText, setSyncStatusText] = useState('');
   const [showTrueUp, setShowTrueUp] = useState(false);
   const [trueUpDraft, setTrueUpDraft] = useState({});
   const [showTopUp, setShowTopUp] = useState(false);
@@ -1350,6 +1354,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       let codSyncNote = '';
       if (ownerCanEdit) {
         const startDate = cfg?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
+        setSyncStatusText('Syncing Square payments…');
         try {
           const res = await base44.functions.invoke('squareLedgerSync', { startDate, includeCodOutstanding: true });
           const out = res?.codOutstanding || [];
@@ -1367,6 +1372,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // lease so the two syncs never run concurrently (shared Square
         // rate-limit budget). orderFetchSince is READ-ONLY here — the marker
         // is not stamped (the COD page's IDB tx mirror re-covers the tail).
+        setSyncStatusText('Syncing Catalog Items.');
         try {
           const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
           const nowMs = Date.now();
@@ -1379,11 +1385,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
                 ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
                 : null;
-              await base44.functions.invoke('squareGetCodData2', {
+              const codRes = await base44.functions.invoke('squareGetCodData2', {
                 forceDeliveryRefresh: true,
                 daysBack: 90,
                 ...(orderFetchSince ? { orderFetchSince } : {}),
               });
+              // Sync status detail (owner spec): show the catalog adds/deletes
+              // this reconcile performed — "Adding/Deleting [name - amount]".
+              const fmt = (arr, verb) => (arr || []).map((c) => `${verb} ${c.name} - $${(Math.round(Number(c.amount_cents || 0)) / 100).toFixed(2)}`);
+              const detail = [
+                ...fmt(codRes?.catalogCreated, 'Adding'),
+                ...fmt(codRes?.catalogDeleted, 'Deleting'),
+              ];
+              setSyncStatusText(detail.length
+                ? `Syncing Catalog Items. (${detail.join(', ')})`
+                : 'Syncing Catalog Items. (no changes)');
             } finally {
               localStorage.removeItem(LS_INFLIGHT);
             }
@@ -1392,6 +1408,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           console.warn('[SquareBalances] COD catalog sync after ledger sync failed:', err);
         }
       }
+      setSyncStatusText('Syncing Square Balances.');
       await loadSales(cfg);
       await computeLocalOutstanding(cfg);
       await computeCodCollectedToday();
@@ -1415,6 +1432,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       console.error('delivery-data refresh failed:', err);
       toast.error('Refresh failed');
     } finally {
+      // Keep the final status line up briefly so the owner can read what the
+      // catalog reconcile did before it fades.
+      setTimeout(() => setSyncStatusText(''), 4000);
       setIsSyncing(false);
     }
   }, [config, loadConfig, loadSales, computeLocalOutstanding, computeCodCollectedToday, ownerCanEdit, loadPaymentDiscrepancies]);
@@ -1959,7 +1979,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         <div className="text-sm text-slate-500 dark:text-slate-400">
           Estimates since true-up {new Date(config.trued_up_at).toLocaleString()} ({trueUpDays}d ago)
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2 items-center">
+          {ownerCanEdit && (syncStatusText || isSyncing) &&
+            <span data-square-sync-status className="text-xs italic text-blue-600 dark:text-blue-400 whitespace-nowrap overflow-hidden text-ellipsis max-w-[300px] sm:max-w-[420px]" title={syncStatusText}>
+              {syncStatusText || 'Syncing…'}
+            </span>
+          }
           {ownerCanEdit &&
           <Button size="sm" variant="outline" onClick={syncFromSquare} disabled={isSyncing || isLoading}>
             <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />

@@ -1020,6 +1020,7 @@ mark('ootw_orders_fetched');
   } catch (e) { mark('ootw_search_done'); console.warn('[squareGetCodData2] out-of-window order search failed:', e?.message || e); }
 
   let deletedCatalogIds = [];
+  let catalogDeletedDetail = []; // [{name, amount_cents}] for the sync status UI
   let cleanupDbCount = 0;
   let attemptedDeleteObjectIds = new Set();
   if (toDelete.length > 0) {
@@ -1028,6 +1029,13 @@ mark('ootw_orders_fetched');
 mark('before_catalog_delete_api');
       const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
     deletedCatalogIds = deleteResult.deleted || [];
+    // SYNC STATUS UI (owner request Oct 9 2026 night): capture the deleted
+    // items' names + amounts so the Square Balances page can show
+    // "Deleting [name - amount]" while it syncs.
+    catalogDeletedDetail = (deletedCatalogIds || []).map((objId) => {
+      const item = (toDelete || []).find((i) => i?.id === objId) || null;
+      return { name: item?.item_data?.name || null, amount_cents: getCatalogItemAmountCents(item) };
+    }).filter((x) => x.name);
     // Clean up DB records for deleted objects — batch in parallel
     const dbCleanupPromises = objectIds.map(async (objId) => {
       const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: objId }).catch(() => []);
@@ -1282,6 +1290,9 @@ mark('after_collected_purge');
     filteredCatalogRecords = [...filteredCatalogRecords, ...createdCatalogRecords];
     console.log('[squareGetCodData2] auto-created', createdCatalogRecords.length, 'missing catalog items, elapsed:', Date.now() - t0);
   }
+  // SYNC STATUS UI (owner request Oct 9 2026 night): created items' names +
+  // amounts for the "Adding [name - amount]" status line.
+  const catalogCreatedDetail = (createdCatalogRecords || []).map((r) => ({ name: r.item_name, amount_cents: Math.round(Number(r.amount_cents || 0)) }));
 
   // ── 5b) Write transactions + catalog items to online DB ─────────────
   // Non-blocking: errors are caught so they never fail the sync. The IDB
@@ -1417,6 +1428,8 @@ mark('after_collected_purge');
     txRetentionFloor,
     txListLoaded,
     deletedCatalogIds,
+    catalogCreated: catalogCreatedDetail,
+    catalogDeleted: catalogDeletedDetail,
     cleanupDbCount,
     collectedPurge: { deliveries: confirmedCollectedDeliveryIds.size, transactions: purgedTxRows, catalogRows: purgedCatalogRows },
     locationConfigs: safeConfigs,
