@@ -150,7 +150,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, onMarkPaidOff, loading, isOwner = true, combineCandidates = null }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -362,16 +362,6 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   stop counting it (owner rule Oct 9 2026). */}
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
           </div>
-          {cashPick.label === 'Cash' && onMarkPaidOff &&
-          <>
-          <div className="pt-1 border-t border-slate-100 dark:border-slate-700">
-            {/* PAID OFF (owner rule Oct 9 2026): driver banked the cash and
-                  topped the card from their personal debit — no swipe, no
-                  fees. Applies to this row plus any ticked combine items. */}
-            <Button size="sm" className="h-8 w-full text-[11px]" variant="outline" disabled={cashPickBusy} onClick={async () => {setCashPickBusy(true);try {const ids = [cashPick.row.delivery_id, ...Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k])];const ok = await onMarkPaidOff?.(ids);if (ok !== false) setCashPick(null);} finally {setCashPickBusy(false);}}}>Paid off — my debit</Button>
-            <div className="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight pt-0.5">Banked the cash and topped the card from your own debit. No fees. Clears the row.</div>
-          </div>
-          </>}
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
           <div className="pt-1 border-t border-slate-100 dark:border-slate-700 space-y-0.5">
             <div className="text-[10px] font-medium text-slate-400 text-center leading-tight">Combine into one swipe</div>
@@ -817,62 +807,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.error('Could not mark the COD as refunded');
     }
   }, [currentUser, logBadgeChange]);
-
-  // PAID OFF (owner rule Oct 9 2026): a driver banks a collected cash COD
-  // in their own account and tops the store card from their personal debit —
-  // no Square swipe, no fees/loan/folder. Marking stamps cod_paid_off_at:
-  // the item leaves the Uncollected 'Cash' rows and its cash deduction
-  // releases (the card-topup scan adds the money back to the estimate).
-  // Applies to the tapped row plus any ticked combine items, since drivers
-  // typically deposit a batch of cash and settle it in one payment.
-  const [paidOffBusy, setPaidOffBusy] = useState(false);
-  const markCashPaidOff = useCallback(async (deliveryIds) => {
-    const ids = Array.from(new Set((Array.isArray(deliveryIds) ? deliveryIds : [deliveryIds]).map(String).filter(Boolean)));
-    if (!ids.length || paidOffBusy) return false;
-    setPaidOffBusy(true);
-    try {
-      const nowIso = new Date().toISOString();
-      const updatedRecs = [];
-      for (const id of ids) {
-        const rows = await base44.entities.Delivery.filter({ id }, undefined, 1, 0).catch(() => []);
-        const d = (rows || [])[0];
-        if (!d) continue;
-        const existingNote = String(d.delivery_notes || '');
-        const updatePayload = {
-          cod_paid_off_at: nowIso,
-          cod_paid_off_by: currentUser?.id || null,
-          delivery_notes: existingNote ? `${existingNote} Cash paid off from driver's personal debit (banked).` : "Cash paid off from driver's personal debit (banked)." 
-        };
-        await base44.entities.Delivery.update(String(d.id), updatePayload);
-        updatedRecs.push({ ...d, ...updatePayload });
-      }
-      if (!updatedRecs.length) {toast.error('Could not find that delivery');return false;}
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRecs).catch(() => {});
-      invalidateIdbReadCache('deliveries');
-      // Badge change log: one entry for the whole paid-off batch.
-      logBadgeChange({
-        action: 'paid_off',
-        detail: `Cash → Paid off (personal debit)${updatedRecs.length > 1 ? ` (${updatedRecs.length} items)` : ''}`,
-        delivery_id: String(updatedRecs[0].id),
-        delivery_ids: updatedRecs.map((d) => String(d.id)),
-        patient_names: updatedRecs.map((d) => d?.patient_name).filter(Boolean).join(', ') || null,
-        store_name: [...new Set(updatedRecs.map((d) => d?.store_name).filter(Boolean))].join(', ') || null,
-        amount_cents: updatedRecs.reduce((sm, d) => sm + Math.round(Number(d?.cod_total_amount_required || 0) * 100), 0),
-      });
-      toast.success(`Marked paid off — ${updatedRecs.length > 1 ? updatedRecs.length + ' items ' : 'item '}banked from personal debit`);
-      computeCodCollectedTodayRef.current?.();
-      refreshDeliveryCreditsRef.current?.();
-      computeLocalOutstandingRef.current?.();
-      computeCatalogUncollectedRef.current?.();
-      return true;
-    } catch (e) {
-      console.error('markCashPaidOff failed:', e);
-      toast.error('Could not mark the COD as paid off');
-      return false;
-    } finally {
-      setPaidOffBusy(false);
-    }
-  }, [currentUser, logBadgeChange, paidOffBusy]);
 
   // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: this page no longer
   // syncs through the Square API at all. "Loading the numbers" now means:
@@ -2256,7 +2190,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
-                      onMarkPaidOff={markCashPaidOff}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected Today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },

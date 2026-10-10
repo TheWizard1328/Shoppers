@@ -152,15 +152,6 @@
       "format": "date-time",
       "description": "Timestamp when a CASH-collected COD's tender was corrected to Debit/Credit on the Square Balances page — the card payment is NEW money the true-up did not bake in, so the delivery gets its fee/loan/folder/settled credit even when completed before trued_up_at"
     },
-    "cod_paid_off_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Timestamp when a cash-collected COD was marked PAID OFF — the driver banked the cash in their own account and topped the store card from their personal debit (bank transfer/top-up, no Square swipe). Stops the cash deduction and clears the row from the Uncollected lists"
-    },
-    "cod_paid_off_by": {
-      "type": "string",
-      "description": "Base44 auth id of the user who marked the COD as paid off"
-    },
     "cod_confirmed_collected": {
       "type": "boolean",
       "description": "True once a matching COMPLETED Square order confirmed the COD was collected at the register (stamped when the SquareTransaction/SquareCatalogItems rows are purged)"
