@@ -1982,15 +1982,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
       {/* Location cards — CENTERED per row (owner request Oct 9 2026):
           no matter how many store cards exist, each row's cards are
-          horizontally centered (flex-wrap + justify-center with a fixed
-          card basis, so a lone last card sits mid-row instead of hugging
-          the left edge like a 3-col grid would do). */}
+          horizontally centered (flex-wrap + justify-center so a lone last
+          card sits mid-row instead of hugging the left edge).
+          WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
+          380px max (basis 340px) — a slight spread so cards flex a little
+          to fill a row, but never squeeze the data (names truncating to
+          'Joanne ...'). When three can't fit at 320px+ the row wraps and
+          the extra card drops to a new centered row. Phones: full width. */}
       <div className="flex flex-wrap justify-center gap-3">
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
           return (
             <div key={loc.location_id}
-            className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden w-full md:w-[calc(33.333%-0.667rem)]"
+            className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden w-full min-w-0 sm:w-[360px] sm:min-w-[320px] sm:max-w-[380px] sm:flex-1 sm:basis-[340px]"
             style={lvl ? { borderColor: lvl.border, backgroundImage: `linear-gradient(0deg, ${lvl.tint}, ${lvl.tint})` } : { borderColor: 'var(--border-slate-200, #e2e8f0)' }}>
             <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-start justify-between gap-2">
