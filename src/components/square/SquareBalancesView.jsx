@@ -151,7 +151,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null, locationOrder = [] }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -373,7 +373,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               // follows the page's card order; items without a known card go
               // last under 'Other'.
               const rows = cashPick.cashRows || [];
-              const order = (config?.locations || []).map((l) => l.location_id);
+              const order = Array.isArray(locationOrder) ? locationOrder : [];
               const groups = new Map();
               rows.forEach((c) => {
                 const k = c.locId || '__other';
@@ -2310,7 +2310,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     <CardCodList
                       canMarkSpend={!!currentUser}
                       isOwner={ownerCanEdit}
-                      combineCandidates={combineCandidates}
+                      combineCandidates={combineCandidates} locationOrder={(config?.locations || []).map((l) => l.location_id)}
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
