@@ -2453,10 +2453,22 @@ function Dashboard() {
         stores: storesRef.current,
         appUsers,
         source: 'delete_delivery',
-        // If the deleted stop was NOT the next delivery, skip full re-optimization —
-        // just regenerate polylines in existing stop order.
-        skipOptimize: !wasNextDelivery,
+        // Oct 9 2026 delete-path fix:
+        // (a) ALWAYS run the engine after an active-stop delete. The old
+        //     skipOptimize: !wasNextDelivery skipped the engine entirely for
+        //     non-next deletes, so the remaining legs' polylines stayed chained
+        //     THROUGH the deleted stop (stale route lines) and ETAs went stale.
+        //     preserveExistingOrder keeps the compacted order for non-next
+        //     deletes: polylines/ETAs regenerate along the correct chain, no
+        //     re-sequencing.
+        // (b) If the deleted stop WAS isNextDelivery, pass clearNextDeliveryLock
+        //     so the engine re-elects the first active stop of the re-optimized
+        //     route as next. Previously the engine stamped isNextDelivery=false
+        //     on EVERY remaining stop (explicit flag deleted + route already
+        //     in progress → nextStopId null) and nothing ever re-established
+        //     the flag: no pulsating marker, no next-delivery badge.
         preserveExistingOrder: !wasNextDelivery,
+        clearNextDeliveryLock: wasNextDelivery,
       });
 
       if (result.success && Array.isArray(result.freshDeliveries) && result.freshDeliveries.length > 0) {
