@@ -340,9 +340,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         </div>
       )}
       {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
-            Cash badge opens the Debit / Credit choice as a small button menu
-            right at the badge — below it when there's room, above when it sits
-            near the bottom of the screen. Tap anywhere else to dismiss. */}
+             Cash badge opens the Debit / Credit choice as a small button menu
+             right at the badge — below it when there's room, above when it sits
+             near the bottom of the screen. Tap anywhere else to dismiss. */}
       {cashPick &&
       <>
         <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
@@ -358,8 +358,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
-                  (/_at) so the fee/loan/folder credit and ledger confirmation
-                  stop counting it (owner rule Oct 9 2026). */}
+                   (/_at) so the fee/loan/folder credit and ledger confirmation
+                   stop counting it (owner rule Oct 9 2026). */}
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
           </div>
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
@@ -489,9 +489,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     try {
       const rows = await base44.entities.CodBadgeChangeLog.filter({ action: 'discrepancy', status: 'open' }, '-changed_at', 100, 0);
       setPaymentDiscrepancies(Array.isArray(rows) ? rows : []);
-    } catch (_) { /* entity/filter not available on this env */ }
+    } catch (_) {/* entity/filter not available on this env */}
   }, []);
-  useEffect(() => { if (ownerCanEdit) loadPaymentDiscrepancies(); }, [ownerCanEdit, loadPaymentDiscrepancies]);
+  useEffect(() => {if (ownerCanEdit) loadPaymentDiscrepancies();}, [ownerCanEdit, loadPaymentDiscrepancies]);
 
   const loadConfig = useCallback(async () => {
     const seq = ++configLoadSeq.current;
@@ -608,7 +608,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (!plan[0].changed) {toast.error(`Payment is already ${toType}`);return false;}
       if (others.length && !plan.every((x) => x.changed)) {toast.error('A combined item has no matching payment');return false;}
       const totalCents = plan.reduce((sm, x) => sm + x.convCents, 0);
-      let feeTotC = 0, loanTotC = 0, folderTotC = 0;
+      let feeTotC = 0,loanTotC = 0,folderTotC = 0;
       if (target !== 'cash') {
         // ONE SWIPE, ONE FEE SET (owner rule Oct 9 2026): fees / loan / folder
         // are computed on the COMBINED swipe total — (Del1+Del2) x 0.75% +
@@ -623,7 +623,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const locId = storeToLoc.get(String(d.store_id || '')) || null;
         const loanC = Math.round(totalCents * (locId ? loanRateByLoc.get(String(locId)) || 0 : 0));
         const folderC = folderCentsFor(totalCents, folderRateNow);
-        feeTotC = feeC; loanTotC = loanC; folderTotC = folderC;
+        feeTotC = feeC;loanTotC = loanC;folderTotC = folderC;
         const itemWeights = plan.map((x) => x.convCents);
         const feeSplit = splitSwipeCents(feeC, itemWeights);
         const loanSplit = splitSwipeCents(loanC, itemWeights);
@@ -765,7 +765,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await base44.entities.CodBadgeChangeLog.update(String(rec.id), {
         status: 'confirmed',
         confirmed_at: new Date().toISOString(),
-        confirmed_by_name: currentUser?.full_name || currentUser?.email || null,
+        confirmed_by_name: currentUser?.full_name || currentUser?.email || null
       }).catch(() => {});
       setPaymentDiscrepancies((prev) => prev.filter((x) => x.id !== rec.id));
       toast.success('Discrepancy confirmed and applied');
@@ -781,7 +781,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await base44.entities.CodBadgeChangeLog.update(String(rec.id), {
         status: 'dismissed',
         confirmed_at: new Date().toISOString(),
-        confirmed_by_name: currentUser?.full_name || currentUser?.email || null,
+        confirmed_by_name: currentUser?.full_name || currentUser?.email || null
       }).catch(() => {});
       setPaymentDiscrepancies((prev) => prev.filter((x) => x.id !== rec.id));
       toast.success('Discrepancy dismissed');
@@ -833,7 +833,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       await markFailedCodRefunded(deliveryId, currentUser?.id || null);
       toast.success('Marked refunded — amount returned to the card balance');
       computeLocalOutstandingRef.current?.();
-      computeCodCollectedTodayRef.current?.();    } catch (e) {
+      computeCodCollectedTodayRef.current?.();} catch (e) {
       console.error('markFailedRefunded failed:', e);
       toast.error('Could not mark the COD as refunded');
     }
@@ -1269,7 +1269,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       try {
         const rec = await fetchLatestSharedSnapshot().catch(() => null);
         if (rec?.payload) painted = applySnapshotData(deserializeSummary(rec.payload));
-      } catch { /* fall through to IDB */ }
+      } catch {/* fall through to IDB */}
       // OFFLINE-FIRST (Oct 2 2026): paint the last IDB snapshot instantly so
       // the page opens with real numbers even before the network round-trips
       // (config + sales + payouts + CODs outstanding all live in the snapshot
@@ -1307,7 +1307,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         setIsSyncing(false);
       }
     })();
-    return () => { pageBootCancelled = true; };
+    return () => {pageBootCancelled = true;};
     /* eslint-disable-next-line */
   }, []);
 
@@ -1844,12 +1844,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     };
     const locIds = new Set([...Object.keys(localOutstanding || {}), ...Object.keys(codOutstandingByLoc || {})]);
     locIds.forEach((locId) => {
-      const agg = (localOutstanding && localOutstanding[locId]) || codOutstandingByLoc[locId] || {};
-      (agg.items || []).forEach((it) => { if (it?.reason !== 'failed_uncollected') push(it); });
+      const agg = localOutstanding && localOutstanding[locId] || codOutstandingByLoc[locId] || {};
+      (agg.items || []).forEach((it) => {if (it?.reason !== 'failed_uncollected') push(it);});
       (agg.cashItems || []).forEach((it) => push(it));
     });
     Object.keys(catalogUncollectedByLoc || {}).forEach((locId) =>
-      (catalogUncollectedByLoc[locId] || []).forEach((it) => push(it)));
+    (catalogUncollectedByLoc[locId] || []).forEach((it) => push(it)));
     const all = [...byId.values()];
     return driverScopeId ? all.filter((it) => String(it.driver_id || '') === driverScopeId) : all;
   })();
@@ -1950,14 +1950,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Location cards — CENTERED per row (owner request Oct 9 2026):
-          no matter how many store cards exist, each row's cards are
-          horizontally centered (flex-wrap + justify-center so a lone last
-          card sits mid-row instead of hugging the left edge).
-          WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
-          380px max (basis 340px) — a slight spread so cards flex a little
-          to fill a row, but never squeeze the data (names truncating to
-          'Joanne ...'). When three can't fit at 320px+ the row wraps and
-          the extra card drops to a new centered row. Phones: full width. */}
+           no matter how many store cards exist, each row's cards are
+           horizontally centered (flex-wrap + justify-center so a lone last
+           card sits mid-row instead of hugging the left edge).
+           WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
+           380px max (basis 340px) — a slight spread so cards flex a little
+           to fill a row, but never squeeze the data (names truncating to
+           'Joanne ...'). When three can't fit at 320px+ the row wraps and
+           the extra card drops to a new centered row. Phones: full width. */}
       <div className="flex flex-wrap justify-center gap-3">
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
@@ -2179,10 +2179,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                                  Square Cards, pulled from the card (MOBILE) locations the per-store
-                                  sync never saw before. Attributed = fed by that store's sale
-                                  (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                                  unattributed = folder / manual transfer with no sale link yet. */}
+                                   Square Cards, pulled from the card (MOBILE) locations the per-store
+                                   sync never saw before. Attributed = fed by that store's sale
+                                   (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                                   unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -2314,7 +2314,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                                  card (does not reset the window). One-way only — never card → folder. */}
+                                   card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -2412,9 +2412,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* HOW THE BADGES WORK (owner request Oct 9 2026): short usage guide
-            for the clickable badges, collapsed by default at the bottom of the
-            page. The S/F/L line is owner-only (drivers see settled amounts
-            only). Drivers see a scope note — they only see their own rows. */}
+             for the clickable badges, collapsed by default at the bottom of the
+             page. The S/F/L line is owner-only (drivers see settled amounts
+             only). Drivers see a scope note — they only see their own rows. */}
       <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
         <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
           How the badges work
@@ -2455,11 +2455,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </details>
 
       {/* PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night): every COD whose
-          recorded collection type disagrees with what Square actually saw
-          (60-day scan, flagged by the backend balances updater — no in-app
-          auto-updates). ALWAYS visible while open flags exist; Confirm
-          applies the recorded→actual fix with normal fee/loan/folder math,
-          Dismiss closes it after review. Owner-only. */}
+           recorded collection type disagrees with what Square actually saw
+           (60-day scan, flagged by the backend balances updater — no in-app
+           auto-updates). ALWAYS visible while open flags exist; Confirm
+           applies the recorded→actual fix with normal fee/loan/folder math,
+           Dismiss closes it after review. Owner-only. */}
       {ownerCanEdit && paymentDiscrepancies.length > 0 &&
       <div className="mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -2469,25 +2469,25 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           <button type="button" onClick={() => loadPaymentDiscrepancies()} className="text-[11px] text-red-600 dark:text-red-400 hover:underline">Refresh</button>
         </div>
         <div className="mt-2 space-y-1.5">
-          {paymentDiscrepancies.map((r) => (
-            <div key={r.id || `${r.changed_at}-${r.delivery_id}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-red-100 dark:border-red-900/50 pb-1 text-xs text-slate-700 dark:text-slate-200">
-              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
-                {(() => { try { return new Date(r.changed_at).toLocaleString('en-CA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } })()}
+          {paymentDiscrepancies.map((r) =>
+          <div key={r.id || `${r.changed_at}-${r.delivery_id}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-red-100 dark:border-red-900/50 pb-1 text-xs text-slate-700 dark:text-slate-200">
+              <span className="font-mono text-slate-400 dark:text-slate-500 text-sm">
+                {(() => {try {return new Date(r.changed_at).toLocaleString('en-CA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });} catch (_) {return '';}})()}
               </span>
               <span className="font-semibold">{r.detail}</span>
               {r.patient_names && <span>· {r.patient_names}</span>}
               {r.store_name && <span className="text-slate-400 dark:text-slate-500">({r.store_name})</span>}
               {r.amount_cents > 0 && <span className="font-medium">${(r.amount_cents / 100).toFixed(2)}</span>}
               {['cash_swiped', 'type_mismatch'].includes(r.discrepancy_kind) &&
-              <button type="button" disabled={discrepancyBusy} onClick={() => confirmDiscrepancy(r)} className="ml-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
+            <button type="button" disabled={discrepancyBusy} onClick={() => confirmDiscrepancy(r)} className="ml-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
                 Confirm {r.actual_type === 'debit' ? 'Debit' : 'Credit'}
               </button>}
               <button type="button" disabled={discrepancyBusy} onClick={() => dismissDiscrepancy(r)} className="rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50">
                 Dismiss
               </button>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">detected {r.changed_at ? new Date(r.changed_at).toLocaleDateString('en-CA', { month: '2-digit', day: '2-digit' }) : ''} by Square sync</span>
+              <span className="text-slate-400 dark:text-slate-500 text-xs">detected {r.changed_at ? new Date(r.changed_at).toLocaleDateString('en-CA', { month: '2-digit', day: '2-digit' }) : ''} by Square sync</span>
             </div>
-          ))}
+          )}
         </div>
       </div>
       }
