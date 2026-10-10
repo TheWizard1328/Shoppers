@@ -366,16 +366,40 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
           <div className="pt-1 border-t border-slate-100 dark:border-slate-700 space-y-0.5">
             <div className="text-[10px] font-medium text-slate-400 text-center leading-tight">Combine into one swipe</div>
-            {(cashPick.cashRows || []).map((c) =>
-            <div key={c.delivery_id}
-            onClick={(e) => {e.stopPropagation();if (cashPickBusy) return;setCashPick((p) => p ? { ...p, sel: { ...(p.sel || {}), [c.delivery_id]: !(p.sel || {})[c.delivery_id] } } : p);}}
-            className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
-                <input type="checkbox" className="accent-emerald-600" readOnly checked={!!(cashPick.sel || {})[c.delivery_id]} />
-                {c.storeAbbrev && <span className="text-[9px] font-bold leading-none px-1 py-0.5 rounded-full text-white flex-shrink-0" style={{ backgroundColor: c.storeColor || '#64748b' }}>{c.storeAbbrev}</span>}
-                <span className="truncate flex-1 text-[11px] text-slate-600 dark:text-slate-300">{c.patientName || c.sub || 'COD'}</span>
-                <span className="tabular-nums text-[11px] font-medium text-slate-600 dark:text-slate-300">${Number(c.amount || 0).toFixed(2)}</span>
-              </div>
-            )}
+            {(() => {
+              // GROUP BY CARD (owner request Oct 9 2026 night): one section per
+              // Square card (Bonnie Doon / Callingwood / Londonderry ...) with
+              // a divider + card-name header between sections. Section order
+              // follows the page's card order; items without a known card go
+              // last under 'Other'.
+              const rows = cashPick.cashRows || [];
+              const order = (config?.locations || []).map((l) => l.location_id);
+              const groups = new Map();
+              rows.forEach((c) => {
+                const k = c.locId || '__other';
+                if (!groups.has(k)) groups.set(k, { name: c.locName || 'Other', items: [] });
+                groups.get(k).items.push(c);
+              });
+              const keys = [...groups.keys()].sort((a, b) => {
+                const ia = order.indexOf(a), ib = order.indexOf(b);
+                return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+              });
+              return keys.map((k, gi) =>
+              <div key={k} className={gi > 0 ? 'mt-1 pt-1 border-t border-slate-200 dark:border-slate-700' : ''}>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 px-1">{groups.get(k).name}</div>
+                  {groups.get(k).items.map((c) =>
+                <div key={c.delivery_id}
+                onClick={(e) => {e.stopPropagation();if (cashPickBusy) return;setCashPick((p) => p ? { ...p, sel: { ...(p.sel || {}), [c.delivery_id]: !(p.sel || {})[c.delivery_id] } } : p);}}
+                className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <input type="checkbox" className="accent-emerald-600" readOnly checked={!!(cashPick.sel || {})[c.delivery_id]} />
+                    {c.storeAbbrev && <span className="text-[9px] font-bold leading-none px-1 py-0.5 rounded-full text-white flex-shrink-0" style={{ backgroundColor: c.storeColor || '#64748b' }}>{c.storeAbbrev}</span>}
+                    <span className="truncate flex-1 text-[11px] text-slate-600 dark:text-slate-300">{c.patientName || c.sub || 'COD'}</span>
+                    <span className="tabular-nums text-[11px] font-medium text-slate-600 dark:text-slate-300">${Number(c.amount || 0).toFixed(2)}</span>
+                  </div>
+                )}
+                </div>
+              );
+            })()}
             {(() => {
               const selRows = (cashPick.cashRows || []).filter((c) => (cashPick.sel || {})[c.delivery_id]);
               const total = [cashPick.row, ...selRows].reduce((sm, x) => sm + Number(x?.amount || 0), 0);
@@ -1919,11 +1943,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // for deliveries assigned to them.
   const combineCandidates = (() => {
     const byId = new Map();
-    const push = (it) => {
+    const push = (it, locId = null) => {
       if (!it?.delivery_id) return;
       const key = String(it.delivery_id);
       if (byId.has(key)) return;
+      const locCfg = (config?.locations || []).find((l) => l.location_id === locId);
       byId.set(key, {
+        // Card section the popup groups under (owner request Oct 9 2026
+        // night: split the multi-select list per card with dividers).
+        locId: locId || null,
+        locName: locCfg?.name || null,
         delivery_id: it.delivery_id,
         patientName: it.patient || it.patientName || null,
         storeAbbrev: it.storeAbbrev || null,
@@ -1935,11 +1964,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const locIds = new Set([...Object.keys(localOutstanding || {}), ...Object.keys(codOutstandingByLoc || {})]);
     locIds.forEach((locId) => {
       const agg = localOutstanding && localOutstanding[locId] || codOutstandingByLoc[locId] || {};
-      (agg.items || []).forEach((it) => {if (it?.reason !== 'failed_uncollected') push(it);});
-      (agg.cashItems || []).forEach((it) => push(it));
+      (agg.items || []).forEach((it) => {if (it?.reason !== 'failed_uncollected') push(it, locId);});
+      (agg.cashItems || []).forEach((it) => push(it, locId));
     });
     Object.keys(catalogUncollectedByLoc || {}).forEach((locId) =>
-    (catalogUncollectedByLoc[locId] || []).forEach((it) => push(it)));
+    (catalogUncollectedByLoc[locId] || []).forEach((it) => push(it, locId)));
     const all = [...byId.values()];
     return driverScopeId ? all.filter((it) => String(it.driver_id || '') === driverScopeId) : all;
   })();
