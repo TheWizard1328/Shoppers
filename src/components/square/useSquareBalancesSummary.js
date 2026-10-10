@@ -382,15 +382,62 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
     if (!byLoc.has(locId)) byLoc.set(locId, { gross: 0, fees: 0, loan: 0, folder: 0, credits: 0, count: 0, lastAt: null });
     return byLoc.get(locId);
   };
+  // ── OWNER REQUEST (Oct 9 2026 night): cash-collected deliveries that were
+  // actually SWIPED on Square as Debit/Credit must be reflected in the card
+  // balance, loan fees and folder fees without waiting for a manual tender
+  // fix. Linked ledger cod_collection rows with a card brand carry the REAL
+  // fee/loan/folder/settled cents. The delivery stays recorded Cash in-app
+  // (its amount still deducts as cash_awaiting_card); only the settled net
+  // is credited here. A later Confirm gives it card payments and this pass
+  // skips it — no double count. Mirrors the squareBalancesCompute backend.
+  const swipeSinceIso = tuMs != null ? new Date(tuMs - 6 * 3600000).toISOString() : cutoffDate;
+  let swipeRows = [];
+  try {
+    for (let page = 0; page < 20; page++) {
+      const rows = await base44.entities.SquareLedgerEntry.filter(
+        { sale_class: 'cod_collection', occurred_at: { $gte: swipeSinceIso } },
+        'created_date', 500, page * 500
+      ).catch(() => []);
+      const list = rows || [];
+      swipeRows.push(...list);
+      if (list.length < 500) break;
+    }
+  } catch (_) { /* swiped-cash credit pass is best-effort on the fallback path */ }
+  const swipeIdx = new Map();
+  for (const r of swipeRows) {
+    if (!r || String(r?.status || '').toUpperCase() !== 'COMPLETED') continue;
+    if (!r?.delivery_id || !String(r?.card_brand || '')) continue;
+    const k = String(r.delivery_id);
+    if (!swipeIdx.has(k)) swipeIdx.set(k, []);
+    swipeIdx.get(k).push(r);
+  }
   const collectFrom = (d) => {
     if (d?.status !== 'completed' || !isCounted(d)) return;
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const cardPayments = payments.filter((p) =>
       ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount) > 0);
-    if (cardPayments.length === 0) return;
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) return;
     const loanRate = loanRateByLoc.get(locId) || 0;
+    if (cardPayments.length === 0) {
+      const rows = swipeIdx.get(String(d?.id)) || [];
+      if (!rows.length) return;
+      const agg = aggFor(locId);
+      for (const r of rows) {
+        const grossC = Math.round(Number(r?.amount_cents || 0));
+        if (!(grossC > 0)) continue;
+        const brandTender = String(r.card_brand || '').toUpperCase() === 'INTERAC' ? 'debit' : 'credit';
+        const feeC = Number.isFinite(r?.fee_cents) ? Math.round(Number(r.fee_cents)) : estimateCardFeeCents(grossC, brandTender);
+        const loanC = Number.isFinite(r?.loan_cents) ? Math.round(Number(r.loan_cents)) : Math.round(grossC * loanRate);
+        const folderC = Number.isFinite(r?.folder_cents) ? Math.round(Number(r.folder_cents)) : folderCentsFor(grossC, folderRate);
+        const settledC = Number.isFinite(r?.settled_cents) ? Math.round(Number(r.settled_cents)) : Math.max(0, grossC - feeC - loanC - folderC);
+        agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
+        agg.credits += settledC; agg.count += 1;
+        const occ = String(r?.occurred_at || '');
+        if (occ && String(agg.lastAt || '') < occ) agg.lastAt = occ;
+      }
+      return;
+    }
     const agg = aggFor(locId);
     for (const p of cardPayments) {
       // Integer cents per payment (owner spec Oct 7 2026): each component is

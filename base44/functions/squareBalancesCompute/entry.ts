@@ -195,6 +195,27 @@ async function computeSummary(b44, userId) {
     if (!deliveryCredits.has(locId)) deliveryCredits.set(locId, { gross: 0, fees: 0, loan: 0, folder: 0, credits: 0, count: 0, lastAt: null });
     return deliveryCredits.get(locId);
   };
+  // ── OWNER REQUEST (Oct 9 2026 night): cash-collected deliveries that were
+  // actually SWIPED on Square as Debit/Credit must be reflected in the card
+  // balance, loan fees and folder fees — without waiting for a manual tender
+  // fix in the discrepancy viewer. Square truth lives in the ledger
+  // cod_collection rows: a delivery_id-linked row with a card brand means the
+  // swipe really happened. The delivery stays recorded Cash in-app (its full
+  // amount already DEDUCTS as cash_awaiting_card, mirroring the swipe leaving
+  // the card); here we add back the settled net with the ledger's REAL
+  // Square fee / loan% / folder% cents. A later viewer Confirm converts the
+  // tender, gives the delivery card payments, and this pass skips it
+  // (hasCard) — no double count.
+  const swipeSince = tuMs != null ? new Date(tuMs - 6 * 3600000).toISOString() : cutoffDate;
+  const swipeRowsRaw = await pagedFilter(b44, 'SquareLedgerEntry', { sale_class: 'cod_collection', occurred_at: { $gte: swipeSince } }, '-occurred_at', 20).catch(() => []);
+  const swipeIdx = new Map(); // delivery_id -> [ledger rows]
+  for (const r of swipeRowsRaw || []) {
+    if (String(r?.status || '').toUpperCase() !== 'COMPLETED') continue;
+    if (!r?.delivery_id || !String(r?.card_brand || '')) continue;
+    const k = String(r.delivery_id);
+    if (!swipeIdx.has(k)) swipeIdx.set(k, []);
+    swipeIdx.get(k).push(r);
+  }
   const seenDelivId = new Set();
   for (const d of completedAll) {
     if (!d?.id || seenDelivId.has(String(d.id))) continue; // tail overlap
@@ -202,10 +223,32 @@ async function computeSummary(b44, userId) {
     if (d?.status !== 'completed' || !isCountedCredits(d)) continue;
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const cardPayments = payments.filter((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount) > 0);
-    if (!cardPayments.length) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) continue;
     const loanRate = loanRateByLoc.get(locId) || 0;
+    // Cash-recorded but Square-swiped: credit the settled net from the
+    // linked ledger rows (real cents). Recorded card payments below keep
+    // their existing per-payment math.
+    if (!cardPayments.length) {
+      const swipeRows = swipeIdx.get(String(d.id)) || [];
+      if (swipeRows.length) {
+        const agg = aggForCredit(locId);
+        for (const r of swipeRows) {
+          const grossC = Math.round(Number(r?.amount_cents || 0));
+          if (!(grossC > 0)) continue;
+          const brandTender = String(r.card_brand || '').toUpperCase() === 'INTERAC' ? 'debit' : 'credit';
+          const feeC = Number.isFinite(r?.fee_cents) ? Math.round(Number(r.fee_cents)) : estimateCardFeeCents(grossC, brandTender);
+          const loanC = Number.isFinite(r?.loan_cents) ? Math.round(Number(r.loan_cents)) : Math.round(grossC * loanRate);
+          const folderC = Number.isFinite(r?.folder_cents) ? Math.round(Number(r.folder_cents)) : folderCentsFor(grossC, folderRate);
+          const settledC = Number.isFinite(r?.settled_cents) ? Math.round(Number(r.settled_cents)) : Math.max(0, grossC - feeC - loanC - folderC);
+          agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
+          agg.credits += settledC; agg.count += 1;
+          const occ = String(r?.occurred_at || '');
+          if (occ && String(agg.lastAt || '') < occ) agg.lastAt = occ;
+        }
+      }
+      continue;
+    }
     const agg = aggForCredit(locId);
     for (const p of cardPayments) {
       const grossC = Math.round(Number(p.amount) * 100);
