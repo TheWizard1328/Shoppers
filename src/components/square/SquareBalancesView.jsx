@@ -317,14 +317,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                       // twice and left the settled amount off by $0.05).
                       // COMBINE CANDIDATES (owner rule Oct 9 2026): the
                       // checkbox list is every UNCOLLECTED item on the card —
-                      // not just cash-collected ones — and stores SHARE cards,
-                      // so candidates span ALL cards on the page (cross-store
-                      // swipes), not just this store's sections.
+                      // but ONE swipe runs on ONE physical card, so candidates
+                      // are limited to the TAPPED card (owner correction Oct 9
+                      // 23:44: combining across different cards is impossible
+                      // at the POS anyway).
                       const candSrc = Array.isArray(combineCandidates) && combineCandidates.length ?
                       combineCandidates :
                       (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
                       const cashRows = statusLabel === 'Cash' ?
-                      candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id)) : [];
+                      candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id) && String(x.locId || cardLocId || '') === String(cardLocId || '')) : [];
                       setCashPick({ row: r, label: statusLabel, cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                     }}
                     title="Tap to change this tender (Debit / Credit / Cash)"
