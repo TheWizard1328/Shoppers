@@ -3,6 +3,7 @@ import MobileOverlayBackHandler from './MobileOverlayBackHandler';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
 import PushNotificationPrompt from '../common/PushNotificationPrompt';
 import DriverAvailabilityPrompt from './DriverAvailabilityPrompt';
+import AppIssueSupport from './AppIssueSupport';
 import CitySelectionPopup from '../cities/CitySelectionPopup';
 import DeviceRegistration from '../devices/DeviceRegistration';
 import MessagingPanel from '../messaging/MessagingPanel';
@@ -57,6 +58,9 @@ export default function GlobalOverlays({
       {/* Driver-side Yes/No prompt for an active availability request —
           the in-app fallback for pushes received while the app was killed */}
       <DriverAvailabilityPrompt currentUser={currentUser} />
+
+      {/* Headless: restart-detection boot beacon + App Issues push deep link */}
+      <AppIssueSupport currentUser={currentUser} />
 
       {showCitySelectionPopup && currentUser &&
       <CitySelectionPopup

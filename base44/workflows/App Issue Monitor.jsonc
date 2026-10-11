@@ -1,0 +1,47 @@
+{
+  "name": "App Issue Monitor",
+  "description": "Scheduled app health watchdog (Oct 11 2026): every 10 minutes scans RemoteLogEntry for the last 30 minutes and detects frequent app restarts (app_start boot beacons), repeated rate limit hits (429/rate limit), and elevated error volume, per user. On detection: in-app 'App Issues' message to the owner (issue + affected user) and to the affected user (issue detected, developer notified), plus a simple push to the owner whose tap opens the App Issues conversation. Per user+issue-type cooldowns live in AppSettings 'app_issue_monitor_state'; thresholds in 'app_issue_monitor'.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/10 * * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "scan_app_issues": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "dry_run": false
+            },
+            "function_name": "appIssueMonitor"
+          },
+          "x-base44": {
+            "description": "Scan recent device logs for restarts, rate limits, and error storms; alert owner + affected users",
+            "title": "App issue scan"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "app_issue_monitor",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}

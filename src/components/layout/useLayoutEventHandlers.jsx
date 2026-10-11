@@ -290,7 +290,16 @@ export function useLayoutEventHandlers({
       setUnreadMessageCount(0);setShowMessaging(true);
     };
     const handleOpenMessagingPanel = () => {setInitialConversation(null);setUnreadMessageCount(0);setShowMessaging(true);};
+    // App Issues conversation (push deep link /?app_issue_message=<id> from the
+    // appIssueMonitor watchdog — dispatched by AppIssueSupport after validating
+    // the message belongs to the current user).
+    const handleOpenAppIssueConversation = () => {
+      if (!currentUser?.id) return;
+      setInitialConversation({ conversationId: ['app_issues', currentUser.id].sort().join('_'), otherUserId: 'app_issues', otherUserName: 'App Issues' });
+      setUnreadMessageCount(0);setShowMessaging(true);
+    };
     window.addEventListener('openMessaging', handleOpenMessaging);window.addEventListener('openMessagingPanel', handleOpenMessagingPanel);
+    window.addEventListener('openAppIssueConversation', handleOpenAppIssueConversation);
 
     // Listen for user role changes and update UI immediately
     const handleUserRolesChanged = async (event) => {
