@@ -1,0 +1,33 @@
+{
+  "name": "SquareBalancesSnapshot",
+  "type": "object",
+  "description": "ONE shared, whole-database broadcast of the computed Square Balances summary (owner spec Oct 9 2026). The owner device's badge pipeline computes the full summary (card balances, loan/folder math, weekly averages, outstanding/cash/deduct items, delivery credits, payouts, config) and publishes the finished numbers here as a single record; every other device's WS ping pulls the whole record, paints UI instantly and refreshes its IDB mirror, then verifies with its own background compute. Whole-snapshot broadcast by design: no per-item events, no merge conflicts — one record, one monotonic version.",
+  "properties": {
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Serialized summary payload (same shape as the IDB square_balances_summary snapshot: Maps as entry arrays) — byLocId card math, payoutsByLoc, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore, codOutstandingDetailed (items with patient/store/driver/amount/fees), config, deliveryCredits, payouts"
+    },
+    "version": {
+      "type": "number",
+      "description": "Monotonic publish version (Date.now() at compute time). Devices apply a remote snapshot only when this is newer than what they already applied — this is also the echo guard"
+    },
+    "computed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO timestamp of the compute that produced this payload (data freshness indicator)"
+    },
+    "computed_by": {
+      "type": "string",
+      "description": "AppUser id of the device that computed and published this snapshot (owner devices only)"
+    },
+    "computed_by_name": {
+      "type": "string",
+      "description": "AppUser name of the computing device"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "rls": {}
+}

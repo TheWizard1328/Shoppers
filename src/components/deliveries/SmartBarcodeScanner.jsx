@@ -12,7 +12,16 @@ import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import BarcodeThumb from './BarcodeThumb';
 import { openStream, cycleRearCamera, getSavedCameraId, listCameras, getCachedStream, isStreamAlive, detachStream } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
-import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
+
+
+// iOS detection (module-level, stable): the thin center scan strip is an iOS
+// aiming aid only — Android full-frame detection needs no strip guidance.
+const isIOSDevice = (() => {
+  try {
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+  } catch { return false; }
+})();
 
 const classifyBarcode = (value) => {
   const raw = String(value || '').trim();
@@ -394,6 +403,39 @@ export default function SmartBarcodeScanner({
           const text = result.getText ? result.getText() : String(result?.text || '');
           if (text) handleCameraDetected(text);
         }
+
+        // ── Multi-barcode grid pass (owner request, Sep 28 2026) ──────────
+        // ZXing returns only the FIRST barcode it finds per decode, so a frame
+        // containing TWO patient labels yields just one value. Every 3rd
+        // frame, ALSO decode a 2x2 grid of overlapping crops of the FULL-RES
+        // frame and feed every DISTINCT value to handleCameraDetected — dedupe
+        // (800ms same-value window + addBarcode's existing-value check) keeps
+        // it clean, so multiple labels in view auto-collect one beep each.
+        if (frameCount % 3 === 0) {
+          const foundThisPass = new Set();
+          const OVER = 0.12; // overlap fraction — barcodes spanning a grid line stay decodable
+          const cols = 2, rows = 2;
+          const cw = vw / cols, ch = vh / rows;
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const sx = Math.max(0, c * cw - cw * OVER);
+              const sy = Math.max(0, r * ch - ch * OVER);
+              const sw = Math.min(vw - sx, cw * (1 + 2 * OVER));
+              const sh = Math.min(vh - sy, ch * (1 + 2 * OVER));
+              if (sw < 100 || sh < 100) continue;
+              const cropScale = Math.min(1, 800 / sw);
+              zxingCanvas.width = Math.round(sw * cropScale);
+              zxingCanvas.height = Math.round(sh * cropScale);
+              zxingCtx.drawImage(videoRef.current, sx, sy, sw, sh, 0, 0, zxingCanvas.width, zxingCanvas.height);
+              try {
+                const cropResult = codeReaderRef.current.decodeFromCanvas(zxingCanvas);
+                const t = cropResult?.getText ? cropResult.getText() : String(cropResult?.text || '');
+                if (t && !foundThisPass.has(t)) foundThisPass.add(t);
+              } catch { /* NotFound — normal */ }
+            }
+          }
+          for (const t of foundThisPass) handleCameraDetected(t);
+        }
       } catch {
         // NotFoundException — no barcode this frame, normal
       }
@@ -437,9 +479,16 @@ export default function SmartBarcodeScanner({
       setIsStartingCamera(false);
 
       // ── Try native BarcodeDetector (5-10x faster on Chrome/Android) ──
-      // In Capacitor APK (Android WebView), BarcodeDetector may exist but silently fail.
-      // Skip it entirely in native apps and use the ZXing canvas-based fallback.
-      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window && !isCapacitorNativeApp();
+      // Owner fix (Sep 29 2026): the APK skip is REMOVED — Android WebView is
+      // Chromium and normally ships a working BarcodeDetector; skipping it
+      // forced the APK onto the ZXing fallback, whose weaker full-frame decode
+      // made barcodes only register when held big/close inside the thin strip.
+      // Native detect() scans the WHOLE frame at full resolution and returns
+      // every barcode in view (old Android behavior). The existing failure
+      // guards cover WebViews where it exists but silently fails: 5s of empty
+      // results starts the ZXing backup alongside; 10 consecutive detect()
+      // errors cut over to ZXing entirely.
+      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
       if (hasNative) {
         try {
           // Use getSupportedFormats() to avoid constructor throwing on unsupported formats.
@@ -474,8 +523,17 @@ export default function SmartBarcodeScanner({
               bdFailCount = 0; // reset on successful detect() call (even if empty)
               if (barcodes?.length > 0) {
                 bdEmptyCount = 0;
-                const text = barcodes[0].rawValue || String(barcodes[0].value || '');
-                if (text) handleCameraDetected(text);
+                // Multi-barcode (owner request, Sep 28 2026): detect() returns EVERY
+                // barcode in the frame — feed each DISTINCT value so a bag with two
+                // labels auto-collects both. Dedupe (800ms same-value window +
+                // addBarcode's existing check) keeps repeats clean.
+                const seenThisFrame = new Set();
+                for (const bc of barcodes) {
+                  const text = bc?.rawValue || String(bc?.value || '');
+                  if (!text || seenThisFrame.has(text)) continue;
+                  seenThisFrame.add(text);
+                  handleCameraDetected(text);
+                }
               } else {
                 bdEmptyCount++;
                 // If detect() returns empty 50 times (5 seconds at 100ms), start ZXing as backup
@@ -643,7 +701,8 @@ export default function SmartBarcodeScanner({
           placeholder="Scan or type barcode and press Enter..." className="px-3 py-2 text-sm font-mono rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm flex-1 h-9"
 
           disabled={disabled}
-          autoComplete="off" />
+          autoComplete="off"
+          data-keyboard-safe-scan="true" />
         
         <input
           ref={hiddenInputRef}
@@ -656,7 +715,8 @@ export default function SmartBarcodeScanner({
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
-          inputMode="none" />
+          inputMode="none"
+          data-keyboard-safe-scan="true" />
         
         {isMobile &&
         <Button
@@ -748,8 +808,11 @@ export default function SmartBarcodeScanner({
                 </div>
               )}
 
-              {/* Alignment laser bar — horizontal strip for barcode aiming */}
-              {!flashHit && !cameraError && (
+              {/* Alignment laser bar — iOS-only aiming aid.
+                  Android/desktop scan the ENTIRE frame (native detector or ZXing
+                  full-frame), so no strip guide is shown there — it misled users
+                  into thinking only the strip area could detect (owner Sep 29). */}
+              {!flashHit && !cameraError && isIOSDevice && (
                 <>
                   {/* Crop zone outline — center 60% × 15% */}
                   <div

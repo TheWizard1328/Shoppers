@@ -59,25 +59,58 @@ export async function runAcceptAllBatchPipeline({
 
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
 
-    // ── delivery_time_start resolution (Robert's rules, confirmed Sep 4 2026) ──
-    // 1) Patient has a pre-assigned time window that hasn't passed (>= now) — honor it
-    // 2) No patient window, OR the window is stale (in the past) — stamp now+5.
-    //    Windowless deliveries ALWAYS get now+5 at Accept All — any previous
-    //    start value (creation-time leftovers, staged-transition pickup+5, etc.)
-    //    is never kept.
+    // ── delivery_time_start resolution (owner rule, restated 6th time Sep 30 2026) ──
+    // Patient time windows are ONLY creation-time defaults. Once the delivery
+    // exists, THE DELIVERY'S OWN WINDOWS TAKE PRECEDENCE. The patient window is
+    // consulted ONLY when the delivery's own delivery_time_start is blank.
+    //   1) Delivery has its own delivery_time_start — keep it, ALWAYS. Never
+    //      let the patient's standing default overwrite a per-delivery value a
+    //      dispatcher explicitly set (this exact inversion kept re-sequencing a
+    //      18:00 delivery to its patient's stale 15:00 default).
+    //   2) Blank delivery start + valid (not passed) patient window — use it.
+    //   3) Otherwise — now+5 stamp (existing behavior).
+    const ownStartMin = delivery.delivery_time_start ? _parseTimeToMinutes(delivery.delivery_time_start) : null;
     const patientWindowStartMin = patient?.time_window_start ? _parseTimeToMinutes(patient.time_window_start) : null;
 
     let resolvedStart;
-    if (patientWindowStartMin != null && nowMinutes != null && patientWindowStartMin >= nowMinutes) {
-      // Rule 1: patient window still valid — use it
+    if (ownStartMin != null) {
+      // Rule 1: the delivery's own window is authoritative once created.
+      // OWNER AMENDMENT (Oct 2 2026): EXCEPT when the delivery's own start is
+      // EARLIER than the patient's window start — a dispatcher can create/
+      // edit a pending stop with a start that precedes when the patient is
+      // actually available. At Accept All the stop is about to be sequenced,
+      // so reset it to the patient's start so the optimizer gets the correct
+      // earliest-arrival time (only raises, never lowers).
+      if (patientWindowStartMin != null && ownStartMin < patientWindowStartMin) {
+        resolvedStart = patient.time_window_start;
+      } else {
+        resolvedStart = delivery.delivery_time_start;
+      }
+    } else if (patientWindowStartMin != null && nowMinutes != null && patientWindowStartMin >= nowMinutes) {
+      // Rule 2: blank delivery window — patient default still valid, use it
       resolvedStart = patient.time_window_start;
     } else {
-      // Rule 2: no patient window, or stale window in the past — now+5
+      // Rule 3: no usable window anywhere — now+5
       resolvedStart = deliveryTimeStart || '09:00';
     }
 
-    // delivery_time_end: patient window takes priority, otherwise keep existing
-    const resolvedEnd = patient?.time_window_end || delivery.delivery_time_end || '';
+    // delivery_time_end: same precedence — delivery's own end first, patient
+    // default only as fallback when the delivery's end is blank
+    let resolvedEnd = delivery.delivery_time_end || patient?.time_window_end || '';
+
+    // END GUARD (companion to the start reset above): if the start was just
+    // raised past the delivery's own end, the window is now invalid
+    // (start > end). Prefer the patient's end when it still covers the new
+    // start; otherwise pin end to the new start so the optimizer never sees
+    // an inverted window.
+    const resolvedStartMin = _parseTimeToMinutes(resolvedStart);
+    const resolvedEndMin = resolvedEnd ? _parseTimeToMinutes(resolvedEnd) : null;
+    if (resolvedStartMin != null && resolvedEndMin != null && resolvedEndMin < resolvedStartMin) {
+      const patientEndMin = patient?.time_window_end ? _parseTimeToMinutes(patient.time_window_end) : null;
+      resolvedEnd = (patientEndMin != null && patientEndMin >= resolvedStartMin)
+        ? patient.time_window_end
+        : resolvedStart;
+    }
 
     return {
       ...delivery,
@@ -97,6 +130,10 @@ export async function runAcceptAllBatchPipeline({
   } catch (e) {
     console.warn('[AcceptAll] offlineDB bulkSave failed:', e?.message || e);
   }
+
+  // Freeze the card order BEFORE the optimistic transition — the coordinator's
+  // freshDeliveries (with the real new order) release the lock when they land.
+  window.dispatchEvent(new CustomEvent('routeDisplayOrderLock', { detail: { driverId, deliveryDate } }));
 
   // Update UI IMMEDIATELY (optimistic) — don't wait for any backend writes.
   if (updateDeliveriesLocally && updatedDeliveries.length > 0) {

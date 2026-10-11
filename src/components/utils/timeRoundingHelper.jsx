@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { edmontonWallString, parseAnyTimestamp } from './albertaTime';
 
 /**
  * Determines if this is the first or last FINISHED stop for the driver on this date.
@@ -52,72 +53,52 @@ export function getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES)
  * @returns {string} The formatted local ISO timestamp string.
  */
 export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_STATUSES) => {
+  // Device-timezone-independent completion timestamp.
+  // OLD BUG: this built the wall components from system-local Date getters
+  // (getFullYear/getHours...). Devices with a broken or premature timezone
+  // engine (e.g. a Windows tz update putting Alberta at UTC-7 before the
+  // legislated change) generated timestamps a full hour off, which then got
+  // stored as actual_delivery_time and activity-segment anchors.
+  // NEW: take the true instant (clock is correct on every device; only the
+  // tz ENGINE is unreliable) and convert to Edmonton wall time via pure UTC
+  // math. Output format is unchanged: naive "YYYY-MM-DDTHH:mm:ss".
   const now = new Date();
-  const currentTime = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    now.getHours(),
-    now.getMinutes(),
-    now.getSeconds(),
-    0
-  );
 
   const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES);
 
+  let ms = now.getTime();
   if (isFirstFinished || isLastFinished) {
     const fiveMin = 5 * 60 * 1000;
-    const ms = currentTime.getTime();
-    let roundedMs;
-
     if (isFirstFinished) {
       // First finished stop → floor to previous 5-min mark
-      roundedMs = Math.floor(ms / fiveMin) * fiveMin;
+      ms = Math.floor(ms / fiveMin) * fiveMin;
     } else {
       // Last finished stop → ceil to next 5-min mark
       // If already exactly on a 5-min mark, don't round up
       if (ms % fiveMin === 0) {
-        roundedMs = ms;
+        // keep
       } else {
-        roundedMs = Math.ceil(ms / fiveMin) * fiveMin;
+        ms = Math.ceil(ms / fiveMin) * fiveMin;
       }
     }
-
-    currentTime.setTime(roundedMs);
   }
 
-  return formatLocalTimestamp(currentTime);
+  return edmontonWallString(new Date(ms));
 };
 
 const pad = (value) => String(value).padStart(2, '0');
 
-const formatLocalTimestamp = (date) => {
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  const seconds = pad(date.getSeconds());
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-};
+// Naive Edmonton wall string from a true UTC instant — pure math, no system-local
+// getters (devices with premature tz data misreported local hours by 1).
+const formatLocalTimestamp = (date) => edmontonWallString(date);
 
 export const parseLocalTimestamp = (value) => {
-  if (!value || typeof value !== 'string') return null;
-  const normalized = value.includes('T') ? value : `${value}T00:00:00`;
-  const cleaned = normalized.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
-  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (!match) return null;
-  const [, yearStr, monthStr, dayStr, hourStr, minuteStr, secondStr = '00'] = match;
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const day = Number(dayStr);
-  const hours = Number(hourStr);
-  const minutes = Number(minuteStr);
-  const seconds = Number(secondStr);
-  const date = new Date(0);
-  date.setFullYear(year, month - 1, day);
-  date.setHours(hours, minutes, seconds, 0);
-  return Number.isNaN(date.getTime()) ? null : date;
+  // Device-timezone-independent parse. Naive strings (no Z/offset) are Edmonton
+  // wall time by storage convention — previously parsed via setHours/setFullYear
+  // (device-local), which skewed by an hour on machines with premature tz data.
+  if (!value) return null;
+  const d = parseAnyTimestamp(typeof value === 'string' && !value.includes('T') ? `${value}T00:00:00` : value);
+  return d && !Number.isNaN(d.getTime()) ? d : null;
 };
 
 export const shouldUseRegularTiming = ({ deliveryDate, todayDateString, currentTimeString }) => {

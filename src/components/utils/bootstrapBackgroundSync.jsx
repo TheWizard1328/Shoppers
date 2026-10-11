@@ -11,6 +11,7 @@
  */
 
 import { offlineDB } from './offlineDatabase';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
 import { indexInterStoreLocation } from './interStoreDisplayName';
 
@@ -50,7 +51,7 @@ export const runBootstrapBackgroundSync = async (callbacks = {}) => {
       base44.entities.City.list().catch(() => null),
       base44.entities.Store.list().catch(() => null),
       base44.entities.AppUser.list().catch(() => null),
-      base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).catch(() => null),
+      getAppSettingRows('refresh_intervals').catch(() => []),
       base44.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => null),
       base44.entities.InterStoreLocation.list().catch(() => null),
     ]);

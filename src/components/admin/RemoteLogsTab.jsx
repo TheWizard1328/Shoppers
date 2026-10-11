@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import MultiSelect from '@/components/ui/multi-select';
-import { Label } from '@/components/ui/label';
 import { sortUsers, sortStores } from '@/components/utils/sorting';
 import { clearRemoteLogs } from '@/functions/clearRemoteLogs';
 
@@ -15,6 +14,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [settings, setSettings] = useState(null);
   const [search, setSearch] = useState('');
   const [level, setLevel] = useState('all');
+  const [eventType, setEventType] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [logUserFilter, setLogUserFilter] = useState('all');
   const [live, setLive] = useState(false);
@@ -59,6 +59,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
       const query = {};
       if (logUserFilter !== 'all') query.user_id = logUserFilter;
       if (level !== 'all') query.level = level;
+      if (eventType !== 'all') query.event_type = eventType;
       const logRows = Object.keys(query).length > 0
         ? await base44.entities.RemoteLogEntry.filter(query, '-created_date', LOG_FETCH_LIMIT, skip)
         : await base44.entities.RemoteLogEntry.list('-created_date', LOG_FETCH_LIMIT, skip);
@@ -121,7 +122,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   useEffect(() => {
     fetchLogPage({ skip: 0, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logUserFilter, level, logsRefreshKey]);
+  }, [logUserFilter, level, eventType, logsRefreshKey]);
 
   // ── LIVE WS FEED ──────────────────────────────────────────────────────
   // Subscribe to RemoteLogEntry broadcasts while the tab is open so new
@@ -235,10 +236,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const filteredLogs = useMemo(() => {
     return (logs || []).filter((log) => {
-      if (search && !`${log.message} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
+      if (eventType !== 'all' && log.event_type !== eventType) return false;
+      if (search && !`${log.message} ${log.event_type || ''} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [logs, search]);
+  }, [logs, search, eventType]);
 
   const driverUsers = useMemo(() => {
     return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
@@ -357,6 +359,18 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 </SelectContent>
               </Select>
             </div>
+            <Select value={eventType} onValueChange={setEventType}>
+              <SelectTrigger className="w-full md:w-56"><SelectValue placeholder="Event type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All event types</SelectItem>
+                <SelectItem value="NETWORK_WEAK">Weak connection</SelectItem>
+                <SelectItem value="NETWORK_OFFLINE">No connection</SelectItem>
+                <SelectItem value="NETWORK_RECOVERED">Connection recovered</SelectItem>
+                <SelectItem value="GPS_WEAK">Weak GPS lock</SelectItem>
+                <SelectItem value="GPS_LOST">No GPS lock</SelectItem>
+                <SelectItem value="GPS_RECOVERED">GPS recovered</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -379,6 +393,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 <tr>
                   <th className="p-2 text-left">Time</th>
                   <th className="p-2 text-left">Level</th>
+                  <th className="p-2 text-left">Event</th>
                   <th className="p-2 text-left">User</th>
                   <th className="p-2 text-left">Page</th>
                   <th className="p-2 text-left">Message</th>
@@ -389,6 +404,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 <tr key={log.id} className="border-b align-top">
                     <td className="p-2 whitespace-nowrap">{formatLocalTimestamp(log.timestamp || log.created_date)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
+                    <td className="p-2 whitespace-nowrap">{log.event_type || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
                     <td className="p-2 break-words">{log.message}</td>

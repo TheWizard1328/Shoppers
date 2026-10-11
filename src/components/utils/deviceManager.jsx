@@ -4,6 +4,49 @@ import { requestManager } from './requestManager';
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 const DEVICE_CACHE_TTL_MS = 60000;
 
+// ── Device identifier IDB backup (owner report Oct 8 2026) ────────────────
+// Android WebView evicts localStorage while keeping IndexedDB alive. The
+// device identifier previously lived ONLY in localStorage, so every eviction
+// wiped it and DeviceRegistration re-prompted drivers to re-select a device
+// from the device manager on every boot. Mirroring the idbCrypto key-backup
+// pattern: back the identifier up inside IDB (crypto_meta store, never
+// encrypted) and restore it at boot BEFORE any device check runs.
+const DEVICE_ID_BACKUP_ID = 'rxdeliver_device_id_backup_v1';
+
+/** Restore the device identifier from the IDB backup when localStorage lost it. */
+export async function restoreDeviceIdentifierFromIdb() {
+  try {
+    if (localStorage.getItem(DEVICE_ID_KEY)) return false; // nothing lost
+    const offlineDB = (await import('./offlineDatabase.jsx')).offlineDB;
+    const rows = await offlineDB.getAll(offlineDB.STORES.CRYPTO_META).catch(() => []);
+    const rec = (rows || []).find((r) => r?.id === DEVICE_ID_BACKUP_ID && r?.device_identifier);
+    if (!rec) return false;
+    localStorage.setItem(DEVICE_ID_KEY, rec.device_identifier);
+    console.log('[DeviceManager] RESTORED device identifier from IDB backup — localStorage had been evicted');
+    return true;
+  } catch (e) {
+    console.warn('[DeviceManager] Device identifier backup restore failed:', e?.message || e);
+    return false;
+  }
+}
+
+/** Persist the current device identifier to the IDB backup store (upsert). */
+export async function backupDeviceIdentifierToIdb() {
+  try {
+    const deviceId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!deviceId) return;
+    const offlineDB = (await import('./offlineDatabase.jsx')).offlineDB;
+    await offlineDB.bulkSave(offlineDB.STORES.CRYPTO_META, [{
+      id: DEVICE_ID_BACKUP_ID,
+      device_identifier: deviceId,
+      saved_at: new Date().toISOString()
+    }]);
+  } catch (e) {
+    // non-fatal — identifier remains valid this session
+    console.warn('[DeviceManager] Device identifier backup write failed:', e?.message || e);
+  }
+}
+
 const getDeviceCacheStorageKey = (userId, deviceId) => `rxdeliver_current_device_${userId}_${deviceId}`;
 
 /**

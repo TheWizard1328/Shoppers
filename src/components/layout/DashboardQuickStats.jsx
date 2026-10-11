@@ -4,6 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Truck, Package, CheckCircle, AlertCircle } from "lucide-react";
 import { globalFilters } from '../utils/globalFilters';
 import { offlineDB } from '../utils/offlineDatabase';
+// PERF (Oct 9 2026, owner-approved dashboard deep dive): stats used to run
+// offlineDB.getAll on DELIVERIES + PATIENTS + APP_USERS (20k-30k records,
+// every record decrypted + JSON.parsed) on every debounced refreshDeliveryStats
+// event — a 0.3-1.2s main-thread freeze all day long. The app already holds the
+// same population (60-day window, both IDB and memory prune identically) in
+// AppDataContext's in-memory arrays, kept fresh by the same WS/sync events.
+// Read those instead; fall back to the old IDB scan ONLY when memory is still
+// empty (fresh boot before the IDB seed / sync completes, or fresh install).
+import { useAppData } from '../utils/AppDataContext';
 import { userHasRole } from '../utils/userRoles';
 import { isReturnAddress } from '../utils/returnDeliveryUtils';
 import OfflineSyncIndicator from './OfflineSyncIndicator';
@@ -18,6 +27,9 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
     return globalFilters.getSelectedDriverId();
   });
   const [stats, setStats] = useState(null);
+  const { deliveries: memDeliveries, patients: memPatients, appUsers: memAppUsers } = useAppData();
+  const memDataRef = useRef({ deliveries: null, patients: null, appUsers: null });
+  memDataRef.current = { deliveries: memDeliveries, patients: memPatients, appUsers: memAppUsers };
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const lastFetchRef = useRef({ date: null, driver: null, timestamp: 0 });
@@ -66,9 +78,13 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const monthStr = format(selectedDate, 'yyyy-MM');
 
-        // Load deliveries from offline DB
-        const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-
+        // PERF: in-memory arrays from AppDataContext (fresh via the same
+        // WS/sync events that dispatch refreshDeliveryStats). IDB full scan
+        // is only a fallback while memory hasn't been seeded yet.
+        let allDeliveries = memDataRef.current.deliveries || null;
+        if (!allDeliveries || allDeliveries.length === 0) {
+          allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        }
         if (!isMountedRef.current) return;
 
         if (!allDeliveries || allDeliveries.length === 0) {
@@ -77,7 +93,10 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
           return;
         }
 
-        const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        let allPatients = memDataRef.current.patients || null;
+        if (!allPatients || allPatients.length === 0) {
+          allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        }
 
         if (!isMountedRef.current) return;
 
@@ -107,7 +126,10 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
 
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter((d) => d && d.patient_id);
-        const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        let allAppUsersFromDB = memDataRef.current.appUsers || null;
+        if (!allAppUsersFromDB || allAppUsersFromDB.length === 0) {
+          allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        }
         if (!isMountedRef.current) return;
         const offDutyIds = new Set((allAppUsersFromDB || []).filter((au) => au?.driver_status === 'off_duty').map((au) => au.user_id));const todayActiveDrivers = [...new Set(todayDeliveries.filter((d) => d?.driver_id).map((d) => d.driver_id))].filter((id) => !offDutyIds.has(id)).length;
         const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled'].includes(d?.status)).length;

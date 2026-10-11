@@ -95,7 +95,11 @@
           "end_date": {
             "type": "string",
             "format": "date",
-            "description": "Inclusive end date this deduction should be applied until (snapshot from AppUser)"
+            "description": "Inclusive end date this deduction should be applied until (snapshot from AppUser, or the chosen end for a one-time extra)"
+          },
+          "is_one_time": {
+            "type": "boolean",
+            "description": "True for a single-pay-cycle extra added via the Payroll page's Manage Deductions overlay \u2014 exists ONLY on this record, never on AppUser.deductions. False/absent for a recurring deduction snapshotted live from the driver's AppUser.deductions each sync."
           }
         },
         "required": [
@@ -103,7 +107,7 @@
           "amount"
         ]
       },
-      "description": "List of individual deductions applied in this pay period (snapshot of the driver's AppUser.deductions filtered by date range)"
+      "description": "Snapshot of ALL deductions applied to this pay period: recurring ones mirrored live from the driver's AppUser.deductions (date-range filtered), plus any one-time extras (is_one_time: true) added directly on this record via the Manage Deductions overlay."
     },
     "total_deductions": {
       "type": "number",

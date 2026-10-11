@@ -29,7 +29,11 @@ export function buildPatientUpdatePayload(formData) {
     back_door: formData.back_door,
     care_pros: formData.care_pros || false,
     cp_name: formData.cp_name || '',
-    cp_envelopes: formData.cp_envelopes || 0,
+    // cp_envelopes intentionally excluded (owner rule Sep 23 2026): the envelope
+    // count is delivery-scoped once a delivery exists. Saving a delivery form must
+    // NOT overwrite the patient's default envelope count with whatever value that
+    // one delivery happened to have — the patient default only applies when a NEW
+    // delivery is first created for that patient and is edited via the Patients page.
     signature_needed: formData.signature_needed,
     recurring: formData.recurring,
     recurring_daily: formData.recurring_daily,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { createPageUrl } from '@/utils';
-import { userHasRole } from '@/components/utils/userRoles';
+import { userHasRole , isAppOwner } from '@/components/utils/userRoles';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 import { useBookedOffBadge } from './useBookedOffBadge';
 import ShiftCoverageBalloon from './ShiftCoverageBalloon';
@@ -18,13 +18,39 @@ import {
   Settings,
   Menu,
   CalendarDays,
+  Banknote,
 } from 'lucide-react';
+import { useSquareBalancesSummary } from '@/components/square/useSquareBalancesSummary';
 
 const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
   const { count: bookedOffCount, records: bookedOffRecords } = useBookedOffBadge(currentUser);
   const { os, deviceType } = useDevice();
   const isIOS = os === 'iOS' && deviceType === 'Mobile';
+
+  // SQUARE BALANCES NAV BADGE (owner request Oct 9 2026): the nav item shows
+  // the combined card balance under the dollar-bill icon instead of a static
+  // label. Same number as the sidebar badge: sum of cardEstimate across the
+  // relevant cards (all cards for admins/owner; the user's own stores' cards
+  // for drivers/dispatchers). The hook serves its IDB snapshot instantly, so
+  // this is offline-safe and adds no boot API calls.
+  const isDriverNav = userHasRole(currentUser, 'driver');
+  const isDispatcherNav = userHasRole(currentUser, 'dispatcher');
+  const isAdminNav = userHasRole(currentUser, 'admin');
+  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
+  const sqNavAmount = React.useMemo(() => {
+    if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
+    let total = 0;
+    if (isAdminNav || (!isDriverNav && !isDispatcherNav)) {
+      for (const row of sqByLocId.values()) total += Number(row?.cardEstimate || 0);
+    } else {
+      const storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
+      const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc?.get(String(sid))).filter(Boolean))];
+      for (const lid of locIds) { const row = sqByLocId.get(lid); if (row) total += Number(row.cardEstimate || 0); }
+    }
+    if (!Number.isFinite(total)) return null;
+    return total >= 1000 ? `$${(total / 1000).toFixed(1)}k` : `$${total.toFixed(2)}`;
+  }, [sqReady, sqByLocId, sqStoreToLoc, isAdminNav, isDriverNav, isDispatcherNav, currentUser]);
 
   if (!currentUser) return null;
 
@@ -37,6 +63,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   if (isDriver && !isAdmin) {
     navItems = [
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
+      { name: 'Balances', page: 'SquareBalances', icon: Banknote, tabKey: 'squarebalances', showAmount: true },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling', badgeCount: bookedOffCount },
       { name: 'Payroll', page: 'DriverPayroll', icon: DollarSign, tabKey: 'payroll' },
@@ -47,6 +74,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   } else if (isDispatcher && !isAdmin) {
     navItems = [
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
+      { name: 'Balances', page: 'SquareBalances', icon: Banknote, tabKey: 'squarebalances', showAmount: true },
       { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
@@ -55,6 +83,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   } else if (isAdmin) {
     navItems = [
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
+      { name: 'Balances', page: 'SquareBalances', icon: Banknote, tabKey: 'squarebalances', showAmount: true },
       { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
       { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling', badgeCount: bookedOffCount },
@@ -90,11 +119,15 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
             const isMessagingItem = item.action === 'messaging';
             const isActive = !isMessagingItem && activeTab === item.tabKey;
             const Icon = item.icon;
-            const visibleTabs = Math.min(navItems.length, 4);
+            // Even distribution: every tab grows equally to fill the row width, so
+            // wider screens show MORE tabs. The 76px floor keeps them from
+            // crowding — when even the floored tabs don't fit (narrow phones),
+            // the row keeps its horizontal scroll instead of squishing.
             const sharedProps = {
-              className: 'flex min-h-14 flex-col items-center justify-center px-2 py-2 flex-shrink-0 transition-colors',
+              className: 'flex min-h-14 flex-col items-center justify-center px-2 py-2 transition-colors',
               style: {
-                minWidth: `calc((100vw - 56px) / ${visibleTabs})`,
+                flex: '1 1 0',
+                minWidth: '76px',
                 color: isActive ? '#10b981' : 'var(--text-slate-500)',
               },
             };
@@ -135,9 +168,14 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                     </span>
                   }
                 </div>
-                <span className="text-sm font-medium truncate" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}>
-                  {item.name}
-                </span>
+                {item.showAmount ?
+                  <span className="text-xs font-semibold tabular-nums truncate" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }} title="Square card balance estimate">
+                    {sqNavAmount || item.name}
+                  </span> :
+                  <span className="text-sm font-medium truncate" style={{ color: isActive ? '#10b981' : 'var(--text-slate-500)', maxWidth: '80px' }}>
+                    {item.name}
+                  </span>
+                }
                 {isActive && <div className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />}
               </button>
             );

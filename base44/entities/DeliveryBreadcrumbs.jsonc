@@ -13,7 +13,11 @@
     },
     "stop_order": {
       "type": "number",
-      "description": "Stop order of the delivery this leg leads TO"
+      "description": "Stop order of the delivery this leg leads TO. NOTE (Oct 2 2026): stop_order is renumbered routinely (repairStopOrders after any stop edit/delete/create/optimization) and is NOT a stable key once a segment is sealed. linked_delivery_id is the authoritative match key when present; stop_order is kept in sync as a courtesy but must never be trusted alone once saved_to_route is true. Still used standalone for legacy records created before linked_delivery_id existed."
+    },
+    "linked_delivery_id": {
+      "type": "string",
+      "description": "The Delivery entity's own immutable .id this leg leads TO. Added Oct 2 2026 to fix sealed (saved_to_route=true) breadcrumb legs becoming orphaned or misattributed when stop_order gets renumbered after sealing — matching by stop_order alone let a renumber silently detach a saved path from its real stop (or attach it to the wrong one, or delete it as an 'orphan'). This is the PRIMARY match key for all slicing/reset code. Absent on legacy pre-migration records (those fall back to stop_order match)."
     },
     "encoded_polyline": {
       "type": "string",

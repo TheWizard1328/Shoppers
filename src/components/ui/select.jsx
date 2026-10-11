@@ -49,10 +49,18 @@ const SelectScrollDownButton = React.forwardRef(({ className, ...props }, ref) =
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
-const SelectContent = React.forwardRef(({ className, children, position = "popper", ...props }, ref) => (
+const SelectContent = React.forwardRef(({ className, children, position = "popper", style, ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
-      style={{ zIndex: 2147483647 }}
+      // FIX (Oct 2 2026): previously { zIndex: 2147483647 } was a sibling prop
+      // BEFORE {...props} — any caller passing its own `style` (e.g. just
+      // { borderColor, fontSize }, as SettingsMenu's Theme/City dropdowns do)
+      // REPLACED the whole style object, silently dropping the top z-index.
+      // The content then fell back to a much lower z-[10003]/z-[10002] class,
+      // which lost to the parent Settings dropdown menu's z-[99999] — the
+      // Theme selector's options rendered BEHIND the menu, invisible.
+      // Merging here means a caller's style can never again erase this.
+      style={{ zIndex: 2147483647, ...style }}
       ref={ref}
       className={cn(
         "relative z-[2147483647] max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",

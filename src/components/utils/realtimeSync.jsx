@@ -13,8 +13,9 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
-import { applyRealtimeMergeWithLockout } from './completionLockout';
+import { applyRealtimeMergeWithLockout, isFieldLocked } from './completionLockout';
 import { isDeleted, isDeletedByContent, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
+import { applyPendingEntityMutations } from './pendingEntityMutations';
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -23,6 +24,14 @@ const listeners = new Set();
 
 // Pause flag — when true, flushBuffered skips UI dispatches (but still saves to offline DB)
 let _realtimePaused = false;
+
+// Tracks WHEN each delivery last transitioned INTO in_transit locally
+// (pending→in_transit). The stale-echo ratchet in the incoming merge only applies
+// within a short window after that transition — Accept All's stale 'pending' echoes
+// arrive within seconds, while legitimate bulk-edit resets (in_transit→pending)
+// happen later and must NOT be blocked forever.
+const inTransitTransitionAt = new Map();
+const IN_TRANSIT_RATCHET_WINDOW_MS = 60 * 1000;
 
 import { emitGatedEvent } from './uiGate';
 
@@ -72,6 +81,7 @@ const flushTimers = {};
 const POLYLINE_PRESERVE_FIELDS = [
   'encoded_polyline', 'travel_dist', 'polyline_saved_at',
   'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes',
+  'deviation_waypoints',
 ];
 
 function bufferEvent(entityName, payload) {
@@ -1114,6 +1124,7 @@ const subscribeToEntity = (entityName) => {
                     'patient_name', 'patient_phone', 'delivery_instructions', 'unit_number',
                     // COD
                     'cod_total_amount_required', 'cod_payments',
+                    'cod_card_spend_at', 'cod_returned_at', 'cod_retried_at', 'cod_retry_delivery_id',
                     // Care Pro's
                     'cp_envelopes',
                     // Proof
@@ -1135,16 +1146,48 @@ const subscribeToEntity = (entityName) => {
                     'stop_order', 'tracking_number', 'encoded_polyline',
                     'estimated_distance_km', 'estimated_duration_minutes',
                     'polyline_saved_at', 'transport_mode', 'travel_dist',
+                    // Arrival gating (Oct 8 2026): a stale WS echo or background fetch
+                    // whose server record predates the local arrival write (offline /
+                    // in-flight server write) carries a BLANK arrival_time and wiped the
+                    // locally recorded one — the Complete button then stayed gated at a
+                    // stop the driver was parked at. Ratchet: existing non-empty
+                    // arrival_time always beats an incoming empty one. No flow clears
+                    // arrival_time on an existing record (retry creates a NEW record).
+                    'arrival_time',
                   ]);
+
+                  // Stamp pending→in_transit transitions so the ratchet below only
+                  // protects freshly-accepted stops, not forever.
+                  if (merged?.status === 'in_transit' && existing?.status && existing.status !== 'in_transit') {
+                    if (inTransitTransitionAt.size > 2000) inTransitTransitionAt.clear(); // leak guard
+                    inTransitTransitionAt.set(data.id, Date.now());
+                  }
 
                   // CRITICAL: Status regression guard. If the existing IDB record has
                   // status='in_transit' (just transitioned by Accept All) and the incoming
                   // WS payload or background fetch carries status='pending' (stale server
                   // data that hasn't received the status write yet), preserve 'in_transit'.
-                  // This is a one-way ratchet: pending→in_transit is allowed (server
-                  // catching up), but in_transit→pending is blocked.
-                  if (existing?.status === 'in_transit' && merged.status === 'pending') {
+                  // TIME-BOXED (60s from the local in_transit transition) so legitimate
+                  // bulk-edit resets (in_transit→pending) are not blocked forever — the
+                  // old unconditional ratchet made every status reset invisible on all
+                  // devices until a full app restart.
+                  // ALSO skipped while the acting device holds a status lock with an
+                  // explicit expected value (bulk edit symmetric lock / Accept All lock) —
+                  // applyRealtimeMergeWithLockout below decides.
+                  const _ratchetTs = inTransitTransitionAt.get(data.id);
+                  const _withinRatchetWindow = _ratchetTs != null && (Date.now() - _ratchetTs) < IN_TRANSIT_RATCHET_WINDOW_MS;
+                  if (
+                    existing?.status === 'in_transit' &&
+                    merged.status === 'pending' &&
+                    _withinRatchetWindow &&
+                    !isFieldLocked(data.id, 'status')
+                  ) {
                     merged.status = 'in_transit';
+                  } else if (merged.status !== 'in_transit' && merged.status !== undefined) {
+                    // Record confirmed OUT of in_transit (pending accepted via bulk edit
+                    // lock, en_route, terminal) — drop the stamp so the ratchet doesn't
+                    // fire again for this era. Staying in in_transit keeps the stamp.
+                    inTransitTransitionAt.delete(data.id);
                   }
 
                   for (const field of PRESERVE_FIELDS) {
@@ -1210,6 +1253,21 @@ const subscribeToEntity = (entityName) => {
             if (entityName === 'Payroll' && type === 'update' && finalDataToSave?.id) {
               dataToSave = finalDataToSave;
             }
+
+            // Pending local fields win over stale server/WebSocket payloads until
+            // their durable queue entry is successfully replayed.
+            if (['Delivery', 'Patient', 'AppUser'].includes(entityName) && finalDataToSave?.id) {
+              const protectedRows = await applyPendingEntityMutations({
+                entityName,
+                serverRows: [finalDataToSave],
+                storeName,
+              });
+              const protectedRecord = protectedRows.find((row) => row?.id === finalDataToSave.id);
+              if (!protectedRecord) return;
+              finalDataToSave = protectedRecord;
+              dataToSave = protectedRecord;
+            }
+
             await offlineDB.save(storeName, finalDataToSave);
             const savedLabel = entityName === 'Patient'
               ? (data?.full_name || data?.id || 'Patient')

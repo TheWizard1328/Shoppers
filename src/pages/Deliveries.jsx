@@ -2628,7 +2628,7 @@ export default function DeliveriesPage() {
 
         <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold text-body">Route Management</h1>
-            <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen((v) => !v)}>
+            <Button variant="ghost" size="icon" aria-label="Open route dates menu" onClick={() => setIsMobileMenuOpen((v) => !v)}>
               <CalendarIcon className="w-5 h-5" />
             </Button>
           </div>
@@ -2737,6 +2737,7 @@ export default function DeliveriesPage() {
 
         {!isDriverOverviewMode && !activeDriver && isMobile &&
         <button
+          aria-label="Open route dates menu"
           onClick={() => setIsMobileMenuOpen((v) => !v)}
           className="absolute left-0 top-24 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center text-body-2 bg-surface" style={{ borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
@@ -2766,7 +2767,7 @@ export default function DeliveriesPage() {
                   <CalendarIcon className="w-5 h-5 text-body-2" />
                   <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
+                <Button variant="ghost" size="icon" aria-label="Close route dates menu" onClick={() => setIsMobileMenuOpen(false)}>
                   <XIcon className="w-5 h-5" />
                 </Button>
               </div>

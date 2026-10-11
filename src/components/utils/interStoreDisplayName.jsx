@@ -65,8 +65,17 @@ export async function getAllLocations() {
     try {
       const locs = await base44.entities.InterStoreLocation.list();
       indexLocations(locs);
+      // Persist to IDB so the next boot resolves instantly from IDB instead of
+      // re-fetching (and so offline boots have the data at all).
+      if (locs && locs.length) {
+        offlineDB.bulkSave(offlineDB.STORES.INTER_STORE_LOCATIONS, locs).catch(() => {});
+      }
       return locs || [];
     } catch (_) {
+      // Do NOT cache a failed fetch forever — the promise previously stayed
+      // resolved-with-[] for the whole session, leaving stop names "Unknown"
+      // even after the network recovered. Reset so the next call retries.
+      allLocationsPromise = null;
       return [];
     }
   })();

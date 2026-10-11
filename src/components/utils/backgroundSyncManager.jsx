@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { offlineDB } from './offlineDatabase';
 import { format } from 'date-fns';
 import { syncHistoricalDateCityScoped, loadHistoricalCursor, saveHistoricalCursor, getCityIdsHash } from './historicalDeliverySync';
@@ -550,6 +551,7 @@ class BackgroundSyncManager {
     }
 
     let syncedCount = 0;
+    let checkedDates = 0; // Count reads, not only writes: matching dates still cost one API call each.
     let skippedDates = 0; // aggregate — per-date 'already synced' logs were flooding RemoteLogEntry (~200k rows/day)
     let cursor = new Date(this.historicalSyncDateCursor);
     cursor.setHours(0, 0, 0, 0);
@@ -561,7 +563,7 @@ class BackgroundSyncManager {
     }
 
     try {
-      while (cursor >= cutoffDate && syncedCount < maxDatesPerCycle) {
+      while (cursor >= cutoffDate && checkedDates < maxDatesPerCycle) {
         if (this.isPaused || !this.isRunning) break;
         if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
 
@@ -579,6 +581,7 @@ class BackgroundSyncManager {
 
       const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
           this.currentCycleAPICalls++;
+          checkedDates++;
 
           if (result.synced) {
             console.log(`🔄 [BackgroundSync] Synced ${result.onlineCount} deliveries for ${dateStr} (was ${result.offlineCount}, pruned ${result.pruned})`);
@@ -810,9 +813,7 @@ class BackgroundSyncManager {
 
     this.configLoadPromise = (async () => {
       try {
-        const settings = await base44.entities.AppSettings.filter({
-          setting_key: 'background_sync_config'
-        });
+        const settings = await getAppSettingRows('background_sync_config');
 
         if (settings && settings.length > 0) {
           const savedConfig = settings[0].setting_value;
@@ -839,9 +840,7 @@ class BackgroundSyncManager {
    */
   async saveConfig() {
     try {
-      const settings = await base44.entities.AppSettings.filter({
-        setting_key: 'background_sync_config'
-      });
+      const settings = await getFreshAppSettingRows('background_sync_config');
 
       const settingData = {
         setting_key: 'background_sync_config',

@@ -4,9 +4,10 @@ import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { fetchDriverDailyActivityCached } from '@/components/utils/driverDailyActivityCache';
 import { isAppOwner } from '@/components/utils/userRoles';
-import { useInterStoreLocation, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
+import { useInterStoreLocation, useInterStoreDisplayName, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import WinterModeBanner from "@/components/dashboard/WinterModeBanner";
+import DashboardWeatherBar from "@/components/dashboard/DashboardWeatherBar";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import { useDriverOverlayLegend } from "@/components/dashboard/useDriverOverlayLegend";
@@ -15,6 +16,8 @@ import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditC
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
 import StopCardCheckboxToggle from "@/components/dashboard/StopCardCheckboxToggle";
 import FABControls from "@/components/dashboard/FABControls";
+import { useHeyDoc } from "@/components/voice/useHeyDoc";
+import HeyDocOverlay from "@/components/voice/HeyDocOverlay";
 import LiveTempBadge from "@/components/dashboard/LiveTempBadge";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
@@ -80,6 +83,12 @@ function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  const mapAreaRef = useRef(null);
+  const heyDoc = useHeyDoc({
+    currentUser, filteredDeliveries, patients, stores, appUsers,
+    enabled: isDriver && isMobile,
+  });
+
   // Driver-legend overlay state machine (active-only ↔ overlay ↔ Full Show All) for non-admin drivers.
   // Admins/dispatchers keep the legacy click → handleDriverChange behavior.
   const { overlayDriverId, setOverlayDriverId, handleDriverLegendClick } = useDriverOverlayLegend({
@@ -276,8 +285,17 @@ function DashboardView({
 
   // Detect ISP/ISD inter-store deliveries and look up their location record
   const immersiveIsInterStore = !!immersiveOverlayDelivery && isInterStoreDelivery(immersiveOverlayDelivery.delivery_id);
-  // Use the async hook so it resolves from cache or fetches if needed
+  // Use the async hooks so they resolve from cache or fetch if needed
   const immersiveInterStoreLocation = useInterStoreLocation(immersiveIsInterStore ? immersiveOverlayDelivery?.delivery_id : null);
+  // Same hook the StopCard uses — keeps the panel name in parity with the card
+  // (e.g. "Kingsway(ISP)" instead of the bare location name "Kingsway").
+  const immersiveIspDisplayName = useInterStoreDisplayName(immersiveIsInterStore ? immersiveOverlayDelivery?.delivery_id : null);
+  const immersiveInterStoreType = (() => {
+    const id = String(immersiveOverlayDelivery?.delivery_id || '').toUpperCase();
+    if (id.startsWith('ISP-')) return 'ISP';
+    if (id.startsWith('ISD-')) return 'ISD';
+    return null;
+  })();
 
   const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id;
   const immersiveOverlayStoreColor = immersiveOverlayStore?.color || '#10B981';
@@ -289,8 +307,13 @@ function DashboardView({
     return notes.includes('end') ? 'end' : 'start';
   })();
 
+  // Name parity with the StopCard (useDeliveryDisplayInfo finalDisplayName):
+  // ISP → "{Store}(ISP)", ISD → "InterStore DropOff", then the existing
+  // cycling / pickup / patient chain.
   const immersiveOverlayDisplayName = immersiveIsInterStore
-    ? (immersiveInterStoreLocation?.store_name || immersiveOverlayDelivery?.patient_name || 'Inter-Store Stop')
+    ? (immersiveInterStoreType === 'ISD'
+        ? 'InterStore DropOff'
+        : (immersiveIspDisplayName || (immersiveInterStoreLocation?.store_name ? `${immersiveInterStoreLocation.store_name}(ISP)` : null) || immersiveOverlayDelivery?.patient_name || 'Inter-Store Stop'))
     : immersiveIsCyclingMarker
       ? (immersiveOverlayDelivery?.cycling_location_name || (immersiveCyclingType === 'end' ? 'Cycling End' : 'Cycling Start'))
       : immersiveOverlayIsPickup
@@ -358,7 +381,7 @@ function DashboardView({
 
 
 
-      <div className="flex-1 w-full relative min-h-0 overflow-hidden">
+      <div ref={mapAreaRef} className="flex-1 w-full relative min-h-0 overflow-hidden">
         <div
           className="absolute top-0 left-0 right-0 z-[230] transition-transform duration-500 ease-in-out"
           style={{
@@ -369,6 +392,7 @@ function DashboardView({
         >
         <DashboardStatsPanel
           currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
+          heyDocAvailable={heyDoc.available} heyDocArmed={heyDoc.armed} onToggleHeyDoc={heyDoc.toggle}
           deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
           calendarMonth={calendarMonth} setCalendarMonth={setCalendarMonth}
@@ -400,6 +424,21 @@ function DashboardView({
           setMapStyle={setMapStyle}
         />
         </div>
+
+        {/* Minimal semi-transparent weather thermometer — far-left edge,
+            between the stats panel and the bulk-edit checkbox strip.
+            Anchored on BASE heights so panel/card expansion never moves it.
+            Data: shared AppSettings 'dashboard_weather' record, pushed by the
+            5-minute dashboardWeatherPoll workflow via the AppSettings WS. */}
+        <DashboardWeatherBar
+          currentUser={currentUser}
+          statsContainerBaseHeight={statsContainerBaseHeight}
+          stopCardsBaseHeight={stopCardsBaseHeight}
+          immersiveHidden={immersiveHidden}
+          statsContainerRef={statsContainerRef}
+          horizontalStopCardsRef={horizontalStopCardsRef}
+          mapAreaRef={mapAreaRef}
+        />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers} cities={cities}
@@ -531,6 +570,13 @@ function DashboardView({
         )}
 
       </div>
+
+      <HeyDocOverlay
+        chip={heyDoc.chip}
+        awaitingCommand={heyDoc.awaitingCommand}
+        onDismiss={heyDoc.dismissChip}
+        immersiveHidden={immersiveHidden}
+      />
 
       <StopCardCheckboxToggle
         checked={showStopCardCheckboxes}

@@ -13,6 +13,11 @@ export function initializeGlobalFilters(fetchedUser, savedSettings) {
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const s = savedSettings || {};
 
+  // Register the signed-in user FIRST so every restore call below (and every
+  // later dashboard selection) persists with the right user even if a call
+  // site omits the explicit userId.
+  globalFilters.setActiveUserId(fetchedUser.id);
+
   const isDriverOnly = userHasRole(fetchedUser, 'driver') && !userHasRole(fetchedUser, 'admin');
   const isDispatcherOnly = userHasRole(fetchedUser, 'dispatcher') && !userHasRole(fetchedUser, 'admin');
   const isAdmin = userHasRole(fetchedUser, 'admin');

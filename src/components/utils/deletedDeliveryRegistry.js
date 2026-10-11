@@ -18,6 +18,7 @@
 
 const TTL_MS = 30 * 60 * 1000; // 30 minutes
 const STORAGE_KEY = '__deletedDeliveryRegistry';
+const LEGACY_KEY = '__deletedDeliveryIds'; // legacy flat-ID array, read by older merge paths
 const MAX_ENTRIES = 500;
 
 // In-memory maps
@@ -79,6 +80,16 @@ function saveToStorage() {
       if (now - ts < TTL_MS) sigs[sig] = ts;
     }
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ids, sigs }));
+    // ALSO sync the legacy flat-ID key. Several merge paths (Layout.jsx
+    // updateDeliveriesLocally, backgroundSyncManager, filterChangeSync,
+    // useLayoutEventHandlers) still read sessionStorage.__deletedDeliveryIds
+    // to block resurrection. The dashboard delete path (offlineMutations
+    // deleteDeliveryLocal) only calls markDeleted, so if this registry does
+    // not mirror into the legacy key, those paths see an EMPTY deleted set
+    // and re-insert a deleted delivery the moment any stale server snapshot
+    // or in-flight sync response arrives — the "deleted stop comes back
+    // until full app restart" bug.
+    sessionStorage.setItem(LEGACY_KEY, JSON.stringify(Object.keys(ids)));
   } catch (_) { /* ignore quota errors */ }
 }
 

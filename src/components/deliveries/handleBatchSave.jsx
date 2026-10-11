@@ -229,6 +229,18 @@ export async function handleBatchSave({
       patientDeliveriesNeedingPickupEnsure.forEach((delivery) => {
         if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return;
 
+        // OWNER RULE (permanent, Sep 30 2026): if a staged/pending delivery's status was
+        // MANUALLY set to in_transit by the user before Add/Done was clicked, skip pickup
+        // creation for it. These deliveries are almost always already pre-attached to an
+        // earlier pickup (which may or may not be complete yet). The stagedDeliveriesWithResolvedIds
+        // pass below already preserves in_transit deliveries' own puid, so
+        // excluding them here only prevents a brand-new pickup container being created
+        // on their behalf. Pending/Staged deliveries sharing the same store/driver/slot
+        // key still trigger the ensure normally (the key is grouped from them).
+        if (delivery?.status === 'in_transit') {
+          return;
+        }
+
         const key = `${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id}__${delivery.ampm_deliveries || 'AM'}`;
         if (!groupedEnsureKeys.has(key)) groupedEnsureKeys.set(key, { delivery });
 
@@ -310,24 +322,6 @@ export async function handleBatchSave({
       // pickup containers (en_route) are created.
       let newPickupsCreated = normalizedDefaultPickups.length > 0;
 
-      // Build a set of driver/date pairs that already have ISP/ISD stops (no pickup needed)
-      const ispIsdDriverDateKeys = new Set([
-        ...(allDeliveries || [])
-          .filter((d) => d && !d.patient_id && (
-            String(d.delivery_id || '').toUpperCase().startsWith('ISP-') ||
-            String(d.delivery_id || '').toUpperCase().startsWith('ISD-') ||
-            d._interstore_source_id
-          ))
-          .map((d) => `${d.driver_id}__${d.delivery_date}`),
-        ...(newDeliveries || [])
-          .filter((d) => d && (
-            String(d.delivery_id || '').toUpperCase().startsWith('ISP-') ||
-            String(d.delivery_id || '').toUpperCase().startsWith('ISD-') ||
-            d._interstore_source_id
-          ))
-          .map((d) => `${d.driver_id}__${d.delivery_date}`)
-      ]);
-
       // Helper: resolve PUID for ISP/ISD patient deliveries from the route.
       // ISP → look for a future (not completed/cancelled) pickup stop on the To Store on the same date.
       // ISD → look back for any (including completed/en_route) pickup stop on the store on the same date.
@@ -369,12 +363,17 @@ export async function handleBatchSave({
           const isInterStoreDelivery = String(delivery.delivery_id || '').toUpperCase().startsWith('ISP-') ||
             String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-') ||
             !!delivery._interstore_source_id;
-          if (isInterStoreDelivery || ispIsdDriverDateKeys.has(driverDateKey)) {
-            if (isInterStoreDelivery) {
-              const interStorePuid = resolveInterStorePuid(delivery);
-              if (interStorePuid) {
-                ensureResultsByKey.set(key, { data: { puid: interStorePuid, pickup: null } });
-              }
+          // FIX (Robert, Sep 19 2026): only ISP/ISD-tagged deliveries skip the pickup
+          // ensure. Previously ANY driver/date with an ISP/ISD stop skipped it entirely,
+          // so a regular patient delivery on an interstore route (e.g. a Bonnie Doon
+          // stop created while an ISP transfer was in transit) was saved pending with NO
+          // pickup and no puid — orphaned. Regular deliveries must still fall through to
+          // the default-pickup lookup / on-demand ensurePickupForDelivery path, which
+          // creates an after_hours pickup when the driver isn't the scheduled store driver.
+          if (isInterStoreDelivery) {
+            const interStorePuid = resolveInterStorePuid(delivery);
+            if (interStorePuid) {
+              ensureResultsByKey.set(key, { data: { puid: interStorePuid, pickup: null } });
             }
             continue;
           }
@@ -488,12 +487,28 @@ export async function handleBatchSave({
           const resolvedDriver = (appUsers || []).find(
             (u) => (u?.user_id || u?.id) === routeDriverId,
           ) || { user_id: routeDriverId };
+          // Resolve the ACTING user's own AppUser record (app_roles, user_id)
+          // instead of passing the raw platform `currentUser`, which has no
+          // app_roles/user_id fields at all. Without this, "User Role Contains
+          // Admin" / "Is Dispatcher" rule conditions can't evaluate correctly
+          // against who actually clicked Done, and — critically for the
+          // self-assign case — dispatchMessageRules' self-action check
+          // (actingUserId === driver_id) always sees actingUserId as the bare
+          // platform User.id, which happens to still equal the driver's
+          // user_id when they're the same person, but the missing app_roles
+          // was silently pushing this event to the legacy notifier (no
+          // self-suppression at all) whenever the rule conditions failed to
+          // match on the empty role data.
+          const resolvedDispatcher = (appUsers || []).find(
+            (u) => (u?.user_id || u?.id) === currentUser?.id,
+          ) || currentUser;
           notifyDispatcherAssignedStops({
-            dispatcher: currentUser,
+            dispatcher: resolvedDispatcher,
             driver: resolvedDriver,
             store,
             deliveries: notifyDeliveries,
             patients,
+            appUsers,
           }).catch((e) => console.warn('[DispatcherAssignedStops] notify failed:', e?.message || e));
         }
       }

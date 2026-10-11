@@ -111,6 +111,10 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(crumbs[0].id, {
         encoded_polyline: cleanedEncodedPolyline,
         saved_to_route: true,
+        // Stable link (Oct 2 2026) — stop_order drifts after any later
+        // repairStopOrders renumber; this keeps the seal attached to the
+        // RIGHT delivery regardless of what number it moves to.
+        ...(delivery?.id ? { linked_delivery_id: delivery.id } : {}),
       });
     }
 

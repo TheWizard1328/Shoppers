@@ -105,13 +105,24 @@ export const createOfflineSyncPriorityHelpers = ({
 
       const deliveryFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
       let deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
-      // Always fetch cycling markers separately — they have no store_id and would be excluded above
+      // Markers are positively confirmed absent ONLY when a fetch that covers them succeeds.
+      // The unscoped date fetch includes them; the city-scoped fetch does NOT (markers have
+      // no store_id), so a separate marker fetch must succeed to confirm their state.
+      // Also use a DIRECT Delivery.filter here, NOT fetchDeliveriesDedup — the dedup cache
+      // holds results for 10 minutes, and a stale/empty cached marker result would make
+      // the prune below delete LIVE markers from IDB (the disappearing-cycling-marker bug).
+      let _markersConfirmed = cityStoreIds.length === 0;
       if (cityStoreIds.length > 0) {
-        const cyclingMarkers = await fetchDeliveriesDedup(selectedDateStr, { is_cycling_marker: true }).catch(() => []);
-        if (cyclingMarkers && cyclingMarkers.length > 0) {
-          const merged = new Map((deliveries || []).filter(d => d?.id).map(d => [d.id, d]));
-          cyclingMarkers.forEach(d => { if (d?.id) merged.set(d.id, d); });
-          deliveries = Array.from(merged.values());
+        const cyclingMarkers = await Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }).catch(() => null);
+        if (Array.isArray(cyclingMarkers)) {
+          _markersConfirmed = true;
+          if (cyclingMarkers.length > 0) {
+            const merged = new Map((deliveries || []).filter(d => d?.id).map(d => [d.id, d]));
+            cyclingMarkers.forEach(d => { if (d?.id) merged.set(d.id, d); });
+            deliveries = Array.from(merged.values());
+          }
+        } else {
+          console.warn('⚠️ [PrioritySyncBeforeRefresh] cycling marker fetch failed — prune will NOT touch cycling markers');
         }
       }
 
@@ -128,7 +139,10 @@ export const createOfflineSyncPriorityHelpers = ({
       {
         const incomingIds = new Set((deliveries || []).filter(d => d?.delivery_date === selectedDateStr).map(d => d?.id).filter(Boolean));
         const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
-        const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
+        const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id)
+          // Cycling markers are only safe to prune when a fetch that covers them positively
+          // confirmed they're gone. A failed marker fetch must NOT purge live markers.
+          && !(!_markersConfirmed && d.is_cycling_marker));
         const selectedDateDeliveries = deliveries.filter(d => d?.delivery_date === selectedDateStr);
         if (getSyncPaused()) {
           console.log('⏸️ [PrioritySyncBeforeRefresh] Skipping selected-date bulkSave — paused during action');
@@ -287,20 +301,28 @@ export const createOfflineSyncPriorityHelpers = ({
       };
 
       let deliveries = await Delivery.filter(deliveryFilter);
-      // Always fetch cycling markers separately — they have no store_id and would be excluded above
+      // Markers are only pruned when a fetch covering them positively confirms absence
+      // (failed marker fetch → keep existing markers — see toDelete2 guard below).
+      let _markersConfirmed2 = cityStoreIds.length === 0;
       if (cityStoreIds.length > 0) {
-        const cyclingMarkers = await Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }).catch(() => []);
-        if (cyclingMarkers && cyclingMarkers.length > 0) {
-          const merged = new Map((deliveries || []).filter(d => d?.id).map(d => [d.id, d]));
-          cyclingMarkers.forEach(d => { if (d?.id) merged.set(d.id, d); });
-          deliveries = Array.from(merged.values());
+        const cyclingMarkers = await Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }).catch(() => null);
+        if (Array.isArray(cyclingMarkers)) {
+          _markersConfirmed2 = true;
+          if (cyclingMarkers.length > 0) {
+            const merged = new Map((deliveries || []).filter(d => d?.id).map(d => [d.id, d]));
+            cyclingMarkers.forEach(d => { if (d?.id) merged.set(d.id, d); });
+            deliveries = Array.from(merged.values());
+          }
+        } else {
+          console.warn('⚠️ [LoadPriorityData] cycling marker fetch failed — prune will NOT touch cycling markers');
         }
       }
       // Upsert + prune deleted — never wipe the date's data before writing
       {
         const incomingIds2 = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
         const existingForDate2 = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
-        const toDelete2 = existingForDate2.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds2.has(d.id));
+        const toDelete2 = existingForDate2.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds2.has(d.id)
+          && !(!_markersConfirmed2 && d.is_cycling_marker));
         if (getSyncPaused()) {
           console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');
           return { skipped: true, reason: 'paused_during_action' };

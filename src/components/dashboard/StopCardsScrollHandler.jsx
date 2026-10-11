@@ -24,6 +24,15 @@ export const createStopCardsScrollHandler = ({
 }) => {
   return (e) => {
     if (typeof window !== 'undefined' && !window.__isUserCardSwipe) return;
+    // STALE-FLAG GUARD (Oct 8 2026 bug fix): only treat the scroll as a user
+    // swipe when a real horizontal swipe happened recently (handleTouchMove
+    // stamps __lastRealCardSwipeAt). Programmatic scrolls — the completion
+    // flow's scrollIntoView to the next card, the FAB's centerNextDeliveryCard,
+    // marker-click centering — must never unlock the freshly locked FAB.
+    if (typeof window !== 'undefined' && Date.now() - (window.__lastRealCardSwipeAt || 0) > 2500) {
+      window.__isUserCardSwipe = false; // stale from an old touch — self-heal
+      return;
+    }
     if (typeof window !== 'undefined') {
       window.__suppressCardAutoCenterUntil = Math.max(window.__suppressCardAutoCenterUntil || 0, Date.now() + 1500);
     }

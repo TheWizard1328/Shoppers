@@ -41,6 +41,34 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
     ? format(new Date(pickupTime), 'h:mm a')
     : null;
 
+  // Small timestamp shown under the status badge on the collapsed card:
+  // current delivery → ETA, past deliveries → delivered / attempted time.
+  let subBadge = null;
+  if (delivery.status === 'completed' && actualTime) {
+    subBadge = { text: `Delivered ${actualTime}`, color: 'text-green-600 dark:text-green-400' };
+  } else if (delivery.status === 'failed' && actualTime) {
+    subBadge = { text: `Attempted ${actualTime}`, color: 'text-red-600 dark:text-red-400' };
+  } else if (['in_transit', 'en_route'].includes(delivery.status) && delivery.delivery_time_eta) {
+    // Owner request (Sep 29 2026): when the ETA equals the delivery window START
+    // (the optimizer clamps arrival up to the window floor, e.g. 17:30), the
+    // patient should see it as an approximate floor, not a projected arrival —
+    // render "ETA: ~17:30" for the clamped case, plain "ETA 17:30" otherwise.
+    const toMin = (t) => {
+      const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+      return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+    };
+    const windowStart = delivery.delivery_time_start || delivery.time_window_start || null;
+    const etaMin = toMin(delivery.delivery_time_eta);
+    const winMin = toMin(windowStart);
+    const isWindowClamped = etaMin != null && winMin != null && etaMin === winMin;
+    subBadge = {
+      text: isWindowClamped
+        ? `ETA: ~${delivery.delivery_time_eta}`
+        : `ETA ${delivery.delivery_time_eta}`,
+      color: 'text-blue-600 dark:text-blue-400'
+    };
+  }
+
   const codTotal = delivery.cod_total_amount_required || 0;
   const codPayments = delivery.cod_payments || [];
   const hasCod = codTotal > 0;
@@ -70,17 +98,24 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               </p>
             )}
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
-              expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`
-            }`}>
-              <Icon className="w-3 h-3" />
-              {config.label}
-            </span>
-            {expanded
-              ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
-              : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
-            }
+          <div className="flex flex-col items-center flex-shrink-0">
+            <div className="flex items-center gap-1">
+              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
+                expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`
+              }`}>
+                <Icon className="w-3 h-3" />
+                {config.label}
+              </span>
+              {expanded
+                ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+              }
+            </div>
+            {subBadge && (
+              <p className={`text-sm font-medium mt-0.5 leading-tight ${expanded ? 'text-slate-300' : subBadge.color}`}>
+                {subBadge.text}
+              </p>
+            )}
           </div>
         </div>
       </button>

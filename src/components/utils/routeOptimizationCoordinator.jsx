@@ -14,7 +14,6 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { invalidate } from '@/components/utils/dataManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { getOrFetchRoutingKey } from '@/components/utils/routingKeyStore';
@@ -22,6 +21,7 @@ import { getOrFetchPolylineConfig } from '@/components/utils/polylineKeyStore';
 import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
 import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateTrackingNumbersLocal';
 import { getAllLocations, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
+import { cancelDeferredReoptimization } from '@/components/utils/deferredRouteReoptimization';
 
 /**
  * Core route optimization engine (client-side).
@@ -263,6 +263,8 @@ async function _performRouteOptimizationInner({
   try {
     // ── Step 1: Run client-side optimization engine ──────────────────────────
     let optimizeData = null;
+    let _serverCommitFailed = false;
+    let optimizationServerCommit = Promise.resolve(false);
 
     if (!skipOptimize) {
       const engineResult = await optimizeRouteClientSide({
@@ -377,6 +379,7 @@ async function _performRouteOptimizationInner({
         }
       }
 
+      // Repair must wait for this commit to finish, never race the bulk write.
       // ── Step 2: Write results to backend DB via single bulk call ─────────
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
@@ -398,28 +401,39 @@ async function _performRouteOptimizationInner({
         } else {
           const _commitFallback = async (e) => {
             console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
-            // Fallback: individual writes in parallel batches of 20
+            // Fallback: individual writes in parallel batches of 20.
+            // Report per-update outcomes so the awaited path can detect a total
+            // commit failure (device offline) — previously every failure was
+            // swallowed silently and callers reported success with a stale server.
             const CHUNK_SIZE = 20;
+            let _okCount = 0, _failCount = 0;
             for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
               const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
               await Promise.all(chunk.map(async ({ id, data }) => {
-                try { await base44.entities.Delivery.update(id, data); } catch (_) {}
+                try { await base44.entities.Delivery.update(id, data); _okCount++; } catch (_) { _failCount++; }
               })).catch(() => {});
             }
+            if (_failCount > 0) console.warn(`[RouteOptimization] ${source} — fallback commit: ${_okCount} ok, ${_failCount} failed`);
+            return { okCount: _okCount, failCount: _failCount };
           };
+          optimizationServerCommit = base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch })
+            .then(() => true)
+            .catch(async (e) => {
+              const fallback = await _commitFallback(e);
+              return fallback.failCount === 0 && fallback.okCount === optimizeData.writeBatch.length;
+            });
           if (awaitServerWrite) {
             // Read-your-write mode: the caller resumes sync managers (which re-pull
             // from the server) as soon as we return — the server commit must be
             // complete BEFORE that, or the first pull bounces the UI back to the
             // pre-optimization stop_order/isNextDelivery.
             try {
-              await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
-              console.log(`[RouteOptimization] ${source} — bulkUpdateDeliveries committed (awaited)`);
+              if (!await optimizationServerCommit) _serverCommitFailed = true;
+              else console.log(`[RouteOptimization] ${source} — bulkUpdateDeliveries committed (awaited)`);
             } catch (e) {
-              await _commitFallback(e);
+              _serverCommitFailed = true;
+              console.warn(`[RouteOptimization] ${source} — server commit failed:`, e?.message || e);
             }
-          } else {
-            base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch(_commitFallback);
           }
         }
       }
@@ -436,6 +450,7 @@ async function _performRouteOptimizationInner({
       return patch ? { ...d, ...patch } : d;
     });
 
+    let optimizationLocalSave = Promise.resolve();
     if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
       const _freshPolyCount = freshDeliveries.filter(d => d?.encoded_polyline).length;
       console.log(`[RouteOptimization] ${source} — local merge: ${freshDeliveries.length} deliveries, ${_freshPolyCount} with polylines`);
@@ -447,7 +462,7 @@ async function _performRouteOptimizationInner({
       // N concurrent IDB transactions block the main thread between commits — visible as
       // a "Page Unresponsive" freeze on large routes. bulkSave batches all writes in
       // one transaction, releasing the thread in a single yield.
-      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+      optimizationLocalSave = offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
     }
 
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
@@ -460,10 +475,39 @@ async function _performRouteOptimizationInner({
       window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
     }
 
+    // Only repair after the optimizer's server AND IDB writes finish. Otherwise
+    // an in-flight bulk write can overwrite the repaired numbers, while a failed
+    // bulk write can leave the route broken after an apparent repair success.
+    // skipServerWrite delegates the commit to its caller; it cannot be repaired
+    // here until that caller has completed its own atomic write.
+    let finalDeliveries = freshDeliveries;
+    if (!skipServerWrite && optimizeData?.writeBatch?.length && driverId && deliveryDate) {
+      const repair = Promise.all([optimizationServerCommit, optimizationLocalSave]).then(async ([committed]) => {
+        if (!committed) return null;
+        const { recalculateAndUpdateStopOrders } = await import('./stopOrderManager');
+        return recalculateAndUpdateStopOrders(driverId, deliveryDate);
+      }).catch((e) => {
+        console.warn(`[RouteOptimization] ${source} — post-optimization repair failed:`, e?.message || e);
+        return null;
+      });
+      // Read-your-write callers (notably cycling setup) must receive the
+      // repaired stop numbers before resuming sync or applying freshDeliveries.
+      if (awaitServerWrite) {
+        const repaired = await repair;
+        if (repaired?.sortedDeliveries?.length) {
+          const repairedById = new Map(repaired.sortedDeliveries.map(d => [d.id, d]));
+          finalDeliveries = freshDeliveries.map(d => repairedById.get(d.id) || d);
+        }
+      }
+    } else {
+      optimizationLocalSave.catch(() => {});
+    }
+
     return {
       success: true,
+      serverCommitFailed: _serverCommitFailed,
       optimizeData,
-      freshDeliveries: freshDeliveries || [],
+      freshDeliveries: finalDeliveries || [],
       orderedDeliveryIds: optimizeData?.orderedDeliveryIds || orderedDeliveryIds || null,
       usedFallbackOrdering,
       usedFallbackPolyline,
@@ -544,6 +588,14 @@ export async function performRouteOptimization(params) {
     result = await _performRouteOptimizationInner(params);
   } catch (e) {
     result = { success: false, error: e?.message || String(e) };
+  }
+  // Owner spec (Sep 24 2026): a fresher optimization just ran for this route —
+  // absorb any pending deferred window-edit reoptimization that was scheduled
+  // BEFORE this run started (its fire would just redo this work and burn a
+  // HERE call). Entries scheduled DURING this run keep their own countdown.
+  // The deferred fire itself (source 'post_delivery_sync') is excluded.
+  if (result?.success && params?.driverId && params?.deliveryDate && params?.source !== 'post_delivery_sync') {
+    cancelDeferredReoptimization(`${params.driverId}:${params.deliveryDate}`, _t0);
   }
   if (typeof window !== 'undefined' && window.__optimizationAuditDisabled !== true) {
     _writeOptimizationAuditLog({ params, result, durationMs: Date.now() - _t0 }).catch(() => {});

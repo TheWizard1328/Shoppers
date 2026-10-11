@@ -83,11 +83,19 @@ export function useLatestApkBuildInfo() {
     let cancelled = false;
     let timer = null;
 
-    // Only poll GitHub for APK build info on the native sideloaded Android app.
-    // Web (incl. the builder preview and the published web app) never needs APK
-    // update checks — the calls exhaust GitHub's 60/hr anonymous limit and spam
-    // 403s. Play Store builds skip it too — Google Play manages updates.
-    if (!isCapacitorNativeApp() || isPlayStoreBuild()) return;
+    // Poll GitHub for the latest successful APK build so the sidebar version
+    // badge stays accurate everywhere: native sideloaded Android AND web/PWA
+    // (browser + installed PWA). Web has no "installed version" of its own
+    // (useInstalledAppVersion only resolves via Capacitor's App.getInfo()),
+    // so without this fetch the sidebar falls back to the stale, manually-set
+    // AppSettings.appVersion field — which is how web/PWA ended up stuck on
+    // "v1.0.3" while the APK correctly showed the live "v1.0.329" build number.
+    // Safe to run on every platform: fetchGithubCached uses ETag conditional
+    // requests (304 responses are FREE against GitHub's rate limit) plus a
+    // 1-hour localStorage cache, so multiple devices/tabs behind the same
+    // pharmacy WiFi IP still only cost one real API call per cache window.
+    // Play Store builds still skip it — Google Play manages updates there.
+    if (isPlayStoreBuild()) return;
 
     const fetchData = async () => {
       const cached = loadCachedBuildInfo();

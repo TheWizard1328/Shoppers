@@ -3,16 +3,18 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    const user = await base44.auth.me().catch(() => null);
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Workflow-safe: a scheduled invocation has no user session
+    // ($BASE44_SERVICE_TOKEN resolves unauthenticated) and proceeds under the
+    // service role; a user session is admin or an included logger (trim mode).
+    let isAdmin = false;
+    if (user) {
+      const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '', 1);
+      const appUser = appUsers?.[0];
+      const roles = appUser?.app_roles || [];
+      isAdmin = user.role === 'admin' || roles.includes('admin');
     }
-
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '', 1);
-    const appUser = appUsers?.[0];
-    const roles = appUser?.app_roles || [];
-    const isAdmin = user.role === 'admin' || roles.includes('admin');
 
     let payload: any = {};
     try { payload = await req.json(); } catch (_) {}
@@ -24,7 +26,7 @@ Deno.serve(async (req) => {
     // client logger's flush cycle, so retention is enforced without any
     // scheduler dependency.
     if (retentionHours > 0) {
-      if (!isAdmin) {
+      if (user && !isAdmin) {
         const settingsRows = await base44.asServiceRole.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1);
         const included = settingsRows?.[0]?.included_user_ids;
         if (!Array.isArray(included) || !included.includes(user.id)) {

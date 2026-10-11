@@ -25,7 +25,7 @@ import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager"; import { queueEntityRequest } from "@/components/utils/requestQueue";
 import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
-import { loadUserSettings, saveSetting } from "@/components/utils/userSettingsManager";
+import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import useLiveBreadcrumbsSync from '@/components/dashboard/useLiveBreadcrumbsSync';
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { notifyDriverRetry } from "@/components/utils/deliveryMessaging";
@@ -38,6 +38,7 @@ import { getFabTargetDriverMapLocation, isDriverOffDuty } from "@/components/das
 import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
 import { getDeliveryTypeFlags } from "@/components/utils/deliveryTypeUtils";
 import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
+import { getVisibleHomeMarkersForBounds } from "@/components/dashboard/dashboardMapMarkerHelpers";
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useRouteDeviationMonitor from '@/components/dashboard/useRouteDeviationMonitor';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
@@ -89,6 +90,25 @@ function Dashboard() {
     };
     window.addEventListener('openInterStoreAddRoute', handler);
     return () => window.removeEventListener('openInterStoreAddRoute', handler);
+  }, []);
+  // Route deviation / location tracking admin settings are ADMIN-ONLY to edit
+  // but must apply to EVERY driver device (owner-reported bug, Sep 28 2026:
+  // only the device that saved the setting picked it up — every other device
+  // kept using the localStorage default forever). Pull the shared AppSettings
+  // value into this device's localStorage cache on mount, then again whenever
+  // an admin change broadcasts, so useRouteDeviationMonitor's synchronous
+  // getDeviationSettings() reads reflect the true global value within seconds.
+  useEffect(() => {
+    let cancelled = false;
+    let syncFn = null;
+    import('@/components/utils/routeDeviationDetector').then(({ syncDeviationSettingsFromServer }) => {
+      if (cancelled) return;
+      syncFn = syncDeviationSettingsFromServer;
+      syncFn(base44);
+    }).catch(() => {});
+    const onSettingsUpdated = () => { if (syncFn) syncFn(base44); };
+    window.addEventListener('appSettingsUpdated', onSettingsUpdated);
+    return () => { cancelled = true; window.removeEventListener('appSettingsUpdated', onSettingsUpdated); };
   }, []);
   useEffect(() => { if (!showDeliveryForm) setInterstorePrefill(null); }, [showDeliveryForm]);
   const [mapCenter, setMapCenter] = useState([53.5461, -113.4938]);
@@ -234,6 +254,11 @@ function Dashboard() {
   const driverLocationRef = useRef(null);
   const nextStopCoordinatesRef = useRef(null);
   const deliveriesWithStopOrderRef = useRef([]);
+  // Display-order lock: freezes stop-card order between an optimistic action
+  // (Accept All / Start / Accept Single) and the optimizer's freshDeliveries.
+  // Set via the 'routeDisplayOrderLock' window event; released on
+  // routeOptimizationComplete or by the 95s TTL.
+  const _routeOrderLockRef = useRef(null);
   const patientsRef = useRef([]);
   const storesRef = useRef([]);
   const allDriverLocationsRef = useRef([]);
@@ -371,7 +396,12 @@ function Dashboard() {
   // Sort-key fingerprint cache — only re-sort when sort-relevant fields change.
   const _dwsoSortKeyRef   = useRef('');
   const _dwsoCachedResult = useRef([]);
-
+  // Bumped when a routeDisplayOrderLock releases (routeOptimizationComplete or
+  // 95s TTL) — forces the memo below to recompute. Without it the last render
+  // that ran INSIDE the lock window caches the frozen card order, and because
+  // the sort fingerprint is unchanged after release, the memo early-returns
+  // and the clicking device keeps showing the pre-action order forever.
+  const [_orderLockVersion, setOrderLockVersion] = useState(0);
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || filteredDeliveries.length === 0) {
       _dwsoSortKeyRef.current = '';
@@ -433,7 +463,7 @@ function Dashboard() {
       const incomplete = stops.filter(d => d && !FINISHED.includes(d.status));
 
       // Finished: sort by actual_delivery_time ASC — cycling markers follow the same rule
-      const sortedFinished = [...finished].sort((a, b) => {
+      let sortedFinished = [...finished].sort((a, b) => {
         const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
         const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
         if (ta !== tb) return ta - tb;
@@ -442,7 +472,7 @@ function Dashboard() {
 
       // Incomplete: pending last; within non-pending sort by stop_order (preserves optimizer result)
       // Cycling markers (is_cycling_marker=true) are never treated as pending — sort like active stops
-      const sortedIncomplete = [...incomplete].sort((a, b) => {
+      let sortedIncomplete = [...incomplete].sort((a, b) => {
         const aPending = a.status === 'pending' && !a.is_cycling_marker;
         const bPending = b.status === 'pending' && !b.is_cycling_marker;
         if (aPending && !bPending) return 1;
@@ -460,6 +490,15 @@ function Dashboard() {
         return ea.localeCompare(eb);
       });
 
+      // ── Display-order lock: hold the pre-action card order until the optimizer lands ──
+      const _lock = _routeOrderLockRef.current;
+      if (_lock && _lock.until > Date.now() && _lock.driverId === dId
+          && stops.some((d) => d?.delivery_date === _lock.deliveryDate)) {
+        const _lockedIdx = (a, b) => ((_lock.idx.get(a?.id) ?? 1e9) - (_lock.idx.get(b?.id) ?? 1e9));
+        sortedFinished = sortedFinished.slice().sort(_lockedIdx);
+        sortedIncomplete = sortedIncomplete.slice().sort(_lockedIdx);
+      }
+
       // Merge finished-first then incomplete; assign display_stop_order 1..N sequentially
       const ordered = [...sortedFinished, ...sortedIncomplete];
       let dc = 1;
@@ -473,11 +512,58 @@ function Dashboard() {
 
     _dwsoCachedResult.current = result;
     return result;
-  }, [filteredDeliveries]);
+  }, [filteredDeliveries, _orderLockVersion]);
 
   useEffect(() => {
     deliveriesWithStopOrderRef.current = deliveriesWithStopOrder;
   }, [deliveriesWithStopOrder]);
+
+  // ── Route display-order lock listeners ─────────────────────────────────────
+  // Actions that trigger an optimistic transition + background optimization
+  // dispatch 'routeDisplayOrderLock' BEFORE their optimistic state writes.
+  // We snapshot the current card order and hold it until the coordinator
+  // reports completion (or TTL) — otherwise each intermediate local state
+  // (pending→in_transit flips, ETA re-stamps, freshDeliveries merges) re-sorts
+  // the cards 2-3 times before the KITT bar even shows.
+  useEffect(() => {
+    const lockHandler = (e) => {
+      const { driverId, deliveryDate } = e?.detail || {};
+      if (!driverId || !deliveryDate) return;
+      const ids = (deliveriesWithStopOrderRef.current || [])
+        .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate)
+        .map((d) => d.id);
+      if (!ids.length) return;
+      const idx = new Map();
+      ids.forEach((id, i) => idx.set(id, i));
+      _routeOrderLockRef.current = { driverId, deliveryDate, idx, until: Date.now() + 95000 };
+      // TTL guard: if routeOptimizationComplete never fires (optimizer crash),
+      // release the lock when it expires and force a fresh re-sort.
+      setTimeout(() => {
+        if (_routeOrderLockRef.current && _routeOrderLockRef.current.driverId === driverId && _routeOrderLockRef.current.deliveryDate === deliveryDate) {
+          _routeOrderLockRef.current = null;
+          setOrderLockVersion((v) => v + 1);
+        }
+      }, 96000);
+    };
+    const completeHandler = (e) => {
+      const lock = _routeOrderLockRef.current;
+      if (!lock) return;
+      const { driverId } = e?.detail || {};
+      if (!driverId || driverId === lock.driverId) {
+        _routeOrderLockRef.current = null;
+        // Force the sort memo to recompute now that the lock is gone — the
+        // fingerprint cache may otherwise keep the frozen order on screen.
+        _dwsoSortKeyRef.current = '';
+        setOrderLockVersion((v) => v + 1);
+      }
+    };
+    window.addEventListener('routeDisplayOrderLock', lockHandler);
+    window.addEventListener('routeOptimizationComplete', completeHandler);
+    return () => {
+      window.removeEventListener('routeDisplayOrderLock', lockHandler);
+      window.removeEventListener('routeOptimizationComplete', completeHandler);
+    };
+  }, []);
 
   const stats = useMemo(() => {
     let rd = filteredDeliveries || [];
@@ -492,7 +578,15 @@ function Dashboard() {
     const total=sd.length+ap.filter((d)=>d&&isISP(d)&&!d.after_hours_pickup).length; /* excl AH pickups, keep AH deliveries 1x */
     const inTransitIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&(d.status==='in_transit'||d.status==='en_route')).length;
     const completedIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&d.status==='completed').length;
-    const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+inTransitIsdIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
+    // Fix (Sep 18 2026): ISD stops are ALREADY inside sd (sd = patient_id || ISD), so the
+    // old `sd.filter(in_transit) + inTransitIsdIsp` counted every active ISD TWICE (a
+    // 4-stop route with one active ISD showed 5 In Progress). Active ISD is now counted
+    // exactly once via sd (in_transit, plus the legacy en_route ISD write-bug case);
+    // only active ISP is added separately (ISP lives in ap, not sd). The ISD/ISP
+    // superscript annotation (inTransitIsdIsp) is unchanged — it's a display count,
+    // not part of the arithmetic.
+    const activeIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&isISP(d)&&(d.status==='in_transit'||d.status==='en_route')).length;
+    const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+sd.filter((d)=>d&&isISD(d)&&d.status==='en_route').length+activeIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
     const completed=sd.filter((d)=>d&&d.status==='completed'&&!isRtn(d)).length+rd.filter((d)=>d&&!d.patient_id&&isISP(d)&&!d.after_hours_pickup&&(d.status==='completed'||d.status==='cancelled')).length; /* excl AH pickups, keep AH deliveries 1x */
     const returned=sd.filter(isRtn).length; const failed=sd.filter((d)=>d&&((d.status==='failed'&&!isRtn(d))||(d.status==='cancelled'&&!d.patient_id))).length+ap.filter((d)=>d&&isISP(d)&&d.status==='failed').length;
     const completedPickups=ap.filter((d)=>d&&!isISP(d)&&(d.status==='completed'||d.status==='cancelled')).length;
@@ -872,7 +966,7 @@ function Dashboard() {
       window._cancelInFlightNextFit = true;
       window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+      if (currentUser?.id && (!isAdmin || selectedDriverIdRef.current === currentUser.id)) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
       // Unlock after 500ms so the overview fits bounds, then lets the driver pan freely
       const exp = Date.now() + 500;
       mapLockExpiresAtRef.current = exp;
@@ -1011,7 +1105,7 @@ function Dashboard() {
       // or a pending immersive toggle can't fire a second fitBounds and bounce the view.
       window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
+      if (currentUser?.id && (!isAdmin || selectedDriverId === currentUser.id)) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
       if (unlockMs != null) {
         const exp = Date.now() + unlockMs;
@@ -1142,8 +1236,50 @@ function Dashboard() {
         }
         const shouldIncludeBlueDot = isMobile && isDriver && isViewingToday && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude && (selectedDriverId === currentUser?.id || selectedDriverIdRef.current === 'all');
 
-        // 2. SHARED DRIVER LOCATIONS: Skip when a specific driver is selected — their location was already added above.
-        const shouldIncludeSharedLocations = !(selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all') && (shouldShowAllMarkersForBounds || isDispatcher || isAdmin);
+        // 3. Add delivery/pickup markers based on mode FIRST so live-driver detection
+        // only considers drivers with actual visible stops — hoisted ABOVE the shared
+        // driver-location gate because that gate now needs to know whether OTHER
+        // drivers' stops are actually visible in the current view (All Drivers / Show
+        // All on a driver-own view still only has the driver's own stops in scope).
+        // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
+        let deliveriesToMap = [];
+
+        if (shouldShowAllMarkersForBounds) {
+          let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr);
+
+          if (isDispatcher && !isAdmin) {
+            const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+            const driversWithStoreDeliveries = new Set(
+              allDateDeliveries
+                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
+                .map((d) => d.driver_id)
+                .filter(Boolean)
+            );
+            deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
+          } else {
+            deliveriesToMap = allDateDeliveries;
+          }
+        } else {
+          deliveriesToMap = deliveriesWithStopOrderRef.current.length > 0 ? deliveriesWithStopOrderRef.current : deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr && (!selectedDriverId || selectedDriverIdRef.current === 'all' || d.driver_id === selectedDriverIdRef.current));
+        }
+
+        // 2. SHARED DRIVER LOCATIONS (owner directive, Sep 29 2026): every on-duty
+        // driver's GPS dot may only enter Phase 1 bounds in All Drivers mode or Show
+        // All mode — never in single-driver mode. The old gate ALSO included them for
+        // admins/dispatchers whenever NO specific driver was selected (selectedDriverId
+        // ''/null — the store-default state) and for driver-own views where
+        // selectedDriverId defaults to 'all' (a driver's map is always their own route
+        // even when the selector reads 'all', so the whole city's on-duty dots
+        // stretched the fit). Multi-driver stop visibility is derived from
+        // deliveriesToMap below — on a driver's own view only their stops are in
+        // scope, so shared markers stay out of bounds there.
+        const isSpecificDriverSelected = !!selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all';
+        const otherDriversHaveStopsInView = (deliveriesToMap || []).some((d) => d && d.driver_id && String(d.driver_id) !== String(currentUser?.id));
+        const shouldIncludeSharedLocations =
+          !isSpecificDriverSelected &&
+          (isDispatcher || isAdmin) &&
+          (selectedDriverIdRef.current === 'all' || showAllDriverMarkersRef.current) &&
+          otherDriversHaveStopsInView;
 
         // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
@@ -1205,29 +1341,6 @@ function Dashboard() {
             hasDriverMarkers = true;
             addedCount++;
           });
-        }
-
-        // 3. Add delivery/pickup markers based on mode FIRST so live-driver detection only considers drivers with actual visible stops
-        // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
-        let deliveriesToMap = [];
-
-        if (shouldShowAllMarkersForBounds) {
-          let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr);
-
-          if (isDispatcher && !isAdmin) {
-            const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
-            const driversWithStoreDeliveries = new Set(
-              allDateDeliveries
-                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
-                .map((d) => d.driver_id)
-                .filter(Boolean)
-            );
-            deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
-          } else {
-            deliveriesToMap = allDateDeliveries;
-          }
-        } else {
-          deliveriesToMap = deliveriesWithStopOrderRef.current.length > 0 ? deliveriesWithStopOrderRef.current : deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr && (!selectedDriverId || selectedDriverIdRef.current === 'all' || d.driver_id === selectedDriverIdRef.current));
         }
 
         let coordsAdded = 0;
@@ -1303,7 +1416,11 @@ function Dashboard() {
         const visibleDriverIdsForBounds = new Set((deliveriesToMap || []).map((d) => d?.driver_id).filter(Boolean));
         if (hasStopMarkers) {
           const mapDriverLocationMarkersForBounds = (window.__mapDriverLocationMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id || marker?.driverId || marker?.user_id || marker?.id));
-          const mapHomeMarkers = (window.__dashboardMapMarkerHelpers?.getVisibleHomeMarkersForBounds || ((params) => params.mapHomeMarkers || []))({
+          // FIX (Sep 19, 2026): call the imported helper directly. The window.__dashboardMapMarkerHelpers
+          // lookup always fell back to the raw (unfiltered) marker list because nothing ever imports
+          // dashboardMapMarkerHelpers.jsx, so its module-level global registration never ran — every
+          // driver's home pin entered the Phase 1 bounds even in single-driver mode.
+          const mapHomeMarkers = getVisibleHomeMarkersForBounds({
             mapHomeMarkers: window.__mapHomeMarkers || [],
             mapDeliveryMarkers: (window.__mapDeliveryMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id)),
             mapPickupMarkers: (window.__mapPickupMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id)),
@@ -1485,7 +1602,20 @@ function Dashboard() {
         }
 
         if (!_phase2Handled) {
-        const fabTargetDriverLocation = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
+        let fabTargetDriverLocation = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
+        // GLIDE HONOR (owner report Oct 5 2026): fit toward the INTERPOLATED
+        // dot position when following SELF on the primary device — the dot
+        // glides at ~20fps between 5s hardware fixes, and the old fit used the
+        // stale real fix, so the map lagged 3-5 dot-moves behind. The glide
+        // follower (useDriverLocationSync Effect 1c) fires this ~1s; here we
+        // swap in the fresh glide coords so the pan tracks the dot exactly.
+        const _selId2 = selectedDriverIdRef.current;
+        if ((_selId2 === 'all' || _selId2 === currentUser?.id || !_selId2) && (isPrimaryDeviceRef.current || window.__isPrimaryDevice === true)) {
+          const _disp = (window.__liveMarkerDisplay || {})[currentUser?.id];
+          if (_disp && Date.now() - (_disp.ts || 0) < 2500 && Number.isFinite(_disp.lat) && Number.isFinite(_disp.lng)) {
+            fabTargetDriverLocation = { ...(fabTargetDriverLocation || {}), latitude: _disp.lat, longitude: _disp.lng };
+          }
+        }
         console.log(`🗺️ [mapPos P2] immersiveHiddenRef=${immersiveHiddenRef.current} cancelInFlight=${_cancelInFlight} driverLoc=${fabTargetDriverLocation ? 'yes' : 'no'}`);
         if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null); const _selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd'); const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.delivery_date === _selectedDateStr2 && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
@@ -1617,6 +1747,31 @@ function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapViewTrigger]);
 
+  // PHASE 1 ASPECT-CHANGE AUTO-REFIT (Sep 19, 2026): when the map container's
+  // aspect ratio changes (rotation, window resize), re-fire the Phase 1 fit so
+  // markers aren't left occluded behind the stats card / stop cards. Phases 2/3
+  // already self-heal via GPS ticks + the useDriverLocationSync watchdog. Guards
+  // mirror the watchdog: never override a manual pan, and respect touch /
+  // suppression / immersive-transition grace windows.
+  useEffect(() => {
+    const handleMapAspectChanged = () => {
+      if (mapViewPhaseRef.current !== 1) return;
+      if (mapUserUnlockedRef.current) return;
+      const now = Date.now();
+      if ((window._isUserTouchingMap || false) === true) return;
+      if ((window._userMapControlUntil || 0) > now) return;
+      if ((window._suppressMapRepositionUntil || 0) > now) return;
+      if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
+      if ((window._lastImmersiveEntryAt || 0) > now - 3500) return;
+      pendingPhaseRef.current = 1;
+      lastProgrammaticMapMoveRef.current = now;
+      window._lastProgrammaticMapMove = now;
+      setMapViewTrigger((p) => p + 1);
+    };
+    window.addEventListener('mapAspectChanged', handleMapAspectChanged);
+    return () => window.removeEventListener('mapAspectChanged', handleMapAspectChanged);
+  }, [setMapViewTrigger]);
+
   const hasLoadedOfflineDataRef = useRef(false);
   const lastOfflineLoadDateRef = useRef(''); // tracks date to re-run on date change
   useEffect(() => {
@@ -1733,7 +1888,7 @@ function Dashboard() {
     // the saved phase. Phase 2/3 are unavailable when every stop is finished, so
     // restoring a saved phase 2/3 would leave the FAB visually stuck.
     const routeDone = !!isRouteComplete && !!completedRouteCity;
-    const _sp = routeDone ? 1 : (([1,2,3].includes(Number(initialFabPhase))) ? Number(initialFabPhase) : 1);
+    const _ownRoute = !!currentUser && (isAdmin ? selectedDriverId === currentUser.id : isDriver); const _ps = _ownRoute ? Number(getSetting('fab_map_cycle_phase')) : Number(initialFabPhase); const _sp = routeDone ? 1 : (([1,2,3].includes(_ps)) ? _ps : 1);
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
     // Phases 2 & 3: restore locked so map positions to saved phase and next FAB click cycles forward.
@@ -2298,10 +2453,22 @@ function Dashboard() {
         stores: storesRef.current,
         appUsers,
         source: 'delete_delivery',
-        // If the deleted stop was NOT the next delivery, skip full re-optimization —
-        // just regenerate polylines in existing stop order.
-        skipOptimize: !wasNextDelivery,
+        // Oct 9 2026 delete-path fix:
+        // (a) ALWAYS run the engine after an active-stop delete. The old
+        //     skipOptimize: !wasNextDelivery skipped the engine entirely for
+        //     non-next deletes, so the remaining legs' polylines stayed chained
+        //     THROUGH the deleted stop (stale route lines) and ETAs went stale.
+        //     preserveExistingOrder keeps the compacted order for non-next
+        //     deletes: polylines/ETAs regenerate along the correct chain, no
+        //     re-sequencing.
+        // (b) If the deleted stop WAS isNextDelivery, pass clearNextDeliveryLock
+        //     so the engine re-elects the first active stop of the re-optimized
+        //     route as next. Previously the engine stamped isNextDelivery=false
+        //     on EVERY remaining stop (explicit flag deleted + route already
+        //     in progress → nextStopId null) and nothing ever re-established
+        //     the flag: no pulsating marker, no next-delivery badge.
         preserveExistingOrder: !wasNextDelivery,
+        clearNextDeliveryLock: wasNextDelivery,
       });
 
       if (result.success && Array.isArray(result.freshDeliveries) && result.freshDeliveries.length > 0) {

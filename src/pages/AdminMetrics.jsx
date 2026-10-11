@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2 } from 'lucide-react';
+import { toast } from 'sonner';
+import html2canvas from 'html2canvas';
+import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import { base44 } from '@/api/base44Client';
 import { getAdminMetricsAndPayrollData } from '@/functions/getAdminMetricsAndPayrollData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -67,6 +70,11 @@ export default function AdminMetrics() {
   const [appUsers, setAppUsers] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
   const citySelectTriggerRef = useRef(null);
+  const metricsContentRef = useRef(null);
+  const metricsScrollRef = useRef(null);
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
 
   // Unified fee totals (supports both admin metrics and store metrics shapes)
   const feeTotals = useMemo(() => {
@@ -742,6 +750,48 @@ export default function AdminMetrics() {
       });
   }, [metricsData, selectedMonth, appUsers]);
 
+  // ── Share: capture the metrics page as an image and open the share sheet ──
+  // (the button previously had no handler — restored using the same capture
+  // pattern as Driver Payroll: force light theme, hide the filter controls,
+  // unclip the scroll area so the full page renders, then html2canvas it.)
+  const handleShareMetrics = useCallback(async () => {
+    if (!metricsContentRef.current || isCapturingScreenshot) return;
+    setIsCapturingScreenshot(true);
+    const htmlElement = document.documentElement;
+    const originalThemeClass = htmlElement.className;
+    const controlsElement = document.getElementById('admin-metrics-controls');
+    const scrollEl = metricsScrollRef.current;
+    try {
+      htmlElement.classList.remove('dark-theme', 'auto-theme');
+      htmlElement.classList.add('light-theme');
+      if (controlsElement) controlsElement.style.display = 'none';
+      if (scrollEl) { scrollEl.style.overflow = 'visible'; scrollEl.style.maxHeight = 'none'; }
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const canvas = await html2canvas(metricsContentRef.current, {
+        backgroundColor: '#f8fafc',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        imageTimeout: 0,
+        allowTaint: true
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      toast.success('Screenshot captured!');
+      setScreenshotDataUrl(dataUrl);
+      setShowScreenshotModal(true);
+    } catch (error) {
+      console.error('Metrics screenshot error:', error);
+      toast.error('Failed to capture screenshot');
+    } finally {
+      htmlElement.className = originalThemeClass;
+      if (controlsElement) controlsElement.style.display = '';
+      if (scrollEl) { scrollEl.style.overflow = ''; scrollEl.style.maxHeight = ''; }
+      setIsCapturingScreenshot(false);
+    }
+  }, [isCapturingScreenshot]);
+
   const renderHeaderSection = () =>
   <div className="shrink-0 space-y-3">
       <div>
@@ -749,7 +799,7 @@ export default function AdminMetrics() {
           Admin Metrics
         </h1>
       </div>
-      <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap overflow-x-auto overflow-y-hidden pb-1">
+      <div id="admin-metrics-controls" className="flex items-center gap-1.5 md:gap-2 flex-nowrap overflow-x-auto overflow-y-hidden pb-1">
         <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
           <SelectTrigger ref={citySelectTriggerRef} className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
             <SelectValue placeholder="Select City" />
@@ -796,7 +846,7 @@ export default function AdminMetrics() {
           className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
             <RefreshCw className={`w-4 h-4 ${isFetching || isManualRefreshing || isBackgroundSyncing ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
           </Button>
-          <Button aria-label="Share metrics" variant="outline" size="icon" disabled={!selectedCityId}>
+          <Button aria-label="Share metrics" variant="outline" size="icon" onClick={handleShareMetrics} disabled={!selectedCityId || isCapturingScreenshot}>
             <Share2 className="w-4 h-4" />
           </Button>
         </div>
@@ -852,7 +902,7 @@ export default function AdminMetrics() {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
+      <div ref={metricsContentRef} className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
         {/* Header */}
         {renderHeaderSection()}
 
@@ -980,6 +1030,7 @@ export default function AdminMetrics() {
         </div>
 
         <div
+          ref={metricsScrollRef}
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-6"
           style={{
             paddingBottom: 'calc(var(--bottom-nav-height, 0px) + 1rem)',
@@ -1280,6 +1331,15 @@ export default function AdminMetrics() {
 
         </div>
       </div>
+
+      {/* Screenshot Share Modal — native share sheet with the captured image,
+          plus download fallback. Mirrors the Driver Payroll share flow. */}
+      <ScreenshotShareModal
+        isOpen={showScreenshotModal}
+        onClose={() => setShowScreenshotModal(false)}
+        imageDataUrl={screenshotDataUrl}
+        filename={`admin-metrics-${selectedYear}${selectedMonth ? '-' + MONTH_NAMES[selectedMonth - 1] : ''}.png`} />
+
     </div>);
 
 }

@@ -150,7 +150,7 @@ function mergeGooglePolylines(first, second) {
 
 // ─── HERE API: multi-stop route ──────────────────────────────────────────────
 
-export async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
+export async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null, logPurpose = null } = {}) {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
@@ -169,7 +169,7 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
   });
-  logHereApiCall({ apiType: 'Routes (HERE)', purpose: `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
+  logHereApiCall({ apiType: 'Routes (HERE)', purpose: logPurpose || `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
 
@@ -263,6 +263,16 @@ export async function generateRoutePolylines({
                               // right after the origin (first mode group only). Current-leg
                               // polyline bends through the driver's position; the first
                               // stop's ETA/distance metrics use the GPS→stop leg only.
+  orderUnchanged = false,    // OWNER REQUEST (Oct 5 2026): the optimizer produced the
+                              // SAME stop order as the deliveries' existing stop_order.
+                              // The legs are identical geometry, so polyline generation
+                              // is skipped entirely (ETAs still update from HERE
+                              // sequencing) — unless the current leg actually differs:
+                              // if any eligible leg is missing, the origin anchor moved,
+                              // or the live-GPS via point applies, ONLY that leg regenerates.
+  logPurpose = null,          // Optional override for the Maps API usage-log purpose
+                              // (e.g. 'Route Deviation (Google Directions) — Current Route Leg').
+                              // Null → default 'Polyline generation' labels, unchanged.
 }) {
   const polylineByDeliveryId = new Map();
   if (!hereApiKey) return polylineByDeliveryId;
@@ -316,16 +326,79 @@ export async function generateRoutePolylines({
     return polylineByDeliveryId;
   }
 
+  // ── Order-unchanged short-circuit (owner request, Oct 5 2026) ──────────────
+  // If the optimizer kept every stop in its existing order, the legs are the
+  // same origin→stop geometry already stored on the deliveries. Regenerating
+  // them burns a HERE/Google Router call per mode group for zero visual change.
+  //   • All legs present + current leg still anchored at the origin + no
+  //     live-GPS via → SKIP generation entirely; the writeBatch carries no
+  //     encoded_polyline so existing polylines are preserved server-side/IDB.
+  //   • Legs present and every stored leg still anchored at its current
+  //     predecessor, but the driver's live GPS bends the current leg
+  //     → regenerate ONLY that first leg; remaining legs keep their polylines.
+  //   • Any stored leg NOT anchored at its current predecessor (Start Delivery
+  //     renumber jumps a stop to the front, shifting adjacency) → FULL
+  //     regeneration (owner report, Oct 7 2026).
+  let polyTargets = stopsToPolyline;
+  if (orderUnchanged && polyTargets.length > 0) {
+    const allLegsPresent = polyTargets.every(s =>
+      typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10
+    );
+    if (!allLegsPresent) {
+      // Some leg is missing (e.g. stops just accepted, or a previous polyline
+      // pass failed) → full generation; the skip must never leave gaps.
+      console.log(`[routePolylineGenerator] ${source} — order unchanged but ${polyTargets.length - polyTargets.filter(s => typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10).length} leg(s) missing → full generation`);
+    } else {
+      // ── Adjacency validation (owner report, Oct 7 2026) ────────────────────
+      // "Same stop order" does NOT prove the STORED legs match the current
+      // adjacency. Start Delivery renumbers locally BEFORE the coordinator
+      // runs (started stop jumps to position K+1, everything shifts), so the
+      // optimizer's order equals the pre-opt LOCAL order and the skip fired —
+      // leaving mid-route legs anchored at their OLD origin/destination
+      // (e.g. start stop 9 → stops 8 and 10 keep stale polylines). A stored
+      // leg is only reusable when its decoded FIRST point sits at its expected
+      // anchor: the origin for leg 0, the previous stop for every later leg.
+      // Any mismatch → full generation.
+      const _anchorKm = (pts, anchor) => {
+        if (!Array.isArray(pts) || pts.length === 0) return Infinity;
+        if (!Number.isFinite(Number(pts[0][0])) || !Number.isFinite(Number(pts[0][1]))) return Infinity;
+        const _latRad = (Number(anchor.lat) || 0) * Math.PI / 180;
+        const _dLatKm = (Number(pts[0][0]) - Number(anchor.lat)) * 111.32;
+        const _dLonKm = (Number(pts[0][1]) - Number(anchor.lon)) * 111.32 * Math.max(Math.cos(_latRad), 0.01);
+        return Math.hypot(_dLatKm, _dLonKm);
+      };
+      let _staleLegIdx = -1;
+      for (let i = 0; i < polyTargets.length; i++) {
+        const expectedAnchor = i === 0
+          ? { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
+          : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };
+        let _km = Infinity;
+        try { _km = _anchorKm(decodeGooglePolyline(polyTargets[i].delivery.encoded_polyline), expectedAnchor); }
+        catch (_) { /* decode failure → treat as stale */ }
+        if (!(_km < 0.15)) { _staleLegIdx = i; break; }
+      }
+      if (_staleLegIdx >= 0) {
+        console.log(`[routePolylineGenerator] ${source} — order unchanged but stored leg ${_staleLegIdx + 1}/${polyTargets.length} is not anchored at its current predecessor (Start-renumber / adjacency change) → full generation`);
+      } else if (viaValid) {
+        console.log(`[routePolylineGenerator] ${source} — order unchanged, all legs anchored → current-leg-only regeneration (live-GPS via point); ${polyTargets.length - 1} later leg(s) keep existing polylines`);
+        polyTargets = [polyTargets[0]];
+      } else {
+        console.log(`[routePolylineGenerator] ${source} — ORDER UNCHANGED, all ${polyTargets.length} leg(s) present and anchored → polyline generation SKIPPED (ETAs still update from HERE sequencing)`);
+        return polylineByDeliveryId;
+      }
+    }
+  }
+
   // Build transport-mode groups (consecutive runs of the same mode).
   // Each group's fromPoint = effectiveOrigin for group[0], else the last stop of
   // the previous group. HERE/Google accept one transport mode per call.
   const modeGroups = [];
-  for (let i = 0; i < stopsToPolyline.length; i++) {
-    const stop = stopsToPolyline[i];
+  for (let i = 0; i < polyTargets.length; i++) {
+    const stop = polyTargets[i];
     const mode = resolveMode(stop.delivery);
     const prev = (i === 0)
       ? effectiveOrigin
-      : { lat: stopsToPolyline[i - 1].lat, lon: stopsToPolyline[i - 1].lng };
+      : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };
     const last = modeGroups[modeGroups.length - 1];
     if (last && last.mode === mode) {
       last.stops.push(stop);
@@ -338,48 +411,107 @@ export async function generateRoutePolylines({
 
   const useGooglePoly = polylineProvider === 'google' && polylineApiKey;
 
+  // ── Deviation waypoints (Sep 17 2026) ──────────────────────────────────────
+  // Stops may carry `deviation_waypoints` — GPS points recorded by the
+  // current-leg deviation regen when the driver strayed off the planned leg
+  // (see currentLegRegenerator.js). They are inserted as via waypoints on that
+  // stop's inbound leg so ANY polyline regeneration (manual re-optimization
+  // mid-route, admin regenerate on completed routes, coordinator refreshes)
+  // keeps the leg snapped to the path actually driven instead of reverting to
+  // the theoretical route. Capped at the 3 most recent points per stop.
+  const DEVIATION_WAYPOINT_CAP = 3;
+  const getDeviationWaypoints = (delivery) => {
+    const raw = Array.isArray(delivery?.deviation_waypoints) ? delivery.deviation_waypoints : [];
+    return raw
+      .filter((p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
+      .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+      .map((p) => ({ lat: Number(p.lat), lon: Number(p.lng) }))
+      .slice(-DEVIATION_WAYPOINT_CAP);
+  };
+
   const groupResults = await Promise.all(modeGroups.map(async (group, groupIdx) => {
     const useVia = groupIdx === 0 && viaValid;
-    const viaPoint = useVia ? [{ lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) }] : [];
-    const points = [group.fromPoint, ...viaPoint, ...group.stops.map(s => ({ lat: s.lat, lon: s.lng }))];
+    // Build the group's point list with per-stop deviation via chains:
+    //   [fromPoint, (stop0's deviation vias, chronological), (live GPS), stop0,
+    //    (stop1's deviation vias), stop1, ...]
+    // Deviation points were recorded BEFORE the driver's current position, so
+    // they precede the live-GPS via on the current leg — the leg then renders
+    // the actual driven path (origin → detour points → GPS) followed by the
+    // remaining path to the stop, with no backtracking.
+    const points = [{ lat: group.fromPoint.lat, lon: group.fromPoint.lon }];
+    let liveViaIdx = -1;
+    const stopIdxs = [];       // index of each stop's own coordinate in `points`
+    const stopViaCounts = [];  // deviation via count on each stop's inbound chain
+    group.stops.forEach((stop) => {
+      const vias = getDeviationWaypoints(stop.delivery);
+      vias.forEach((v) => points.push(v));
+      stopViaCounts.push(vias.length);
+      if (useVia && liveViaIdx === -1) {
+        liveViaIdx = points.length;
+        points.push({ lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) });
+      }
+      stopIdxs.push(points.length);
+      points.push({ lat: stop.lat, lon: stop.lng });
+    });
+    const viaTotal = stopViaCounts.reduce((s, n) => s + n, 0) + (liveViaIdx !== -1 ? 1 : 0);
     const result = useGooglePoly
-      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName }).catch((err) => {
+      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — Google Directions THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         })
-      : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName }).catch((err) => {
+      : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName, logPurpose }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — HERE Router v8 THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         });
-    console.log(`[routePolylineGenerator] ${source} — ${useGooglePoly ? 'Google' : 'HERE'} ${group.mode} returned ${result.sections.length} sections for ${points.length} points${useVia ? ' (incl. live-GPS via)' : ''}`);
-    return { group, sections: result.sections || [], useVia };
+    console.log(`[routePolylineGenerator] ${source} — ${useGooglePoly ? 'Google' : 'HERE'} ${group.mode} returned ${result.sections.length} sections for ${points.length} points${useVia ? ' (incl. live-GPS via)' : ''}${viaTotal ? ` (incl. ${viaTotal} via point(s))` : ''}`);
+    return { group, sections: result.sections || [], useVia, liveViaIdx, stopIdxs, stopViaCounts };
   }));
 
-  for (const { group, sections, useVia } of groupResults) {
+  for (const { group, sections, useVia, liveViaIdx, stopIdxs, stopViaCounts } of groupResults) {
     group.stops.forEach((stop, groupLocalIndex) => {
-      let section = null;
-      if (useVia) {
-        if (groupLocalIndex === 0) {
-          // Via split the current leg into origin→GPS (pre) + GPS→firstStop (live).
-          // Rendered polyline = both legs stitched (bends through the driver's actual
-          // position); ETA/distance metrics use ONLY the GPS→firstStop leg so the
-          // next stop's ETA reflects where the driver is right now.
-          const preLeg = sections[0] || null;
-          const liveLeg = sections[1] || null;
-          section = {
-            ...liveLeg,
-            encoded_polyline: mergeGooglePolylines(preLeg?.encoded_polyline, liveLeg?.encoded_polyline),
-          };
-        } else {
-          section = sections[groupLocalIndex + 1] || null;
-        }
-      } else {
-        section = sections[groupLocalIndex] || null;
+      const stopIdx = stopIdxs[groupLocalIndex];
+      const viaCount = stopViaCounts[groupLocalIndex] || 0;
+      // The live-GPS via sits on the current leg only (group 0, first stop).
+      const liveViaOnThisLeg = useVia && liveViaIdx !== -1 && groupLocalIndex === 0;
+
+      // Section range for this stop's inbound chain (chain of origin/vias → stop):
+      //   renderStart — 0 on the live-GPS current leg (include the driven
+      //     origin→GPS pre-leg, per the Sep 11 spec), else the first
+      //     deviation-via section of the chain.
+      //   metricsStart — when the live-GPS via is on this leg, ONLY the final
+      //     GPS→stop section counts (ETA/distance = what's still ahead of the
+      //     driver). Otherwise the whole inbound chain (including deviation
+      //     vias) sums into the leg's travel time/distance.
+      const renderStart = liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount);
+      const metricsStart = liveViaOnThisLeg ? Math.max(1, stopIdx - 1) : Math.max(0, stopIdx - 1 - viaCount);
+
+      const chainSections = sections.slice(renderStart, stopIdx).filter(Boolean);
+      let encoded = null;
+      if (chainSections.length === 1) {
+        encoded = chainSections[0].encoded_polyline || null;
+      } else if (chainSections.length > 1) {
+        encoded = chainSections.reduce((acc, sec) => mergeGooglePolylines(acc, sec?.encoded_polyline || null), null);
       }
-      const _winterDurationMinutes = _winterPad(section?.estimated_duration_minutes, group.mode);
+
+      const metricSections = sections.slice(metricsStart, stopIdx).filter(Boolean);
+      let metricDuration = null;
+      let metricDistance = null;
+      if (metricSections.length === 1) {
+        // No vias on the inbound chain — the single section IS the leg
+        // (identical to the pre-deviation-waypoint behavior).
+        metricDuration = metricSections[0].estimated_duration_minutes ?? null;
+        metricDistance = metricSections[0].estimated_distance_km ?? null;
+      } else if (metricSections.length > 1) {
+        // Multi-section chain (deviation vias and/or pre-leg): sum the chain
+        // so the leg's ETA/distance reflect the true path through the vias.
+        metricDuration = metricSections.reduce((s, sec) => s + (Number(sec?.estimated_duration_minutes) || 0), 0);
+        metricDistance = Number(metricSections.reduce((s, sec) => s + (Number(sec?.estimated_distance_km) || 0), 0).toFixed(3));
+      }
+
+      const _winterDurationMinutes = _winterPad(metricDuration, group.mode);
       polylineByDeliveryId.set(stop.delivery.id, {
-        encodedPolyline: section?.encoded_polyline || null,
-        estimatedDistanceKm: section?.estimated_distance_km ?? null,
+        encodedPolyline: encoded,
+        estimatedDistanceKm: metricDistance,
         estimatedDurationMinutes: _winterDurationMinutes,
         transportMode: group.mode,
       });
@@ -390,8 +522,8 @@ export async function generateRoutePolylines({
           directionsLegs[routeStopIdx] = {
             ...directionsLegs[routeStopIdx],
             duration: Number(_winterDurationMinutes) * 60,
-            distance: section.estimated_distance_km
-              ? Number(section.estimated_distance_km) * 1000
+            distance: metricDistance != null
+              ? Number(metricDistance) * 1000
               : directionsLegs[routeStopIdx]?.distance,
           };
         }
@@ -401,9 +533,9 @@ export async function generateRoutePolylines({
 
   const _polyCount = [...polylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
   if (_polyCount === 0) {
-    console.warn(`[routePolylineGenerator] ${source} — produced 0 polylines despite ${eligibleStops.length} eligible stop(s) and ${stopsToPolyline.length} leg(s) — investigate origin/coords/HERE response`);
+    console.warn(`[routePolylineGenerator] ${source} — produced 0 polylines despite ${eligibleStops.length} eligible stop(s) and ${polyTargets.length} leg(s) — investigate origin/coords/HERE response`);
   } else {
-    console.log(`[routePolylineGenerator] ${source} — polylines generated: ${_polyCount}/${stopsToPolyline.length} legs`);
+    console.log(`[routePolylineGenerator] ${source} — polylines generated: ${_polyCount}/${polyTargets.length} legs`);
   }
 
   return polylineByDeliveryId;

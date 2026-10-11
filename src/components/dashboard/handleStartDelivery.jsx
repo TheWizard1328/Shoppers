@@ -70,6 +70,14 @@ export async function handleStartDelivery({
 
   // Track which delivery IDs were mutated locally so we can batch-sync them
   const transitionedIds = new Set();
+  // Hoisted so the finally block can inspect the coordinator result (serverCommitFailed)
+  let coordResult = null;
+  // Offline-first single-commit bookkeeping (owner directive, Oct 5 2026):
+  // the ENTIRE start flow runs against offlineDB + local UI first; ONE final
+  // user-scoped bulkUpdateDeliveries at the end is the single server push —
+  // and therefore the single WebSocket broadcast other devices receive.
+  let finalCommitUpdates = null;
+  let startCommitFailed = false;
 
   try {
     // ─── STEP 2: Compute all transitions locally, write ONLY to offlineDB ────
@@ -80,34 +88,79 @@ export async function handleStartDelivery({
     );
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
-    const completedCount = driverLocalDeliveries.filter((d) => finishedStatuses.has(d.status)).length;
-    const nextStopOrder = completedCount + 1;
+
+    // ── STEP 2b: Renumber — the started stop takes the current next position ──
+    // (owner directive, Sep 28 2026 — reverses the Sep 21 frozen-number policy).
+    // The frozen-number policy kept the started stop's OLD stop_order, so the
+    // isNextDelivery flag moved it to "next" on the map/banner while the card
+    // list kept sorting it by its stale number — the stop sat in its old slot
+    // with a mismatched number. Now Start renumbers the route in one pass:
+    //   - finished stops: 1..K, ordered by actual_delivery_time ASC
+    //     (same rule as repair passes — values only change if stale)
+    //   - the started stop: K+1 (the current next position)
+    //   - remaining incomplete stops (cycling markers INCLUDED): K+2..N,
+    //     preserving their existing relative order (stop_order, ETA tie-break,
+    //     pending last)
+    const finishedStopsLocal = driverLocalDeliveries
+      .filter((d) => d && finishedStatuses.has(String(d.status || '')));
+    const finishedSorted = [...finishedStopsLocal].sort((a, b) => {
+      const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+      const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+      if (ta !== tb) return ta - tb;
+      return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+    });
+    const remainingIncomplete = driverLocalDeliveries
+      .filter((d) => d && !finishedStatuses.has(String(d.status || '')) && d.id !== deliveryId)
+      .sort((a, b) => {
+        const aPending = a.status === 'pending' && !a.is_cycling_marker;
+        const bPending = b.status === 'pending' && !b.is_cycling_marker;
+        if (aPending !== bPending) return aPending ? 1 : -1;
+        const ao = Number(a.stop_order) || 0;
+        const bo = Number(b.stop_order) || 0;
+        if (ao > 0 && bo > 0 && ao !== bo) return ao - bo;
+        const ea = a.delivery_time_eta || a.delivery_time_start || '';
+        const eb = b.delivery_time_eta || b.delivery_time_start || '';
+        if (ea !== eb) return String(ea).localeCompare(String(eb));
+        return String(a.created_date || '').localeCompare(String(b.created_date || ''));
+      });
+    const newOrderMap = new Map();
+    finishedSorted.forEach((d, i) => newOrderMap.set(d.id, i + 1));
+    const newTargetStopOrder = finishedSorted.length + 1;
+    newOrderMap.set(deliveryId, newTargetStopOrder);
+    remainingIncomplete.forEach((d, i) => newOrderMap.set(d.id, finishedSorted.length + 2 + i));
+    const renumberedIds = new Set();
 
     // Build the full mutated set we'll write to IndexedDB in one go
     const mutatedDeliveries = driverLocalDeliveries.map((d) => {
       if (!d) return d;
 
-      // Clear stale isNextDelivery from every other stop
-      if (d.id !== deliveryId && d.isNextDelivery) {
-        transitionedIds.add(d.id);
-        return { ...d, isNextDelivery: false, updated_date: new Date().toISOString() };
-      }
+      const nextOrder = newOrderMap.get(d.id);
+      const orderChanged = nextOrder != null && Number(d.stop_order) !== nextOrder;
+      if (orderChanged) { transitionedIds.add(d.id); renumberedIds.add(d.id); }
 
-      // Transition the target stop
+      // Transition the target stop (renumbered to K+1 — see STEP 2b above)
       if (d.id === deliveryId) {
         transitionedIds.add(d.id);
         return {
           ...d,
           isNextDelivery: true,
           status: newStatus,
-          stop_order: nextStopOrder,
+          stop_order: nextOrder,
           delivery_time_start: etaString,
           delivery_time_eta: etaString,
           updated_date: new Date().toISOString(),
         };
       }
 
-      return d;
+      // Clear stale isNextDelivery from every other stop + apply renumbers
+      if (d.isNextDelivery) transitionedIds.add(d.id);
+      if (!d.isNextDelivery && !orderChanged) return d;
+      return {
+        ...d,
+        ...(d.isNextDelivery ? { isNextDelivery: false } : {}),
+        ...(orderChanged ? { stop_order: nextOrder } : {}),
+        updated_date: new Date().toISOString(),
+      };
     });
 
     // Write ALL mutations to offlineDB atomically
@@ -134,38 +187,24 @@ export async function handleStartDelivery({
     }));
     console.log('✅ [handleStartDelivery] Step 3 complete — UI updated from local state');
 
-    // ─── STEP 4: Authoritative clear-all-then-promote (ordered broadcast) ────
-    // Phase 1: write the target stop's status/stop_order/ETA WITHOUT isNextDelivery,
-    //   so the true flag is controlled solely by phases 2+3 below.
-    // Phase 2: clear ALL isNextDelivery=true flags on this driver+date route via a
-    //   server-side query (authoritative — catches stale trues the local snapshot
-    //   missed), excluding the target. Awaited so every false broadcasts first.
-    // Phase 3: promote the target to isNextDelivery=true LAST.
-    await base44.entities.Delivery.update(deliveryId, {
-      status: newStatus,
-      stop_order: nextStopOrder,
-      delivery_time_start: etaString,
-      delivery_time_eta: etaString,
-    }).catch((err) => {
-      console.warn(`⚠️ [handleStartDelivery] Status sync failed for ${deliveryId}:`, err?.message);
-    });
-    console.log(`✅ [handleStartDelivery] Step 4a complete — target status/stop_order/ETA synced`);
+    // ─── STEP 4: Nothing to do here anymore — fully offline-first ──────────
+    // (owner directive, Oct 5 2026: Start should behave exactly like Accept
+    // All: all actions offline first, ONE final push to the online database as
+    // the final step, with the WebSocket transmission following from it.)
+    //
+    // The old Steps 4a/4a.5 (status + renumber server writes) and 4b (flag
+    // clear/promote) used to run against the server BEFORE the optimizer, each
+    // broadcasting partial states. Nothing here needs the server: the optimizer
+    // runs on the locally-mutated deliveries (mutatedDeliveries passed below),
+    // offlineDB already holds the new state (Step 2), and the UI is already
+    // updated (Step 3). ALL server writes are deferred to the single final
+    // commit after Step 6 — status, renumbers, optimized stop_order/ETAs,
+    // polylines, and isNextDelivery land on the server in ONE user-scoped
+    // bulkUpdateDeliveries, which is the ONE WebSocket broadcast other
+    // devices receive. The authoritative clearAndSetNextDelivery cleanup
+    // (asServiceRole, no broadcast) follows it.
+    console.log('✅ [handleStartDelivery] Step 4 skipped server writes — offline-first; server push deferred to final commit');
 
-    // Authoritative server-side clear-all-then-promote (asServiceRole, primary read):
-    // clears every stale isNextDelivery=true on this driver+date route EXCEPT the
-    // target, awaits all false broadcasts, then promotes the target LAST so the single
-    // true arrives after every false on every receiving device.
-    try {
-      const res = await base44.functions.invoke('clearAndSetNextDelivery', { driverId, deliveryDate, promoteId: deliveryId });
-      const clearedCount = (res?.data?.clearedIds || res?.clearedIds || []).length;
-      console.log(`✅ [handleStartDelivery] Step 4b complete — cleared ${clearedCount} stale isNextDelivery=true flag(s), promoted ${deliveryId} (broadcast last)`);
-    } catch (err) {
-      console.warn(`⚠️ [handleStartDelivery] clearAndSetNextDelivery failed:`, err?.message);
-    }
-
-    // Brief pause to let DB writes propagate before the optimizer reads the delivery list.
-    // Without this the optimizer may race the status writes and see the pickup as still 'pending'.
-    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // ─── STEP 5+6: Unified route optimization (optimize + polyline regeneration) ──
     // ─── STEP 5+6: Unified route optimization (optimize + polyline regeneration) ──
@@ -186,7 +225,7 @@ export async function handleStartDelivery({
     // Pass the just-mutated local deliveries directly to the client-side engine.
     // mutatedDeliveries already contains the full driver+date set from offlineDB
     // with the latest status/isNextDelivery/stop_order writes applied.
-    const coordResult = await performRouteOptimization({
+    coordResult = await performRouteOptimization({
       driverId,
       deliveryDate,
       currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
@@ -196,6 +235,11 @@ export async function handleStartDelivery({
       appUsers,
       source: 'start_delivery',
       bypassDriverStatus: true,
+      // The coordinator runs fully locally; WE commit the merged result to the
+      // server below (skipServerWrite) so the single final push includes the
+      // start state (status/start time) that the engine's writeBatch does not
+      // carry for pickups (writeBatch only stamps in_transit statuses).
+      skipServerWrite: true,
     });
     console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
 
@@ -205,6 +249,89 @@ export async function handleStartDelivery({
         usedFallbackPolyline: coordResult?.usedFallbackPolyline,
       });
       toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
+    }
+
+    // ─── STEP 6b: THE single final server push + WebSocket broadcast ────────
+    // Merge the engine's writeBatch (stop_order, ETAs, polylines, statuses,
+    // isNextDelivery) with the start state the engine does not carry (target
+    // status / delivery_time_start, plus renumbers and flag clears for stops
+    // outside the writeBatch — finished stops, pending stops) into ONE update
+    // set, then commit it in a single user-scoped bulkUpdateDeliveries call.
+    // That call is the ONLY server write of the whole flow — and the ONLY
+    // WebSocket broadcast other devices receive (Accept-All pattern).
+    try {
+      const writeBatch = Array.isArray(coordResult?.optimizeData?.writeBatch) ? coordResult.optimizeData.writeBatch : [];
+      const mergedDataMap = new Map();
+      for (const w of writeBatch) {
+        if (w?.id && w.data) mergedDataMap.set(w.id, { ...w.data });
+      }
+      // Start-state merge for every locally-transitioned stop…
+      for (const id of transitionedIds) {
+        const d = mutatedDeliveries.find((x) => x?.id === id);
+        if (!d) continue;
+        const existing = mergedDataMap.get(id) || {};
+        mergedDataMap.set(id, {
+          ...existing,
+          stop_order: existing.stop_order != null ? existing.stop_order : Number(d.stop_order),
+          ...(id === deliveryId
+            ? {
+                status: newStatus,
+                delivery_time_start: etaString,
+                delivery_time_eta: existing.delivery_time_eta || etaString,
+                stop_order: existing.stop_order != null ? existing.stop_order : newTargetStopOrder,
+                isNextDelivery: true,
+              }
+            : { isNextDelivery: false }),
+        });
+      }
+      finalCommitUpdates = Array.from(mergedDataMap.entries()).map(([id, data]) => ({ id, data }));
+      if (finalCommitUpdates.length > 0) {
+        await base44.functions.invoke('bulkUpdateDeliveries', { updates: finalCommitUpdates });
+        console.log(`✅ [handleStartDelivery] Step 6b — SINGLE final commit: ${finalCommitUpdates.length} update(s) pushed to server (one WebSocket broadcast)`);
+      } else {
+        console.log('ℹ️ [handleStartDelivery] Step 6b — nothing to commit (no writeBatch, no transitions)');
+      }
+    } catch (err) {
+      startCommitFailed = true;
+      console.warn(`⚠️ [handleStartDelivery] Step 6b final commit failed:`, err?.message);
+    }
+
+    // ─── STEP 6c: Authoritative stale-flag cleanup (silent, no broadcast) ──
+    // asServiceRole writes do NOT broadcast — devices already received the
+    // complete flag state in the Step 6b commit. This only sweeps stale
+    // isNextDelivery=true records the local snapshot never saw (e.g. a stop
+    // deleted locally but still flagged on the server).
+    try {
+      const res = await base44.functions.invoke('clearAndSetNextDelivery', { driverId, deliveryDate, promoteId: deliveryId });
+      const clearedCount = (res?.data?.clearedIds || res?.clearedIds || []).length;
+      console.log(`✅ [handleStartDelivery] Step 6c — cleared ${clearedCount} stale isNextDelivery=true flag(s), promoted ${deliveryId} (silent)`);
+    } catch (err) {
+      console.warn(`⚠️ [handleStartDelivery] Step 6c clearAndSetNextDelivery failed:`, err?.message);
+    }
+
+    // ─── STEP 6.5: Apply the optimized result to the UI immediately (pass 2) ───
+    // Accept-All-parity UI choreography (owner directive, Sep 28 2026): the
+    // start flow re-sorts the stop cards MULTIPLE times before settling —
+    // pass 1 was the local renumber flush in Step 3; THIS pass applies the
+    // HERE-optimized order/ETAs the coordinator just produced; Step 8 then
+    // settles with the final merged state + scroll. The visible multi-pass
+    // rearrange gives the driver the same "optimization is working" feedback
+    // the Accept All button provides.
+    if (coordResult?.success && Array.isArray(coordResult.freshDeliveries) && coordResult.freshDeliveries.length > 0 && updateDeliveriesLocally) {
+      const otherDeliveriesOpt = (deliveries || []).filter(
+        (d) => d && !(d.driver_id === driverId && d.delivery_date === deliveryDate)
+      );
+      updateDeliveriesLocally([...otherDeliveriesOpt, ...coordResult.freshDeliveries], true);
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId,
+          deliveryDate,
+          triggeredBy: 'startDelivery_optimized',
+          freshDeliveries: coordResult.freshDeliveries,
+          fullReplacement: false,
+        },
+      }));
+      console.log('✅ [handleStartDelivery] Step 6.5 complete — UI pass 2 applied (optimized order)');
     }
 
     // ─── STEP 7: Remaining processes ─────────────────────────────────────
@@ -306,6 +433,21 @@ export async function handleStartDelivery({
 
     console.log('✅ [handleStartDelivery] Step 8 complete — final UI updated from server');
 
+    // ─── STEP 8.5: Single retry of the final commit if it failed ───────────
+    // Step 6b was the only server push; if it failed (transient network blip),
+    // retry the SAME merged update set once — still ONE broadcast. Persistent
+    // offline stays local-only: IDB holds the truth and the offline mutation
+    // queue/smartRefresh reconcile when connectivity returns.
+    if (startCommitFailed && Array.isArray(finalCommitUpdates) && finalCommitUpdates.length > 0) {
+      try {
+        await base44.functions.invoke('bulkUpdateDeliveries', { updates: finalCommitUpdates });
+        startCommitFailed = false;
+        console.log(`✅ [handleStartDelivery] Step 8.5 — final commit retry succeeded (${finalCommitUpdates.length} updates, one broadcast)`);
+      } catch (err) {
+        console.warn(`⚠️ [handleStartDelivery] Step 8.5 — retry failed; server still pre-start (will re-sync when online):`, err?.message);
+      }
+    }
+
   } catch (error) {
     console.error('❌ [handleStartDelivery] Error:', error);
     if (
@@ -330,7 +472,16 @@ export async function handleStartDelivery({
     // Schedule a priority delivery refresh 3 sec later so other drivers' deliveries
     // (and any server-side changes triggered by this start) are reconciled without
     // racing the just-resumed sync managers.
+    // GUARD: if the coordinator's server commit failed (offline / server error), the
+    // server still holds PRE-optimization stop_order/polyline state — a forced
+    // refresh now would clobber the good local UI/IDB state (stale until refresh).
+    // Skip it; the offline mutation queue re-pushes the writes when back online.
+    const _serverCommitFailed = startCommitFailed || coordResult?.serverCommitFailed === true;
+    if (_serverCommitFailed) {
+      console.warn('⚠️ [handleStartDelivery] Step 9 skipped — optimization server commit failed; priority refresh would revert local state');
+    }
     setTimeout(() => {
+      if (_serverCommitFailed) return;
       import('@/components/utils/dataManager')
         .then(({ loadPriorityDeliveriesForSelection }) =>
           loadPriorityDeliveriesForSelection(deliveryDate, 'all', true)

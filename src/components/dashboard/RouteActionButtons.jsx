@@ -141,12 +141,12 @@ export default function RouteActionButtons({
       if (driverId !== selectedDriverId) return;
       await new Promise((resolve) => setTimeout(resolve, 800));
       if (isReoptimizing) return;
+      const date = deliveryDate || format(selectedDate, 'yyyy-MM-dd');
       try {
         setIsReoptimizing(true);
         setIsEntityUpdating(true);
         pauseOfflineMutations();
         pauseOfflineSync();
-        const date = deliveryDate || format(selectedDate, 'yyyy-MM-dd');
         const driverAppUser = appUsers?.find(
           (au) => au.id === selectedDriverId || au.user_id === selectedDriverId
         );
@@ -201,8 +201,15 @@ export default function RouteActionButtons({
               detail: { driverId: selectedDriverId, deliveryDate: date, source: 'reoptimizeRoute' },
             })
           );
+          // Hey Doc voice command listens for this to speak the result back.
+          window.dispatchEvent(new CustomEvent('triggerReoptimizeRouteDone', {
+            detail: { driverId: selectedDriverId, deliveryDate: date, success: true },
+          }));
         }
       } catch (err) {
+          window.dispatchEvent(new CustomEvent('triggerReoptimizeRouteDone', {
+            detail: { driverId: selectedDriverId, deliveryDate: date, success: false, error: 'Optimization failed' },
+          }));
         console.warn('[RouteActionButtons] Silent reoptimize failed:', err?.message || err);
       } finally {
         resumeOfflineMutations();

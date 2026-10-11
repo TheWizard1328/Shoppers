@@ -136,14 +136,22 @@ export default function AppUsers() {
     user.email?.toLowerCase().includes(searchQuery.toLowerCase())
   ));
 
+  // Dark-mode fix (Sep 29 2026): these badge classes had NO dark: variants at
+  // all, so in dark mode they kept their light pastel backgrounds (bg-purple-100,
+  // bg-blue-100, bg-emerald-100) with dark text (text-purple-800, etc.) — nearly
+  // unreadable against the page's dark background, looking washed-out/ghosted.
+  // Fixed with proper dark counterparts: saturated-900/40 background + light-300
+  // text + a matching border, the standard shadcn dark-badge pattern.
   const getRoleBadgeColor = (roles) => {
-    if (roles?.includes('admin')) return 'bg-purple-100 text-purple-800';
-    if (roles?.includes('dispatcher')) return 'bg-blue-100 text-blue-800';
-    return 'bg-emerald-100 text-emerald-800';
+    if (roles?.includes('admin')) return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700/50';
+    if (roles?.includes('dispatcher')) return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700/50';
+    return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700/50';
   };
 
   const getStatusBadgeColor = (status) => {
-    return status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200';
+    return status === 'active'
+      ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700/50'
+      : 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600';
   };
 
   const getUserStatusIndicator = (user) => {
@@ -183,8 +191,7 @@ export default function AppUsers() {
               <p className="text-slate-600 dark:text-slate-400 mt-1">Manage application-specific user data and roles</p>
             </div>
             <Button onClick={() => { setEditingAppUser(null); setShowForm(true); }} className="bg-emerald-500 hover:bg-emerald-600">
-              <Plus className="w-4 h-4 mr-2" />
-              Add User
+              + Add User
             </Button>
           </div>
 

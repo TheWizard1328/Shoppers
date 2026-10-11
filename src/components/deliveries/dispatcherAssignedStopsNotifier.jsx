@@ -22,7 +22,7 @@
  * defaulting to the legacy system.
  */
 import { base44 } from '@/api/base44Client';
-import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
+import { dispatchMessageRules, clearRuleCache, buildDateQualifier } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
 import {
   notifyDispatcherAssignedAll,
@@ -68,6 +68,7 @@ function buildBatchAwareContext({
   dispatcher,
   deliveryList,
   existingStopCount = 0,
+  patients = [],
 }) {
   const storeIds = aggregateList(deliveries, 'store_id');
   // If a single store, keep its id directly on store_id (matches "equals"/"in_list")
@@ -98,11 +99,24 @@ function buildBatchAwareContext({
     ? `${deliveries.length} more`
     : String(deliveries.length);
 
+  // The real name of whoever performed the assignment (admin or dispatcher),
+  // exposed to templates as {{adminName}} so rules can say "Robert T has
+  // assigned you..." instead of a generic "An Administrator has...". This is
+  // the AppUser's name, never the platform User.role admin — same identity
+  // source as driverName/patientName/storeName.
+  const adminName = dispatcher?.user_name || dispatcher?.full_name || 'Administrator';
+  // The acting AppUser's id — used ONLY for the self-action push bypass in
+  // the rule engine (dispatchMessageRules), never for display.
+  const actingUserId = dispatcher?.user_id || dispatcher?.id || '';
+
   const context = {
     eventName: 'Dispatcher Assigned Stops',
     driverName,
+    adminName,
     storeName,
     deliveryList,
+    // {{date}} — 'for Tomorr '/'for Mon Oct 05 '/'' per the deliveries' delivery_date
+    date: buildDateQualifier(deliveries[0]?.delivery_date),
     pendingCount: String(deliveries.length),
     deliveryCount: String(deliveries.length),
     pendingCountLabel,
@@ -113,6 +127,13 @@ function buildBatchAwareContext({
     store_id: primaryStoreId,
     store_ids: storeIds,
     driver_id: driverId,
+    actingUserId,
+    // Without this, dispatchMessageRules only skips the PUSH channel for a
+    // self-assign (admin assigning stops to themselves as driver) — in-app
+    // messages still went out because that gate additionally requires this
+    // flag. Set it so an admin assigning to themselves gets neither channel,
+    // consistent with driverAcceptedStopsNotifier's self-accept suppression.
+    suppressSelfNotifications: true,
     delivery_status: 'pending',
     delivery_status_list: statuses,
     user_role: userRole,
@@ -121,6 +142,15 @@ function buildBatchAwareContext({
     timestamp: new Date().toLocaleString(),
     // Aggregate delivery-level boolean + numeric fields
     patientName: deliveries[0]?.patient_name || '',
+    // Text-search fields for Rule Builder "Patient Name" / "Patient Notes" /
+    // "Driver Notes" conditions — joined across the WHOLE batch (not just the
+    // first record) so "Contains" matches if ANY delivery/patient qualifies.
+    patient_name: aggregateList(deliveries, 'patient_name').join(' | '),
+    patient_notes: (() => {
+      const ids = new Set(deliveries.map((d) => d?.patient_id).filter(Boolean));
+      return (patients || []).filter((p) => ids.has(p?.id)).map((p) => p?.notes).filter(Boolean).join(' | ');
+    })(),
+    delivery_notes: aggregateList(deliveries, 'delivery_notes').join(' | '),
   };
 
   for (const f of BOOL_FIELDS) {
@@ -132,19 +162,21 @@ function buildBatchAwareContext({
 }
 
 // ── Sender resolution for in-app messages ────────────────────────────────────
-async function resolveInAppSender({ store, dispatcher }) {
-  // 1. Try the store pseudo-user (preserves legacy behaviour)
-  const storeUser = await getStoreUser(store).catch(() => null);
+// Resolves to the store's REAL dispatcher AppUser (plain user_name, e.g.
+// "Hamptons") so this thread's sender identity matches the same dispatcher's
+// identity used as the RECEIVER of "Stops Accepted" messages — otherwise the
+// two events land in separate conversation threads for the same person.
+async function resolveInAppSender({ store, dispatcher, appUsers }) {
+  // 1. Real store dispatcher AppUser (preferred — merges conversation threads)
+  const storeUser = await getStoreUser(store, appUsers).catch(() => null);
   if (storeUser?.id && storeUser?.user_name) return storeUser;
 
-  // 2. Fall back to the dispatcher themselves so the in-app message is STILL
-  //    delivered even when no store pseudo-user exists. The legacy system would
-  //    have bailed on a null storeUser entirely, leaving the driver with no
-  //    in-app notification.
-  const fallbackName = store?.name ? `${store.name} (Dispatcher)` : 'Dispatcher';
+  // 2. Fall back to the acting dispatcher/admin themselves so the in-app
+  //    message is STILL delivered even when no store dispatcher AppUser
+  //    exists. Plain name only — no suffix.
   const fallbackId = dispatcher?.id || dispatcher?.user_id || null;
   if (fallbackId) {
-    return { id: fallbackId, user_name: dispatcher?.user_name || fallbackName };
+    return { id: fallbackId, user_name: dispatcher?.user_name || 'Dispatcher' };
   }
 
   // 3. Last resort — bail; push channel still goes out.
@@ -157,19 +189,31 @@ export async function notifyDispatcherAssignedStops({
   store,
   deliveries,
   patients,
+  appUsers = null,
 }) {
   if (!deliveries || deliveries.length === 0 || !driver) return;
 
   const storeName = store?.name || 'Store';
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const driverId = driver?.user_id || driver?.id;
+  const actorId = dispatcher?.user_id || dispatcher?.id;
+  // Guard the entire dispatch, including the legacy fallback, for self-assigned
+  // batches. The rule-engine recipient filter below also suppresses the actor
+  // when the assigned driver is SOMEONE ELSE but the actor is the App Owner.
+  // Use the persisted deliveries' driver IDs as well as the caller's driver.
+  if (actorId && deliveries.every((d) =>
+    String(d?.driver_id || driverId) === String(actorId)
+  )) {
+    console.warn('[DispatcherAssignedStops] Skipping self-assignment notification');
+    return;
+  }
 
   // Build the patient delivery list with badges + distance (legacy format)
   let deliveryList = '';
   for (const delivery of deliveries) {
     const patient = patients?.find((p) => p?.id === delivery?.patient_id);
     const patientName = patient?.full_name || delivery?.patient_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, patient);
+    const badges = buildSpecialBadges(delivery, patient, { iconsOnly: true });
     const distance = buildDistanceBadge(patient, store);
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
@@ -177,7 +221,7 @@ export async function notifyDispatcherAssignedStops({
   // Resolve sender lazily (needed for in-app messages)
   let senderPromise = null;
   const getSender = () => {
-    if (!senderPromise) senderPromise = resolveInAppSender({ store, dispatcher });
+    if (!senderPromise) senderPromise = resolveInAppSender({ store, dispatcher, appUsers });
     return senderPromise;
   };
 
@@ -239,7 +283,7 @@ export async function notifyDispatcherAssignedStops({
 
   const context = buildBatchAwareContext({
     driver, driverId, driverName, store, storeName, deliveries, dispatcher, deliveryList,
-    existingStopCount,
+    existingStopCount, patients,
   });
   console.warn('[DispatcherAssignedStops] context built — driver_id:', context.driver_id, '— driver object:', { user_id: driver?.user_id, id: driver?.id }, '— user_role:', context.user_role, '— store_id:', context.store_id, '— existingStopCount:', existingStopCount, '— pendingCountLabel:', context.pendingCountLabel);
 

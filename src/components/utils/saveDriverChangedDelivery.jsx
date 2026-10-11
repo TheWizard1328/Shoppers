@@ -1,5 +1,7 @@
+import { updateDeliveryLocal } from './offlineMutations';
+
 export async function saveDriverChangedDelivery({
-  base44,
+  base44: _base44,
   deliveries,
   editingDelivery,
   deliveryData,
@@ -8,7 +10,7 @@ export async function saveDriverChangedDelivery({
   driver,
   originalDriverId
 }) {
-  await base44.entities.Delivery.update(editingDelivery.id, deliveryData);
+  await updateDeliveryLocal(editingDelivery.id, deliveryData, { skipSmartRefresh: true });
 
   const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
   const pickupLinkId = editingDelivery.puid || editingDelivery.stop_id || deliveryData.puid || deliveryData.stop_id;
@@ -26,11 +28,11 @@ export async function saveDriverChangedDelivery({
 
   await Promise.all(
     pendingDeliveriesForPickup.map((pendingDelivery) =>
-      base44.entities.Delivery.update(pendingDelivery.id, {
+      updateDeliveryLocal(pendingDelivery.id, {
         driver_id: driverId,
         driver_name: driver.user_name || driver.full_name,
         delivery_date: deliveryDate
-      })
+      }, { skipSmartRefresh: true })
     )
   );
 }

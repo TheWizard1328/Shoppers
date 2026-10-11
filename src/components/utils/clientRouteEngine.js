@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
+import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 /**
  * clientRouteEngine.js
  *
@@ -89,18 +90,28 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
   return `${String(Number(parts[0]) || 0).padStart(2, '0')}:${String(Number(parts[1]) || 0).padStart(2, '0')}:${String(Number(parts[2]) || 0).padStart(2, '0')}`;
 };
 
-// Patient time windows take priority over delivery_time_start (which is set
-// from the store/pickup time window rules at creation time). If a patient has
-// their own time_window_start/end, use those — the delivery's delivery_time_start
-// is a fallback for patients without specific time constraints.
+// THE DELIVERY'S OWN WINDOW IS AUTHORITATIVE (fixed Sep 30 2026, owner report).
+// Previously the patient's stored time_window_start/end (a general standing
+// preference on the Patient profile, e.g. "usually after 3pm") ALWAYS won over
+// the delivery's own delivery_time_start/time_window_start — even when a
+// dispatcher had explicitly edited THIS delivery's window for today (e.g. to
+// 18:00). getEffectiveWindowStart kept reverting to the patient's stale 15:00
+// default on every optimization pass, banding the stop into the SAME 2-hour
+// window as much-earlier stops and permanently mis-sequencing it near the
+// front of the route — no Start/manual-optimize/Accept-All action could fix
+// it because each pass re-derived the same wrong window from the patient
+// record. The delivery's own window (when set) now wins; the patient's
+// default is only a FALLBACK for deliveries with no window of their own.
 const getEffectiveWindowStart = (delivery, patient = null) => {
-  if (patient?.time_window_start) return patient.time_window_start;
-  return delivery?.delivery_time_start || delivery?.time_window_start || null;
+  const ownStart = delivery?.delivery_time_start || delivery?.time_window_start || null;
+  if (ownStart) return ownStart;
+  return patient?.time_window_start || null;
 };
 
 const getEffectiveWindowEnd = (delivery, patient = null) => {
-  if (patient?.time_window_end) return patient.time_window_end;
-  return delivery?.delivery_time_end || delivery?.time_window_end || null;
+  const ownEnd = delivery?.delivery_time_end || delivery?.time_window_end || null;
+  if (ownEnd) return ownEnd;
+  return patient?.time_window_end || null;
 };
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
@@ -151,7 +162,7 @@ const isHistoricalRouteDate = (dateStr) => {
   return String(dateStr) < getEdmontonTodayDateString();
 };
 
-const getLatestFinishedDelivery = (deliveries) =>
+export const getLatestFinishedDelivery = (deliveries) =>
   [...(deliveries || [])]
     .filter((d) => FINISHED_STATUSES.includes(d?.status))
     .sort((a, b) => {
@@ -162,7 +173,7 @@ const getLatestFinishedDelivery = (deliveries) =>
 
 // ─── Coordinate resolution ───────────────────────────────────────────────────
 
-const getDeliveryCoords = (delivery, patientMap, storeMap) => {
+export const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   if (!delivery) return null;
   if (delivery.is_cycling_marker) {
     const lat = Number(delivery.cycling_latitude);
@@ -210,7 +221,16 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   stopsToSequence.forEach((stop, index) => {
     const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
-      const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
+      // OWNER RULE (Oct 5 2026): once a window has ALREADY OPENED (at/before
+      // the current time, today's route), its start is not a constraint —
+      // "deliverable any time after now" adds no information. Drop the from
+      // side so the already-open stamp (Accept All's now+5) can't bias HERE's
+      // sequencing; distance decides among deliverable-now stops. Future
+      // window openings still pass a real from constraint.
+      const wsMin = parseTimeToMinutes(stop.windowStart);
+      const windowAlreadyOpen = Number.isFinite(wsMin) && wsMin > 0
+        && deliveryDate === getEdmontonTodayDateString() && wsMin <= currentMinutes;
+      const accessConstraint = buildAccessConstraint(deliveryDate, windowAlreadyOpen ? null : stop.windowStart, stop.windowEnd);
       if (accessConstraint) segments.push(accessConstraint);
     }
     segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
@@ -228,9 +248,24 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
 
 // ─── ETA calculation ─────────────────────────────────────────────────────────
 
-const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5 }) => {
+const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5, preferLeg = false, winterPadFactor = null, legMode = 'driving' }) => {
   if (typeof segmentPolyline?.estimatedDurationMinutes === 'number' && segmentPolyline.estimatedDurationMinutes > 0)
     return Math.ceil(segmentPolyline.estimatedDurationMinutes);
+  // OWNER REQUEST (Oct 5 2026): when polyline generation was SKIPPED because the
+  // optimizer kept the existing stop order, there is no fresh segmentPolyline —
+  // ETAs must still update. Prefer the FRESH findsequence2 leg duration over the
+  // stored (possibly hours-old) estimated_duration_minutes, with the same winter
+  // pad the generator applies to fresh durations (cycling excluded).
+  if (preferLeg) {
+    const _legSeconds = Number(leg?.duration || 0);
+    if (_legSeconds > 0) {
+      let _minutes = Math.ceil(_legSeconds / 60);
+      if (winterPadFactor && Number(winterPadFactor) > 0 && String(legMode).toLowerCase() !== 'cycling') {
+        _minutes = Math.ceil(_minutes * Number(winterPadFactor));
+      }
+      return _minutes;
+    }
+  }
   if (typeof stop?.delivery?.estimated_duration_minutes === 'number' && stop.delivery.estimated_duration_minutes > 0)
     return Math.ceil(stop.delivery.estimated_duration_minutes);
   const travelSeconds = Number(leg?.duration || 0);
@@ -500,8 +535,15 @@ let _inheritedWindowCount = 0;
   }
 
   // ── Route date classification ────────────────────────────────────────────
+  // Owner rule (Oct 1 2026): TODAY is also treated as a FUTURE route before
+  // 9:00 AM Edmonton — routes start at 9, so a pre-9am optimization must plan
+  // like a future route (window sort, home-origin polylines, no live-GPS via
+  // point, no HERE sequencing). Once any stop on the route is completed
+  // (routeOfficiallyStarted), the main path handles it regardless.
   const historicalRoute = isHistoricalRouteDate(deliveryDate);
-  const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
+  const _todayStr = getEdmontonTodayDateString();
+  const _isPreStartToday = deliveryDate === _todayStr && currentMinutes < 9 * 60;
+  const isFutureRoute = !historicalRoute && (deliveryDate > _todayStr || _isPreStartToday);
   const routeOfficiallyStarted = completedDeliveries.length > 0;
 
   // ── Future route fast-path: sort stops by delivery_time_start (NO HERE call) ──
@@ -875,9 +917,25 @@ let _inheritedWindowCount = 0;
       if (hasTimeWindows && orderedStops.length > 1) {
         const TIME_BAND_MINUTES = 120; // 2-hour bands — same span as the old buckets
 
+        // BAND SEMANTICS (fixed Oct 5 2026, owner report "Meadows keeps
+        // sequencing next"): the band is the stop's EARLIEST SERVABLE TIME.
+        // A stop with NO window, or whose window has ALREADY OPENED, is
+        // servable RIGHT NOW → it takes the "now" band (earliest possible).
+        // A stop whose window opens in the FUTURE is servable only at its
+        // window start → it takes its window's chronological band, which is
+        // LATER than the now band → it sorts after every servable-now stop.
+        // The old code returned POSITIVE_INFINITY ("sorts last") for
+        // windowless/past-window stops — but that meant ANY future-window
+        // stop (finite band) sorted IN FRONT of them: Anna's 17:30-18:00
+        // Meadows pickup (band 8) kept landing ahead of servable-now stops
+        // whose 14:00 windows had passed, on every Start and manual
+        // optimize. Future-window stops sort last, chronologically among
+        // themselves; ties inside a band keep HERE's drive-time order.
+        const nowBand = Math.floor(currentMinutes / TIME_BAND_MINUTES);
         const bandOf = (stop) => {
           const m = parseTimeToMinutes(stop?.windowStart || stop?.delivery?.delivery_time_start || '');
-          if (!Number.isFinite(m) || m <= 0) return Number.POSITIVE_INFINITY; // no window → sorts last
+          if (!Number.isFinite(m) || m <= 0) return nowBand; // no window → servable now
+          if (routeIsToday && m <= currentMinutes) return nowBand; // window open → servable now
           return Math.floor(m / TIME_BAND_MINUTES);
         };
 
@@ -986,6 +1044,32 @@ let _inheritedWindowCount = 0;
   // generateRoutePolylines helper). Only the ordering (HERE sequencing here vs
   // puid-chain in _handleFutureRoute) and the leg origin differ between paths.
   let segmentPolylineByDeliveryId = new Map();
+  // Deviation-waypoint transfer bookkeeping (Sep 17 2026). Declared at function
+  // scope — the writeBatch loop below (outside the polyline-phase block) reads it.
+  // Empty when no transfer happened → no deviation_waypoints field is written.
+  const deviationTransferChanges = new Map(); // deliveryId -> new deviation_waypoints
+  // ── Order-unchanged polyline skip (owner request, Oct 5 2026) ──────────────
+  // If the optimizer kept every active stop in its existing stop_order, tell
+  // the generator: it then skips polyline generation entirely (same geometry
+  // already stored) and only ETAs update — unless the current leg genuinely
+  // differs (missing legs, moved origin anchor, live-GPS via point), in which
+  // case ONLY that leg regenerates. Excluded when the caller explicitly
+  // manages order/polyline intent: preserveExistingOrder (drag-reorder,
+  // travel-mode change, Reset Polylines) and the cycling/driving
+  // segment-only regens. Declared at function scope so the
+  // ETA phase below can read it (it sits outside the polyline phase's block).
+  const _preOptOrderIds = activeRouteDeliveries
+    .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
+    .map(d => String(d.id));
+  const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
+  const orderUnchangedForPolylines = !preserveExistingOrder
+    && !cyclingSegmentOnly && !drivingSegmentOnly
+    && _preOptOrderIds.length === _optimizedOrderIds.length
+    && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
+  if (orderUnchangedForPolylines) {
+    console.log(`[clientRouteEngine] ${source} — optimizer kept the existing stop order (${_optimizedOrderIds.length} stops) — requesting polyline skip`);
+  }
+
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
@@ -1002,6 +1086,80 @@ let _inheritedWindowCount = 0;
     const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
 
+    // ── Deviation waypoint transfer (Sep 17 2026) ──────────────────────────
+    // Deviation points live on the stop the driver was heading to when the
+    // route deviated (recorded by currentLegRegenerator). If this run
+    // re-sequenced the route so a DIFFERENT stop is now next, the points must
+    // TRANSFER to the new next stop — the regenerated current leg then bends
+    // through the path actually driven instead of snapping back to the
+    // theoretical route (owner's request). Terminal stops never enter
+    // routeStops, so completed legs keep their historical points for admin
+    // completed-route regens. Changes are reflected in the writeBatch so the
+    // transfer is committed atomically with stop_order/polyline.
+    // HARDCENED (Sep 17 fix): the whole step is fault-isolated — corrupted or
+    // blank deviation data can NEVER break an optimization.
+    try {
+      {
+      const validWaypoint = (p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng));
+      const inFlightStops = routeStops.filter((rs) => ['en_route', 'in_transit'].includes(String(rs.delivery?.status || '')));
+      const harvest = [];   // points from in-flight stops that are no longer next
+      const holderStops = []; // stops whose points we may need to move
+      for (const rs of inFlightStops) {
+        const pts = Array.isArray(rs.delivery?.deviation_waypoints) ? rs.delivery.deviation_waypoints.filter(validWaypoint) : [];
+        if (pts.length > 0) holderStops.push({ rs, pts });
+      }
+      if (holderStops.length > 0) {
+        // New next stop — same priority formula the writeBatch uses below
+        // (explicit lock → first non-ISP/ISD when the lock is cleared or the
+        // route hasn't started). ISP/ISD swaps haven't run yet, but they never
+        // affect the first NON-InterStore stop, so the result is identical.
+        const _routeInProgress = completedDeliveries.length > 0;
+        const firstNonInterStore = inFlightStops.find((rs) => !isInterStoreDelivery(rs.delivery?.delivery_id)) || null;
+        const newNextId = (explicitNextDelivery && !clearNextDeliveryLock ? explicitNextDelivery.id : null)
+          || (clearNextDeliveryLock || !_routeInProgress
+            ? (firstNonInterStore?.delivery?.id || inFlightStops[0]?.delivery?.id || null)
+            : null);
+        const keepers = newNextId ? holderStops.filter((h) => h.rs.delivery.id === newNextId) : holderStops;
+        const movers = newNextId ? holderStops.filter((h) => h.rs.delivery.id !== newNextId) : [];
+        if (movers.length > 0 && newNextId) {
+          const movedPts = movers.flatMap((h) => h.pts)
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+          // Guard: drop points that now sit BEHIND the new leg (closer to the
+          // origin than to the new next stop) — the driver has already passed
+          // them; routing back through them would zigzag.
+          const newNextRs = inFlightStops.find((rs) => rs.delivery.id === newNextId);
+          const newNextCoords = newNextRs ? { lat: newNextRs.lat, lng: newNextRs.lng } : null;
+          const keptPts = newNextCoords
+            ? movedPts.filter((pt) => {
+                const dOrigin = haversineKm(polylineOrigin.lat, polylineOrigin.lon, Number(pt.lat), Number(pt.lng));
+                const dNext = haversineKm(newNextCoords.lat, newNextCoords.lng, Number(pt.lat), Number(pt.lng));
+                return dNext <= dOrigin;
+              })
+            : [];
+          const existingNextPts = keepers.flatMap((h) => h.pts)
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+          const merged = [...existingNextPts, ...keptPts]
+            .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+            .slice(-3); // same cap as the regenerator / generator
+          // Move: movers emptied, new next stop receives the merged list.
+          for (const h of movers) {
+            h.rs.delivery.deviation_waypoints = [];
+            deviationTransferChanges.set(h.rs.delivery.id, []);
+          }
+          if (newNextRs) {
+            newNextRs.delivery.deviation_waypoints = merged;
+            deviationTransferChanges.set(newNextId, merged);
+          }
+          console.log(`[clientRouteEngine] ${source} — deviation waypoints transferred: ${movers.length} stop(s) emptied, ${keptPts.length}/${movedPts.length} point(s) moved onto new next stop (merged w/ ${existingNextPts.length} existing)`);
+        }
+      }
+    }
+    } catch (_devTransferErr) {
+      // Fault isolation: a deviation-data problem must never fail the
+      // optimization itself. Transfer is a best-effort enhancement.
+      console.warn('[clientRouteEngine] deviation waypoint transfer skipped (non-fatal):', _devTransferErr?.message || _devTransferErr);
+    }
+
     // ── Live-GPS via point (Sep 11 2026) ─────────────────────────────────────
     // When the driver is ON DUTY with at least one in-flight (en_route/in_transit)
     // stop, inject their live GPS as a via waypoint right after the polyline origin
@@ -1016,7 +1174,13 @@ let _inheritedWindowCount = 0;
       ? { lat: Number(_driverAppUser.current_latitude), lon: Number(_driverAppUser.current_longitude) }
       : null;
     const hasInFlightStop = activeRouteStops.some(s => ['en_route', 'in_transit'].includes(String(s.delivery?.status || '')));
-    const viaPointAfterOrigin = (driverOnDuty && hasInFlightStop && driverGpsCoords
+    // Owner rule (Oct 1 2026): the driver's LIVE GPS only belongs on TODAY's route.
+    // A future-date optimization (drag-reorder with preserved order, manual FAB on
+    // tomorrow's route, cycling-marker regens) must plan polylines from home/last
+    // finished stop — never from where the driver happens to be standing right now.
+    // Historical (past) routes get the same exclusion.
+    const routeIsToday = !isFutureRoute && !historicalRoute;
+    const viaPointAfterOrigin = (routeIsToday && driverOnDuty && hasInFlightStop && driverGpsCoords
       && Number.isFinite(driverGpsCoords.lat) && Number.isFinite(driverGpsCoords.lon)
       && !cyclingSegmentOnly && !drivingSegmentOnly
       && calculateCrowFliesDistance(polylineOrigin.lat, polylineOrigin.lon, driverGpsCoords.lat, driverGpsCoords.lon) > 0.1)
@@ -1025,6 +1189,7 @@ let _inheritedWindowCount = 0;
     console.log(`[clientRouteEngine] ${source} — live-GPS via point: ${viaPointAfterOrigin ? `(${viaPointAfterOrigin.lat.toFixed(4)}, ${viaPointAfterOrigin.lon.toFixed(4)})` : 'off (gates: onDuty=' + driverOnDuty + ', inFlight=' + hasInFlightStop + ', gps=' + (driverGpsCoords ? 'yes' : 'no') + ')'}`);
 
     segmentPolylineByDeliveryId = await generateRoutePolylines({
+      orderUnchanged: orderUnchangedForPolylines,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
       originPoint: polylineOrigin,
       cyclingSegmentOnly,
@@ -1042,6 +1207,17 @@ let _inheritedWindowCount = 0;
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
+  // OWNER REQUEST (Oct 5 2026): with polyline generation skipped (unchanged
+  // order), ETAs must still refresh — derive travel minutes from the FRESH
+  // findsequence2 legs (same winter pad the generator applies), NOT the stale
+  // stored per-delivery durations. Stops that DID get a fresh segment (current
+  // leg regen) keep using it — seg always wins in getLegTravelMinutes.
+  const _etaPreferLeg = orderUnchangedForPolylines;
+  let _etaWinterPadFactor = null;
+  if (_etaPreferLeg) {
+    const _winter = await getWinterModeSettings().catch(() => null);
+    if (_winter?.enabled && Number(_winter.eta_factor) > 0) _etaWinterPadFactor = _winter.eta_factor;
+  }
   const stageEtaMap = new Map();
 
   if (historicalRoute && routeStops.length > 0) {
@@ -1071,9 +1247,10 @@ let _inheritedWindowCount = 0;
       const stop = routeStops[i];
       const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
       // Cycling markers: only add travel time if we have a polyline segment, otherwise treat as zero-travel anchor
+      const _legMode = String(stop.delivery?.transport_mode || effectiveTravelMode || 'driving').toLowerCase();
       const travelMinutes = stop.delivery.is_cycling_marker && !seg
         ? 0
-        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
+        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, preferLeg: _etaPreferLeg, winterPadFactor: _etaWinterPadFactor, legMode: _legMode });
       cumulativeTime += travelMinutes;
       const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
@@ -1248,23 +1425,31 @@ let _inheritedWindowCount = 0;
       ...(isPending ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
+    // Deviation-waypoint transfer changes ride along with stop_order/polyline
+    // so the server write commits them atomically (Sep 17 2026).
+    const _deviationWaypoints = deviationTransferChanges.get(stop.id);
+    if (_deviationWaypoints) updateData.deviation_waypoints = _deviationWaypoints;
+
     if (pendingStartTime) {
       updateData.delivery_time_start = pendingStartTime;
       stop.delivery_time_start = pendingStartTime;
     }
 
-    // Apply patient time windows to the delivery record — ONLY for pending stops
-    // transitioning to in_transit. Once a stop is in_transit or en_route, the
-    // delivery's own delivery_time_start/end are authoritative and must NOT be
-    // overwritten by patient windows (the driver may have manually changed them).
+    // Apply patient time windows to the delivery record — ONLY as FALLBACK
+    // (owner rule, restated 6th time Sep 30 2026): patient windows are
+    // creation-time DEFAULTS. Once a delivery exists, its own
+    // delivery_time_start/end take precedence; the patient window is stamped
+    // ONLY when the delivery's own field is blank. The old version stamped the
+    // patient window unconditionally for pending stops, overwriting per-
+    // delivery windows a dispatcher had explicitly set.
     if (stop.patient_id && isPending) {
       const patient = patientMap.get(stop.patient_id);
       if (patient) {
-        if (patient.time_window_start) {
+        if (patient.time_window_start && !stop.delivery_time_start) {
           updateData.delivery_time_start = patient.time_window_start;
           stop.delivery_time_start = patient.time_window_start;
         }
-        if (patient.time_window_end) {
+        if (patient.time_window_end && !stop.delivery_time_end) {
           updateData.delivery_time_end = patient.time_window_end;
           stop.delivery_time_end = patient.time_window_end;
         }
@@ -1364,10 +1549,16 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       const pickupStartMin = pickup?.delivery_time_start ? parseTimeToMinutes(pickup.delivery_time_start) : Infinity;
       let newStart = d.delivery_time_start;
       let newEnd = d.delivery_time_end;
-      if (patient?.time_window_start) {
+      // Owner rule (permanent, restated Oct 1 2026): the delivery's OWN
+      // delivery_time_start/end take precedence. The patient's stored window is a
+      // CREATION-TIME DEFAULT consulted only when the delivery's own field is
+      // blank — it must never REPLACE a window the driver/dispatcher set on the
+      // delivery (the old REPLACE behavior silently overwrote edited windows on
+      // every future-route optimization).
+      if (!d.delivery_time_start && patient?.time_window_start) {
         newStart = patient.time_window_start;
-        if (patient.time_window_end) newEnd = patient.time_window_end;
-      } else if (Number.isFinite(pickupStartMin)) {
+        if (!d.delivery_time_end && patient.time_window_end) newEnd = patient.time_window_end;
+      } else if (!d.delivery_time_start && Number.isFinite(pickupStartMin)) {
         newStart = formatMinutesToTime(pickupStartMin + 5);
       }
       return {
@@ -1385,28 +1576,123 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     parseTimeToMinutes(b.delivery_time_start || '99:99')
   );
 
-  // 4. Build ordered stop list: each pickup followed by its window-sorted deliveries,
-  //    then any orphan deliveries without a matching pickup.
-  const orderedStops = [];
+  // 4. Build ordered stop list via TIME-SORTED BLOCKS (fixed Oct 1 2026).
+  //    Each pickup forms a block (anchored at the pickup's own window start,
+  //    carrying its window-sorted deliveries); any delivery with no matching
+  //    pickup for this route (orphan — e.g. a manually in_transit stop whose
+  //    puid points at an earlier/different-day pickup not in today's optimizable
+  //    set) becomes its OWN single-stop block anchored at ITS OWN window start.
+  //    All blocks are then sorted together by anchor time, so an early-window
+  //    orphan (e.g. 09:30) correctly lands ahead of a later pickup group (e.g.
+  //    13:30) instead of being forced to the back of the route regardless of
+  //    its window. Bug: previously orphans were unconditionally appended AFTER
+  //    every pickup group — Lothar Strach (own delivery_time_start 09:30,
+  //    in_transit, orphaned from a prior pickup) sorted last on a 6-stop route
+  //    instead of first.
+  // Owner rule (Oct 1 2026): an IN-HAND delivery (en_route/in_transit — the meds
+  // were already collected) has NO dependency on its pickup block. It breaks out
+  // as a standalone block anchored at its OWN delivery_time_start, so it sorts
+  // purely by window like every other stop. A pending delivery stays inside its
+  // pickup block (physical pickup-first constraint). Repro: Lothar Strach,
+  // in_transit with own window 09:30 attached to tomorrow's Hamptons pickup
+  // (10:00) — block anchoring kept him AFTER the pickup; pure window sort puts
+  // him first, before the store.
+  const _IN_HAND_STATUSES = ['en_route', 'in_transit'];
   const addedDeliveryIds = new Set();
+  const blocks = [];
   for (const pickup of normalizedPickups) {
-    orderedStops.push({ delivery: pickup, isPickup: true });
-    for (const del of sortedDeliveries.filter(d => d.puid === pickup.stop_id)) {
-      orderedStops.push({ delivery: del, isPickup: false });
+    const items = [{ delivery: pickup, isPickup: true }];
+    for (const del of sortedDeliveries.filter(
+      (d) => d.puid === pickup.stop_id
+        && !_IN_HAND_STATUSES.includes(String(d.status || '').toLowerCase())
+    )) {
+      items.push({ delivery: del, isPickup: false });
       addedDeliveryIds.add(del.id);
     }
+    blocks.push({ startMin: parseTimeToMinutes(pickup.delivery_time_start || '99:99'), items });
   }
   for (const del of sortedDeliveries) {
-    if (!addedDeliveryIds.has(del.id)) orderedStops.push({ delivery: del, isPickup: false });
+    if (addedDeliveryIds.has(del.id)) continue;
+    blocks.push({ startMin: parseTimeToMinutes(del.delivery_time_start || '99:99'), items: [{ delivery: del, isPickup: false }] });
+  }
+  // OWNER SPEC (Oct 9 2026) — a start window means "deliverable ANY TIME
+  // AFTER this time", never "deliver AS CLOSE TO THIS TIME AS POSSIBLE":
+  //   (1) PAST/OPEN windows are not anchors. On today's pre-start route
+  //       (this path also runs before 9am for TODAY) a window whose start
+  //       has already passed when the optimization runs (e.g. an 08:00
+  //       window at an 08:45 optimize) must NOT pin the stop to that clock
+  //       value — the stop is servable RIGHT NOW, so its anchor clamps to
+  //       "now" and it collapses into the servable-now group instead of
+  //       sorting as an absolute morning time.
+  //   (2) BLANK start times carry no time information. The old sort pinned
+  //       them by pseudo-time anyway ('99:99' pushed blank blocks to the
+  //       route tail, '00:00' internal pickup sort) — per the owner, blank
+  //       stops are sequenced by DISTANCE (nearest-neighbor from the route
+  //       origin), never by time. The same rule the live-route path applies
+  //       (servable-now stops take the "now" band, which sorts FIRST, ties
+  //       broken by the distance optimizer).
+  const _BLANK_ANCHOR = parseTimeToMinutes('99:99'); // sentinel — anything >= is a blank anchor
+  const routeIsTodayPreStart = deliveryDate === getEdmontonTodayDateString();
+  if (routeIsTodayPreStart) {
+    for (const b of blocks) {
+      if (Number.isFinite(b.startMin) && b.startMin < currentMinutes) b.startMin = currentMinutes;
+    }
+  }
+  const windowedBlocks = blocks.filter(b => Number.isFinite(b.startMin) && b.startMin < _BLANK_ANCHOR);
+  windowedBlocks.sort((a, b) => a.startMin - b.startMin);
+  const blankBlocks = blocks.filter(b => !windowedBlocks.includes(b));
+
+  let orderedStops;
+  if (blankBlocks.length === 0) {
+    orderedStops = windowedBlocks.flatMap(b => b.items);
+  } else {
+    // Distance-sequence the blank (servable-now) blocks as UNITS — a blank
+    // pickup keeps its block cohesion (pickup first, its pending deliveries
+    // attached in block order); blank in-hand deliveries are single-stop
+    // units. Nearest-neighbor from the route origin (driver home → first
+    // windowed stop → first blank unit), matching the polyline origin rule.
+    // The NOW group LEADS the route; windowed blocks follow chronologically.
+    const _unitCoords = (b) => {
+      const first = b.items[0]?.delivery || null;
+      const c = first ? getDeliveryCoords(first, patientMap, storeMap) : null;
+      return (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) ? c : null;
+    };
+    const firstWindowedCoords = windowedBlocks.length ? _unitCoords(windowedBlocks[0]) : null;
+    let cursor = driverHomeLocation || firstWindowedCoords || _unitCoords(blankBlocks[0]);
+    const remainingBlank = blankBlocks.slice();
+    const blankSeq = [];
+    while (remainingBlank.length) {
+      let bestIdx = 0; let bestDist = Infinity;
+      for (let i = 0; i < remainingBlank.length; i++) {
+        const c = _unitCoords(remainingBlank[i]);
+        if (!c || !cursor) { bestIdx = i; break; }
+        const d = calculateCrowFliesDistance(cursor.lat, cursor.lng, c.lat, c.lng);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      blankSeq.push(remainingBlank.splice(bestIdx, 1)[0]);
+      cursor = _unitCoords(blankSeq[blankSeq.length - 1]) || cursor;
+    }
+    console.log(`[clientRouteEngine] ${source} — FUTURE/pre-start route: ${blankBlocks.length} blank-start block(s) sequenced by DISTANCE from origin (${driverHomeLocation ? 'driver_home' : firstWindowedCoords ? 'first_windowed_stop' : 'first_blank_unit'}), leading the route; ${windowedBlocks.length} windowed block(s) follow chronologically${routeIsTodayPreStart ? ' (past windows clamped to now)' : ''}`);
+    orderedStops = [...blankSeq.flatMap(b => b.items), ...windowedBlocks.flatMap(b => b.items)];
   }
 
   const firstStop = orderedStops[0];
-  let cumulativeTime = firstStop ? parseTimeToMinutes(firstStop.delivery.delivery_time_start || '00:00') : currentMinutes;
+  // ETA base: the first stop's own window when it has one; otherwise the
+  // first windowed anchor (blank-led routes still start at the first REAL
+  // window — blank stops have no time to anchor to), else now/9am floor.
+  let _etaBase = firstStop ? parseTimeToMinutes(firstStop.delivery.delivery_time_start || '') : NaN;
+  if (!Number.isFinite(_etaBase) || _etaBase >= _BLANK_ANCHOR) {
+    const _firstWindowedAnchor = windowedBlocks.find(b => Number.isFinite(b.startMin) && b.startMin < _BLANK_ANCHOR)?.startMin;
+    _etaBase = Number.isFinite(_firstWindowedAnchor) ? _firstWindowedAnchor : Math.max(currentMinutes, 9 * 60);
+  }
+  let cumulativeTime = Number.isFinite(_etaBase) ? _etaBase : currentMinutes;
   const etaMap = new Map();
   for (let i = 0; i < orderedStops.length; i++) {
     const { delivery, isPickup } = orderedStops[i];
     if (isPickup) { const ps = parseTimeToMinutes(delivery.delivery_time_start || '00:00'); if (Number.isFinite(ps) && cumulativeTime < ps) cumulativeTime = ps; }
-    const ws = parseTimeToMinutes(delivery.time_window_start || delivery.delivery_time_start || '');
+    // Owner rule: delivery's OWN delivery_time_start wins; time_window_start
+    // (denormalized patient copy) is fallback only — same blank-guard pattern.
+    const ws = parseTimeToMinutes(delivery.delivery_time_start || delivery.time_window_start || '');
     if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
     etaMap.set(delivery.id, formatMinutesToTime(cumulativeTime));
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);

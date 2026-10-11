@@ -5,9 +5,10 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 20; // v20: Added driver_daily_activity store
+const DB_VERSION = 25; // v25: Added crypto_meta store (idbCrypto key-material backup)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
+const IDB_OPERATION_TIMEOUT_MS = 8000;
 
 // Store names
 const STORES = {
@@ -33,7 +34,12 @@ const STORES = {
   TILE_COVERAGE: 'tile_coverage',         // collective driver tile discovery — mirrors TileCoverage Base44 entity
   RX_TEMP_LOGS: 'rx_temp_logs',           // cooler temperature logs per driver/date
   STAT_HOLIDAYS: 'stat_holidays',         // statutory holidays for date lookups
-  DRIVER_DAILY_ACTIVITY: 'driver_daily_activity' // v20: driver on-duty activity segments
+  DRIVER_DAILY_ACTIVITY: 'driver_daily_activity', // v20: driver on-duty activity segments
+  SQUARE_LEDGER: 'square_ledger', // v21: Square finance audit ledger entries (sales, refunds, declines, payouts)
+  SQUARE_BALANCES_SUMMARY: 'square_balances_summary', // v22: offline-first snapshot of the Square Balances summary (badge + page)
+  APP_SETTINGS: 'app_settings', // v23: offline-first AppSettings rows keyed by setting_key
+  CRYPTO_META: 'crypto_meta', // v25: idbCrypto key-material backup (survives localStorage eviction)
+  PAYROLL_PAGE_CACHE: 'payroll_page_cache' // v24: offline-first DriverPayroll full-year payload snapshot per year+city
 };
 
 // PHI-bearing stores — these get encrypted at rest via AES-GCM
@@ -44,6 +50,7 @@ const PHI_STORES = new Set([
   STORES.PAYROLL,
   STORES.SQUARE_TRANSACTIONS,
   STORES.RX_TEMP_LOGS,
+  STORES.PAYROLL_PAGE_CACHE, // contains patient names/addresses from the payroll payload
 ]);
 
 const isPHIStore = (storeName) => PHI_STORES.has(storeName);
@@ -71,11 +78,21 @@ const _endWrite = () => {
  * Wait for all in-flight write transactions to complete (up to timeoutMs).
  * Returns true if writes drained, false if timed out.
  */
-const waitForWritesToDrain = (timeoutMs = 30000) => {
+const waitForWritesToDrain = (timeoutMs = 10000) => {
   if (_activeWrites <= 0) return Promise.resolve(true);
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    _writeDrainResolvers.push(() => { clearTimeout(timer); resolve(true); });
+    let settled = false;
+    const finish = (drained) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const index = _writeDrainResolvers.indexOf(onDrain);
+      if (index >= 0) _writeDrainResolvers.splice(index, 1);
+      resolve(drained);
+    };
+    const onDrain = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    _writeDrainResolvers.push(onDrain);
   });
 };
 
@@ -388,6 +405,55 @@ const openDatabase = async () => {
         driverActivityStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
+      // v21: square_ledger — Square finance audit entries (payments, cash tenders, refunds, declines, payouts)
+      if (!db.objectStoreNames.contains(STORES.SQUARE_LEDGER)) {
+        const squareLedgerStore = db.createObjectStore(STORES.SQUARE_LEDGER, { keyPath: 'id' });
+        squareLedgerStore.createIndex('square_id', 'square_id', { unique: false });
+        squareLedgerStore.createIndex('entry_kind', 'entry_kind', { unique: false });
+        squareLedgerStore.createIndex('location_id', 'location_id', { unique: false });
+        squareLedgerStore.createIndex('occurred_at', 'occurred_at', { unique: false });
+        squareLedgerStore.createIndex('delivery_id', 'delivery_id', { unique: false });
+        squareLedgerStore.createIndex('card_fingerprint', 'card_fingerprint', { unique: false });
+        squareLedgerStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      // v22: square_balances_summary — ONE record snapshot of the last computed
+      // Square Balances summary (config, sales, payouts, CODs outstanding,
+      // per-location card math) written after each successful server load.
+      // Hydrated instantly at app boot so the sidebar badge and the Square
+      // Balances page render real numbers offline-first, before any server
+      // fetch (owner report Oct 2 2026: badge sometimes blank/not loading at
+      // boot, forcing a deferred-delay band-aid that this store replaces).
+      if (!db.objectStoreNames.contains(STORES.SQUARE_BALANCES_SUMMARY)) {
+        db.createObjectStore(STORES.SQUARE_BALANCES_SUMMARY, { keyPath: 'id' });
+      }
+
+      // v23: app_settings — AppSettings rows mirrored offline-first. Read path:
+      // memory TTL -> IndexedDB (stale-while-revalidate) -> API fallback.
+      // Updated live by the appSettingsUpdated WebSocket event (cache module).
+      if (!db.objectStoreNames.contains(STORES.APP_SETTINGS)) {
+        const appSettingsStore = db.createObjectStore(STORES.APP_SETTINGS, { keyPath: 'id' });
+        appSettingsStore.createIndex('setting_key', 'setting_key', { unique: false });
+      }
+
+      // v24: payroll_page_cache — ONE record per year+city holding the full-year
+      // payroll page payload (deliveries, patients, stores, appUsers, drivers,
+      // payrollRecords) from getAdminMetricsAndPayrollData. Rendered instantly
+      // on page open; the page then resyncs silently in the background
+      // (owner report Oct 4 2026: ~30s spinner before any payroll data shows).
+      if (!db.objectStoreNames.contains(STORES.PAYROLL_PAGE_CACHE)) {
+        db.createObjectStore(STORES.PAYROLL_PAGE_CACHE, { keyPath: 'id' });
+      }
+
+      // v25: crypto_meta — the AES key material + salt used to encrypt PHI stores.
+      // Normally lives in localStorage, but Android WebView can evict localStorage
+      // while keeping IDB alive — without this backup the key regenerates and every
+      // encrypted record becomes undecryptable (full purge + resync, recurring).
+      // This store must NEVER be encrypted (it is read before the key exists).
+      if (!db.objectStoreNames.contains(STORES.CRYPTO_META)) {
+        db.createObjectStore(STORES.CRYPTO_META, { keyPath: 'id' });
+      }
+
       // v19: stat_holidays — statutory holidays for offline date lookups
       if (!db.objectStoreNames.contains(STORES.STAT_HOLIDAYS)) {
         const statHolidayStore = db.createObjectStore(STORES.STAT_HOLIDAYS, { keyPath: 'id' });
@@ -440,11 +506,17 @@ const save = async (storeName, record) => {
       ? { ...recordToStore, [keyPath]: record.id || `${storeName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }
       : recordToStore;
 
-    return new Promise((resolve, reject) => {
-      const request = store.put(normalizedRecord);
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await withTimeout(new Promise((resolve, reject) => {
+        const request = store.put(normalizedRecord);
+        request.onsuccess = () => resolve({ success: true });
+        request.onerror = () => reject(request.error);
+        transaction.onabort = () => reject(transaction.error || new Error(`IDB save(${storeName}) aborted`));
+      }), IDB_OPERATION_TIMEOUT_MS, `IDB save(${storeName})`);
+    } catch (error) {
+      try { transaction.abort(); } catch (_) {}
+      throw error;
+    }
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -454,19 +526,27 @@ const save = async (storeName, record) => {
  * Save multiple records to a store (bulk insert/update)
  * CRITICAL: Deduplicates by ID before saving to prevent duplicates
  */
+// PERF: large writes (boot sync, full resync) can push 10,000-30,000+ records
+// in a single bulkSave call. One giant IDB transaction holds the readwrite
+// lock for the ENTIRE write and fires every onsuccess callback back-to-back on
+// the main thread — this blocks all concurrent reads (map renders, stop card
+// expansion, the stats/offline-DB-indicator counts) and was the real source of
+// recurring app-wide jank during sync, including the indicator sitting at 0
+// for several seconds (owner report Oct 6 2026). Chunking + yielding between
+// chunks releases the lock and the main thread periodically so reads/renders
+// can interleave instead of queueing behind the whole burst.
+const BULK_SAVE_CHUNK_SIZE = 300;
+
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
   }
 
-  // Encrypt PHI records before storing (batch encrypt for efficiency)
   const isPHI = isPHIStore(storeName);
-  let recordsToProcess = records;
-  if (isPHI && isCryptoActive()) {
-    recordsToProcess = await Promise.all(records.map(r => encryptRecord(r)));
-  }
 
-  // CRITICAL: Deduplicate by ID BEFORE saving.
+  // CRITICAL: Deduplicate by ID BEFORE saving (on the original, pre-encryption
+  // records — square_catalog_object_id/square_transaction_id fallbacks live
+  // on the raw record, not necessarily on the encrypted wrapper).
   // Fall back to square_catalog_object_id or square_transaction_id for records that
   // come directly from the Square API and don't yet have a Base44 entity id.
   const resolveKey = (record) =>
@@ -476,7 +556,7 @@ const bulkSave = async (storeName, records) => {
     null;
 
   const uniqueRecords = new Map();
-  recordsToProcess.forEach(record => {
+  records.forEach(record => {
     const key = resolveKey(record);
     if (key) {
       uniqueRecords.set(key, record);
@@ -484,33 +564,53 @@ const bulkSave = async (storeName, records) => {
       console.warn('[OfflineDB] bulkSave: record has no usable key, skipping', record);
     }
   });
-  
+
   const deduplicatedRecords = Array.from(uniqueRecords.values());
   const duplicatesRemoved = records.length - deduplicatedRecords.length;
-  
+
   if (duplicatesRemoved > 0) {
     console.warn(`[OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
   }
 
   _beginWrite();
   try {
-    const db = await openDatabase();
-    const transaction = db.transaction([storeName], 'readwrite');
-    const store = transaction.objectStore(storeName);
-
     let successCount = 0;
-    const promises = deduplicatedRecords.map(record => {
-      return new Promise((resolve, reject) => {
-        const request = store.put(record);
-        request.onsuccess = () => {
-          successCount++;
-          resolve();
-        };
-        request.onerror = () => reject(request.error);
-      });
-    });
 
-    await Promise.all(promises);
+    for (let i = 0; i < deduplicatedRecords.length; i += BULK_SAVE_CHUNK_SIZE) {
+      const chunk = deduplicatedRecords.slice(i, i + BULK_SAVE_CHUNK_SIZE);
+      const chunkToWrite = (isPHI && isCryptoActive())
+        ? await Promise.all(chunk.map(r => encryptRecord(r)))
+        : chunk;
+
+      const db = await openDatabase();
+      const transaction = db.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+
+      const promises = chunkToWrite.map(record => {
+        return new Promise((resolve, reject) => {
+          const request = store.put(record);
+          request.onsuccess = () => {
+            successCount++;
+            resolve();
+          };
+          request.onerror = () => reject(request.error);
+        });
+      });
+
+      try {
+        await withTimeout(Promise.all(promises), IDB_OPERATION_TIMEOUT_MS, `IDB bulkSave(${storeName})`);
+      } catch (error) {
+        try { transaction.abort(); } catch (_) {}
+        throw error;
+      }
+
+      // Yield one tick between chunks (only when more remain) so queued reads
+      // and pending renders get a turn instead of waiting for the whole burst.
+      if (i + BULK_SAVE_CHUNK_SIZE < deduplicatedRecords.length) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+
     return { success: true, count: successCount };
   } catch (error) {
     return { success: false, error: error.message };
@@ -532,6 +632,30 @@ const withTimeout = (promise, ms, label = 'operation') =>
     ),
   ]);
 
+// PERF (Oct 9 2026 deep dive): targeted batch read by primary key. Unlike
+// getAll it skips the write-drain gate and decrypts ONLY the requested rows
+// instead of materializing the whole store — used by the driver-location
+// freshness guards that used to getAll(APP_USERS) on every 2-min poll + WS
+// location event.
+const getByIds = async (storeName, ids) => {
+  const wanted = [...new Set((ids || []).filter(Boolean).map(String))];
+  if (!wanted.length) return [];
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readonly');
+    const store = transaction.objectStore(storeName);
+    const rows = await Promise.all(wanted.map((id) => new Promise((resolve) => {
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    })));
+    const raw = rows.filter(Boolean);
+    return isPHIStore(storeName) ? await decryptRecords(raw) : raw;
+  } catch {
+    return [];
+  }
+};
+
 const getAll = async (storeName) => {
   try {
     // If write transactions are in progress (boot sync, pull-to-sync), wait
@@ -539,7 +663,8 @@ const getAll = async (storeName) => {
     // IDB lock and blocks ALL reads, so the 6s getAll timeout would fire
     // simultaneously across every store during a write burst.
     if (_activeWrites > 0) {
-      await waitForWritesToDrain(30000);
+      const drained = await waitForWritesToDrain(10000);
+      if (!drained) throw new Error(`IDB getAll(${storeName}) blocked by a stalled write`);
     }
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readonly');
@@ -567,6 +692,48 @@ const getAll = async (storeName) => {
 };
 
 /**
+ * STRICT variant of getAll: on any failure (open timeout, write-drain stall,
+ * getAll timeout, decrypt timeout) it REJECTS instead of silently resolving [].
+ *
+ * WHY THIS EXISTS (owner report, Sep 30 2026): the Square COD page rebuilds its
+ * lists from IDB right after the sync's heavy write burst. On the owner's tablet,
+ * getAll() on the big PHI stores didn't finish inside the 6s window (slower
+ * storage + AES decrypt of thousands of records + the write-drain wait), so the
+ * catch swallowed the timeout and returned []. The page then set every list —
+ * deliveries, transactions, catalog, reconcile — to EMPTY. Same APK on the phone
+ * finished the read in time and kept everything. Silent-[] reads must NEVER
+ * feed a UI that treats [] as real data: use getAllStrict and handle the
+ * rejection by keeping the current state.
+ */
+const getAllStrict = async (storeName) => {
+  // Same write-drain discipline as getAll (a readwrite transaction holds the
+  // IDB lock and blocks reads), but a stall REJECTS instead of returning [].
+  if (_activeWrites > 0) {
+    const drained = await waitForWritesToDrain(10000);
+    if (!drained) throw new Error(`IDB getAllStrict(${storeName}) blocked by a stalled write`);
+  }
+  const db = await openDatabase();
+  const transaction = db.transaction([storeName], 'readonly');
+  const store = transaction.objectStore(storeName);
+
+  const records = await withTimeout(new Promise((resolve, reject) => {
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  }), GETALL_TIMEOUT_MS, `IDB getAllStrict(${storeName})`);
+
+  if (isPHIStore(storeName)) {
+    const decrypted = await withTimeout(
+      decryptRecords(records),
+      GETALL_TIMEOUT_MS,
+      `decryptRecords(${storeName}) [strict]`
+    );
+    return decrypted;
+  }
+  return records;
+};
+
+/**
  * Get records by index query
  */
 const getByIndex = async (storeName, indexName, value) => {
@@ -576,7 +743,7 @@ const getByIndex = async (storeName, indexName, value) => {
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
 
-    return new Promise((resolve, reject) => {
+    return await withTimeout(new Promise((resolve, reject) => {
       const request = index.getAll(value);
       request.onsuccess = async () => {
         const results = request.result;
@@ -587,7 +754,7 @@ const getByIndex = async (storeName, indexName, value) => {
         }
       };
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getByIndex(${storeName}.${indexName})`);
   } catch (error) {
     return [];
   }
@@ -603,7 +770,7 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
 
-    return new Promise((resolve, reject) => {
+    return await withTimeout(new Promise((resolve, reject) => {
       const request = index.getAll(values);
       request.onsuccess = async () => {
         const results = request.result;
@@ -614,7 +781,7 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
         }
       };
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getByCompoundIndex(${storeName}.${indexName})`);
   } catch (error) {
     return [];
   }
@@ -844,20 +1011,46 @@ const needsInitialSync = async (entityName) => {
 };
 
 /**
+ * Count records in a store WITHOUT materializing or decrypting them.
+ * getAll() decrypts + JSON.parses every record (thousands of encrypted PHI
+ * records) just to read .length — the stats card / sync indicator doing this
+ * across 7 stores was blocking reads for seconds and starving the UI (map +
+ * card jank, indicator showing 0 for 10-20s, Oct 6 2026). IDB count() is
+ * metadata-only and runs in milliseconds.
+ */
+const countStore = async (storeName) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readonly');
+    const request = transaction.objectStore(storeName).count();
+    return await withTimeout(new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => reject(request.error);
+    }), IDB_OPERATION_TIMEOUT_MS, `IDB count(${storeName})`);
+  } catch (error) {
+    console.warn(`[OfflineDB] count(${storeName}) failed:`, error.message);
+    return 0;
+  }
+};
+
+/**
  * Get database statistics
  * CRITICAL: Always return valid stats object, never null
  */
 const getStats = async () => {
   try {
+    // PERF: countStore (metadata-only) instead of getAll — the old full
+    // getAll on 7 stores decrypted + parsed every record (tens of thousands)
+    // every time the sync indicator refreshed, starving the main thread.
     const [patients, deliveries, appUsers, cities, stores, companies, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, companySync, squareTxSync] = await Promise.all([
-      getAll(STORES.PATIENTS),
-      getAll(STORES.DELIVERIES),
-      getAll(STORES.APP_USERS),
-      getAll(STORES.CITIES),
-      getAll(STORES.STORES),
-      getAll(STORES.COMPANIES),
-      getAll(STORES.SQUARE_TRANSACTIONS),
-      getAll(STORES.DRIVER_OVERVIEW_STATS),
+      countStore(STORES.PATIENTS),
+      countStore(STORES.DELIVERIES),
+      countStore(STORES.APP_USERS),
+      countStore(STORES.CITIES),
+      countStore(STORES.STORES),
+      countStore(STORES.COMPANIES),
+      countStore(STORES.SQUARE_TRANSACTIONS),
+      countStore(STORES.DRIVER_OVERVIEW_STATS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
@@ -869,35 +1062,35 @@ const getStats = async () => {
 
     return {
       patients: {
-        count: patients?.length || 0,
+        count: patients || 0,
         lastSync: patientSync?.lastSync || patientSync?.lastSyncDate || 'Never'
       },
       deliveries: {
-        count: deliveries?.length || 0,
+        count: deliveries || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       },
       appUsers: {
-        count: appUsers?.length || 0,
+        count: appUsers || 0,
         lastSync: appUserSync?.lastSync || appUserSync?.lastSyncDate || 'Never'
       },
       cities: {
-        count: cities?.length || 0,
+        count: cities || 0,
         lastSync: citySync?.lastSync || citySync?.lastSyncDate || 'Never'
       },
       stores: {
-        count: stores?.length || 0,
+        count: stores || 0,
         lastSync: storeSync?.lastSync || storeSync?.lastSyncDate || 'Never'
       },
       companies: {
-        count: companies?.length || 0,
+        count: companies || 0,
         lastSync: companySync?.lastSync || companySync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
-        count: squareTx?.length || 0,
+        count: squareTx || 0,
         lastSync: squareTxSync?.lastSync || squareTxSync?.lastSyncDate || 'Never'
       },
       driverOverviewStats: {
-        count: driverStats?.length || 0,
+        count: driverStats || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       }
     };
@@ -1017,7 +1210,7 @@ const getById = async (storeName, recordId) => {
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
 
-    return new Promise((resolve, reject) => {
+    return await withTimeout(new Promise((resolve, reject) => {
       const request = store.get(recordId);
       request.onsuccess = async () => {
         const result = request.result || null;
@@ -1028,7 +1221,7 @@ const getById = async (storeName, recordId) => {
         }
       };
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getById(${storeName})`);
   } catch (error) {
     return null;
   }
@@ -1038,18 +1231,27 @@ const getById = async (storeName, recordId) => {
  * Delete a single record from a store by ID
  */
 const deleteRecord = async (storeName, recordId) => {
+  _beginWrite();
   try {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
 
-    return new Promise((resolve, reject) => {
-      const request = store.delete(recordId);
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    try {
+      return await withTimeout(new Promise((resolve, reject) => {
+        const request = store.delete(recordId);
+        request.onsuccess = () => resolve({ success: true });
+        request.onerror = () => reject(request.error);
+        transaction.onabort = () => reject(transaction.error || new Error(`IDB delete(${storeName}) aborted`));
+      }), IDB_OPERATION_TIMEOUT_MS, `IDB delete(${storeName})`);
+    } catch (error) {
+      try { transaction.abort(); } catch (_) {}
+      throw error;
+    }
   } catch (error) {
     return { success: false, error: error.message };
+  } finally {
+    _endWrite();
   }
 };
 
@@ -1479,6 +1681,9 @@ export const offlineDB = {
   save,
   bulkSave,
   getAll,
+  getByIds,
+  countStore,
+  getAllStrict,
   waitForWritesToDrain,
   getById,
   getByIndex,

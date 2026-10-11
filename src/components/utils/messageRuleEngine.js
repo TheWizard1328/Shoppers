@@ -7,6 +7,8 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { toEdmontonWall } from './albertaTime';
+import { getAppOwnerUserIds } from './appOwnerResolver';
 
 // ── In-memory cache of enabled rules, keyed by event_name ──────────────────
 let _ruleCache = null;
@@ -140,6 +142,48 @@ export function clearRuleCache() {
   _cacheLoadedAt = 0;
 }
 
+// ── {{date}} qualifier helper ───────────────────────────────────────────────
+
+const DATE_QUALIFIER_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DATE_QUALIFIER_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Build the {{date}} template value for the deliveries' delivery_date.
+ * Owner spec (Oct 1 2026):
+ *   - date is TODAY            → '' (blank)
+ *   - date is TOMORROW         → 'for Tomorr '  (deliberate truncation)
+ *   - date is beyond tomorrow  → 'for Mon Oct 05 ' (3-char weekday, 3-char
+ *                                month, 2-digit day — no year, trailing space)
+ * "Today" is computed in EDMONTON time (pure math, never device-local) so a
+ * UTC-past-midnight device never mislabels a date. Both dates are compared
+ * as calendar values via Date.UTC, so offsets never skew the day math.
+ */
+export function buildDateQualifier(deliveryDateStr) {
+  const s = String(deliveryDateStr || '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return '';
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+
+  // Today's Edmonton calendar date — pure math via albertaTime, no Intl/device tz
+  const w = toEdmontonWall(new Date());
+  const todayY = w.y;
+  const todayMo = w.mo;
+  const todayD = w.d;
+
+  const targetMid = Date.UTC(y, mo - 1, d);
+  const todayMid = Date.UTC(todayY, todayMo - 1, todayD);
+  const dayDiff = Math.round((targetMid - todayMid) / 86400000);
+
+  if (dayDiff <= 0) return '';              // today (or past) → blank
+  if (dayDiff === 1) return 'for Tomorr ';  // tomorrow
+  const dt = new Date(targetMid);
+  const day = DATE_QUALIFIER_DAYS[dt.getUTCDay()];
+  const month = DATE_QUALIFIER_MONTHS[dt.getUTCMonth()];
+  return `for ${day} ${month} ${String(d).padStart(2, '0')} `;
+}
+
 // ── Template variable substitution ─────────────────────────────────────────
 
 export function renderTemplate(template, context) {
@@ -181,6 +225,23 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
     } catch { users = []; }
   }
 
+  // Dashboard/offline AppUser snapshots may be filtered or stale. Resolve an
+  // empty store-dispatcher match from the authoritative AppUser roster before
+  // deciding that a matching rule has nobody to notify.
+  const addStoreDispatchers = (roster, storeId) => {
+    let found = 0;
+    for (const u of roster || []) {
+      if (u?.status === 'inactive') continue;
+      const roles = Array.isArray(u?.app_roles) ? u.app_roles : (u?.role ? [u.role] : []);
+      const storeIds = Array.isArray(u?.store_ids) ? u.store_ids : [];
+      if (roles.includes('dispatcher') && storeIds.some((id) => String(id) === String(storeId))) {
+        const id = u.user_id || u.id;
+        if (id) { userIds.add(id); found++; }
+      }
+    }
+    return found;
+  };
+
   for (const r of recipientStrings || []) {
     if (!r) continue;
 
@@ -196,24 +257,78 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
     } else if (r.startsWith('relation:')) {
       const rel = r.slice(9);
       if (rel === 'driver') {
-        console.warn('[MessageRuleEngine] relation:driver — context.driver_id:', JSON.stringify(context.driver_id), '— truthy:', !!context.driver_id);
         if (context.driver_id) userIds.add(context.driver_id);
       } else if (rel === 'appowner') {
-        // App owner is typically the first admin or has a specific flag
-        const owner = users.find((u) => u.app_roles?.includes('admin'));
-        console.warn('[MessageRuleEngine] relation:appowner — found:', !!owner, '— user_id:', owner?.user_id, '— id:', owner?.id, '— total users checked:', users.length);
-        if (owner) userIds.add(owner.user_id || owner.id);
-      } else if (rel === 'dispatchers' && context.store_id) {
-        users.forEach((u) => {
-          if (u.status === 'inactive') return;
-          const roles = u.app_roles || [];
-          if (roles.includes('dispatcher') || roles.includes('admin')) {
-            const storeIds = u.store_ids || [];
-            if (storeIds.includes(context.store_id)) {
-              userIds.add(u.user_id || u.id);
+        // App Owner = PLATFORM User.role === 'admin' (via appOwnerResolver),
+        // NOT the AppUser 'admin' app_role. The old code grabbed the FIRST
+        // app-role admin it found — a random admin, not necessarily the
+        // owner. If owner ids can't be resolved, send to NOBODY rather than
+        // falling back to admins.
+        const ownerIds = await getAppOwnerUserIds();
+        if (ownerIds && ownerIds.size > 0) {
+          for (const ownerId of ownerIds) {
+            const inRoster = users.find((u) =>
+              u?.status !== 'inactive' && String(u?.user_id || u?.id) === String(ownerId));
+            if (inRoster) {
+              userIds.add(ownerId);
+              continue;
+            }
+            // The driver often accepts with an empty/filtered AppUser snapshot.
+            // The owner resolver has already validated PLATFORM owner status;
+            // confirm the AppUser is active with a targeted lookup rather than
+            // requiring the owner to appear in the driver's roster.
+            try {
+              const matches = await base44.entities.AppUser.filter({ user_id: ownerId });
+              if ((matches || []).some((u) =>
+                u?.status !== 'inactive' && String(u?.user_id) === String(ownerId))) {
+                userIds.add(ownerId);
+              } else {
+                console.warn('[MessageRuleEngine] relation:appowner — active AppUser not found for resolved owner:', ownerId);
+              }
+            } catch (e) {
+              console.warn('[MessageRuleEngine] relation:appowner — AppUser lookup failed:', e?.message || e);
             }
           }
-        });
+        } else {
+          console.warn('[MessageRuleEngine] relation:appowner — no platform owner ids resolved; skipping recipient (NOT falling back to admins)');
+        }
+      } else if (rel === 'dispatchers') {
+        // The accepted delivery's store is authoritative. `store_ids` also
+        // covers batch contexts where no single store object was supplied.
+        const storeIds = [...new Set([context.store_id, ...(context.store_ids || [])].filter(Boolean))];
+        for (const storeId of storeIds) {
+          let found = addStoreDispatchers(users, storeId);
+          if (!found && Array.isArray(appUsers)) {
+            // `appUsers` passed from the Dashboard is an offline snapshot. It
+            // can omit the store dispatcher even when that account is active.
+            try {
+              const fresh = await base44.entities.AppUser.list('sort_order', 200, null,
+                'id,user_id,user_name,app_roles,status,store_ids,role');
+              found = addStoreDispatchers(Array.isArray(fresh) ? fresh : [], storeId);
+              console.warn('[MessageRuleEngine] dispatcher roster refresh — store:', storeId, '— fresh records:', fresh?.length || 0, '— matches:', found);
+            } catch (e) {
+              console.warn('[MessageRuleEngine] dispatcher roster refresh failed:', e?.message || e);
+            }
+          }
+          if (!found) {
+            // Older/stale AppUser snapshots can lack store_ids. Use the Store's
+            // explicit dispatcher assignment only after validating its active
+            // AppUser account and dispatcher role. Never guess a recipient.
+            try {
+              const store = await base44.entities.Store.get(storeId);
+              if (store?.dispatcher_id) {
+                const matches = await base44.entities.AppUser.filter({ user_id: store.dispatcher_id });
+                const active = (matches || []).find((u) =>
+                  u?.status !== 'inactive' && Array.isArray(u?.app_roles) &&
+                  u.app_roles.includes('dispatcher') && u.user_id === store.dispatcher_id);
+                if (active) { userIds.add(active.user_id); found = 1; }
+              }
+              console.warn('[MessageRuleEngine] store dispatcher fallback — store:', storeId, '— matched:', found);
+            } catch (e) {
+              console.warn('[MessageRuleEngine] store dispatcher fallback failed:', e?.message || e);
+            }
+          }
+        }
       }
     } else if (r.startsWith('user:')) {
       userIds.add(r.slice(5));
@@ -239,9 +354,10 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
  * @param {object} context - The event context (driverName, patientName, store_id, etc.)
  * @param {function} sendInApp - Callback(userId, message, eventName) for in-app
  * @param {function} sendPush - Callback(userId, message, eventName) for push
+ * @param {array|null} appUsers - already-loaded AppUsers for reliable recipient resolution
  * @returns {Promise<{handled, matchedRules, results}>}
  */
-export async function dispatchMessageRules(eventName, context = {}, sendInApp = null, sendPush = null) {
+export async function dispatchMessageRules(eventName, context = {}, sendInApp = null, sendPush = null, appUsers = null) {
   const rulesByEvent = await loadEnabledRules();
   const rules = rulesByEvent[eventName];
   console.warn('[MessageRuleEngine] dispatchMessageRules:', eventName, '— rules found:', rules?.length || 0, '— all event keys:', Object.keys(rulesByEvent));
@@ -264,7 +380,7 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
     matchedRules.push(rule);
 
     // Resolve recipients
-    const recipientIds = await resolveRecipients(rule.recipients, context);
+    const recipientIds = await resolveRecipients(rule.recipients, context, appUsers);
     console.warn('[MessageRuleEngine] Rule', rule.rule_label, '— recipients:', rule.recipients, '— resolved:', recipientIds);
 
     // Render message
@@ -272,6 +388,28 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
 
     // Send to each recipient via specified channels
     for (const userId of recipientIds) {
+      const isSelfAction = !!(
+        context.actingUserId &&
+        context.driver_id &&
+        context.actingUserId === context.driver_id &&
+        userId === context.actingUserId
+      );
+
+      // Some events, especially driver_accepted, must suppress BOTH in-app
+      // and push delivery to the person who just performed the action. Do this
+      // before cooldown accounting so a skipped self-event cannot suppress a
+      // real notification if another driver accepts moments later.
+      // Stops Created can address the assigned driver AND the App Owner. When
+      // the assigning admin is also the App Owner, the owner recipient is the
+      // actor even if another driver is assigned. Suppress BOTH channels for
+      // the actor, but still deliver to other recipients (including the driver).
+      const isStopsCreatedActor = eventName === 'stops_created' &&
+        !!context.actingUserId && String(userId) === String(context.actingUserId);
+      if (isStopsCreatedActor || (isSelfAction && context.suppressSelfNotifications === true)) {
+        results.push({ ruleId: rule.id, userId, skipped: 'self_action', channels: rule.channels || ['in_app'] });
+        continue;
+      }
+
       // Cooldown check
       if (isInCooldown(rule, userId)) {
         results.push({ ruleId: rule.id, userId, skipped: 'cooldown' });
@@ -282,20 +420,27 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
       const isShadow = rule.shadow_mode;
       const channels = rule.channels || ['in_app'];
 
+      // Other event paths retain the historical push-only self-action bypass.
+      const isSelfActionPushOnly = isSelfAction;
+
       if (!isShadow) {
         if (channels.includes('in_app') && sendInApp) {
           try { await sendInApp(userId, message, eventName, rule); }
           catch (e) { console.error('[MessageRuleEngine] in_app send failed:', e); }
         }
         if (channels.includes('push') && sendPush) {
-          try { await sendPush(userId, message, eventName, rule); }
-          catch (e) { console.error('[MessageRuleEngine] push send failed:', e); }
+          if (isSelfActionPushOnly) {
+            console.log(`[MessageRuleEngine] Skipping push to ${userId} — self-action (acting user is also the credited driver)`);
+          } else {
+            try { await sendPush(userId, message, eventName, rule); }
+            catch (e) { console.error('[MessageRuleEngine] push send failed:', e); }
+          }
         }
       } else {
         console.log(`[MessageRuleEngine] SHADOW MODE — would send to ${userId}: "${message}" via ${channels.join(', ')}`);
       }
 
-      results.push({ ruleId: rule.id, userId, channels, message, shadow: isShadow });
+      results.push({ ruleId: rule.id, userId, channels, message, shadow: isShadow, selfActionPushSkipped: isSelfActionPushOnly && !isShadow && channels.includes('push') });
     }
 
     // If stop_on_match, stop evaluating further rules for this event

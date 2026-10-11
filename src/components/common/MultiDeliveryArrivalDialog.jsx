@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
@@ -70,9 +70,52 @@ export default function MultiDeliveryArrivalDialog({
     }).sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
   }, [currentDelivery, allDeliveries, patients]);
 
-  if (!open || sameLocationDeliveries.length === 0) return null;
-
   const allAtLocation = [currentDelivery, ...sameLocationDeliveries];
+
+  // ── Auto-close + advance when EVERY delivery at this location is finished ──
+  // (owner request, Sep 28 2026). Previously the dialog just silently rendered
+  // null (vanishing panel) when the last stop at the address was finished:
+  // no next-stop-card advance, no map-cycle-FAB reactivation — the driver was
+  // left staring at a stale map. Now, the moment all at-location deliveries
+  // are terminal, we (1) close the panel via onClose so StopCard clears its
+  // dialog + cluster-key state, (2) advance to the next stop card the same
+  // way the normal completion path does (recenter pulse + FAB reactivation),
+  // and (3) re-lock the map-cycle FAB into Phase 2/3 follow mode if it was
+  // already in Phase 2 — same completionFabRelock contract the stop-card
+  // completion handler uses (300ms delay lets the optimistic UI settle).
+  const allDoneAdvancingRef = useRef(false);
+  useEffect(() => {
+    if (!open) { allDoneAdvancingRef.current = false; return; }
+    const allAtLocationNow = [currentDelivery, ...sameLocationDeliveries];
+    if (allAtLocationNow.length === 0) return;
+    const allDone = allAtLocationNow.every(
+      (d) => FINISHED_STATUSES.includes(d?.status) || locallyFinishedIds.has(d?.id)
+    );
+    if (!allDone || allDoneAdvancingRef.current) return;
+    allDoneAdvancingRef.current = true;
+    const driverId = currentDelivery?.driver_id;
+    const deliveryDate = currentDelivery?.delivery_date;
+    // 1. Close the panel (also clears StopCard's cluster key via onClose)
+    onClose?.();
+    // 2. Advance: same recenter + FAB reactivation the normal completion path uses
+    try {
+      import('../utils/fabControlEvents').then(({ fabControlEvents }) => {
+        fabControlEvents.notifyPhaseTwoCompleteRecenter();
+        fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'multi_arrival_all_finished' });
+      }).catch(() => {});
+    } catch (_) { /* FAB events are best-effort */ }
+    // 3. Re-lock the map-cycle FAB in Phase 2/3 (only if it was already there)
+    const phase = (typeof window !== 'undefined' && window.__currentMapViewPhase) || 1;
+    if (phase === 2 || phase === 3) {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('completionFabRelock', {
+          detail: { phase, driverId, deliveryDate }
+        }));
+      }, 300);
+    }
+  }, [open, currentDelivery, sameLocationDeliveries, locallyFinishedIds, onClose]);
+
+  if (!open || sameLocationDeliveries.length === 0) return null;
 
   const handleComplete = async (targetDelivery) => {
     if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;

@@ -60,7 +60,7 @@ async function getFcmAccessToken(serviceAccountJson) {
     iat: now, exp: now + 3600,
   }));
   const key = await crypto.subtle.importKey('pkcs8', pemToArrayBuffer(private_key), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
-  const signature = base64UrlEncode(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${header}.${claimSet}.${signature}`)));
+  const signature = base64UrlEncode(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${header}.${claimSet}`)));
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -207,10 +207,17 @@ function wmoText(code) {
   return m[code] || 'Mixed';
 }
 
-// ── Weather: Open-Meteo → wttr.in → met.no (3-provider fallback) ─────────
-// NOTE: Open-Meteo free tier is rate-limited per egress IP; the shared
-// function-runtime IP can exhaust its daily quota (429). Fallbacks keep the
-// 9am briefing reliable. All providers normalize to the same entry shape:
+// ── Weather: Open-Meteo → met.no → wttr.in (3-provider fallback) ─────────
+// NOTE (updated Sep 28 2026 — same root cause as the dashboard weather bar
+// bug): Open-Meteo free tier is rate-limited per egress IP; the shared
+// function-runtime IP can occasionally 429. When that happened, the OLD
+// order fell to wttr.in next — but wttr.in serves a stale CACHED "current"
+// reading (confirmed live: showed 9°C in the 8am briefing when the real temp
+// was ~3-4°C all morning per Open-Meteo's own hourly actuals). met.no is a
+// live forecast API with no such staleness issue, so it's now the FIRST
+// fallback; wttr.in is demoted to last resort. Open-Meteo also gets one retry
+// on a transient failure before falling through, so brief blips don't
+// silently drop to a worse source. All providers normalize to the same shape:
 // { current: { temp, feels, text, wind }, daily: { high, low, precipProb, snowCm, text }, source }
 const _weatherCache = new Map(); // cityId -> entry (10-min TTL)
 
@@ -299,8 +306,18 @@ async function getWeatherForCity(cityId, lat, lon) {
   const cached = _weatherCache.get(cityId);
   if (cached && Date.now() - cached.fetchedAt < 10 * 60 * 1000) return cached;
   let entry = await fetchOpenMeteo(lat, lon);
-  if (!entry) entry = await fetchWttr(lat, lon);
-  if (!entry) entry = await fetchMetNo(lat, lon);
+  if (!entry) {
+    console.warn(`[driverWeatherBriefing] Open-Meteo failed for city ${cityId}, retrying once...`);
+    entry = await fetchOpenMeteo(lat, lon);
+  }
+  if (!entry) {
+    console.warn(`[driverWeatherBriefing] Open-Meteo retry failed for city ${cityId}, falling to met.no`);
+    entry = await fetchMetNo(lat, lon);
+  }
+  if (!entry) {
+    console.warn(`[driverWeatherBriefing] met.no failed for city ${cityId}, falling to wttr.in (last resort — may be stale)`);
+    entry = await fetchWttr(lat, lon);
+  }
   if (entry) { entry.fetchedAt = Date.now(); _weatherCache.set(cityId, entry); }
   return entry;
 }
@@ -454,6 +471,7 @@ async function handleBriefing(base44, params = {}) {
       driver_id: driverId,
       driver_name: driverName,
       city: city?.name || null,
+      city_id: city?.id || null,
       weather: weather ? { ...weather.current, high: weather.daily.high, low: weather.daily.low, precip: weather.daily.precipProb, snowCm: weather.daily.snowCm, forecast: weather.daily.text, source: weather.source } : null,
       stop_count: stopCount,
       first_pickup: firstPickup,
@@ -469,8 +487,84 @@ async function handleBriefing(base44, params = {}) {
   if (!dryRun) {
     for (const b of briefings) {
       const title = `Morning Briefing — ${today.slice(5).replace('-', '/')}`;
-      const push = await sendPushToUser(base44, b.driver_id, title, b.push_body, '/', `morning-briefing-${today}`);
-      pushes.push({ driver_id: b.driver_id, driver_name: b.driver_name, sent: push.sent, skipped: push.skipped, removed: push.removed, errors: push.errors });
+      // In-app Message copy in a 'Weather Briefing' system thread (owner
+      // request, Sep 28 2026) — same shape as the COD Briefing thread.
+      let inAppMessageId = null;
+      try {
+        const created = await base44.asServiceRole.entities.Message.create({
+          sender_id: 'weather_briefing',
+          sender_name: 'Weather Briefing',
+          receiver_id: b.driver_id,
+          receiver_name: b.driver_name,
+          conversation_id: ['weather_briefing', b.driver_id].sort().join('_'),
+          content: b.push_body,
+          read: false,
+          message_type: 'text',
+        });
+        inAppMessageId = created?.id || null;
+      } catch (err) {
+        console.log('[weather-briefing] Message.create failed:', err?.message || String(err));
+      }
+      const chatUrl = `/?openChat=weather_briefing&openChatName=${encodeURIComponent('Weather Briefing')}`;
+      const push = await sendPushToUser(base44, b.driver_id, title, b.push_body, chatUrl, `morning-briefing-${today}`);
+      pushes.push({ driver_id: b.driver_id, driver_name: b.driver_name, in_app_message_id: inAppMessageId, sent: push.sent, skipped: push.skipped, removed: push.removed, errors: push.errors });
+      await sleep(150);
+    }
+  }
+
+  // 6. Seed the dashboard_weather day High/Low from this briefing (owner
+  // request, Sep 28 2026): the morning briefing's forecast high/low becomes
+  // the day H/L for every device (kept in the AppSettings record — never
+  // localStorage, which can get cleared). Monotonic blend with any
+  // same-day values already tracked by the 5-min poll: the High can only
+  // RAISE, the Low can only DROP.
+  const weatherSettings = { updated: false, cities: [] };
+  if (!dryRun) {
+    try {
+      // Deterministic pick + duplicate cleanup (Oct 9 2026): sort by
+      // -updated_date; abort seeding on read failure rather than creating a
+      // duplicate record (which previously split the weather bar's history).
+      const rows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'dashboard_weather' }, '-updated_date', 50, 0).catch(() => null);
+      if (!rows) { console.log('[weather-briefing] dashboard_weather read failed — skipping seed (no duplicate create)'); }
+      const rec = rows?.[0] || null;
+      if (rows) for (const extra of rows.slice(1)) {
+        if (extra?.id && extra.id !== rec?.id) await base44.asServiceRole.entities.AppSettings.delete(extra.id).catch(() => {});
+      }
+      const value = rec?.setting_value ? { ...rec.setting_value, cities: { ...(rec.setting_value.cities || {}) } } : { cities: {} };
+      const seenCityIds = new Set();
+      let touched = false;
+      for (const b of briefings) {
+        if (!b.weather || !b.city_id || seenCityIds.has(b.city_id)) continue;
+        const high = Number(b.weather.high);
+        const low = Number(b.weather.low);
+        if (!Number.isFinite(high) || !Number.isFinite(low)) continue;
+        seenCityIds.add(b.city_id);
+        const entry = { ...(value.cities[b.city_id] || {}) };
+        const prevSameDay = entry.hl_day === today ? entry : null;
+        entry.city_id = b.city_id;
+        entry.city_name = entry.city_name || b.city || null;
+        entry.hl_day = today;
+        entry.day_high = Math.max(high, Number.isFinite(Number(prevSameDay?.day_high)) ? Number(prevSameDay.day_high) : -Infinity);
+        entry.day_low = Math.min(low, Number.isFinite(Number(prevSameDay?.day_low)) ? Number(prevSameDay.day_low) : Infinity);
+        value.cities[b.city_id] = entry;
+        touched = true;
+        weatherSettings.cities.push(`${entry.city_name}: H ${entry.day_high} / L ${entry.day_low}`);
+      }
+      if (touched) {
+        if (rec?.id) {
+          await base44.asServiceRole.entities.AppSettings.update(rec.id, { setting_value: value });
+        } else if (rows && rows.length === 0) {
+          await base44.asServiceRole.entities.AppSettings.create({
+            setting_key: 'dashboard_weather',
+            setting_value: value,
+            description: 'Dashboard weather thermometer bar — per-city current/high/low + server-tracked day_high/day_low (High only raises, Low only drops)',
+          });
+        }
+        weatherSettings.updated = true;
+      }
+    } catch (err) {
+      console.log('[weather-briefing] dashboard_weather seeding failed:', err?.message || String(err));
+      weatherSettings.error = err?.message || String(err);
     }
   }
 
@@ -483,6 +577,7 @@ async function handleBriefing(base44, params = {}) {
     weather_failures: weatherFailures,
     drivers: briefings,
     pushes,
+    dashboard_weather_seeding: weatherSettings,
     duration_ms: Date.now() - startedAt,
   };
 }

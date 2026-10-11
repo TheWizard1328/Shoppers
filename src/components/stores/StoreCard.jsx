@@ -23,13 +23,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger } from
 "@/components/ui/alert-dialog";
-import { getStoreColor } from "../utils/colorGenerator";
+import { getStoreColor, getSquareLocationColor, getContrastColor } from "../utils/colorGenerator";
 import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
 import { updateStoreLocal } from "@/components/utils/offlineMutations";
 import StoreStatHolidayRow from "./StoreStatHolidayRow";
 
-export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete }) {
+export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete, isDispatcherOtherStore, dispatcherSummary }) {
   const [editingColor, setEditingColor] = useState(false);
   const [editableStore, setEditableStore] = useState({ ...store });
   const [copiedId, setCopiedId] = useState(false);
@@ -41,6 +41,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
   // Generate color locally if missing (don't auto-save to avoid infinite loops)
   const displayColor = store.color || getStoreColor(store);
+
+  // Square config badge color — same config ID always maps to the same hue so
+  // stores sharing a Square location visually match.
 
   useEffect(() => {
     setEditableStore({ ...store });
@@ -177,9 +180,14 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </Badge>
                   }
                   {store.square_location_config_id &&
-                  <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1" style={{ borderColor: '#10b981', color: '#059669' }}>
-                      <CreditCard className="w-3 h-3" />
-                    </Badge>
+                  (() => {
+                    const squareColor = getSquareLocationColor(store.square_location_config_id);
+                    return (
+                      <Badge className="px-1.5 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1 border-transparent shadow" style={{ backgroundColor: squareColor, color: getContrastColor(squareColor) }}>
+                        <CreditCard className="w-3 h-3" />
+                      </Badge>
+                    );
+                  })()
                   }
                 </div>
                 
@@ -223,7 +231,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       {formatPhoneNumber(store.phone)}
                     </p>
                   }
-                  {store.latitude && store.longitude &&
+                  {store.latitude && store.longitude && !isDispatcherOtherStore &&
                   <p className="text-xs mt-2 mb-2 text-soft">
                       GPS: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
                     </p>
@@ -240,6 +248,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     style={{ backgroundColor: '#d1fae5' }}>
                       <Phone className="w-5 h-5" style={{ color: '#059669' }} />
                     </a>
+                    {!isDispatcherOtherStore &&
                     <a
                     href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
                     target="_blank"
@@ -249,6 +258,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     style={{ backgroundColor: '#dbeafe' }}>
                       <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
                     </a>
+                    }
                   </div>
                 }
               </div>
@@ -446,7 +456,41 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               }
               </div>}
 
+              {/* Dispatcher other-store compact overview: who is on duty for the
+                  selected date + projected pickup window (or actual pickup
+                  time once picked up). Replaces the full assignment grid. */}
+              {isDispatcherOtherStore && (
+              <div className="space-y-2 pt-2" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
+              <h4 className="font-semibold text-sm" style={{ color: 'var(--text-slate-800)' }}>On Duty Today ({dispatcherSummary?.dateStr || ''})</h4>
+              <div className="space-y-1.5">
+                {(dispatcherSummary?.slots || []).length === 0 &&
+                  <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>No drivers assigned for this date</div>
+                }
+                {(dispatcherSummary?.slots || []).map((slot) => (
+                  <div key={slot.half} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{
+                        backgroundColor: slot.onDuty === null ? '#cbd5e1' : slot.onDuty ? '#10b981' : '#94a3b8',
+                        boxShadow: slot.onDuty ? '0 0 6px #10b98140' : 'none'
+                      }} />
+                    <span className="text-xs font-medium w-7 flex-shrink-0 text-label">{slot.half}</span>
+                    <span className="font-medium text-body-2">{slot.driverName || 'No driver'}</span>
+                    {slot.pickedUpAt ?
+                      <span className="text-xs text-soft">Picked up {slot.pickedUpAt}{slot.pickedUpBy && slot.pickedUpBy !== slot.driverName ? ` (${slot.pickedUpBy})` : ''}</span>
+                    : slot.windowStr ?
+                      <span className="text-xs text-soft">Pickup window: {slot.windowStr}</span>
+                    :
+                      <span className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>No window set</span>
+                    }
+                  </div>
+                ))}
+              </div>
+              </div>
+              )}
+
               {/* Driver Assignments Section */}
+              {!isDispatcherOtherStore && (
               <div className="space-y-2 pt-2" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
               <h4 className="font-semibold text-sm" style={{ color: 'var(--text-slate-800)' }}>Driver Assignments & Pickup Times</h4>
 
@@ -492,7 +536,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {timeStr && <div className="text-xs text-soft">{timeStr}</div>}
                         </> :
                         <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
-                          {!isEnabled ? 'Disabled' : 'No driver'}
+                          {!isEnabled ? 'Unassigned' : 'No driver'}
                         </div>
                       }
                     </div>
@@ -548,6 +592,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
               })()}
             </div>
+            )}
           </div>
 
           {/* Bottom Actions - Store ID, Dispatcher ID and Delete button - Admin only */}

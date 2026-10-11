@@ -1,6 +1,7 @@
 import { isAppOwner } from './userRoles';
 import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
 import { base44 } from '@/api/base44Client';
+import { scheduleDeferredReoptimization } from './deferredRouteReoptimization';
 
 let managerControllersPromise;
 let lastPostDeliverySyncKey = null;
@@ -189,7 +190,25 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
   lastPostDeliverySyncKey = syncKey;
   lastPostDeliverySyncAt = now;
 
-  setTimeout(async () => {
+  if (hasTimeWindowChanges) {
+    // Owner spec (Sep 24 2026): window-edit reoptimizations run on a 5-second
+    // deferred timer, PAUSED while the Delivery Edit / Add To Route / Quick
+    // Route Adjustment panels or a stop delete confirmation are open. The
+    // countdown restarts from the full 5s when the last blocker closes, so
+    // back-to-back edits batch into ONE optimization. A fresher optimization
+    // (delete, quick reorder, manual FAB) absorbs the pending entry.
+    scheduleDeferredReoptimization(`${driverId}:${deliveryDate}`, () =>
+      executePostDeliveryUpdateSync({ driverId, deliveryDate, hasTimeWindowChanges: true, currentUser, skipStatsRefresh })
+    );
+    return;
+  }
+  setTimeout(() => {
+    executePostDeliveryUpdateSync({ driverId, deliveryDate, hasTimeWindowChanges: false, currentUser, skipStatsRefresh });
+  }, 0);
+};
+
+const executePostDeliveryUpdateSync = async ({ driverId, deliveryDate, hasTimeWindowChanges, currentUser, skipStatsRefresh = false }) => {
+  {
     const now = new Date();
     const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -258,5 +277,5 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
       }
       throw error;
     }
-  }, 0);
+  }
 };

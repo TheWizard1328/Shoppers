@@ -18,6 +18,7 @@
 // All calls are fire-and-forget: never block UI flows on Square. Idempotent — safe to
 // call repeatedly; safe to lose a call (the scheduled sweep self-heals within minutes).
 import { base44 } from '@/api/base44Client';
+import { invokeWithLongTimeout } from '@/components/utils/squareLongTimeout';
 
 // Only cod decision inputs + identity fields needed for item naming are honored
 // server-side. Patches exist for records the caller JUST wrote whose DB write may
@@ -56,7 +57,7 @@ const report = (label, promise) =>
 // whose DB write hasn't propagated yet.
 export function syncDeliverySquareCod(deliveryId, patch) {
   if (!deliveryId) return;
-  report('one', base44.functions.invoke('squareCodReconcile', {
+  report('one', invokeWithLongTimeout('squareCodReconcile', {
     records: [{ deliveryId, patch: buildCodPatch(patch) }]
   }));
 }
@@ -69,7 +70,7 @@ export function syncDeliveriesSquareCod(items) {
     .filter((it) => it?.deliveryId)
     .map((it) => ({ deliveryId: it.deliveryId, patch: buildCodPatch(it.patch) }));
   if (records.length === 0) return;
-  report('batch', base44.functions.invoke('squareCodReconcile', { records }));
+  report('batch', invokeWithLongTimeout('squareCodReconcile', { records }));
 }
 
 // Force-remove catalog items for deliveries that no longer exist in the DB
@@ -77,7 +78,7 @@ export function syncDeliveriesSquareCod(items) {
 // mode deletes by delivery id directly.
 export function removeDeliverySquareCod(deliveryId, reason = 'delivery_deleted') {
   if (!deliveryId) return;
-  report('remove', base44.functions.invoke('squareCodReconcile', {
+  report('remove', invokeWithLongTimeout('squareCodReconcile', {
     deletions: [{ deliveryId, reason }]
   }));
 }

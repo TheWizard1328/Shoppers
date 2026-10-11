@@ -22,6 +22,7 @@ import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import ConnectionIndicator from "@/components/dashboard/ConnectionIndicator";
 import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
+import HeyDocToggleButton from "@/components/voice/HeyDocToggleButton";
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import ActivePayStats from '@/components/dashboard/ActivePayStats';
@@ -42,6 +43,7 @@ export default function StatsPanel({
   driverLocation,
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
+  heyDocAvailable, heyDocArmed, onToggleHeyDoc,
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
   showAllDriverMarkers, setShowAllDriverMarkers, overlayDriverId, setOverlayDriverId, handleDriverLegendClick,
   showBreadcrumbs, setShowBreadcrumbs, setBreadcrumbsData,
@@ -423,6 +425,8 @@ export default function StatsPanel({
                 onClick={(e) => {
                   // Avoid double-trigger when user taps the sync button itself
                   if (e.target.closest('[data-offline-sync-button]')) return;
+                  // Mic toggle has its own handler — never a manual refresh
+                  if (e.target.closest('[data-heydoc-toggle]')) return;
                   const syncButton = document.querySelector('[data-offline-sync-button]');
                   if (syncButton) syncButton.click();
                 }}>
@@ -436,6 +440,7 @@ export default function StatsPanel({
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
                 <ConnectionIndicator />
                 <ErrorFlagIndicator />
+                {heyDocAvailable && <HeyDocToggleButton armed={heyDocArmed} onToggle={onToggleHeyDoc} />}
               </div>}
             </div>
 
@@ -554,7 +559,12 @@ export default function StatsPanel({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-1.5">
+          {/* data-stats-base-end: marks the last ALWAYS-VISIBLE row of the
+              stats card — everything below (the AnimatePresence expanded
+              content) grows below it. DashboardWeatherBar anchors its top to
+              THIS row's bottom so the temp bar's height/position never change
+              when the stats card expands (owner request, Sep 28 2026). */}
+          <div data-stats-base-end="true" className="flex items-center justify-between gap-1.5">
             <ActivePayStats
                 deliveryStats={deliveryStats}
                 localStats={stats}
@@ -571,6 +581,7 @@ export default function StatsPanel({
                 } : undefined} />
                 
             <Button variant="ghost" size="sm"
+              aria-label={isExpanded ? "Collapse stats panel" : "Expand stats panel"}
               onClick={isDispatcherLockedExpanded ? undefined : (e) => {e.stopPropagation();if (!isExpanded) window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));setIsExpanded(!isExpanded);}}
               disabled={isDispatcherLockedExpanded || currentUser?.status === 'inactive' && isDriver && !isAdmin}
               className={`h-8 w-8 p-0 flex-shrink-0 ${isDispatcherLockedExpanded ? 'opacity-0 cursor-default' : currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -685,6 +696,7 @@ export default function StatsPanel({
                         }
                       }}
                       className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                      aria-label={showAllDriverMarkers ? "Hide all drivers on map" : "Show all drivers on map"}
                       style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <Binoculars className="w-4 h-4" />
                       </Button>
@@ -801,6 +813,16 @@ export default function StatsPanel({
                   }
               </div>
 
+              {/* data-stats-locked-expanded-end (Oct 2 2026): for dispatchers
+                  the driver-select + InterStore row above is NEVER collapsed
+                  (isDispatcherLockedExpanded is permanently true), so
+                  data-stats-base-end sits ABOVE this always-visible row —
+                  DashboardWeatherBar anchored there and rendered its bar
+                  overlapping/behind this row for every dispatcher. This marker
+                  gives the weather bar a second, lower anchor that exists only
+                  while the dispatcher-locked content is on screen. */}
+              {isDispatcherLockedExpanded && <div data-stats-locked-expanded-end="true" />}
+
               {isDriver && !isDispatcher && <>
                 <div className="pt-1 border-t border-slate-200 dark:border-slate-700"></div>
                 <div className="flex items-center gap-1">
@@ -863,7 +885,7 @@ export default function StatsPanel({
               const showStoreRow = showStoreStatusRow && storeStatusData.length > 0;
               if (!showDriverLegendRow && !showStoreRow) return null;
               return (
-                <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full bg-surface border-surface" style={{ opacity: 1 }}
+                <div data-stats-legend="true" className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full bg-surface border-surface" style={{ opacity: 1 }}
                 onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
                   {showDriverLegendRow &&
                   <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">

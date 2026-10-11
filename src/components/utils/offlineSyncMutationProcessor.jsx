@@ -2,17 +2,44 @@ import { offlineDB } from './offlineDatabase';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { getSyncPaused } from './offlineSyncState';
 import { isDeleted, isDeletedByContent } from './deletedDeliveryRegistry';
+import { base44 } from '@/api/base44Client';
+import { sanitizeAppUserMutationPayload, hasPendingDriverStatusMutation } from './pendingAppUserMutations';
+import { invalidateEntityCache } from './dataSyncCoordinator';
+import { recordTempPatientId, resolveTempPatientId } from './tempPatientIdMap';
 
 // Terminal (finished) delivery statuses — see TERMINAL_STATUSES unification.
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
+let deferredReplayTimer = null;
+const scheduleDeferredReplay = (mutations = []) => {
+  if (!mutations.length || typeof window === 'undefined') return;
+  const now = Date.now();
+  const hasDueMutation = mutations.some((mutation) => !mutation?.notBefore || Number(mutation.notBefore) <= now);
+  const futureTimes = mutations
+    .map((mutation) => Number(mutation?.notBefore || 0))
+    .filter((time) => time > now);
+  const delay = hasDueMutation
+    ? 100
+    : Math.max(100, Math.min(...futureTimes) - now + 100);
+  if (deferredReplayTimer) clearTimeout(deferredReplayTimer);
+  deferredReplayTimer = setTimeout(() => {
+    deferredReplayTimer = null;
+    processPendingMutationsInternal().catch(() => {});
+  }, delay);
+};
+
 export const processPendingMutationsInternal = async () => {
   if (getSyncPaused()) return { success: true, skipped: true };
 
-  const mutations = await offlineDB.getPendingMutations();
-  if (mutations.length === 0) return { success: true, processed: 0 };
+  const allMutations = await offlineDB.getPendingMutations();
+  const now = Date.now();
+  const mutations = allMutations.filter((mutation) => !mutation?.notBefore || Number(mutation.notBefore) <= now);
+  if (mutations.length === 0) {
+    scheduleDeferredReplay(allMutations);
+    return { success: true, processed: 0, deferred: allMutations.length };
+  }
 
   const BATCH_SIZE = 50;
   const batch = mutations.slice(0, BATCH_SIZE);
@@ -102,6 +129,15 @@ export const processPendingMutationsInternal = async () => {
           ? mutation.payload._stagedDeliveries[0]
           : mutation.payload;
         if (!source) return source;
+        // A queued delivery may reference a temp patient id created offline.
+        // Resolve it to the real id before the payload reaches the server.
+        if (source.patient_id && String(source.patient_id).startsWith('temp_patient_')) {
+          const resolvedPid = resolveTempPatientId(source.patient_id);
+          if (resolvedPid !== source.patient_id) {
+            source.patient_id = resolvedPid;
+            console.log(`🔗 [OfflineSync] Delivery payload: resolved temp patient id → ${resolvedPid}`);
+          }
+        }
         const {
           _isBatchSave,
           _stagedDeliveries,
@@ -126,11 +162,18 @@ export const processPendingMutationsInternal = async () => {
         return cleaned;
       })() : mutation.payload;
 
-      if (mutation.entity === 'Delivery' && !deliveryPayload?.delivery_date) {
+      // delivery_date guard applies to CREATES only (a create without a date is
+      // genuinely invalid). UPDATE mutations are partial diffs by design — e.g.
+      // a bulk-edit status change queues only { status } — and were being
+      // silently discarded here, permanently losing the change server-side.
+      if (mutation.entity === 'Delivery' && mutation.operation === 'create' && !deliveryPayload?.delivery_date) {
         console.warn(`⚠️ [OfflineSync] Removing invalid queued Delivery mutation ${mutation.mutationId} - missing delivery_date`);
         await offlineDB.removePendingMutation(mutation.mutationId);
         successCount++;
         continue;
+      }
+      if (mutation.entity === 'Delivery' && mutation.operation === 'update' && !deliveryPayload?.delivery_date) {
+        console.warn(`⚠️ [OfflineSync] Flushing partial Delivery update mutation ${mutation.mutationId} (no delivery_date — valid partial diff) fields: ${Object.keys(deliveryPayload || {}).join(',')}`);
       }
 
       if (mutation.operation === 'create') {
@@ -162,6 +205,39 @@ export const processPendingMutationsInternal = async () => {
           }
           await offlineDB.bulkSave(storeName, [createdRecord]);
         }
+        // CRITICAL (Oct 6 2026): when a queued PATIENT create syncs, deliveries
+        // created while offline may still reference the temp patient id
+        // (delivery.patient_id = temp_patient_...). Without a remap those stops
+        // render "Unknown" with no map marker forever — the patient exists in
+        // the DB under its real id. Remap IDB + server now.
+        if (mutation.entity === 'Patient' && mutation.recordId?.startsWith('temp_') && createdRecord?.id) {
+          // Persist the temp→real mapping so queued Delivery payloads created
+          // while offline (which still carry the temp patient id) resolve on drain.
+          recordTempPatientId(mutation.recordId, createdRecord.id);
+          try {
+            const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            const orphans = (allDeliveries || []).filter((d) => d && d.patient_id === mutation.recordId);
+            for (const orphan of orphans) {
+              const patched = { ...orphan, patient_id: createdRecord.id };
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [patched]);
+              try {
+                const entityClient = getMutationEntityClient('Delivery');
+                if (entityClient?.update) await entityClient.update(orphan.id, { patient_id: createdRecord.id });
+                else await base44.entities.Delivery.update(orphan.id, { patient_id: createdRecord.id });
+              } catch (dbErr) {
+                console.warn('⚠️ [OfflineSync] Patient remap: server delivery update failed for', orphan.id, dbErr?.message || dbErr);
+              }
+            }
+            if (orphans.length > 0) {
+              console.log(`🔗 [OfflineSync] Remapped ${orphans.length} delivery/deliveries from temp patient ${mutation.recordId} → ${createdRecord.id}`);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { triggeredBy: 'patient_temp_id_remap', fullReplacement: false }
+              }));
+            }
+          } catch (remapErr) {
+            console.warn('⚠️ [OfflineSync] Patient temp-id delivery remap failed:', remapErr?.message || remapErr);
+          }
+        }
         if (typeof window !== 'undefined' && mutation.recordId?.startsWith('temp_')) {
           window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
             detail: {
@@ -180,7 +256,11 @@ export const processPendingMutationsInternal = async () => {
           continue;
         }
 
-        let finalPayload = mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload;
+        let finalPayload = mutation.entity === 'Delivery'
+          ? deliveryPayload
+          : mutation.entity === 'AppUser'
+            ? sanitizeAppUserMutationPayload(mutation.payload)
+            : mutation.payload;
 
         // ── TERMINAL-REVERT GUARD (Robert, Sep 4 2026) ─────────────────────────
         // Rule: the online database is only pushed from DIRECT user actions.
@@ -208,9 +288,29 @@ export const processPendingMutationsInternal = async () => {
         }
 
         await Entity.update(mutation.recordId, finalPayload);
+
+        // Driver status changes have backend side effects beyond AppUser.update:
+        // duty-segment recording, device ownership, tracking state and next-stop
+        // handling. Replay those only after the queued entity update succeeds.
+        if (mutation.entity === 'AppUser' && mutation.driverStatusTransition) {
+          await base44.functions.invoke('setDriverStatus', mutation.driverStatusTransition);
+          invalidateEntityCache('AppUser');
+        }
       }
 
       await offlineDB.removePendingMutation(mutation.mutationId);
+      invalidateEntityCache(mutation.entity);
+      if (mutation.entity === 'AppUser' && mutation.driverStatusTransition && typeof window !== 'undefined') {
+        const hasPendingStatus = await hasPendingDriverStatusMutation(mutation.recordId);
+        window.dispatchEvent(new CustomEvent('offlineDriverStatusSynced', {
+          detail: {
+            appUserId: mutation.recordId,
+            userId: mutation.driverStatusTransition.targetUserId,
+            status: mutation.driverStatusTransition.newStatus,
+            hasPendingStatus,
+          }
+        }));
+      }
       successCount++;
       await new Promise(r => setTimeout(r, 500));
     } catch (error) {
@@ -230,5 +330,7 @@ export const processPendingMutationsInternal = async () => {
     }
   }
 
-  return { success: failCount === 0, processed: successCount, failed: failCount, remaining: mutations.length - batch.length };
+  const remainingMutations = await offlineDB.getPendingMutations();
+  scheduleDeferredReplay(remainingMutations);
+  return { success: failCount === 0, processed: successCount, failed: failCount, remaining: remainingMutations.length };
 };

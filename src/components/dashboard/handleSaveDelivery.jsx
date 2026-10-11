@@ -36,13 +36,19 @@ export async function handleSaveDelivery(deliveryData, ctx) {
   try {
     if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
       const { handleBatchSaveDelivery } = await import('@/components/dashboard/handleBatchSaveDelivery');
-      await handleBatchSaveDelivery({
+      // CRITICAL: return the batch-save result. handleBatchSaveDelivery returns
+      // { createdDeliveries } (real server IDs of the newly-created patient
+      // deliveries). handleBatchSave (Add To Route "Done") uses that result to
+      // fire the "Stops Assigned" notification — previously this branch returned
+      // undefined, so createdDeliveries came back empty and the notify (Rule
+      // Builder "Stops Assigned" AND legacy fallback) silently never fired for
+      // newly-created stops.
+      return handleBatchSaveDelivery({
         deliveryData, drivers, deliveries, patients, stores, currentUser, selectedDate,
         invalidate, updateDeliveriesLocally, refreshData,
         setShowDeliveryForm, setEditingDelivery, hasAutoSelectedRef,
         invalidateDeliveriesForDate: () => invalidate('Delivery'),
       });
-      return;
     }
 
     const isEditing = !!editingDelivery;

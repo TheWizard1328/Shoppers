@@ -32,6 +32,10 @@
       "type": "array",
       "description": "Responses from assigned drivers during the waiting phase"
     },
+    "broadcast_resend_count": {
+      "type": "number",
+      "description": "How many times the request was re-broadcast to all drivers after every driver responded Unavailable (capped at 3; after the 3rd follow-up round with all Unavailable, the request expires)"
+    },
     "broadcast_sent_at": {
       "type": "string",
       "description": "When the city-wide broadcast was sent"

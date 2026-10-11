@@ -3,6 +3,7 @@
 // This manager handles: initial loads, offline sync, cache reconciliation, and non-real-time entities
 
 import { base44 } from "@/api/base44Client";
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { emitGatedEvent } from './uiGate';
 import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp } from "./dataDiffer";
 import { format } from "date-fns";
@@ -60,7 +61,7 @@ class LightweightRefreshManager {
    */
   async initializeFromSettings() {
     try {
-      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const settings = await getAppSettingRows('refresh_intervals');
       if (settings && settings.length > 0 && settings[0].setting_value) {
         this._enabled = true; // always on — Smart Refresh toggle removed from admin settings
       } else {

@@ -128,6 +128,16 @@ export default function useModeRouteDialog({
   const signalDialogDone = useCallback(() => {
     window.dispatchEvent(new CustomEvent('cyclingModeDialogDone'));
   }, []);
+  const skipNextDialogDoneRef = useRef(false);
+
+  // One-shot gate: when handleModeOptimize closes the dialog programmatically, the
+  // wrapper (handleModeDialogOpenChange) must NOT fire cyclingModeDialogDone yet.
+  // Accept All unblocks on that event and immediately runs its pending→in_transit
+  // pipeline + optimizer — firing it at dialog-close time raced this dialog's 800ms
+  // marker-settle wait, stop_order assignment, and IDB writes, so Accept All's
+  // optimizer read half-written state and could commit the cycling markers' initial
+  // end-of-route stop_order numbers. handleModeOptimize fires it in its finally
+  // block instead, after all writes are complete.
 
   const handleModeOptimize = useCallback(async () => {
     if (selectedModeStopIds.length === 0 || !currentUser?.id) return;
@@ -135,10 +145,12 @@ export default function useModeRouteDialog({
     isRunningRef.current = true;
     setIsOptimizingModeRoute(true);
 
-    // Close the dialog immediately — driver should not be blocked waiting
+    // Close the dialog immediately — driver should not be blocked waiting.
+    // cyclingModeDialogDone is deferred to the finally block: Accept All waits on
+    // it to run its own optimizer, and it must see the completed cycling sort-in
+    // (marker stop_orders + transport modes in IDB), not a half-written state.
+    skipNextDialogDoneRef.current = true;
     setModeDialogOpen(false);
-    // Signal Accept All that the dialog is confirmed and closed
-    signalDialogDone();
 
     try {
       const now = new Date();
@@ -361,16 +373,45 @@ export default function useModeRouteDialog({
           source: 'cyclingMode:single',
           bypassDriverStatus: true,
           skipPolyline: false,
+          // Read-your-write: await the server commit. The engine's writeBatch is
+          // the ONLY writer of the sort-in stop_order numbers (the dialog only
+          // wrote transport_mode to the server). A fire-and-forget commit that
+          // failed silently (poor connectivity) left the cycling markers stuck
+          // at their initial end-of-route stop_order numbers on the server until
+          // some later optimization or completion happened to renumber them.
+          awaitServerWrite: true,
         }).catch((e) => { console.warn('[useModeRouteDialog] Optimization failed:', e?.message); return null; });
 
-        console.log('[useModeRouteDialog] Single optimization complete', { success: result?.success });
+        console.log('[useModeRouteDialog] Single optimization complete', { success: result?.success, serverCommitFailed: result?.serverCommitFailed === true });
 
-        toast.success('Cycling route set — route optimized.');
+        if (result?.success && result?.serverCommitFailed !== true) {
+          toast.success('Cycling route set — route optimized.');
+        } else {
+          // Engine failed OR the server commit failed (device offline). The
+          // sort-in numbers are already in IDB/UI — queue them through the
+          // resilient mutation path so the server self-heals on reconnect
+          // instead of keeping the markers' initial end-of-route numbers.
+          toast.error('Cycling route set locally — server sync will retry.');
+          try {
+            const { updateDeliveryLocal } = await import('@/components/utils/offlineMutations');
+            for (const d of localUpserts) {
+              if (!d?.id || String(d.id).startsWith('temp_')) continue;
+              await updateDeliveryLocal(d.id, {
+                stop_order: d.stop_order,
+                transport_mode: d.transport_mode,
+              }, { isBatchOperation: true, skipSmartRefresh: true }).catch(() => null);
+            }
+          } catch { /* non-fatal — numbers are already in IDB */ }
+        }
       }
     } catch (e) {
       console.error('[useModeRouteDialog] handleModeOptimize error:', e?.message);
       toast.error('Failed to optimize cycling route.');
     } finally {
+      // Signal Accept All that the dialog is FULLY done — after the stop_order
+      // assignment, IDB writes, and (standalone path) the awaited optimization
+      // commit — so Accept All's own optimizer reads the completed state.
+      signalDialogDone();
       setIsOptimizingModeRoute(false);
       isRunningRef.current = false;
     }
@@ -391,7 +432,16 @@ export default function useModeRouteDialog({
   // Wrap setModeDialogOpen so that closing the dialog (cancel / backdrop click)
   // always fires cyclingModeDialogDone to unblock the Accept All waiter.
   const handleModeDialogOpenChange = useCallback((open) => {
-    if (!open) signalDialogDone();
+    if (!open) {
+      if (skipNextDialogDoneRef.current) {
+        // Confirm path: handleModeOptimize fired the dialog close programmatically
+        // and will fire cyclingModeDone itself in its finally block, once the
+        // route writes are complete. Skip this firing (one-shot).
+        skipNextDialogDoneRef.current = false;
+      } else {
+        signalDialogDone();
+      }
+    }
     setModeDialogOpen(open);
   }, [signalDialogDone]);
 

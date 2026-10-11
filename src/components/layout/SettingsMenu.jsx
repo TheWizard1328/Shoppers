@@ -16,7 +16,7 @@ import { getDemoSettings } from '@/components/utils/configCache';
 
 import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache, getEffectiveUser } from '../utils/auth';
-import { clearSettingsCache } from '../utils/userSettingsManager';
+import { clearSettingsCache, waitForPendingSettingWrites, flushPendingSettingSaves } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 
 
@@ -36,7 +36,6 @@ export default function SettingsMenu({
 }) {
   const { isMobile: isMobileDeviceForUI } = useDevice();
   const { logout: authLogout } = useAuth();
-  const isMobileForTheme = isMobileDeviceForUI;
   
   const [showDemoModeDialog, setShowDemoModeDialog] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState(false);
@@ -115,8 +114,12 @@ export default function SettingsMenu({
             Display
           </DropdownMenuLabel>
           
-          {/* Theme Toggle - Mobile Devices Only (based on user agent, not screen width) */}
-          {isMobileForTheme && (
+          {/* Theme selector — ALL devices (Oct 2 2026): previously gated to
+              mobile user agents only, which left DESKTOP PWA sessions with NO
+              way to see or change their theme. A desktop whose device profile
+              was stuck on 'dark' (global preference wiped by a stale
+              cross-device write) rendered permanently dark with no selector to
+              fix it, reading as "Auto mode is always doing Dark mode". */}
         <div className="px-2 py-2">
           <label 
             className="font-medium mb-1.5 block text-body-2" style={{ fontSize: isMobileDeviceForUI ? '15px' : '14px' }}
@@ -141,7 +144,7 @@ export default function SettingsMenu({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent 
-                className="z-[10003] bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+                className="bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 <SelectItem value="auto" className="text-body">Auto (System)</SelectItem>
                 <SelectItem value="light" className="text-body">Light</SelectItem>
@@ -150,7 +153,6 @@ export default function SettingsMenu({
             </Select>
           )}
         </div>
-      )}
         </>
       ) : null}
 
@@ -181,7 +183,7 @@ export default function SettingsMenu({
                 <SelectValue placeholder="City" />
               </SelectTrigger>
               <SelectContent 
-                className="max-h-[300px] overflow-y-auto z-[10002] bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+                className="max-h-[300px] overflow-y-auto bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
                 {cities.map((city) => (
                   <SelectItem key={city.id} value={city.id} className="text-body">
@@ -215,6 +217,15 @@ export default function SettingsMenu({
       <DropdownMenuItem
         onClick={async () => {
           try {
+            // FIX (Oct 2 2026): a reload fired right after changing the
+            // dashboard date/driver used to race the in-flight settings
+            // write (not awaited by its caller) — the reload could land
+            // before the IDB write resolved, so the next boot read whatever
+            // selected_date/selected_driver_id was last saved, sometimes
+            // weeks old. Wait for any write already in flight, then flush
+            // the debounced server write, before clearing cache and reloading.
+            await waitForPendingSettingWrites();
+            flushPendingSettingSaves();
             clearUserCache();
             clearSettingsCache();
             window.location.reload(true);

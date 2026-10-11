@@ -13,6 +13,8 @@ import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditC
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
 import StopCardCheckboxToggle from "@/components/dashboard/StopCardCheckboxToggle";
 import FABControls from "@/components/dashboard/FABControls";
+import { useHeyDoc } from "@/components/voice/useHeyDoc";
+import HeyDocOverlay from "@/components/voice/HeyDocOverlay";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
 export default function DashboardView({
@@ -76,6 +78,11 @@ export default function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  const heyDoc = useHeyDoc({
+    currentUser, filteredDeliveries, patients, stores, appUsers,
+    enabled: isDriver && isMobile,
+  });
+
   // (EOD dialog listener moved to Dashboard.jsx where state lives — more stable)
 
   // Show/hide the KITT optimization bar based on lifecycle events from all optimization flows
@@ -416,6 +423,7 @@ export default function DashboardView({
         >
         <DashboardStatsPanel
           currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
+          heyDocAvailable={heyDoc.available} heyDocArmed={heyDoc.armed} onToggleHeyDoc={heyDoc.toggle}
           deliveries={deliveries} filteredDeliveries={filteredDeliveries} patients={patients} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
           calendarMonth={calendarMonth} setCalendarMonth={setCalendarMonth}
@@ -545,6 +553,16 @@ export default function DashboardView({
           />
         </div>
 
+        <HeyDocOverlay
+          chip={heyDoc.chip}
+          awaitingCommand={heyDoc.awaitingCommand}
+          onDismiss={heyDoc.dismissChip}
+          cardsReadyForFAB={cardsReadyForFAB}
+          stopCardsBaseHeight={stopCardsBaseHeight}
+          hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0}
+          immersiveHidden={immersiveHidden}
+        />
+
         <StopCardCheckboxToggle
           checked={showStopCardCheckboxes}
           onCheckedChange={(checked) => {
@@ -613,7 +631,7 @@ export default function DashboardView({
       {currentUser &&
         <FABControls
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
-          patients={patients} stores={stores} deliveriesWithStopOrder={deliveriesWithStopOrder} filteredDeliveries={filteredDeliveries}
+          patients={patients} stores={stores} appUsers={appUsers} deliveriesWithStopOrder={deliveriesWithStopOrder} filteredDeliveries={filteredDeliveries}
           selectedDate={selectedDate} selectedDriverId={selectedDriverId} isDateFinished={isDateFinished}
           mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked} setIsMapViewLocked={setIsMapViewLocked}
           driverLocation={driverLocation} cardsReadyForFAB={cardsReadyForFAB} stopCardsBaseHeight={stopCardsBaseHeight}

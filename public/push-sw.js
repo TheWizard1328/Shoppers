@@ -33,6 +33,15 @@ function resolvePwaUrl(targetUrl) {
   return new URL(targetUrl, scope).href;
 }
 
+// Pushes older than this are dropped on arrival. FCM queues messages for
+// offline devices and delivers the ENTIRE backlog the moment the device
+// reconnects (laptop powered on in the morning) — hours-old notifications the
+// user already saw and cleared on their phone flood the desktop. The backend
+// stamps every push with `timestamp`; if it is older than the cutoff, another
+// device already handled it and we skip showing it entirely. Pushes without a
+// timestamp (pre-upgrade) always show.
+const STALE_PUSH_MS = 10 * 60 * 1000; // 10 minutes
+
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -41,14 +50,24 @@ self.addEventListener('push', (event) => {
     data = { title: 'RxDeliver', body: event.data ? event.data.text() : '' };
   }
 
+  // STALE-PUSH GATE — queued-while-offline backlog suppression
+  const sentAt = Number(data.timestamp);
+  if (Number.isFinite(sentAt) && sentAt > 0 && (Date.now() - sentAt) > STALE_PUSH_MS) {
+    console.log('[push-sw] dropping stale push (sent ' + Math.round((Date.now() - sentAt) / 60000) + ' min ago):', data.title);
+    event.waitUntil(Promise.resolve());
+    return;
+  }
+
   const title = data.title || 'RxDeliver';
   const options = {
     body: data.body || '',
     icon: ICON_192,
     badge: ICON_192,
     image: data.image || undefined,
-    data: { url: data.url || '/', tag: data.tag || undefined, requireInteraction: !!data.requireInteraction },
-    tag: data.tag || undefined,
+    data: { url: data.url || '/', tag: data.tag || 'rxdeliver', requireInteraction: !!data.requireInteraction },
+    // Default tag collapses RxDeliver pushes into the newest one instead of
+    // stacking a wall of notifications (backlog or busy periods).
+    tag: data.tag || 'rxdeliver',
     requireInteraction: !!data.requireInteraction,
   };
 

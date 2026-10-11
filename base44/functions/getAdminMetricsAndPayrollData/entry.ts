@@ -9,6 +9,13 @@ const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
 const CURRENT_MONTH_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
+// Durable payroll payload summary (PayrollSummary entity, Oct 4 2026).
+// The payroll page renders its IDB cache instantly and resyncs quietly — this
+// summary makes that quiet resync take seconds instead of ~30s of entity
+// gathering, and the completion-driven slicer cycle keeps the current month
+// record fresh after every stop finish. Version bump invalidates old records.
+const PAYROLL_SUMMARY_VERSION = '1';
+const PAYROLL_SUMMARY_REFS_TTL_MS = 60 * 60 * 1000; // refs (pay rates, stores, payrollRecords) rebuild ceiling
 const BATCH_LIMIT = 1000;
 const APP_USER_BATCH_LIMIT = 1000;
 const PAYROLL_BATCH_LIMIT = 1000;
@@ -58,6 +65,22 @@ const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sor
   const leftRecords = await fetchDateRangeRecords(entityApi, dateField, startStr, midpoint, sort, extraFilter, limit);
   const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort, extraFilter, limit);
   return dedupeById([...leftRecords, ...rightRecords]);
+};
+
+// CHUNKED $IN FILTER (Oct 3 2026): the entity API serializes $in id arrays
+// into the request URL. A full payroll year accumulates thousands of unique
+// patient ids (~24 chars each) -> the URL blew past the gateway's limit and
+// the whole function 500'd with "Request failed with status code 414" (owner
+// report: driver payroll page not loading). Fetch in bounded chunks and
+// merge — 150 ids/chunk keeps the URL ~4KB.
+const fetchByIdChunks = async (entityApi, ids, chunkSize = 150, limit = 5000) => {
+  const out = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const rows = await entityApi.filter({ id: { $in: chunk } }, '', limit);
+    out.push(...(rows || []));
+  }
+  return out;
 };
 
 const getChunkedMonths = (months, chunkSize = DELIVERY_PAGE_MONTHS.length) => {
@@ -578,6 +601,156 @@ Deno.serve(async (req) => {
       return await base44.asServiceRole.entities.AdminMetricsSummary.create(payload);
     };
 
+    // ── Durable payroll summary (PayrollSummary entity) ──────────────────────────
+    // Parity rules: month deliveries use the SAME DELIVERY_FIELDS whitelist the
+    // gather path uses; month patients = patients referenced by that month's
+    // deliveries (union over months == gather's year patient set); refs holds
+    // everything else the payload needs. Compose reproduces the exact
+    // fetchYearData() output shape, so buildPayrollData() is unchanged.
+    const upsertPayrollSummaryRecords = async (filterQuery, payload) => {
+      const existing = await base44.asServiceRole.entities.PayrollSummary.filter(filterQuery, '', 20).catch(() => []);
+      const matches = existing || [];
+      if (matches.length === 0) {
+        await base44.asServiceRole.entities.PayrollSummary.create(payload);
+      } else {
+        for (const rec of matches) {
+          await base44.asServiceRole.entities.PayrollSummary.update(rec.id, payload);
+        }
+      }
+    };
+
+    const writePayrollSummary = async (year, cityId, yearData, { collectDebug = false } = {}) => {
+      const now = new Date().toISOString();
+      const writeLog = collectDebug ? [] : null;
+      const patientsById = new Map((yearData.patients || []).map((p) => [p?.id, p]));
+      const monthBuckets = new Map();
+      (yearData.deliveries || []).forEach((d) => {
+        const m = d?.delivery_date ? Number(String(d.delivery_date).slice(5, 7)) : 0;
+        if (!m) return;
+        if (!monthBuckets.has(m)) monthBuckets.set(m, []);
+        monthBuckets.get(m).push(d);
+      });
+      for (let m = 1; m <= 12; m += 1) {
+        if (writeLog && m > 1) await new Promise((res) => setTimeout(res, 150)); // gentle stagger
+        const monthDeliveries = monthBuckets.get(m) || [];
+        const seenPatient = new Set();
+        const monthPatients = [];
+        monthDeliveries.forEach((d) => {
+          const pid = d?.patient_id;
+          if (!pid || seenPatient.has(pid)) return;
+          seenPatient.add(pid);
+          const patient = patientsById.get(pid);
+          if (patient) monthPatients.push(patient);
+        });
+        try {
+          const payload = {
+            city_id: cityId,
+            year: Number(year),
+            month: m,
+            kind: 'month',
+            deliveries: monthDeliveries,
+            patients: monthPatients,
+            delivery_count: monthDeliveries.length,
+            calculated_at: now,
+            summary_version: PAYROLL_SUMMARY_VERSION
+          };
+          await upsertPayrollSummaryRecords(
+            { city_id: cityId, year: Number(year), month: m, kind: 'month' },
+            payload
+          );
+          if (writeLog) writeLog.push({ month: m, ok: true, count: monthDeliveries.length, bytes: JSON.stringify(payload).length });
+        } catch (e) {
+          if (writeLog) writeLog.push({ month: m, ok: false, count: monthDeliveries.length, error: e?.message || String(e) });
+        }
+      }
+      const refsPayload = {
+        city_id: cityId,
+        year: Number(year),
+        kind: 'refs',
+        refs: {
+          stores: yearData.stores || [],
+          appUsers: yearData.appUsers || [],
+          cities: yearData.cities || [],
+          cityName: yearData.cityName || '',
+          appFeeRate: yearData.appFeeRate || 0,
+          payrollRecords: yearData.payrollRecords || []
+        },
+        calculated_at: now,
+        summary_version: PAYROLL_SUMMARY_VERSION
+      };
+      try {
+        await upsertPayrollSummaryRecords({ city_id: cityId, year: Number(year), kind: 'refs' }, refsPayload);
+        if (writeLog) writeLog.push({ kind: 'refs', ok: true, bytes: JSON.stringify(refsPayload).length });
+      } catch (e) {
+        if (writeLog) writeLog.push({ kind: 'refs', ok: false, error: e?.message || String(e) });
+      }
+      return writeLog || null;
+    };
+
+    // Returns a fetchYearData-shaped payload from the durable summary, or null
+    // when the summary is absent/incomplete/stale (caller then gathers and
+    // rewrites it). Past years are frozen — always served when complete.
+    const readPayrollSummary = async (year, cityId, { forceFresh = false } = {}) => {
+      if (forceFresh) return null;
+      const nowMs = Date.now();
+      const yearNum = Number(year);
+      const yearIsCurrent = yearNum === new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      try {
+        const [refsRaw, monthsRaw] = await Promise.all([
+          base44.asServiceRole.entities.PayrollSummary.filter({ city_id: cityId, year: yearNum, kind: 'refs' }, '', 10).catch(() => []),
+          base44.asServiceRole.entities.PayrollSummary.filter({ city_id: cityId, year: yearNum, kind: 'month' }, '', 100).catch(() => [])
+        ]);
+        const refsRec = (refsRaw || []).filter((r) => r?.summary_version === PAYROLL_SUMMARY_VERSION)
+          .sort((a, b) => new Date(b.calculated_at || 0) - new Date(a.calculated_at || 0))[0];
+        if (!refsRec?.refs) return null;
+        if (yearIsCurrent && nowMs - new Date(refsRec.calculated_at || 0).getTime() > PAYROLL_SUMMARY_REFS_TTL_MS) return null;
+
+        // Latest record per month (transient duplicate records self-heal: later
+        // writes update every match, and reads take the newest calculated_at).
+        const monthMap = new Map();
+        (monthsRaw || []).forEach((r) => {
+          if (r?.summary_version !== PAYROLL_SUMMARY_VERSION || !r?.month) return;
+          const prev = monthMap.get(r.month);
+          if (!prev || new Date(r.calculated_at || 0) > new Date(prev.calculated_at || 0)) monthMap.set(r.month, r);
+        });
+        const lastMonthNeeded = yearIsCurrent ? currentMonth : 12;
+        for (let m = 1; m <= lastMonthNeeded; m += 1) {
+          if (!monthMap.has(m)) return null;
+        }
+        // Current-year freshness ceiling: current month must be recent OR the
+        // year is past/frozen. (Real-time freshness comes from the slicer hook.)
+        if (yearIsCurrent) {
+          const curRec = monthMap.get(currentMonth);
+          const monthAge = nowMs - new Date(curRec?.calculated_at || 0).getTime();
+          if (monthAge > CURRENT_MONTH_CACHE_TTL_MS) return null;
+        }
+
+        const deliveries = [];
+        const patientsById = new Map();
+        for (let m = 1; m <= 12; m += 1) {
+          const rec = monthMap.get(m);
+          if (!rec) continue;
+          (rec.deliveries || []).forEach((d) => d && deliveries.push(d));
+          (rec.patients || []).forEach((p) => p?.id && patientsById.set(p.id, p));
+        }
+        const refs = refsRec.refs;
+        return {
+          deliveries,
+          stores: refs.stores || [],
+          appUsers: refs.appUsers || [],
+          patients: Array.from(patientsById.values()),
+          cities: refs.cities || [],
+          cityName: refs.cityName || '',
+          appFeeRate: refs.appFeeRate || 0,
+          payrollRecords: refs.payrollRecords || []
+        };
+      } catch (e) {
+        console.warn('⚠️ payroll summary read failed — falling back to gather:', e?.message || e);
+        return null;
+      }
+    };
+
     const fetchYearData = async (year, cityId, options = {}) => {
       const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}_${options.startDate || 'full'}_${options.endDate || 'full'}_${options.includePayroll ? 'payroll' : 'admin'}`;
       const cached = statsCache.get(cacheKey);
@@ -665,7 +838,7 @@ Deno.serve(async (req) => {
 
       const [storesRaw, appUsersRaw, inactiveAppUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
-          ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
+          ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : fetchByIdChunks(base44.asServiceRole.entities.Store, relevantStoreIds, 150, 5000))
           : (cityStores.length ? cityStores : []),
         // Fetch ALL AppUsers with NO city_ids filter.
         // The city_ids field may be stale/missing on inactive drivers, excluding them
@@ -682,7 +855,7 @@ Deno.serve(async (req) => {
           throw error;
         }),
         relevantPatientIds.length
-          ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000)
+          ? fetchByIdChunks(base44.asServiceRole.entities.Patient, relevantPatientIds, 150, 5000)
           : Promise.resolve([])
       ]);
 
@@ -909,15 +1082,32 @@ Deno.serve(async (req) => {
 
     let payrollData = null;
     let payrollPagination = null;
+    let payrollSummaryDebug = null;
     if (payrollYear) {
       const normalizedPayrollCityId = payrollCityId;
       const shouldPaginatePayroll = payrollPaginationMode === 'paged';
       const pageRange = shouldPaginatePayroll ? getPageDateRange(payrollYear, payrollPageMonths) : null;
-      const yearData = await fetchYearData(payrollYear, normalizedPayrollCityId, {
-        includePayroll: true,
-        startDate: pageRange?.start,
-        endDate: pageRange?.end
-      });
+      const summaryEligible = !shouldPaginatePayroll; // full_year only — paged mode slices months itself
+      let yearData = summaryEligible
+        ? await readPayrollSummary(payrollYear, normalizedPayrollCityId, { forceFresh: forceRefreshCurrentYear })
+        : null;
+      if (!yearData) {
+        yearData = await fetchYearData(payrollYear, normalizedPayrollCityId, {
+          includePayroll: true,
+          startDate: pageRange?.start,
+          endDate: pageRange?.end
+        });
+        if (summaryEligible) {
+          try {
+            const wlog = await writePayrollSummary(payrollYear, normalizedPayrollCityId, yearData, { collectDebug: !!body?.debugSummary });
+            if (wlog && body?.debugSummary) payrollSummaryDebug = wlog;
+          } catch (e) {
+            console.warn('⚠️ payroll summary write failed (non-fatal):', e?.message || e);
+          }
+        }
+      } else {
+        console.log(`⚡ [getAdminMetricsAndPayrollData] payroll served from PayrollSummary (city=${normalizedPayrollCityId}, year=${payrollYear})`);
+      }
       payrollData = buildPayrollData(yearData);
       payrollPagination = {
         mode: shouldPaginatePayroll ? 'paged' : 'full_year',
@@ -928,6 +1118,11 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Debug mode: response carries ONLY the summary write log (huge payrollData
+    // payload would truncate the tool response before the debug field).
+    if (payrollSummaryDebug) {
+      return Response.json({ payrollSummaryDebug, delivered: payrollData?.deliveries?.length ?? 0 });
+    }
     return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);

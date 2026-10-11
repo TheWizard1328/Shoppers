@@ -321,6 +321,12 @@ export default function DriverPayroll() {
   const [hasInitialized, setHasInitialized] = useState(false);
   const [payrollData, setPayrollData] = useState(null);
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
+  // Grace timer: the first-ever load (no IDB cache) must wait on the full-year
+  // backend gather, which can run 25-60s. After LOAD_GRACE_MS we swap the
+  // blocking spinner for the page shell + a syncing banner so the screen is
+  // never a dead spinner. Later loads render instantly from IDB.
+  const [blockingGraceExpired, setBlockingGraceExpired] = useState(false);
+  const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
@@ -328,6 +334,9 @@ export default function DriverPayroll() {
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
 
   const contentRef = useRef(null);
+  const summaryCardRef = useRef(null);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
+  const payrollScrollRef = useRef(null);
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
   const triedPreviousPeriodRef = useRef(false);
@@ -423,6 +432,31 @@ export default function DriverPayroll() {
 
     return filtered;
   }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod]);
+
+  // Screenshot/share "Save" file name: pay-period date range + selected driver
+  // ("All Drivers" when no driver is filtered), mirroring the PDF export naming.
+  const screenshotFilename = useMemo(() => {
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let datePart = selectedYear;
+    if (currentPeriod?.start && currentPeriod?.end) {
+      const start = new Date(currentPeriod.start);
+      const end = new Date(currentPeriod.end);
+      const year = end.getFullYear();
+      const sm = MONTHS[start.getMonth()];
+      const em = MONTHS[end.getMonth()];
+      const sd = String(start.getDate()).padStart(2, '0');
+      const ed = String(end.getDate()).padStart(2, '0');
+      datePart = start.getMonth() === end.getMonth()
+        ? `${year} ${sm} ${sd}-${ed}`
+        : `${year} ${sm} ${sd}-${em} ${ed}`;
+    }
+    let context = 'All Drivers';
+    if (selectedDriverId && selectedDriverId !== 'all') {
+      const d = (payrollData?.drivers || []).find((dr) => (dr?.user_id || dr?.id) === selectedDriverId);
+      context = d?.user_name || d?.full_name || 'Driver';
+    }
+    return `payroll ${datePart} - ${context}.png`;
+  }, [currentPeriod, selectedDriverId, payrollData?.drivers, selectedYear]);
 
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers || !payrollData?.appUsers) return [];
@@ -806,15 +840,19 @@ export default function DriverPayroll() {
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
 
+    // Store original theme class BEFORE the try so the catch path can restore it
+    // (Oct 2 2026: it was declared inside try, and the old catch only stripped
+    // 'light-theme' — leaving a Dark-theme user with NO theme class at all, so
+    // the app's CSS vars fell back to light while Tailwind dark: utilities
+    // stayed dark → split light/dark page until reload).
+    const htmlElement = document.documentElement;
+    const originalThemeClass = htmlElement.className;
+
     try {
       if (!contentRef.current) {
         toast.error('Content not found');
         return;
       }
-
-      // Store original theme class
-      const htmlElement = document.documentElement;
-      const originalThemeClass = htmlElement.className;
 
       // Force light mode temporarily
       htmlElement.classList.remove('dark-theme', 'auto-theme');
@@ -845,6 +883,16 @@ export default function DriverPayroll() {
       // Hide Notes sections
       const notesSections = contentRef.current.querySelectorAll('[data-notes-section="true"]');
       notesSections.forEach((el) => {el.style.display = 'none';});
+
+      // Unclip the scroll area so html2canvas renders the FULL page, not just
+      // the visible viewport portion (the flex-1 min-h-0 overflow container was
+      // cropping the capture to one screen's worth of driver cards).
+      const scrollEl = payrollScrollRef.current;
+      if (scrollEl) {
+        scrollEl.style.overflow = 'visible';
+        scrollEl.style.maxHeight = 'none';
+        scrollEl.style.flex = 'none';
+      }
 
       // Small delay to ensure UI updates
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -890,14 +938,19 @@ export default function DriverPayroll() {
       console.error('Screenshot error:', error);
       toast.error('Failed to capture screenshot');
 
-      // Restore original state on error
-      const htmlElement = document.documentElement;
-      htmlElement.className = htmlElement.className.replace('light-theme', '').trim();
+      // Restore original state on error — the full captured class set
+      htmlElement.className = originalThemeClass;
       const controlsElement = document.getElementById('payroll-controls');
       if (controlsElement) {
         controlsElement.style.display = 'flex';
       }
     } finally {
+      const scrollEl = payrollScrollRef.current;
+      if (scrollEl) {
+        scrollEl.style.overflow = '';
+        scrollEl.style.maxHeight = '';
+        scrollEl.style.flex = '';
+      }
       setIsCapturingScreenshot(false);
     }
   }, []);
@@ -930,7 +983,50 @@ export default function DriverPayroll() {
     };
   }, []);
 
-  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
+  // Offline-first payroll page payload cache (AdminMetrics pattern, Oct 4 2026).
+  // The full-year gather takes ~30s server-side; render the last saved payload
+  // instantly and resync quietly behind it.
+  const getPayrollPageCacheKey = useCallback((year, cityId) => `payroll-page-v1-${year}-${cityId}`, []);
+
+  const saveOfflinePayroll = useCallback(async (year, cityId, data) => {
+    if (!year || !cityId || !data) return;
+    try {
+      await offlineDB.save(offlineDB.STORES.PAYROLL_PAGE_CACHE, {
+        id: getPayrollPageCacheKey(year, cityId),
+        year: parseInt(year, 10),
+        city_id: cityId,
+        payrollData: data,
+        saved_date: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('⚠️ [DriverPayroll] Failed to save offline payroll cache:', e);
+    }
+  }, [getPayrollPageCacheKey]);
+
+  const loadOfflinePayroll = useCallback(async (year, cityId) => {
+    if (!year || !cityId) return false;
+    try {
+      const cached = await offlineDB.getById(offlineDB.STORES.PAYROLL_PAGE_CACHE, getPayrollPageCacheKey(year, cityId));
+      const data = cached?.payrollData;
+      if (!data || !Array.isArray(data.deliveries)) return false;
+      const cacheKey = `${year}-${cityId}`;
+      // Only apply when it matches the requested selection and there is no
+      // newer live data for this exact selection already rendered.
+      if (data.__cacheKey !== cacheKey) return false;
+      setPayrollData((prev) => (!prev || prev?.__cacheKey !== cacheKey) ? data : prev);
+      setPayrollRecords(data?.payrollRecords || []);
+      setLoadedFromOffline(true);
+      // Cached data is on screen now — never leave the page on the blocking
+      // spinner/banner waiting for the background refresh below to finish.
+      setIsLoadingPayroll(false);
+      return true;
+    } catch (e) {
+      console.warn('⚠️ [DriverPayroll] No offline payroll cache:', e);
+      return false;
+    }
+  }, [getPayrollPageCacheKey]);
+
+  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false } = {}) => {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
 
     const cacheKey = `${selectedYear}-${selectedCityId}`;
@@ -955,7 +1051,10 @@ export default function DriverPayroll() {
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId,
-          payrollPaginationMode: 'full_year'
+          payrollPaginationMode: 'full_year',
+          // Manual refresh: bypass the server-side PayrollSummary fast path and
+          // force a full re-gather (which rewrites the summary).
+          forceRefreshCurrentYear: bypassSummary
         });
         const rawData = response?.data?.payrollData || response?.payrollData;
         const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
@@ -972,6 +1071,8 @@ export default function DriverPayroll() {
 
         setPayrollData(data);
         setPayrollRecords(data?.payrollRecords || []);
+        setLoadedFromOffline(false);
+        saveOfflinePayroll(selectedYear, selectedCityId, data);
         return data;
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
@@ -979,20 +1080,23 @@ export default function DriverPayroll() {
         throw error;
       } finally {
         fetchPayrollInFlightRef.current = null;
-        if (!isAutoRefresh) setIsLoadingPayroll(false);
+        // Always clear: by the time any fetch (foreground or background)
+        // settles, there is something on screen (fresh data, cache, or an
+        // error toast) — the blocking state must never outlive the request.
+        setIsLoadingPayroll(false);
       }
     };
 
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
-  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive]);
+  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive, saveOfflinePayroll]);
 
   const handleManualRefresh = useCallback(async () => {
     if (!selectedCityId) return;
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
     try {
-      await fetchPayroll(false, true);
+      await fetchPayroll(false, true, { bypassSummary: true });
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
@@ -1042,10 +1146,26 @@ export default function DriverPayroll() {
   // Trigger fetch when filters change (after initialization)
   // Force a fresh fetch when year changes so stale cached data for past years is replaced
   useEffect(() => {
-    if (hasInitialized && isPayrollPageActive && selectedCityId) {
-      fetchPayroll(false, true).catch(() => {});
-    }
-  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll]);
+    if (!hasInitialized || !isPayrollPageActive || !selectedCityId) return;
+    let cancelled = false;
+    (async () => {
+      // Instant render from the last saved payload, then refresh silently.
+      // First-ever visit (no cache) keeps the blocking spinner.
+      const gotOffline = await loadOfflinePayroll(selectedYear, selectedCityId).catch(() => false);
+      if (cancelled) return;
+      fetchPayroll(!!gotOffline, true).catch(() => {});
+    })();
+    return () => { cancelled = true; };
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll, loadOfflinePayroll]);
+
+  // Grace timer for the blocking spinner: only counts when a blocking load is in
+  // flight (isAutoRefresh loads never set isLoadingPayroll).
+  useEffect(() => {
+    if (!isLoadingPayroll) return;
+    setBlockingGraceExpired(false);
+    const t = setTimeout(() => setBlockingGraceExpired(true), 10000);
+    return () => clearTimeout(t);
+  }, [isLoadingPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
@@ -1362,6 +1482,13 @@ export default function DriverPayroll() {
     };
   }, [currentPeriod]);
 
+  // Share now produces the full payroll PDF (complete data document) instead
+  // of a screen snapshot — snapshots could not reliably capture the whole
+  // scrollable page on mobile.
+  const handleSharePayroll = useCallback(() => {
+    summaryCardRef.current?.exportPdf();
+  }, []);
+
   // Conditional rendering without early return to maintain hook order
   if (!isPayrollPageActive) return null;
 
@@ -1378,10 +1505,17 @@ export default function DriverPayroll() {
 
   if (!currentUser) return <>{eTransDialog}<div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400">Please log in to view payroll</span></div></>;
   if (needsCitySelection) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600 dark:text-slate-400">Select a city to view payroll.</span></div>{eTransDialog}</>;
-  if (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading payroll data...</span></div>{eTransDialog}</>;
+  const showBlockingSpinner = (isLoadingPayroll && !blockingGraceExpired) || payPeriod === null || selectedPeriodIndex === null;
+  if (showBlockingSpinner) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading payroll data...</span></div>{eTransDialog}</>;
 
   return <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
+        {isLoadingPayroll && blockingGraceExpired && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-slate-800 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></span>
+            First-time sync of this year's payroll data — this can take up to a minute. The page loads instantly on every visit after this.
+          </div>
+        )}
         {/* Header */}
         <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
@@ -1423,8 +1557,13 @@ export default function DriverPayroll() {
               
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
+              {loadedFromOffline && !isLoadingPayroll && (
+                <span className="text-xs text-slate-400 dark:text-slate-500 italic whitespace-nowrap" title="Showing your last saved payroll data — live sync running in the background">
+                  saved data • syncing…
+                </span>
+              )}
               <Button
- onClick={handleCaptureScreenshot}
+ onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}
  size="sm"
  variant="ghost"
@@ -1538,7 +1677,7 @@ export default function DriverPayroll() {
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
- onClick={handleCaptureScreenshot}
+ onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}
  size="sm"
  variant="ghost"
@@ -1565,7 +1704,7 @@ export default function DriverPayroll() {
       
 
         {/* Content Area for Screenshot */}
-        <div className="pb- min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
+        <div ref={payrollScrollRef} className="pb- min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
           {/* Grid (mobile collapsible) */}
           <div className="lg:hidden mb-3">
             <Button size="sm" variant="outline" className="bg-background px-2 text-xs font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
@@ -1627,7 +1766,10 @@ export default function DriverPayroll() {
                 return next;
               });
             }}
+            ref={summaryCardRef}
+            onExportingChange={setIsSharingPdf}
             payrollRecords={payrollRecords}
+            allPayrollRecords={payrollData?.payrollRecords || []}
             refreshPayrollRecords={refreshPayrollRecords}
             storeStats={payrollData?.storeStats || {}} />
           
@@ -1636,10 +1778,10 @@ export default function DriverPayroll() {
         
         <MobileBottomActions
         onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        onShare={handleCaptureScreenshot}
+        onShare={handleSharePayroll}
         onRefresh={handleManualRefresh}
         refreshing={isRefreshing || isLoadingPayroll}
-        capturing={isCapturingScreenshot} />
+        capturing={isSharingPdf || isCapturingScreenshot} />
       
 
         {/* Screenshot Share Modal */}
@@ -1647,7 +1789,7 @@ export default function DriverPayroll() {
         isOpen={showScreenshotModal}
         onClose={() => setShowScreenshotModal(false)}
         imageDataUrl={screenshotDataUrl}
-        filename={`driver-payroll-${selectedYear}.png`} />
+        filename={screenshotFilename} />
 
         {eTransDialog}
       

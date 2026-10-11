@@ -10,6 +10,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.Manifest;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -27,6 +32,7 @@ import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -41,6 +47,8 @@ import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.ArrayList;
+import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
 
@@ -84,6 +92,16 @@ public class MainActivity extends BridgeActivity {
     private static final int PROXIMITY_NOTIFICATION_ID = 4711;
     private boolean activityResumed = false;
 
+    // ── Hey Doc native microphone (WebView lacks webkitSpeechRecognition) ──
+    // The Android WebView does NOT implement the Web Speech API, so the JS
+    // voice hook falls back to window.AndroidNative.startVoiceRecognition()
+    // when window.SpeechRecognition is absent. Results are pushed into the
+    // WebView as window.__nativeSpeech.onResult(text, isFinal) / onError(code)
+    // calls, and the JS shim maps them into the web SpeechRecognition event
+    // shapes the hook already consumes.
+    private SpeechRecognizer nativeRecognizer = null;
+    private static final int RECORD_AUDIO_REQUEST = 4715;
+
     // JavaScript interface for direct APK download from web app.
     // Bypasses the WebView DownloadListener entirely, which can be
     // unreliable on some devices (Samsung battery optimization kills
@@ -110,6 +128,50 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNative() {
             return true;
+        }
+
+        // ── Hey Doc voice bridge ─────────────────────────────────────────
+        @JavascriptInterface
+        public boolean hasNativeSpeech() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void startVoiceRecognition() {
+            final MainActivity self = MainActivity.this;
+            self.runOnUiThread(() -> {
+                try {
+                    if (!SpeechRecognizer.isRecognitionAvailable(self)) {
+                        evalSpeechCb("onError", "'service-not-allowed'");
+                        evalSpeechCb("onEnd", "");
+                        return;
+                    }
+                    if (ContextCompat.checkSelfPermission(self, Manifest.permission.RECORD_AUDIO)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        // Runtime grant flow: onRequestPermissionsResult starts
+                        // the recognizer when granted, errors the web side when denied.
+                        self.requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                                RECORD_AUDIO_REQUEST);
+                        return;
+                    }
+                    startNativeRecognizer();
+                } catch (Exception e) {
+                    evalSpeechCb("onError", "'aborted'");
+                    evalSpeechCb("onEnd", "");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void stopVoiceRecognition() {
+            final MainActivity self = MainActivity.this;
+            self.runOnUiThread(() -> {
+                try {
+                    if (nativeRecognizer != null) {
+                        nativeRecognizer.stopListening();
+                    }
+                } catch (Exception ignored) {}
+            });
         }
 
         // Web app polls this to check download status without relying on BroadcastReceiver
@@ -476,6 +538,106 @@ public class MainActivity extends BridgeActivity {
         if (path == null) path = rawUri; // fallback: treat the raw string as a filesystem path
         File apkFile = new File(path);
         return FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apkFile);
+    }
+
+    @Override
+    // ── Hey Doc native recognizer helpers (main thread only) ────────────
+    private void evalSpeechCb(String fn, String argLiteral) {
+        try {
+            WebView wv = this.bridge != null ? this.bridge.getWebView() : null;
+            if (wv == null) return;
+            final String js = "window.__nativeSpeech && window.__nativeSpeech." + fn
+                    + " && window.__nativeSpeech." + fn + "(" + argLiteral + ")";
+            wv.post(() -> {
+                try { wv.evaluateJavascript(js, null); } catch (Exception ignored) {}
+            });
+        } catch (Exception ignored) {}
+    }
+
+    private void evalSpeechResult(String text, boolean isFinal) {
+        try {
+            String quoted = text == null ? "\"\"" : JSONObject.quote(text);
+            evalSpeechCb("onResult", quoted + ", " + (isFinal ? "true" : "false"));
+        } catch (Exception ignored) {}
+    }
+
+    private void destroyNativeRecognizerAndNotifyEnd() {
+        try {
+            if (nativeRecognizer != null) {
+                nativeRecognizer.destroy();
+                nativeRecognizer = null;
+            }
+        } catch (Exception ignored) {}
+        evalSpeechCb("onEnd", "");
+    }
+
+    private void startNativeRecognizer() {
+        if (nativeRecognizer != null) {
+            try { nativeRecognizer.destroy(); } catch (Exception ignored) {}
+            nativeRecognizer = null;
+        }
+        nativeRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-CA");
+        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        nativeRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle params) {}
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float rmsdB) {}
+            @Override public void onBufferReceived(byte[] buffer) {}
+            @Override public void onEndOfSpeech() {}
+            @Override public void onEvent(int eventType, Bundle params) {}
+            @Override
+            public void onError(int error) {
+                String code;
+                switch (error) {
+                    case SpeechRecognizer.ERROR_NO_MATCH:
+                    case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                        code = "no-speech"; break;
+                    case SpeechRecognizer.ERROR_NETWORK:
+                    case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                        code = "network"; break;
+                    case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                        code = "not-allowed"; break;
+                    default:
+                        code = "aborted"; break;
+                }
+                evalSpeechCb("onError", "'" + code + "'");
+                destroyNativeRecognizerAndNotifyEnd();
+            }
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> list = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                String text = (list != null && !list.isEmpty()) ? list.get(0) : "";
+                if (text != null && !text.isEmpty()) evalSpeechResult(text, true);
+                destroyNativeRecognizerAndNotifyEnd();
+            }
+            @Override
+            public void onPartialResults(Bundle partialResults) {
+                ArrayList<String> list = partialResults != null
+                        ? partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) : null;
+                if (list != null && !list.isEmpty() && list.get(0) != null && !list.get(0).isEmpty()) {
+                    evalSpeechResult(list.get(0), false);
+                }
+            }
+        });
+        nativeRecognizer.startListening(intent);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == RECORD_AUDIO_REQUEST) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (granted) {
+                startNativeRecognizer();
+            } else {
+                evalSpeechCb("onError", "'not-allowed'");
+                destroyNativeRecognizerAndNotifyEnd();
+            }
+        }
     }
 
     @Override

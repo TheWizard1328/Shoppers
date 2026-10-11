@@ -28,7 +28,7 @@ export const OFFLINE_SYNC_ENTITY_CLIENTS = {
   Company
 };
 
-export const OFFLINE_MUTATION_ENTITY_NAMES = ['Patient', 'Delivery', 'City', 'Store', 'Company'];
+export const OFFLINE_MUTATION_ENTITY_NAMES = ['Patient', 'Delivery', 'AppUser', 'City', 'Store', 'Company'];
 
 export const getOfflineStoreName = (offlineDB, entityName) => {
   const storeKey = OFFLINE_ENTITY_STORE_KEYS[entityName];

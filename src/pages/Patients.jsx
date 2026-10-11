@@ -1074,7 +1074,12 @@ export default function Patients() {
   const handleSavePatient = useCallback(async (patientData, shouldReturnPatient = false) => {
     try {
       const { createPatientLocal, updatePatientLocal } = await import('../components/utils/offlineMutations');
-      const isEditing = !!editingPatient;
+      // CRITICAL: duplicateMode ('newAddress' / 'duplicate') creates a NEW patient
+      // record — editingPatient is only set to prefill the form with the original's
+      // data, so it must NOT be updated. Without this guard the original patient's
+      // address was being overwritten with the new address AND a second record was
+      // created — only the new record should exist.
+      const isEditing = !!editingPatient && !patientFormMode;
       let savedPatient;
 
       // IMPORTANT: DO NOT process address/unit extraction for manual patient edits.
@@ -1127,7 +1132,7 @@ export default function Patients() {
       console.error("Error saving patient:", error);
       alert("Failed to save patient. Please try again.");
     }
-  }, [editingPatient, selectedPatient, patientFormCallback]);
+  }, [editingPatient, selectedPatient, patientFormCallback, patientFormMode]);
 
   const handleEditPatient = useCallback((patient) => {
     // On mobile, don't auto-open the details sheet when the user taps Edit on a

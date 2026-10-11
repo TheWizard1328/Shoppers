@@ -20,6 +20,7 @@ import { getDriverNameForStorage } from "@/components/utils/driverUtils";
 import { invalidate } from "@/components/utils/dataManager";
 import { base44 } from "@/api/base44Client";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
+import { lockDeliveryFields } from "@/components/utils/completionLockout";
 import { markDeleted } from "@/components/utils/deletedDeliveryRegistry";
 
 export default function DashboardBulkEditControls({
@@ -219,9 +220,33 @@ export default function DashboardBulkEditControls({
         // We do NOT use isBatchOperation: true because that would QUEUE the backend
         // write to pending mutations instead of writing immediately. We want
         // immediate backend writes with suppressed UI notifications.
-        await Promise.all(perDeliveryPayloads.map(({ delivery, payload }) =>
-          updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false })
-        ));
+        const _t0 = Date.now();
+        const _results = await Promise.all(perDeliveryPayloads.map(async ({ delivery, payload }) => {
+          console.warn(`🔍 [BulkEdit] Applying to ${delivery.id} (status=${delivery.status || '?'} patient=${!!delivery.patient_id}): payload=${JSON.stringify(payload)}`);
+          try {
+            const result = await updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false });
+            console.warn(`🔍 [BulkEdit] updateDeliveryLocal result for ${delivery.id}: ${result === null ? 'NULL (blocked)' : result === undefined ? 'undefined' : 'ok, status now=' + (result?.status || '?')}`);
+            return result;
+          } catch (err) {
+            console.warn(`🔍 [BulkEdit] updateDeliveryLocal THREW for ${delivery.id}: ${err?.message}`);
+            throw err;
+          }
+        }));
+        console.warn(`🔍 [BulkEdit] Dashboard bulk apply complete: ${_results.length} records, ${Date.now() - _t0}ms`);
+
+        // STEP 5b: Arm a SHORT SYMMETRIC status lock per changed delivery. The
+        // optimistic status (e.g. a reset in_transit→pending) must survive the
+        // stale-pull race: a background fetch that returns pre-commit server data
+        // (old status) would otherwise write the OLD status back to IDB, and the
+        // subsequent identical echo would then be ratchet-blocked — leaving the
+        // device reverted until a full refresh. The symmetric lock makes the
+        // expected status authoritative in BOTH directions for 30s, which
+        // covers the fire-and-forget server write commit window.
+        for (const { delivery, payload } of perDeliveryPayloads) {
+          if (delivery?.id && payload?.status !== undefined) {
+            lockDeliveryFields(delivery.id, ['status'], 30000, { status: payload.status }, { symmetric: true });
+          }
+        }
 
         // STEP 6: Save patient time window edits (updates Patient entity directly).
         const patientUpdates = Object.entries(patientWindowEdits || {}).map(([patientId, edits]) => {

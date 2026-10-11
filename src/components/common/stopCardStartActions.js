@@ -18,7 +18,7 @@ import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
-import { createDeliveryLocal, updateDeliveryLocal, pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
+import { createDeliveryLocal, updateDeliveryLocal, updatePatientLocal, pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { parseLocalTimestamp } from '../utils/timeRoundingHelper';
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
@@ -30,8 +30,9 @@ import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { notifyDriverStarted, notifyDriverRetry } from "../utils/deliveryMessaging";
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
-import { lockDeliveryFields } from '../utils/completionLockout';
+import { lockDeliveryFields, unlockDeliveryFields } from '../utils/completionLockout';
 import { START_ACTION_NAME } from './stopCardActionStatusHelpers';
+import { getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
 
 export function useStopCardStartActions({
   // ── Route / context ──
@@ -105,6 +106,16 @@ export function useStopCardStartActions({
             syncDeliverySquareCod(delivery.id, { status: 'failed' });
             // Retry delivery is active with a COD — reconciler creates its item.
             if (retryDeliveryId && !isPickup) syncDeliverySquareCod(retryDeliveryId, { status: 'in_transit', cod_total_amount_required: delivery.cod_total_amount_required, patient_name: patient?.full_name || delivery.patient_name || '', delivery_date: retryDate, store_id: delivery.store_id });
+            // SQUARE BALANCES (owner rule, Oct 8 2026): the RETRY delivery now
+            // carries this COD — stamp the ORIGINAL so the balances math never
+            // deducts the same amount twice (original + retry both 'failed'/
+            // 'in_transit' would double-count the amount off the card).
+            // cod_retried_at excludes the original from the Uncollected lists
+            // and from computePendingCodDeduction; cod_retry_delivery_id is the
+            // audit trail to the retry that owns the COD now.
+            const _retryStamp = { cod_retried_at: new Date().toISOString(), ...(retryDeliveryId ? { cod_retry_delivery_id: retryDeliveryId } : {}) };
+            updateDeliveryLocal(delivery.id, _retryStamp, { skipSmartRefresh: true }).catch(() => null);
+            base44.entities.Delivery.update(delivery.id, _retryStamp).catch(() => null);
           }
           await ensureDriverOnline();
           // Run the route optimizer + polyline generator on the RETRY delivery's date (retryDate),
@@ -305,6 +316,38 @@ export function useStopCardStartActions({
           const { offlineDB } = await import('../utils/offlineDatabase');
           const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
 
+          // ── OWNER DIRECTIVE (Sep 29 2026): cycling END marker start ──────
+          // When the driver starts the cycling route END marker, the cycling
+          // phase is over — every remaining stop on the route still tagged
+          // transport_mode='cycling' must be flipped to 'driving' BEFORE the
+          // route optimizer runs, so the post-cycling legs route as driving
+          // legs (no bicycle polyline/routing for the remaining stops).
+          // Applies to ALL unfinished, non-marker stops (pending included —
+          // pending stops joining the route later must not stay cycling).
+          let optimizationDeliveries = allDeliveries;
+          if (getCyclingMarkerDisplayInfo(delivery).isCyclingEnd) {
+            const finishedSetForCycling = new Set(FINISHED_STATUSES);
+            const remainingCyclingStops = routeDeliveries.filter((d) =>
+              d &&
+              !d.is_cycling_marker &&
+              !finishedSetForCycling.has(d.status) &&
+              String(d.transport_mode || '').toLowerCase() === 'cycling'
+            );
+            if (remainingCyclingStops.length > 0) {
+              const convertedCyclingStops = remainingCyclingStops.map((d) => ({ ...d, transport_mode: 'driving' }));
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, convertedCyclingStops);
+              updateDeliveriesLocally?.(convertedCyclingStops, false);
+              await Promise.all(convertedCyclingStops.map((item) =>
+                base44.entities.Delivery.update(item.id, { transport_mode: 'driving' }).catch(() => null)
+              ));
+              const convertedIds = new Set(convertedCyclingStops.map((d) => d.id));
+              optimizationDeliveries = allDeliveries.map((d) =>
+                convertedIds.has(d?.id) ? { ...d, transport_mode: 'driving' } : d
+              );
+              toast.info(`${convertedCyclingStops.length} cycling stop${convertedCyclingStops.length > 1 ? 's' : ''} switched to driving`);
+            }
+          }
+
           // 1. Update isNextDelivery locally
           const updatedDeliveries = routeDeliveries.map((d) => ({
             ...d,
@@ -361,7 +404,7 @@ export function useStopCardStartActions({
               await performRouteOptimization({
                 driverId: delivery.driver_id,
                 deliveryDate: delivery.delivery_date,
-                deliveries: allDeliveries,
+                deliveries: optimizationDeliveries,
                 patients,
                 stores,
                 appUsers,
@@ -409,7 +452,10 @@ export function useStopCardStartActions({
         // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
         const startedRouteDeliveries = routeDeliveries.map((d) => {
           if (d?.id === delivery.id) {
-            return { ...d, status: expectedStartStatus, isNextDelivery: true };
+            // Stamp the start time to NOW: a stop carrying a later-today window
+            // otherwise keeps that future window as its sequencing/ETA anchor and
+            // gets sorted behind other stops even though the driver just started it.
+            return { ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime };
           }
           if (d?.isNextDelivery) {
             return { ...d, isNextDelivery: false };
@@ -440,6 +486,9 @@ export function useStopCardStartActions({
           }
         }
 
+        // Freeze the card order before the optimistic pending→active transition;
+        // the optimizer's freshDeliveries release the lock.
+        window.dispatchEvent(new CustomEvent('routeDisplayOrderLock', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         if (startedChangedDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
           updateDeliveriesLocally?.(startedChangedDeliveries.filter(Boolean), false);
@@ -448,8 +497,8 @@ export function useStopCardStartActions({
           // flag on the previous stop would cause duplicate next badges until refresh.
           for (const item of startedChangedDeliveries) {
             if (item?.isNextDelivery === true) {
-              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order'], 60000, {
-                status: expectedStartStatus, isNextDelivery: true,
+              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order', 'delivery_time_start'], 60000, {
+                status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime,
               });
             } else if (item?.isNextDelivery === false) {
               lockDeliveryFields(item.id, ['isNextDelivery'], 60000, {
@@ -471,13 +520,23 @@ export function useStopCardStartActions({
           if (item.id === delivery.id && existing.status !== expectedStartStatus) {
             updates.status = expectedStartStatus;
           }
+          if (item.id === delivery.id && existing.delivery_time_start !== currentLocalTime) {
+            updates.delivery_time_start = currentLocalTime;
+          }
           if (Object.keys(updates).length === 0) continue;
-          updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }).catch(() => {});
-          base44.entities.Delivery.update(item.id, updates).catch(() => null);
+          // OWNER BUG (Sep 29 2026): updateDeliveryLocal re-saved IDB and fired
+          // notifyMutation PER STOP right after updateDeliveriesLocally already
+          // rendered the same optimistic values — N redundant card/marker repaints
+          // during the optimization window (the 5-flicker Start bug). IDB + React
+          // state already hold these values (bulkSave + updateDeliveriesLocally
+          // above), so this is a SERVER-ONLY fire-and-forget write. The optimizer's
+          // bulkUpdateDeliveries and the handleStartDelivery backend re-confirm
+          // these fields authoritatively moments later.
+          base44.entities.Delivery.update(item.id, updates).catch(() => {});
         }
 
         if (!isPickup && patient?.id && patient?.status === 'inactive') {
-          base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => null);
+          updatePatientLocal(patient.id, { status: 'active' }).catch(() => null);
         }
 
         // CRITICAL: No setAndCenterNextDelivery — the optimistic update above already
@@ -699,6 +758,7 @@ export function useStopCardStartActions({
             const refreshedList = coordResult?.freshDeliveries || null;
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
+
             // Diagnostic: log stop_order before and after optimization
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               const _before = _startFullDeliveries.filter(d => d?.status !== 'completed' && d?.status !== 'failed' && d?.status !== 'cancelled').sort((a, b) => (Number(a?.stop_order) || 999) - (Number(b?.stop_order) || 999)).map(d => `${d?.stop_order || '?'}:${d?.patient_id ? 'del' : 'pup'}`);
@@ -709,10 +769,31 @@ export function useStopCardStartActions({
             }
 
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+              // OWNER BUG (Sep 29 2026): the optimistic Start path armed a 60s
+              // completionLockout on the started stop with 'stop_order' in the
+              // field list — carrying the PRE-optimization number (e.g. 24).
+              // The optimizer's fresh result (renumbered 23) then arrived through
+              // the deliveriesUpdated listener's applyRealtimeMergeWithLockout,
+              // whose stop_order guard keeps LOCAL whenever incoming differs —
+              // so the card badge showed 24 (position 23 via isNextDelivery
+              // pinning) until an app refresh cleared the in-memory lockout.
+              // The coordinator's result is authoritative, not a stale echo:
+              // release the locks for every refreshed route delivery BEFORE
+              // dispatching so the fresh stop_order/isNextDelivery apply.
+              for (const _fd of refreshedList) {
+                if (_fd?.id) unlockDeliveryFields(_fd.id);
+              }
               // OPTIMIZATION: Coordinator already wrote freshDeliveries to IDB (line 337 of
               // routeOptimizationCoordinator.jsx) and the engine already sets isNextDelivery
               // in the writeBatch. No redundant bulkSave or updateDeliveriesLocally needed —
               // just dispatch the UI event with the coordinator's fresh data.
+              // OWNER BUG (Sep 29 2026): releasing the order lock AFTER this value
+              // merge produced a visible intermediate paint — renumbered stop_order
+              // values inside the FROZEN pre-optimization card order — before the
+              // lock release re-sorted everything again. Release the lock FIRST so
+              // the re-sort and the fresh-value merge land in the same React batch
+              // (one paint, correct order + numbers together).
+              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button_values', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: refreshedList } }));
               // Broadcast mutations ONLY for non-terminal deliveries (fire-and-forget)
               const _terminalSet = new Set(['completed', 'failed', 'cancelled']);
@@ -721,13 +802,15 @@ export function useStopCardStartActions({
                 Promise.all(_activeForBroadcast.map((item) => broadcastMutation('Delivery', 'update', item.id, item))).catch(() => {});
               }).catch(() => {});
             } else {
+              // Empty-result path: release the order lock BEFORE the merge too
+              // (same one-paint contract as the success branch above).
+              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button_values', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
             }
 
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
             window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_button' } }));
-            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           } catch (bgErr) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
@@ -889,31 +972,58 @@ export function useStopCardStartActions({
 
     // 6. ETA cascade — fire-and-forget so it never blocks the lock or races the flag
     if (actedOnNextDelivery && shouldRecalculateEtas && incompleteDeliveries.length > 0) {
-      // Use etaBaseTime (retro actual_delivery_time) when available, otherwise use current clock
+      // Owner bug report (Sep 29 2026): the cascade MUST anchor to the actual
+      // completion time (or a FRESH clock) — never localNowParts.time, which is
+      // the StopCard MOUNT time (useMemo with [] deps). After a long door stop
+      // (signature + COD) that value was minutes stale, projecting the next
+      // stop's ETA into the PAST (stop 14 ETA 13:56 when completed at 14:00).
       let currentLocalTime;
-      if (etaBaseTime) {
-        // Parse the retro actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
-        const parsedBase = parseLocalTimestamp(etaBaseTime);
-        currentLocalTime = parsedBase
-          ? `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`
-          : (getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString());
+      const etaAnchorTime = etaBaseTime || criticalUpdate?.actual_delivery_time || null;
+      const parsedBase = etaAnchorTime ? parseLocalTimestamp(etaAnchorTime) : null;
+      if (parsedBase) {
+        // Parse the actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
+        currentLocalTime = `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`;
       } else {
-        currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+        currentLocalTime = getCurrentLocalTime?.() || getCurrentLocalTimeString();
       }
       const [hrs, mins] = currentLocalTime.split(':').map(Number);
       // Start from the actual completion time of the just-finished stop.
       // For each remaining stop, add its own travel duration to arrive, then
       // a 2-minute dwell before moving to the next stop.
       let currentEtaMinutes = hrs * 60 + mins;
+      // HH:MM → minutes-past-midnight parser (regex only — never Date-parse
+      // naive time strings, device tz engines are not trusted).
+      const toWindowMinutes = (t) => {
+        const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+        return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+      };
       const updatedRemainingWithEtas = incompleteDeliveries.map((stop) => {
         // ETA for this stop = base time + travel time to reach it
         currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
+        // OWNER REQUEST (Sep 29 2026): window floor — the mathematical ETA must
+        // never display before the stop's delivery start window. If the chain
+        // arrives earlier, clamp the ETA UP to the window start and CONTINUE the
+        // cascade from that window time (later stops inherit the wait).
+        const windowStartMin = toWindowMinutes(stop.delivery_time_start || stop.time_window_start);
+        if (windowStartMin != null && currentEtaMinutes < windowStartMin) {
+          currentEtaMinutes = windowStartMin;
+        }
         const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
         const newEtaMins = currentEtaMinutes % 60;
         // Add 2-min dwell so the next stop's travel time starts after completion
         currentEtaMinutes += 2;
         return { ...stop, delivery_time_eta: `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}` };
       });
+
+      // OWNER REQUEST (Sep 29 2026): push the cascaded ETAs into React state
+      // IMMEDIATELY so every remaining stop card re-renders with its new ETA the
+      // moment Complete/Fail is tapped. Previously the cards only showed the new
+      // ETAs after refreshDriverRoute completed the full IDB+server write cycle,
+      // leaving stale ETAs on screen for up to a minute. updateDeliveriesLocally
+      // merges by id in-memory and re-renders the card rail instantly; the IDB,
+      // server, and broadcast writes below then settle in the background (the
+      // committed values are identical, so no bounce is possible).
+      updateDeliveriesLocally?.(updatedRemainingWithEtas, false);
 
       Promise.resolve().then(async () => {
         try {

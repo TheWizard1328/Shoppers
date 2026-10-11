@@ -202,7 +202,12 @@ export default function SquareLocationConfigs() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    // Layout's <main> and PageTransition are overflow-hidden — a page must supply
+    // its own h-full flex column + overflow-y-auto body or content beyond the
+    // viewport is clipped with no scrollbar (Sep 19 2026: mobile users could not
+    // scroll past the first ~3 config cards).
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Square Location Configs</h1>
@@ -270,7 +275,7 @@ export default function SquareLocationConfigs() {
                     <span className="text-slate-500 dark:text-slate-400">Stores:</span>
                     {linkedStores.length > 0 ? (
                       [...linkedStores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((s) => (
-                        <Badge key={s.id} className="text-xs text-white border-0" style={{ backgroundColor: s.color || '#64748b' }}>{s.name}</Badge>
+                        <Badge key={s.id} className="text-xs border-0" style={{ backgroundColor: s.color || '#64748b', color: 'white' }}>{s.name}</Badge>
                       ))
                     ) : (
                       <span className="text-slate-400 dark:text-slate-400 italic">No stores linked</span>
@@ -292,6 +297,7 @@ export default function SquareLocationConfigs() {
           })}
         </div>
       )}
+      </div>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

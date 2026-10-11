@@ -19,6 +19,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const transportMode = body?.transportMode || 'driving';
     const points = Array.isArray(body?.points) ? body.points : [];
+    // Optional usage-log purpose override from the caller (e.g. the route-deviation
+    // current-leg regen passes its own label so Maps API usage is attributable).
+    const purposeLabel = typeof body?.purpose === 'string' && body.purpose.trim() ? body.purpose.trim() : null;
     const validPoints = points.filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
     if (validPoints.length < 2) {
       return Response.json({ sections: [], usedFallbackPolyline: false });
@@ -139,7 +142,7 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.GoogleAPILog.create({
         timestamp: new Date().toISOString(),
         api_type: 'Directions',
-        purpose: `Polyline generation (Google Directions) — ${validPoints.length} points`,
+        purpose: purposeLabel || `Polyline generation (Google Directions) — ${validPoints.length} points`,
         function_name: 'getGoogleDirectionsPolyline',
         user_id: appUser?.user_id || null,
         user_name: appUser?.user_name || null,

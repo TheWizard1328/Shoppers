@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RefreshCw, Plus, Edit, Trash2, Loader2, Clock, User, LayoutGrid, List, BarChart2, AlertCircle } from 'lucide-react';
-import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { differenceInMinutes } from 'date-fns';
 
 const STATUS_COLORS = {
   on_duty: { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', label: 'On Duty' },
@@ -26,7 +26,10 @@ const formatDuration = (minutes) => {
 
 const formatTime = (isoStr) => {
   if (!isoStr) return '—';
-  try {return format(parseISO(isoStr), 'h:mm a');} catch {return isoStr;}
+  const hm = parseTimelineHM(isoStr);
+  if (!hm) return isoStr;
+  const h12 = hm.h % 12 === 0 ? 12 : hm.h % 12;
+  return `${h12}:${String(hm.m).padStart(2, '0')} ${hm.h >= 12 ? 'PM' : 'AM'}`;
 };
 
 const calcSegmentMinutes = (seg) => {
@@ -43,19 +46,91 @@ const totalOnDutyMinutes = (record) => {
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 
-// Parse any time string to local minutes-since-midnight
-const localMinutes = (timeStr) => {
+// Alberta (America/Edmonton) wall-clock math — 100% pure UTC arithmetic, NO Intl
+// and NO system-local Date getters involved anywhere, so a device's own timezone
+// database health can never skew the rendering (one PC has a stale Windows tz database
+// AND a broken Intl engine; its system-tz paths were unreliable, which started this
+// whole saga). The real Alberta rule (owner-confirmed Sep 23 2026): Alberta keeps the
+// normal North American DST rule through October 2026, then SKIPS the November 1 2026
+// fall-back and stays on permanent UTC-6 (MDT) from that moment on. So:
+//   - up to Oct 31 2026: standard DST rule (2nd Sun Mar 2:00 local -> 1st Sun Nov 2:00 local; -6 MDT / -7 MST)
+//   - from Nov 1 2026 (08:00 UTC = 2:00 local): fixed -6 forever
+// This renders Sep 2026 as -6 (matching phone/tablet/laptop), last winter as -7, and
+// all future dates as -6 — identically on every device regardless of tz data health.
+
+// Moment the Nov 2026 fall-back is skipped: 1st Sun Nov 2026, 2:00 local MDT = 08:00 UTC
+const ALBERTA_PERMANENT_UTC6_MS = Date.UTC(2026, 10, 1, 8, 0, 0);
+
+// UTC instant -> Alberta offset (-6 / -7) for that instant
+const edmontonOffsetHoursAt = (utcMs) => {
+  if (utcMs >= ALBERTA_PERMANENT_UTC6_MS) return -6; // permanent MDT from Nov 1 2026
+  const y = new Date(utcMs).getUTCFullYear();
+  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
+  const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);  // 2nd Sun Mar 2:00 MST = 09:00 UTC
+  const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);       // 1st Sun Nov 2:00 MDT = 08:00 UTC
+  return utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
+};
+
+// UTC instant -> {h, m} Alberta wall-clock
+const getEdmontonHM = (date) => {
+  const local = new Date(date.getTime() + edmontonOffsetHoursAt(date.getTime()) * 3600000);
+  return { h: local.getUTCHours(), m: local.getUTCMinutes() };
+};
+
+// UTC ISO string -> Edmonton datetime-local input value "YYYY-MM-DDTHH:mm"
+const isoToEdmontonInput = (isoStr) => {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d)) return '';
+  const local = new Date(d.getTime() + edmontonOffsetHoursAt(d.getTime()) * 3600000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
+};
+
+// Edmonton datetime-local input value "YYYY-MM-DDTHH:mm" -> UTC ISO string
+const edmontonInputToIso = (inputVal) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(inputVal || '');
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m.map(Number);
+  // Wall dates on/after Nov 1 2026 are permanent UTC-6; earlier dates use the DST rule
+  let offsetHours;
+  if (Date.UTC(y, mo - 1, d) >= ALBERTA_PERMANENT_UTC6_MS) offsetHours = -6;
+  else {
+    const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
+    const afterMar = mo - 1 > 2 || (mo - 1 === 2 && d >= firstSundayDate(2) + 7);
+    const beforeNov = mo - 1 < 10 || (mo - 1 === 10 && d < firstSundayDate(10));
+    offsetHours = afterMar && beforeNov ? -6 : -7;
+  }
+  return new Date(Date.UTC(y, mo - 1, d, h, mi) - offsetHours * 3600000).toISOString();
+};
+
+// Device-independent {h, m} extraction for ANY stored time format:
+//   - naive "YYYY-MM-DDTHH:mm[:ss]" (actual_delivery_time convention): these ARE
+//     Edmonton wall-clock strings — read the components VERBATIM. Never
+//     Date-parse them: new Date(naive) applies the device's own timezone engine,
+//     which is broken/premature on some fleet machines (-1hr skew).
+//   - short "HH:mm": already wall-clock, verbatim.
+//   - real ISO with Z/offset: true instant -> Edmonton wall via pure UTC math.
+const parseTimelineHM = (timeStr) => {
   if (!timeStr) return null;
   try {
-    // Handle short "HH:mm" strings (no date)
-    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
-      const [h, m] = timeStr.split(':').map(Number);
-      return h * 60 + m;
+    const str = String(timeStr);
+    let m = /^(\d{1,2}):(\d{2})$/.exec(str);
+    if (m) return { h: Number(m[1]), m: Number(m[2]) };
+    m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(str);
+    if (m && !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str)) {
+      return { h: Number(m[4]), m: Number(m[5]) }; // naive Edmonton wall — verbatim
     }
-    const d = new Date(timeStr);
+    const d = new Date(str);
     if (isNaN(d)) return null;
-    return d.getHours() * 60 + d.getMinutes();
+    return getEdmontonHM(d);
   } catch {return null;}
+};
+
+// Parse any time string to Alberta-local minutes-since-midnight
+const localMinutes = (timeStr) => {
+  const hm = parseTimelineHM(timeStr);
+  return hm ? hm.h * 60 + hm.m : null;
 };
 
 const formatHourLabel = (totalMinutes) => {
@@ -135,7 +210,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
             <div className="flex items-center gap-2 mb-0.5 sm:hidden">
               <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{name}</span>
               <span className="text-[10px] text-slate-400 dark:text-slate-400">{formatDuration(totalMin)}</span>
-              <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="ml-auto flex gap-1">
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
               </div>
@@ -196,7 +271,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                 })}
               </div>
               {/* Desktop: edit/delete buttons on right */}
-              <div className="hidden sm:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <div className="hidden sm:flex gap-1 flex-shrink-0">
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
               </div>
@@ -306,8 +381,8 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
 function SegmentDialog({ record, onSave, onClose }) {
   const [segments, setSegments] = useState(
     (record?.activity_segments || []).map((s) => ({
-      start_time: s.start_time ? format(parseISO(s.start_time), "yyyy-MM-dd'T'HH:mm") : '',
-      end_time: s.end_time ? format(parseISO(s.end_time), "yyyy-MM-dd'T'HH:mm") : '',
+      start_time: s.start_time ? isoToEdmontonInput(s.start_time) : '',
+      end_time: s.end_time ? isoToEdmontonInput(s.end_time) : '',
       tot: s.tot ?? ''
     }))
   );
@@ -323,8 +398,8 @@ function SegmentDialog({ record, onSave, onClose }) {
       const built = segments.
       filter((s) => s.start_time).
       map((s) => {
-        const start = new Date(s.start_time).toISOString();
-        const end = s.end_time ? new Date(s.end_time).toISOString() : null;
+        const start = edmontonInputToIso(s.start_time);
+        const end = s.end_time ? edmontonInputToIso(s.end_time) : null;
         const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
         return { start_time: start, end_time: end, tot };
       });
@@ -345,9 +420,9 @@ function SegmentDialog({ record, onSave, onClose }) {
         </DialogHeader>
         <div className="space-y-3 py-2">
           {segments.map((seg, i) =>
-          <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800">
+          <div key={i} className="border border-surface rounded-lg p-3 space-y-2 bg-surface-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Segment {i + 1}</span>
+                <span className="text-xs font-semibold text-label">Segment {i + 1}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -380,7 +455,7 @@ function SegmentDialog({ record, onSave, onClose }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DriverActivityTab({ appUsers = [], cities = [], stores = [] }) {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = isoToEdmontonInput(new Date().toISOString()).slice(0, 10);
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedCityId, setSelectedCityId] = useState('all');
@@ -514,8 +589,8 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
       const built = newSegments.
       filter((s) => s.start_time).
       map((s) => {
-        const start = new Date(s.start_time).toISOString();
-        const end = s.end_time ? new Date(s.end_time).toISOString() : null;
+        const start = edmontonInputToIso(s.start_time);
+        const end = s.end_time ? edmontonInputToIso(s.end_time) : null;
         const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
         return { start_time: start, end_time: end, tot };
       });

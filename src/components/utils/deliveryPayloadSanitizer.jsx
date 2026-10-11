@@ -32,6 +32,7 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'ampm_deliveries',
   // ── Route / polyline ──────────────────────────────────────────────────────
   'encoded_polyline',
+  'deviation_waypoints',
   'transport_mode',
   'estimated_distance_km',
   'estimated_duration_minutes',
@@ -53,6 +54,10 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   // ── COD / payments ────────────────────────────────────────────────────────
   'cod_total_amount_required',
   'cod_payments',
+  'cod_card_spend_at',
+  'cod_returned_at',
+  'cod_retried_at',
+  'cod_retry_delivery_id',
   'cp_envelopes',
   // ── Delivery attributes ───────────────────────────────────────────────────
   'signature_needed',

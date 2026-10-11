@@ -103,9 +103,24 @@ const decodeBreadcrumbPolyline = (encoded) => {
     rawLats.push(lat);
     rawLngs.push(lng);
   }
-  const firstLat = rawLats[0] ?? 0;
+  // Robust precision auto-detect: skip (0,0) null-island leading points so a
+  // single bad fix can't flip a 1e7 trail to 1e5 decoding (100x distance inflation).
+  let firstLat = 0;
+  for (let i = 0; i < rawLats.length; i++) {
+    if (Math.abs(rawLats[i]) > 0 || Math.abs(rawLngs[i]) > 0) { firstLat = rawLats[i]; break; }
+  }
   const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
-  return rawLats.map((rl, i) => [rl / divisor, rawLngs[i] / divisor]);
+  // Filter null-island (0,0) and out-of-range corruption so distances and map
+  // rendering aren't poisoned by a ~11,500 km jump to the Atlantic.
+  const pts = [];
+  for (let i = 0; i < rawLats.length; i++) {
+    const la = rawLats[i] / divisor;
+    const ln = rawLngs[i] / divisor;
+    if (Math.abs(la) < 0.01 && Math.abs(ln) < 0.01) continue;
+    if (Math.abs(la) > 85 || Math.abs(ln) > 180) continue;
+    pts.push([la, ln]);
+  }
+  return pts;
 };
 
 const encodeBreadcrumbPolyline = (points) => {
@@ -469,10 +484,23 @@ export default function PolylineViewer({ users = [] }) {
     setFocusedItem(null);
     try {
       if (dataSource === 'online') {
-        // Always load both so combined overlay works without re-fetching
+        // Always load both so combined overlay works without re-fetching.
+        // Server-side date filtering: the previous blind "-delivery_date, 500"
+        // fetch silently dropped older records once newer days filled the
+        // 500 cap (e.g. Sept 22 crumbs stopped loading while newer days
+        // filled the window). The selected date range now drives the query,
+        // and reloads whenever the range changes.
+        const dateQuery = {};
+        if (dateFrom) dateQuery.$gte = dateFrom;
+        if (dateTo) dateQuery.$lte = dateTo;
+        const hasDate = !!(dateFrom || dateTo);
         const [dels, crumbs] = await Promise.all([
-          base44.entities.Delivery.list('-delivery_date', 500),
-          base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 500),
+          hasDate
+            ? base44.entities.Delivery.filter({ delivery_date: dateQuery }, '-delivery_date', 500)
+            : base44.entities.Delivery.list('-delivery_date', 500),
+          hasDate
+            ? base44.entities.DeliveryBreadcrumbs.filter({ delivery_date: dateQuery }, '-delivery_date', 500)
+            : base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 500),
         ]);
         setDeliveries(dels || []);
         setBreadcrumbs(crumbs || []);
@@ -494,7 +522,7 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  useEffect(() => { loadData(); }, [dataSource]);
+  useEffect(() => { loadData(); }, [dataSource, dateFrom, dateTo]);
 
   // ── Load all AppUsers (incl. inactive) for name resolution ────────────────
   useEffect(() => {
@@ -1465,8 +1493,11 @@ export default function PolylineViewer({ users = [] }) {
                   </div>
                 )}
                 {isBreadcrumb && (() => {
-                  const pts = decodePolyline(item.encoded_polyline);
-                  const distKm = calcPolylineDistanceKm(pts);
+                   // Breadcrumb trails are 1e7-encoded — use the breadcrumb decoder
+                   // (with robust auto-detect + null-island filter), NOT the 1e5
+                   // delivery decoder, or distances inflate 100x.
+                   const pts = decodeBreadcrumbPolyline(item.encoded_polyline);
+                   const distKm = calcPolylineDistanceKm(pts);
                   const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
                   const matchingDelivery = deliveries.find(d => d.driver_id === item.driver_id && d.delivery_date === item.delivery_date && d.stop_order === item.stop_order);
                   const activeMode = matchingDelivery?.transport_mode || item.transport_mode;
@@ -2082,6 +2113,19 @@ export default function PolylineViewer({ users = [] }) {
                       const startLabel = originStop != null ? originStop : '▶';
                       const endLabel   = destStop != null ? destStop : '■';
 
+                      // Combined-mode layering (owner fix, Sep 29 2026): in Combined
+                      // breadcrumb + polyline view, EVERY segment renders its own
+                      // Start/End pair — the breadcrumb leg and the delivery polyline
+                      // leg share the same physical start/end points, so their markers
+                      // stack dead-center on each other. The polyline markers sat on
+                      // top (rendered later, same offsets) but are NOT draggable/
+                      // editable there, permanently burying the editable BREADCRUMB
+                      // markers underneath. Breadcrumb start/end markers now get a
+                      // HIGHER zIndexOffset than polyline ones so they always win the
+                      // click/drag in Combined mode. In single-mode views there is no
+                      // overlap pair, so the bump is harmless.
+                      const segStartZ = seg.isBreadcrumb ? 1900 : 1400;
+                      const segEndZ   = seg.isBreadcrumb ? 1800 : 1100;
                       return (
                         <MapSegment key={seg.id}>
                           <Polyline
@@ -2106,7 +2150,7 @@ export default function PolylineViewer({ users = [] }) {
                             <Marker
                               position={first}
                               icon={getMarkerIcon('#16a34a', startLabel)}
-                              zIndexOffset={1400}
+                              zIndexOffset={segStartZ}
                               draggable={isActiveCleaning}
                               eventHandlers={isActiveCleaning ? {
                                 dragstart: () => { draggingRef.current = true; },
@@ -2133,7 +2177,7 @@ export default function PolylineViewer({ users = [] }) {
                             <Marker
                               position={last}
                               icon={getMarkerIcon(seg.isBreadcrumb ? '#16a34a' : '#dc2626', endLabel)}
-                              zIndexOffset={1100}
+                              zIndexOffset={segEndZ}
                               draggable={isActiveCleaning}
                               eventHandlers={isActiveCleaning ? {
                                 dragstart: () => { draggingRef.current = true; },

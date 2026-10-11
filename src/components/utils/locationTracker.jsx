@@ -20,6 +20,9 @@ import { syncUpdatedAppUser } from './locationTrackerBroadcast';
 import { remoteLogger } from './remoteLogger';
 import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches, getLastCommittedCrumb } from './locationBreadcrumbService';
 import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
+import { connectionMonitor } from './connectionMonitor';
+import { markNativeHidden } from './uiGate';
+import * as driverIdleAlerts from './driverIdleAlerts';
 
 class LocationTracker {
     constructor() {
@@ -53,9 +56,21 @@ class LocationTracker {
         this.maxFailedUpdates = 3;
         this.backoffTime = 0;
         this.lastSuccessfulUpdate = 0;
+        // Arrival gating backup (Oct 8 2026): set true once the first GPS fix after
+        // tracking start has run the immediate arrival check. Reset on every
+        // startTracking so going on duty again re-runs the boot check.
+        this._bootArrivalChecked = false;
         this.deviceCapabilities = null;
         this.locationProvider = getLocationProvider();
         this.isPrimaryDevice = false;
+        this._gpsExpected = false;
+
+        // Async overlap guards. GPS callbacks, heartbeat timers and watchdogs can
+        // all fire together after a signal dropout or foreground resume. Only one
+        // upload, heartbeat acquisition and breadcrumb write may run at a time.
+        this._locationUploadInFlight = false;
+        this._heartbeatTickInFlight = false;
+        this._breadcrumbWriteInFlight = false;
 
         // Event-driven updates tracking
         this._pendingEventUpdate = false;
@@ -144,7 +159,8 @@ class LocationTracker {
 
     const doHeartbeat = async () => {
       if (!this.isTracking || !this._dispatcherHeartbeatMode) return;
-      if (!navigator.onLine || !this.appUserId) return;
+      if (!this.appUserId || !connectionMonitor.canAttemptNetwork() || this._heartbeatTickInFlight) return;
+      this._heartbeatTickInFlight = true;
       try {
         const nowISO = getLocalTimestamp();
         await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO, last_seen_at: nowISO });
@@ -152,6 +168,8 @@ class LocationTracker {
         this._logLocationRemote('info', 'DISPATCHER-HEARTBEAT', { latitude: null, longitude: null, accuracy: null, timestampOnly: true });
       } catch (err) {
         console.warn('⚠️ [LocationTracker] Dispatcher heartbeat failed:', err?.message);
+      } finally {
+        this._heartbeatTickInFlight = false;
       }
     };
 
@@ -166,6 +184,9 @@ class LocationTracker {
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
     this.driverStatus = status;
+    // Idle alerts (owner request, Sep 28 2026): break watcher starts/stops
+    // here, and the off-duty heartbeat clock resets when duty resumes.
+    try { driverIdleAlerts.noteDutyStatus(status, this.currentUser?.id); } catch { }
     // CRITICAL: Keep currentUser.driver_status in sync so heartbeat broadcasts
     // include the correct status. Without this, every 15s heartbeat spreads
     // a stale driver_status (e.g. off_duty) to all connected devices via
@@ -335,6 +356,7 @@ class LocationTracker {
         await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed:', e?.message);
+        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
       }
     }, this.breadcrumbSaveInterval);
 
@@ -558,6 +580,22 @@ class LocationTracker {
 
   _currentDeviceName = null;
 
+  _emitGpsHealth(status, details = {}) {
+    if (typeof window === 'undefined') return;
+    if (!this._gpsExpected && status !== 'disabled') return;
+    window.dispatchEvent(new CustomEvent('gpsHealthChanged', {
+      detail: {
+        status,
+        accuracy: Number.isFinite(Number(details.accuracy)) ? Number(details.accuracy) : null,
+        error: details.error || null,
+        code: details.code ?? null,
+        source: details.source || this.locationProvider?.name || 'web',
+        timestamp: new Date().toISOString(),
+        trackingExpected: this._gpsExpected,
+      }
+    }));
+  }
+
   _logLocationRemote(level, source, opts = {}) {
     const userName = this.currentUser?.user_name || this.currentUser?.full_name || 'Unknown';
     const isPrimary = this.isPrimaryDevice;
@@ -627,23 +665,20 @@ class LocationTracker {
     // double-check the native provider's _active flag — if a non-primary device somehow
     // has a running native watcher, we should not be processing its GPS callbacks.
 
-    if (forceUpdate) {
-    } else {
+    if (!this.appUserId || !this.currentUser || !connectionMonitor.canAttemptNetwork()) {
+      return;
     }
 
-    // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication
+    // A weak connection can leave one upload pending across multiple 15s ticks.
+    // Skip overlapping attempts; the next heartbeat retries after this one settles.
+    if (this._locationUploadInFlight) return;
+    this._locationUploadInFlight = true;
+
+    // Set before attempting upload for deduplication.
     this.lastUpdate = now;
-    this.lastUploadTime = now; // Track for deduplication
+    this.lastUploadTime = now;
 
     try {
-      // Check if online before attempting update
-      if (!navigator.onLine) {
-        return;
-      }
-
-      if (!this.appUserId || !this.currentUser) {
-        return;
-      }
 
       const nowISO = getLocalTimestamp();
 
@@ -712,6 +747,19 @@ class LocationTracker {
       // which is never set from external callers.
       if (this.driverStatus === 'on_duty' && this.currentUser?.id) {
         const _todayEdmonton = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }); // yyyy-MM-dd
+        // Arrival gating backup (Oct 8 2026): the app may have been (re)loaded WHILE
+        // the driver was already parked at their next stop — the 30s-stationary timer
+        // only starts on this first fix, so the gate would hold an extra 30s, and if
+        // GPS jitter keeps resetting the 20m move threshold it can hold indefinitely.
+        // checkImmediateArrival (isNextDelivery + within geofence, no stationary
+        // requirement) stamps arrival instantly on that first fix. The footer-level
+        // useArrivalRecheck hook covers any later missed stamps.
+        if (!this._bootArrivalChecked) {
+          this._bootArrivalChecked = true;
+          arrivalTimeDetector
+            .checkImmediateArrival(latitude, longitude, this.currentUser.id, _todayEdmonton)
+            .catch((bErr) => console.warn('⚠️ [LocationTracker] Boot immediate arrival check failed:', bErr?.message));
+        }
         await arrivalTimeDetector.processLocationUpdate(
           latitude,
           longitude,
@@ -805,7 +853,7 @@ class LocationTracker {
         // Only disable location_tracking_enabled when actually stopping tracking.
         // If keepTrackingAlive is true (web-only or on-duty), the heartbeat continues
         // and the flag should remain enabled so other devices still show the marker.
-        if (!keepTrackingAlive && this.appUserId) {
+        if (!keepTrackingAlive && this.appUserId && connectionMonitor.canAttemptNetwork()) {
           try {
             const updateData = {
               location_tracking_enabled: false
@@ -835,6 +883,8 @@ class LocationTracker {
           }
         }));
       }
+    } finally {
+      this._locationUploadInFlight = false;
     }
   }
 
@@ -844,6 +894,10 @@ class LocationTracker {
 
     // CRITICAL: Always update lastPosition so the heartbeat interval has a fresh fix.
     this.lastPosition = { latitude, longitude, accuracy };
+    this._emitGpsHealth(Number.isFinite(Number(accuracy)) && Number(accuracy) > 100 ? 'weak' : 'good', {
+      accuracy,
+      source: this.locationProvider?.name || 'web'
+    });
 
     // ── UI event dispatch — SKIP when app is backgrounded ──────────────────
     // When the app is hidden (document.hidden), nobody is looking at the marker.
@@ -919,6 +973,7 @@ class LocationTracker {
       errorMessage = 'Location request timed out. Retrying...';
     }
 
+    this._emitGpsHealth('lost', { error: errorMessage, code: errorCode });
     window.dispatchEvent(new CustomEvent('locationTrackingError', {
       detail: { message: errorMessage, code: errorCode }
     }));
@@ -947,6 +1002,11 @@ class LocationTracker {
     if (this.isTracking) {
       return;
     }
+
+    // Arrival gating backup (Oct 8 2026): fresh tracking session → re-arm the
+    // boot immediate-arrival check (driver may be starting duty already parked
+    // at their next stop, or the app was reloaded mid-route).
+    this._bootArrivalChecked = false;
 
     // Set delivery date for arrival tracking
     if (deliveryDate) {
@@ -1058,6 +1118,9 @@ class LocationTracker {
       return;
     }
 
+    this._gpsExpected = true;
+    this._emitGpsHealth('searching', { source: this.locationProvider?.name || 'web' });
+
     return new Promise(async (resolve, reject) => {
       try {
         const providerName = (this.locationProvider?.name || 'web').toUpperCase();
@@ -1097,19 +1160,29 @@ class LocationTracker {
               timeout: 30000,
               maximumAge: 0,
               requestPermissions: true,
-              distanceFilter: 0,
               // CRITICAL: @capgo/background-geolocation reads "minIntervalMs" (NOT "interval")
               // to set the native LocationManager polling interval. This controls BOTH
               // the GPS hardware firing rate AND the native POST throttle (shouldPost).
               //
-              // Set to 1000ms (1 second) so the driver's own marker moves smoothly on
-              // every GPS fix. The 15-second DB upload throttle is handled by TWO layers:
-              //   1. JS layer: updateLocationInDatabase() has a 15s upload gate
-              //   2. Server layer: nativeLocationUpdate backend function throttles to 15s
-              // The native POST fires every 1s but the server ignores most, only writing
-              // to the DB every 15s. This wastes lightweight HTTP calls but ensures the
-              // local marker updates smoothly while keeping DB writes throttled.
-              minIntervalMs: 1000,
+              // Sep 18 2026 battery work: fixes every 1s were the #1 battery drain
+              // (GPS hardware duty cycle + a native HTTP POST every second whose
+              // radio wakeups keep the cellular modem out of sleep). 5s fixes cut
+              // GPS duty cycle ~80% and POSTs 5x; the server only writes every 15s
+              // anyway (nativeLocationUpdate throttle + the 15s JS upload gate).
+              //
+              // 10m distanceFilter: while parked (stores, lights, home) the plugin
+              // delivers NO fixes at all — stationary time stops costing battery.
+              // At city speed 10m elapses in <1s, so the 5s interval dominates
+              // while moving.
+              //
+              // Marker smoothness is preserved WITHOUT the 1s fixes: the driver's
+              // own blue dot uses polyline-follow interpolation between fixes
+              // (LiveDriverLocationMarker + liveMarkerInterpolator) — it glides
+              // along the current-leg road geometry at ~20fps, so it LOOKS like
+              // 1s fixes while the hardware wakes at 5s. Display-only; geofences,
+              // ETAs, breadcrumbs, and DB all consume the real 5s fixes.
+              distanceFilter: 10,
+              minIntervalMs: 5000,
               backgroundTitle: 'RxDeliver location tracking',
               backgroundMessage: 'Tracking delivery location in the background.'
             };
@@ -1160,7 +1233,8 @@ class LocationTracker {
         // within the 15s window wins, the other is suppressed.
         this._clearHeartbeat(); // Guard: ensure no stale interval before starting a new one
         this.heartbeatInterval = setInterval(async () => {
-          if (!this.isTracking) return;
+          if (!this.isTracking || this._heartbeatTickInFlight) return;
+          this._heartbeatTickInFlight = true;
           try {
             // When native background watcher is active, getCurrentPosition returns
             // the last known position from the native service (no new GPS fix needed).
@@ -1188,7 +1262,7 @@ class LocationTracker {
           } catch (err) {
             // Even if GPS fails, upload a timestamp-only update so the marker
             // stays "fresh" and doesn't show as stale to dispatchers.
-            if (this.isPrimaryDevice && this.appUserId && navigator.onLine) {
+            if (this.isPrimaryDevice && this.appUserId && connectionMonitor.canAttemptNetwork()) {
               try {
                 const nowISO = getLocalTimestamp();
                 await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
@@ -1196,6 +1270,8 @@ class LocationTracker {
                 console.warn(`⚠️ [${providerName} PROVIDER] Timestamp heartbeat failed:`, e?.message);
               }
             }
+          } finally {
+            this._heartbeatTickInFlight = false;
           }
         }, this.updateInterval);
 
@@ -1227,6 +1303,7 @@ class LocationTracker {
             );
           } catch (e) {
             console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed:', e?.message);
+        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
           }
         }, this.breadcrumbSaveInterval);
 
@@ -1324,6 +1401,8 @@ class LocationTracker {
   }
 
   stopTracking() {
+    this._gpsExpected = false;
+    this._emitGpsHealth('disabled');
     // Stop native off-duty Foreground Service watcher if active
     if (this._nativeOffDutyWatcher && this.nativeWatchId != null) {
       const offDutyId = this.nativeWatchId;
@@ -1581,6 +1660,9 @@ class LocationTracker {
       return;
     }
 
+    if (this._breadcrumbWriteInFlight) return;
+    this._breadcrumbWriteInFlight = true;
+
     try {
       const result = await collectBreadcrumbForTracker({
         driverStatus: this.driverStatus,
@@ -1609,6 +1691,8 @@ class LocationTracker {
       this.lastBreadcrumbSavedAt = timestamp;
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
+    } finally {
+      this._breadcrumbWriteInFlight = false;
     }
   }
 
@@ -1761,6 +1845,7 @@ class LocationTracker {
 
     } catch (err) {
       console.warn('⚠️ [LocationTracker] Resume GPS fix failed:', err?.message);
+        this._emitGpsHealth('lost', { error: err?.message || 'GPS fix unavailable' });
       // Even if the fix fails, still reset breadcrumb timer so the next interval tick tries again
     }
 
@@ -1787,6 +1872,7 @@ class LocationTracker {
         await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
       } catch (e) {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed on interval tick:', e?.message);
+        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
       }
     }, this.breadcrumbSaveInterval);
 
@@ -1864,6 +1950,13 @@ class LocationTracker {
     this._clearHeartbeat();
     this.heartbeatInterval = setInterval(async () => {
       if (!this.isTracking || !this._webOnlyMode) return;
+      // Off-duty idle alert (owner request, Sep 28 2026): the heartbeat itself
+      // proves the app is alive and consuming battery while off duty. Guarded to
+      // off_duty — on-duty/on-break drivers can legitimately land in web-only mode
+      // (startTracking fallback) and must NOT get "you're off duty" alerts.
+      if (this.driverStatus === 'off_duty') {
+        try { driverIdleAlerts.noteOffDutyHeartbeat(); } catch { }
+      }
       try {
         const provider = getLocationProvider();
         if (provider.isAvailable()) {
@@ -1914,7 +2007,15 @@ class LocationTracker {
       if (!this._offDutyBackgroundedAt || !this._webOnlyMode) return;
 
       const elapsed = Date.now() - this._offDutyBackgroundedAt;
-      if (elapsed < 30 * 60 * 1000) return; // 30 min threshold
+      if (elapsed < 30 * 60 * 1000) return; // 30 min notification threshold
+
+      // 30-min threshold reached (owner request, Sep 28 2026): notify the
+      // driver FIRST (Force Close button) instead of silently closing. The
+      // silent force-close now only fires as a 90-min safety net if the
+      // driver ignored the notification and hasn't moved.
+      if (elapsed < 90 * 60 * 1000) {
+        try { driverIdleAlerts.notifyOffDutyIdleKill(elapsed); } catch { }
+      }
 
       // Threshold reached — check if driver has moved
       let hasMoved = false;
@@ -1944,7 +2045,7 @@ class LocationTracker {
 
       if (hasMoved) {
         this._offDutyBackgroundedAt = Date.now();
-      } else {
+      } else if (elapsed >= 90 * 60 * 1000) {
         const mins = Math.round(elapsed / 60000);
         this._forceCloseApp(`App closed after ${mins} min off duty in background to save battery.`);
       }
@@ -2033,14 +2134,16 @@ class LocationTracker {
 
 export const locationTracker = new LocationTracker();
 
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      locationTracker.lastFocusLostAt = Date.now();
-      return;
-    }
-
+// Shared foreground-return logic for BOTH the visibilitychange listener (web +
+// app-switch transitions) and the native Capacitor appStateChange listener
+// (screen off/on — see below). A 3s dedupe guard prevents a double
+// _resumeAfterAbsence when both listeners fire for the same transition.
+let _lastForegroundReturnAt = 0;
+const _handleForegroundReturn = () => {
     const now = Date.now();
+    if (now - _lastForegroundReturnAt < 3000) return;
+    _lastForegroundReturnAt = now;
+
     // Use lastFocusLostAt directly — Math.max with other timestamps caused false-short
     // awayDuration values when a background tick updated lastBreadcrumbSavedAt/lastHeartbeatAt
     // after the page was hidden, making the guard skip _resumeAfterAbsence entirely.
@@ -2120,7 +2223,45 @@ if (typeof document !== 'undefined') {
         }
       })();
     }
+};
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      locationTracker.lastFocusLostAt = Date.now();
+      return;
+    }
+    _handleForegroundReturn();
   });
+
+  // ── Native APK lifecycle (Sep 23 2026) ────────────────────────────────────
+  // Android WebView does NOT fire visibilitychange on screen off/on — only on
+  // real activity transitions (app switch). Without this listener, turning the
+  // screen back on NEVER ran the resume catch-up: lastFocusLostAt stayed 0
+  // (no _resumeAfterAbsence, no fresh GPS fix, no resume resync) and uiGate
+  // deferred units never replayed. This is why deviation updates/leg redraws
+  // appeared ONLY when switching apps. appStateChange fires on BOTH screen
+  // off/on AND app switches, so it covers every native transition; the 3s
+  // dedupe guard above collapses the double-fire when visibilitychange runs too.
+  if (isCapacitorNativeApp()) {
+    import('@capacitor/app').then(({ App }) => {
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) {
+          // Screen off / app switch. Mark UI hidden so render-driving work
+          // defers (uiGate), and stamp the focus-loss time for awayDuration.
+          markNativeHidden(true);
+          // Always re-stamp (mirrors the visibilitychange-hidden path) so the
+          // next return measures the away duration from THIS transition.
+          locationTracker.lastFocusLostAt = Date.now();
+          return;
+        }
+        // Screen on / app return. Replay deferred UI first, then run the same
+        // resume path visibilitychange-visible uses (fresh GPS + resync).
+        markNativeHidden(false);
+        _handleForegroundReturn();
+      });
+    }).catch((e) => console.warn('📱 [LocationTracker] Native appStateChange listener unavailable:', e?.message));
+  }
 
   // ── F: Breadcrumb resume after stop completion/fail/cancel ──────────────────
   // The completion chain in useStopCardActions can block the main thread for several

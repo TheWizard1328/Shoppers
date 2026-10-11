@@ -64,7 +64,7 @@ async function deleteCatalogObjects(objectIds, accessToken) {
 }
 
 async function createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName,accessToken}) {
-  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:`#item-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}]}}]}]});
+  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:`coditem-${deliveryId}-${amountCents}-${Math.floor(Date.now()/60000)}`,batches:[{objects:[{type:'ITEM',id:`#item-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}]}}]}]});
   return (json.objects||[]).find((o)=>o.type==='ITEM')||null;
 }
 
@@ -122,6 +122,10 @@ async function handleCreateCodItem(base44, payload) {
   const{deliveryId,patientName,storeAbbreviation,codAmount,deliveryDate,storeId}=payload||{};
   if(!deliveryId||codAmount==null||Number(codAmount)<=0)throw new HttpError(400,'Missing required fields: deliveryId, codAmount');
   const deliveryRecord=await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(()=>null);
+  // Confirmed collected at the register (SquareTransaction rows purged) — never re-create.
+  if(deliveryRecord?.cod_confirmed_collected){return{success:true,skipped:true,reason:'cod_confirmed_collected'};}
+  // Archived CODs (Square page Archive action) are written off — never create a catalog item.
+  if((deliveryRecord?.cod_payments||[]).some((p)=>['Archived','archived'].includes(String(p?.type||''))&&Number(p?.amount||0)>0)){return{success:true,skipped:true,reason:'cod_archived'};}
   const{patientById,patientByPid}=await buildPatientMaps(base44,deliveryRecord?[deliveryRecord]:[]);
   const patientRecord=deliveryRecord?await resolveDeliveryPatient(base44,deliveryRecord,patientById,patientByPid):null;
   const effectiveStoreId=storeId||deliveryRecord?.store_id;

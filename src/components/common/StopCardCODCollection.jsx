@@ -1,18 +1,14 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Plus, Loader2, CheckCircle, Save } from "lucide-react";
 import { userHasRole } from '../utils/userRoles';
-import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
-import { updateDeliveryLocal } from '../utils/offlineMutations';
-import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
-import { base44 } from "@/api/base44Client";
-import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
-import { collapseExpandedStopCardsForDriver } from './stopCardActionHelpers';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
-import { syncDeliverySquareCod } from '../utils/squareCodSync';
+import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
+import { getPendingSquarePosLaunch, verifySquareTender, clearPendingSquarePosLaunch } from '../utils/squareTenderVerify';
+import { toast } from 'sonner';
 
 export default function StopCardCODCollection({
   delivery,
@@ -33,7 +29,8 @@ export default function StopCardCODCollection({
   isCompleting,
   setIsCompleting,
   onSelectionChange,
-  onClick
+  onClick,
+  hideSaveButtonForFooterSwap = false
 }) {
   const codAmountInputRefs = useRef([]);
   const codRefreshPauseRef = useRef(false);
@@ -81,6 +78,69 @@ export default function StopCardCODCollection({
   const handleRemoveCODPayment = (index) => {
     setCodPayments(codPayments.filter((_, i) => i !== index));
   };
+
+  // ── AUTO-TENDER FROM THE REAL SQUARE SWIPE (owner spec Oct 9 2026) ────────
+  // When the driver comes back from Square POS, ask the backend for the
+  // swipe's card type and stamp the matching payment entry: INTERAC → Debit,
+  // Visa / Mastercard / any credit brand → Credit. Falls back silently to
+  // the manually chosen type when no match is found (pre-existing behaviour).
+  const tenderVerifyAttemptedRef = useRef(false);
+  const tenderVerifyBusyRef = useRef(false);
+  const applySquareTenderResult = (res, pending) => {
+    if (!res?.matched || !res?.tender) return false;
+    const stamp = { card_brand: res.card_brand, entry_method: res.entry_method };
+    setCodPayments((prev) => {
+      // Prefer the card entry seeded by the Square button (matches the swipe
+      // amount), else any card-typed entry without a brand stamp.
+      const amount = (Number(pending?.amountCents) || 0) / 100;
+      let idx = prev.findIndex((p) => Math.abs((parseFloat(p?.amount) || 0) - amount) < 0.005
+        && (p?.type === 'Debit' || p?.type === 'Credit'));
+      if (idx === -1) idx = prev.findIndex((p) => (p?.type === 'Debit' || p?.type === 'Credit') && !p?.card_brand);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], type: res.tender, ...stamp };
+      return next;
+    });
+    clearPendingSquarePosLaunch();
+    const brand = res.card_brand ? res.card_brand[0] + res.card_brand.slice(1).toLowerCase() : '';
+    toast.success(
+      res.entry_method === 'KEYED'
+        ? `Tender set to ${res.tender} (keyed ${brand})`
+        : `Tender set to ${res.tender} (${brand})`,
+      { duration: 4000 }
+    );
+    return true;
+  };
+  const runTenderVerify = async () => {
+    if (tenderVerifyBusyRef.current || !delivery?.id || !showCODCollection) return;
+    const pending = getPendingSquarePosLaunch(delivery.id);
+    if (!pending) return;
+    tenderVerifyBusyRef.current = true;
+    try {
+      const res = await verifySquareTender(pending, { deliveryId: delivery.id });
+      if (res?.matched) {
+        applySquareTenderResult(res, pending);
+      } else if (!tenderVerifyAttemptedRef.current) {
+        // Square may still be finalizing the payment on the very first
+        // return — retry once shortly after, then give up (the manual
+        // tender stays in place).
+        tenderVerifyAttemptedRef.current = true;
+        setTimeout(() => { void runTenderVerify(); }, 20000);
+      }
+    } finally {
+      tenderVerifyBusyRef.current = false;
+    }
+  };
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void runTenderVerify();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    // Panel open with the POS already done (e.g. driver re-expanded the card)
+    void runTenderVerify();
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCODCollection, delivery?.id]);
 
   return (
     <AnimatePresence>
@@ -133,6 +193,7 @@ export default function StopCardCODCollection({
                     <SelectItem value="Debit">Debit</SelectItem>
                     <SelectItem value="Credit">Credit</SelectItem>
                     <SelectItem value="Cheque">Cheque</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -169,112 +230,37 @@ export default function StopCardCODCollection({
               <span className="text-label"> / ${codTotalRequired.toFixed(2)}</span>
             </div>
 
+            {/* OWNER DIRECTIVE (Sep 29 2026): while this delivery is the next-delivery
+                card (Complete would normally show), the footer swaps in its own
+                Save & Complete button in the Complete button's slot and hides
+                Complete — hide this in-panel button too, to avoid a duplicate.
+                For every other case (e.g. editing COD on an already-completed
+                delivery, where no footer Complete button exists to swap with),
+                this in-panel button remains the only Save/Save & Complete action. */}
+            {!hideSaveButtonForFooterSwap &&
             <Button
             size="sm"
             className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700"
-            onClick={async (e) => {
+            onClick={(e) => {
               e.stopPropagation();
-              if (!onCODUpdate) return;
-              try {
-                setIsCompleting(true);
-                const isAlreadyCompleted = delivery.status === 'completed';
-
-                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                if (deliveryExists && deliveryExists.length === 0) {
-                  throw new Error('This delivery no longer exists. Please refresh the page.');
-                }
-
-                const totalAmount = codPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-                if (isAlreadyCompleted) {
-                  // Collapse the expanded card as part of the Save action, matching the
-                  // same collapse-on-action pattern used by the regular Complete/Fail/Cancel
-                  // flows in useStopCardActions.jsx's executeTerminalAction.
-                  await collapseExpandedStopCardsForDriver(delivery?.driver_id);
-                  // Persist the edited COD payments FIRST, then reconcile Square from the
-                  // persisted state — the reconciler decides create/remove server-side
-                  // (cash stays, debit/credit/cheque removes). No client-side Square
-                  // decisions here.
-                  await onCODUpdate(delivery.id, codPayments, true);
-                  if (totalAmount > 0) syncDeliverySquareCod(delivery.id, { status: 'completed', cod_payments: codPayments });
-                  setShowCODCollection(false);
-                  return;
-                } else {
-                  fabControlEvents.deactivateFAB();
-                  // Collapse the expanded card as part of the Save & Complete action —
-                  // same collapse-on-action pattern used by the regular Complete/Fail/Cancel
-                  // flows in useStopCardActions.jsx's executeTerminalAction.
-                  await collapseExpandedStopCardsForDriver(delivery?.driver_id);
-                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                  driverLocationPoller.pause();
-
-                  setShowCODCollection(false);
-
-                  const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-
-                  const completionUpdate = {
-                    status: 'completed',
-                    actual_delivery_time: localTimeString,
-                    isNextDelivery: false,
-                    cod_payments: codPayments
-                  };
-
-                  await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
-                  // Square reconcile happens inside runTerminalDeliverySideEffects —
-                  // the reconciler decides cash-stays / card-removes server-side.
-                  runTerminalDeliverySideEffects({
-                    delivery,
-                    previousStatus: delivery.status,
-                    nextStatus: 'completed',
-                    overrides: completionUpdate
-                  });
-
-                  const driverDeliveries = allDeliveries.filter((d) =>
-                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                  );
-                  const incompleteDeliveries = driverDeliveries.filter((d) =>
-                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
-                  ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-                  if (incompleteDeliveries.length > 0) {
-                    await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                    window._suppressAutoCenterUntil = Date.now() + 1500;
-                    setTimeout(() => {
-                      const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
-                      if (nextCardElement) nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                    }, 100);
-                  } else {
-                    fabControlEvents.notifyDoneButtonClicked();
-                    window.dispatchEvent(new CustomEvent('showRouteSummary', {
-                      detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                    }));
-                  }
-
-
-                  if (onSelectionChange) {
-                    onSelectionChange(delivery.id, false);
-                  } else if (onClick) {
-                    onClick(null);
-                  }
-
-                  driverLocationPoller.resume();
-                  fabControlEvents.reactivateFAB(true);
-                }
-              } catch (error) {
-                console.error('❌ Failed to save COD:', error);
-                fabControlEvents.reactivateFAB(true);
-              } finally {
-                if (codRefreshPauseRef.current) {
-                  smartRefreshManager.resume();
-                  codRefreshPauseRef.current = false;
-                }
-                setIsCompleting(false);
-              }
+              performSaveAndCompleteCOD({
+                delivery,
+                codPayments,
+                allDeliveries,
+                FINISHED_STATUSES,
+                onCODUpdate,
+                setShowCODCollection,
+                setIsCompleting,
+                onSelectionChange,
+                onClick,
+                codRefreshPauseRef,
+              });
             }}
             disabled={codPayments.length === 0 || isCompleting}>
               {isCompleting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : delivery.status === 'completed' ? <Save className="w-3 h-3 mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
               {delivery.status === 'completed' ? 'Save' : 'Save & Complete'}
             </Button>
+            }
           </div>
         </motion.div>
       }

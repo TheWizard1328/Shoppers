@@ -1,13 +1,11 @@
+import { connectionMonitor } from './connectionMonitor';
+
 /**
  * Request Throttler/Queue Manager
- * 
- * Prevents API rate limits by:
- * 1. Queuing requests instead of firing them all at once
- * 2. Spacing out requests by type (critical vs non-critical)
- * 3. Adding intelligent delays between batches
- * 4. Respecting rate limit backoff windows
+ *
+ * Serializes boot and background requests, applies spacing/backoff, and ensures
+ * one black-holed request can never leave the queue permanently stuck.
  */
-
 const THROTTLE_DELAYS = {
   critical: 800,
   priority: 1500,
@@ -16,6 +14,7 @@ const THROTTLE_DELAYS = {
 };
 
 const BATCH_COOLDOWN = 800;
+const REQUEST_TIMEOUT_MS = 15000;
 let RATE_LIMIT_BACKOFF_MS = 30000;
 
 let requestQueue = [];
@@ -24,24 +23,32 @@ let lastRequestTime = 0;
 let isRateLimited = false;
 let rateLimitUntil = 0;
 
-const getDelay = (priority = 'standard') => {
-  return THROTTLE_DELAYS[priority] || THROTTLE_DELAYS.standard;
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const getDelay = (priority = 'standard') => THROTTLE_DELAYS[priority] || THROTTLE_DELAYS.standard;
+
+const withRequestTimeout = (promise, label) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+      error.code = 'ECONNABORTED';
+      reject(error);
+    }, REQUEST_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 };
 
+const is429Error = (error) =>
+  error?.response?.status === 429 ||
+  error?.status === 429 ||
+  error?.code === 429 ||
+  /429|rate limit/i.test(String(error?.message || ''));
+
 export const requestThrottler = {
-  /**
-   * Queue a request with specified priority
-   * @param {Function} fn - Async function to execute
-   * @param {string} priority - One of: 'critical', 'priority', 'standard', 'background'
-   * @param {string} label - Label for logging
-   * @returns {Promise}
-   */
-  queue: async (fn, priority = 'standard', label = 'request') => {
-    return new Promise((resolve, reject) => {
-      const requestId = Math.random().toString(36).substr(2, 9);
-      
+  queue: async (fn, priority = 'standard', label = 'request') =>
+    new Promise((resolve, reject) => {
       requestQueue.push({
-        id: requestId,
+        id: Math.random().toString(36).slice(2, 11),
         fn,
         priority,
         label,
@@ -49,102 +56,78 @@ export const requestThrottler = {
         reject,
         addedAt: Date.now()
       });
-      
-      console.log(`📋 [RequestThrottler] Queued ${priority} request (${label}) - Queue: ${requestQueue.length}`);
-      
-      // Start processing if not already
       requestThrottler._process();
-    });
-  },
+    }),
 
-  /**
-   * Process the request queue
-   */
   _process: async () => {
     if (isProcessing || requestQueue.length === 0) return;
-    
     isProcessing = true;
-    
-    while (requestQueue.length > 0) {
-      // Wait if rate limited
-      if (isRateLimited && Date.now() < rateLimitUntil) {
-        const waitTime = rateLimitUntil - Date.now();
-        console.warn(`⏰ [RequestThrottler] Rate limited - waiting ${(waitTime / 1000).toFixed(1)}s`);
-        await new Promise(r => setTimeout(r, waitTime + 1000));
-        isRateLimited = false;
-      }
-      
-      // Sort by priority (critical first, background last)
-      const priorityOrder = { critical: 0, priority: 1, standard: 2, background: 3 };
-      requestQueue.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-      
-      const request = requestQueue.shift();
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTime;
-      const requiredDelay = getDelay(request.priority);
-      
-      // Wait if needed
-      if (timeSinceLastRequest < requiredDelay) {
-        const waitTime = requiredDelay - timeSinceLastRequest;
-        console.log(`⏳ [RequestThrottler] Waiting ${(waitTime / 1000).toFixed(1)}s before ${request.label}`);
-        await new Promise(r => setTimeout(r, waitTime));
-      }
-      
-      lastRequestTime = Date.now();
-      
-      try {
-        console.log(`🚀 [RequestThrottler] Executing ${request.priority} request (${request.label})`);
-        const result = await request.fn();
-        request.resolve(result);
-        
-        // Reset backoff on success
-        RATE_LIMIT_BACKOFF_MS = 15000;
-        
-        // Small delay between requests in same priority
-        await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-      } catch (error) {
-        if (error.response?.status === 429 || error.message?.includes('Rate limit')) {
-          isRateLimited = true;
-          rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-          console.warn(`⚠️ [RequestThrottler] Rate limit detected - backing off for ${Math.round(RATE_LIMIT_BACKOFF_MS / 1000)}s`);
-          RATE_LIMIT_BACKOFF_MS = RATE_LIMIT_BACKOFF_MS === 15000 ? 30000 : 60000;
-          request.reject(error);
-        } else {
+
+    try {
+      while (requestQueue.length > 0) {
+        if (isRateLimited && Date.now() < rateLimitUntil) {
+          await delay(rateLimitUntil - Date.now() + 250);
+        }
+        if (Date.now() >= rateLimitUntil) isRateLimited = false;
+
+        const priorityOrder = { critical: 0, priority: 1, standard: 2, background: 3 };
+        requestQueue.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+        const request = requestQueue.shift();
+
+        const requiredDelay = getDelay(request.priority);
+        const waitTime = Math.max(0, requiredDelay - (Date.now() - lastRequestTime));
+        if (waitTime > 0) await delay(waitTime);
+        lastRequestTime = Date.now();
+
+        const startedAt = Date.now();
+        try {
+          const result = await withRequestTimeout(Promise.resolve().then(request.fn), request.label);
+          connectionMonitor.recordResponseTime(Date.now() - startedAt);
+          request.resolve(result);
+          RATE_LIMIT_BACKOFF_MS = 30000;
+          await delay(BATCH_COOLDOWN);
+        } catch (error) {
+          if (is429Error(error)) {
+            isRateLimited = true;
+            rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+            RATE_LIMIT_BACKOFF_MS = Math.min(RATE_LIMIT_BACKOFF_MS * 2, 60000);
+            connectionMonitor.recordError('rate_limit');
+          } else {
+            connectionMonitor.recordError(/timeout/i.test(String(error?.message || '')) ? 'timeout' : 'network');
+          }
           request.reject(error);
         }
       }
+    } finally {
+      // Always release the queue, even if queue bookkeeping itself throws.
+      isProcessing = false;
+      if (requestQueue.length > 0) queueMicrotask(() => requestThrottler._process());
     }
-    
-    isProcessing = false;
   },
 
-  /**
-   * Get queue status
-   */
   getStatus: () => ({
     queueLength: requestQueue.length,
     isProcessing,
     isRateLimited,
     rateLimitUntil: isRateLimited ? new Date(rateLimitUntil).toISOString() : null,
-    lastRequestTime: new Date(lastRequestTime).toISOString()
+    lastRequestTime: lastRequestTime ? new Date(lastRequestTime).toISOString() : null
   }),
 
-  /**
-   * Clear the queue (use with caution)
-   */
   clear: () => {
-    const cleared = requestQueue.length;
+    const pending = requestQueue;
     requestQueue = [];
-    console.warn(`⚠️ [RequestThrottler] Cleared ${cleared} queued requests`);
-    return cleared;
+    const error = new Error('Request queue cleared');
+    error.code = 'QUEUE_CLEARED';
+    pending.forEach((request) => request.reject(error));
+    return pending.length;
   },
 
-  /**
-   * Wait for queue to empty
-   */
-  waitUntilEmpty: async () => {
+  waitUntilEmpty: async (timeoutMs = 20000) => {
+    const startedAt = Date.now();
     while (requestQueue.length > 0 || isProcessing) {
-      await new Promise(r => setTimeout(r, 100));
+      if (Date.now() - startedAt >= timeoutMs) return false;
+      await delay(100);
     }
+    return true;
   }
 };

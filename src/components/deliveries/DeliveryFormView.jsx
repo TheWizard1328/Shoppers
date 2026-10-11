@@ -30,6 +30,7 @@ import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
 import { runPostDeliveryUpdateSync, closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
+import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { handleBatchSaveDelivery } from '@/components/dashboard/handleBatchSaveDelivery.jsx';
 import { toast } from 'sonner';
@@ -42,7 +43,7 @@ import PickupLocationMultiSelect from './PickupLocationMultiSelect';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
 import InterStoreFormContent from './InterStoreFormContent';
 import CyclingLocationSearch from './CyclingLocationSearch';
-import { syncDeliverySquareCod } from '../utils/squareCodSync';
+
 
 const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
 <div className="flex items-center space-x-2">
@@ -153,6 +154,15 @@ export default function DeliveryFormView({
   autoCommitProgress = 1
 }) {
   const activeFieldScrollFrameRef = useRef(null);
+
+  // Owner spec (Sep 24 2026): PAUSE the deferred 5s window-edit reoptimization
+  // countdown while this form is open (Delivery Edit / Add To Route / InterStore
+  // all render through this view). When the form closes, the countdown restarts
+  // from the full 5 seconds — back-to-back edits batch into ONE optimization.
+  useEffect(() => {
+    const token = pauseDeferredReoptimization('delivery_form');
+    return () => resumeDeferredReoptimization(token);
+  }, []);
 
   // Broadcast delivery-form open/close so the global Guide Assistant FAB can
   // relocate into this header (mobile only) while the form is visible.
@@ -594,19 +604,32 @@ export default function DeliveryFormView({
     const NATIVE_PICKER_TYPES = new Set(['time', 'date', 'datetime-local', 'month', 'week']);
     const isNativePickerInput = (el) => el?.tagName === 'INPUT' && NATIVE_PICKER_TYPES.has(el?.type);
 
+    // The SmartBarcodeScanner's visible + hidden inputs (marked data-keyboard-safe-scan)
+    // get refocused programmatically after every camera scan and focusTrigger bump so
+    // the field is ready for the next scan — with NO real soft keyboard involved (the
+    // hidden input is inputMode="none"; the visible one is refocused by code, not a
+    // user tap). That refocus was firing signal 3 below and setting the flag true, but
+    // since no keyboard actually opened there was never a real resize (signals 1/2) to
+    // flip it back — leaving the safe-area top/bottom padding collapsed to 0px
+    // permanently after scanning barcodes/labels in the APK. These inputs are excluded
+    // from signal 3 entirely; a genuine manual tap-to-type in the visible field still
+    // gets caught correctly by signals 1/2 (the real viewport shrink from an actual
+    // keyboard opening).
+    const isKeyboardSafeScanInput = (el) => !!el?.closest?.('[data-keyboard-safe-scan="true"]');
+
     // Signal 3: input focus — immediate response (no waiting for resize event).
     // The "done/enter key doesn't fire blur" problem from Take 2 is handled
     // because signals 1 and 2 will flip the flag back to false when the
     // keyboard actually closes and the viewport restores.
     const handleFocusIn = (e) => {
-      if (isNativePickerInput(e.target)) return;
+      if (isNativePickerInput(e.target) || isKeyboardSafeScanInput(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         setIsKeyboardLikelyOpen(true);
       }
     };
     const handleFocusOut = (e) => {
-      if (isNativePickerInput(e.target)) return;
+      if (isNativePickerInput(e.target) || isKeyboardSafeScanInput(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         // Delay to allow focus to move to another input (keyboard stays open)
@@ -772,7 +795,11 @@ export default function DeliveryFormView({
           const _deliveryDate = formData?.delivery_date;
           const _previousDriverId = delivery?.driver_id;
           const _previousDeliveryDate = delivery?.delivery_date;
-          const _shouldOptimizeInBackground = (delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || '');
+          // Time-window edits on PENDING stops must NOT reoptimize the route (owner rule,
+          // Sep 24 2026): pending stops are not on the active route — their windows are
+          // consumed later by Accept All / Assign All / the manual re-optimize FAB.
+          const _pendingStaysPending = String(delivery?.status || '') === 'pending' && String(formData?.status || '') === 'pending';
+          const _shouldOptimizeInBackground = !_pendingStaysPending && ((delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || ''));
           const _travelModeOnly = !!delivery &&
           !_shouldOptimizeInBackground &&
           (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
@@ -799,19 +826,12 @@ export default function DeliveryFormView({
                 smartRefreshManager.resume();
               }
 
-              // ONE Square reconcile from the just-saved form snapshot — the backend
-              // decides cash-stays / card-removes from the authoritative record.
-              if (_formDataSnapshot.patient_id && delivery?.id) {
-                syncDeliverySquareCod(delivery.id, {
-                  status: _formDataSnapshot.status,
-                  cod_total_amount_required: Number(_formDataSnapshot.cod_total_amount_required || 0) / 100,
-                  cod_payments: _formDataSnapshot.cod_payments,
-                  cod_payment_type: _formDataSnapshot.cod_payment_type,
-                  patient_name: _formDataSnapshot.patient_name,
-                  delivery_date: _formDataSnapshot.delivery_date,
-                  store_id: _formDataSnapshot.store_id
-                });
-              }
+              // NOTE: no Square reconcile here — DeliveryForm's handleSubmit already
+              // fires exactly ONE syncDeliverySquareCod per save. A second concurrent
+              // reconcile here raced it: both saw "no existing item" (Square catalog
+              // search lags) and both CREATED one → duplicate catalog items on every
+              // COD edit/add (the second item became a bookkeeping-less orphan the
+              // dedupe pass can't see).
 
               const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
               const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
@@ -936,7 +956,7 @@ export default function DeliveryFormView({
                     </div>
                   );
                 })()}
-                <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving} aria-label="Close form"><X className="w-4 h-4" /></Button>
               </div>
             </div>
             {!delivery &&
@@ -2145,7 +2165,11 @@ export default function DeliveryFormView({
                   const _deliveryDate = formData?.delivery_date;
                   const _previousDriverId = delivery?.driver_id;
                   const _previousDeliveryDate = delivery?.delivery_date;
-                  const _shouldOptimizeInBackground = (delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || '');
+                  // Time-window edits on PENDING stops must NOT reoptimize the route (owner rule,
+                  // Sep 24 2026): pending stops are not on the active route — their windows are
+                  // consumed later by Accept All / Assign All / the manual re-optimize FAB.
+                  const _pendingStaysPending = String(delivery?.status || '') === 'pending' && String(formData?.status || '') === 'pending';
+                  const _shouldOptimizeInBackground = !_pendingStaysPending && ((delivery?.delivery_time_start || '') !== (formData?.delivery_time_start || '') || (delivery?.delivery_time_end || '') !== (formData?.delivery_time_end || ''));
                   const _travelModeOnly = !!delivery &&
                   !_shouldOptimizeInBackground &&
                   (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
@@ -2189,19 +2213,9 @@ export default function DeliveryFormView({
                         smartRefreshManager.resume();
                       }
 
-                      // ONE Square reconcile from the just-saved form snapshot — the backend
-                      // decides cash-stays / card-removes from the authoritative record.
-                      if (_formDataSnapshot.patient_id && delivery?.id) {
-                        syncDeliverySquareCod(delivery.id, {
-                          status: _formDataSnapshot.status,
-                          cod_total_amount_required: Number(_formDataSnapshot.cod_total_amount_required || 0) / 100,
-                          cod_payments: _formDataSnapshot.cod_payments,
-                          cod_payment_type: _formDataSnapshot.cod_payment_type,
-                          patient_name: _formDataSnapshot.patient_name,
-                          delivery_date: _formDataSnapshot.delivery_date,
-                          store_id: _formDataSnapshot.store_id
-                        });
-                      }
+                      // NOTE: no Square reconcile here — DeliveryForm's handleSubmit already
+                      // fires exactly ONE syncDeliverySquareCod per save (second concurrent
+                      // reconcile raced it and created duplicate catalog items).
 
                       // Client-side stop_order + isNextDelivery repair (replaces backend setNextDeliveryFlag)
                       const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;

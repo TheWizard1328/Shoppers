@@ -3,6 +3,7 @@
 // This manager handles: initial loads, offline sync, cache reconciliation, and non-real-time entities
 
 import { base44 } from "@/api/base44Client";
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp } from "./dataDiffer";
 import { format } from "date-fns";
 import { queueEntityRequest, requestQueue } from "./requestQueue";
@@ -59,7 +60,7 @@ class LightweightRefreshManager {
    */
   async initializeFromSettings() {
     try {
-      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const settings = await getAppSettingRows('refresh_intervals');
       if (settings && settings.length > 0 && settings[0].setting_value) {
         this._enabled = true; // always on — Smart Refresh toggle removed from admin settings
       } else {
@@ -397,7 +398,10 @@ class LightweightRefreshManager {
             // lag by several seconds during high-frequency GPS writes). Never let a poll
             // regress coords that were delivered more recently via WebSocket.
             const { offlineDB } = await import('./offlineDatabase');
-            const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            // PERF (Oct 9 2026): was getAll(APP_USERS) (full-store decrypt +
+            // write-drain wait) on every appUser sync; read only the rows the
+            // server batch actually contains.
+            const cachedUsers = await offlineDB.getByIds(offlineDB.STORES.APP_USERS, (allAppUsers || []).map(u => u?.id));
             const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
 
             const freshnessGuarded = allAppUsers.map(serverUser => {
@@ -464,18 +468,23 @@ class LightweightRefreshManager {
         }
       }
 
-      // Offline sync reconciliation every 1 minute
+      // Offline sync reconciliation every 2 minutes
       if (this.shouldRefresh('offlineSync')) {
         try {
           console.log('💾 [LightweightRefresh] Offline sync reconciliation');
           const { offlineDB } = await import('./offlineDatabase');
-          
-          // Verify offline DB consistency
-          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
-          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users`);
+          // PERF: countStore (metadata-only) instead of getAll — the old full
+          // getAll on 3 PHI stores decrypted + parsed EVERY offline record
+          // (tens of thousands) every 2 minutes, starving the main thread and
+          // causing recurring map/card jank (owner report Oct 6 2026).
+          const [offlineDeliveries, offlinePatients, offlineAppUsers] = await Promise.all([
+            offlineDB.countStore(offlineDB.STORES.DELIVERIES),
+            offlineDB.countStore(offlineDB.STORES.PATIENTS),
+            offlineDB.countStore(offlineDB.STORES.APP_USERS)
+          ]);
+
+          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries || 0} deliveries, ${offlinePatients || 0} patients, ${offlineAppUsers || 0} users`);
           
           this.markRefreshed('offlineSync');
         } catch (e) {
@@ -545,7 +554,10 @@ class LightweightRefreshManager {
       if (freshAppUsers && freshAppUsers.length > 0) {
         // FRESHNESS GUARD: preserve cached coords if they are newer than the server snapshot
         const { offlineDB } = await import('./offlineDatabase');
-        const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        // PERF (Oct 9 2026): was getAll(APP_USERS) every location poll;
+        // targeted read of just the server rows (no full-store decrypt,
+        // no write-drain gate).
+        const cachedUsers = await offlineDB.getByIds(offlineDB.STORES.APP_USERS, (freshAppUsers || []).map(u => u?.id));
         const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
         const guardedUsers = freshAppUsers.map(serverUser => {
           const cached = cacheMap.get(serverUser.id);

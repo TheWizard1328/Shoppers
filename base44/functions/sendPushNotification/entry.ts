@@ -150,7 +150,12 @@ Deno.serve(async (req) => {
     console.log('[sendPush] Web Push subscriptions:', subscriptions?.filter(s => !s.endpoint?.startsWith('fcm://')).length || 0);
     if (!subscriptions || subscriptions.length === 0) return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
 
-    const notifData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
+    // STALE-PUSH GATE: every push carries its send time. The web push-sw.js drops
+    // notifications older than 10 minutes — when an offline device (laptop) comes
+    // back online, FCM delivers the whole queued backlog at once; other devices
+    // already showed/cleared those, so the device must not re-flood. The default
+    // tag also makes same-age pushes collapse to the newest one on screen.
+    const notifData = { title, body, url: url || '/', tag: tag || 'rxdeliver', timestamp: Date.now(), requireInteraction: !!requireInteraction };
     if (actions) notifData.actions = actions;
     if (data) notifData.data = data;
 
@@ -194,22 +199,27 @@ Deno.serve(async (req) => {
           return;
         }
         try {
-          // ── Interactive notifications (with action buttons) MUST be sent as
-          // data-only FCM messages. Android's OS auto-displays "notification"-type
-          // FCM messages directly (no JS involved) when the app is backgrounded/
-          // killed — and the OS's default display has NO way to show custom action
-          // buttons. Data-only messages, by contrast, always route through the
-          // app's JS (Capacitor's pushNotificationReceived), even when backgrounded,
-          // letting us build a native LocalNotification with a registered
-          // actionTypeId (real tappable buttons) for parity with desktop Web Push.
-          // Non-interactive notifications keep the reliable notification+data
-          // hybrid (unchanged) to avoid any delivery-reliability regression.
+          // ── Non-interactive FCM messages carry a `notification` payload
+          // (title + body) so the OS itself displays them even with the app
+          // fully killed. INTERACTIVE sends (with action buttons — driver
+          // availability requests) go DATA-ONLY instead: Android never draws
+          // action buttons on OS-displayed FCM notifications, so a
+          // `notification` payload made the Acknowledge/Unavailable options
+          // disappear in every background state (the "push is missing the 2
+          // options" bug, Oct 1 2026). Data-only messages reach the app's JS
+          // layer whenever the process is alive (foreground OR backgrounded),
+          // and the nativePushNotifications listener re-displays them as a
+          // LocalNotification WITH the registered action-type buttons.
+          // Trade-off: with the app fully killed the data-only message draws
+          // nothing; the driver still gets the request via the in-app
+          // DriverAvailabilityPrompt on the next app open and via chat.
           const isInteractive = Array.isArray(actions) && actions.length > 0;
 
           const fcmDataPayload = Object.fromEntries(
             Object.entries({
               url: url || '/',
               ...(data || {}),
+              timestamp: String(Date.now()),
               ...(isInteractive ? { title, body, actions: JSON.stringify(actions), __interactive: 'true' } : {}),
             }).map(([k, v]) => [k, String(v)])
           );
@@ -217,28 +227,41 @@ Deno.serve(async (req) => {
           const fcmMessage: any = {
             token: fcmToken,
             data: fcmDataPayload,
-            android: {
-              priority: 'high',
-              ...(isInteractive ? {} : {
-                notification: {
-                  tag: tag || undefined,
-                  channel_id: 'default',
-                  icon: 'ic_stat_notify',
-                  color: '#22c55e',
-                  // Pass URL via data only — click_action expects an Android
-                  // intent action name, not a URL. Capacitor's tap handler
-                  // reads the URL from notification.data.url instead.
-                },
-              }),
-            },
+            android: { priority: 'high' },
           };
 
+          // Notification payload (title/body) + the android.notification
+          // style stub (tag/channel/icon/color) are ONLY attached together,
+          // for non-interactive sends — it lets the OS display the message
+          // when the app process is dead. For interactive sends everything
+          // notification-shaped is deliberately OMITTED (true data-only):
+          // an OS-drawn notification can never carry the Acknowledge/
+          // Unavailable action buttons (the "push is missing the 2 options"
+          // bug, Oct 1 2026) — AND it draws a card regardless of whether
+          // android.notification carries a title/body.
+          //
+          // BLANK-PUSH BUG (Oct 5 2026, owner report "no text, just
+          // timestamp and the app logo"): android.notification was
+          // previously set UNCONDITIONALLY (icon/color/tag/channel_id, no
+          // title/body) even for interactive sends. FCM/Android treats ANY
+          // android.notification object as "this is a displayable
+          // notification" and auto-draws a system tray card for it — with
+          // nothing in the title/body fields since none were given. That
+          // card showed up independently of (and sometimes instead of) the
+          // JS-built LocalNotification, especially while the WebView was
+          // backgrounded and slow to run the pushNotificationReceived
+          // listener. Interactive sends must carry NO android.notification
+          // key at all so Android never auto-displays anything — the JS
+          // listener (nativePushNotifications.js) is the ONLY place that
+          // creates a visible card, with real title/body, every time.
           if (!isInteractive) {
-            // icon: Android status bar small icon (monochrome). The resource
-            // name must exist in the APK's res/drawable-* folders.
-            // color: tint for the small icon in the expanded shade — matches
-            // the app's brand green (Rx planet mark), not pure white.
             fcmMessage.notification = { title, body };
+            fcmMessage.android.notification = {
+              tag: tag || 'rxdeliver',
+              channel_id: 'default',
+              icon: 'ic_stat_notify',
+              color: '#22c55e',
+            };
           }
 
           const fcmPayload = { message: fcmMessage };

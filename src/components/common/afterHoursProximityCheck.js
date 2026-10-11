@@ -20,19 +20,33 @@ const toRad = (value) => (value * Math.PI) / 180;
 
 // Consolidated into geoUtils — identical math, single source of truth.
 import { haversineMeters } from '@/components/utils/geoUtils';
+import { locationTracker } from '@/components/utils/locationTracker';
 
 /**
  * Returns true when the driver's current GPS coordinates are within geofence
  * range of the store associated with the cancelled pickup.
  *
- * Looks up the driver's live GPS from the `appUsers` array first (always
- * freshest from the heartbeat), then falls back to `currentUser` (the signed-in
- * driver's cached location).
+ * GPS source priority (owner rule Sep 18 2026 — the "driver at the store but
+ * flag not set" bug):
+ *   1. locationTracker fresh hardware fix (getFreshPosition, 6s timeout) — on
+ *      the driver's OWN device this is seconds old at most. The previous logic
+ *      used `appUsers.current_latitude` — a SERVER-synced value that lags the
+ *      real position by up to a heartbeat cycle (~60s). A driver who arrives
+ *      at the store and cancels within that window measured as "outside
+ *      geofence" and the after_hours flag was silently dropped (Sep 18 data:
+ *      Sharuk 12:29 PASS at store A, 12:32 FAIL at store B 3 minutes later —
+ *      his appUsers GPS was still parked at store A).
+ *   2. locationTracker watchPosition cache (instant, no async).
+ *   3. `appUsers` array (server heartbeat — for other devices / tracker off).
+ *   4. `currentUser` (boot-cached AppUser merge — last resort).
+ *
+ * The caller's gate guarantees the cancelling driver is the signed-in user, so
+ * on the driver's device the tracker position IS the driver's own position.
  *
  * Diagnostic logging: every false result is logged with the specific failing
  * condition so After-Hours flag misses can be root-caused from device logs.
  */
-export function isDriverWithinStoreRange({ currentUser, appUsers = [], store, stores = [], delivery }) {
+export async function isDriverWithinStoreRange({ currentUser, appUsers = [], store, stores = [], delivery }) {
   const log = (result, reason, extra = {}) => {
     console.warn('[AfterHoursProximity]', result ? 'PASS' : 'FAIL', reason, {
       deliveryId: delivery?.id,
@@ -47,23 +61,9 @@ export function isDriverWithinStoreRange({ currentUser, appUsers = [], store, st
     return false;
   }
   const targetDriverId = delivery.driver_id || currentUser?.id;
+  const isSelfDevice = !currentUser?.id || currentUser.id === targetDriverId;
 
-  const driverAppUser = (appUsers || []).find(
-    (u) => u && (u.user_id === targetDriverId || u.id === targetDriverId)
-  ) || currentUser;
-
-  const driverLat = Number(driverAppUser?.current_latitude);
-  const driverLon = Number(driverAppUser?.current_longitude);
-  if (!Number.isFinite(driverLat) || !Number.isFinite(driverLon)) {
-    log(false, 'driver GPS missing/not finite', {
-      gpsSource: (appUsers || []).some((u) => u && (u.user_id === targetDriverId || u.id === targetDriverId)) ? 'appUsers' : 'currentUser fallback',
-      rawLat: driverAppUser?.current_latitude,
-      rawLon: driverAppUser?.current_longitude,
-      appUsersCount: (appUsers || []).length,
-    });
-    return false;
-  }
-
+  // ── Store geofence center (needed before evaluating any GPS candidate) ──
   const resolvedStore = store || (stores || []).find((s) => s && s.id === delivery.store_id);
   const storeLat = Number(resolvedStore?.latitude);
   const storeLon = Number(resolvedStore?.longitude);
@@ -76,19 +76,88 @@ export function isDriverWithinStoreRange({ currentUser, appUsers = [], store, st
     });
     return false;
   }
+  const isWithinGeofence = (lat, lon) => haversineMeters(lat, lon, storeLat, storeLon) <= GEOFENCE_RADIUS_M;
 
-  const distanceM = haversineMeters(driverLat, driverLon, storeLat, storeLon);
-  const inRange = distanceM <= GEOFENCE_RADIUS_M;
-  if (!inRange) {
-    log(false, 'driver outside geofence', {
-      distanceM: Math.round(distanceM),
-      geofenceRadiusM: GEOFENCE_RADIUS_M,
-      driverLat, driverLon,
-      storeLat, storeLon,
-      gpsAge: driverAppUser?.location_updated_at || null,
-    });
-  } else {
-    log(true, 'driver within geofence', { distanceM: Math.round(distanceM), gpsAge: driverAppUser?.location_updated_at || null });
+  // ── GPS candidate ladder (fastest + freshest first) ──────────────────────────
+  // 1. locationTracker watchPosition cache — INSTANT, and on the driver's own
+  //    device (guaranteed by the caller's gate) it is seconds old at most.
+  //    Standing at the store → immediate PASS, zero added latency.
+  // 2. locationTracker fresh hardware fix (getFreshPosition, 6s) — used when
+  //    the cache is outside the geofence: the cache may be a pre-arrival fix.
+  // 3. `appUsers` server heartbeat position — for other devices / tracker off.
+  // 4. `currentUser` boot-cached AppUser merge — last resort.
+  const candidates = [];
+  if (isSelfDevice) {
+    const cached = locationTracker.getCachedPosition();
+    if (cached && Number.isFinite(Number(cached.latitude)) && Number.isFinite(Number(cached.longitude)) && isWithinGeofence(Number(cached.latitude), Number(cached.longitude))) {
+      log(true, 'driver within geofence', {
+        distanceM: Math.round(haversineMeters(Number(cached.latitude), Number(cached.longitude), storeLat, storeLon)),
+        gpsSource: 'locationTracker watchPosition cache',
+      });
+      return true;
+    }
+    try {
+      const fresh = await locationTracker.getFreshPosition({ timeout: 6000 });
+      if (fresh && Number.isFinite(Number(fresh.latitude)) && Number.isFinite(Number(fresh.longitude))) {
+        candidates.push({ lat: Number(fresh.latitude), lon: Number(fresh.longitude), source: 'locationTracker fresh fix' });
+      }
+    } catch (_) { /* fall through to server-synced sources */ }
   }
-  return inRange;
+  const driverAppUser = (appUsers || []).find(
+    (u) => u && (u.user_id === targetDriverId || u.id === targetDriverId)
+  ) || currentUser;
+  const candidateLat = Number(driverAppUser?.current_latitude);
+  const candidateLon = Number(driverAppUser?.current_longitude);
+  if (Number.isFinite(candidateLat) && Number.isFinite(candidateLon)) {
+    candidates.push({
+      lat: candidateLat,
+      lon: candidateLon,
+      source: (appUsers || []).some((u) => u && (u.user_id === targetDriverId || u.id === targetDriverId)) ? 'appUsers heartbeat' : 'currentUser fallback',
+    });
+  }
+
+  // ── Evaluate candidates freshest-first: first hit wins ──
+  if (candidates.length === 0) {
+    log(false, 'driver GPS missing/not finite', {
+      isSelfDevice,
+      appUsersCount: (appUsers || []).length,
+    });
+    return false;
+  }
+  let driverLat = null;
+  let driverLon = null;
+  let gpsSource = null;
+  let distanceM = null;
+  for (const candidate of candidates) {
+    const d = haversineMeters(candidate.lat, candidate.lon, storeLat, storeLon);
+    if (d <= GEOFENCE_RADIUS_M) {
+      driverLat = candidate.lat;
+      driverLon = candidate.lon;
+      gpsSource = candidate.source;
+      distanceM = d;
+      break;
+    }
+    // Keep the freshest miss for diagnostics if nothing passes
+    if (driverLat === null) {
+      driverLat = candidate.lat;
+      driverLon = candidate.lon;
+      gpsSource = candidate.source;
+      distanceM = d;
+    }
+  }
+  if (distanceM !== null && distanceM <= GEOFENCE_RADIUS_M) {
+    log(true, 'driver within geofence', { distanceM: Math.round(distanceM), gpsSource });
+    return true;
+  }
+
+  // Every candidate missed the geofence — log the freshest miss for diagnostics
+  log(false, 'driver outside geofence', {
+    distanceM: Number.isFinite(distanceM) ? Math.round(distanceM) : null,
+    geofenceRadiusM: GEOFENCE_RADIUS_M,
+    driverLat, driverLon,
+    storeLat, storeLon,
+    gpsSource,
+    candidatesChecked: candidates.length,
+  });
+  return false;
 }

@@ -319,9 +319,15 @@ const DeliveryRow = memo(({
         {/* Notes column */}
         <div className="flex min-w-0 items-center py-1 text-xs text-slate-700 dark:text-slate-300 overflow-hidden">
           <div className="min-w-0 w-full space-y-1 overflow-hidden leading-4">
-            {isCarePros && (delivery.cp_envelopes || patient?.cp_envelopes) > 0 &&
-          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400">E:</span> Envelopes: {delivery.cp_envelopes || patient?.cp_envelopes}</div>
-          }
+            {(() => {
+              // Per-delivery envelope count is authoritative once the delivery record has
+              // one — an intentional 0 on the delivery must NOT fall back to the patient's
+              // default (owner rule Sep 23 2026). Patient default only fills in for legacy
+              // deliveries that predate per-delivery storage (field truly undefined/null).
+              const displayEnvelopes = delivery.cp_envelopes !== undefined && delivery.cp_envelopes !== null ? delivery.cp_envelopes : (patient?.cp_envelopes || 0);
+              return isCarePros && displayEnvelopes > 0 &&
+              <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400">E:</span> Envelopes: {displayEnvelopes}</div>;
+            })()}
             {patient?.notes &&
           <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400">P:</span> {patient.notes}</div>
           }

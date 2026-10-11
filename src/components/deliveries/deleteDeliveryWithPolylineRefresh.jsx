@@ -29,13 +29,21 @@ export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries
 
     if (remainingActiveStops.length > 0) {
       try {
-        // Deleting an active stop changes the route — run full optimization then regenerate polylines
+        // Deleting an active stop changes the route — run full optimization then regenerate polylines.
+        // Oct 9 2026: if the deleted stop WAS isNextDelivery, the engine would
+        // stamp isNextDelivery=false on every remaining stop mid-route (explicit
+        // flag gone + route in progress → nextStopId null) and never re-elect a
+        // next delivery. clearNextDeliveryLock makes the engine re-elect the
+        // first active stop of the re-optimized route as next.
+        const _INACTIVE = ['pending', 'Staged', 'completed', 'failed', 'cancelled'];
+        const _wasNext = !_INACTIVE.includes(String(deletedDelivery?.status || '')) && !!deletedDelivery?.isNextDelivery;
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
         await performRouteOptimization({
           driverId: deletedDelivery.driver_id,
           deliveryDate: deletedDelivery.delivery_date,
           bypassDriverStatus: true,
           source: 'delete_delivery',
+          clearNextDeliveryLock: _wasNext,
         });
       } catch (error) {
         console.warn("[deleteDeliveryWithPolylineRefresh] Route optimization failed:", error?.message || error);

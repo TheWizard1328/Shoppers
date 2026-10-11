@@ -23,6 +23,8 @@ export default function StoresPage() {
     cities: contextCities = [],
     users: contextUsers = [],
     appUsers: contextAppUsers = [],
+    deliveries: contextDeliveries = [],
+    selectedDate: contextSelectedDate = null,
     isDataLoaded: contextDataLoaded
   } = useAppData();
   // CRITICAL: Track max store count to detect wipe origins via console
@@ -53,6 +55,77 @@ export default function StoresPage() {
     });
   });
   const [allUsers, setAllUsers] = useState(() => contextUsers.length ? contextUsers : []);
+
+  // Drivers should only ever see active stores on this page — inactive
+  // stores aren't stops they get assigned to, so showing them was just
+  // clutter/confusion. Admins and dispatchers still see every store
+  // (active + inactive) since they manage store status here.
+  const isPureDriverViewer = !!(currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher'));
+  const visibleStores = React.useMemo(() => {
+    if (!isPureDriverViewer) return stores;
+    return stores.filter((store) => store.status !== 'inactive');
+  }, [stores, isPureDriverViewer]);
+
+  // ----- Dispatcher limited view for ALL stores -----
+  // Dispatchers see every store card in the limited format: basic header
+  // info, who is on duty for the selected date, the projected pickup window
+  // (or actual pickup time once picked up), and a call button only (no
+  // navigate). Applies to their own stores too (owner directive Sep 27).
+  const isDispatcherViewer = !!(currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin'));
+
+  const dispatcherSummaries = React.useMemo(() => {
+    if (!isDispatcherViewer) return {};
+    const dateStr = contextSelectedDate || (typeof window !== 'undefined' && window.__appSelectedDate) || (localStorage.getItem('global_selected_date') || new Date().toISOString().split('T')[0]);
+    // Day-of-week determines which slot row applies (weekday/saturday/sunday)
+    const dayIdx = new Date(`${dateStr}T12:00:00`).getDay();
+    const dayKey = dayIdx === 0 ? 'sunday' : dayIdx === 6 ? 'saturday' : 'weekday';
+
+    // AppUser lookup by either id form, for duty status + name resolution
+    const auById = new Map();
+    (contextAppUsers || []).forEach((au) => {
+      if (!au) return;
+      if (au.id) auById.set(au.id, au);
+      if (au.user_id) auById.set(au.user_id, au);
+    });
+
+    const dateDeliveries = (contextDeliveries || []).filter((d) => d && d.delivery_date === dateStr);
+
+    const out = {};
+    stores.forEach((store) => {
+      const slots = [];
+      [['am', 'AM'], ['pm', 'PM']].forEach(([half, label]) => {
+        const enabled = store[`${dayKey}_${half}_enabled`] !== false;
+        const driverId = store[`${dayKey}_${half}_driver_id`] || store[`driver_${dayKey}_${half}`] || null;
+        const fallbackName = store[`${dayKey}_${half}_driver`] || store[`driver_${dayKey}_${half}`] || '';
+        if (!enabled && !driverId) return;
+        const au = driverId ? auById.get(driverId) : null;
+        const driverName = (au && (au.user_name || au.full_name)) || fallbackName || null;
+        const onDuty = au ? (au.driver_status === 'on_duty' || au.driver_status === 'online') : null;
+
+        // If the pickup for this slot is already completed, show the time it
+        // was picked up instead of the projected window.
+        const pickup = dateDeliveries.find((d) =>
+          d.store_id === store.id && !d.patient_id && d.driver_id &&
+          (d.am_pm === label || d.am_pm === label.toLowerCase()) &&
+          (d.status === 'completed' || d.status === 'cancelled')
+        );
+        const windowStr = (store[`${dayKey}_${half}_start`] && store[`${dayKey}_${half}_end`])
+          ? `${store[`${dayKey}_${half}_start`]} - ${store[`${dayKey}_${half}_end`]}`
+          : null;
+
+        slots.push({
+          half: label,
+          driverName,
+          onDuty,
+          windowStr,
+          pickedUpAt: pickup?.actual_delivery_time ? pickup.actual_delivery_time.slice(11, 16) : null,
+          pickedUpBy: pickup?.driver_name || null
+        });
+      });
+      out[store.id] = { dateStr, slots };
+    });
+    return out;
+  }, [isDispatcherViewer, stores, contextAppUsers, contextDeliveries, contextSelectedDate]);
   const [showForm, setShowForm] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -336,12 +409,13 @@ export default function StoresPage() {
         <StoreOnlineStatusBanner stores={stores} appUsers={contextAppUsers} />
       </div>
 
+
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-8xl mx-auto">
-          {stores.length > 0 ?
+          {visibleStores.length > 0 ?
           <div className="grid gap-5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, 400px)' }}>
-              {stores.map((store) =>
+              {visibleStores.map((store) =>
             <StoreCard
               key={store.id}
               store={store}
@@ -351,7 +425,9 @@ export default function StoresPage() {
               currentUser={currentUser}
               drivers={drivers}
               isLimitedView={currentUser && !userHasRole(currentUser, 'admin')}
-              hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')} />
+              hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')}
+              isDispatcherOtherStore={isDispatcherViewer}
+              dispatcherSummary={dispatcherSummaries[store.id]} />
 
             )}
             </div> :

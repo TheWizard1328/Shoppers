@@ -41,13 +41,29 @@ export default function PatientViewOverlay() {
   return (
     <div
       className="fixed inset-0 z-[99999] bg-slate-100 dark:bg-slate-800 overflow-hidden"
-      style={{ isolation: 'isolate' }}
+      style={{
+        isolation: 'isolate',
+        // Safe-area insets (APK edge-to-edge): the overlay spans the full viewport,
+        // including under the status bar and navigation bar. Pad the wrapper itself
+        // so the embedded portal (which skips its own insets in embedded mode) starts
+        // below the status bar and ends above the nav bar. Same variables MainActivity
+        // injects on :root; env() fallback covers browsers/PWA where they're absent.
+        paddingTop: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'var(--native-safe-left, env(safe-area-inset-left, 0px))',
+        paddingRight: 'var(--native-safe-right, env(safe-area-inset-right, 0px))'
+      }}
     >
-      {/* Exit button — forced light styling so it's always visible regardless of dark mode */}
+      {/* Exit button — forced light styling so it's always visible regardless of dark mode.
+          Offset below the status bar via the same native-safe variables. */}
       <button
         onClick={handleExit}
-        className="absolute top-3 right-3 z-[100000] flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg shadow-lg transition-colors"
-        style={{ background: '#1e40af', color: '#ffffff' }}
+        className="absolute right-3 z-[100000] flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg shadow-lg transition-colors"
+        style={{
+          background: '#1e40af',
+          color: '#ffffff',
+          top: 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))'
+        }}
         onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
         onMouseLeave={e => e.currentTarget.style.background = '#1e40af'}
         title="Exit Patient View"
@@ -56,7 +72,12 @@ export default function PatientViewOverlay() {
         Exit Patient View
       </button>
 
-      <PatientPortal />
+      {/* Full-height container: the wrapper is padded by the safe-area insets, so the
+          portal must fill the REMAINING box (h-full), not the raw viewport (h-screen).
+          PatientPortal skips its own inset paddings in embedded mode to avoid doubling. */}
+      <div className="h-full">
+        <PatientPortal embedded />
+      </div>
     </div>
   );
 }

@@ -1,368 +1,166 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { WifiOff, RefreshCw, CheckCircle, AlertTriangle, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Satellite, WifiOff, WifiLow } from 'lucide-react';
+import { connectionMonitor } from '../utils/connectionMonitor';
+import { remoteLogger } from '../utils/remoteLogger';
+
+const GPS_ACQUISITION_TIMEOUT_MS = 15000;
+
+const connectionState = (health) => {
+  if (!health?.isOnline || health?.quality === 'offline') return 'offline';
+  if (health?.quality !== 'good') return 'weak';
+  return 'good';
+};
+
+const eventForConnectionState = (state) =>
+  state === 'offline' ? 'NETWORK_OFFLINE' : state === 'weak' ? 'NETWORK_WEAK' : 'NETWORK_RECOVERED';
+
+const eventForGpsState = (state) =>
+  state === 'lost' ? 'GPS_LOST' : state === 'weak' ? 'GPS_WEAK' : 'GPS_RECOVERED';
 
 /**
- * Banner that appears when connection issues are detected
- * Shows recovery status and allows manual retry
+ * Compact device-health badge. It reports connection and GPS state transitions
+ * to the durable RemoteLogEntry buffer, which flushes when connectivity returns.
  */
-export default function ConnectionRecoveryBanner() {
-  const [isVisible, setIsVisible] = useState(false);
-  const [status, setStatus] = useState('error'); // 'error', 'recovering', 'restored'
-  const [errorCount, setErrorCount] = useState(0);
-  const [recoveryAttempt, setRecoveryAttempt] = useState(0);
-  const [maxAttempts, setMaxAttempts] = useState(5);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [dismissed, setDismissed] = useState(false);
-  
-  // CRITICAL: Track when we entered recovering state to auto-timeout
-  const recoveringStartTime = useRef(null);
-  const recoveryTimeoutRef = useRef(null);
+export default function ConnectionRecoveryBanner({ currentUser = null }) {
+  const [health, setHealth] = useState(() => connectionMonitor.getQuality());
+  const [gpsHealth, setGpsHealth] = useState({ status: 'disabled', accuracy: null, error: null });
+  const connectionRef = useRef({ state: null, since: Date.now() });
+  const gpsRef = useRef({ state: 'disabled', since: Date.now() });
+  const acquisitionTimerRef = useRef(null);
+
+  const isDriver = Array.isArray(currentUser?.app_roles) && currentUser.app_roles.includes('driver');
+
+  useEffect(() => connectionMonitor.subscribe((nextHealth) => {
+    setHealth(nextHealth);
+    const nextState = connectionState(nextHealth);
+    const now = Date.now();
+    const previous = connectionRef.current;
+    if (previous.state === nextState) return;
+
+    const durationMs = previous.state ? now - previous.since : 0;
+    if (nextState !== 'good' || (previous.state && previous.state !== 'good')) {
+      remoteLogger.event(
+        eventForConnectionState(nextState),
+        nextState === 'offline' ? 'Device has no network connection'
+          : nextState === 'weak' ? 'Device network connection is weak'
+            : 'Device network connection recovered',
+        {
+          category: 'connectivity',
+          state: nextState,
+          previous_state: previous.state,
+          previous_state_duration_ms: durationMs,
+          quality: nextHealth.quality,
+          effective_type: nextHealth.effectiveType,
+          downlink_mbps: nextHealth.downlink,
+          rtt_ms: nextHealth.rtt,
+          api_response_ms: nextHealth.avgResponseTime,
+          last_error_type: nextHealth.lastErrorType,
+        },
+        nextState === 'good' ? 'info' : 'warn'
+      );
+    }
+    connectionRef.current = { state: nextState, since: now };
+  }), []);
 
   useEffect(() => {
-    // Listen for connection errors
-    const handleConnectionError = (event) => {
-      const { errorCount: count, willRetryIn } = event.detail || {};
-      setErrorCount(count || 0);
-      setStatus('error');
-      setIsVisible(true);
-      setDismissed(false);
+    const clearAcquisitionTimer = () => {
+      if (acquisitionTimerRef.current) clearTimeout(acquisitionTimerRef.current);
+      acquisitionTimerRef.current = null;
     };
 
-    // Listen for recovery attempts
-    const handleRecoveryAttempt = (event) => {
-      const { attempt, maxAttempts: max } = event.detail || {};
-      setRecoveryAttempt(attempt || 0);
-      setMaxAttempts(max || 5);
-      setStatus('recovering');
-      setIsVisible(true);
-      
-      // CRITICAL: Track when recovery started
-      if (!recoveringStartTime.current) {
-        recoveringStartTime.current = Date.now();
-      }
-    };
+    const applyGpsState = (next, detail = {}) => {
+      const now = Date.now();
+      const previous = gpsRef.current;
+      setGpsHealth({ status: next, accuracy: detail.accuracy ?? null, error: detail.error || null });
+      if (previous.state === next) return;
 
-    // Listen for connection restored
-    const handleConnectionRestored = async () => {
-      setStatus('restored');
-      recoveringStartTime.current = null;
-      
-      // CRITICAL: Trigger full data reload with validation to ensure complete data
-      console.log('🔄 [ConnectionRecoveryBanner] Starting validated data recovery...');
-      
-      try {
-        // STEP 1: Import all required utilities
-        const { getData, invalidate } = await import('../utils/dataManager');
-        const { clearUserCache } = await import('../utils/auth');
-        const { base44 } = await import('@/api/base44Client');
-        
-        // STEP 2: Validate we can actually reach the backend
-        try {
-          await base44.entities.City.list();
-          console.log('✅ [Recovery] Backend connection verified');
-        } catch (healthError) {
-          console.error('❌ [Recovery] Backend still unreachable:', healthError);
-          throw new Error('Backend connection not ready');
-        }
-        
-        // STEP 3: Clear ALL backend caches to force fresh fetch
-        console.log('🧹 [Recovery] Clearing all backend caches...');
-        clearUserCache();
-        invalidate('Delivery');
-        invalidate('Patient');
-        invalidate('AppUser');
-        invalidate('Store');
-        invalidate('User');
-        invalidate('City');
-        
-        // STEP 4: CRITICAL - Completely purge offline database to remove stale data
-        console.log('🗑️ [Recovery] COMPLETELY PURGING offline database...');
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        
-        // Delete ALL stores from offline DB
-        const stores = [
-          offlineDB.STORES.DELIVERIES,
-          offlineDB.STORES.PATIENTS,
-          offlineDB.STORES.APP_USERS,
-          offlineDB.STORES.STORES,
-          offlineDB.STORES.USERS,
-          offlineDB.STORES.CITIES
-        ];
-        
-        for (const store of stores) {
-          try {
-            await offlineDB.clearStore(store);
-            console.log(`✅ [Recovery] Cleared offline store: ${store}`);
-          } catch (clearError) {
-            console.warn(`⚠️ [Recovery] Failed to clear ${store}:`, clearError.message);
-          }
-        }
-        
-        // STEP 5: CRITICAL - Refresh ALL critical data from backend
-        console.log('📥 [Recovery] Fetching fresh data from backend...');
-        try {
-          const [freshAppUsers, freshDeliveries, freshPatients, freshStores, freshCities] = await Promise.all([
-            base44.entities.AppUser.list(),
-            base44.entities.Delivery.list(),
-            base44.entities.Patient.list(),
-            base44.entities.Store.list(),
-            base44.entities.City.list()
-          ]);
-          
-          console.log(`✅ [Recovery] Fetched fresh data: ${freshAppUsers.length} users, ${freshDeliveries.length} deliveries, ${freshPatients.length} patients, ${freshStores.length} stores, ${freshCities.length} cities`);
-          
-          // STEP 6: Resync all fresh data to offline DB
-          console.log('💾 [Recovery] Resyncing all fresh data to offline DB...');
-          await Promise.all([
-            offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers),
-            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries),
-            offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients),
-            offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores),
-            offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities)
-          ]);
-          
-          console.log('✅ [Recovery] All data resynced to offline DB - duplicate driver IDs purged');
-        } catch (fetchError) {
-          console.error('❌ [Recovery] Failed to fetch fresh data:', fetchError.message);
-          throw fetchError;
-        }
-        
-        // STEP 7: Wait a moment for resync to settle
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // STEP 8: Trigger full UI refresh with newly synced data
-        console.log('🔄 [Recovery] Triggering full UI refresh...');
-        window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-        
-        // STEP 9: Force refresh stats immediately
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
-        // Auto-hide after 3 seconds when restored
-        setTimeout(() => {
-          setIsVisible(false);
-        }, 3000);
-      } catch (error) {
-        console.error('❌ [Recovery] Data recovery failed:', error);
-        // Stay visible with error state
-        setStatus('error');
-      }
-    };
-
-    // Listen for browser online/offline events
-    const handleOnline = () => {
-      setIsOnline(true);
-      // Trigger full data refresh when browser comes back online
-      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      setStatus('error');
-      setIsVisible(true);
-      setDismissed(false);
-    };
-
-    window.addEventListener('connectionError', handleConnectionError);
-    window.addEventListener('recoveryAttempt', handleRecoveryAttempt);
-    window.addEventListener('connectionRestored', handleConnectionRestored);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Check initial online status
-    if (!navigator.onLine) {
-      setIsOnline(false);
-      setStatus('error');
-      setIsVisible(true);
-    }
-
-    return () => {
-      window.removeEventListener('connectionError', handleConnectionError);
-      window.removeEventListener('recoveryAttempt', handleRecoveryAttempt);
-      window.removeEventListener('connectionRestored', handleConnectionRestored);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-  
-  // CRITICAL: Auto-recovery check - if we're in "recovering" state but browser is online,
-  // verify connection and auto-hide if actually connected
-  useEffect(() => {
-    if (!isVisible || status !== 'recovering') {
-      // Clear any pending timeout
-      if (recoveryTimeoutRef.current) {
-        clearTimeout(recoveryTimeoutRef.current);
-        recoveryTimeoutRef.current = null;
-      }
-      return;
-    }
-    
-    // CRITICAL: Auto-verify connection after 15 seconds in recovering state
-    // If we're actually online, hide the banner
-    recoveryTimeoutRef.current = setTimeout(async () => {
-      if (!navigator.onLine) {
-        // Still offline, keep showing banner
+      const durationMs = now - previous.since;
+      if (next === 'disabled') {
+        gpsRef.current = { state: next, since: now };
         return;
       }
-      
-      // Try a simple fetch to verify actual connectivity
-      try {
-        const response = await fetch('/api/health', { method: 'HEAD', cache: 'no-store' });
-        // If we get here, connection is working
-        console.log('✅ [ConnectionRecoveryBanner] Connection verified - auto-hiding banner');
-        setStatus('restored');
-        recoveringStartTime.current = null;
-        window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-        setTimeout(() => setIsVisible(false), 2000);
-      } catch (e) {
-        // Still having issues, but check if smartRefreshManager thinks we're OK
-        if (!smartRefreshManager._isInRecoveryMode && smartRefreshManager.consecutiveErrors === 0) {
-          console.log('✅ [ConnectionRecoveryBanner] SmartRefresh reports OK - auto-hiding banner');
-          setStatus('restored');
-          recoveringStartTime.current = null;
-          setTimeout(() => setIsVisible(false), 2000);
-        } else {
-          // Extend timeout and retry
-          console.log('⏳ [ConnectionRecoveryBanner] Still recovering, will check again...');
-        }
+      if (next !== 'good' || ['weak', 'lost'].includes(previous.state)) {
+        remoteLogger.event(
+          eventForGpsState(next),
+          next === 'lost' ? 'Device has no GPS lock'
+            : next === 'weak' ? 'Device GPS lock is weak'
+              : 'Device GPS lock recovered',
+          {
+            category: 'gps',
+            state: next,
+            previous_state: previous.state,
+            previous_state_duration_ms: durationMs,
+            accuracy_m: detail.accuracy ?? null,
+            error: detail.error || null,
+            error_code: detail.code ?? null,
+            source: detail.source || null,
+          },
+          next === 'good' ? 'info' : 'warn'
+        );
       }
-    }, 15000);
-    
-    return () => {
-      if (recoveryTimeoutRef.current) {
-        clearTimeout(recoveryTimeoutRef.current);
-        recoveryTimeoutRef.current = null;
-      }
+      gpsRef.current = { state: next, since: now };
     };
-  }, [isVisible, status]);
-  
-  // CRITICAL: If browser comes back online while in recovering state, fast-track recovery
-  useEffect(() => {
-    if (isOnline && isVisible && status === 'recovering') {
-      // Give smartRefreshManager a moment to detect the connection
-      const fastRecoveryTimeout = setTimeout(async () => {
-        // Check if smartRefreshManager has successfully recovered
-        if (!smartRefreshManager._isInRecoveryMode && smartRefreshManager.consecutiveErrors === 0) {
-          console.log('✅ [ConnectionRecoveryBanner] Fast recovery - connection restored');
-          setStatus('restored');
-          recoveringStartTime.current = null;
-          window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-          setTimeout(() => setIsVisible(false), 2000);
-        }
-      }, 5000);
-      
-      return () => clearTimeout(fastRecoveryTimeout);
-    }
-  }, [isOnline, isVisible, status]);
 
-  const handleRetry = () => {
-    setStatus('recovering');
-    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-  };
+    const onGpsHealth = (event) => {
+      const detail = event?.detail || {};
+      if (detail.status === 'searching') {
+        clearAcquisitionTimer();
+        gpsRef.current = { state: 'searching', since: Date.now() };
+        setGpsHealth({ status: 'searching', accuracy: null, error: null });
+        acquisitionTimerRef.current = setTimeout(() => {
+          if (typeof document !== 'undefined' && document.hidden) return;
+          applyGpsState('lost', { ...detail, error: 'GPS acquisition timed out' });
+        }, GPS_ACQUISITION_TIMEOUT_MS);
+        return;
+      }
+      clearAcquisitionTimer();
+      applyGpsState(detail.status || 'lost', detail);
+    };
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    setIsVisible(false);
-  };
+    window.addEventListener('gpsHealthChanged', onGpsHealth);
+    return () => {
+      clearAcquisitionTimer();
+      window.removeEventListener('gpsHealthChanged', onGpsHealth);
+    };
+  }, []);
 
-  // Don't show if dismissed or not visible
-  if (!isVisible || dismissed) return null;
+  const networkState = connectionState(health);
+  const gpsState = isDriver ? gpsHealth.status : 'disabled';
+  const networkIssue = networkState !== 'good';
+  const gpsIssue = gpsState === 'weak' || gpsState === 'lost';
 
-  const getStatusConfig = () => {
-    if (!isOnline) {
-      return {
-        icon: WifiOff,
-        bgColor: 'bg-red-500',
-        textColor: 'text-white',
-        message: 'You are offline. Data will sync when connection is restored.',
-        showRetry: false
-      };
-    }
+  const details = useMemo(() => [
+    health.effectiveType ? `Network: ${health.effectiveType}` : null,
+    health.rtt != null ? `RTT: ${health.rtt}ms` : null,
+    health.avgResponseTime != null ? `API: ${health.avgResponseTime}ms` : null,
+    gpsHealth.accuracy != null ? `GPS accuracy: ${Math.round(gpsHealth.accuracy)}m` : null,
+    gpsHealth.error || null,
+  ].filter(Boolean).join(' · '), [health, gpsHealth]);
 
-    switch (status) {
-      case 'error':
-        return {
-          icon: AlertTriangle,
-          bgColor: 'bg-amber-500',
-          textColor: 'text-white',
-          message: `Connection issues detected (${errorCount} errors). Attempting to reconnect...`,
-          showRetry: true
-        };
-      case 'recovering':
-        return {
-          icon: RefreshCw,
-          bgColor: 'bg-blue-500',
-          textColor: 'text-white',
-          message: `Reconnecting... (attempt ${recoveryAttempt}/${maxAttempts})`,
-          showRetry: false,
-          iconSpin: true
-        };
-      case 'restored':
-        return {
-          icon: CheckCircle,
-          bgColor: 'bg-green-500',
-          textColor: 'text-white',
-          message: 'Connection restored! Data is being refreshed.',
-          showRetry: false
-        };
-      default:
-        return {
-          icon: AlertTriangle,
-          bgColor: 'bg-amber-500',
-          textColor: 'text-white',
-          message: 'Connection issues detected.',
-          showRetry: true
-        };
-    }
-  };
+  if (!networkIssue && !gpsIssue) return null;
 
-  const config = getStatusConfig();
-  const Icon = config.icon;
+  const networkLabel = networkState === 'offline' ? 'Off Line' : networkState === 'weak' ? 'Weak Connection' : null;
+  const gpsLabel = gpsState === 'lost' ? 'No GPS Lock' : gpsState === 'weak' ? 'Weak GPS Lock' : null;
+  const label = [networkLabel, gpsLabel].filter(Boolean).join(' · ');
+  const isCritical = networkState === 'offline' || gpsState === 'lost';
+  const Icon = networkIssue ? (networkState === 'offline' ? WifiOff : WifiLow) : Satellite;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -50 }}
-        transition={{ duration: 0.3 }}
-        className={`fixed top-0 left-0 right-0 z-[10002] ${config.bgColor} ${config.textColor} px-4 shadow-lg`}
-        style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)`, paddingBottom: `0.5rem` }}
-      >
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Icon 
-              className={`w-5 h-5 flex-shrink-0 ${config.iconSpin ? 'animate-spin' : ''}`} 
-            />
-            <span className="text-sm font-medium">{config.message}</span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {config.showRetry && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleRetry}
-                className="h-7 px-3 bg-white/20 border-white/30 text-white hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/30"
-              >
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                Retry Now
-              </Button>
-            )}
-            
-            {status !== 'recovering' && (
-              <button
- aria-label="Dismiss banner"                onClick={handleDismiss}
-                className="p-1 hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 rounded transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+    <div
+      className="fixed left-1/2 z-[10002] -translate-x-1/2 pointer-events-none"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.35rem)' }}
+      role="status"
+      aria-live="polite"
+      title={details || label}
+    >
+      <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-md backdrop-blur-sm ${
+        isCritical
+          ? 'border-red-300 bg-red-600/95 text-white'
+          : 'border-amber-300 bg-amber-500/95 text-slate-950'
+      }`}>
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="whitespace-nowrap">{label}</span>
+      </div>
+    </div>
   );
 }

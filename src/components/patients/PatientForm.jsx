@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Save, UserPlus, Plus } from "lucide-react";
+import { X, Save, UserPlus, Plus, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { generatePatientId, validateId, formatId } from '@/components/utils/idGenerator';
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -140,6 +140,8 @@ export default function PatientForm({
   const [showWeeklyDays, setShowWeeklyDays] = useState(false);
   const [isAddressLookupActive, setIsAddressLookupActive] = useState(false);
   const isInitialLoad = useRef(true);
+  // Seeds the store id the distance-recompute effect last saw (see that effect).
+  const lastStoreIdForDistanceRef = useRef(undefined);
   const allPatientsRef = useRef(allPatients);
 
   const cityCenter = useMemo(() => {
@@ -181,6 +183,44 @@ export default function PatientForm({
 
     return null;
   }, [currentUser, cities, stores, formData.store_id]);
+
+  // Store re-assignment (Sep 23 2026): changing the assigned store must refresh
+  // distance_from_store — the old value was measured from the previous store and
+  // used to survive saves silently (the haversine fallback at submit only fires
+  // when the field is EMPTY, and it was populated with the stale distance).
+  // Ref-seeded (not isInitialLoad) so it also works on brand-new patient forms,
+  // where isInitialLoad never flips false: the first effect run seeds the ref with
+  // the form's opening store and only SUBSEQUENT changes recompute.
+  useEffect(() => {
+    if (lastStoreIdForDistanceRef.current === undefined) {
+      lastStoreIdForDistanceRef.current = formData.store_id || null;
+      return;
+    }
+    const storeId = formData.store_id || null;
+    if (lastStoreIdForDistanceRef.current === storeId) return;
+    lastStoreIdForDistanceRef.current = storeId;
+    if (!storeId || !formData.latitude || !formData.longitude) return;
+    const assignedStore = (stores || []).find((st) => st && st.id === storeId);
+    if (!assignedStore?.latitude || !assignedStore?.longitude) return;
+    const origin = { latitude: assignedStore.latitude, longitude: assignedStore.longitude };
+    const dest = { latitude: formData.latitude, longitude: formData.longitude };
+    // Clear the stale value first so a save mid-fetch can't persist it.
+    setFormData((prev) => ({ ...prev, distance_from_store: null }));
+    base44.functions.invoke('getGoogleDrivingDistance', {
+      originLat: origin.latitude, originLng: origin.longitude,
+      destLat: dest.latitude, destLng: dest.longitude
+    }).then((res) => {
+      const drivingKm = res?.data?.distance_km ?? res?.distance_km;
+      if (Number.isFinite(drivingKm)) {
+        setFormData((prev) => ({ ...prev, distance_from_store: drivingKm }));
+      } else {
+        setFormData((prev) => ({ ...prev, distance_from_store: calculateDistanceKm(origin, dest) }));
+      }
+    }).catch(() => {
+      // Haversine fallback — same last-resort the submit path already uses.
+      setFormData((prev) => ({ ...prev, distance_from_store: calculateDistanceKm(origin, dest) }));
+    });
+  }, [formData.store_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep ref in sync with latest allPatients without triggering re-renders
   useEffect(() => {allPatientsRef.current = allPatients;}, [allPatients]);
@@ -408,8 +448,14 @@ export default function PatientForm({
     }
   }, [frequency]);
 
+  const [isSavingPatient, setIsSavingPatient] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Re-entry guard: once the save starts, the button shows a spinner and is
+    // disabled — but the form's Enter-key handler can still call submit, so
+    // double-guard here too.
+    if (isSavingPatient) return;
 
     let dataToSave = { ...formData };
     dataToSave.latitude = dataToSave.latitude !== null && dataToSave.latitude !== undefined && dataToSave.latitude !== '' ? Number(dataToSave.latitude) : null;
@@ -511,6 +557,7 @@ export default function PatientForm({
     console.log('💾 [PatientForm] Saving patient...');
 
     try {
+      setIsSavingPatient(true);
       let savedPatientId;
       let backendPatient;
 
@@ -700,6 +747,11 @@ export default function PatientForm({
     } catch (error) {
       console.error('❌ [PatientForm] Save error:', error);
       alert(`Failed to save patient: ${error.message}`);
+    } finally {
+      // Only clear when the form is still open (returnPatientOnSave closes the
+      // form on success — this finally is harmless there since the component
+      // unmounts, but on error the user must be able to retry).
+      setIsSavingPatient(false);
     }
   };
 
@@ -769,10 +821,15 @@ export default function PatientForm({
     }
   }, [duplicateMode, shouldAutoFocusFields]);
 
-  // Auto-focus address field after store is selected (non-mobile only)
+  // Auto-focus address field after store is selected. Radix Select returns
+  // focus to its trigger when the dropdown closes — that lands AFTER a single
+  // short-timeout focus, stomping it. Focus in TWO passes (short + long) so
+  // the address field reliably ends up focused both when the store was already
+  // assigned on open AND when the user just picked one from the forced-open
+  // dropdown.
   useEffect(() => {
     if (shouldAutoFocusFields && formData.store_id) {
-      setTimeout(() => {
+      const focusAddress = () => {
         if (addressInputRef.current) {
           const inputElement = addressInputRef.current instanceof HTMLInputElement ?
           addressInputRef.current :
@@ -783,7 +840,10 @@ export default function PatientForm({
             inputElement.select?.();
           }
         }
-      }, 100);
+      };
+      const t1 = setTimeout(focusAddress, 100);
+      const t2 = setTimeout(focusAddress, 350);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
   }, [formData.store_id, shouldAutoFocusFields]);
 
@@ -1475,8 +1535,8 @@ export default function PatientForm({
               <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
                 Cancel
               </Button>
-              <Button type="button" onClick={handleSubmit} disabled={!isFormValid || disableOtherFieldsDuringAddressLookup} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
-                <Save className="w-3 h-3" />
+              <Button type="button" onClick={handleSubmit} disabled={!isFormValid || isSavingPatient || disableOtherFieldsDuringAddressLookup} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
+                {isSavingPatient ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                 {returnPatientOnSave ? 'Save & Return' : patient ? 'Update Patient' : 'Create Patient'}
               </Button>
             </div>

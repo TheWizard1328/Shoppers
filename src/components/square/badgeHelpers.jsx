@@ -57,6 +57,9 @@ export const getPaymentMethodBadge = (method) => {
   } else if (normalizedMethod.startsWith('check') || normalizedMethod.startsWith('cheque')) {
     displayMethod = 'Cheque';
     className = 'bg-amber-100 text-amber-800';
+  } else if (normalizedMethod.startsWith('archived')) {
+    displayMethod = 'Archived';
+    className = 'bg-blue-100 text-blue-800';
   }
   
   return <Badge className={className}>{displayMethod}</Badge>;

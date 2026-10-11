@@ -47,7 +47,10 @@ const ru = async (b) => { const ok = await b.auth.isAuthenticated().catch(() => 
 
 // ── PAYMENT SEMANTICS — the ONLY place these are defined ──
 const CASH_TYPES = ['cash'];
-const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card'];
+// 'archived' (Oct 1 2026): the Square page Archive action — COD written off.
+// Behaves like a direct payment for the catalog: any existing item is deleted and
+// NEVER re-created, but it is not a collection (no confirmed-collected stamping).
+const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card', 'archived'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route', 'arrived'];
 const REMOVE_STATUSES = ['failed', 'cancelled', 'returned'];
 
@@ -57,6 +60,7 @@ const hasDirectPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments
 // desiredState: 'want' | 'remove' | 'ignore'
 const desiredState = (d) => {
   if (!d) return 'ignore';
+  if (d?.cod_confirmed_collected) return 'ignore'; // confirmed rung through Square — never want, never re-create
   const cod = Number(d.cod_total_amount_required || 0);
   const status = String(d.status || '').toLowerCase();
   if (REMOVE_STATUSES.includes(status)) return 'remove';
@@ -83,6 +87,44 @@ const desiredState = (d) => {
 // needed to resolve the item name when the DB record isn't visible yet).
 const PATCH_FIELDS = ['status', 'cod_total_amount_required', 'cod_payments', 'cod_payment_type', 'patient_name', 'delivery_date', 'store_id'];
 const applyPatch = (d, patch) => { if (!patch) return d; const p = {}; for (const k of PATCH_FIELDS) if (patch[k] !== undefined) p[k] = patch[k]; return { ...d, ...p }; };
+
+// ── CITY LOCAL-TIME WINDOW (owner Oct 5 2026): the sweep runs 9am-8pm LOCAL
+// time per city (Edmonton & Calgary share America/Edmonton; Toronto is 2h
+// ahead, so its window is 9am-8pm Eastern). The workflow cron fires across
+// the UNION of all city windows; each delivery is only reconciled while its
+// own city sits inside 9am-8pm local. Cities resolve via Delivery.store_id ->
+// Store.city_id -> City.name; unknown cities default to America/Edmonton.
+const SWEEP_LOCAL_START_HOUR = 9;   // 9:00am
+const SWEEP_LOCAL_END_HOUR = 20;   // 7:59pm (8pm exclusive, mirrors 7am-10pm = hours 7-21)
+const CITY_TZ_BY_NAME = {
+  'edmonton': 'America/Edmonton', 'calgary': 'America/Edmonton', 'red deer': 'America/Edmonton',
+  'saskatoon': 'America/Regina', 'regina': 'America/Regina', 'winnipeg': 'America/Winnipeg',
+  'toronto': 'America/Toronto', 'ottawa': 'America/Toronto', 'montreal': 'America/Toronto',
+  'vancouver': 'America/Vancouver', 'halifax': 'America/Halifax',
+};
+const _cityRowCache = new Map();
+const _storeCityCache = new Map();
+const tzForCityId = async (b, cityId) => {
+  const key = nt(cityId);
+  if (!key) return 'America/Edmonton';
+  let c = _cityRowCache.get(key);
+  if (c === undefined) { c = await b.asServiceRole.entities.City.get(key).catch(() => null); _cityRowCache.set(key, c); }
+  return CITY_TZ_BY_NAME[nt(c?.name).toLowerCase()] || 'America/Edmonton';
+};
+const cityIdForStore = async (b, storeId) => {
+  const key = nt(storeId);
+  if (!key) return null;
+  if (_storeCityCache.has(key)) return _storeCityCache.get(key);
+  const s = await b.asServiceRole.entities.Store.get(key).catch(() => null);
+  const cid = s?.city_id || null;
+  _storeCityCache.set(key, cid);
+  return cid;
+};
+const cityInSweepWindow = async (b, cityId) => {
+  const tz = await tzForCityId(b, cityId);
+  const hour = Number(new Intl.DateTimeFormat('en-CA', { timeZone: tz, hour: 'numeric', hour12: false, hourCycle: 'h23' }).format(new Date()));
+  return hour >= SWEEP_LOCAL_START_HOUR && hour < SWEEP_LOCAL_END_HOUR;
+};
 
 const getEdmDate = () => {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -224,6 +266,67 @@ async function removeBookkeeping(b44, deliveryId, reason, ns) {
   return { transactions: (dts || []).length, catalogRecords: (cats || []).length };
 }
 
+// ── DUPLICATE COLLAPSE — same patient + delivery_date + amount + store ─────
+// Root cause of duplicate catalog items: two concurrent reconcile calls for the
+// SAME delivery (e.g. an edit save racing a WebSocket-triggered re-sync) can both
+// see "no existing item yet" and both create one. Because catalogMapByDeliveryId
+// keys off delivery_id and keeps only the first match, the second item becomes a
+// permanent orphan — invisible to the normal want/remove logic, never cleaned up.
+// This pass groups ACTIVE bookkeeping rows by business identity (patient + date +
+// amount + store) regardless of delivery_id, and removes every item in a group
+// except one survivor — from Square (catalog object) and from bookkeeping
+// (SquareCatalogItems row + any pending SquareTransaction tied to the removed
+// delivery_id). Runs after every reconcile (scoped to the touched date(s) — cheap),
+// during the scheduled sweep (whole date), and on-demand via payload.dedupe.
+const nameFromItemName = (n) => nt(String(n || '').replace(/^\d{2}\/\d{2}\([^)]*\)-/, '')).toLowerCase();
+
+const businessKey = (r) => {
+  const patientKey = nt(r.patient_id) ? `pid:${nt(r.patient_id)}` : `name:${nameFromItemName(r.item_name)}`;
+  return [patientKey, nt(r.delivery_date), Math.round(Number(r.amount_cents || 0)), nt(r.store_id)].join('|');
+};
+
+// Prefer the item still backed by a real Delivery record; among those (or if
+// none resolve), keep the most recently updated bookkeeping row.
+async function chooseSurvivor(b44, items) {
+  const withDelivery = await Promise.all(items.map(async (it) => ({
+    it, exists: it.delivery_id ? !!(await b44.asServiceRole.entities.Delivery.get(it.delivery_id).catch(() => null)) : false
+  })));
+  const existing = withDelivery.filter((x) => x.exists);
+  const pool = (existing.length ? existing : withDelivery).map((x) => x.it);
+  pool.sort((a, b2) => new Date(b2.updated_date || 0) - new Date(a.updated_date || 0));
+  return pool[0];
+}
+
+async function collapseDuplicateCatalogItems(b44, token, { deliveryDate, dryRun } = {}) {
+  const filter = deliveryDate ? { status: 'active', delivery_date: deliveryDate } : { status: 'active' };
+  const rows = await b44.asServiceRole.entities.SquareCatalogItems.filter(filter, '-updated_date', 500).catch(() => []);
+  const groups = new Map();
+  for (const r of rows || []) {
+    const key = businessKey(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const actions = [];
+  for (const [key, items] of groups) {
+    if (items.length <= 1) continue;
+    const survivor = await chooseSurvivor(b44, items);
+    for (const d of items) {
+      if (d.id === survivor.id) continue;
+      if (dryRun) { actions.push({ key, action: 'planned_remove', duplicateId: d.id, deliveryId: d.delivery_id, catalogObjectId: d.square_catalog_object_id, keptId: survivor.id, keptDeliveryId: survivor.delivery_id }); continue; }
+      if (d.square_catalog_object_id) await sdo(d.square_catalog_object_id, token).catch(() => null);
+      await b44.asServiceRole.entities.SquareCatalogItems.delete(d.id).catch(() => null);
+      if (d.delivery_id && d.delivery_id !== survivor.delivery_id) {
+        const txs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: d.delivery_id, status: 'pending' }).catch(() => []);
+        for (const tx of txs || []) {
+          await b44.asServiceRole.entities.SquareTransaction.update(tx.id, { status: 'cancelled', raw_square_data: { ...(tx.raw_square_data || {}), deleted_at: new Date().toISOString(), deleted_reason: `duplicate_collapsed_kept_${survivor.delivery_id}` } }).catch(() => null);
+        }
+      }
+      actions.push({ key, action: 'removed', duplicateId: d.id, deliveryId: d.delivery_id, catalogObjectId: d.square_catalog_object_id, keptId: survivor.id, keptDeliveryId: survivor.delivery_id });
+    }
+  }
+  return actions;
+}
+
 Deno.serve(async (req) => {
   const started = Date.now();
   try {
@@ -263,8 +366,14 @@ Deno.serve(async (req) => {
     if (payload?.sweep) {
       const date = nt(payload?.deliveryDate) || getEdmDate();
       const dayDeliveries = await b.asServiceRole.entities.Delivery.filter({ delivery_date: date }, undefined, 500).catch(() => []);
+      let skippedOutOfWindow = 0;
       for (const d of dayDeliveries || []) {
         const did = d?.id; if (!did || recordIds.has(did)) continue; recordIds.add(did);
+        // City local-time gate: only reconcile while this delivery's city is
+        // inside its 9am-8pm local window (owner Oct 5 2026).
+        const cityId = await cityIdForStore(b, d?.store_id);
+        const inWindow = await cityInSweepWindow(b, cityId);
+        if (!inWindow) { skippedOutOfWindow += 1; continue; }
         const ds = desiredState(d);
         if (ds === 'want') wants.push({ deliveryId: did, delivery: d });
         else if (ds === 'remove') removes.push({ deliveryId: did, reason: `status_${d.status}` });
@@ -276,10 +385,12 @@ Deno.serve(async (req) => {
         const did = c?.delivery_id; if (!did || recordIds.has(did)) continue; recordIds.add(did);
         removes.push({ deliveryId: did, reason: 'sweep_orphan_no_want_state' });
       }
-      log(`sweep ${date}: ${wants.length} want, ${removes.length} remove`);
+      log(`sweep ${date}: ${wants.length} want, ${removes.length} remove${skippedOutOfWindow ? `, ${skippedOutOfWindow} out-of-city-window` : ''}`);
     }
 
-    if (!wants.length && !removes.length) {
+    // A dedupe-only call (payload.dedupe, no records/sweep) legitimately has no
+    // wants/removes — don't short-circuit before the dedupe pass runs below.
+    if (!wants.length && !removes.length && !payload?.dedupe) {
       return Response.json({ success: true, processed: 0, results });
     }
 
@@ -358,6 +469,70 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── COLLECTED-CONFIRMED GUARD (create path only) ─────────────────────
+    // A completed+cash COD whose catalog item is gone was very likely already
+    // rung through Square (collection confirmed). Confirm against live Square
+    // orders — ONE cached fetch per invocation, only when such candidates exist —
+    // and skip re-creating items for confirmed-collected deliveries. Without
+    // this, reconciler creates and sync deletes loop forever (the churn bug).
+    // ── DB TX EVIDENCE GUARD (create path) ────────────────────────────────
+    // Tx history is now RETAINED (retention floor, Sep 26 2026): a completed
+    // SquareTransaction linked to this delivery is authoritative collected
+    // evidence. Never (re)create the catalog item for such deliveries.
+    if (toCreate.length > 0 && !dryRun) {
+      const txSkipIds = new Set();
+      for (const c of toCreate) {
+        const cts = await b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: c.delivery.id, status: 'completed' }).catch(() => []);
+        if (cts?.length > 0) txSkipIds.add(c.delivery.id);
+      }
+      if (txSkipIds.size > 0) {
+        for (const did of txSkipIds) { await removeBookkeeping(b, did, 'completed_transaction_exists', 'cancelled').catch(() => null); }
+        for (let i = toCreate.length - 1; i >= 0; i--) {
+          if (txSkipIds.has(toCreate[i].delivery.id)) {
+            results.push({ deliveryId: toCreate[i].delivery.id, action: 'create', status: 'skipped', reason: 'completed_transaction_exists' });
+            toCreate.splice(i, 1);
+          }
+        }
+        log(`completed-tx guard skipped ${txSkipIds.size} create(s)`);
+      }
+    }
+    const completedCashCreates = toCreate.filter((c) => String(c.delivery?.status || '').toLowerCase() === 'completed' && hasCashPayment(c.delivery));
+    if (completedCashCreates.length > 0 && !dryRun) {
+      try {
+        const cfgs = await b.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []);
+        const locIds = Array.from(new Set((Array.isArray(cfgs) ? cfgs : []).filter((c) => c?.status === 'active').map((c) => nt(c?.square_location_id)).filter(Boolean)));
+        const lookback = new Date(Date.now() - 90 * 86400000).toISOString();
+        const orders = []; let ordCursor = null;
+        do {
+          const body = locIds.length > 0 ? { location_ids: locIds, query: { filter: { date_time_filter: { created_at: { start_at: lookback } }, state_filter: { states: ['COMPLETED'] } }, sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' } }, limit: 500, cursor: ordCursor || undefined }
+            : { query: { filter: { date_time_filter: { created_at: { start_at: lookback } }, state_filter: { states: ['COMPLETED'] } } }, limit: 500, cursor: ordCursor || undefined };
+          const j = await sf('/v2/orders/search', 'POST', token, body);
+          orders.push(...(j?.orders || [])); ordCursor = j?.cursor || null; await sleep(150);
+        } while (ordCursor);
+        const collectedNameAmounts = new Set();
+        for (const o of orders) {
+          for (const li of (o?.line_items || [])) {
+            const n = nt(li?.name); const cents = Number(li?.base_price_money?.amount || 0);
+            if (n) collectedNameAmounts.add(`${n}::${cents}`);
+          }
+        }
+        const skipIds = new Set();
+        for (const c of completedCashCreates) {
+          if (collectedNameAmounts.has(`${c.itemName}::${c.amountCents}`)) skipIds.add(c.delivery.id);
+        }
+        if (skipIds.size > 0) {
+          for (const did of skipIds) { await removeBookkeeping(b, did, 'collected_confirmed', 'cancelled').catch(() => null); }
+          for (let i = toCreate.length - 1; i >= 0; i--) {
+            if (skipIds.has(toCreate[i].delivery.id)) {
+              results.push({ deliveryId: toCreate[i].delivery.id, action: 'create', status: 'skipped', reason: 'collected_confirmed_in_square_orders' });
+              toCreate.splice(i, 1);
+            }
+          }
+          log(`collected-confirmed guard skipped ${skipIds.size} create(s)`);
+        }
+      } catch (e) { log('collected-confirmed guard failed (proceeding without):', e?.message || String(e)); }
+    }
+
     // ── BATCH CREATE (single batch-upsert for all missing items) ─────────
     if (toCreate.length > 0) {
       const objects = toCreate.map((c) => ({
@@ -375,7 +550,19 @@ Deno.serve(async (req) => {
         for (let i = 0; i < objects.length; i += 100) {
           const chunk = objects.slice(i, i + 100);
           try {
-            const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: crypto.randomUUID(), batches: [{ objects: chunk }] });
+            // Deterministic idempotency key (content hash + 60s bucket): two racing
+            // reconciles for the same batch replay the SAME create instead of
+            // producing two catalog items. Different content or a later minute →
+            // different key, so legitimate re-creates still work.
+            // NOTE: hash the toCreate WORK ENTRIES (they carry .delivery/.amountCents),
+            // NOT the `chunk` — chunk holds raw Square catalog objects with no
+            // .delivery field, and reading it threw a TypeError on every batch
+            // create (broke all reconcile COD creates AND finished-delivery
+            // deletes routed through this function).
+            const _chunkIds = toCreate.slice(i, i + 100).map((c) => `${c.delivery.id}:${c.amountCents}`).sort().join(',');
+            let _bh = 5381;
+            for (let _bi = 0; _bi < _chunkIds.length; _bi++) { _bh = ((_bh << 5) + _bh) ^ _chunkIds.charCodeAt(_bi); }
+            const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: `codrecon-${(_bh >>> 0).toString(36)}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: chunk }] });
             const created = j?.objects || [];
             const byTmp = new Map(created.map((o) => [o.id, o]));
             for (const c of toCreate.slice(i, i + 100)) {
@@ -391,9 +578,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── DUPLICATE COLLAPSE ────────────────────────────────────────────────
+    // Scoped to the date(s) actually touched by this request (cheap) for normal
+    // record-mode calls; whole date for sweep; explicit payload.dedupe for
+    // on-demand/manual cleanup (dedupeDate optional — omit to scan ALL active rows).
+    let dedupeActions = [];
+    try {
+      if (payload?.sweep) {
+        dedupeActions = await collapseDuplicateCatalogItems(b, token, { deliveryDate: nt(payload?.deliveryDate) || getEdmDate(), dryRun });
+      } else if (payload?.dedupe) {
+        dedupeActions = await collapseDuplicateCatalogItems(b, token, { deliveryDate: nt(payload?.dedupeDate) || undefined, dryRun });
+      } else if (wants.length) {
+        const touchedDates = new Set(wants.map((w) => nt(w.delivery?.delivery_date)).filter(Boolean));
+        for (const dt of touchedDates) {
+          const a = await collapseDuplicateCatalogItems(b, token, { deliveryDate: dt, dryRun });
+          dedupeActions.push(...a);
+        }
+      }
+      if (dedupeActions.length) log(`dedupe: collapsed ${dedupeActions.filter((a) => a.action === 'removed').length} duplicate(s), planned ${dedupeActions.filter((a) => a.action === 'planned_remove').length}`);
+    } catch (e) { console.error('[squareCodReconcile] dedupe pass FAILED:', e?.message || e); }
+
     const errors = results.filter((r) => r.status === 'error');
     log(`done in ${Date.now() - started}ms — ${results.length} results, ${errors.length} errors`);
-    return Response.json({ success: errors.length === 0, processed: results.length, errors: errors.length, results });
+    return Response.json({ success: errors.length === 0, processed: results.length, errors: errors.length, results, dedupeActions });
   } catch (error) {
     console.error('[squareCodReconcile] FATAL:', error?.message || error);
     return Response.json({ error: error?.message || 'Error' }, { status: error?.status || 500 });

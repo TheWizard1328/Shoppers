@@ -49,6 +49,7 @@ export default function StopCardBody({
   setIsCompleting,
   onSelectionChange,
   onClick,
+  codFooterSwapActive,
   notesInput,
   setNotesInput,
   onNotesUpdate,
@@ -163,6 +164,7 @@ export default function StopCardBody({
               setIsCompleting={setIsCompleting}
               onSelectionChange={onSelectionChange}
               onClick={onClick}
+              codFooterSwapActive={codFooterSwapActive}
               isCODComplete={isCODComplete} />
             
 

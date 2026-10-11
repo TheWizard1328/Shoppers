@@ -6,6 +6,7 @@
 
 import { UserSettings } from '@/entities/UserSettings';
 import { offlineManager } from './offlineManager';
+import { connectionMonitor } from './connectionMonitor';
 import { getUserAgentInfo, isMobileDeviceForTheme } from './deviceUtils';
 
 // In-memory cache for current session
@@ -17,6 +18,19 @@ let cachedDeviceType = null; // Cache device type (Mobile, Desktop, or Tablet)
 let lastFetchTime = 0;
 let inFlightSettingsPromise = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
+
+// IN-FLIGHT WRITE TRACKER (Oct 2 2026): "Force Full App Refresh" calls
+// window.location.reload() right after a user action like changing the
+// dashboard date. saveSetting's IDB write (saveToLocalPersistentStore) is
+// fast but asynchronous and NOT awaited by its caller (globalFilters fires
+// it and returns immediately) — a reload that lands before that write
+// resolves discards it, so the next boot reads the IDB snapshot from
+// whenever selected_date/selected_driver_id were last saved, which can be
+// an old session (owner report: force-refreshing right after setting
+// today's date restored a date from weeks earlier). Every saveSetting call
+// registers its IDB-write promise here; waitForPendingSettingWrites lets a
+// deliberate reload action wait for them first.
+const pendingWritePromises = new Set();
 
 /**
  * Gets unique device identifier - stored and persisted in localStorage
@@ -98,7 +112,13 @@ const DEFAULT_SETTINGS = getInitialDefaultSettings();
  * Defines which settings are global (synced across devices) vs device-specific
  */
 const GLOBAL_SETTINGS = [
-  'units_of_measurement'
+  'units_of_measurement',
+  // FIX (Sep 29 2026): theme_preference is now GLOBAL. It used to be
+  // device-specific, which meant choosing Dark on one device left every other
+  // device (phone, tablet, desktop) in light or auto mode — the root cause of
+  // the owner seeing a white Users page on devices where Dark was never set.
+  // One choice now applies everywhere.
+  'theme_preference'
 ];
 
 // CRITICAL: These settings are NEVER synced across devices
@@ -107,7 +127,6 @@ const DEVICE_SPECIFIC_SETTINGS = [
   'fab_map_cycle_phase',
   'sidebar_width',
   'right_panel_width',
-  'theme_preference',
   'admin_utilities_year',
   'admin_utilities_month',
   'admin_utilities_driver',
@@ -205,6 +224,96 @@ async function loadGlobalSettings(userId) {
  * @param {string} userId - The user's ID
  * @returns {Promise<object>} - The merged settings object for current device
  */
+/**
+ * Background refresh of GLOBAL settings (currently: units_of_measurement,
+ * theme_preference) so a choice made on ONE device propagates to every other
+ * device. loadUserSettings short-circuits on the per-device IDB cache, which
+ * is correct for device-specific settings but would otherwise freeze global
+ * values at whatever this device cached last. Runs fire-and-forget: the app
+ * renders from cache immediately, then applies the fresh global values and
+ * dispatches 'themePreferenceChanged' (Layout.jsx listens) when the theme
+ * changed. Skips while offline and never touches keys with a pending save.
+ */
+async function refreshGlobalSettings(userId, _attempt = 0) {
+  // NETWORK STABILITY GATE (Oct 5 2026, owner spec): the "what changed after
+  // boot" check must only run once the network is stable — on a degraded link
+  // this UserSettings.filter call hangs and burns the throttler/bus for
+  // nothing. If not stable yet, retry every 30s (bounded so an all-day outage
+  // doesn't accumulate timers). A clean failure here is fine: the next WS
+  // push or next boot re-checks.
+  try {
+    if (_attempt < 20 && !connectionMonitor.canAttemptNetwork()) {
+      setTimeout(() => refreshGlobalSettings(userId, _attempt + 1).catch(() => {}), 30000);
+      return;
+    }
+  } catch {}
+  try {
+    if (!offlineManager.getOnlineStatus()) return;
+    const deviceIdentifier = getDeviceIdentifier();
+
+    const userSettingsRecords = await UserSettings.filter({ user_id: userId }, '-updated', 1);
+    if (!userSettingsRecords || userSettingsRecords.length === 0) return;
+    const rawGlobalSettings = userSettingsRecords[0].global_settings || {};
+
+    const updates = {};
+    GLOBAL_SETTINGS.forEach(key => {
+      const serverValue = rawGlobalSettings[key];
+      if (serverValue === undefined) return;
+      // Don't race a save that is still inside its debounce window for this key
+      if (userSettingsSaveTimeouts.has(`${userId}:${deviceIdentifier}:${key}`)) return;
+      if (cachedSettings && cachedSettings[key] !== serverValue) updates[key] = serverValue;
+    });
+    if (Object.keys(updates).length === 0) return;
+
+    cachedSettings = { ...(cachedSettings || DEFAULT_SETTINGS), ...updates };
+    cachedGlobalSettings = { ...(cachedGlobalSettings || {}), ...updates };
+    lastFetchTime = Date.now();
+    await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
+
+    if (updates.theme_preference !== undefined) {
+      window.dispatchEvent(new CustomEvent('themePreferenceChanged', {
+        detail: { theme: updates.theme_preference }
+      }));
+    }
+    console.log(`🔄 [UserSettings] Global settings refreshed from server:`, updates);
+  } catch (_) { /* non-critical background refresh */ }
+}
+
+/**
+ * Subscribe to UserSettings WebSocket broadcasts so settings changed on another
+ * device of the same user (or from the web while driving) apply here in near
+ * real time. The UserSettings entity is user-scoped, so the platform only
+ * delivers this user's own records. The handler is a DIFF CHECK, not a full
+ * sync (owner spec Oct 5 2026): it re-runs refreshGlobalSettings, which pulls
+ * the latest record and applies only GLOBAL_SETTINGS keys that actually
+ * changed, skipping keys with pending local saves. Throttled to at most one
+ * check per 5s — rapid multi-key saves collapse into a single check.
+ */
+let _userSettingsWsUnsub = null;
+let _lastWsRefreshAt = 0;
+export async function subscribeToUserSettingsUpdates(userId) {
+  if (!userId) return;
+  try {
+    if (typeof window !== 'undefined') {
+      if (window.__userSettingsWsSubscribed) return;
+      window.__userSettingsWsSubscribed = true;
+    }
+    if (_userSettingsWsUnsub) return;
+    const { base44 } = await import('@/api/base44Client');
+    _userSettingsWsUnsub = base44.entities.UserSettings.subscribe((event) => {
+      const now = Date.now();
+      if (now - _lastWsRefreshAt < 5000) return; // throttle
+      _lastWsRefreshAt = now;
+      // Only updates/creates matter; a delete keeps the cached values (defaults)
+      if (event?.type && event.type !== 'update' && event.type !== 'create') return;
+      refreshGlobalSettings(userId).catch(() => {});
+    });
+    console.log('✅ [UserSettings] WS subscription active — global settings sync via push');
+  } catch (e) {
+    console.warn('⚠️ [UserSettings] WS subscription failed:', e?.message);
+  }
+}
+
 export async function loadUserSettings(userId) {
   if (!userId) {
     console.warn('⚠️ [UserSettings] No userId provided, returning defaults');
@@ -237,6 +346,10 @@ export async function loadUserSettings(userId) {
     if (cachedSettings.theme_preference === 'auto') {
       initializeAutoDarkMode();
     }
+
+    // Global settings (e.g. theme chosen on another device) must not be frozen
+    // at this device's last cached values — refresh them in the background.
+    refreshGlobalSettings(userId).catch(() => {});
 
     return cachedSettings;
   }
@@ -281,6 +394,13 @@ export async function loadUserSettings(userId) {
       GLOBAL_SETTINGS.forEach(key => {
         if (rawGlobalSettings[key] !== undefined) globalSettings[key] = rawGlobalSettings[key];
       });
+      // theme_preference is GLOBAL now — once a global choice exists it must
+      // win over this device's stale profile value left from the
+      // device-specific era. Before any global choice exists, the device's
+      // own value (or the per-device default) still applies.
+      if (globalSettings.theme_preference !== undefined) {
+        delete deviceProfile.theme_preference;
+      }
       
       cachedSettings = {
          ...DEFAULT_SETTINGS,
@@ -410,7 +530,10 @@ export async function saveSetting(userId, key, value) {
   }
   currentUserId = userId;
 
-  await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
+  const idbWritePromise = saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
+  pendingWritePromises.add(idbWritePromise);
+  idbWritePromise.finally(() => pendingWritePromises.delete(idbWritePromise));
+  await idbWritePromise;
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
@@ -421,9 +544,10 @@ export async function saveSetting(userId, key, value) {
     const timeoutKey = `${userId}:${deviceIdentifier}:${key}`;
     if (userSettingsSaveTimeouts.has(timeoutKey)) {
       clearTimeout(userSettingsSaveTimeouts.get(timeoutKey));
+      try { pendingSaveBodies.delete(timeoutKey); } catch (_) {}
     }
 
-    const timeoutId = setTimeout(async () => {
+    const performServerWrite = async (attempt) => {
       userSettingsSaveTimeouts.delete(timeoutKey);
       try {
         const userSettingsRecord = await getLatestUserSettingsRecord(userId);
@@ -458,18 +582,61 @@ export async function saveSetting(userId, key, value) {
 
         resolve(cachedSettings);
       } catch (error) {
-        if (error?.response?.status === 429 || error?.status === 429 || String(error?.message || '').includes('Rate limit exceeded')) {
-          console.warn('⚠️ [UserSettings] Rate limited while saving setting - keeping local cache only');
-          resolve(cachedSettings || { ...DEFAULT_SETTINGS, [key]: value });
+        const isRateLimit = error?.response?.status === 429 || error?.status === 429 || String(error?.message || '').includes('Rate limit exceeded');
+        // FIX (Oct 1 2026): a 429 used to silently drop the server write — the
+        // user's theme choice stayed local-only and the stale server value kept
+        // winning on every restart. Retry with backoff instead of giving up.
+        if (isRateLimit && attempt < 3) {
+          console.warn(`⚠️ [UserSettings] Rate limited saving ${key} (attempt ${attempt + 1}) — retrying in ${(attempt + 2) * 1500}ms`);
+          const retryId = setTimeout(() => performServerWrite(attempt + 1), (attempt + 2) * 1500);
+          userSettingsSaveTimeouts.set(timeoutKey, retryId);
+          pendingSaveBodies.set(timeoutKey, () => performServerWrite(attempt + 1));
           return;
         }
         console.error('❌ [UserSettings] Error saving setting:', error);
         resolve(cachedSettings || { ...DEFAULT_SETTINGS, [key]: value });
       }
-    }, 500);
+    };
+
+    const timeoutId = setTimeout(() => performServerWrite(0), 500);
+    pendingSaveBodies.set(timeoutKey, () => performServerWrite(0));
 
     userSettingsSaveTimeouts.set(timeoutKey, timeoutId);
   });
+}
+
+// FIX (Oct 1 2026): killing/reloading the app inside the 500ms debounce window
+// dropped the save entirely (theme choice lost, stale server value won on the
+// next boot). Flush pending writes immediately when the page is being hidden.
+const pendingSaveBodies = new Map();
+export const flushPendingSettingSaves = () => {
+  for (const [key, flush] of pendingSaveBodies.entries()) {
+    const timer = userSettingsSaveTimeouts.get(key);
+    if (timer) clearTimeout(timer);
+    userSettingsSaveTimeouts.delete(key);
+    pendingSaveBodies.delete(key);
+    try { flush(); } catch (_) {}
+  }
+};
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushPendingSettingSaves);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSettingSaves();
+  });
+}
+
+/**
+ * Waits for every currently in-flight setSetting IDB write (e.g. the
+ * selected_date / selected_driver_id write kicked off by the dashboard's
+ * date or driver picker) to resolve. Call this BEFORE a deliberate
+ * window.location.reload() so the write that's already running can't lose
+ * a race against the reload wiping the JS context mid-write.
+ */
+export async function waitForPendingSettingWrites() {
+  if (pendingWritePromises.size === 0) return;
+  // Snapshot — writes started by in-flight writes finishing (rare) will be
+  // caught by the caller's own flow; we only need to not race the CURRENT ones.
+  await Promise.allSettled(Array.from(pendingWritePromises));
 }
 
 /**

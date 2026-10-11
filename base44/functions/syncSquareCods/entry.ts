@@ -4,7 +4,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const SB = 'https://connect.squareup.com';
 const SV = '2025-01-23';
-const MR = 3; const RD = 400;
+const MR = 5; const RD = 400;
 class HE extends Error { constructor(s, m) { super(m); this.status = s; } }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const nt = (v) => String(v || '').trim();
@@ -14,7 +14,8 @@ const iei = (v) => /^[a-f0-9]{24}$/i.test(String(v || ''));
 const ru = async (b) => { const u = await b.auth.me().catch(() => null); if (!u) throw new HE(401, 'Unauthorized'); return u; };
 
 function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'other'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
-function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'Cheque', 'debit', 'credit', 'cheque', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
+function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
+function hasArchivedPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Archived', 'archived'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   const [,month,day] = String(deliveryDate||'').split('-');
@@ -27,9 +28,9 @@ async function sf(path, method, token, body) {
     try {
       const r = await fetch(`${SB}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Square-Version': SV }, body: body ? JSON.stringify(body) : undefined });
       const t = await r.text(); const j = t ? JSON.parse(t) : {};
-      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(RD * a); continue; } throw le; }
+      if (!r.ok) { const m = j?.errors?.map((e) => e.detail).join(', ') || `Square API error ${r.status}`; le = new HE(r.status, m); if (a < MR && irs(r.status)) { await sleep(Number(r.status) === 429 ? 5000 * a : RD * a); continue; } throw le; }
       return j;
-    } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(RD * a); continue; } throw le; }
+    } catch (e) { le = e; if (a < MR && irs(e?.status)) { await sleep(Number(e?.status) === 429 ? 5000 * a : RD * a); continue; } throw le; }
   }
   throw le || new Error('Square API failed');
 }
@@ -59,7 +60,7 @@ async function lc(token) {
 }
 
 async function createItem({ itemName, amountCents, locationId, deliveryId, patientName, token }) {
-  const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: crypto.randomUUID(), batches: [{ objects: [{ type: 'ITEM', id: `#item-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: itemName, description: `COD for ${patientName || 'patient'} | Delivery ${deliveryId}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: amountCents, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
+  const j = await sf('/v2/catalog/batch-upsert', 'POST', token, { idempotency_key: `coditem-${deliveryId}-${amountCents}-${Math.floor(Date.now() / 60000)}`, batches: [{ objects: [{ type: 'ITEM', id: `#item-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: itemName, description: `COD for ${patientName || 'patient'} | Delivery ${deliveryId}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${deliveryId}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: amountCents, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
   return (j.objects || []).find((o) => o.type === 'ITEM') || null;
 }
 
@@ -109,11 +110,11 @@ async function buildPMaps(b44, deliveries) {
 }
 
 // ── INLINE COD ITEM CREATION ──
-async function handleCreateCodItem(b44, payload) {
+async function handleCreateCodItem(b44, payload, sharedLiveCatalog = null, skipBookkeeping = false, prefetched = null) {
   const token = et();
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
-  const dr = await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
+  const dr = (prefetched?.drById?.get(deliveryId) !== undefined) ? prefetched.drById.get(deliveryId) : await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
   // Skip terminal-status deliveries, and completed deliveries paid by card or
   // check (Debit/Credit/Check are treated as collected directly — no Square
   // catalog item is needed for those, Check is treated like a card payment).
@@ -127,19 +128,46 @@ async function handleCreateCodItem(b44, payload) {
   if (dr?.status === 'completed' && hasCardPayment(dr)) {
     return { success: true, skipped: true, reason: 'delivery_already_collected_card' };
   }
+  // Archived CODs (Square page Archive action, Oct 1 2026) are written off — no
+  // catalog item in any status, and any existing one gets deleted by the delete path.
+  if (hasArchivedPayment(dr)) {
+    return { success: true, skipped: true, reason: 'cod_archived' };
+  }
   // Only skip if a COMPLETED SquareTransaction exists — that means the payment
   // was actually collected via Square POS. A pending transaction is just a
   // bookkeeping record we created ourselves when the catalog item was first
   // created; it may be stale (the catalog item could have been deleted by a
   // prior sync cleanup). Don't let stale bookkeeping block re-creation.
-  const completedTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
+  // Durable collected evidence on the Delivery itself. The old completedTxs
+  // check reads the SquareTransaction rows that squareGetCodData2 5a PURGES
+  // once collection is confirmed — post-purge it finds nothing and re-creates
+  // the catalog item for an already-rung cash COD (the re-add churn bug).
+  if (dr?.cod_confirmed_collected) {
+    return { success: true, skipped: true, reason: 'cod_confirmed_collected' };
+  }
+  const completedTxs = prefetched ? (prefetched.completedByDelivery.get(deliveryId) || []) : await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
   if (completedTxs?.length > 0) {
     return { success: true, skipped: true, reason: 'completed_transaction_exists', transactionId: completedTxs[0]?.id };
   }
-  const { pById, pByPid } = await buildPMaps(b44, dr ? [dr] : []);
+  const pMaps = prefetched?.pById ? prefetched : (await buildPMaps(b44, dr ? [dr] : []));
+  const pById = pMaps.pById, pByPid = pMaps.pByPid;
   const pr = dr ? await resolvePatient(b44, dr, pById, pByPid) : null;
   const effStoreId = storeId || dr?.store_id;
-  const { store, locationId } = await getStoreCtx(b44, effStoreId);
+  let store, locationId;
+  if (prefetched) {
+    store = prefetched.storeById.get(effStoreId) || null;
+    if (!store) throw new HE(400, `Store not found: ${effStoreId}`);
+    if (!store.square_location_config_id) throw new HE(400, `Store "${store.name}" not configured for Square COD`);
+    const cfg = prefetched.cfgById.get(store.square_location_config_id);
+    if (!cfg) throw new HE(400, `Square config not found for store "${store.name}"`);
+    if (cfg.status !== 'active') throw new HE(400, `Square location "${cfg.name}" inactive for store "${store.name}"`);
+    locationId = cfg.square_location_id;
+  } else ({ store, locationId } = await getStoreCtx(b44, effStoreId));
+  // Store not Square-configured — creating an item would float with no location
+  // and no register to ring it through. Never create for ineligible stores.
+  if (!locationId) {
+    return { success: true, skipped: true, reason: 'store_not_square_configured' };
+  }
   const rdd = deliveryDate || dr?.delivery_date;
   const looked = dr ? await resolvePatientName(b44, dr, pById, pByPid) : '';
   const usable = looked === 'Unknown Patient' ? '' : looked;
@@ -154,7 +182,7 @@ async function handleCreateCodItem(b44, payload) {
   // NOTE: Do NOT skip even if a pending tx already references a catalog object —
   // that reference may be stale (the Square object could have been deleted by a
   // prior sync cleanup). Fall through to verify against the live catalog.
-  const ep = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
+  const ep = prefetched ? (prefetched.pendingByDelivery.get(deliveryId) || []) : await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
   let catId, catVer;
   if (ep?.length && ep[0]?.square_catalog_object_id && (ep[0]?.item_name !== iname || ep[0]?.amount_cents !== ac)) {
     // Existing pending tx with different name/amount — update the live item.
@@ -164,10 +192,36 @@ async function handleCreateCodItem(b44, payload) {
   } else {
     // Either no pending tx, or name+amount already match. Always verify the live catalog
     // item exists; if it was deleted by a prior sync cleanup, recreate it.
-    const live = await lc(token);
-    const ex = live.find((i) => nt(i?.item_data?.description || '').toLowerCase().includes(`delivery ${deliveryId}`) || nt(i?.item_data?.description || '').toLowerCase().includes(deliveryId));
+    // A batch shares ONE catalog fetch — a full catalog search per item was
+    // multiplying Square API calls and tripping rate limits (owner report, Sep 27).
+    const live = sharedLiveCatalog || await lc(token);
+    // Match by description delivery-id first, then fall back to exact name +
+    // amount. Items whose description lost the delivery id (older creators,
+    // historical edits) otherwise fail this lookup and every push CREATES A
+    // DUPLICATE instead of updating the existing object (owner report, Sep 27:
+    // items pushed to the DBs but the Square catalog kept getting new/duplicate
+    // objects while the original lingered).
+    const ex = live.find((i) => {
+      const desc = nt(i?.item_data?.description || '').toLowerCase();
+      if (desc.includes(`delivery ${deliveryId}`) || desc.includes(deliveryId)) return true;
+      if (nt(i?.item_data?.name) !== iname) return false;
+      const v = (i?.item_data?.variations || [])[0];
+      return Number(v?.item_variation_data?.price_money?.amount || 0) === ac;
+    });
     if (ex) { const u = await updateItem({ catalogObjectId: ex.id, catalogVersion: ex.version, itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = u?.id || ex.id; catVer = u?.version || ex.version; }
     else { const ci = await createItem({ itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = ci?.id || null; catVer = ci?.version || null; if (!catId) throw new Error(`Square did not return catalog item for ${deliveryId}`); }
+  }
+  const cp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, description: '', amount: Number(codAmount || 0), amount_cents: ac, delivery_id: deliveryId, delivery_date: rdd || null, patient_id: rpid, store_id: effStoreId || null, location_id: locationId, status: 'active' };
+  // OFFLINE-FIRST (owner spec, Sep 27 2026): when the caller passes
+  // skipBookkeeping, NO online DB writes happen here — the Square create/
+  // update above is the only mutation. The bookkeeping payloads travel back
+  // to the client, which writes its OFFLINE DB first, then mirrors the whole
+  // catalog to the online DB in ONE bulk call (squareBulkSaveBookkeeping).
+  // Per-item online create/update calls were the suspected rate-limit driver.
+  if (skipBookkeeping) {
+    const exTx = prefetched ? (prefetched.pendingByDelivery.get(deliveryId) || []) : await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
+    return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, locationId, patientName: epn, deliveryDate: rdd,
+      catPayload: cp, txPayload: { ...cp, type: 'collection', status: 'pending', delivery_id: deliveryId }, txExistingId: exTx[0]?.id || null };
   }
   const exTx = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
   const tp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, amount: Number(codAmount), amount_cents: ac, patient_id: rpid, store_id: effStoreId, location_id: locationId };
@@ -175,11 +229,14 @@ async function handleCreateCodItem(b44, payload) {
   let exCat;
   try { exCat = await b44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }); }
   catch (e) { console.log('[syncSquareCods] bookkeeping lookup FAILED — skipping DB write to avoid duplicate row for', deliveryId); return null; }
-
-  const cp = { square_catalog_object_id: catId, square_catalog_version: catVer, item_name: iname, description: '', amount: Number(codAmount || 0), amount_cents: ac, delivery_id: deliveryId, delivery_date: rdd || null, patient_id: rpid, store_id: effStoreId || null, location_id: locationId, status: 'active' };
-  if (exCat.length > 0) await b44.asServiceRole.entities.SquareCatalogItems.update(exCat[0].id, cp);
+  if (exCat.length > 0) {
+    await b44.asServiceRole.entities.SquareCatalogItems.update(exCat[0].id, cp);
+    // Collapse duplicate bookkeeping rows from racing invocations (same delivery,
+    // same object) — they break UI delivery-link lookups.
+    for (let i = 1; i < exCat.length; i++) { await b44.asServiceRole.entities.SquareCatalogItems.delete(exCat[i].id).catch(() => null); }
+  }
   else await b44.asServiceRole.entities.SquareCatalogItems.create(cp);
-  return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, transactionId: tx?.id || exTx[0]?.id };
+  return { success: true, catalogObjectId: catId, catalogVersion: catVer, itemName: iname, locationId, patientName: epn, deliveryDate: rdd, transactionId: tx?.id || exTx[0]?.id };
 }
 
 // ── INLINE COD ITEM DELETION ──
@@ -223,7 +280,72 @@ Deno.serve(async (req) => {
     const b = createClientFromRequest(req);
     await ru(b);
     const payload = await req.json().catch(() => ({}));
-    console.log('[syncSquareCods] invoked — mode:', payload?.event ? 'event' : 'batch', 'items:', payload?.items?.length || 0);
+    console.log('[syncSquareCods] invoked — mode:', payload?.event ? 'event' : (payload?.mode || 'batch'), 'items:', payload?.items?.length || 0);
+
+    // ── BULK ONLINE MIRROR MODE (offline-first client writes IDB first, then
+    // hands the complete catalog set + this push's pending tx payloads here in
+    // ONE call). Lives in this already-deployed function because NEW function
+    // directories do not register via git push (owner 404 report, Sep 28).
+    if (payload?.mode === 'bulkSaveBookkeeping') {
+      const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
+      const txRecords = Array.isArray(payload?.txRecords) ? payload.txRecords.filter(Boolean) : [];
+      let created = 0, updated = 0, deleted = 0, txCreated = 0, txUpdated = 0;
+      if (catalogRecords.length > 0) {
+        const existing = await b.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
+        const byDelivery = new Map();
+        for (const ex of (existing || [])) {
+          const prev = byDelivery.get(ex.delivery_id);
+          if (!prev) byDelivery.set(ex.delivery_id, [ex]); else prev.push(ex);
+        }
+        const toCreate = [];
+        for (const rec of catalogRecords) {
+          if (!rec?.delivery_id) continue;
+          const rows = byDelivery.get(rec.delivery_id) || [];
+          const primary = rows.find((r) => r.square_catalog_object_id === rec.square_catalog_object_id) || rows[0];
+          if (primary) {
+            const changed = primary.item_name !== rec.item_name
+              || Number(primary.amount_cents) !== Number(rec.amount_cents)
+              || primary.square_catalog_version !== rec.square_catalog_version
+              || primary.square_catalog_object_id !== rec.square_catalog_object_id
+              || (primary.status || 'active') !== (rec.status || 'active')
+              || primary.location_id !== rec.location_id;
+            if (changed) {
+              const { id, created_date, updated_date, created_by, ...clean } = rec;
+              await b.asServiceRole.entities.SquareCatalogItems.update(primary.id, clean).catch(() => null);
+              updated++;
+            }
+            for (let i = 0; i < rows.length; i++) {
+              if (rows[i] && rows[i].id !== primary.id) {
+                await b.asServiceRole.entities.SquareCatalogItems.delete(rows[i].id).catch(() => null);
+                deleted++;
+              }
+            }
+          } else {
+            const { id, created_date, updated_date, created_by, ...clean } = rec;
+            toCreate.push(clean);
+          }
+        }
+        for (let i = 0; i < toCreate.length; i += 100) {
+          const chunk = toCreate.slice(i, i + 100);
+          await b.asServiceRole.entities.SquareCatalogItems.bulkCreate(chunk).catch(() => null);
+          created += chunk.length;
+        }
+      }
+      for (const txp of txRecords) {
+        if (!txp?.delivery_id) continue;
+        const exTx = await b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: txp.delivery_id, status: 'pending' }).catch(() => []);
+        const { id, created_date, updated_date, created_by, ...clean } = txp;
+        if (exTx?.length > 0) {
+          await b.asServiceRole.entities.SquareTransaction.update(exTx[0].id, clean).catch(() => null);
+          txUpdated++;
+        } else {
+          await b.asServiceRole.entities.SquareTransaction.create(clean).catch(() => null);
+          txCreated++;
+        }
+      }
+      console.log('[syncSquareCods] bulk mirror done:', { catalogCreated: created, catalogUpdated: updated, duplicatesRemoved: deleted, txCreated, txUpdated });
+      return Response.json({ success: true, catalogCreated: created, catalogUpdated: updated, catalogDuplicatesRemoved: deleted, txCreated, txUpdated });
+    }
 
     // Event-driven sync (from entity trigger)
     const event = payload?.event;
@@ -245,7 +367,7 @@ Deno.serve(async (req) => {
           if (hasOfflinePayment(delivery) && !hasCardPayment(delivery)) {
             return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped', reason: 'offline_payment_needs_catalog_item' }] });
           }
-          const reason = hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery';
+          const reason = hasArchivedPayment(delivery) ? 'cod_archived' : (hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery');
           const r = await handleDeleteCodItem(b, { deliveryId: delivery.id, reason });
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }
@@ -271,6 +393,49 @@ Deno.serve(async (req) => {
     if (!items.length && !deletions.length) return Response.json({ success: true, processed: 0, results: [] });
 
     const results = [];
+    // ONE live-catalog fetch shared by every item in the batch (per-item
+    // catalog searches were the main Square rate-limit driver).
+    const skipBookkeeping = !!payload?.skipBookkeeping;
+    let batchLiveCatalog = null;
+    if (items.length > 0) {
+      try { batchLiveCatalog = await lc(et()); } catch (e) { console.warn('[syncSquareCods] Batch catalog prefetch failed, falling back to per-item fetches:', e?.message); }
+    }
+    // ── BATCH PREFETCH (owner report, Sep 27: per-item "Rate limit exceeded"
+    // right after the sync). Each item used to make ~6 service-role entity
+    // reads (delivery, completed/pending txs, store, config, patients) — that
+    // multiplied by the sync's own entity-write storm tripped the platform
+    // throttle. Everything for the WHOLE batch is now prefetched with $in
+    // filters in a handful of calls; per-item entity reads are gone.
+    let prefetched = null;
+    if (items.length > 0) {
+      try {
+        const ids = items.map((i) => i?.deliveryId).filter(Boolean);
+        const storeIds = Array.from(new Set(items.map((i) => i?.storeId).filter(Boolean)));
+        const [drRows, completedTxs, pendingTxs, storeRows] = await Promise.all([
+          b.asServiceRole.entities.Delivery.filter({ id: { $in: ids } }, '-updated_date', ids.length + 10).catch(() => []),
+          b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: { $in: ids }, status: 'completed' }, '-updated_date', 500).catch(() => []),
+          b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: { $in: ids }, status: 'pending' }, '-updated_date', 500).catch(() => []),
+          b.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }).catch(() => []),
+        ]);
+        const cfgIds = Array.from(new Set((storeRows || []).map((st) => st?.square_location_config_id).filter(Boolean)));
+        const cfgRows = await b.asServiceRole.entities.SquareLocationConfig.filter({ id: { $in: cfgIds } }).catch(() => []);
+        const pMaps = await buildPMaps(b, (drRows || []));
+        prefetched = {
+          drById: new Map((drRows || []).map((d) => [d.id, d])),
+          completedByDelivery: new Map(),
+          pendingByDelivery: new Map(),
+          storeById: new Map((storeRows || []).map((st) => [st.id, st])),
+          cfgById: new Map((cfgRows || []).map((c) => [c.id, c])),
+          pById: pMaps.pById,
+          pByPid: pMaps.pByPid,
+        };
+        (completedTxs || []).forEach((t) => { if (t?.delivery_id) { const a = prefetched.completedByDelivery.get(t.delivery_id) || []; a.push(t); prefetched.completedByDelivery.set(t.delivery_id, a); } });
+        (pendingTxs || []).forEach((t) => { if (t?.delivery_id) { const a = prefetched.pendingByDelivery.get(t.delivery_id) || []; a.push(t); prefetched.pendingByDelivery.set(t.delivery_id, a); } });
+      } catch (e) {
+        console.warn('[syncSquareCods] Batch prefetch failed — falling back to per-item entity reads:', e?.message);
+        prefetched = null;
+      }
+    }
     for (const del of deletions) {
       try {
         const r = await handleDeleteCodItem(b, { deliveryId: del?.deliveryId, catalogObjectId: del?.catalogObjectId, transactionId: del?.transactionId, reason: del?.status === 'failed' ? 'failed' : del?.reason });
@@ -280,12 +445,18 @@ Deno.serve(async (req) => {
         results.push({ deliveryId: del?.deliveryId, action: 'delete', status: 'error', error: error?.message || 'Delete failed' });
       }
     }
-    for (const item of items) {
+    for (let ii = 0; ii < items.length; ii++) {
+      const item = items[ii];
+      // Throttle: Square rate-limits bursts of catalog API calls. A 100+ item
+      // backlog fired hundreds of calls back-to-back and 429'd (the "Auto-create
+      // partial failure: 107 errors: Rate limit exceeded" flood). ~3/sec keeps
+      // us under the limit while finishing 107 items in ~40s.
+      if (ii > 0) await sleep(600);
       try {
-        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId });
+        const r = await handleCreateCodItem(b, { deliveryId: item?.deliveryId, patientName: item?.patientName, storeAbbreviation: item?.storeAbbreviation, codAmount: item?.codAmount, deliveryDate: item?.deliveryDate, storeId: item?.storeId }, batchLiveCatalog, skipBookkeeping, prefetched);
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
       } catch (error) {
-        console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message);
+        console.error('[syncSquareCods] Create error for', item?.deliveryId, ':', error?.message, error?.status ? `(status ${error.status})` : '');
         results.push({ deliveryId: item?.deliveryId, action: 'upsert', status: 'error', error: error?.message || 'Upsert failed' });
       }
     }

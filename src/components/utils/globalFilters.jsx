@@ -21,6 +21,16 @@ const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 // In-memory last refresh timestamp (not persisted — resets on page load intentionally)
 let lastRefreshTimestamp = 0;
 
+// ACTIVE USER REGISTRY (Oct 2 2026): many Dashboard driver/date selection
+// paths (store-default driver resolution, dispatcher auto-pick, store-scan
+// flows) call setSelectedDriverId/setSelectedDate WITHOUT a userId — those
+// changes were written to localStorage ONLY, never to the IDB cache or the
+// server, so the next reload restored the value from a PREVIOUS session
+// (owner report: date/driver from an old session after restart). Boot
+// registers the signed-in user here; updateAndSave falls back to it when a
+// call site omits the explicit userId.
+let activeUserId = null;
+
 // Global state object
 let globalState = {
   selectedDate: null,
@@ -129,10 +139,14 @@ const updateAndSave = (key, value, userId = null) => {
     console.warn('Failed to save to localStorage:', error);
   }
   
-  // Persist to backend if it's selected_date or selected_driver_id
-  if ((key === 'selectedDate' || key === 'selectedDriverId') && userId) {
+  // Persist to backend if it's selected_date or selected_driver_id.
+  // FALLBACK (Oct 2 2026): when the call site passed no userId (many driver
+  // auto-selection paths), use the boot-registered active user so the change
+  // reaches the IDB cache + server instead of dying in localStorage.
+  const persistUserId = userId || activeUserId;
+  if ((key === 'selectedDate' || key === 'selectedDriverId') && persistUserId) {
     const backendKey = key === 'selectedDate' ? 'selected_date' : 'selected_driver_id';
-    saveSetting(userId, backendKey, value).catch(error => {
+    saveSetting(persistUserId, backendKey, value).catch(error => {
       console.warn(`Failed to persist ${backendKey} to backend:`, error);
     });
   }
@@ -143,6 +157,8 @@ const updateAndSave = (key, value, userId = null) => {
 
 // Public API
 export const globalFilters = {
+  // Boot-time registration of the signed-in user for persistence fallback
+  setActiveUserId: (id) => { activeUserId = id || null; },
   // Getters
   getSelectedDate: () => globalState.selectedDate,
   getSelectedDriverId: () => globalState.selectedDriverId,

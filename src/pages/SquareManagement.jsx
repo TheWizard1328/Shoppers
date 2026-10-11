@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { invokeWithLongTimeout } from "@/components/utils/squareLongTimeout";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,17 @@ export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState(null);
+
+  // A response is a complete DB mirror only when the new backend built it
+  // (txRetentionFloor present) and it actually carries rows. Empty/partial
+  // responses must never replace-save the IDB tx history.
+  // A response is the COMPLETE DB tx mirror only when the backend loaded its
+// SquareTransaction table successfully (txListLoaded !== false) AND reports a
+// retention floor with rows. A hollow response from a failed DB list (the
+// backfill "tx: 0" chunks) must MERGE, never replace-save.
+const finalDataHasCompleteTxMirror = (res, rows) =>
+  res?.txListLoaded !== false && Boolean(res?.txRetentionFloor) && Array.isArray(rows) && rows.length > 0;
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [locationIds, setLocationIds] = useState([]);
@@ -60,6 +72,8 @@ export default function SquareManagement() {
   const [deliveries, setDeliveries] = useState([]);
   const [activeView, setActiveView] = useState('catalog');
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [itemToArchive, setItemToArchive] = useState(null);
+  const [itemToUnarchive, setItemToUnarchive] = useState(null);
   const [collectNote, setCollectNote] = useState('');
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
@@ -104,15 +118,22 @@ export default function SquareManagement() {
 
     const sold = (offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status));
 
-    setCatalogItems([...(offlineCatalog || [])]);
-    setSoldCatalogItems([...(sold || [])]);
-    setAllTransactions([...(offlineTransactions || [])]);
+    // null = IDB read FAILED (timeout/stall), not empty (owner report, Sep 30
+    // 2026) — keep whatever is already on screen instead of zeroing the page.
+    if (offlineCatalog !== null) setCatalogItems([...(offlineCatalog || [])]);
+    if (offlineTransactions !== null) {
+      setSoldCatalogItems([...(sold || [])]);
+      setAllTransactions([...(offlineTransactions || [])]);
+    }
     setSyncStatus(updatedSyncStatus ? { ...updatedSyncStatus } : updatedSyncStatus);
 
+    // null passthrough (Sep 30 2026): a FAILED read must stay null through this
+    // snapshot so callers (loadReconciliationFromOffline) can keep their current
+    // lists — coalescing null → [] here made read failures zero the page.
     return {
-      items: offlineCatalog || [],
-      transactions: offlineTransactions || [],
-      sold
+      items: offlineCatalog === null ? null : (offlineCatalog || []),
+      transactions: offlineTransactions === null ? null : (offlineTransactions || []),
+      sold: offlineTransactions === null ? null : sold
     };
   }, [getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus]);
 
@@ -203,17 +224,25 @@ export default function SquareManagement() {
   }), []);
 
   const loadReconciliationFromOffline = useCallback(async (offlineDB, startDateStr, endDateStr) => {
-    const [windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot] = await Promise.all([
-    loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
-    offlineDB.getAll(offlineDB.STORES.DELIVERIES),
-    loadSquareViewFromOffline()]
-    );
+    // Strict reads + null guards (owner report, Sep 30 2026): a read timeout must
+    // never zero the page — keep the current state when IDB is busy/stalled.
+    let windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot;
+    try {
+      [windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot] = await Promise.all([
+      loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
+      offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES),
+      loadSquareViewFromOffline()]
+      );
+    } catch (readErr) {
+      console.warn('[SquareManagement] loadReconciliationFromOffline: IDB read failed — keeping current lists:', readErr?.message);
+      return;
+    }
 
     const deliveriesToUse = (windowDeliveries || []).length > 0 ? windowDeliveries || [] : allOfflineDeliveries || [];
     setDeliveries([...(deliveriesToUse || [])]);
-    setCatalogItems([...(offlineCatalogSnapshot?.items || [])]);
-    setAllTransactions([...(offlineCatalogSnapshot?.transactions || [])]);
-    setSoldCatalogItems([...(offlineCatalogSnapshot?.sold || [])]);
+    if (offlineCatalogSnapshot?.items != null) setCatalogItems([...(offlineCatalogSnapshot.items || [])]);
+    if (offlineCatalogSnapshot?.transactions != null) setAllTransactions([...(offlineCatalogSnapshot.transactions || [])]);
+    if (offlineCatalogSnapshot?.sold != null) setSoldCatalogItems([...(offlineCatalogSnapshot.sold || [])]);
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
   const refreshUiFromOfflineOnly = useCallback(async () => {
@@ -234,10 +263,17 @@ export default function SquareManagement() {
   const visibleStoreIdsRef = useRef(new Set());
   const selectedDriverUserIdsRef = useRef(new Set());
 
-  const updateCatalog = useCallback(async () => {
+  const updateCatalogRef = useRef(null);
+
+  const updateCatalog = useCallback(async (trigger = 'manual') => {
     if (isUpdatingCatalog || isSyncing) return;
+    const ucStart = Date.now();
     setIsUpdatingCatalog(true);
     setError(null);
+    // 'manual' = the button was clicked by a person; 'auto' = the post-sync
+    // trigger fired it. Either way the button shows the same working state.
+    globalThis.__squareCodAutoUpdateAt = Date.now();
+    console.log(`[SquareManagement] UPDATE CATALOG STARTED (${trigger} click) at ${new Date().toLocaleTimeString()}`);
     try {
       // ── Add all reconciliation items (no catalog ID yet) to Square ───
       // Deletions are handled by the authoritative sync that follows.
@@ -266,55 +302,199 @@ export default function SquareManagement() {
 
       let addedCount = 0;
       let failedCount = 0;
+      let pushResults = [];
       if (itemsToAdd.length > 0) {
         // Wait for the batch to fully complete — syncSquareCods creates the items
         // in Square AND persists SquareCatalogItems + SquareTransaction records.
-        const res = await base44.functions.invoke('syncSquareCods', {
+        const res = await invokeWithLongTimeout('syncSquareCods', {
           items: itemsToAdd,
           deletions: [],
+          skipBookkeeping: true, // offline-first: client writes IDB, then ONE bulk online mirror
         });
         const results = res?.data?.results || res?.results || [];
-        addedCount = results.filter((r) => r.status === 'ok' || r.status === 'skipped').length;
+        pushResults = results;
+        // Only 'ok' counts as added — 'skipped' means the backend refused
+        // (collected, unconfigured store, etc.). Counting skips as added made
+        // the button claim success while creating nothing (owner report, Sep 27).
+        addedCount = results.filter((r) => r.status === 'ok').length;
+        const skipped = results.filter((r) => r.status === 'skipped');
         failedCount = results.filter((r) => r.status === 'error').length;
         if (failedCount > 0) {
           const errs = results.filter((r) => r.status === 'error').map((r) => r.error).slice(0, 3).join('; ');
           throw new Error(`${failedCount} item(s) failed: ${errs}`);
         }
+        if (skipped.length > 0) {
+          const reasons = Array.from(new Set(skipped.map((r) => r?.result?.reason || r?.reason || 'skipped'))).slice(0, 3).join(', ');
+          toast.info(`${skipped.length} item(s) skipped (${reasons})`);
+        }
+        console.log(`[SquareManagement] UPDATE CATALOG push done (${Date.now() - ucStart}ms): ${addedCount} ok, ${skipped.length} skipped, ${failedCount} errors`, results);
       }
 
-      // ── Run authoritative sync (same as page load) ──────────────────
-      // Resets the 30s cooldown guard so it runs immediately even if a sync
-      // just happened. This pulls the freshly-created catalog items from Square,
-      // cleans up collected items, and fully reconciles UI state.
-      lastSyncAtRef.current = 0;
-      await syncFromSquare();
+      // ── Merge created items locally — NO follow-up Square sync ─────────
+      // The push (syncSquareCods) already created the items in the Square
+      // Catalog API AND wrote both DBs (online bookkeeping + IDB). Running a
+      // full re-sync right after duplicated the whole Square API burst and
+      // tripped rate limits (owner spec, Sep 27 2026: the DBs are already
+      // updated; the next sync pulls transactions/cleanups as usual).
+      if (addedCount > 0) {
+        const okResults = pushResults.filter((r) => r?.status === 'ok');
+        const deliveryById = new Map(
+          (reconciliationRowsRef.current || [])
+            .map((row) => row.rawDelivery)
+            .filter(Boolean)
+            .map((d) => [d.id, d])
+        );
+        const createdRecords = okResults.map((r) => {
+          // Backend offline-first mode returns the exact bookkeeping payloads
+          if (r.result?.catPayload) return { ...r.result.catPayload };
+          const d = deliveryById.get(r.deliveryId);
+          const store = (stores || []).find((st) => st?.id === (d?.store_id || r.result?.storeId));
+          const config = getConfigForStore(store);
+          const amt = Number(d?.cod_total_amount_required || 0);
+          return {
+            square_catalog_object_id: r.result?.catalogObjectId || null,
+            square_catalog_version: r.result?.catalogVersion || null,
+            item_name: r.result?.itemName || null,
+            description: '',
+            amount: amt,
+            amount_cents: Math.round(amt * 100),
+            delivery_id: r.deliveryId,
+            delivery_date: d?.delivery_date || r.result?.deliveryDate || null,
+            patient_id: d?.patient_id || null,
+            store_id: d?.store_id || r.result?.storeId || null,
+            location_id: r.result?.locationId || config?.square_location_id || null,
+            status: 'active',
+          };
+        }).filter((c) => c.square_catalog_object_id);
+        const createdTxRecords = okResults
+          .filter((r) => r.result?.txPayload)
+          .map((r) => ({ id: `bookkeeping_${r.deliveryId}`, ...r.result.txPayload }));
+        console.log('[SquareManagement] UPDATE CATALOG merging created records into IDB:', createdRecords);
+        if (createdRecords.length > 0) {
+          // Serialize IDB mutations so two rapid runs (auto + retry, double
+          // click) can't interleave clearStore/bulkSave cycles.
+          const prevLock = globalThis.__squareCatalogIdbLock || Promise.resolve();
+          await prevLock.catch(() => {});
+          let releaseLock;
+          globalThis.__squareCatalogIdbLock = new Promise((res) => { releaseLock = res; });
+          let fullIdbCatalog = [];
+          try {
+            const { offlineDB } = await import('@/components/utils/offlineDatabase');
+            const currentRecords = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+            // Replace any stale records for the same deliveries with the fresh ones
+            // Merge by delivery_id (one bookkeeping row per delivery);
+            // freshly created records win over any stale rows.
+            const mergedCatalog = new Map();
+            (currentRecords || []).filter(Boolean).forEach((rec) => { if (!mergedCatalog.has(rec.delivery_id)) mergedCatalog.set(rec.delivery_id, rec); });
+            createdRecords.forEach((c) => mergedCatalog.set(c.delivery_id, c));
+            fullIdbCatalog = Array.from(mergedCatalog.values());
+            await squareCODOfflineManager.saveCatalogItemsOffline(fullIdbCatalog);
+            // Pending bookkeeping txs are UPSERTED into the correct store
+            // (SQUARE_TRANSACTIONS). NEVER replace-save here: the old code read
+            // the undefined PAYMENT_TRANSACTIONS store (always []), then
+            // replace-saved that empty set — wiping ALL 714 retained txs, which
+            // flooded the reconcile list with 139 collected CODs (Sep 28).
+            if (createdTxRecords.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, createdTxRecords);
+            }
+
+            // UI updates ONLY after every IDB write resolved (the "too soon" bug)
+            const [uiCatalog2, uiTxs2] = await Promise.all([
+              squareCODOfflineManager.getCatalogItemsOffline(),
+              squareCODOfflineManager.getPaymentTransactionsOffline(),
+            ]);
+            // null = read FAILED, not empty (owner report, Sep 30 2026) — keep
+            // the current lists rather than zeroing the page.
+            if (uiCatalog2 !== null) setCatalogItems([...(uiCatalog2 || [])]);
+            if (uiTxs2 !== null) {
+              setAllTransactions([...(uiTxs2 || [])]);
+              setSoldCatalogItems([...(uiTxs2 || [])].filter((tx) => ['completed', 'refunded'].includes(tx?.status)));
+            }
+            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+            // Rebuild the reconcile state straight from IDB (no Square API) so
+            // the delivery↔catalog links settle completely.
+            await runReconcile();
+          } finally {
+            releaseLock?.();
+          }
+          // ONE background bulk call mirrors the ENTIRE offline catalog to
+          // the online DB (owner spec, Sep 27 2026). No per-item writes.
+          invokeWithLongTimeout('syncSquareCods', {
+            mode: 'bulkSaveBookkeeping',
+            catalogRecords: fullIdbCatalog,
+            txRecords: createdTxRecords,
+          }).then((r2) => {
+            const d2 = r2?.data || r2 || {};
+            console.log('[SquareManagement] Bulk online mirror done:', d2);
+          }).catch((e2) => {
+            console.warn('[SquareManagement] Bulk online mirror failed (next sync will rebuild):', e2?.message);
+          });
+        }
+      }
 
       if (addedCount > 0) {
         toast.success(`Catalog updated: ${addedCount} item(s) added to Square`);
       } else {
         toast.success('Catalog synced — no new items to add');
       }
+      console.log(`[SquareManagement] UPDATE CATALOG COMPLETE (${trigger} click, ${Date.now() - ucStart}ms) — ${addedCount} added`);
     } catch (err) {
-      console.error('[SquareManagement] Update Catalog failed:', err);
+      console.error(`[SquareManagement] UPDATE CATALOG FAILED (${trigger} click, ${Date.now() - ucStart}ms):`, err?.message, err?.status ? `(status ${err.status})` : '', err?.response?.status ? `(http ${err.response.status})` : '');
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
+      // Rate-limit failures on the AUTO trigger get ONE delayed retry —
+      // manual-sync runs kept 429ing right after the sync's Square burst
+      // (owner report, Sep 27). 60s gives the Square rate window time to
+      // fully recover, and the retry logs itself so we can see whether the
+      // limit is Square-side or platform-side.
+      if (trigger === 'auto' && /rate limit/i.test(String(err?.message || ''))) {
+        setTimeout(() => {
+          console.log('[SquareManagement] UPDATE CATALOG auto-retry after rate limit (60s later)');
+          globalThis.__squareCodAutoUpdateAt = 0;
+          updateCatalogRef.current?.('auto-retry');
+        }, 60000);
+      }
     } finally {
       setIsUpdatingCatalog(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isUpdatingCatalog, isSyncing, patients]);
+  updateCatalogRef.current = updateCatalog;
 
-  const runReconcile = useCallback(async () => {
+  const runReconcile = useCallback(async (preloaded) => {
     setIsReconciling(true);
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Load all deliveries + transactions from offline DB — reconciliationRows useMemo does the matching
-      const [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
-      offlineDB.getAll(offlineDB.STORES.DELIVERIES),
-      offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
-      offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)]
-      );
+      // Load all deliveries + transactions from offline DB — reconciliationRows useMemo does the matching.
+      // STRICT reads (owner report, Sep 30 2026): the plain getAll() swallows
+      // timeouts and returns [], which zeroed EVERY list on the owner's tablet
+      // right after a sync (slower storage + the sync's write burst = read
+      // stalls). Strict reads THROW on failure so we keep the current lists
+      // instead of replacing them with empty ones.
+      //
+      // Speed spec (Sep 30 2026): `preloaded` lets the post-sync call skip the
+      // triple IDB re-read + decrypt entirely — the sync already holds exactly
+      // what it just wrote (merged deliveries + saved catalog/tx sets), so
+      // re-reading the PHI store only re-decrypts thousands of records for
+      // identical data. Other callers (Reconcile button, updateCatalog) still
+      // read from IDB.
+      let allOfflineDeliveries = preloaded?.deliveries || null;
+      let offlineCatalog = preloaded?.catalogItems || null;
+      let offlineTransactions = preloaded?.transactions || null;
+      try {
+        if (allOfflineDeliveries === null || offlineCatalog === null || offlineTransactions === null) {
+          [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
+          offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES),
+          offlineDB.getAllStrict(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+          offlineDB.getAllStrict(offlineDB.STORES.SQUARE_TRANSACTIONS)]
+          );
+        }
+      } catch (readErr) {
+        console.error('[SquareManagement] RECONCILE: IDB read FAILED — keeping current lists (NOT zeroing):', readErr?.message);
+        toast.info('Device storage was busy — lists left as-is. Try Refresh in a moment.');
+        return;
+      }
 
       setDeliveries([...(allOfflineDeliveries || [])]);
       setCatalogItems([...(offlineCatalog || [])]);
@@ -322,6 +502,11 @@ export default function SquareManagement() {
       setSoldCatalogItems([...(offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
 
       toast.success('Reconciliation list updated');
+      console.log('[SquareManagement] RECONCILE list rebuilt from IDB:', {
+        deliveries: allOfflineDeliveries?.length || 0,
+        catalogItems: offlineCatalog?.length || 0,
+        transactions: offlineTransactions?.length || 0,
+      });
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
     } finally {
@@ -329,22 +514,230 @@ export default function SquareManagement() {
     }
   }, []);
 
-  const syncFromSquare = async () => {
+  // ── 6-month SquareTransaction backfill (AppOwner only) ──────────────────
+  // One-time scan: pulls 6 months of Square orders in monthly chunks (each
+  // call stays under the 120s client timeout), rebuilds the SquareTransaction
+  // history, stamps matched collections, and keeps everything back to the
+  // earliest uncollected COD (the retention floor). Collected tx rows older
+  // than the floor are purged. The final chunk's response is the complete
+  // DB-mirror set — saved to IDB so every list comparison has full history.
+  const runSixMonthBackfill = async () => {
+    if (isSyncing || backfillProgress) return;
+    setIsSyncing(true);
+    setError(null);
+    try {
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      // Owner spec (Sep 29 2026): months 1-3 (0-90 days) are already collected
+      // by the regular sync, so the backfill only re-fetches Square orders for
+      // months 4-6 (90-180 days). The final response still carries the FULL
+      // DB tx mirror (all 6 months) via the server-side merge, so IDB ends up
+      // with the complete history either way. 7-day chunks: each call returns
+      // faster so progress moves visibly.
+      const CHUNK = 7, TOTAL = 180, MIN_DAYS = 90;
+      let finalData = null;
+      const txUnion = new Map();
+      const txUnionKeyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
+      const backfillT0 = Date.now();
+      const chunkCount = Math.ceil((TOTAL - MIN_DAYS) / CHUNK);
+      let chunkIdx = 0;
+      console.log(`[SquareManagement] BACKFILL START at ${new Date().toLocaleTimeString()} — ${chunkCount} chunks, days ${TOTAL}->${MIN_DAYS} (${CHUNK}-day sets)`);
+      for (let start = TOTAL; start > MIN_DAYS; start -= CHUNK) {
+        const end = Math.max(MIN_DAYS, start - CHUNK);
+        chunkIdx += 1;
+        const chunkT0 = Date.now();
+        setBackfillProgress(`Chunk ${chunkIdx}/${chunkCount}: pulling Square orders ${start}-${end} days back...`);
+        const res = await invokeWithLongTimeout('squareGetCodData2', {
+          forceDeliveryRefresh: true,
+          daysBack: TOTAL,
+          orderChunk: { startDaysAgo: start, endDaysAgo: end },
+        });
+        finalData = res?.data || res || null;
+        // UNION the tx records from every chunk (owner fix, Sep 29 2026): the
+        // old code trusted ONLY the final chunk's response, but chunk calls can
+        // return hollow sets (rate-limit/DB-list failure mid-run produced
+        // "tx: 0" for every chunk after the first) — replace-saving the hollow
+        // final response wiped IDB even though chunk 1 returned the full
+        // 716-row mirror. The union keeps every row any chunk produced;
+        // the save prunes rows no chunk reported.
+        (finalData?.transactionRecords || []).forEach((t) => {
+          if (t) txUnion.set(txUnionKeyOf(t), t);
+        });
+        console.log(`[SquareManagement] Backfill chunk ${chunkIdx}/${chunkCount} done in ${((Date.now() - chunkT0) / 1000).toFixed(1)}s at ${new Date().toLocaleTimeString()}`, { startDaysAgo: start, endDaysAgo: end, tx: finalData?.transactionRecords?.length, floor: finalData?.txRetentionFloor, union: txUnion.size });
+      }
+      console.log(`[SquareManagement] BACKFILL LOOP COMPLETE — ${chunkIdx} chunks in ${((Date.now() - backfillT0) / 1000).toFixed(1)}s at ${new Date().toLocaleTimeString()}`);
+      if (!finalData) throw new Error('Backfill returned no data');
+
+      // Final chunk's response = the complete retained set when it loaded
+      // successfully (txListLoaded + floor + rows); the union is only the
+      // fallback when the final chunk came back hollow — the union can also
+      // hold rows that later chunks purged as collected-old, so a COMPLETE
+      // final mirror always wins.
+      const finalChunkRows = finalData.transactionRecords || [];
+      const finalChunkIsMirror = finalDataHasCompleteTxMirror(finalData, finalChunkRows);
+      const transactionRecords = finalChunkIsMirror ? finalChunkRows : Array.from(txUnion.values());
+      console.log('[SquareManagement] Backfill final tx set:', { source: finalChunkIsMirror ? 'final-mirror' : 'chunk-union', rows: transactionRecords.length });
+      const catalogRecords = finalData.catalogRecords || [];
+      const strippedDeliveries = Array.isArray(finalData.deliveries) ?
+        finalData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
+        [];
+      await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
+      // New-backend responses carry txRetentionFloor and are the COMPLETE retained
+      // DB set — safe to replace-save. Old/partial responses (no floor field, e.g.
+      // during deploy propagation) get MERGED instead so IDB history is never wiped.
+      if (finalDataHasCompleteTxMirror(finalData, transactionRecords)) {
+        const txSave = await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+        if (!txSave?.success) {
+          console.error('[SquareManagement] Backfill: IDB tx save FAILED — history untouched:', txSave?.error);
+          toast.error('Tx history save failed — existing data kept: ' + (txSave?.error || 'unknown'));
+        }
+      } else {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
+        const existing = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS) || [];
+        const merged = new Map((existing || []).map((t) => [keyOf(t), t]));
+        (transactionRecords || []).forEach((t) => { if (t) merged.set(keyOf(t), { ...merged.get(keyOf(t)), ...t }); });
+        await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(merged.values()));
+      }
+
+      const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+      const existingMap = new Map(existing.map((r) => [r.id, r]));
+      (strippedDeliveries || []).forEach((r) => {
+        if (!r?.id) return;
+        const prev = existingMap.get(r.id);
+        if (prev) existingMap.set(r.id, { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' });
+        else existingMap.set(r.id, r);
+      });
+      await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
+
+      const [uiCatalog, uiTransactions] = await Promise.all([
+        squareCODOfflineManager.getCatalogItemsOffline(),
+        squareCODOfflineManager.getPaymentTransactionsOffline()
+      ]);
+      const { startDateStr, endDateStr } = getSourceWindow();
+      const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+      setDeliveries([...(windowedDeliveries.length > 0 ? windowedDeliveries : Array.from(existingMap.values()))]);
+      // null = read FAILED, not empty (Sep 30 2026) — keep current lists.
+      if (uiCatalog !== null) setCatalogItems([...(uiCatalog || [])]);
+      if (uiTransactions !== null) {
+        setAllTransactions([...(uiTransactions || [])]);
+        setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+      }
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+
+      toast.success(`Backfill complete — ${transactionRecords.length} transactions, history back to ${finalData.txRetentionFloor || 'floor'}`);
+
+      // The reconcile list only shows deliveries inside the selected Days Range
+      // (default 90). Backfilled history spans 180 days, and uncollected CODs
+      // past 90 days (Susan Gillie's $35 on Jun 22 — 99 days back) would never
+      // surface as New Catalog Items, so no item was ever created for them.
+      // Widen the window to 180 before reconciling so the auto Update Catalog
+      // pass sees every uncollected COD in the backfilled period.
+      if (Number(selectedDaysRange || 90) < 180) {
+        console.log('[SquareManagement] Backfill: widening reconcile Days Range to 180 so pre-90-day CODs surface');
+        setSelectedDaysRange('180');
+      }
+
+      // Final step per owner spec: reconcile. The Catalog + Transaction pages now
+      // match against the full 6-month tx history in IDB.
+      await runReconcile();
+
+      // ── Owner spec (Sep 28 2026): after comparing 6 months of COD deliveries
+      // against the Square Transaction API, every UNCOLLECTED COD must be
+      // added to the offline Square Catalog Items DB, the UI updated, and the
+      // items pushed to the Square Catalog API. After runReconcile those
+      // deliveries surface as NEW CATALOG ITEMS in the reconcile list, so the
+      // proven Update Catalog path performs the remaining steps: push to
+      // Square → merge created records into the offline DB → UI update.
+      // (isSyncing released + 1s render flush — same re-bind pattern as the
+      // sync's STEP 5.)
+      setIsSyncing(false);
+      // Short render yield re-binds updateCatalogRef (old fixed 1s wait just
+      // burned time — speed spec, Sep 30 2026).
+      await new Promise((r) => setTimeout(r, 50));
+      console.log('[SquareManagement] Backfill: running Update Catalog path for uncollected items');
+      await updateCatalogRef.current?.('auto');
+    } catch (err) {
+      console.error('[SquareManagement] Backfill failed:', err);
+      setError(err?.message || 'Backfill failed');
+      toast.error('Backfill failed: ' + (err?.message || 'unknown error'));
+    } finally {
+      setBackfillProgress(null);
+      setIsSyncing(false);
+    }
+  };
+
+  const syncFromSquare = async ({ force = false } = {}) => {
     const now = Date.now();
-    if (syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
+    // SHARED guards (localStorage-level): page load fired the sync TWICE even
+    // with window-global guards (owner log 12:24 AM, Sep 28) — the builder
+    // bridge hot-swaps a NEW module version (builder-bridge.js?t=...276)
+    // while the OLD one (t=...236) is still mid-run, and each version runs in
+    // its own realm where globalThis flags never meet. localStorage is shared
+    // by every instance/iframe of this origin, so the lock and cooldown live
+    // there. The lease (4 min) self-expires if a sync dies without a finally,
+    // so a crashed run can't deadlock the page.
+    // force = MANUAL SYNC BUTTON: overrides the lock/cooldown and re-syncs the
+    // FULL 90-day window (owner request, Sep 28) — the incremental order-fetch
+    // marker is cleared so step 2 pulls every order again. A sync already in
+    // flight is still respected (a double-run would be worse than the wait).
+    const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
+    const LS_START = 'squareCodSync_lastStartAt';
+    const leaseUntil = Number(localStorage.getItem(LS_INFLIGHT) || 0);
+    const lastStart = Number(localStorage.getItem(LS_START) || 0);
+    if (force) {
+      localStorage.removeItem('squareCod_lastOrderFetchAt');
+      if (syncInFlightRef.current || leaseUntil > now) {
+        console.log('[SquareManagement] SYNC SKIPPED — another sync is already running');
+        toast.info('A sync is already running — it will finish shortly');
+        return;
+      }
+      console.log('[SquareManagement] SYNC STARTED (manual, cooldown overridden, full 90-day window)');
+    } else if (leaseUntil > now || lastStart > 0 && now - lastStart < 30000 || syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
+      console.log('[SquareManagement] SYNC SKIPPED — already running or cooling down');
       return;
     }
+    localStorage.setItem(LS_INFLIGHT, String(now + 240000));
+    localStorage.setItem(LS_START, String(now));
 
+    const g = globalThis;
+    g.__squareCodSyncInFlight = true;
+    g.__squareCodLastSyncAt = now;
     syncInFlightRef.current = true;
     lastSyncAtRef.current = now;
     setIsSyncing(true);
     setError(null);
+    const syncStartMs = Date.now(); // total sync duration for the completion toast (speed spec, Sep 30 2026)
+    console.log(`[SquareManagement] SYNC STARTED at ${new Date().toLocaleTimeString()}`);
 
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // ── STEP 1: Load from offline DB immediately (no UI changes yet) ──
-      // The mount effect already loaded offline data; just ensure isLoading is off
+      // ── STEP 1: Load from the offline catalog & transaction DB, update the UI.
+      // Speed spec (Sep 30 2026): these IDB reads (catalog + tx decrypt) used to
+      // run to completion BEFORE the server call started, serializing device
+      // storage time in front of the whole sync. They only update the "while
+      // you wait" lists, so they now run in PARALLEL with STEP 2 — the total
+      // is now max(step1, server) instead of step1 + server.
+      const step1Promise = Promise.all([
+        squareCODOfflineManager.getCatalogItemsOffline(),
+        squareCODOfflineManager.getPaymentTransactionsOffline(),
+      ]).then(([step1Catalog, step1Txs]) => {
+        setIsLoading(false);
+        // null = IDB read FAILED (timeout/stall), NOT an empty store (owner report,
+        // Sep 30 2026: the tablet's reads right after a big sync timed out and
+        // zeroed every list). Keep the current on-screen state instead.
+        if (step1Catalog !== null) setCatalogItems([...(step1Catalog || [])]);
+        if (step1Txs !== null) {
+          setAllTransactions([...(step1Txs || [])]);
+          setSoldCatalogItems([...(step1Txs || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+        }
+        if (step1Catalog === null || step1Txs === null) {
+          console.warn('[SquareManagement] SYNC STEP 1: offline read FAILED (kept current lists) — catalog:', step1Catalog === null ? 'FAILED' : 'ok', 'txs:', step1Txs === null ? 'FAILED' : 'ok');
+        } else {
+          console.log(`[SquareManagement] SYNC STEP 1: offline load — ${(step1Catalog || []).length} catalog, ${(step1Txs || []).length} txs → UI`);
+        }
+      }).catch(() => setIsLoading(false));
       setIsLoading(false);
 
       // ── STEP 2: Single API call — catalog + transactions + cleanup in one pass ──
@@ -354,13 +747,33 @@ export default function SquareManagement() {
       let syncError = null;
       let codData = null;
       try {
-        const codResponse = await base44.functions.invoke('squareGetCodData2', {
+        // Incremental order fetch (owner speed spec, Sep 28): pass the last
+        // successful fetch minus a 7-day overlap so the backend only pulls
+        // COMPLETED Square orders created since then instead of the whole
+        // 90-day window. Older orders are already mirrored in the retained DB
+        // rows the response merges in. No marker / stale marker (14d) → full
+        // window, same as before. Marker is only stamped on SUCCESS, so a
+        // failed sync can never leave a coverage gap.
+        const LS_ORDER_SINCE = 'squareCod_lastOrderFetchAt';
+        const lastOrderFetch = Number(localStorage.getItem(LS_ORDER_SINCE) || 0);
+        const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
+          ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
+          : null;
+        console.log(`[SquareManagement] SYNC STEP 2: Square API fetch starting (squareGetCodData2, daysBack=90${orderFetchSince ? ', incremental since ' + orderFetchSince : ', full window'} )`);
+        const codResponse = await invokeWithLongTimeout('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: 90,
+          ...(orderFetchSince ? { orderFetchSince } : {}),
         });
         codData = codResponse?.data || codResponse || {};
+        localStorage.setItem(LS_ORDER_SINCE, String(Date.now()));
+        console.log(`[SquareManagement] SYNC STEP 2: Square API fetch done — ${(codData.transactions || codData.transactionRecords || []).length} txs, ${(codData.catalog || codData.catalogRecords || []).length} catalog, ${(codData.deletedCatalogIds || []).length} deleted`, 'server timings:', codData?.timings);
+        // Let the parallel STEP 1 UI load settle (it never blocks the server call;
+        // by now it has almost always finished long ago).
+        await step1Promise;
       } catch (err) {
         syncError = err;
+        console.error('[SquareManagement] SYNC STEP 2: Square API fetch FAILED:', err?.message, err?.status || '');
       }
 
       if (!syncError && codData) {
@@ -372,124 +785,160 @@ export default function SquareManagement() {
         const deletedCount = (codData.deletedCatalogIds || []).length;
 
         // Sync online → offline (IDB writes only, no UI state)
-        await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
-        await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+        // Speed spec (Sep 30 2026): the saves now diff against the existing IDB
+        // rows and only write CHANGED records, so an ordinary sync (nothing
+        // collected, nothing new) does near-zero encryption work instead of
+        // re-encrypting and rewriting the whole catalog + 6-month tx mirror.
+        let savedCatalogSet = null; // what IDB now holds, for the preloaded reconcile
+        const catSave = await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
+        if (catSave?.success && (catalogRecords || []).length > 0) savedCatalogSet = catalogRecords;
+        // Guard the IDB tx history: a replace-save only happens when the response
+        // is a COMPLETE DB mirror (new backend: txRetentionFloor present AND rows).
+        // Partial/empty responses (old backend mid-deploy, failed order fetch)
+        // would otherwise wipe 6 months of history on every device.
+        let savedTxSet = null; // what IDB now holds, for the preloaded reconcile
+        if (finalDataHasCompleteTxMirror(codData, transactionRecords)) {
+          const txSave = await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+          if (!txSave?.success) {
+            console.error('[SquareManagement] Sync: IDB tx save FAILED — history untouched:', txSave?.error);
+          } else if ((transactionRecords || []).length > 0) {
+            savedTxSet = transactionRecords;
+          }
+        } else {
+          const keyOf = (t) => `${t?.square_transaction_id || ''}::${t?.raw_square_data?.line_item_uid || t?.id || ''}`;
+          const existingTxs = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
+          const mergedTxs = new Map((existingTxs || []).map((t) => [keyOf(t), t]));
+          (transactionRecords || []).forEach((t) => { if (t) mergedTxs.set(keyOf(t), { ...mergedTxs.get(keyOf(t)), ...t }); });
+          const mergedTxSave = await squareCODOfflineManager.savePaymentTransactionsOffline(Array.from(mergedTxs.values()));
+          if (mergedTxSave?.success) savedTxSet = Array.from(mergedTxs.values());
+          console.warn('[SquareManagement] Partial/empty tx response — merged into IDB instead of replace-save', { rows: transactionRecords?.length, floor: codData?.txRetentionFloor });
+        }
 
         // Merge deliveries non-destructively — preserve local-only fields (delivery_notes,
         // encoded_polyline, etc.) that squareGetCodData2 doesn't return in its stripped payload.
-        const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
-        const existingMap = new Map(existing.map((r) => [r.id, r]));
+        // STRICT read (Sep 30 2026): a silent-[] timeout used to make this merge
+        // run on a phantom EMPTY store and the replace wiped local-only fields.
+        // On failure we skip the merge-write entirely — IDB keeps its records.
+        let existing;
+        try {
+          existing = (await offlineDB.getAllStrict(offlineDB.STORES.DELIVERIES)) || [];
+        } catch (readErr) {
+          console.error('[SquareManagement] Sync STEP 3: DELIVERIES read FAILED — skipping non-destructive merge (IDB untouched):', readErr?.message);
+          existing = null;
+        }
+        const existingMap = new Map((existing || []).map((r) => [r.id, r]));
+        // Speed spec (Sep 30 2026): the old flow replaceAllRecords'd the ENTIRE
+        // deliveries store every sync — re-encrypting and rewriting every row
+        // (AES-GCM on a PHI store, thousands of records) even when nothing
+        // changed. This is the single slowest IDB step of the sync. Now we
+        // bulkSave only the CHANGED records: server rows whose updated_date or
+        // content differs from what's stored, plus brand-new ones. Pruning is
+        // unnecessary here by construction — the merged set is existing + server
+        // rows, so nothing can be missing that replaceAllRecords would have
+        // deleted (server-side deletions were never pruned by this path anyway).
+        let changedDeliveries = [];
+        if (existing !== null) {
+          changedDeliveries = (strippedDeliveries || []).filter((r) => {
+            if (!r?.id) return false;
+            const prev = existingMap.get(r.id);
+            if (!prev) return true; // brand-new row
+            if (r.updated_date !== prev.updated_date) return true; // cheap fast-path
+            // updated_date identical but content could still differ — deep compare
+            const merged = { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' };
+            return JSON.stringify(merged) !== JSON.stringify(prev);
+          }).map((r) => {
+            const prev = existingMap.get(r.id);
+            // Shallow-merge server fields on top of existing record, but keep
+            // any local-only fields the server strip omitted.
+            return prev ? { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' } : r;
+          });
+          if (changedDeliveries.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
+          }
+        }
         (strippedDeliveries || []).forEach((r) => {
           if (!r?.id) return;
           const prev = existingMap.get(r.id);
           if (prev) {
-            // Shallow-merge server fields on top of existing record, but keep
-            // any local-only fields the server strip omitted.
             existingMap.set(r.id, { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' });
           } else {
             existingMap.set(r.id, r);
           }
         });
-        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
+        console.log(`[SquareManagement] SYNC STEP 3: IDB saved — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted, deliveries changed ${existing === null ? 'SKIPPED (read failed)' : changedDeliveries.length + '/' + (strippedDeliveries || []).length}`);
 
-        // ── STEP 3: One UI update from offline DB ──────────────────────
-        const [uiCatalog, uiTransactions] = await Promise.all([
-          squareCODOfflineManager.getCatalogItemsOffline(),
-          squareCODOfflineManager.getPaymentTransactionsOffline()
-        ]);
-        const { startDateStr, endDateStr } = getSourceWindow();
-        const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+        // ── STEP 3: run the reconcile system (rebuilds every list and updates
+        // the UI state). Preloaded with the data this sync JUST wrote to IDB —
+        // skips the triple getAllStrict re-read + decrypt (speed spec, Sep 30
+        // 2026). savedCatalogSet/savedTxSet are null when the save was a no-op
+        // (empty incoming set) — then IDB holds the OLD rows and we must read.
+        const preloaded = (existing !== null && savedCatalogSet !== null && savedTxSet !== null) ? {
+          deliveries: Array.from(existingMap.values()),
+          catalogItems: savedCatalogSet,
+          transactions: savedTxSet,
+        } : null;
+        await runReconcile(preloaded);
+        console.log(`[SquareManagement] SYNC STEP 3: reconcile complete — lists + UI rebuilt ${preloaded ? 'from pre-sync data (IDB re-read skipped)' : 'from offline DB'}`);
 
-        setDeliveries([...(windowedDeliveries.length > 0 ? windowedDeliveries : Array.from(existingMap.values()))]);
-        setCatalogItems([...(uiCatalog || [])]);
-        setAllTransactions([...(uiTransactions || [])]);
-        setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-
+        // ── STEP 4: update the UI from the rebuilt state ────────────────
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+        console.log('[SquareManagement] SYNC STEP 4: UI updated');
 
-        // ── STEP 3.5: Auto-create missing catalog items for uncollected deliveries ──
-        // After the sync deletes collected items and mirrors the catalog, check if
-        // there are uncollected deliveries that still need catalog items created in
-        // Square. This merges the "Update Catalog" action into the Sync flow so one
-        // button reconciles in both directions (delete collected + create missing).
-        const catalogDeliveryIds = new Set((catalogRecords || []).map((r) => r?.delivery_id).filter(Boolean));
-        // Any delivery with a transaction record (pending OR completed) means the
-        // catalog item was already used in a Square sale — don't re-create it.
-        const collectedTxDeliveryIds = new Set(
-          (transactionRecords || [])
-            .filter((t) => t?.delivery_id && t?.square_transaction_id)
-            .map((t) => t?.delivery_id)
-            .filter(Boolean)
-        );
-        const _hasCardPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
-          .some((p) => ['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
-
-        const itemsToCreate = (strippedDeliveries || [])
-          .filter((d) => {
-            if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
-            if (d?.status === 'failed' || d?.status === 'cancelled') return false;
-            if (catalogDeliveryIds.has(d.id)) return false;
-            if (_hasCardPayment(d)) return false;
-            if (collectedTxDeliveryIds.has(d.id)) return false;
-            return true;
-          })
-          .map((d) => ({
-            deliveryId: d.id,
-            patientName: null,
-            storeId: d.store_id,
-            codAmount: d.cod_total_amount_required,
-            deliveryDate: d.delivery_date,
-          }));
-
-        let autoAddedCount = 0;
-        let autoFailedCount = 0;
-        if (itemsToCreate.length > 0) {
-          try {
-            const createRes = await base44.functions.invoke('syncSquareCods', {
-              items: itemsToCreate,
-              deletions: [],
-            });
-            const createResults = createRes?.data?.results || createRes?.results || [];
-            autoAddedCount = createResults.filter((r) => r.status === 'ok').length;
-            autoFailedCount = createResults.filter((r) => r.status === 'error').length;
-            if (autoFailedCount > 0) {
-              const errs = createResults.filter((r) => r.status === 'error').map((r) => r.error).slice(0, 3).join('; ');
-              console.warn('[SquareManagement] Auto-create partial failure:', autoFailedCount, 'errors:', errs);
-            }
-
-            // Re-fetch catalog from Square to pick up the newly created items
-            if (autoAddedCount > 0) {
-              const refreshRes = await base44.functions.invoke('squareGetCodData2', {
-                forceDeliveryRefresh: false,
-                daysBack: 90,
-              });
-              const refreshData = refreshRes?.data || refreshRes || {};
-              const refreshedCatalog = refreshData.catalogRecords || [];
-              const refreshedTransactions = refreshData.transactionRecords || [];
-              await squareCODOfflineManager.saveCatalogItemsOffline(refreshedCatalog);
-              await squareCODOfflineManager.savePaymentTransactionsOffline(refreshedTransactions);
-              const [refreshedUiCatalog, refreshedUiTx] = await Promise.all([
-                squareCODOfflineManager.getCatalogItemsOffline(),
-                squareCODOfflineManager.getPaymentTransactionsOffline()
-              ]);
-              setCatalogItems([...(refreshedUiCatalog || [])]);
-              setAllTransactions([...(refreshedUiTx || [])]);
-              setSoldCatalogItems([...(refreshedUiTx || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-            }
-          } catch (createErr) {
-            console.error('[SquareManagement] Auto-create missing items failed:', createErr);
+        // ── STEP 5 (FINAL): run the Update Catalog path for everything the
+        // sync marked as a NEW CATALOG ITEM (owner spec, Sep 28 2026). A short
+        // render yield comes FIRST: runReconcile's setStates haven't re-rendered
+        // yet, so reading the refs synchronously saw the PRE-sync list — that's
+        // why Update Catalog only ever ran after the SECOND sync (owner report,
+        // Sep 28). 50ms is plenty (refs are assigned during the render commit,
+        // not in effects); the old fixed 1000ms just burned sync time (speed
+        // spec, Sep 30 2026). Worst case a missed rebind = item created on the
+        // next sync/manual button, same graceful fallback as before.
+        await new Promise((r) => setTimeout(r, 50));
+        try {
+          const catalogDeliveryIds = new Set(
+            (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
+          );
+          const hasNewItems = (reconciliationRowsRef.current || []).some((row) => {
+            if (row.catalogId && row.catalogId !== '--') return false;
+            const deliveryId = row.rawDelivery?.id || row.id;
+            if (deliveryId && catalogDeliveryIds.has(deliveryId)) return false;
+            const delivery = row.rawDelivery;
+            return !!(delivery && Number(delivery.cod_total_amount_required) > 0);
+          });
+          console.log(`[SquareManagement] SYNC STEP 5: New Catalog Items present = ${hasNewItems}`);
+          if (hasNewItems) {
+            // Only the isSyncing STATE is released (updateCatalog guards on
+            // it) — the in-flight refs/global stay held until the sync's
+            // finally, so no second sync trigger can start mid-STEP-5 and
+            // double-run the Square API burst into a rate limit (owner
+            // report, Sep 28). The 1s flush re-binds updateCatalogRef to the
+            // re-rendered callback whose isSyncing closure is now false.
+            setIsSyncing(false);
+            // Short render yield re-binds updateCatalogRef to the re-rendered
+            // callback whose isSyncing closure is now false (the old 1s wait
+            // just burned sync time — speed spec, Sep 30 2026).
+            await new Promise((r) => setTimeout(r, 50));
+            console.log('[SquareManagement] SYNC STEP 5: running Update Catalog path');
+            await updateCatalogRef.current?.('auto');
+          } else {
+            console.log('[SquareManagement] SYNC STEP 5: no New Catalog Items — skipping Update Catalog');
           }
+        } catch (e) {
+          console.warn('[SquareManagement] SYNC STEP 5: Update Catalog trigger failed:', e?.message);
         }
 
         // ── Toast with combined results ──
         const parts = [`${transactionRecords.length} transactions`];
-        if (autoAddedCount > 0) parts.push(`${autoAddedCount} item(s) created`);
         if (deletedCount > 0) parts.push(`removed ${deletedCount} collected item(s)`);
-        if (autoFailedCount > 0) parts.push(`${autoFailedCount} failed`);
+        const serverMs = Number(codData?.timings?.[codData.timings.length - 1]?.ms || 0);
+        const totalSec = Math.round((Date.now() - syncStartMs) / 1000);
+        parts.push(`${totalSec}s total (server ${Math.round((serverMs || totalSec * 1000) / 1000)}s + device ${Math.max(0, totalSec - Math.round((serverMs || 0) / 1000))}s)`);
+        console.log('[SquareManagement] SYNC STAGE TIMINGS (server):', codData?.timings);
         toast.success(`Sync complete — ${parts.join(', ')}`);
+        console.log(`[SquareManagement] SYNC COMPLETE at ${new Date().toLocaleTimeString()} — ${transactionRecords.length} txs, ${catalogRecords.length} catalog, ${deletedCount} deleted`);
       } else if (syncError) {
-        console.error('[SquareManagement] Sync failed', { error: syncError?.message });
+        console.error('[SquareManagement] SYNC FAILED — falling back to entity API', { error: syncError?.message });
         setError(syncError.message);
         // Fallback: try loading transactions + catalog from online DB entity API
         // The admin's sync populates these entities; drivers can read them directly.
@@ -535,6 +984,14 @@ export default function SquareManagement() {
       toast.error('Failed to sync: ' + err.message);
     } finally {
       syncInFlightRef.current = false;
+      globalThis.__squareCodSyncInFlight = false;
+      // Release the cross-instance lock and stamp the cooldown at sync END —
+      // stamping it at sync START let a slow first sync (30s+) immediately
+      // re-trigger a duplicate sync when a page-load trigger landed right
+      // after the cooldown elapsed (owner report, Sep 28).
+      localStorage.setItem('squareCodSync_inFlightUntil', '0');
+      localStorage.setItem('squareCodSync_lastStartAt', String(Date.now()));
+      globalThis.__squareCodLastSyncAt = Date.now();
       setIsSyncing(false);
       setIsLoading(false);
       await loadSyncStatus();
@@ -587,6 +1044,34 @@ export default function SquareManagement() {
     const nextStores = (appDataStores || []).filter(Boolean);
     if (nextStores.length > 0) setStores(nextStores);
   }, [appDataStores]);
+
+  // Direct one-time-per-mount server refresh for SquareLocationConfig.
+  // The boot-time priority fetch (useLayoutInit) only re-fetches this entity when
+  // the device's offline cache is EMPTY (squareConfigsMissing) — once ANY configs
+  // are cached, that gate never fires again on this device. So a store whose Square
+  // location gets created, renamed, or flips active/inactive AFTER the cache was
+  // first seeded is invisible on that device forever (reported: Londonderry missing
+  // from every store filter/dropdown on Sep 22, 2026 despite being active server-side).
+  // This page needs current status to decide which stores to show, so it bypasses
+  // that gate and always pulls a fresh copy on mount, merging into both React state
+  // and the offline cache so other pages/next boots benefit too.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const fresh = await base44.entities.SquareLocationConfig.list();
+        if (!mounted || !(fresh || []).length) return;
+        setLocationConfigs(fresh);
+        locationConfigsRef.current = fresh;
+        setLocationIds(fresh.map((c) => c?.square_location_id).filter(Boolean));
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.SQUARE_LOCATION_CONFIGS, fresh).catch(() => {});
+      } catch (err) {
+        console.warn('[SquareManagement] Direct SquareLocationConfig refresh failed:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []); // once per mount — deliberately independent of the offline-cache-gated boot fetch
 
   // Keep patients in sync without triggering the heavy lookup-data sync effect
   // Merge (not replace) so the role-neutral patient loader below survives —
@@ -771,6 +1256,69 @@ export default function SquareManagement() {
     })();
     return () => { mounted = false; };
   }, [selectedDaysRange, getLocalDateString]);
+
+  // ARCHIVED / UNARCHIVED COD backfill (Oct 1 2026): archived CODs can be far
+  // older than the 90-day delivery_date window (their delivery_date never
+  // changes), so the windowed loads never fetch them. But archiving/unarchiving
+  // bumps updated_date, so fetch recent-updated deliveries and keep only rows
+  // with an Archived payment or the cod_unarchived_at stamp — this powers the
+  // ARCHIVED section's "all archived items, any age" rule.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const updatedSince = new Date(Date.now() - 90 * 86400000).toISOString();
+        const pageSize = 500;
+        let skip = 0;
+        const found = [];
+        while (true) {
+          const page = await base44.entities.Delivery.filter(
+            { updated_date: { $gte: updatedSince } },
+            '-updated_date',
+            pageSize,
+            skip
+          );
+          if (!page?.length) break;
+          for (const d of page) {
+            if (!d?.id) continue;
+            const archived = (Array.isArray(d.cod_payments) ? d.cod_payments : []).some((p) => String(p?.type || '').toLowerCase() === 'archived' && Number(p?.amount || 0) > 0);
+            if (archived || d.cod_unarchived_at) found.push(d);
+          }
+          if (page.length < pageSize) break;
+          skip += pageSize;
+          if (skip > 10000) break; // hard safety cap
+        }
+        if (mounted && found.length > 0) {
+          setDeliveries((prev) => {
+            const map = new Map();
+            (prev || []).forEach((d) => { if (d?.id) map.set(d.id, d); });
+            for (const d of found) map.set(d.id, d);
+            return Array.from(map.values());
+          });
+          // Mirror into IDB (merge, never replace) — RECONCILE rebuilds the page
+          // lists from IDB, so without this an old archived row would vanish from
+          // the ARCHIVED section right after any Reconcile/Sync.
+          try {
+            const { offlineDB } = await import('@/components/utils/offlineDatabase');
+            const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+            const map = new Map(existing.map((r) => [r.id, r]));
+            for (const r of found) {
+              if (!r?.id) continue;
+              const cur = map.get(r.id);
+              map.set(r.id, cur ? { ...cur, ...r } : r);
+            }
+            await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(map.values()));
+          } catch (idbErr) {
+            console.warn('[SquareManagement] Archived COD backfill IDB merge failed:', idbErr?.message);
+          }
+          console.log('[SquareManagement] Archived/Unarchived COD backfill:', found.length, 'row(s) merged');
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Archived COD backfill fetch failed:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
@@ -980,6 +1528,16 @@ export default function SquareManagement() {
       return paymentSignature === catalogSignature;
     });
   };
+
+  // A delivery's COD is ARCHIVED (Square page Archive action / Archived collection
+  // type) when any cod_payment row is type 'Archived' with a positive amount.
+  // Archived CODs are written off: removed from the Square catalog (item deleted,
+  // never re-created), excluded from every total, and shown only in the ARCHIVED
+  // section at the bottom of the list.
+  function isArchivedDelivery(delivery) {
+    const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+    return payments.some((p) => String(p?.type || '').toLowerCase() === 'archived' && Number(p?.amount || 0) > 0);
+  }
 
   // A delivery is considered a "manual override" (collected without Square) if it has
   // Debit or Credit cod_payments recorded and no matching Square transaction.
@@ -1204,14 +1762,258 @@ export default function SquareManagement() {
         console.error('Failed to write collection note to IDB:', idbErr);
       }
 
-      toast.success('Marked as collected — running sync...');
+      // Owner fix (Sep 29 2026): a manual Collect used to fire a FULL syncFromSquare()
+      // (Square API fetch + IDB replace-saves) every single time. But squareMarkDebit
+      // already did everything server-side — cod_payments + note on the delivery, the
+      // Square catalog item deleted (squareDeleteCodItem), bookkeeping rows cleaned.
+      // The only missing piece is mirroring that cleanup in local IDB; then
+      // runReconcile() (IDB-only) rebuilds every list with ZERO Square API calls.
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const nowIso = new Date().toISOString();
+        const catRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
+        const staleCat = catRecords.filter((r) => r && (
+          (itemToDelete.delivery_id && r.delivery_id === itemToDelete.delivery_id) ||
+          (itemToDelete.catalog_object_id && (r.id === itemToDelete.catalog_object_id || r.square_catalog_object_id === itemToDelete.catalog_object_id))
+        ));
+        if (staleCat.length > 0) {
+          await Promise.all(staleCat.map((r) => offlineDB.deleteRecord(offlineDB.STORES.SQUARE_CATALOG_ITEMS, r.id).catch(() => null)));
+          console.log(`[SquareManagement] Collect: removed ${staleCat.length} local catalog bookkeeping row(s)`);
+        }
+        // Mirror squareDeleteCodItem's tx marking (status 'cancelled' for collected_debit)
+        // so the row settles as Collected exactly like a full sync left it.
+        const txRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
+        const relatedTxs = txRecords.filter((t) => t && (
+          (itemToDelete.delivery_id && t.delivery_id === itemToDelete.delivery_id) ||
+          (itemToDelete.catalog_object_id && t.square_catalog_object_id === itemToDelete.catalog_object_id) ||
+          (itemToDelete.transaction_id && t.id === itemToDelete.transaction_id)
+        ));
+        if (relatedTxs.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, relatedTxs.map((t) => ({
+            ...t,
+            status: 'cancelled',
+            raw_square_data: { ...(t.raw_square_data || {}), deleted_at: nowIso, deleted_reason: 'collected_debit' },
+          })));
+          console.log(`[SquareManagement] Collect: marked ${relatedTxs.length} related tx row(s) cancelled locally`);
+        }
+      } catch (idbCleanupErr) {
+        console.error('Collect: local IDB cleanup failed (lists will settle on next regular sync):', idbCleanupErr);
+      }
+
+      toast.success('Marked as collected');
       setItemToDelete(null);
       setCollectNote('');
       setDeletingId(null);
-      await syncFromSquare();
+      // IDB-only list rebuild — no Square API fetch, no full sync cycle
+      await runReconcile();
     } catch (err) {
       console.error('Collect failed:', err);
       toast.error('Failed to mark collected: ' + err.message);
+      setDeletingId(null);
+    }
+  };
+
+  // ── ARCHIVE COD (Oct 1 2026) ────────────────────────────────────────────
+  // Sets the delivery's COD collection type to Archived (write-off): the Square
+  // catalog item is deleted (never re-created), the fixed driver note
+  // "This Deliveries COD has been Archived." is appended, and the COD moves to
+  // the ARCHIVED section at the bottom of the list — excluded from all totals.
+  const confirmArchive = async () => {
+    if (!itemToArchive?.delivery_id) return;
+    const trackingId = itemToArchive.catalog_object_id || itemToArchive.delivery_id;
+    setDeletingId(trackingId);
+    try {
+      // Single backend call (squareMarkDebit with codType 'Archived') updates
+      // cod_payments + delivery_notes atomically AND deletes the Square catalog
+      // item + bookkeeping server-side.
+      let resultData = null;
+      try {
+        const res = await base44.functions.invoke('squareMarkDebit', {
+          deliveryId: itemToArchive.delivery_id,
+          catalogObjectId: itemToArchive.catalog_object_id || null,
+          transactionId: itemToArchive.transaction_id || null,
+          codType: 'Archived',
+          note: 'This Deliveries COD has been Archived.'
+        });
+        resultData = res?.data || res;
+      } catch (err) {
+        console.error('squareMarkDebit (Archive) failed:', err);
+        throw err;
+      }
+      const updatedNotes = resultData?.delivery_notes || '';
+
+      // Mirror into local state (same pattern as the Collect flow)
+      setCatalogItems((prev) => prev.filter((i) => !(i.delivery_id === itemToArchive.delivery_id || (itemToArchive.catalog_object_id && i.catalog_object_id === itemToArchive.catalog_object_id))));
+      setDeliveries((prev) => prev.map((delivery) =>
+      delivery?.id === itemToArchive.delivery_id ?
+      {
+        ...delivery,
+        cod_payments: [{ type: 'Archived', amount: Number(delivery.cod_total_amount_required || 0) }],
+        delivery_notes: updatedNotes
+      } :
+      delivery
+      ));
+
+      // IDB mirrors so the changes survive sync merges
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToArchive.delivery_id);
+        const stateRecord = (deliveries || []).find((d) => d?.id === itemToArchive.delivery_id) || null;
+        const baseRecord = idbRecord || stateRecord;
+        if (baseRecord) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
+            ...baseRecord,
+            cod_payments: [{ type: 'Archived', amount: Number(baseRecord.cod_total_amount_required || 0) }],
+            delivery_notes: updatedNotes,
+          }]);
+        }
+        const catRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
+        const staleCat = catRecords.filter((r) => r && (
+          r.delivery_id === itemToArchive.delivery_id ||
+          (itemToArchive.catalog_object_id && (r.id === itemToArchive.catalog_object_id || r.square_catalog_object_id === itemToArchive.catalog_object_id))
+        ));
+        if (staleCat.length > 0) {
+          await Promise.all(staleCat.map((r) => offlineDB.deleteRecord(offlineDB.STORES.SQUARE_CATALOG_ITEMS, r.id).catch(() => null)));
+          console.log(`[SquareManagement] Archive: removed ${staleCat.length} local catalog row(s)`);
+        }
+        const txRecords = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
+        const relatedTxs = txRecords.filter((t) => t && (
+          t.delivery_id === itemToArchive.delivery_id ||
+          (itemToArchive.catalog_object_id && t.square_catalog_object_id === itemToArchive.catalog_object_id)
+        ));
+        if (relatedTxs.length > 0) {
+          const nowIso = new Date().toISOString();
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, relatedTxs.map((t) => ({
+            ...t,
+            status: 'cancelled',
+            raw_square_data: { ...(t.raw_square_data || {}), deleted_at: nowIso, deleted_reason: 'cod_archived' },
+          })));
+        }
+      } catch (idbErr) {
+        console.error('Archive: local IDB cleanup failed (lists settle on next sync):', idbErr);
+      }
+
+      toast.success('COD archived');
+      setItemToArchive(null);
+      setDeletingId(null);
+      // IDB-only list rebuild — the ARCHIVED section picks the row up
+      await runReconcile();
+    } catch (err) {
+      console.error('Archive failed:', err);
+      toast.error('Failed to archive COD: ' + err.message);
+      setDeletingId(null);
+    }
+  };
+
+  // ── UNARCHIVE COD (Oct 1 2026) ──────────────────────────────────────────
+  // Reverses an Archive: strips the Archived payment (back to outstanding cash
+  // COD status), stamps cod_unarchived_at so the row stays visible past the
+  // 90-day window, and recreates the Square catalog item so it reappears in
+  // NOT COLLECTED.
+  const confirmUnarchive = async () => {
+    if (!itemToUnarchive?.delivery_id) return;
+    setDeletingId(itemToUnarchive.delivery_id);
+    try {
+      let resultData = null;
+      try {
+        const res = await base44.functions.invoke('squareMarkDebit', {
+          deliveryId: itemToUnarchive.delivery_id,
+          codType: 'Unarchive',
+          note: 'This Deliveries COD has been Unarchived and returned to Cash status.'
+        });
+        resultData = res?.data || res;
+      } catch (err) {
+        console.error('squareMarkDebit (Unarchive) failed:', err);
+        throw err;
+      }
+      const updatedNotes = resultData?.delivery_notes || '';
+      const unarchivedAt = new Date().toISOString();
+
+      // Recreate the Square catalog item (direct frontend call — backend
+      // cross-function invoke does not forward auth). Pass the amount explicitly;
+      // the function resolves patient/store/date from the delivery itself.
+      let createResult = null;
+      try {
+        const createRes = await base44.functions.invoke('squareCreateCodItem', {
+          deliveryId: itemToUnarchive.delivery_id,
+          codAmount: itemToUnarchive.cod_amount
+        });
+        createResult = createRes?.data || createRes;
+        if (createResult?.skipped) {
+          console.warn('Catalog item creation skipped:', createResult?.reason);
+        }
+      } catch (err) {
+        console.error('squareCreateCodItem (Unarchive) failed — delivery is unarchived; item can be recreated by Sync/Reconcile:', err);
+      }
+
+      // Recreated catalog item → local state + IDB so it shows in NOT COLLECTED
+      // immediately (runReconcile rebuilds from IDB; the regular Sync replaces
+      // it with the canonical server row).
+      if (createResult?.success && !createResult?.skipped && createResult?.catalogObjectId) {
+        try {
+          const deliveryRecord = (deliveries || []).find((d) => d?.id === itemToUnarchive.delivery_id) || null;
+          const store = (stores || []).find((st) => st?.id === (deliveryRecord?.store_id || null)) || null;
+          const config = getConfigForStore(store) || null;
+          const newCatalogRow = {
+            id: createResult.catalogObjectId,
+            catalog_object_id: createResult.catalogObjectId,
+            name: createResult.itemName,
+            item_name: createResult.itemName,
+            price_dollars: Number(itemToUnarchive.cod_amount || deliveryRecord?.cod_total_amount_required || 0),
+            amount: Number(itemToUnarchive.cod_amount || deliveryRecord?.cod_total_amount_required || 0),
+            delivery_id: itemToUnarchive.delivery_id,
+            location_id: config?.square_location_id || null,
+            store_id: deliveryRecord?.store_id || null,
+            delivery_date: deliveryRecord?.delivery_date || null,
+            status: 'pending',
+            description: `COD for ${deliveryRecord?.patient_name || 'patient'} | Delivery ${itemToUnarchive.delivery_id}`
+          };
+          setCatalogItems((prev) => (prev || []).some((i) => (i?.id || i?.catalog_object_id) === newCatalogRow.id) ? prev : [...(prev || []), newCatalogRow]);
+          const { offlineDB } = await import('@/components/utils/offlineDatabase');
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_CATALOG_ITEMS, [newCatalogRow]);
+        } catch (catalogErr) {
+          console.error('Unarchive: local catalog row add failed (settles on next Sync):', catalogErr);
+        }
+      }
+
+      // Local state mirror: back to outstanding (no cod_payments) + visibility stamp
+      setDeliveries((prev) => prev.map((delivery) =>
+      delivery?.id === itemToUnarchive.delivery_id ?
+      {
+        ...delivery,
+        cod_payments: (Array.isArray(delivery.cod_payments) ? delivery.cod_payments : []).filter((p) => String(p?.type || '').toLowerCase() !== 'archived'),
+        cod_unarchived_at: unarchivedAt,
+        delivery_notes: updatedNotes
+      } :
+      delivery
+      ));
+
+      // IDB mirror so the change survives sync merges
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToUnarchive.delivery_id);
+        const stateRecord = (deliveries || []).find((d) => d?.id === itemToUnarchive.delivery_id) || null;
+        const baseRecord = idbRecord || stateRecord;
+        if (baseRecord) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
+            ...baseRecord,
+            cod_payments: (Array.isArray(baseRecord.cod_payments) ? baseRecord.cod_payments : []).filter((p) => String(p?.type || '').toLowerCase() !== 'archived'),
+            cod_unarchived_at: unarchivedAt,
+            delivery_notes: updatedNotes,
+          }]);
+        }
+      } catch (idbErr) {
+        console.error('Unarchive: local IDB update failed (settles on next sync):', idbErr);
+      }
+
+      toast.success('COD unarchived');
+      setItemToUnarchive(null);
+      setDeletingId(null);
+      // IDB-only list rebuild — the row moves back into NOT COLLECTED
+      await runReconcile();
+    } catch (err) {
+      console.error('Unarchive failed:', err);
+      toast.error('Failed to unarchive COD: ' + err.message);
       setDeletingId(null);
     }
   };
@@ -1239,7 +2041,15 @@ export default function SquareManagement() {
       if (s?.id) storeById.set(s.id, s);
     }
 
-    // Transaction lookups: by delivery_id, by catalog_object_id, by order::line key
+    // Transaction lookups: by delivery_id, by catalog_object_id, by order::line key.
+    // REAL-tx guard (owner report, Sep 30 2026): rows WITHOUT a square_transaction_id
+    // are our own BOOKKEEPING pending records written at catalog-item creation
+    // (they carry the item's exact id/name/amount + delivery_id). They are not
+    // Square transactions and must never satisfy a "collected?" lookup — that was
+    // the 04/06(BD)-Therese/Emile Brochu false "Collected": its bookkeeping row
+    // matched by delivery_id with zero date/amount checks. OPEN-order matches
+    // (store ringing now) DO carry a square_transaction_id, so they still count.
+    const isRealSquareTx = (tx) => !!(tx?.square_transaction_id && String(tx.square_transaction_id).trim());
     const txByDeliveryId = new Map();
     const txByCatalogObjId = new Map();
     const txByKey = new Map();
@@ -1250,8 +2060,9 @@ export default function SquareManagement() {
     const txByAmountName = new Map(); // key: amountCents::lowercaseitemName → tx
     for (const tx of (allTransactions || [])) {
       if (!tx) continue;
-      if (tx.delivery_id) txByDeliveryId.set(tx.delivery_id, tx);
-      if (tx.square_catalog_object_id) {
+      const realTx = isRealSquareTx(tx);
+      if (tx.delivery_id && realTx) txByDeliveryId.set(tx.delivery_id, tx);
+      if (tx.square_catalog_object_id && realTx) {
         txByCatalogObjId.set(tx.square_catalog_object_id, tx);
         if (['completed', 'refunded'].includes(tx.status)) {
           settledTxCatalogIds.add(tx.square_catalog_object_id);
@@ -1340,6 +2151,11 @@ export default function SquareManagement() {
     items = items.filter((item) => {
       const linkedDelivery = deliveryById.get(item.delivery_id);
       if (linkedDelivery?.status === 'pending') return false;
+      // Durable collected stamp: purge-on-collection deleted the settled tx
+      // rows, so transactions can't prove collection for these — the Delivery
+      // flag is the authority. Without this, collected CODs with leftover
+      // catalog items show as uncollected forever.
+      if (linkedDelivery?.cod_confirmed_collected) return false;
       // Direct match by catalog object ID or delivery_id against settled transactions
       const catalogObjId = item.catalog_object_id || item.id;
       if (catalogObjId && settledTxCatalogIds.has(catalogObjId)) return false;
@@ -1435,9 +2251,13 @@ export default function SquareManagement() {
     return driver?.user_name ? generateDriverColor(driver.user_name) : null;
   }, [drivers]);
 
-  const filteredDeliveryRows = useMemo(() => {
-    const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
-    filter((delivery) => {
+  // One memo builds BOTH row sets from the same filters:
+  //  - filteredDeliveryRows: active COD deliveries (archived excluded everywhere)
+  //  - archivedDeliveryRows: archived CODs — rendered only in the ARCHIVED section
+  //    at the bottom of the list, excluded from all totals.
+  const deliveryRowSets = useMemo(() => {
+    const matchesBaseFilters = (delivery, opts) => {
+      const skipDateWindow = !!(opts && opts.skipDateWindow);
       if (!delivery) return false;
       // RULE: Failed deliveries are exempt from the Square COD Deliveries tab list,
       // Reconcile flow, and Square Catalog update path. Cancelled and pending are
@@ -1453,12 +2273,19 @@ export default function SquareManagement() {
       if (selectedStoreFilter && selectedStoreFilter !== 'all') {
         if (delivery.store_id !== selectedStoreFilter) return false;
       }
-      const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
-      if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
+      if (skipDateWindow) {
+        // ARCHIVED rows: show ALL of them, even beyond the 90-day window.
+      } else {
+        const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
+        // Unarchived CODs (cod_unarchived_at stamp) always stay visible past the
+        // 90-day window so they can show in NOT COLLECTED again.
+        if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || (deliveryDate < lookbackStart && !delivery.cod_unarchived_at)) return false;
+      }
       if (selectedDriverFilter === 'all') return true;
       if (selectedDriverUserIds.size === 0) return false;
       return selectedDriverUserIds.has(delivery.driver_id);
-    }).
+    };
+    const buildRows = (list) => list.
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).
     map((delivery) => {
       const patient = lookupIndexes.resolvePatient(delivery);
@@ -1478,7 +2305,17 @@ export default function SquareManagement() {
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+          // Retained tx history is 6 months deep: an old same-patient/same-amount
+          // tx is NOT this delivery's collection. A POS ring happens within days
+          // of the delivery — require date proximity for every fuzzy fallback path.
+          const txParsed = parseSquareItemName(String(tx.item_name || ''));
+          const txDateStr = txParsed?.deliveryDate || String(tx.raw_square_data?.payment_date || tx.raw_square_data?.order_created_at || '').slice(0, 10) || null;
+          if (txDateStr && delivery.delivery_date) {
+            const dayDiff = Math.abs(new Date(`${txDateStr.slice(0, 10)}T00:00:00`) - new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`)) / 86400000;
+            if (!Number.isFinite(dayDiff) || dayDiff > 10) return false;
+          }
           const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
           const nameMatches = !!(patientName && txSearchText && patientNamesMatch(patientName, txSearchText));
           const txAmountSet = getTransactionAmountSet(tx);
@@ -1494,7 +2331,10 @@ export default function SquareManagement() {
           return false;
         }) || null;
       }
-      const hasMatch = !!matchingTx;
+      // cod_confirmed_collected survives even after squareGetCodData2's 5a purge
+      // deletes the matching SquareTransaction row — without this, purged confirmed
+      // collections show as "Not Collected" here forever.
+      const hasMatch = !!matchingTx || !!delivery.cod_confirmed_collected;
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
@@ -1515,7 +2355,22 @@ export default function SquareManagement() {
         collectionType,
         subtext: delivery.driver_name || null,
         driverColor: getDriverColorForId(delivery.driver_id),
-        actions: hasMatch ?
+        actions: isArchivedDelivery(delivery) ?
+        <div className="flex items-center gap-1">
+        <Button variant="secondary" size="sm" className="border border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Archived</Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToUnarchive({ name: patient?.full_name || delivery.delivery_id || 'this COD', delivery_id: delivery.id, cod_amount: Number(delivery.cod_total_amount_required || 0) });
+          }}
+          disabled={deletingId === delivery.id}
+          className="rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/20">
+          {deletingId === delivery.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Unarchive'}
+        </Button>
+        </div> :
+        hasMatch ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         delivery.status === 'pending' ?
         <Button variant="secondary" size="sm" className="border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">Pending Pickup</Button> :
@@ -1523,14 +2378,22 @@ export default function SquareManagement() {
       };
     });
 
-    const seenRowKeys = new Set();
-    return rows.filter((row) => {
-      const rowKey = row.key || row.id;
-      if (seenRowKeys.has(rowKey)) return false;
-      seenRowKeys.add(rowKey);
-      return true;
-    });
+    const dedupeRows = (rows) => {
+      const seenRowKeys = new Set();
+      return rows.filter((row) => {
+        const rowKey = row.key || row.id;
+        if (seenRowKeys.has(rowKey)) return false;
+        seenRowKeys.add(rowKey);
+        return true;
+      });
+    };
+    const codCandidates = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0);
+    return {
+      filteredDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => !isArchivedDelivery(delivery) && matchesBaseFilters(delivery)))),
+      archivedDeliveryRows: dedupeRows(buildRows(codCandidates.filter((delivery) => isArchivedDelivery(delivery) && matchesBaseFilters(delivery, { skipDateWindow: true }))))
+    };
   }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds, getDriverColorForId]);
+  const { filteredDeliveryRows, archivedDeliveryRows } = deliveryRowSets;
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
@@ -1677,6 +2540,9 @@ export default function SquareManagement() {
       if (linkedDelivery?.status === 'pending') return false;
       // Exclude if the linked delivery was paid by Debit/Credit (manual override — no Square transaction needed)
       if (linkedDelivery && isManualCardOverride(linkedDelivery)) return false;
+      // Archived CODs have no catalog item — the backend deletes it and this guard
+      // keeps any pre-sync local mirror rows out of the list until then.
+      if (linkedDelivery && isArchivedDelivery(linkedDelivery)) return false;
       // Filter by the driver assigned to the linked delivery (not by Square location)
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
@@ -1704,6 +2570,7 @@ export default function SquareManagement() {
       if (!matchingTx) {
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx) return false;
+          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
           if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
           const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
@@ -1714,7 +2581,17 @@ export default function SquareManagement() {
           const catalogItemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
           const txEffDateForGuard = getTransactionEffectiveDateString(tx);
           const txOnOrAfterItem = !txEffDateForGuard || !catalogItemDateStr || txEffDateForGuard >= catalogItemDateStr;
-          if (amountsMatch && txNameMatches && txOnOrAfterItem) return true;
+          // Date-PROXIMITY guard (owner report, Sep 30 2026): a recurring patient
+          // (e.g. Therese/Emile Brochu — same $13.72 COD amount on many different
+          // dates) has MULTIPLE real completed Square transactions with the exact
+          // same name+amount. "On or after" alone matched the Apr 6 catalog item
+          // to a Sep 24 transaction — 171 days later, a totally different
+          // delivery's payment — showing the Apr 6 item as falsely "Collected".
+          // Require the tx to fall within +/-10 days of the item's date (same
+          // proximity rule the Deliveries tab and reconcile paths already use).
+          const withinProximity = !txEffDateForGuard || !catalogItemDateStr ||
+            Math.abs(new Date(`${txEffDateForGuard.slice(0, 10)}T00:00:00`) - new Date(`${catalogItemDateStr.slice(0, 10)}T00:00:00`)) / 86400000 <= 10;
+          if (amountsMatch && txNameMatches && txOnOrAfterItem && withinProximity) return true;
           if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
           const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
           const txDateStr = getTransactionEffectiveDateString(tx);
@@ -1737,6 +2614,7 @@ export default function SquareManagement() {
         isCollected,
         actions: isCollected ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
+        <div className="flex items-center gap-1">
         <Button
           variant="secondary"
           size="sm"
@@ -1748,6 +2626,20 @@ export default function SquareManagement() {
           className="rounded-lg border border-emerald-300 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
           {deletingId === catalogObjectId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collect'}
         </Button>
+        {item.delivery_id &&
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToArchive({ name: item.name || item.item_name, delivery_id: item.delivery_id, catalog_object_id: catalogObjectId, transaction_id: null });
+          }}
+          disabled={deletingId === catalogObjectId}
+          className="rounded-lg border border-blue-300 bg-white text-blue-700 shadow-sm hover:bg-blue-50 hover:border-blue-400 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
+          Archive
+        </Button>
+        }
+        </div>
       };
     }).
     sort((a, b) => {
@@ -1780,6 +2672,14 @@ export default function SquareManagement() {
       // The backend (squareGetCodData2) also excludes them from returned data
       // and cleans up orphaned catalog items for failed deliveries.
       if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
+      // Already confirmed collected — the purge-on-collection design (squareGetCodData2
+      // 5a) deletes this delivery's SquareTransaction + SquareCatalogItems rows once
+      // Square confirms the real order match, so matchingTx/linkedCatalog below can
+      // NEVER find them again. Without this check every confirmed-collected cash COD
+      // reappears here forever as a bogus "New Catalog Item" (missing transaction id).
+      if (delivery.cod_confirmed_collected) return false;
+      // Archived CODs are written off — never a New Catalog Item candidate.
+      if (isArchivedDelivery(delivery)) return false;
       // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       // Only show deliveries for stores that have a Square location config
@@ -1822,7 +2722,17 @@ export default function SquareManagement() {
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
           if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+          // Retained tx history is 6 months deep: an old same-patient/same-amount
+          // tx is NOT this delivery's collection. A POS ring happens within days
+          // of the delivery — require date proximity for every fuzzy fallback path.
+          const txParsed = parseSquareItemName(String(tx.item_name || ''));
+          const txDateStr = txParsed?.deliveryDate || String(tx.raw_square_data?.payment_date || tx.raw_square_data?.order_created_at || '').slice(0, 10) || null;
+          if (txDateStr && delivery.delivery_date) {
+            const dayDiff = Math.abs(new Date(`${txDateStr.slice(0, 10)}T00:00:00`) - new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`)) / 86400000;
+            if (!Number.isFinite(dayDiff) || dayDiff > 10) return false;
+          }
           const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
           const nameMatches = !!(patientName && txSearchText && patientNamesMatch(patientName, txSearchText));
           const txAmountSet = getTransactionAmountSet(tx);
@@ -1870,6 +2780,7 @@ export default function SquareManagement() {
         driverColor: getDriverColorForId(delivery.driver_id),
         crossStoreAlert: null,
         actions:
+        <div className="flex items-center gap-1">
         <Button
           variant="secondary"
           size="sm"
@@ -1886,6 +2797,18 @@ export default function SquareManagement() {
           className="rounded-lg border border-emerald-300 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
           {deletingId === delivery.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collect'}
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToArchive({ name: computedItemName, catalog_object_id: null, delivery_id: delivery.id, transaction_id: null });
+          }}
+          disabled={deletingId === delivery.id}
+          className="rounded-lg border border-blue-300 bg-white text-blue-700 shadow-sm hover:bg-blue-50 hover:border-blue-400 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
+          Archive
+        </Button>
+        </div>
 
       };
     }).
@@ -2029,12 +2952,19 @@ export default function SquareManagement() {
               <SelectItem value="45">45 Days</SelectItem>
               <SelectItem value="60">60 Days</SelectItem>
               <SelectItem value="90">90 Days</SelectItem>
+              <SelectItem value="180">180 Days</SelectItem>
             </SelectContent>
           </Select>
           {currentUser && !isDriverView &&
-          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0">
+          <Button onClick={() => syncFromSquare({ force: true })} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0">
             <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Sync'}
+            {isSyncing ? (backfillProgress ? 'Backfilling...' : 'Syncing...') : 'Sync'}
+          </Button>
+          }
+          {currentUser && isAppOwner(currentUser) &&
+          <Button onClick={runSixMonthBackfill} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0" title="One-time: pull 6 months of Square transactions and keep history back to the oldest uncollected COD">
+            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${backfillProgress ? 'animate-pulse' : ''}`} />
+            {backfillProgress ? 'Backfilling…' : '6-Month Backfill'}
           </Button>
           }
           {currentUser && isAppOwner(currentUser) &&
@@ -2315,14 +3245,14 @@ export default function SquareManagement() {
               onClick={updateCatalog}
               disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
               className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-spin' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
             </> :
           undefined} /> :
 
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn archivedRows={archivedDeliveryRows} /> :
         activeView === 'transactions' ?
         <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected /> :
 
@@ -2330,6 +3260,7 @@ export default function SquareManagement() {
           key="catalog"
           title="Square Catalog Items"
           rows={filteredCatalogRows}
+          archivedRows={archivedDeliveryRows}
           isLoading={isLoading}
           emptyTitle="No Square catalog items found"
           emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
@@ -2352,7 +3283,7 @@ export default function SquareManagement() {
             onClick={updateCatalog}
             disabled={isLoading || isUpdatingCatalog || isSyncing}
             className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
-              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-spin' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
             </Button>
           ) : undefined} />
@@ -2399,6 +3330,53 @@ export default function SquareManagement() {
                 disabled={!collectNote.trim() || deletingId === (itemToDelete?.catalog_object_id || itemToDelete?.delivery_id)}
                 className="rounded-lg border border-emerald-700 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">
                 {deletingId === (itemToDelete?.catalog_object_id || itemToDelete?.delivery_id) ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collected'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!itemToArchive} onOpenChange={(open) => { if (!open) setItemToArchive(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive COD</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will set "{itemToArchive?.name || 'this COD'}" to the Archived collection type:
+                removed from the Square catalog, excluded from all totals, and moved to the ARCHIVED
+                section at the bottom of the list. The note "This Deliveries COD has been Archived."
+                will be added to the delivery's Driver Notes.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setItemToArchive(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmArchive}
+                disabled={deletingId === (itemToArchive?.catalog_object_id || itemToArchive?.delivery_id)}
+                className="rounded-lg border border-blue-700 bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+                {deletingId === (itemToArchive?.catalog_object_id || itemToArchive?.delivery_id) ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Archive'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!itemToUnarchive} onOpenChange={(open) => { if (!open) setItemToUnarchive(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unarchive COD</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will return "{itemToUnarchive?.name || 'this COD'}" to Cash status: the Archived
+                payment is removed, the Square catalog item is recreated, and the COD shows up in the
+                NOT COLLECTED section again — even if it is older than the 90-day window. The note
+                "This Deliveries COD has been Unarchived and returned to Cash status." will be added
+                to the delivery's Driver Notes.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setItemToUnarchive(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmUnarchive}
+                disabled={deletingId === itemToUnarchive?.delivery_id}
+                className="rounded-lg border border-slate-700 bg-slate-600 hover:bg-slate-700 disabled:opacity-50">
+                {deletingId === itemToUnarchive?.delivery_id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Unarchive'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

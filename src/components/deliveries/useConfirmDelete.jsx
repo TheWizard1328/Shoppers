@@ -29,6 +29,17 @@ export function useConfirmDelete({
     const staged = deleteConfirmation.staged;
     if (!staged) return;
     setIsDeletingPending(true);
+    // [DeletePerf] owner report Oct 8 2026: staged-panel pending deletes took
+    // ~30s. Server-side delete measured at ~0.25s — timing each client stage at
+    // WARN level so the remote logger uploads the breakdown to RemoteLogEntry.
+    const __t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const __perf = (label) => {
+      try {
+        const ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - __t0);
+        console.warn(`[DeletePerf] id=${String(staged?.id).slice(0, 8)} stage=${label} at=${ms}ms`);
+      } catch (_) {}
+    };
+    __perf('start');
 
     // ── Pause all background sync operations ────────────────────────────────
     try {
@@ -99,6 +110,7 @@ export function useConfirmDelete({
 
       // ── Delete: offline DB + online DB (entityMutations handles both) ────
       await deleteDeliveryLocal(staged.id);
+      __perf('deleteDeliveryLocal_done');
 
       // ── Update local UI state ─────────────────────────────────────────────
       const nextStagedDeliveries = stagedDeliveries.filter(
@@ -130,8 +142,10 @@ export function useConfirmDelete({
       if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef?.current?.focus(), 150);
 
     } catch (err) {
+      __perf('error');
       setError(`Failed: ${err.message}`);
     } finally {
+      __perf('finally');
       setIsDeletingPending(false);
       // ── Resume all background sync operations ──────────────────────────
       try {

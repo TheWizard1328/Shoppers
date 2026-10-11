@@ -11,8 +11,8 @@ import { base44 } from '@/api/base44Client';
 let _ftdMin = 2, _ftdMax = 6, _ftdBuffer = 2;
 (async () => {
   try {
-    const { base44: b44 } = await import('@/api/base44Client');
-    const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const { getAppSettingRows } = await import('@/components/utils/appSettingsCache');
+    const s = await getAppSettingRows('refresh_intervals');
     const ft = s?.[0]?.setting_value?.fridge_temp_settings;
     if (typeof ft?.safe_min      === 'number') _ftdMin    = ft.safe_min;
     if (typeof ft?.safe_max      === 'number') _ftdMax    = ft.safe_max;
@@ -285,6 +285,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
 
             <div className="flex items-center justify-center gap-4 mb-3">
               <button
+                aria-label="Decrease temperature"
                 onClick={() => handleStepChange(-0.5)}
                 className="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >
@@ -299,6 +300,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
               </div>
 
               <button
+                aria-label="Increase temperature"
                 onClick={() => handleStepChange(0.5)}
                 className="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >

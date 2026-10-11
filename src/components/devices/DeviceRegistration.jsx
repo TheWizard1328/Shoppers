@@ -29,6 +29,9 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
   // to re-run the bootstrap sequence.
   const completeRegistration = (device) => {
     invalidateDeviceIdentifierCache();
+    // Keep the IDB backup current so a future localStorage eviction restores
+    // this identifier instead of re-prompting the chooser (owner fix Oct 8 2026).
+    import('../utils/deviceManager.jsx').then(({ backupDeviceIdentifierToIdb }) => backupDeviceIdentifierToIdb()).catch(() => {});
     setShowDialog(false);
     if (onDeviceRegistered) onDeviceRegistered(device);
     window.dispatchEvent(new CustomEvent('deviceRegistrationCompleted', {
@@ -86,13 +89,22 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
         // 1) Validate the stored identifier against the backend (bounded — 8s)
         if (storedDeviceId) {
+          // TRANSIENT-FAILURE GUARD (owner report Oct 8 2026): previously ANY
+          // backend failure (timeout, bad cellular) fell through to the device
+          // chooser, prompting drivers to re-select a device they already had.
+          // Only a SUCCESSFUL empty lookup means the device is truly not
+          // linked — on a fetch error/timeout, trust the local registered flag
+          // and skip the prompt (the manifest gate in useLayoutInit remains
+          // the backend source of truth once connectivity recovers).
+          const registeredFlag = localStorage.getItem(`rxdeliver_device_registered_${storedDeviceId}`) === 'true';
           let matches = null;
+          let fetchFailed = false;
           try {
             matches = await _withTimeout(base44.entities.UserDevice.filter({
               user_id: currentUser.id,
               device_identifier: storedDeviceId
             }), 8000);
-          } catch (e) { matches = null; }
+          } catch (e) { matches = null; fetchFailed = true; }
           if (cancelled) return;
           if (matches && matches.length > 0 && (matches[0].status === 'active' || !matches[0].status)) {
             localStorage.setItem(`rxdeliver_device_registered_${storedDeviceId}`, 'true');
@@ -101,6 +113,13 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
             setIsLoading(false);
             if (onDeviceRegistered) onDeviceRegistered(matches[0]);
             return; // Already linked – no dialog needed
+          }
+          if (fetchFailed && registeredFlag) {
+            console.warn('⚠️ [DeviceRegistration] Backend unreachable — trusting local registered flag for', storedDeviceId);
+            clearTimeout(safetyNet);
+            setIsLoading(false);
+            if (onDeviceRegistered) onDeviceRegistered({ user_id: currentUser.id, device_identifier: storedDeviceId, status: 'active' });
+            return; // transient network failure — do NOT prompt the chooser
           }
         }
 

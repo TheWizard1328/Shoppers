@@ -4,6 +4,8 @@
  */
 
 import { offlineDB } from './offlineDatabase';
+import { connectionMonitor } from './connectionMonitor';
+import { hasPendingEntityMutation } from './pendingEntityMutations';
 import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
 import { AppUser } from '@/entities/AppUser';
@@ -163,12 +165,33 @@ export const createPatientLocal = async (patientData) => {
       id: tempId,
       data: localPatient 
     });
+    const pendingMutationId = await offlineDB.addPendingMutation({
+      operation: 'create', entity: 'Patient', recordId: tempId, payload: patientData,
+      notBefore: connectionMonitor.canAttemptNetwork() ? Date.now() + 30000 : 0
+    });
+
+    if (!connectionMonitor.canAttemptNetwork()) {
+      smartRefreshManager.restart();
+      return localPatient;
+    }
 
     // Try immediate backend sync
+    let backendPatient = null;
     try {
       const { base44 } = await import('@/api/base44Client');
-      const backendPatient = await base44.entities.Patient.create(patientData);
-      
+      backendPatient = await base44.entities.Patient.create(patientData);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Patient create failed; durable create retained:', error.message);
+      smartRefreshManager.restart();
+      return localPatient;
+    }
+    // Backend create SUCCEEDED — never return the temp-id record (the caller
+    // links the new delivery's patient_id to this return value; a temp id
+    // orphans the delivery as an "Unknown" stop with no map marker).
+    try {
+      await offlineDB.removePendingMutation(pendingMutationId);
+    } catch (_) {}
+    try {
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
       const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
@@ -181,33 +204,27 @@ export const createPatientLocal = async (patientData) => {
       
       // Add real backend record to IndexedDB
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
-      
-      // Notify listeners to replace temp with real record
-      notifyMutation({ 
-        type: 'replace', 
-        entity: 'Patient', 
-        oldId: tempId,
-        newId: backendPatient.id,
-        data: backendPatient 
-      });
-      
-      
-      // CRITICAL: Restart smart refresh after sync (not resume)
-      smartRefreshManager.restart();
     } catch (error) {
-      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-      // Queue for backend sync if immediate sync fails
-      await offlineDB.addPendingMutation({
-        operation: 'create',
-        entity: 'Patient',
-        recordId: tempId,
-        payload: patientData
-      });
-      // CRITICAL: Restart smart refresh even if queued
-      smartRefreshManager.restart();
+      console.warn('⚠️ [Sync] Patient create: IDB bookkeeping failed (real record still returned):', error.message);
     }
     
-    return localPatient;
+    try {
+      const { recordTempPatientId } = await import('./tempPatientIdMap');
+      recordTempPatientId(tempId, backendPatient.id);
+    } catch (_) {}
+
+    // Notify listeners to replace temp with real record
+    notifyMutation({ 
+      type: 'replace', 
+      entity: 'Patient', 
+      oldId: tempId,
+      newId: backendPatient.id,
+      data: backendPatient 
+    });
+    
+    // CRITICAL: Restart smart refresh after sync (not resume)
+    smartRefreshManager.restart();
+    return backendPatient;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to create patient locally:', error);
     // CRITICAL: Restart smart refresh on error
@@ -240,10 +257,14 @@ export const updatePatientLocal = async (patientId, updates) => {
 
   try {
     
-    // Get current patient from IndexedDB
-    const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    const existingPatient = patients.find(p => p.id === patientId);
-    
+    // Get current patient from IndexedDB — targeted getById, NOT getAll.
+    // (Sep 23 2026) getAll(PATIENTS) read every patient record on every patient
+    // update — with delivery_history-laden patient records this full-table read
+    // was one of the top IDB timeouts of the Sep 23 sluggishness incident
+    // ("getAll(patients) failed: IDB getAll(patients) timed out after 6000ms"
+    // across all devices), and it surfaced to users as "Failed to update
+    // patient locally" during delivery-form saves.
+    const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId);
     if (!existingPatient) {
       throw new Error(`Patient ${patientId} not found in local database`);
     }
@@ -267,31 +288,30 @@ export const updatePatientLocal = async (patientId, updates) => {
       data: updatedPatient 
     });
 
-    // Try immediate backend sync (FULL merged record — not just changed fields)
-    // Sending the complete record ensures the WS echo carries all fields atomically,
-    // eliminating partial-payload merge races that can revert individual fields.
-    try {
-      const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Patient.update(patientId, updatedPatient);
-      
-      // CRITICAL: Restart smart refresh after sync (not resume)
-      smartRefreshManager.restart();
-    } catch (error) {
-      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-      // Queue for backend sync if immediate sync fails
-      await offlineDB.addPendingMutation({
-        operation: 'update',
-        entity: 'Patient',
-        recordId: patientId,
-        payload: updates
-      });
-      // CRITICAL: Restart smart refresh even if queued
-      smartRefreshManager.restart();
+    // Queue before networking, then attempt a non-blocking immediate upload.
+    // Patient editing must remain responsive in dead zones and weak signal.
+    const pendingMutationId = await offlineDB.addPendingMutation({
+      operation: 'update',
+      entity: 'Patient',
+      recordId: patientId,
+      payload: updates,
+      notBefore: connectionMonitor.canAttemptNetwork() ? Date.now() + 30000 : 0
+    });
+
+    if (connectionMonitor.canAttemptNetwork()) {
+      import('@/api/base44Client').then(({ base44 }) => {
+        base44.entities.Patient.update(patientId, updatedPatient)
+          .then(() => offlineDB.removePendingMutation(pendingMutationId))
+          .catch((error) => {
+            console.warn('⚠️ [Sync] Patient upload failed; durable mutation retained:', error.message);
+          });
+      }).catch(() => {});
     }
-    
+
+    smartRefreshManager.restart();
     return updatedPatient;
   } catch (error) {
-    console.error('❌ [OfflineMutations] Failed to update patient locally:', error);
+    console.error('❌ [OfflineMutations] Failed to update patient locally: patientId=' + patientId, (error && error.message) ? error.message : error);
     // CRITICAL: Restart smart refresh on error
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.restart();
@@ -414,11 +434,21 @@ export const createDeliveryLocal = async (deliveryData) => {
       id: tempId,
       data: localDelivery 
     });
+    const pendingMutationId = await offlineDB.addPendingMutation({
+      operation: 'create', entity: 'Delivery', recordId: tempId, payload: normalizedDeliveryData,
+      notBefore: connectionMonitor.canAttemptNetwork() ? Date.now() + 30000 : 0
+    });
+
+    if (!connectionMonitor.canAttemptNetwork()) {
+      smartRefreshManager.restart();
+      return localDelivery;
+    }
 
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
       const backendDelivery = await base44.entities.Delivery.create(normalizedDeliveryData);
+      await offlineDB.removePendingMutation(pendingMutationId);
       
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -447,15 +477,7 @@ export const createDeliveryLocal = async (deliveryData) => {
       smartRefreshManager.restart();
       return backendDelivery;
     } catch (error) {
-      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-      // Queue for backend sync if immediate sync fails
-      await offlineDB.addPendingMutation({
-        operation: 'create',
-        entity: 'Delivery',
-        recordId: tempId,
-        payload: normalizedDeliveryData
-      });
-      // CRITICAL: Restart smart refresh even if queued
+      console.warn('⚠️ [Sync] Delivery create failed; durable create retained:', error.message);
       smartRefreshManager.restart();
     }
     
@@ -644,40 +666,36 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       }
     }
 
-    // CRITICAL: Sync to backend in background (don't block UI update)
-    // For batch operations, queue mutation to avoid rate limits
-    if (isBatchOperation) {
-      await offlineDB.addPendingMutation({
-        operation: 'update',
-        entity: 'Delivery',
-        recordId: deliveryId,
-        payload: meaningfulUpdates
-      });
-    } else {
-      // CRITICAL: Server sync is fire-and-forget — IDB write + UI notification
-      // already happened above. The server write triggers a WebSocket echo,
-      // but smartRefreshManager has already registered the delivery ID, so
-      // the echo arrives as a no-op (data is identical). This eliminates the
-      // blocking server round-trip that was causing 3-30s completion delays.
-      // Send FULL merged record to backend — not just meaningfulUpdates.
-      // This ensures the WS echo carries all fields atomically, eliminating
-      // partial-payload merge races (e.g. isNextDelivery getting wiped by an
-      // out-of-order echo carrying only status or stop_order).
+    // Queue BEFORE networking. This closes the weak-signal window where the
+    // SDK request could hang while a stale pull overwrote the local stop.
+    const isStatusMutation = ('status' in meaningfulUpdates) || ('actual_delivery_time' in meaningfulUpdates);
+    const queuedPayload = isStatusMutation
+      ? { ...meaningfulUpdates, _userInitiated: true }
+      : meaningfulUpdates;
+    const pendingMutationId = await offlineDB.addPendingMutation({
+      operation: 'update',
+      entity: 'Delivery',
+      recordId: deliveryId,
+      payload: queuedPayload,
+      _userInitiated: isStatusMutation,
+      notBefore: !isBatchOperation && connectionMonitor.canAttemptNetwork() ? Date.now() + 30000 : 0,
+    });
+
+    // Batch writes and weak/offline connections are replayed by the ordered
+    // reconnect processor. Never wait on a doomed network request.
+    if (!isBatchOperation && connectionMonitor.canAttemptNetwork()) {
       import('@/api/base44Client').then(({ base44 }) => {
         base44.entities.Delivery.update(deliveryId, updatedDelivery)
-          .then(() => {
-            window.dispatchEvent(new CustomEvent('deliveryUpdated', {
-              detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
-            }));
+          .then(async () => {
+            await offlineDB.removePendingMutation(pendingMutationId);
+            if (!(await hasPendingEntityMutation('Delivery', deliveryId))) {
+              window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+                detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
+              }));
+            }
           })
           .catch(error => {
-            console.warn('[Sync] Background sync failed, queuing:', error.message);
-            offlineDB.addPendingMutation({
-              operation: 'update',
-              entity: 'Delivery',
-              recordId: deliveryId,
-              payload: meaningfulUpdates
-            }).catch(() => {});
+            console.warn('[Sync] Background sync failed; durable mutation retained:', error.message);
           });
       }).catch(() => {});
     }

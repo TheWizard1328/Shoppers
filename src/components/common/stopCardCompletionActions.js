@@ -12,6 +12,7 @@
  *   - handleAcceptSingleStop: single-stop accept (lighter TR# recalc path)
  */
 import { useCallback } from "react";
+import { parseAnyTimestamp } from '../utils/albertaTime';
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from './pendingBreadcrumbsStubs';
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
@@ -22,7 +23,7 @@ import { updateDeliveryLocal, pauseOfflineMutations, resumeOfflineMutations } fr
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import { generateCompletionTimestamp, calculateRetroactiveStopTiming, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
-import { waitForRouteTransitionSettle } from "./stopCardActionHelpers";
+import { waitForRouteTransitionSettle, getCurrentLocalTimeString } from "./stopCardActionHelpers";
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -31,11 +32,13 @@ import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { recalculateTrackingNumbersLocal, applyTrackingNumberUpdates } from '../utils/recalculateTrackingNumbersLocal';
-import { notifyDriverAccepted, notifyDriverCompleted, notifyDriverFailed } from "../utils/deliveryMessaging";
+import { notifyDriverCompleted, notifyDriverFailed } from "../utils/deliveryMessaging";
+import { notifyDriverAcceptedStops } from "../deliveries/driverAcceptedStopsNotifier";
 import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
 import { isDriverWithinStoreRange } from './afterHoursProximityCheck';
+import { recordStopCompletionGpsFix } from '../utils/stopCompletionGpsFix';
 import { promptInterStoreDropoff } from './interStoreDropoffPrompt';
 import {
   queueConsolidateBreadcrumbs,
@@ -248,10 +251,15 @@ export function useStopCardCompletionActions({
           // on behalf of a driver, the message must say the DRIVER accepted the
           // stops, not the admin who clicked the button.
           const assignedDriverUser = appUsers.find(u => u?.user_id === delivery.driver_id) || driverAppUser || currentUser;
-          notifyDriverAccepted({
+          // Route through the Rule Builder (MessageRule "+Stops Accepted+",
+          // event driver_accepted) with legacy fallback. The actor's role keys
+          // rule conditions; the credited driver is the ASSIGNED driver.
+          notifyDriverAcceptedStops({
+            actor: currentUser,
             driver: assignedDriverUser,
             store,
             appUsers,
+            deliveries: notifyDeliveries,
             pendingCount: notifyDeliveries.length,
           }).catch(() => {});
         }
@@ -329,6 +337,7 @@ export function useStopCardCompletionActions({
           bypassDriverStatus: true,
           recalcTrackingNumbers: true,   // TR# computed inside coordinator, merged atomically with stop_order
           recalcTrackingStoreId: delivery.store_id,  // Only WRITE TR#s for this store — see all for collision detection
+          skipServerWrite: true, // The caller commits ONE merged update set (Step 5.5) — single broadcast
         }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
         new Promise(resolve => setTimeout(() => {
           console.error('⏱️ [AcceptAll] optimizer timed out after 90s');
@@ -353,6 +362,55 @@ export function useStopCardCompletionActions({
           })()
         : fullDeliveriesForOptimizer;
 
+      // ── STEP 5.5: SINGLE merged server commit (owner rule, Oct 5 2026) ──────
+      // The coordinator deferred its server write (skipServerWrite). Merge its
+      // writeBatch (stop_order, TR#s, ETAs, polylines, statuses, isNextDelivery)
+      // with the staged Accept-All transitions (status + delivery_time_start/end
+      // resolved by the pipeline — INCLUDING the Oct 2 rule: a delivery whose own
+      // start is EARLIER than its patient's window start gets RAISED to the
+      // patient's start). ONE user-scoped bulkUpdateDeliveries = the single
+      // WebSocket broadcast other devices receive.
+      //
+      // This closes a real gap: the engine's writeBatch only carries
+      // delivery_time_start for PENDING stops, so the raised start landed in IDB
+      // but never on the server — other devices and any refresh kept the old
+      // earlier start.
+      const _acceptAllWriteBatch = Array.isArray(coordResult?.optimizeData?.writeBatch) ? coordResult.optimizeData.writeBatch : [];
+      const _mergedAcceptAllMap = new Map();
+      for (const w of _acceptAllWriteBatch) {
+        if (w?.id && w.data) _mergedAcceptAllMap.set(w.id, { ...w.data });
+      }
+      for (const d of (stagedChangedDeliveries || [])) {
+        if (!d?.id) continue;
+        const existing = _mergedAcceptAllMap.get(d.id) || {};
+        _mergedAcceptAllMap.set(d.id, {
+          ...existing,
+          status: existing.status || 'in_transit',
+          delivery_time_start: d.delivery_time_start,
+          ...(d.delivery_time_end ? { delivery_time_end: d.delivery_time_end } : {}),
+          ...(existing.delivery_time_eta ? {} : { delivery_time_eta: d.delivery_time_eta }),
+        });
+      }
+      const mergedServerUpdates = Array.from(_mergedAcceptAllMap.entries()).map(([id, data]) => ({ id, data }));
+      const serverCommitPromise = mergedServerUpdates.length > 0
+        ? base44.functions.invoke('bulkUpdateDeliveries', { updates: mergedServerUpdates })
+            .then(() => {
+              console.log(`[AcceptAll] Step 5.5 — single merged commit: ${mergedServerUpdates.length} update(s) (one broadcast)`);
+              return true;
+            })
+            .catch(async (e) => {
+              console.warn('[AcceptAll] Step 5.5 merged commit failed, falling back to chunked individual writes:', e?.message || e);
+              const CHUNK = 20; let okCount = 0;
+              for (let i = 0; i < mergedServerUpdates.length; i += CHUNK) {
+                await Promise.all(mergedServerUpdates.slice(i, i + CHUNK).map(({ id, data }) =>
+                  base44.entities.Delivery.update(id, data).then(() => { okCount++; }).catch(() => {})
+                )).catch(() => {});
+              }
+              console.warn(`[AcceptAll] Step 5.5 fallback commit: ${okCount}/${mergedServerUpdates.length} landed`);
+              return okCount === mergedServerUpdates.length;
+            })
+        : Promise.resolve(true);
+
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
@@ -369,10 +427,16 @@ export function useStopCardCompletionActions({
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
         updateDeliveriesLocally?.(finalDeliveries, false);
 
+        // Await the Step 5.5 single commit so the safety-net below only fires
+        // for updates that genuinely didn't land.
+        const serverCommitOk = await serverCommitPromise;
+
         // Safety net: find any transitioned deliveries whose status was NOT written
-        // by the coordinator (deliveries not in coordResult.freshDeliveries, or
-        // optimizer failed). Fire-and-forget — does not block UI.
-        const writtenByCoord = new Set((coordResult?.freshDeliveries || []).map(d => d?.id));
+        // by the merged commit (nothing landed — total failure/offline).
+        // Fire-and-forget — does not block UI.
+        const writtenByCoord = serverCommitOk
+          ? new Set(mergedServerUpdates.map(u => u.id))
+          : new Set();
         const missedUpdates = (stagedChangedDeliveries || [])
           .filter(d => d?.id && !writtenByCoord.has(d.id))
           .map(d => ({
@@ -548,6 +612,14 @@ export function useStopCardCompletionActions({
         // Only the driver accepting their own stop toggles themselves (as before).
         ensureDriverOnline().catch(() => {});
 
+        // Fresh GPS fix + timestamp on every stop completion (owner directive
+        // Sep 24 2026): the PWA may not have had enough foreground time to
+        // re-acquire GPS after backgrounding — force a fix so AppUser location
+        // and breadcrumbs don't lag a stop behind. Fire-and-forget, ~8s max.
+        if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+          recordStopCompletionGpsFix({ currentUser, deliveryDate: delivery.delivery_date }).catch(() => {});
+        }
+
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
         if (autoCODPayment) setCodPayments(autoCODPayment);
@@ -599,7 +671,17 @@ export function useStopCardCompletionActions({
 
         // Timing
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
+        // OWNER BUG (Oct 2 2026): localNowParts.time and localDeviceTodayStr are
+        // StopCard MOUNT-time values (useMemo with [] deps) — a card mounted
+        // before 21:00 still reads a pre-9pm clock long after the retro cutoff,
+        // so Complete kept the real 9pm+ time instead of backdating (the retro
+        // START button looked right because StopCardActionButtons computes
+        // `new Date()` live at every render). Compute LIVE values here, same
+        // pattern as the Sep 30 COD-swap midnight fix.
+        const _liveNow = new Date();
+        const _liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+        const _liveTimeStr = getCurrentLocalTimeString(_liveNow);
+        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _liveTodayStr, currentTimeString: _liveTimeStr });
         const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const completionCodPayments = autoCODPayment || codPayments;
         const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
@@ -614,7 +696,7 @@ export function useStopCardCompletionActions({
         let retroTravelDist = null;
         if (useRetroactiveTiming) {
           try {
-            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true });
+            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: _liveTodayStr, allowSameDay: true });
             if (retroactiveTiming) {
               completionActualTime = retroactiveTiming.actual_delivery_time;
               if (retroactiveTiming.arrival_time) completionArrivalTime = retroactiveTiming.arrival_time;
@@ -664,9 +746,6 @@ export function useStopCardCompletionActions({
               ...(patient?.status === 'inactive' ? { status: 'active' } : {}),
             }).catch(() => {});
           }).catch(() => {});
-          if (patient?.status === 'inactive') {
-            base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => {});
-          }
         }
 
         // ── ISP pre-prompt (BEFORE isNextDelivery is reassigned) ──────────────
@@ -729,7 +808,7 @@ export function useStopCardCompletionActions({
         const _driverAppUserForEOD = _routeIsFinished ? (appUsers || []).find((au) => au?.user_id === delivery.driver_id) : null;
         const _driverStatusForEOD = _driverAppUserForEOD?.driver_status ?? currentUser?.driver_status;
         if (_routeIsFinished && _driverStatusForEOD === 'on_duty') {
-          // CRITICAL: completionActualTime is a NAIVE local timestamp string
+          // CRITICAL: completionActualTime is a NAIVE Edmonton wall timestamp string (parsed via pure Alberta math, not device-local — machines with premature tz data would misanchor by 1hr). Legacy note:
           // (e.g. "2026-08-06T13:40:00", no timezone suffix) built from local
           // Date components on this device. The backend setDriverStatus function
           // runs on a UTC server — new Date() there treats a naive/no-offset
@@ -739,7 +818,7 @@ export function useStopCardCompletionActions({
           // date-time strings ARE correctly interpreted as this device's local
           // time) before sending — the backend then parses an unambiguous
           // 'Z'-suffixed ISO string.
-          const anchorTimeUTC = new Date(completionActualTime).toISOString();
+          const anchorTimeUTC = parseAnyTimestamp(completionActualTime).toISOString();
           setDriverStatus({
             newStatus: 'off_duty',
             selectedDate: delivery?.delivery_date,
@@ -860,6 +939,10 @@ export function useStopCardCompletionActions({
         setShowFailureReasonDialog(false);
         setPendingFailureStatus(null);
         setIsFailing(true);
+        // Fresh GPS fix on fail-with-reason too (same directive as completion).
+        if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+          recordStopCompletionGpsFix({ currentUser, deliveryDate: delivery.delivery_date }).catch(() => {});
+        }
         fabControlEvents.deactivateFAB();
         fabControlEvents.notifyPhaseTwoTempUnlock();
         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
@@ -885,7 +968,17 @@ export function useStopCardCompletionActions({
         const existingNotes = delivery.delivery_notes || '';
         const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
+        // OWNER BUG (Oct 2 2026): localNowParts.time and localDeviceTodayStr are
+        // StopCard MOUNT-time values (useMemo with [] deps) — a card mounted
+        // before 21:00 still reads a pre-9pm clock long after the retro cutoff,
+        // so Complete kept the real 9pm+ time instead of backdating (the retro
+        // START button looked right because StopCardActionButtons computes
+        // `new Date()` live at every render). Compute LIVE values here, same
+        // pattern as the Sep 30 COD-swap midnight fix.
+        const _liveNow = new Date();
+        const _liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+        const _liveTimeStr = getCurrentLocalTimeString(_liveNow);
+        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _liveTodayStr, currentTimeString: _liveTimeStr });
         const allRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
 
         // Await retro timing before building criticalUpdate — same race-condition fix as Complete.
@@ -894,7 +987,7 @@ export function useStopCardCompletionActions({
         let failTravelDist = null;
         if (useRetroactiveTiming) {
           try {
-            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true });
+            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: _liveTodayStr, allowSameDay: true });
             if (retroactiveTiming) {
               failActualTime = retroactiveTiming.actual_delivery_time;
               if (retroactiveTiming.arrival_time) failArrivalTime = retroactiveTiming.arrival_time;
@@ -938,7 +1031,7 @@ export function useStopCardCompletionActions({
         // Only run (and log) the proximity check when the identity/role gate passed —
         // avoids noisy distance logs on regular delivery fails/cancels.
         const withinStoreRange = isDriverCancellingPickup
-          ? isDriverWithinStoreRange({ currentUser, appUsers, store, stores, delivery })
+          ? await isDriverWithinStoreRange({ currentUser, appUsers, store, stores, delivery })
           : false;
         if (isDriverCancellingPickup && withinStoreRange) {
           criticalUpdate.after_hours_pickup = true;
@@ -1279,6 +1372,8 @@ export function useStopCardCompletionActions({
         });
 
         // Broadcast the isNextDelivery=false updates + new pickup + updated delivery to UI
+        // Freeze card order first — the optimizer's freshDeliveries release the lock.
+        window.dispatchEvent(new CustomEvent('routeDisplayOrderLock', { detail: { driverId, deliveryDate } }));
         const allLocalUpdates = [...updatedDeliveries, newPickup, updatedDelivery];
         updateDeliveriesLocally?.(allLocalUpdates, false);
 
@@ -1300,13 +1395,15 @@ export function useStopCardCompletionActions({
         // ════════════════════════════════════════════════════════════════════
         // Accept Single is driver-only now — the dispatcher/admin "Assign on
         // behalf of driver" path has been removed (button hidden, code path retired).
-        notifyDriverAccepted({
+        notifyDriverAcceptedStops({
+          actor: currentUser,
           driver: currentUser,
           store: resolvedStore,
           appUsers,
+          deliveries: [projectedDelivery],
           pendingCount: 1,
           patientName: projectedDelivery.patient_name || '',
-        }).catch((e) => console.warn('[AcceptSingle] notifyDriverAccepted failed:', e?.message || e));
+        }).catch((e) => console.warn('[AcceptSingle] notifyDriverAcceptedStops failed:', e?.message || e));
 
         console.log(`[AcceptSingle] STEP 5 — Notifications sent`);
 

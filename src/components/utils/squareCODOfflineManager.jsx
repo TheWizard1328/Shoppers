@@ -1,6 +1,7 @@
 import { offlineDB } from './offlineDatabase';
 
-const DEFAULT_LOOKBACK_DAYS = 90;
+// 190 days: covers the 6-month backfill history retained back to the oldest uncollected COD
+const DEFAULT_LOOKBACK_DAYS = 190;
 
 const getLookbackDays = () => DEFAULT_LOOKBACK_DAYS;
 const SQUARE_COD_STORES = {
@@ -101,35 +102,102 @@ const updateTransactionSyncStatus = async () => {
 };
 
 const pruneStoredCatalogItems = async () => {
+  // getAllStrict — see pruneStoredSquareTransactions: read failures must throw.
   // Catalog items are not date-filtered â€” no pruning needed, just update sync status.
   await updateCatalogSyncStatus();
-  const items = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
+  const items = await offlineDB.getAllStrict(SQUARE_COD_STORES.CATALOG_ITEMS);
   return items || [];
 };
 
+// Chunked bulkSave — each chunk gets its own IDB_OPERATION_TIMEOUT window.
+// A single 8s window over 900+ encrypted records aborted too often on phone
+// hardware; chunking makes the big 6-month backfill set durable.
+const BULK_CHUNK_SIZE = 150;
+const bulkSaveChunked = async (storeName, records) => {
+  const all = records || [];
+  let saved = 0;
+  for (let i = 0; i < all.length; i += BULK_CHUNK_SIZE) {
+    const chunk = all.slice(i, i + BULK_CHUNK_SIZE);
+    const result = await offlineDB.bulkSave(storeName, chunk);
+    if (!result?.success) {
+      return { success: false, error: result?.error || `bulkSave chunk ${Math.floor(i / BULK_CHUNK_SIZE)} failed`, saved };
+    }
+    saved += result.count || chunk.length;
+  }
+  return { success: true, count: saved };
+};
+
 const pruneStoredSquareTransactions = async () => {
-  const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+  // getAllStrict: a timed-out/stalled read must THROW (getter returns null so the
+  // UI keeps its lists) — the silent getAll returns [] on failure, which made
+  // the Square COD page zero every list on the owner's tablet (Sep 30 2026).
+  const transactions = await offlineDB.getAllStrict(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
   const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
 
-  if (recentTransactions.length !== (transactions || []).length) {
-    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-    if (recentTransactions.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, recentTransactions);
-    }
+  // DELETE-ONLY prune (owner fix, Sep 29 2026): never clearStore-then-resave
+  // on the read path — the clear commits in its own IDB transaction and a
+  // failed save afterwards leaves the store empty (the backfill IDB wipe).
+  const stale = (transactions || []).filter((t) => t?.id && !isRecentSquareTransaction(t));
+  if (stale.length > 0) {
+    await Promise.all(stale.map((t) => offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, t.id).catch(() => null)));
   }
 
   await updateTransactionSyncStatus();
   return recentTransactions;
 };
 
+// RecordsEqual: top-level deep compare via JSON.stringify — cheap next to the
+// AES-GCM encrypt + IDB write it saves. Key order is normalized by sorting.
+// (Speed spec, Sep 30 2026: the sync used to re-encrypt and rewrite EVERY
+// catalog/tx row on every run even when nothing changed.)
+const stableStringify = (v) => {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  const keys = Object.keys(v).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
+};
+const recordsEqual = (a, b) => stableStringify(a) === stableStringify(b);
+
+// Diff an incoming full mirror against the existing store rows. Returns
+// { changed: [...rows to write], existingById: Map }. Pruning (rows not in the
+// incoming set) is left to the caller so a failed read can abort before any
+// destructive step.
+const diffAgainstStore = async (storeName, normalizedIncoming) => {
+  const existingRows = await offlineDB.getAllStrict(storeName);
+  const existingById = new Map((existingRows || []).map((r) => [r?.id, r]));
+  const changed = (normalizedIncoming || []).filter((r) => {
+    const prev = existingById.get(r?.id);
+    return !prev || !recordsEqual(prev, r);
+  });
+  return { changed, existingRows: existingRows || [], existingById };
+};
+
 export const saveCatalogItemsOffline = async (items) => {
   try {
     // Catalog items have NO date filter â€” we store ALL active items from Square.
     const normalizedItems = (items || []).filter(Boolean).map(normalizeCatalogEntityRecord);
-    await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
-
+    // UPSERT-FIRST (owner fix, Sep 29 2026): save BEFORE pruning, and never
+    // clear the store first — clearStore+bulkSave ran as two separate IDB
+    // transactions, so a failed/timed-out save left the store wiped.
     if (normalizedItems.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedItems);
+      // DIFF-SAVE (speed spec, Sep 30 2026): only write rows that are new or
+      // actually changed — an ordinary sync (nothing collected, nothing new)
+      // re-encrypted and rewrote the whole catalog before. A strict read here
+      // also means a failed read aborts BEFORE any destructive step.
+      const { changed, existingRows } = await diffAgainstStore(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedItems);
+      if (changed.length > 0) {
+        const saveResult = await bulkSaveChunked(SQUARE_COD_STORES.CATALOG_ITEMS, changed);
+        if (!saveResult?.success) {
+          console.error('[SquareCODOffline] Catalog bulkSave failed — keeping existing IDB rows:', saveResult?.error);
+          return { success: false, error: saveResult?.error };
+        }
+      }
+      const incomingIds = new Set(normalizedItems.map((r) => r?.id).filter(Boolean));
+      const toDelete = existingRows.filter((r) => r?.id && !incomingIds.has(r.id));
+      if (toDelete.length > 0) {
+        await Promise.all(toDelete.map((r) => offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, r.id).catch(() => null)));
+      }
+      console.log(`[SquareCODOffline] Catalog save: ${changed.length} changed of ${normalizedItems.length} (diff)`);
     }
 
     await updateCatalogSyncStatus();
@@ -145,11 +213,46 @@ export const savePaymentTransactionsOffline = async (transactions) => {
     // Do NOT filter by date here â€” the online DB was just cleared and rebuilt from
     // the Square API. Trust the source completely. Filter out only non-collected types.
     const normalizedTransactions = (transactions || []).filter(Boolean).filter(isActualCollectedTransaction);
-    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
 
-    if (normalizedTransactions.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, normalizedTransactions);
+    // UPSERT-FIRST (owner fix, Sep 29 2026): the old code did clearStore() then
+    // bulkSave() — TWO separate IDB transactions. The clear committed first;
+    // when the bulkSave then hit the 8s operation timeout (900+ records on the
+    // 6-month backfill, AES-GCM encrypted as a PHI store) it aborted, leaving
+    // the store EMPTY with the failure silently ignored — every backfill
+    // wiped the entire Square Transaction history in IDB, so all collected
+    // CODs looked uncollected. Now: save first (chunked, each chunk gets its
+    // own timeout window); prune stale rows only after a CONFIRMED successful
+    // save; never touch existing rows on failure or empty input.
+    if (normalizedTransactions.length === 0) {
+      console.warn('[SquareCODOffline] Empty transaction set — keeping existing IDB tx history untouched');
+      await updateTransactionSyncStatus();
+      return { success: true, count: 0, skipped: true };
     }
+
+    // DIFF-SAVE (speed spec, Sep 30 2026): only write rows that are new or
+    // actually changed. The old flow re-encrypted and rewrote the ENTIRE
+    // retained tx mirror (hundreds of rows with big raw_square_data payloads)
+    // on every sync even when nothing changed — one of the slowest IDB steps.
+    // The strict read also guarantees a failed read aborts before any
+    // destructive step.
+    const { changed, existingRows: existingTxs } = await diffAgainstStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, normalizedTransactions);
+    if (changed.length > 0) {
+      const saveResult = await bulkSaveChunked(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, changed);
+      if (!saveResult?.success) {
+        console.error('[SquareCODOffline] Tx bulkSave failed — KEEPING existing IDB rows:', saveResult?.error);
+        await updateTransactionSyncStatus();
+        return { success: false, error: saveResult?.error };
+      }
+    }
+
+    // Prune rows not in the incoming mirror set (purged collected rows must
+    // leave IDB so the DB mirror stays exact) — only after a confirmed save.
+    const incomingIds = new Set(normalizedTransactions.map((r) => r?.id).filter(Boolean));
+    const toDelete = existingTxs.filter((r) => r?.id && !incomingIds.has(r.id));
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map((r) => offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, r.id).catch(() => null)));
+    }
+    console.log(`[SquareCODOffline] Tx save: ${changed.length} changed of ${normalizedTransactions.length} (diff)`);
 
     await updateTransactionSyncStatus();
     return { success: true, count: normalizedTransactions.length };
@@ -177,8 +280,11 @@ export const getCatalogItemsOffline = async () => {
     const items = await pruneStoredCatalogItems();
     return (items || []).map(mapCatalogEntityToUIItem);
   } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving catalog items:', error);
-    return [];
+    // READ-FAILURE SIGNAL (owner report, Sep 30 2026): null = the read FAILED
+    // (timeout/stall) — callers keep their current lists instead of zeroing.
+    // [] is reserved for a genuinely empty store.
+    console.error('[SquareCODOffline] Catalog read FAILED (not empty):', error);
+    return null;
   }
 };
 
@@ -186,8 +292,13 @@ export const getPaymentTransactionsOffline = async () => {
   try {
     return await pruneStoredSquareTransactions();
   } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving payment transactions:', error);
-    return [];
+    // READ-FAILURE SIGNAL (owner report, Sep 30 2026): returning [] here made
+    // callers overwrite live UI lists with EMPTY when the tablet's IDB read
+    // timed out mid-sync — every list on the Square COD page vanished. Return
+    // null so callers know the read FAILED and can keep their current state.
+    // [] stays reserved for a genuinely empty store.
+    console.error('[SquareCODOffline] Payment tx read FAILED (not empty):', error);
+    return null;
   }
 };
 

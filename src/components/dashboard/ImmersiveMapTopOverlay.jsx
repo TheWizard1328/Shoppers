@@ -64,6 +64,15 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
     return '--';
   })();
 
+  // Unit number parity with the StopCard (same lookup the card's middle
+  // section uses) — appended next to the address on the panel.
+  const unitNumber = (!isCyclingMarker && !isInterStore && !isPickup)
+    ? (delivery?.unit_number || patient?.unit_number || null)
+    : null;
+  const addressWithUnit = unitNumber
+    ? `${resolvedAddress} · #${unitNumber}`
+    : resolvedAddress;
+
   // Only show batch tracking for regular deliveries
   const batchTracking = (!isCyclingMarker && !isInterStore) ? formatBatchTracking(delivery, store) : null;
 
@@ -114,7 +123,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
           </div>
 
           <div className="min-w-0 truncate text-center text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-white">
-            {resolvedAddress}
+            {addressWithUnit}
           </div>
 
           <Badge

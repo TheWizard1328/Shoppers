@@ -6,10 +6,11 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { updates } = await req.json();
+    const { updates, silent } = await req.json();
     if (!Array.isArray(updates) || updates.length === 0) {
       return Response.json({ error: 'updates must be a non-empty array' }, { status: 400 });
     }
+    const useSilent = silent === true;
 
     // Validate each update has id + data
     const valid = updates.every(u => u && typeof u.id === 'string' && u.data && typeof u.data === 'object');
@@ -28,9 +29,19 @@ Deno.serve(async (req) => {
     // (Promise.allSettled) instead of asServiceRole.bulkUpdate() to ensure each
     // record's WS broadcast fires. The performance impact is acceptable
     // (N parallel HTTP calls vs 1 bulk call) — typical routes have 5-20 stops.
+    //
+    // SILENT MODE (Oct 5 2026, owner request: "Start button should push ONE final
+    // WebSocket broadcast like Accept All"): when silent===true, writes go through
+    // asServiceRole instead — service-role writes do NOT trigger WS broadcasts.
+    // Used for a flow's INTERMEDIATE writes (Start button status + renumber sync)
+    // where the caller commits a single user-scoped broadcast at the END
+    // (the route-optimization coordinator's final bulkUpdateDeliveries commit),
+    // so other devices receive one complete update instead of watching partial
+    // states re-render stop orders/polylines several times.
+    const client = useSilent ? base44.asServiceRole : base44;
     const results = await Promise.allSettled(
       updates.map(u =>
-        base44.entities.Delivery.update(u.id, u.data)
+        client.entities.Delivery.update(u.id, u.data)
       )
     );
 
@@ -46,7 +57,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return Response.json({ success: true, updatedCount: succeeded, failedCount: failed });
+    return Response.json({ success: true, updatedCount: succeeded, failedCount: failed, silent: useSilent });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

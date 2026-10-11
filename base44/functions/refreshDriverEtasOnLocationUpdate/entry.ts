@@ -152,7 +152,7 @@ async function getHereRoute(origin, stops) {
   return route.sections;
 }
 
-async function processDriver(base44, appUser, deliveryDate) {
+async function processDriver(base44, appUser, deliveryDate, forceEtaRefresh = false) {
   const isDriver = Array.isArray(appUser?.app_roles) && appUser.app_roles.includes('driver');
   if (!isDriver) return { skipped: true, reason: 'not_driver', driver_id: appUser?.user_id || null };
   if (appUser.driver_status === 'off_duty' || appUser.driver_status === 'on_break') {
@@ -169,7 +169,9 @@ async function processDriver(base44, appUser, deliveryDate) {
 
   const previousLat = toNumber(appUser.previous_latitude ?? appUser.old_current_latitude);
   const previousLon = toNumber(appUser.previous_longitude ?? appUser.old_current_longitude);
-  if (previousLat != null && previousLon != null) {
+  // Break-return force (owner rule, Sep 29 2026): the driver sat still for the
+  // whole break, so the movement guard would ALWAYS skip the refresh — bypass it.
+  if (!forceEtaRefresh && previousLat != null && previousLon != null) {
     const movedMeters = calculateDistanceInMeters(previousLat, previousLon, currentLat, currentLon);
     if (movedMeters < MIN_DISTANCE_TRAVELED_METERS) {
       return {
@@ -259,7 +261,9 @@ async function processDriver(base44, appUser, deliveryDate) {
     ? null
     : Math.abs(projectedEtaMinutes - currentEtaMinutes);
 
-  if (driftMinutes != null && driftMinutes <= ETA_DRIFT_THRESHOLD_MINUTES) {
+  // Break-return force: even a short break shifts every ETA by the break
+  // length — always rewrite when forced, regardless of the 5-minute drift gate.
+  if (!forceEtaRefresh && driftMinutes != null && driftMinutes <= ETA_DRIFT_THRESHOLD_MINUTES) {
     return {
       skipped: true,
       reason: 'eta_within_threshold',
@@ -269,8 +273,58 @@ async function processDriver(base44, appUser, deliveryDate) {
     };
   }
 
+  // ── Mid-flight race guard (Oct 5 2026) ──────────────────────────────────────
+  // This function fetches the route ONCE, then spends seconds in the HERE
+  // routing call before writing. A stop can COMPLETE during that window: the
+  // completion flow writes fresh post-completion ETAs, and then this
+  // function's stale pre-completion projections land afterward and clobber
+  // them server-side. Symptom (owner report): the UI shows the new ETAs,
+  // reverts to the old ones on the next smartRefresh poll, bounces back on a
+  // local write, reverts again, and stays stale (the tracker's next refresh
+  // is gated by 100m movement / 5-min drift, and the driver just sat still
+  // at the completed stop). Re-check every projected delivery right before
+  // writing:
+  //   1. If ANY projected delivery went terminal (completed/failed/cancelled)
+  //      or vanished since our fetch, the route changed mid-flight → abort
+  //      the ENTIRE batch (every projection routes through the old stop set).
+  //   2. If a delivery's CURRENT delivery_time_eta differs from the value we
+  //      saw at fetch time AND from what we're about to write, a fresher
+  //      writer (completion flow / optimizer) landed while we computed →
+  //      skip that delivery rather than clobber it.
+  //   3. If the current value already equals our target, no write needed.
+  // travel_dist flushes do NOT trip the guard — they leave delivery_time_eta
+  // untouched, so the fetched-value comparison still matches and the ETA
+  // write proceeds normally.
+  const projectedIds = etaUpdates.map((entry) => entry.delivery.id);
+  const currentRows = await base44.asServiceRole.entities.Delivery.filter({
+    id: { $in: projectedIds },
+  }, 'stop_order', 500).catch(() => []);
+  const currentMap = new Map((currentRows || []).map((row) => [row.id, row]));
+  const routeChangedMidFlight = etaUpdates.some((entry) => {
+    const current = currentMap.get(entry.delivery.id);
+    return !current || INACTIVE_STATUSES.includes(current.status);
+  });
+  if (routeChangedMidFlight) {
+    return {
+      skipped: true,
+      reason: 'route_changed_mid_flight',
+      driver_id: appUser.user_id,
+      next_delivery_id: nextDelivery.id,
+    };
+  }
   let updatedCount = 0;
-  const deliveryEtaWriteBatch = etaUpdates.filter((entry) => entry.delivery.delivery_time_eta !== entry.etaValue);
+  const deliveryEtaWriteBatch = etaUpdates.filter((entry) => {
+    const current = currentMap.get(entry.delivery.id);
+    if (!current) return false; // vanished mid-flight
+    if (!ACTIVE_STATUSES.includes(current.status)) return false; // went terminal mid-flight
+    if (current.delivery_time_eta === entry.etaValue) return false; // already correct
+    if (current.delivery_time_eta !== entry.delivery.delivery_time_eta) {
+      // A different ETA landed after our fetch — that writer is fresher; do
+      // not overwrite it with our pre-completion projection.
+      return false;
+    }
+    return true;
+  });
   if (deliveryEtaWriteBatch.length > 0) {
     await Promise.all(deliveryEtaWriteBatch.map((entry) =>
       base44.asServiceRole.entities.Delivery.update(entry.delivery.id, {
@@ -312,6 +366,10 @@ Deno.serve(async (req) => {
     const requesterIsAdmin = requesterRoles.includes('admin');
     const routeChangeSource = String(payload?.routeChangeSource || payload?.source || 'poll').toLowerCase();
     const isPrimaryDevice = payload?.isPrimaryDevice === true;
+    // Break-return force (owner rule, Sep 29 2026): toggling back on_duty from
+    // on_break must immediately re-anchor the next stop's ETA to now + travel
+    // time from the driver's current position, then chain the remaining stops.
+    const forceEtaRefresh = payload?.forceEtaRefresh === true || routeChangeSource === 'break_return';
 
     if (!explicitDriverId) {
       return Response.json({ success: true, skipped: true, reason: 'driver_id_required', delivery_date: deliveryDate });
@@ -320,8 +378,12 @@ Deno.serve(async (req) => {
     const isSameDriver = requesterIsDriver && user.id === explicitDriverId;
     const isDispatcherOverride = requesterIsDispatcher && ['assign_accept_all', 'accept_all', 'assign_all'].includes(routeChangeSource);
     const isAdminOverride = requesterIsAdmin && (payload?.force === true || ['admin_stop_edit', 'admin_edit', 'manual_refresh'].includes(routeChangeSource));
+    // Break-return refresh is allowed for the driver themselves (any device — the
+    // GPS comes from the DB record, not the caller) or any admin/dispatcher.
+    const isBreakReturnActor = forceEtaRefresh && routeChangeSource === 'break_return' &&
+      (isSameDriver || requesterIsAdmin || requesterIsDispatcher);
 
-    if (!(isSameDriver && isPrimaryDevice) && !isDispatcherOverride && !isAdminOverride) {
+    if (!(isSameDriver && isPrimaryDevice) && !isDispatcherOverride && !isAdminOverride && !isBreakReturnActor) {
       return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor', delivery_date: deliveryDate, driver_id: explicitDriverId });
     }
 
@@ -332,15 +394,18 @@ Deno.serve(async (req) => {
     }
 
     const driver = drivers[0];
+    // Break-return force bypasses the 30s location cooldown — the on_duty toggle
+    // just wrote a FRESH GPS fix to the AppUser record, which is exactly the
+    // origin the ETA projection needs.
     const locationUpdatedAtMs = new Date(driver?.location_updated_at || 0).getTime();
-    if (locationUpdatedAtMs && (Date.now() - locationUpdatedAtMs) < 30000) {
+    if (!forceEtaRefresh && locationUpdatedAtMs && (Date.now() - locationUpdatedAtMs) < 30000) {
       return Response.json({ success: true, skipped: true, reason: 'recent_location_update_cooldown', delivery_date: deliveryDate, driver_id: explicitDriverId });
     }
 
     const results = [];
     for (const driver of drivers) {
       try {
-        results.push(await processDriver(base44, driver, deliveryDate));
+        results.push(await processDriver(base44, driver, deliveryDate, forceEtaRefresh));
       } catch (error) {
         const isRateLimited = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
         if (isRateLimited) {

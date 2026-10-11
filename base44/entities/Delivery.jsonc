@@ -147,6 +147,44 @@
       "type": "number",
       "description": "Total COD amount required to be collected for this delivery"
     },
+    "cod_card_spend_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when a CASH-collected COD's tender was corrected to Debit/Credit on the Square Balances page — the card payment is NEW money the true-up did not bake in, so the delivery gets its fee/loan/folder/settled credit even when completed before trued_up_at"
+    },
+    "cod_confirmed_collected": {
+      "type": "boolean",
+      "description": "True once a matching COMPLETED Square order confirmed the COD was collected at the register (stamped when the SquareTransaction/SquareCatalogItems rows are purged)"
+    },
+    "cod_confirmed_collected_at": {
+      "type": "string",
+      "description": "ISO timestamp when COD collection was confirmed via Square POS"
+    },
+    "cod_unarchived_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when an Archived COD was Unarchived back to outstanding cash status; the Square page keeps unarchived CODs visible (NOT COLLECTED + catalog lists) past the normal 90-day window"
+    },
+    "cod_returned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when a FAILED delivery with a COD was RETURNED (goods back to the store) — AUDIT ONLY (owner spec Oct 8 2026): the item KEEPS showing on Square Balances and keeps its deduction until an actual Square refund is detected or manually marked on the Failed badge"
+    },
+    "cod_retried_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when a FAILED delivery with a COD was RETRIED (a new retry delivery now carries the COD) — prevents duplicate deduction of the amount off the Square card balance"
+    },
+    "cod_retry_delivery_id": {
+      "type": "string",
+      "description": "The retry delivery's id (set together with cod_retried_at)"
+    },
+    "cod_scan_at": {
+      "title": "COD wide-scan timestamp",
+      "type": "string",
+      "format": "date-time",
+      "description": "Last wide collected-scan that found NO matching Square order for this delivery; sync skips re-scanning it for 14 days"
+    },
     "cp_envelopes": {
       "type": "number",
       "default": 0,
@@ -169,6 +207,34 @@
           },
           "amount": {
             "type": "number"
+          },
+          "fee_c": {
+            "type": "number",
+            "description": "Square card fee in cents for this payment (combined-swipe proportional share, Square Balances tender conversion)"
+          },
+          "loan_c": {
+            "type": "number",
+            "description": "Loan repayment withheld in cents (combined-swipe proportional share)"
+          },
+          "folder_c": {
+            "type": "number",
+            "description": "Folder (2%) withheld in cents (combined-swipe proportional share)"
+          },
+          "settled_c": {
+            "type": "number",
+            "description": "Net amount credited to the card in cents (amount - fee - loan - folder)"
+          },
+          "swipe_total_c": {
+            "type": "number",
+            "description": "Total of the combined swipe in cents this payment belongs to"
+          },
+          "card_brand": {
+            "type": "string",
+            "description": "Real Square card brand of the swipe (INTERAC, VISA, MASTERCARD, ...) — auto-tender verification"
+          },
+          "entry_method": {
+            "type": "string",
+            "description": "Square entry method of the swipe (SWIPE, CHIP, TAP, KEYED) — KEYED credit carries the higher fee"
           }
         },
         "required": [
@@ -176,7 +242,7 @@
           "amount"
         ]
       },
-      "description": "Array of collected COD payments with type and amount"
+      "description": "Array of collected COD payments with type and amount; card payments converted on Square Balances also carry per-payment fee/loan/folder/settled cents"
     },
     "signature_needed": {
       "type": "boolean",
@@ -231,6 +297,31 @@
     "encoded_polyline": {
       "type": "string",
       "description": "HERE API encoded polyline for this stop's planned route segment"
+    },
+    "deviation_waypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "description": "Latitude of the recorded route-deviation point (driver's live GPS when deviation was detected on this leg)"
+          },
+          "lng": {
+            "type": "number",
+            "description": "Longitude of the recorded route-deviation point"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO timestamp when the deviation was detected (ordering within the leg)"
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ]
+      },
+      "description": "Route-deviation via points for this stop's leg (max 3, chronological). Written by the current-leg deviation regen so later polyline regenerations (manual re-optimization, admin regenerate on completed routes) keep the leg snapped to the path actually driven instead of reverting to the theoretical route. Transferred to the newly-next stop when a re-optimization changes stop order mid-leg."
     },
     "transport_mode": {
       "type": "string",

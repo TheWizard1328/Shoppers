@@ -127,6 +127,23 @@ export default function DeliveryForm({
     return sorted.filter((driver) => driver && driver.user_name && driver.status !== 'inactive');
   }, [drivers, appUsers]);
 
+  // Guards the live WS merge below from clobbering an UNSAVED status edit the
+  // user just made in this form (Oct 1 2026 fix — editing a completed delivery's
+  // status briefly showed the new value then reverted: any unrelated background
+  // write to this delivery, e.g. repairStopOrders bulk-saving the whole route,
+  // rebroadcast the still-committed server status and the WS merge blindly
+  // reapplied it). Tracks the last status value it's safe to overwrite with a
+  // live update; once the user edits away from it, live updates stop touching
+  // status until the form saves or resets for a different delivery.
+  const baselineStatusRef = useRef(delivery?.status || null);
+  // Oct 1 2026 — same unedited-guard pattern extended to date + time windows:
+  // a background broadcast for this delivery (route repair, stop_order renumber,
+  // sync pass) must never stomp the user's unsaved edits. These track the last
+  // server values the form still displays; live updates only overwrite a field
+  // while the form still holds that baseline value.
+  const baselineDateRef = useRef(delivery?.delivery_date || null);
+  const baselineWindowStartRef = useRef(delivery?.delivery_time_start || null);
+  const baselineWindowEndRef = useRef(delivery?.delivery_time_end || null);
   const [formData, setFormData] = useState(() => buildDeliveryFormInitialState({
     initialPatientId,
     patients,
@@ -400,7 +417,7 @@ export default function DeliveryForm({
       setFormData(prev => ({ ...prev, patient_name: updates.full_name || prev.patient_name, patient_phone: updates.phone || prev.patient_phone, patient_phone_secondary: updates.phone_secondary !== undefined ? (updates.phone_secondary || '') : prev.patient_phone_secondary, unit_number: updates.unit_number || prev.unit_number, delivery_instructions: updates.notes || prev.delivery_instructions,
         ...(updates.time_window_start !== undefined ? { time_window_start: updates.time_window_start || '' } : {}),
         ...(updates.time_window_end !== undefined ? { time_window_end: updates.time_window_end || '' } : {}),
-        mailbox_ok: updates.mailbox_ok !== undefined ? updates.mailbox_ok : prev.mailbox_ok, call_upon_arrival: updates.call_upon_arrival !== undefined ? updates.call_upon_arrival : prev.call_upon_arrival, ring_bell: updates.ring_bell !== undefined ? updates.ring_bell : prev.ring_bell, dont_ring_bell: updates.dont_ring_bell !== undefined ? updates.dont_ring_bell : prev.dont_ring_bell, back_door: updates.back_door !== undefined ? updates.back_door : prev.back_door, care_pros: updates.care_pros !== undefined ? updates.care_pros : prev.care_pros, cp_name: updates.cp_name !== undefined ? updates.cp_name : prev.cp_name, cp_envelopes: updates.cp_envelopes !== undefined ? updates.cp_envelopes : prev.cp_envelopes, signature_needed: updates.signature_needed !== undefined ? updates.signature_needed : prev.signature_needed, recurring: updates.recurring !== undefined ? updates.recurring : prev.recurring, recurring_daily: updates.recurring_daily !== undefined ? updates.recurring_daily : prev.recurring_daily, recurring_weekly_mon: updates.recurring_weekly_mon !== undefined ? updates.recurring_weekly_mon : prev.recurring_weekly_mon, recurring_weekly_tue: updates.recurring_weekly_tue !== undefined ? updates.recurring_weekly_tue : prev.recurring_weekly_tue, recurring_weekly_wed: updates.recurring_weekly_wed !== undefined ? updates.recurring_weekly_wed : prev.recurring_weekly_wed, recurring_weekly_thu: updates.recurring_weekly_thu !== undefined ? updates.recurring_weekly_thu : prev.recurring_weekly_thu, recurring_weekly_fri: updates.recurring_weekly_fri !== undefined ? updates.recurring_weekly_fri : prev.recurring_weekly_fri, recurring_weekly_sat: updates.recurring_weekly_sat !== undefined ? updates.recurring_weekly_sat : prev.recurring_weekly_sat, recurring_weekly_sun: updates.recurring_weekly_sun !== undefined ? updates.recurring_weekly_sun : prev.recurring_weekly_sun, recurring_biweekly: updates.recurring_biweekly !== undefined ? updates.recurring_biweekly : prev.recurring_biweekly, recurring_weekly_x4: updates.recurring_weekly_x4 !== undefined ? updates.recurring_weekly_x4 : prev.recurring_weekly_x4, recurring_monthly: updates.recurring_monthly !== undefined ? updates.recurring_monthly : prev.recurring_monthly, recurring_bimonthly: updates.recurring_bimonthly !== undefined ? updates.recurring_bimonthly : prev.recurring_bimonthly }));
+        mailbox_ok: updates.mailbox_ok !== undefined ? updates.mailbox_ok : prev.mailbox_ok, call_upon_arrival: updates.call_upon_arrival !== undefined ? updates.call_upon_arrival : prev.call_upon_arrival, ring_bell: updates.ring_bell !== undefined ? updates.ring_bell : prev.ring_bell, dont_ring_bell: updates.dont_ring_bell !== undefined ? updates.dont_ring_bell : prev.dont_ring_bell, back_door: updates.back_door !== undefined ? updates.back_door : prev.back_door, care_pros: updates.care_pros !== undefined ? updates.care_pros : prev.care_pros, cp_name: updates.cp_name !== undefined ? updates.cp_name : prev.cp_name, /* cp_envelopes intentionally NOT synced from patient updates — per-delivery envelope count is independent of the patient's default once a delivery exists (owner rule Sep 23 2026) */ signature_needed: updates.signature_needed !== undefined ? updates.signature_needed : prev.signature_needed, recurring: updates.recurring !== undefined ? updates.recurring : prev.recurring, recurring_daily: updates.recurring_daily !== undefined ? updates.recurring_daily : prev.recurring_daily, recurring_weekly_mon: updates.recurring_weekly_mon !== undefined ? updates.recurring_weekly_mon : prev.recurring_weekly_mon, recurring_weekly_tue: updates.recurring_weekly_tue !== undefined ? updates.recurring_weekly_tue : prev.recurring_weekly_tue, recurring_weekly_wed: updates.recurring_weekly_wed !== undefined ? updates.recurring_weekly_wed : prev.recurring_weekly_wed, recurring_weekly_thu: updates.recurring_weekly_thu !== undefined ? updates.recurring_weekly_thu : prev.recurring_weekly_thu, recurring_weekly_fri: updates.recurring_weekly_fri !== undefined ? updates.recurring_weekly_fri : prev.recurring_weekly_fri, recurring_weekly_sat: updates.recurring_weekly_sat !== undefined ? updates.recurring_weekly_sat : prev.recurring_weekly_sat, recurring_weekly_sun: updates.recurring_weekly_sun !== undefined ? updates.recurring_weekly_sun : prev.recurring_weekly_sun, recurring_biweekly: updates.recurring_biweekly !== undefined ? updates.recurring_biweekly : prev.recurring_biweekly, recurring_weekly_x4: updates.recurring_weekly_x4 !== undefined ? updates.recurring_weekly_x4 : prev.recurring_weekly_x4, recurring_monthly: updates.recurring_monthly !== undefined ? updates.recurring_monthly : prev.recurring_monthly, recurring_bimonthly: updates.recurring_bimonthly !== undefined ? updates.recurring_bimonthly : prev.recurring_bimonthly }));
     };
     const unsubscribeDelivery = base44.entities.Delivery.subscribe((event) => {
       const changedId = event?.id || event?.data?.id;
@@ -411,7 +428,31 @@ export default function DeliveryForm({
       const isTransitioned = ['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(d.status);
       const canonicalTimeStart = d.delivery_time_start || (!isTransitioned ? livePatient?.time_window_start : '') || '';
       const canonicalTimeEnd = d.delivery_time_end || (!isTransitioned ? livePatient?.time_window_end : '') || '';
-      setFormData(prev => ({ ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: d.status || prev.status, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null }));
+      setFormData(prev => {
+        // Only let a live update move Status if the user hasn't edited it away
+        // from the last known-safe server value in this open form. Otherwise an
+        // unrelated background write to this delivery (route repair, sync pass,
+        // etc.) would rebroadcast the old committed status and silently revert
+        // the user's unsaved dropdown change.
+        const statusIsUnedited = prev.status === baselineStatusRef.current;
+        const nextStatus = statusIsUnedited ? (d.status || prev.status) : prev.status;
+        if (statusIsUnedited) baselineStatusRef.current = nextStatus;
+        // Date + window fields get the SAME unedited-guard: accept the live value
+        // only while the form still shows the last known server value. Without
+        // this, a mid-edit broadcast reverted the user's date change back to the
+        // old server date before save ("moved my last stop to tomorrow — the
+        // date did not save", Oct 1 2026) while the window edit landed fine.
+        const dateIsUnedited = prev.delivery_date === baselineDateRef.current;
+        const nextDate = dateIsUnedited ? (d.delivery_date || prev.delivery_date) : prev.delivery_date;
+        if (dateIsUnedited && nextDate !== baselineDateRef.current) baselineDateRef.current = nextDate;
+        const startIsUnedited = prev.delivery_time_start === baselineWindowStartRef.current;
+        const nextStart = startIsUnedited ? (canonicalTimeStart || prev.delivery_time_start) : prev.delivery_time_start;
+        if (startIsUnedited && nextStart !== baselineWindowStartRef.current) baselineWindowStartRef.current = nextStart;
+        const endIsUnedited = prev.delivery_time_end === baselineWindowEndRef.current;
+        const nextEnd = endIsUnedited ? (canonicalTimeEnd || prev.delivery_time_end) : prev.delivery_time_end;
+        if (endIsUnedited && nextEnd !== baselineWindowEndRef.current) baselineWindowEndRef.current = nextEnd;
+        return { ...prev, delivery_date: nextDate, delivery_time_start: nextStart, delivery_time_end: nextEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: nextStatus, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null };
+      });
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
     window.addEventListener('patientUpdated', handlePatientUpdated);
@@ -448,8 +489,12 @@ export default function DeliveryForm({
           // Interstore deliveries (ISP-/ISD-) only have in_transit/completed as valid statuses.
           // If the DB has 'en_route' (legacy write bug), normalize it to 'in_transit' immediately
           // so the Select shows a valid value instead of rendering blank.
-          if (isInterStoreDelivery(delivery.delivery_id) && raw === 'en_route') return 'in_transit';
-          return raw;
+          const resolved = (isInterStoreDelivery(delivery.delivery_id) && raw === 'en_route') ? 'in_transit' : raw;
+          baselineStatusRef.current = resolved;
+          baselineDateRef.current = delivery.delivery_date || null;
+          baselineWindowStartRef.current = delivery.delivery_time_start || null;
+          baselineWindowEndRef.current = delivery.delivery_time_end || null;
+          return resolved;
         })(), driver_name: delivery.driver_name || '', driver_id: delivery.driver_id || '',
         prescription_number: delivery.prescription_number || "", delivery_instructions: patient?.notes || delivery.delivery_instructions || "",
         delivery_notes: delivery.delivery_notes || "", cod_total_amount_required: delivery.cod_total_amount_required ? delivery.cod_total_amount_required * 100 : 0,
@@ -466,7 +511,11 @@ export default function DeliveryForm({
         back_door: patient?.back_door !== undefined && patient?.back_door !== null ? patient.back_door : (delivery.back_door || false),
         care_pros: patient?.care_pros !== undefined && patient?.care_pros !== null ? patient.care_pros : (delivery.care_pros || false),
         cp_name: patient?.cp_name !== undefined && patient?.cp_name !== null ? patient.cp_name : (delivery.cp_name || ''),
-        cp_envelopes: patient?.cp_envelopes !== undefined && patient?.cp_envelopes !== null ? patient.cp_envelopes : (delivery.cp_envelopes || 0),
+        // Per-delivery envelope count is authoritative once a delivery exists — it must
+        // NOT be re-derived from the patient's default every time the form loads (owner
+        // rule Sep 23 2026). Patient default only fills in for legacy deliveries that
+        // predate per-delivery storage (cp_envelopes truly undefined/null on the record).
+        cp_envelopes: delivery.cp_envelopes !== undefined && delivery.cp_envelopes !== null ? delivery.cp_envelopes : (patient?.cp_envelopes || 0),
         signature_needed: delivery.signature_needed || false, fridge_item: delivery.fridge_item || false, oversized: delivery.oversized || false,
         after_hours_pickup: delivery.after_hours_pickup || false, no_charge: delivery.no_charge || false, extra_time: delivery.extra_time || 0,
         barcode_values: delivery.barcode_values || [], receipt_barcode_values: delivery.receipt_barcode_values || [],
@@ -575,8 +624,27 @@ export default function DeliveryForm({
       const scopeStore = scopeStoreId ? storesToUse.find((s) => s && s.id === scopeStoreId) : null;
       const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') ? (currentUser.store_ids || []) : null;
       if (scopeStore && (!dispatcherStoreIds || dispatcherStoreIds.includes(scopeStore.id))) {
-        const officialOptions = sortStores(expandStoresForTimeSlots({ stores: [scopeStore], deliveryDate: formData.delivery_date }));
-        return getStorePickupOptions({ store: scopeStore, allDeliveries, stagedDeliveries, driverId: formData.driver_id, deliveryDate: formData.delivery_date, officialStoreOptions: officialOptions });
+        // Store re-assignment (Sep 23 2026): when a patient was moved to a different
+        // store, their existing delivery still points at the old one. Offer BOTH the
+        // delivery's current store AND the patient's newly assigned store in the
+        // dropdown so the delivery can be re-assigned from the form — previously the
+        // edit dropdown only listed the delivery's own store, forcing a manual DB edit.
+        const scopedStores = [scopeStore];
+        const editedPatientStoreId = editedPatient?.store_id;
+        if (editedPatientStoreId && editedPatientStoreId !== scopeStore.id) {
+          const editedPatientStore = storesToUse.find((st) => st && st.id === editedPatientStoreId);
+          if (editedPatientStore && (!dispatcherStoreIds || dispatcherStoreIds.includes(editedPatientStore.id))) {
+            scopedStores.push(editedPatientStore);
+          }
+        }
+        return sortStores(scopedStores.flatMap((scopedStore) => getStorePickupOptions({
+          store: scopedStore,
+          allDeliveries,
+          stagedDeliveries,
+          driverId: formData.driver_id,
+          deliveryDate: formData.delivery_date,
+          officialStoreOptions: sortStores(expandStoresForTimeSlots({ stores: [scopedStore], deliveryDate: formData.delivery_date }))
+        })));
       }
       if (userHasRole(currentUser, 'admin')) { relevantStores = storesToUse; }
       else if (editedPatient && editedPatient.store_id) { const patientStore = storesToUse.find((s) => s && s.id === editedPatient.store_id); relevantStores = patientStore ? [patientStore] : storesToUse; }
@@ -670,12 +738,39 @@ export default function DeliveryForm({
   const biWeeklyLabel = useMemo(() => currentFrequency === 'bi-weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Bi-Weekly') : 'Bi-Weekly', [currentFrequency, hasAnyDaySelected, formData]);
   const weeklyX4Label = useMemo(() => currentFrequency === 'weekly-x4' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Weekly x4') : 'Weekly x4', [currentFrequency, hasAnyDaySelected, formData]);
 
+  // Retry-style barcode input focus. The old single setTimeout(..., 0) fired
+  // BEFORE React committed the setFormData re-render triggered just above it,
+  // so SmartBarcodeScanner hadn't re-attached its input yet (or focus was
+  // stolen by the re-render) — the field "sometimes" didn't get focused after
+  // selecting a patient. Attempt at staggered delays and stop as soon as the
+  // input actually holds focus.
+  const focusBarcodeInputWithRetry = () => {
+    [120, 300, 600].forEach((delay) => {
+      setTimeout(() => {
+        const el = barcodeInputRef.current;
+        if (el && document.activeElement !== el) {
+          try { el.focus?.(); } catch (_) { /* detached between renders */ }
+        }
+      }, delay);
+    });
+  };
+
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     driverLocationPoller.pause();
     const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
-    if (alreadyStaged) { setPatientSearch(''); setHighlightedPatientIndex(-1); driverLocationPoller.resume(); return; }
+    if (alreadyStaged) {
+      setPatientSearch(''); setHighlightedPatientIndex(-1);
+      // The patient is already staged — still return the caret to the barcode
+      // input so the user can keep scanning. Single-shot focus at 0ms races the
+      // re-render; use the same retrying helper as the fresh-select path.
+      if (shouldAutoFocusFields) {
+        if (formData.driver_id) focusBarcodeInputWithRetry();
+        else window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect'));
+      }
+      driverLocationPoller.resume(); return;
+    }
     if (isLoadingExistingDelivery.current) { driverLocationPoller.resume(); return; }
     const hasCompletedDelivery = allDeliveries?.some((d) => d && d.patient_id === patient.id && d.status === 'completed');
     const isFirstDelivery = !hasCompletedDelivery;
@@ -698,7 +793,10 @@ export default function DeliveryForm({
     setFormData({ ...updatedFormData, store_id: patient.store_id, puid: chosenPickup?.stop_id || chosenPickup?.puid || '' });
     if (!updatedFormData.driver_id) setForceOpenDriverSelectOnLoad(true);
     if (!autoAddToStaged) {
-      if (shouldAutoFocusFields) { setTimeout(() => { if (updatedFormData.driver_id) { barcodeInputRef.current?.focus?.(); return; } window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect')); }, 0); }
+      if (shouldAutoFocusFields) {
+        if (updatedFormData.driver_id) focusBarcodeInputWithRetry();
+        else window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect'));
+      }
       setPatientSearch(openMode === 'add_to_route' ? '__locked__' : '');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
@@ -1089,6 +1187,16 @@ export default function DeliveryForm({
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) { import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); }); return true; }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) { try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); } }
       const { driverChanged, dateChanged, timeWindowChanged, travelModeChanged, statusChangedToInTransit, statusChangedToCompletion, actualDeliveryTimeChanged, codWasRemoved } = getDeliverySubmitFlags({ delivery, formData, dataToSave });
+      // Reopening a terminal stop (completed/failed/cancelled) MUST clear its completion
+      // stamps. The old actual_delivery_time/arrival_time belong to the abandoned
+      // attempt — while they remain, downstream logic (finished-stop sorting, stats,
+      // dashboard grouping) still treats the stop as complete and reverts the card.
+      const TERMINAL = ['completed', 'failed', 'cancelled'];
+      const reopenedFromTerminal = !!delivery?.id && TERMINAL.includes(delivery?.status) && !TERMINAL.includes(formData.status);
+      if (reopenedFromTerminal) {
+        dataToSave.actual_delivery_time = null;
+        dataToSave.arrival_time = null;
+      }
       const travelModeOnly = !!delivery && travelModeChanged && !driverChanged && !dateChanged && !timeWindowChanged && !statusChangedToInTransit && !statusChangedToCompletion && !actualDeliveryTimeChanged;
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
@@ -1107,6 +1215,13 @@ export default function DeliveryForm({
       const codRemovedOnEdit = delivery?.id && Number(delivery.cod_total_amount_required || 0) > 0 && Number(formData.cod_total_amount_required || 0) <= 0;
       if (codRemovedOnEdit) { dataToSave.cod_payments = []; dataToSave.cod_payment_type = 'No Payment'; dataToSave.cod_amount = ''; }
       if (delivery?.id) {
+        // Re-sync the baseline to the value we're about to commit — once this save
+        // lands, that status is the new known-safe value, so live updates for the
+        // rest of this open session compare against it instead of the stale one.
+        baselineStatusRef.current = dataToSave.status || formData.status;
+        baselineDateRef.current = dataToSave.delivery_date || formData.delivery_date || null;
+        baselineWindowStartRef.current = dataToSave.delivery_time_start ?? formData.delivery_time_start ?? null;
+        baselineWindowEndRef.current = dataToSave.delivery_time_end ?? formData.delivery_time_end ?? null;
         // Register before the backend write so the WS echo is recognized as self-originated
         try { const { smartRefreshManager: srm } = await import('../utils/smartRefreshManager'); srm.registerPendingUpdate(delivery.id, formData.driver_id, formData.delivery_date); } catch (_) {}
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true });

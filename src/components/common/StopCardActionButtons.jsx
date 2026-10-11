@@ -9,10 +9,13 @@ import { _cachedSquareAppId as _sharedSquareAppIdCache } from "./StopCard";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
+import { recordSquarePosLaunch } from "../utils/squareTenderVerify";
 import { remoteLogger } from "../utils/remoteLogger";
 import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 import RestartConfirmDialog from "./RestartConfirmDialog";
 import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
+import { useArrivalRecheck } from './useArrivalRecheck';
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -63,6 +66,7 @@ export default function StopCardActionButtons(props) {
     isCompleting,
     isGlobalCompleteLocked,
     isGlobalRestartLocked,
+    driverWithinStopRange,
     handleStartAction,
     isCurrentCardStartLocked,
     onStartDelivery,
@@ -78,6 +82,13 @@ export default function StopCardActionButtons(props) {
     codPayments,
     codTotalRequired,
     codTotalCollected,
+    showCODCollection,
+    onCODUpdate,
+    setIsCompleting,
+    FINISHED_STATUSES,
+    onSelectionChange,
+    onClick,
+    codFooterSwapActive,
   } = props;
 
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -99,6 +110,29 @@ export default function StopCardActionButtons(props) {
     deliveryDate: delivery?.delivery_date,
     todayDateString: _todayStr,
     currentTimeString: _nowTimeStr,
+  });
+
+  // Arrival gate is active on the current stop (blank arrival_time, non-retro).
+  // useArrivalRecheck is the SECONDARY path: it re-records the missing arrival_time
+  // (cumulative 35s in-radius, jitter-tolerant) so the Complete buttons re-enable
+  // even when the primary 30s-stationary flow missed the arrival (app reload while
+  // parked, failed write, or a stale sync wiping arrival_time).
+  // BACKUP RULE (owner spec Oct 8 2026, preview-APK report: driver parked at the
+  // destination but Complete never activated): the arrival gate ALSO lifts when
+  // the driver is within 100m of the stop per the SAME live GPS proximity check
+  // that swaps the Navigate button into the "Update GPS" button on the active
+  // stop card (isWithinActiveStopRange in StopCard, <=100m haversine on the live
+  // driver location). If the button swapped, the driver is at the destination —
+  // the footer Complete must be usable even if the 30s-stationary snap and the
+  // recheck both missed. Completing still stamps a missing arrival_time with
+  // the completion time (stopCardCompletionActions).
+  const arrivalGateActive = isNextDelivery && !delivery?.arrival_time && !isRetroTiming && !driverWithinStopRange;
+  useArrivalRecheck({
+    enabled: arrivalGateActive,
+    delivery,
+    patient,
+    store,
+    driverId: currentUser?.id,
   });
 
   const handleRestartClick = useCallback((e) => {
@@ -253,9 +287,18 @@ export default function StopCardActionButtons(props) {
       toast.error('No COD amount set for this delivery.');
       return;
     }
+    // AUTO-TENDER (owner spec Oct 9 2026): remember this launch so the COD
+    // panel can ask Square for the swipe's real card type when the app
+    // regains focus (INTERAC → Debit, any credit brand → Credit).
+    recordSquarePosLaunch({
+      deliveryId: delivery?.id,
+      amountCents,
+      locationId: currentSquareLocationId,
+      driverName: driverNameForPeek,
+    });
     const notes = generateSquareItemName(delivery, patient, store);
     launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', notes, locationId: currentSquareLocationId });
-  }, [delivery, patient, store, squareAppId, currentSquareLocationId, squareLocationStatus, isFirstCodOfDay]);
+  }, [delivery, patient, store, squareAppId, currentSquareLocationId, squareLocationStatus, isFirstCodOfDay, driverNameForPeek]);
 
 
 
@@ -292,7 +335,7 @@ export default function StopCardActionButtons(props) {
             }
             <div className="relative z-[60] pointer-events-auto">
               <StopCardFooterMenu
-                blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} store={store}
+                blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} driverWithinStopRange={driverWithinStopRange} store={store}
               />
             </div>
           </div>
@@ -387,19 +430,77 @@ export default function StopCardActionButtons(props) {
         {/* On the isNextDelivery card the stop is already started — show Complete regardless
             of stop type (patient delivery, store pickup, or inter-store). Only future dates,
             already-finished stops, and terminal statuses are excluded. */}
-        {isNextDelivery &&
-         !isFutureDate &&
-         !isFinishedDelivery &&
-         driverOnDutyOrBreak &&
-         delivery.status !== 'completed' &&
-         delivery.status !== 'cancelled' &&
-         delivery.status !== 'failed' &&
-         handleCompleteAction &&
-        <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Complete this delivery">
-            {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-            <span className="text-white">Complete</span>
-          </Button>
-        }
+        {(() => {
+          // OWNER SPEC (Oct 8 2026): the footer Complete stays DISABLED while the
+          // stop has no recorded arrival time (the 30s-stationary GPS snap), on
+          // every stop type. The popup menu's Complete item is the deliberate
+          // bypass and stays ENABLED — do not gate it on arrival_time.
+          // RETRO TIMING BYPASS (Oct 8 2026): when isRetroTiming is active (today
+          // after 21:00, or past-due dates) the completion flow backdates the
+          // arrival time itself (retroactive timing), so the gate does NOT apply.
+          const missingArrivalTime = arrivalGateActive;
+          const isCompleteEligible =
+            isNextDelivery &&
+            !isFutureDate &&
+            !isFinishedDelivery &&
+            driverOnDutyOrBreak &&
+            delivery.status !== 'completed' &&
+            delivery.status !== 'cancelled' &&
+            delivery.status !== 'failed' &&
+            !!handleCompleteAction;
+
+          // OWNER DIRECTIVE (Sep 29 2026): once the driver opens COD collection —
+          // via the "Collect" link or by tapping the Square POS button (both set
+          // showCODCollection true) — swap this exact footer slot from Complete
+          // to Save & Complete, so the COD amount gets saved in the same tap that
+          // finishes the stop. Complete is hidden while the panel is open; it
+          // reappears if the driver collapses the COD panel without saving.
+          // codFooterSwapActive is computed ONCE in StopCard.jsx and shared with
+          // the in-panel button (so exactly one Save & Complete shows at a time);
+          // it already implies isCompleteEligible + panel open + COD uncollected.
+          const isCodSwapActive = isCompleteEligible && (codFooterSwapActive === true || (codFooterSwapActive === undefined && hasCODRequired && !isCODComplete && !!showCODCollection));
+
+          if (isCodSwapActive) {
+            return (
+              <Button data-stopcard-action="save-and-complete-cod" type="button"
+                // TOUCH FIX (Sep 30 2026): the action fires on POINTERDOWN, exactly like
+                // the regular Complete button. It previously fired in onClick, but this
+                // button's onTouchStart preventDefault() suppresses the synthetic click
+                // event on Android touch devices (the driver APK) — so tapping it did
+                // nothing on phones while working fine on desktop. Pointerdown fires
+                // on both mouse and touch, and the (suppressed) click handler below is a
+                // pure no-op so the action can never double-fire.
+                onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation();
+                  performSaveAndCompleteCOD({
+                    delivery,
+                    codPayments,
+                    allDeliveries,
+                    FINISHED_STATUSES,
+                    onCODUpdate,
+                    setShowCODCollection,
+                    setIsCompleting,
+                    onSelectionChange,
+                    onClick,
+                  });
+                }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }} size="sm" disabled={missingArrivalTime || (codPayments?.length || 0) === 0 || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title={missingArrivalTime ? "Arrival time not recorded yet — unlocks once arrival is captured (menu Complete still works)" : "Save COD payment and complete this delivery"}>
+                {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                <span className="text-white">Save & Complete</span>
+              </Button>
+            );
+          }
+
+          if (!isCompleteEligible) return null;
+
+          return (
+            <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={missingArrivalTime || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title={missingArrivalTime ? "Arrival time not recorded yet — unlocks once arrival is captured (menu Complete still works)" : "Complete this delivery"}>
+              {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+              <span className="text-white">Complete</span>
+            </Button>
+          );
+        })()}
         {delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted &&
         <Button data-stopcard-action="restart" type="button" onPointerDownCapture={handleRestartClick} onPointerDown={blockCardToggle} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
             {isRestarting || isProcessingBackground || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
@@ -408,7 +509,7 @@ export default function StopCardActionButtons(props) {
         }
         <div className="relative z-[60] pointer-events-auto">
           <StopCardFooterMenu
-            blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} store={store}
+            blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} driverWithinStopRange={driverWithinStopRange} store={store}
           />
         </div>
       </div>

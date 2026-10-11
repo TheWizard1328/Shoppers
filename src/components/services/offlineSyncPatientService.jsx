@@ -15,6 +15,9 @@ export const createOfflineSyncPatientService = ({ offlineDB, Patient, invalidate
         invalidateEntityCache('Patient');
         totalPatients += batchPatients.length;
         freshPatients = [...freshPatients, ...batchPatients];
+        // Notify the UI immediately — stop cards resolve "Unknown" names as
+        // soon as the record lands, instead of waiting for a page reload.
+        try { window.dispatchEvent(new CustomEvent('patientsSyncedFromServer', { detail: { patients: batchPatients } })); } catch (_) {}
       }
 
       await new Promise((r) => setTimeout(r, 200));

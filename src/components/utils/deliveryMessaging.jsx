@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from './geoUtils';
+import { getAppOwnerUserIds } from './appOwnerResolver';
 import { 
   NOTIFICATION_EVENTS, 
   shouldNotify, 
@@ -144,15 +145,24 @@ export function getDispatchersForStore(storeId, appUsers) {
 }
 
 /**
- * Get admin app users (app_roles includes 'admin')
+ * Get the App Owner(s) — resolved via the PLATFORM User entity
+ * (User.role === 'admin'), NOT the AppUser 'admin' app_role.
+ *
+ * The old implementation returned every AppUser with the 'admin' app_role,
+ * which sent "App Owner" notifications to all admins. The platform role is
+ * the only authoritative App Owner signal (mirrors isAppOwner in userRoles).
  */
-export function getAppOwners(appUsers) {
+export async function getAppOwners(appUsers) {
   if (!appUsers) return [];
+  const ownerIds = await getAppOwnerUserIds();
+  if (!ownerIds || ownerIds.size === 0) {
+    console.warn('[deliveryMessaging] getAppOwners — no platform owner ids resolved; sending to nobody instead of all admins');
+    return [];
+  }
   return appUsers.filter(user => {
-    if (!user || !user.app_roles) return false;
-    if (!user.app_roles.includes('admin')) return false;
+    if (!user || !user.user_id) return false;
     if (user.status !== 'active') return false;
-    return true;
+    return ownerIds.has(user.user_id);
   });
 }
 
@@ -170,8 +180,16 @@ export async function getRecipientsForEvent(recipientTypes, { storeId, appUsers,
       users = getDispatchersForStore(storeId, appUsers);
       users = users.map(u => ({ id: u.user_id, name: u.user_name }));
     } else if (type === 'appowner') {
-      const owners = getAppOwners(appUsers);
+      // Platform App Owner only — see getAppOwners.
+      const owners = await getAppOwners(appUsers);
       users = owners.map(u => ({ id: u.user_id, name: u.user_name }));
+    } else if (type === 'admins') {
+      // Explicit "all admins" recipient type (e.g. admin_broadcast) —
+      // intentionally distinct from 'appowner'. Resolves to every ACTIVE
+      // AppUser holding the 'admin' app_role.
+      users = (appUsers || [])
+        .filter(u => Array.isArray(u?.app_roles) && u.app_roles.includes('admin') && u?.status === 'active')
+        .map(u => ({ id: u.user_id, name: u.user_name }));
     } else if (type === 'driver' && driverId) {
       const driver = appUsers?.find(u => u?.user_id === driverId);
       if (driver) {
@@ -194,7 +212,7 @@ export async function getRecipientsForEvent(recipientTypes, { storeId, appUsers,
 /**
  * Build special badges string for a delivery
  */
-export function buildSpecialBadges(delivery, patient) {
+export function buildSpecialBadges(delivery, patient, { iconsOnly = false } = {}) {
   const badges = [];
   
   const hasCOD = delivery?.cod_total_amount_required > 0;
@@ -205,11 +223,11 @@ export function buildSpecialBadges(delivery, patient) {
   const hasFridge = delivery?.fridge_item === true;
   const hasSignature = delivery?.signature_needed === true;
 
-  if (hasCOD) badges.push('💵 COD');
-  if (isFirstDelivery) badges.push('🆕 New');
-  if (hasOversized) badges.push('📦 Oversized');
-  if (hasFridge) badges.push('❄️ Fridge');
-  if (hasSignature) badges.push('✍️ Signature');
+  if (hasCOD) badges.push(iconsOnly ? '💵' : '💵 COD');
+  if (isFirstDelivery) badges.push(iconsOnly ? '🆕' : '🆕 New');
+  if (hasOversized) badges.push(iconsOnly ? '📦' : '📦 Oversized');
+  if (hasFridge) badges.push(iconsOnly ? '❄️' : '❄️ Fridge');
+  if (hasSignature) badges.push(iconsOnly ? '✍️' : '✍️ Signature');
 
   return badges.length > 0 ? ` [${badges.join(', ')}]` : '';
 }
@@ -267,36 +285,58 @@ export function buildDistanceBadge(patient, store) {
 }
 
 /**
- * Get or create a store user for messaging
- * If the store doesn't have a user yet, creates one on-the-fly
+ * Resolve the store's real dispatcher AppUser for messaging.
+ *
+ * Previously this returned a SYNTHETIC pseudo-user (`store_<id>` /
+ * "<Store> (Store)") whenever no AppUser was literally named "<Store> (Store)"
+ * — which is always, since real dispatcher accounts are just named after the
+ * store (e.g. "Hamptons"). That fake identity never matches the real
+ * dispatcher's user_id, so messages FROM the store (Stops Assigned) and TO
+ * the store (Stops Accepted) landed in two separate conversation threads for
+ * the same person — "Hamptons" and "Hamptons (Store)". Fix: always resolve
+ * to the real active dispatcher AppUser assigned to this store and use its
+ * plain user_name, no suffix — the same identity `relation:dispatchers`
+ * resolves to in messageRuleEngine.js.
  */
-export async function getStoreUser(store) {
+export async function getStoreUser(store, appUsers = null) {
   if (!store || !store.id) {
     console.warn('[deliveryMessaging] Invalid store');
     return null;
   }
-  
+
+  const isActiveStoreDispatcher = (u) => {
+    if (!u || u.status === 'inactive') return false;
+    const roles = Array.isArray(u.app_roles) ? u.app_roles : (u.role ? [u.role] : []);
+    const storeIds = Array.isArray(u.store_ids) ? u.store_ids : [];
+    return roles.includes('dispatcher') && storeIds.some((id) => String(id) === String(store.id));
+  };
+
   try {
-    // Search for existing store user by name pattern
-    const storeUserName = `${store.name} (Store)`;
-    const existingUsers = await base44.entities.AppUser.filter({ 
-      user_name: storeUserName 
-    });
-    
-    if (existingUsers && existingUsers.length > 0) {
-      return {
-        id: existingUsers[0].user_id,
-        user_name: existingUsers[0].user_name
-      };
+    // 1. Check the roster already in memory (avoids an extra fetch on the
+    //    common path where the caller already has it loaded).
+    const cached = (appUsers || []).find(isActiveStoreDispatcher);
+    if (cached) return { id: cached.user_id || cached.id, user_name: cached.user_name };
+
+    // 2. Fresh roster lookup — the in-memory list can be a stale/filtered
+    //    Dashboard snapshot missing the dispatcher.
+    const fresh = await base44.entities.AppUser.filter({});
+    const freshMatch = (fresh || []).find(isActiveStoreDispatcher);
+    if (freshMatch) return { id: freshMatch.user_id || freshMatch.id, user_name: freshMatch.user_name };
+
+    // 3. Store's explicit dispatcher assignment, validated against a real
+    //    active dispatcher AppUser.
+    if (store.dispatcher_id) {
+      const byId = await base44.entities.AppUser.filter({ user_id: store.dispatcher_id });
+      const validated = (byId || []).find((u) => u.status !== 'inactive' &&
+        Array.isArray(u.app_roles) && u.app_roles.includes('dispatcher') && u.user_id === store.dispatcher_id);
+      if (validated) return { id: validated.user_id, user_name: validated.user_name };
     }
-    
-    // If no store user exists, return store data directly for message creation
-    // (we'll use store.id as sender, but won't create an actual AppUser)
-    console.log(`[deliveryMessaging] Using store "${store.name}" as message sender`);
-    return {
-      id: `store_${store.id}`,
-      user_name: storeUserName
-    };
+
+    // 4. Last resort — no real dispatcher account exists for this store.
+    // Keep the plain store name (no "(Store)" suffix) but this identity has
+    // no real inbox, so the driver never gets an in-app reply thread merge.
+    console.warn(`[deliveryMessaging] No real dispatcher AppUser found for store "${store.name}" — using synthetic sender`);
+    return { id: `store_${store.id}`, user_name: store.name };
   } catch (error) {
     console.error('[deliveryMessaging] Error getting store user:', error);
     return null;
@@ -329,7 +369,8 @@ export async function notifyDriverAccepted({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, pendingCount, patientName };
+  const storeName = store?.name || store?.store_name || '';
+  const messageData = { driverName, pendingCount, patientName, storeName };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue; // Don't notify self
@@ -368,7 +409,7 @@ export async function notifyDispatcherAssignedAll({
   for (const delivery of deliveries) {
     const patient = patients?.find(p => p?.id === delivery.patient_id);
     const patientName = patient?.full_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, patient);
+    const badges = buildSpecialBadges(delivery, patient, { iconsOnly: true });
     const distance = buildDistanceBadge(patient, store);
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }

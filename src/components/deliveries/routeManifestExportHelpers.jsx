@@ -15,15 +15,37 @@ const normalizeEmails = (emails) =>
     .filter(isValidEmail)
   )];
 
-// Convert a base64 PDF string to an object URL opened in a new tab.
-const openPdfInNewTab = (pdfBase64) => {
-  if (!pdfBase64) return;
+// Convert a base64 PDF string into an object URL.
+const pdfToObjectUrl = (pdfBase64) => {
   const binaryStr = atob(pdfBase64);
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
   const blob = new Blob([bytes], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
+  return URL.createObjectURL(blob);
+};
+
+// Open a base64 PDF in a new tab. `existingTab` is a placeholder tab opened
+// synchronously at click time (before the long backend call) — browsers block
+// window.open() calls that fire long after the user gesture, which is why the
+// preview used to finish silently with no PDF appearing (Oct 6 2026 fix).
+// If no tab could be pre-opened (popup blocked / WebView), fall back to a
+// programmatic anchor download so the PDF still reaches the user.
+const openPdfInNewTab = (pdfBase64, existingTab = null) => {
+  if (!pdfBase64) return;
+  const url = pdfToObjectUrl(pdfBase64);
+  if (existingTab && !existingTab.closed) {
+    try { existingTab.location.href = url; return; } catch (_) { /* cross-origin write guard */ }
+  }
+  const opened = window.open(url, "_blank");
+  if (!opened) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `route-manifest-${Date.now()}.pdf`;
+    a.type = 'application/pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
 };
 
 const normalizeResponse = (res) => res?.data || res;
@@ -90,7 +112,7 @@ export function buildManifestPayload({
 
 // Invoke generateRouteManifest for preview (no recipientEmails) and open the returned PDF(s) in a new tab.
 // Returns the response data on success (or { error } on failure).
-export async function previewRouteManifest(payload) {
+export async function previewRouteManifest(payload, { previewTab = null } = {}) {
   const res = await base44.functions.invoke("generateRouteManifest", payload);
   const data = normalizeResponse(res);
   if (data?.error) return data;
@@ -99,9 +121,11 @@ export async function previewRouteManifest(payload) {
     ? data.pdfResults
     : [{ pdfBase64: data.pdfBase64 }];
 
-  for (const { pdfBase64 } of pdfsToOpen) {
-    openPdfInNewTab(pdfBase64);
-  }
+  // First PDF goes into the pre-opened placeholder tab (keeps the user-gesture
+  // link alive); any additional PDFs open normally with the download fallback.
+  pdfsToOpen.forEach(({ pdfBase64 }, index) => {
+    openPdfInNewTab(pdfBase64, index === 0 ? previewTab : null);
+  });
 
   return data;
 }

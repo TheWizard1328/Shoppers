@@ -8,7 +8,6 @@
  */
 
 import { parseLocalTimestamp } from '../utils/timeRoundingHelper';
-import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
 import { acquireBreadcrumbSyncLock } from "../utils/breadcrumbSyncLock";
 
 export const START_ACTION_NAME = 'start_delivery';
@@ -21,6 +20,11 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
   // If the completion happens within that window, the server's master trail is
   // missing the last 1-2 points. Force-flushing ensures the slicing function
   // has the absolute latest GPS data.
+  //
+  // The sync lock now covers the flush AND the slice call, so back-to-back
+  // completions (multi-arrival dialog) queue behind each other instead of
+  // racing two slicing runs against the same records.
+  let releaseSliceLock = null;
   try {
     const { offlineDB } = await import('../utils/offlineDatabase');
     const offlineKey = `${driverId}__TODAY__${deliveryDate}`;
@@ -30,38 +34,28 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
       // Acquire mutex lock — prevents concurrent syncPendingBreadcrumbs calls
       // from the routine GPS sync loop and this pre-slice flush racing to create
       // duplicate master records (stop_order = -1).
-      const releaseLock = await acquireBreadcrumbSyncLock();
-      try {
-        await base44.functions.invoke('syncPendingBreadcrumbs', {
-          driver_id: driverId,
-          delivery_date: deliveryDate,
-          encoded_polyline: masterRecord.encoded_polyline,
-          timestamps: masterRecord.timestamps,
-          point_count: masterRecord.point_count,
-        });
-        console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
-      } finally {
-        releaseLock();
-      }
+      releaseSliceLock = await acquireBreadcrumbSyncLock();
+      await base44.functions.invoke('syncPendingBreadcrumbs', {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        encoded_polyline: masterRecord.encoded_polyline,
+        timestamps: masterRecord.timestamps,
+        point_count: masterRecord.point_count,
+      });
+      console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
     }
   } catch (flushErr) {
     console.warn('⚠️ [Breadcrumbs] Pre-slice flush failed:', flushErr?.message || flushErr);
     // Don't abort — the slicer will use whatever the server already has
-  }
-
-  try {
-    const result = await consolidateBreadcrumbSegment({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      delivery_id: deliveryId,
-    });
-    if (result?.success) {
-      console.log(`✅ [Breadcrumbs] Proximity slicing complete: ${result.total_segments} segments, ${result.master_point_count} master points`);
-    } else {
-      console.warn(`⚠️ [Breadcrumbs] Consolidation returned non-success:`, result?.error || result);
-    }
-  } catch (error) {
-    console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
+  } finally {
+    // SLICING now runs SERVER-SIDE (owner approval Oct 4 2026): the scheduled
+    // "Breadcrumb Slice Cycle" workflow invokes consolidateBreadcrumbSegment in
+    // cycle mode every 5 minutes — full home-anchored walk per active
+    // driver-date (same algorithm, same saved_to_route protection, self-heals
+    // earlier legs, multi-arrival completions collapse into one slice). The
+    // phone's job at stop-finish is now ONLY the force-flush above; the heavy
+    // slicing invoke is off the driver's device entirely.
+    if (releaseSliceLock) releaseSliceLock();
   }
 };
 

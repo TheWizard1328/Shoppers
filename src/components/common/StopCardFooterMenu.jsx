@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CheckCircle, Edit, History, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
 export default function StopCardFooterMenu(props) {
@@ -20,6 +21,7 @@ export default function StopCardFooterMenu(props) {
     userHasRole,
     onEdit,
     isStrippedForDispatcher,
+    driverWithinStopRange,
     delivery,
     onEditPatient,
     patient,
@@ -86,9 +88,29 @@ export default function StopCardFooterMenu(props) {
   // that is NOT the current next-delivery (the inline Complete button on the action row
   // already covers the isNextDelivery card). Applies to regular deliveries, store
   // pickups, and inter-store stops alike.
+  // OWNER SPEC (Oct 8 2026, backup rule): on the isNextDelivery (active stop)
+  // card the menu Complete APPEARS whenever the inline footer Complete is gated
+  // off (no recorded arrival_time, non-retro timing) — visible and ENABLED as
+  // the deliberate backup path. It hides again on that card once arrival_time
+  // is set or retro timing is active (the inline button covers completion).
+  // isRetroTimingLive mirrors StopCardActionButtons: retro = today after 21:00
+  // or past-due dates, computed via shouldUseRegularTiming.
+  const _nowForRetro = new Date();
+  const _todayStrForRetro = `${_nowForRetro.getFullYear()}-${String(_nowForRetro.getMonth() + 1).padStart(2, '0')}-${String(_nowForRetro.getDate()).padStart(2, '0')}`;
+  const _nowTimeStrForRetro = `${String(_nowForRetro.getHours()).padStart(2, '0')}:${String(_nowForRetro.getMinutes()).padStart(2, '0')}`;
+  const isRetroTimingLive = !!(delivery?.delivery_date && delivery.delivery_date <= _todayStrForRetro) && !shouldUseRegularTiming({
+    deliveryDate: delivery?.delivery_date,
+    todayDateString: _todayStrForRetro,
+    currentTimeString: _nowTimeStrForRetro,
+  });
+  // Mirrors StopCardActionButtons' arrivalGateActive including the Oct 8 2026
+  // proximity BACKUP: within 100m (the Navigate→"Update GPS" swap signal) the
+  // gate lifts, so the popup menu's Complete hides again and the footer buttons
+  // carry the completion, keeping both surfaces consistent.
+  const inlineCompleteGated = isNextDelivery && !delivery?.arrival_time && !isRetroTimingLive && !driverWithinStopRange;
   const canShowComplete = !!(
     !isFinishedDelivery &&
-    !isNextDelivery &&
+    (!isNextDelivery || inlineCompleteGated) &&
     isActiveStop &&
     handleCompleteAction &&
     canManageStop
@@ -203,15 +225,22 @@ export default function StopCardFooterMenu(props) {
           {canShowComplete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
+              {/* OWNER SPEC (Oct 8 2026): the menu Complete is the deliberate BYPASS
+                  and stays ENABLED even when the stop has no recorded arrival time
+                  (the inline footer Complete is disabled until arrival is captured,
+                  for all stop types). Never gate this item on arrival_time. */}
               <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300">
                 <CheckCircle className="w-5 h-5 mr-2" />Complete
               </DropdownMenuItem>
             </>
           )}
-          {canShowFailCancel && (
+          {/* Owner rule (Sep 19, 2026): Cancel Pickup is HIDDEN (not disabled) when the store has pending
+              deliveries; patient stops still show Mark as Failed. Delete stays ENABLED — the confirm dialog
+              already warns and offers transfer/delete-all for the pending stops. */}
+          {canShowFailCancel && !(isPickupForMenu && hasPendingStoreDeliveries) && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} disabled={isPickupForMenu && hasPendingStoreDeliveries} title={isPickupForMenu && hasPendingStoreDeliveries ? 'Disabled: this store has pending deliveries' : undefined} onPointerDownCapture={(e) => { if (isPickupForMenu && hasPendingStoreDeliveries) return; closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
                 <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
               </DropdownMenuItem>
             </>
@@ -227,7 +256,7 @@ export default function StopCardFooterMenu(props) {
           {canShowDelete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} disabled={hasPendingStoreDeliveries} title={hasPendingStoreDeliveries ? 'Disabled: this store has pending deliveries' : undefined} onClick={(e) => { if (hasPendingStoreDeliveries) { e.preventDefault(); e.stopPropagation(); return; } closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
+              <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:bg-red-950 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300 data-[disabled]:pointer-events-none data-[disabled]:opacity-40">
                 <Trash2 className="w-5 h-5 mr-2" />Delete
               </DropdownMenuItem>
             </>

@@ -107,7 +107,7 @@ export const applyTerminalStatusGuard = (incomingData, localData) => {
  * @param {string[]} fields  – e.g. ['status', 'isNextDelivery']
  * @param {number} [ttlMs]
  */
-export const lockDeliveryFields = (deliveryId, fields, ttlMs = DEFAULT_TTL_MS, values = {}) => {
+export const lockDeliveryFields = (deliveryId, fields, ttlMs = DEFAULT_TTL_MS, values = {}, options = {}) => {
   if (!deliveryId || !fields?.length) return;
   const existing = locks.get(deliveryId);
   const fieldSet = new Set([...(existing?.fields || []), ...fields]);
@@ -118,7 +118,10 @@ export const lockDeliveryFields = (deliveryId, fields, ttlMs = DEFAULT_TTL_MS, v
   // If there's an existing lock, extend the expiry (don't shorten it)
   const newExpiry = Date.now() + ttlMs;
   const existingExpiry = existing?.expiresAt || 0;
-  locks.set(deliveryId, { fields: fieldSet, expiresAt: Math.max(newExpiry, existingExpiry), values: mergedValues });
+  // symmetric:true → the expected status is authoritative in BOTH directions
+  // (used by the bulk edit panel: a reset in_transit→pending must survive
+  // stale higher-rank echoes; the rank-based guard can't protect that direction).
+  locks.set(deliveryId, { fields: fieldSet, expiresAt: Math.max(newExpiry, existingExpiry), values: mergedValues, symmetric: existing?.symmetric || !!options.symmetric });
 };
 
 /**
@@ -205,6 +208,15 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
     if (incomingVal === undefined) continue;
 
     if (field === 'status') {
+      // SYMMETRIC bulk-edit protection: when armed with symmetric:true, the
+      // expected status is authoritative in BOTH directions for the lock TTL —
+      // any incoming status that differs is a stale echo/pull. This covers
+      // backward transitions (in_transit→pending) that the rank guard can't.
+      const _expectedStatus = entry.values?.status;
+      if (entry.symmetric && _expectedStatus !== undefined && incomingVal !== _expectedStatus) {
+        merged[field] = _expectedStatus;
+        continue;
+      }
       // Status regression guard: never let a lower-rank status overwrite a higher one
       // e.g. 'pending' (rank 0) cannot overwrite 'in_transit' (rank 1) or terminal (rank 3)
       // Use expected value from the lock if available (eliminates IDB read race).

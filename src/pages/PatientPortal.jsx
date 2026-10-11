@@ -9,6 +9,7 @@ import { PatientSessionManager } from '@/components/patient-portal/PatientSessio
 import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import { format } from 'date-fns';
+import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 
 // Fix default Leaflet icon paths
 delete L.Icon.Default.prototype._getIconUrl;
@@ -53,12 +54,111 @@ function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
   });
 }
 
+// Balloon-knob tail (owner request, Sep 29 2026): a small triangle at the
+// bottom of the circle points the TIP at the driver's exact GPS spot on the
+// road. The icon anchor is the tip (bottom-center of the tail), so the circle
+// body rides visibly ABOVE the driving line instead of straddling it — making
+// it obvious which point along the road the driver actually is.
+// v2 (owner request, Sep 29 2026): the tail is drawn as an EXTENSION of the
+// white ring border — an SVG triangle with a 3px white stroke and green fill,
+// tucked 5px up behind the circle so the ring visually flows down into the
+// tail (speech-balloon knob) instead of a detached green wedge.
+const DRIVER_MARKER_HTML = (inner) => `<div style="position:relative;width:36px;height:46px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+  <div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid white;box-sizing:border-box;">${inner}</div>
+  <svg style="position:absolute;left:0;top:31px;overflow:visible;" width="36" height="15" viewBox="0 0 36 15">
+    <path d="M13 0 L18 15 L23 0 Z" fill="#16a34a" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  </svg>
+</div>`;
+
 const driverIcon = L.divIcon({
-  html: `<div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">🚚</div>`,
+  html: DRIVER_MARKER_HTML('🚚'),
   className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
+  iconSize: [36, 46],
+  iconAnchor: [18, 46],
 });
+
+// Cycling-mode driver icon: bicycle with a rider wearing a backpack.
+const CYCLIST_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="5.5" cy="17.5" r="3.2"/>
+  <circle cx="18.5" cy="17.5" r="3.2"/>
+  <path d="M5.5 17.5 L12 17.5"/>
+  <path d="M12 17.5 L9 10.5"/>
+  <path d="M9 10.5 L5.5 17.5"/>
+  <path d="M9 10.5 L16 10"/>
+  <path d="M12 17.5 L16 10 L18.5 17.5"/>
+  <path d="M8 10.1 L10 10.1"/>
+  <path d="M15.4 10 L16.6 9.2"/>
+  <path d="M9 10 L12.4 13.4 L12 17.3"/>
+  <path d="M13.8 6.6 L9 10"/>
+  <path d="M13.8 6.6 L16.2 9.6"/>
+  <circle cx="15" cy="5.1" r="1.6" fill="#ffffff" stroke="none"/>
+  <g transform="translate(9.4,5.4) rotate(-35)">
+    <rect x="-2.1" y="-3.2" width="4.2" height="6.4" rx="1.4" fill="#ffffff" stroke="none"/>
+    <path d="M-1.2 1.4 H1.2" stroke="#16a34a" stroke-width="0.8" opacity="0.5"/>
+  </g>
+</svg>`;
+
+const cyclingDriverIcon = L.divIcon({
+  html: DRIVER_MARKER_HTML(CYCLIST_SVG),
+  className: '',
+  iconSize: [36, 46],
+  iconAnchor: [18, 46],
+});
+
+// Smoothly animated driver marker — mirrors the shared-location glide used for
+// driver dots on dispatcher devices (LiveDriverLocationInterpolator trail mode).
+// The declarative position is seeded ONCE; every 15s AppUser fix is handed to
+// the interpolator and the rAF loop moves the marker imperatively via
+// setLatLng so Leaflet never tears down/rebuilds its DOM on each update.
+function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
+  const markerRef = useRef(null);
+  const interpRef = useRef(null);
+  const initialPosRef = useRef(null);
+  const rafRef = useRef(0);
+  const lastPaintRef = useRef(0);
+
+  if (!interpRef.current) interpRef.current = createLiveMarkerInterpolator({ mode: 'trail' });
+
+  // Seed the stable React position once — later movement is imperative only
+  if (!initialPosRef.current && driverLocation) {
+    initialPosRef.current = [Number(driverLocation.lat), Number(driverLocation.lng)];
+  }
+
+  // Feed each new 15s fix to the interpolator, along with the current-leg
+  // road geometry so the glide follows the route instead of cutting corners.
+  useEffect(() => {
+    if (!driverLocation) return;
+    const la = Number(driverLocation.lat);
+    const lng = Number(driverLocation.lng);
+    if (!Number.isFinite(la) || !Number.isFinite(lng)) return;
+    if (!initialPosRef.current) initialPosRef.current = [la, lng];
+    interpRef.current.setPath(Array.isArray(legCoords) && legCoords.length > 1 ? legCoords : null);
+    interpRef.current.onFix(la, lng, Date.now());
+  }, [driverLocation?.lat, driverLocation?.lng, legCoords]);
+
+  // rAF glide loop (~20fps) — same paint cadence as the dashboard trail dots
+  useEffect(() => {
+    const loop = () => {
+      rafRef.current = window.requestAnimationFrame(loop);
+      const now = Date.now();
+      if (now - lastPaintRef.current < 50) return;
+      lastPaintRef.current = now;
+      const marker = markerRef.current;
+      if (!marker?.setLatLng) return;
+      const p = interpRef.current.getDisplayPosition(now);
+      if (p) marker.setLatLng([p.latitude, p.longitude]);
+    };
+    rafRef.current = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  if (!driverLocation) return null;
+  return (
+    <Marker ref={markerRef} position={initialPosRef.current} icon={icon}>
+      {children}
+    </Marker>
+  );
+}
 
 // Fits the map to patient + store on load (once both are available).
 // If the driver is live, fits driver + patient instead.
@@ -144,16 +244,7 @@ function decodePolyline(encoded) {
   return coords;
 }
 
-const STATUS_CONFIG = {
-  completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 dark:bg-green-950 border-green-200',  Icon: CheckCircle },
-  failed:    { label: 'Attempted',  color: 'text-red-700 bg-red-50 dark:bg-red-950 border-red-200',         Icon: X },
-  cancelled: { label: 'Cancelled',  color: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700',   Icon: X },
-  in_transit:{ label: 'In Transit', color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
-  en_route:  { label: 'En Route',   color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
-  pending:   { label: 'Scheduled',  color: 'text-amber-700 bg-amber-50 dark:bg-amber-950 border-amber-200',   Icon: Clock },
-};
-
-export default function PatientPortal() {
+export default function PatientPortal({ embedded = false } = {}) {
   const patient = PatientSessionManager.getPatient();
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [deliveries, setDeliveries]         = useState([]);
@@ -231,12 +322,7 @@ export default function PatientPortal() {
           });
           routeDeliveriesRef.current = routeDeliveries;
           setRouteDeliveries(routeDeliveries);
-          const countBefore = routeDeliveries.filter((d) =>
-            d.id !== activeToday.id &&
-            Number(d.stop_order) < Number(activeToday.stop_order) &&
-            !['completed', 'failed', 'cancelled'].includes(d.status)
-          ).length;
-          setStopsBeforePatient(countBefore);
+          setStopsBeforePatient(countStopsBeforePatient(routeDeliveries, activeToday));
         } catch (_) {
           setStopsBeforePatient(null);
         }
@@ -252,7 +338,7 @@ export default function PatientPortal() {
           const driver = appUsers?.[0];
           if (driver?.driver_status) setDriverStatus(driver.driver_status);
           if (driver?.current_latitude && driver?.current_longitude) {
-            setDriverLocation({ lat: driver.current_latitude, lng: driver.current_longitude, name: driver.user_name });
+            setDriverLocation({ lat: driver.current_latitude, lng: driver.current_longitude, name: driver.user_name, cycling: driver.preferred_travel_mode === 'cycling' });
           }
         } catch (_) {}
       }
@@ -282,16 +368,44 @@ export default function PatientPortal() {
     ? { driver_id: todayDelivery.driver_id, stop_order: todayDelivery.stop_order, id: todayDelivery.id }
     : null;
 
+  // HH:MM → minutes-past-midnight (regex only — naive strings are never Date-parsed)
+  const hhmmToMinutes = (t) => {
+    const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+  };
+
+  // OWNER REQUEST (Sep 29 2026): count PENDING stops in the "stops before you"
+  // badge. Pending stops get a temporary optimized route order (the engine
+  // sequences them with the active route and assigns cumulative ETAs), but
+  // delivery edits renumber pending stops to the END of the incomplete block
+  // (handleSaveDelivery: "pending last"), so stop_order alone undercounts them.
+  // Rule: a non-terminal stop counts when its stop_order precedes the patient's;
+  // a PENDING stop ALSO counts when its engine-assigned ETA precedes the
+  // patient's ETA — the ETAs are cumulative along the optimized sequence, so
+  // an earlier ETA = a temporary route position before the patient.
+  const countStopsBeforePatient = useCallback((routeDeliveries, patientDelivery) => {
+    if (!patientDelivery) return 0;
+    const TERMINAL = ['completed', 'failed', 'cancelled'];
+    const patientOrder = patientDelivery.stop_order != null ? Number(patientDelivery.stop_order) : NaN;
+    const patientEtaMin = hhmmToMinutes(patientDelivery?.delivery_time_eta);
+    return routeDeliveries.filter((d) => {
+      if (!d || d.id === patientDelivery.id) return false;
+      if (TERMINAL.includes(d.status)) return false;
+      const ord = d.stop_order != null ? Number(d.stop_order) : NaN;
+      if (Number.isFinite(ord) && Number.isFinite(patientOrder) && ord < patientOrder) return true;
+      if (String(d.status) === 'pending' && patientEtaMin != null) {
+        const etaMin = hhmmToMinutes(d.delivery_time_eta);
+        return etaMin != null && etaMin < patientEtaMin;
+      }
+      return false;
+    }).length;
+  }, []);
+
   // Helper: recount stops before patient from a given route deliveries array
   const recountStopsBefore = useCallback((routeDeliveries, patientDelivery) => {
-    if (!patientDelivery?.stop_order == null) return;
-    const count = routeDeliveries.filter((d) =>
-      d.id !== patientDelivery.id &&
-      Number(d.stop_order) < Number(patientDelivery.stop_order) &&
-      !['completed', 'failed', 'cancelled'].includes(d.status)
-    ).length;
-    setStopsBeforePatient(count);
-  }, []);
+    if (patientDelivery?.stop_order == null && patientDelivery?.delivery_time_eta == null) return;
+    setStopsBeforePatient(countStopsBeforePatient(routeDeliveries, patientDelivery));
+  }, [countStopsBeforePatient]);
 
   // ── WebSocket: Delivery subscription ─────────────────────────────
   // Listens for any Delivery change. Filters to this patient's records for
@@ -382,11 +496,14 @@ export default function PatientPortal() {
         if (updated.driver_status) setDriverStatus(updated.driver_status);
 
         if (updated.current_latitude && updated.current_longitude) {
-          setDriverLocation({
+          setDriverLocation((prev) => ({
             lat: updated.current_latitude,
             lng: updated.current_longitude,
             name: updated.user_name,
-          });
+            cycling: updated.preferred_travel_mode != null
+              ? updated.preferred_travel_mode === 'cycling'
+              : (prev?.cycling ?? false),
+          }));
         }
       });
     } catch (err) {
@@ -413,11 +530,19 @@ export default function PatientPortal() {
   stores.forEach((s) => { storeMap[s.id] = s; });
 
   const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : (patient?.store_id ? storeMap[patient.store_id] : null);
-  const statusConfig  = todayDelivery ? STATUS_CONFIG[todayDelivery.status] || STATUS_CONFIG.pending : null;
 
   // Store marker: green bg when pickup is done (driver has left the store = in_transit/en_route/completed)
   const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
   const storeIcon = makeStoreIcon(pickupDone);
+
+  // Cycling mode: AppUser preferred_travel_mode flag on the driver location,
+  // or any active stop on today's route carrying a cycling transport_mode.
+  const driverIsCycling = useMemo(() => {
+    if (driverLocation?.cycling === true) return true;
+    return routeDeliveries.some((d) =>
+      !['completed', 'failed', 'cancelled'].includes(d.status) && d.transport_mode === 'cycling');
+  }, [driverLocation?.cycling, routeDeliveries]);
+  const driverMapIcon = useMemo(() => (driverIsCycling ? cyclingDriverIcon : driverIcon), [driverIsCycling]);
 
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
@@ -502,7 +627,7 @@ export default function PatientPortal() {
   const showLiveTracking = isAfter930am && driverStatus === 'on_duty';
 
   return (
-    <div className="flex h-screen bg-slate-100 dark:bg-slate-800 overflow-hidden">
+    <div className={`flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}>
       <PatientPortalGuard />
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
 
@@ -522,7 +647,7 @@ export default function PatientPortal() {
         {/* Top Bar */}
         <div
           className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10"
-          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+          style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}
         >
           <button
             onClick={() => setSidebarOpen(true)}
@@ -556,68 +681,10 @@ export default function PatientPortal() {
           </div>
         </div>
 
-        {/* Today's Status Card */}
-        <div className="px-4 pt-4 pb-2 flex-shrink-0">
-          {loading ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 animate-pulse">
-              <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/3 mb-2" />
-              <div className="h-6 bg-slate-100 dark:bg-slate-800 rounded w-2/3" />
-            </div>
-          ) : todayDelivery ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wide mb-2">Today's Delivery</p>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    {storeMap[todayDelivery.store_id]?.name || 'Pharmacy'}
-                  </p>
-                  {todayDelivery.delivery_time_start && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Window: {todayDelivery.delivery_time_start}
-                      {todayDelivery.delivery_time_end ? ` – ${todayDelivery.delivery_time_end}` : ''}
-                    </p>
-                  )}
-                  {todayDelivery.status === 'completed' && todayDelivery.actual_delivery_time ? (
-                    <p className="text-xs text-emerald-600 font-medium mt-1">
-                      Delivered: {todayDelivery.actual_delivery_time.substring(11, 16)}
-                    </p>
-                  ) : todayDelivery.delivery_time_eta && !['completed', 'failed', 'cancelled'].includes(todayDelivery.status) ? (
-                    <p className="text-xs text-blue-600 font-medium mt-1">
-                      ETA: {todayDelivery.delivery_time_eta}
-                    </p>
-                  ) : null}
-                </div>
-                {statusConfig && (
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusConfig.color}`}>
-                    <statusConfig.Icon className="w-3 h-3" />
-                    {statusConfig.label}
-                  </span>
-                )}
-              </div>
-              {showLiveTracking && driverLocation && (
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-green-700">
-                  <Wifi className="w-3.5 h-3.5" />
-                  Driver location updating live
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-slate-400 dark:text-slate-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No delivery scheduled today</p>
-                <p className="text-xs text-slate-400 dark:text-slate-400">Check your delivery history in the sidebar.</p>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Map */}
         <div
-          className="flex-1 px-4 overflow-hidden relative"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+          className="flex-1 px-4 pt-3 overflow-hidden relative"
+          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
@@ -652,27 +719,27 @@ export default function PatientPortal() {
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Static polyline — all legs except first stop and current leg — always visible */}
+              {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
               {staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
-                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.8 }}
                 />
               )}
 
-              {/* First stop leg — hidden when off duty or before 9:30 AM */}
+              {/* First stop leg (store → first stop) — solid green — hidden when off duty or before 9:30 AM */}
               {showLiveTracking && firstLegCoords.length > 1 && (
                 <Polyline
                   positions={firstLegCoords}
-                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.8 }}
                 />
               )}
 
-              {/* Current leg (isNextDelivery stop) — hidden when off duty or before 9:30 AM */}
+              {/* Current leg (driver → isNextDelivery stop) — solid blue like the driver dashboard */}
               {showLiveTracking && currentLegCoords.length > 1 && (
                 <Polyline
                   positions={currentLegCoords}
-                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.75, dashArray: '8, 6' }}
+                  pathOptions={{ color: '#2563EB', weight: 5, opacity: 0.9 }}
                 />
               )}
 
@@ -690,11 +757,13 @@ export default function PatientPortal() {
                 </Marker>
               )}
 
-              {/* Driver marker — only when live tracking is enabled */}
+              {/* Driver marker — only when live tracking is enabled. Glides smoothly
+                  between 15s location updates (same trail interpolation as the shared
+                  driver dots on dispatcher maps) instead of teleporting. */}
               {showLiveTracking && driverLocation && (
-                <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}>
+                <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
-                </Marker>
+                </AnimatedDriverMarker>
               )}
             </MapContainer>
           </div>

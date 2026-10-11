@@ -1,420 +1,1155 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
-import { AlertTriangle, Download, RefreshCw } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Braces, CalendarRange, CreditCard, Download, Flag, RefreshCw, Search, Table2, Wallet } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { invokeWithLongTimeout } from "@/components/utils/squareLongTimeout";
 import { useUser } from "@/components/utils/UserContext";
-import { isAppOwner } from "@/components/utils/userRoles";
+import { edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
+import {
+  getLedgerEntriesOffline,
+  getLedgerLastSyncAt,
+  saveLedgerEntriesOffline } from
+"@/components/utils/squareLedgerOfflineManager";
+import SyncHealthPanel from "@/components/square-audit/SyncHealthPanel";
+import { learnStoreCardFingerprints } from "@/components/square/useSquareBalancesSummary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import AuditTable from "@/components/square-audit/AuditTable";
-import SyncHealthPanel from "@/components/square-audit/SyncHealthPanel";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
-  attachDiscrepancies,
-  buildStoreMaps,
-  downloadAuditCsv,
-  findBestTransactionMatchForDelivery,
-  formatCurrencyFromCents,
-  getAuditRange,
-  normalizeDate,
-  parseSquareItemName,
-  toAmountCents,
-} from "@/components/square-audit/squareAuditHelpers";
-import { clearSquareCODOfflineData, saveCatalogItemsOffline, syncSquareCODSnapshotOffline } from "@/components/utils/squareCODOfflineManager";
-import { squareSyncCatalogItems } from "@/functions/squareSyncCatalogItems";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue } from
+"@/components/ui/select";
+import { toast } from "sonner";
+
+const CARD_LABELS_KEY = "square_card_labels";
+const FETCH_PAGE = 2000;
+const FETCH_PAGES_MAX = 15; // 30k records cap
+const LEDGER_PAGE_SIZE = 100;
+
+// ---------- pure helpers (Edmonton wall-clock rendering — never device-local) ----------
+
+const fmtCents = (c) => `$${(Math.abs(Number(c || 0)) / 100).toFixed(2)}`;
+
+// WIZARD WORXX = the business's own Square Card (mobile) locations where
+// top-ups/payouts land — not store activity (owner: hide from Summary tab).
+const isWizardWorxxCard = (name) => /wizard\s*worxx/i.test(String(name || ""));
+
+const wallOf = (occurredAt) => {
+  if (!occurredAt) return "1970-01-01T00:00:00";
+  const d = parseAnyTimestamp(occurredAt);
+  return edmontonWallString(d);
+};
+
+const displayDateTime = (wall) => String(wall || "").replace("T", " ").slice(0, 16);
+
+const weekKeyOf = (wall) => {
+  const y = Number(String(wall).slice(0, 4));
+  const mo = Number(String(wall).slice(5, 7));
+  const d = Number(String(wall).slice(8, 10));
+  const utc = Date.UTC(y, mo - 1, d);
+  const dow = new Date(utc).getUTCDay();
+  const monday = utc - (dow + 6) % 7 * 86400000;
+  const m = new Date(monday);
+  const mm = String(m.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(m.getUTCDate()).padStart(2, "0");
+  return `${m.getUTCFullYear()}-${mm}-${dd}`;
+};
+
+const periodKeyOf = (wall, granularity) => {
+  if (granularity === "year") return String(wall).slice(0, 4);
+  if (granularity === "month") return String(wall).slice(0, 7);
+  if (granularity === "week") return weekKeyOf(String(wall));
+  return String(wall).slice(0, 10);
+};
+
+const periodLabelOf = (key, granularity) => {
+  if (granularity === "year") return key;
+  if (granularity === "month") return key;
+  if (granularity === "week") return `Wk of ${String(key).slice(5).replace("-", "/")}`;
+  return String(key).slice(5).replace("-", "/");
+};
+
+const RANGE_MONTHS_BY_VALUE = { today: 1, "1": 1, "3": 3, "6": 6, "12": 12, "24": 24, all: 60 };
+
+const rangeSelectionToMonths = (val) => RANGE_MONTHS_BY_VALUE[val] || 3;
+
+const rangeSelectionToDates = (val) => {
+  const todayWall = edmontonWallString(new Date()).slice(0, 10);
+  if (val === "today") return { from: todayWall, to: todayWall };
+  // "All" = no lower bound — show every spend/collection/refund ever synced,
+  // on every card/store (owner request Oct 5 2026).
+  if (val === "all") return { from: "", to: "" };
+  const months = RANGE_MONTHS_BY_VALUE[val] || 3;
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, now.getUTCDate()));
+  return { from: edmontonWallString(start).slice(0, 10), to: todayWall };
+};
+
+const monthWindowUtc = (monthsAgo) => {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo + 1, 1));
+  return { start: start.toISOString().slice(0, 10) + "T00:00:00Z", end: end.toISOString().slice(0, 10) + "T00:00:00Z", label: start.toISOString().slice(0, 7) };
+};
+
+// ---------- classification ----------
+
+const CLASS_STYLES = {
+  spend: { badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", amount: "text-rose-600 dark:text-rose-400", sign: -1 },
+  topup: { badge: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300", amount: "text-teal-600 dark:text-teal-400", sign: 1 },
+  cod: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", amount: "text-emerald-600 dark:text-emerald-400", sign: 1 },
+  spend: { badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300", amount: "text-red-600 dark:text-red-400", sign: -1 },
+  other: { badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", amount: "text-sky-600 dark:text-sky-400", sign: 1 },
+  decline: { badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", amount: "text-amber-600 dark:text-amber-400", sign: 0 },
+  refund_in: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", amount: "text-emerald-600 dark:text-emerald-400", sign: 1 },
+  refund_out: { badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300", amount: "text-orange-600 dark:text-orange-400", sign: -1 },
+  refund_unlinked: { badge: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200", amount: "text-slate-700 dark:text-slate-300", sign: 1 },
+  payout: { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", amount: "text-violet-600 dark:text-violet-400", sign: 0 }
+};
+
+const CLASS_LABELS = {
+  cod: "COD Collected",
+  spend: "Card Spend (store)",
+  topup: "Card Top-Up (actual)",
+  other: "Other Sale",
+  decline: "Declined",
+  refund_in: "Refund (charge)",
+  refund_out: "Refund (customer)",
+  refund_unlinked: "Refund",
+  payout: "Bank Transfer"
+};
+
+// Payout-class rows: SIMPLE = Square's per-sale folder withholding (mirrors the
+// collected row's folder_cents), BATCH = the settled remainder swept to the
+// bank (mirrors settled_cents). Distinct labels stop them reading as
+// unexplained extra card spends (owner report Oct 4 2026).
+const payoutLabel = (e) => {
+  const reason = String(e?.reason || "").toUpperCase();
+  if (reason.includes("SIMPLE")) return "Folder Withholding";
+  if (reason.includes("BATCH")) return "Bank Sweep";
+  return CLASS_LABELS.payout;
+};
+
+const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId, storeCardFps) => {
+  if (entry.entry_kind === "refund") {
+    const linked = entry.refund_of_square_id ? entriesBySquareId.get(entry.refund_of_square_id) : null;
+    const linkedClass = linked ? classifyEntry(linked, labelsByFingerprint, entriesBySquareId, storeCardFps) : null;
+    if (linkedClass && linkedClass.code === "spend") return { code: "refund_in", sign: 1 };
+    if (linkedClass) return { code: "refund_out", sign: -1 };
+    return { code: "refund_unlinked", sign: 1 };
+  }
+  if (entry.entry_kind === "decline") return { code: "decline", sign: 0 };
+  if (String(entry.entry_kind || "") === "payout") return { code: "payout", sign: 0 };
+  // Actual purchases made with the business Square Card = money spent.
+  if (String(entry.entry_kind || "") === "card_spend") return { code: "spend", sign: -1 };
+  // Owner spec (Oct 5 2026): the Summaries page is the CARD ledger.
+  // store_topup = ACTUAL cents Square swept onto the store's card (from
+  // payout records, not the settled formula) -> Collected.
+  // store_withdraw = money taken back off the card -> Spent.
+  if (String(entry.entry_kind || "") === "store_topup") return { code: "topup", sign: 1 };
+  if (String(entry.entry_kind || "") === "store_withdraw") return { code: "spend", sign: -1 };
+  if (["sale", "collected"].includes(String(entry.entry_kind || ""))) {
+    if (entry.sale_class === "cod_collection") return { code: "cod", sign: 1 };
+    // Owner rule (Oct 6 2026): ANY sale with a debit/credit card in the
+    // transaction data is obviously a Card Sale/Collection — ALWAYS positive,
+    // unless it is a refund. The old store-card fingerprint flip (Oct 5) is
+    // removed from the ledger: it mislabeled genuine COD card swipes (Lasaga
+    // $8.62) as negative spends. The 5-swipe fingerprint learning remains
+    // ONLY in the Square Balances matching pool, never in ledger signs.
+    return { code: "other", sign: 1 };
+  }
+  return { code: "other", sign: 0 };
+};
+
+// ---------- page component ----------
 
 export default function SquareSyncAudit() {
   const { currentUser, isLoadingUser } = useUser();
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isReconciling, setIsReconciling] = React.useState(false);
-  const [lastLoadedAt, setLastLoadedAt] = React.useState(null);
-  const [tables, setTables] = React.useState({
-    transactions: [],
-    catalogItems: [],
-    deliveries: [],
-  });
-  const [syncHealth, setSyncHealth] = React.useState({ runs: [], logs: [] });
+  const [activeTab, setActiveTab] = useState("ledger");
+  const [entries, setEntries] = useState([]);
+  const [expandedRowKey, setExpandedRowKey] = useState(null);
+  const [rawPreview, setRawPreview] = useState(null);
+  const [rawPreviewLoading, setRawPreviewLoading] = useState(false);
+  const [rawPreviewOpen, setRawPreviewOpen] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState("");
+  const [storesById, setStoresById] = useState({});
+  const [cardLabels, setCardLabels] = useState([]);
+  const [cardLabelsRecordId, setCardLabelsRecordId] = useState(null);
+  const [isSavingLabels, setIsSavingLabels] = useState(false);
+  const [syncHealth, setSyncHealth] = useState({ runs: [], logs: [] });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState("");
+  const [lastSyncResult, setLastSyncResult] = useState(null);
+  const [lastLedgerSyncAt, setLastLedgerSyncAt] = useState(null);
+  const [rangeSelection, setRangeSelection] = useState("24");
 
-  const loadAuditData = React.useCallback(async () => {
-    const range = getAuditRange();
-    setIsLoading(true);
+  // ledger filters
+  const [kindFilter, setKindFilter] = useState("all");
+  const [searchText, setSearchText] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [ledgerLimit, setLedgerLimit] = useState(LEDGER_PAGE_SIZE);
+  const [selectedLocations, setSelectedLocations] = useState([]);
+  const [granularity, setGranularity] = useState("month");
+  const syncAbortRef = useRef(false);
 
+  const isAdmin = !isLoadingUser && (currentUser?.role === "admin" || currentUser?.email === "tauberr1328" || String(currentUser?.email || "").toLowerCase() === "the.wizard@live.ca");
+
+  // ---------- data loading ----------
+
+  const fetchLedgerFromServer = useCallback(async () => {
+    const all = [];
     try {
-      // Step 1: Wipe the offline catalog DB immediately — before any API calls — so no ghost records linger
-      await clearSquareCODOfflineData();
-
-      // Step 2: Wipe the online SquareCatalogItems DB and rebuild it fresh from the live Square catalog API
-      const purgeResult = await base44.functions.invoke("squarePurgeCatalog", {});
-      const purgeData = purgeResult?.data || purgeResult || {};
-
-      // Step 3: Immediately populate the offline DB with exactly what Square has (no ghost records possible)
-      if (Array.isArray(purgeData?.catalogRecords) && purgeData.catalogRecords.length > 0) {
-        await saveCatalogItemsOffline(purgeData.catalogRecords);
+      for (let page = 0; page < FETCH_PAGES_MAX; page++) {
+        setLoadProgress(`Loading ledger ${all.length ? `(${all.length} records)` : ""}…`);
+        const rows = await base44.entities.SquareLedgerEntry.list("-occurred_at", FETCH_PAGE, page * FETCH_PAGE).catch(() => []);
+        const list = rows || [];
+        all.push(...list);
+        if (list.length < FETCH_PAGE) break;
       }
-
-      // Step 4: With both DBs now a clean mirror of Square, push any missing deliveries up to Square
-      const syncResponse = await squareSyncCatalogItems({ skipLock: true });
-      const syncData = syncResponse?.data || syncResponse || {};
-      if (syncData?.success === false) {
-        throw new Error(syncData.error || "Square catalog sync failed");
+      setEntries(all);
+      if (all.length > 0) {
+        saveLedgerEntriesOffline(all);
+        setLastLedgerSyncAt(getLedgerLastSyncAt());
       }
-
-      const [locationConfigsResponse, storesResponse, patientsResponse, deliveriesResponse, squareTransactionsResponse, squareCatalogItemsResponse, syncHealthResponse] = await Promise.all([
-        base44.entities.SquareLocationConfig.filter({ status: "active" }),
-        base44.entities.Store.list(),
-        base44.entities.Patient.list(),
-        base44.entities.Delivery.filter({
-          delivery_date: {
-            $gte: range.startDate,
-            $lte: range.endDate,
-          },
-        }),
-        base44.entities.SquareTransaction.list("-updated_date", 2000),
-        base44.entities.SquareCatalogItems.list("-updated_date", 2000),
-        base44.functions.invoke("squareSyncHealth", {}),
-      ]);
-
-      const locationConfigs = (locationConfigsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
-      setSyncHealth(syncHealthResponse?.data || syncHealthResponse || { runs: [], logs: [] });
-      const stores = (storesResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
-      const patients = (patientsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
-      const storesWithSquareLocationIds = stores.filter((store) => {
-        if (!store?.id || !store?.square_location_config_id) return false;
-        const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
-        return Boolean(config?.square_location_id);
-      });
-
-      const eligibleStoreIds = new Set(storesWithSquareLocationIds.map((store) => store.id));
-
-      const deliveries = (deliveriesResponse || [])
-        .map((record) => ({ id: record?.id, ...(record?.data || {}) }))
-        .filter((delivery) => (
-          Number(delivery?.cod_total_amount_required || 0) > 0 &&
-          eligibleStoreIds.has(delivery?.store_id)
-        ));
-      const squareTransactions = (squareTransactionsResponse || []).filter((transaction) => {
-        const parsed = parseSquareItemName(transaction?.item_name);
-        const transactionDate = normalizeDate(
-          deliveries.find((delivery) => delivery.id === transaction?.delivery_id)?.delivery_date ||
-          parsed?.delivery_date ||
-          transaction?.updated_date ||
-          transaction?.created_date,
-        );
-        return transactionDate >= range.startDate && transactionDate <= range.endDate;
-      });
-      const squareCatalogItems = (squareCatalogItemsResponse || []).filter((item) => {
-        const parsed = parseSquareItemName(item?.item_name);
-        const itemDate = normalizeDate(item?.delivery_date || parsed?.delivery_date || item?.updated_date || item?.created_date);
-        return itemDate >= range.startDate && itemDate <= range.endDate;
-      });
-
-      await syncSquareCODSnapshotOffline({
-        catalogItems: squareCatalogItems,
-        transactions: squareTransactions,
-      });
-
-      const { locationIdByStoreId, storeByLocationId, storeById, storeByAbbreviation } = buildStoreMaps(stores, locationConfigs);
-      const patientById = new Map(patients.map((patient) => [patient.id, patient]));
-      const deliveryById = new Map(deliveries.map((delivery) => [delivery.id, delivery]));
-
-      const transactionRowsBase = squareTransactions
-        .filter((transaction) => ["completed", "refunded"].includes(transaction?.status))
-        .map((transaction, index) => {
-          const parsed = parseSquareItemName(transaction.item_name);
-          const delivery = transaction.delivery_id ? deliveryById.get(transaction.delivery_id) : null;
-          const locationId = transaction.location_id || locationIdByStoreId.get(transaction.store_id) || "";
-          const inferredStore = storeById.get(transaction.store_id) || storeByLocationId.get(locationId) || (parsed?.store_abbreviation ? storeByAbbreviation.get(parsed.store_abbreviation) : null);
-          const amountCents = Number(transaction.amount_cents ?? toAmountCents(transaction.amount));
-
-          return {
-            id: `tx-${transaction.id || transaction.square_payment_id || index}`,
-            itemName: transaction.item_name || "Unnamed Transaction",
-            date: normalizeDate(delivery?.delivery_date || parsed?.delivery_date || transaction.updated_date || transaction.created_date),
-            locationId,
-            storeId: inferredStore?.id || transaction.store_id || "",
-            storeName: inferredStore?.name || "Unknown Store",
-            amountCents,
-            amountLabel: formatCurrencyFromCents(amountCents),
-            paymentId: transaction.square_payment_id || "",
-            orderId: transaction.square_transaction_id || "",
-          };
-        });
-
-      const catalogRowsBase = squareCatalogItems.map((item, index) => {
-        const parsed = parseSquareItemName(item.item_name);
-        const delivery = item.delivery_id ? deliveryById.get(item.delivery_id) : null;
-        const locationId = item.location_id || "";
-        const store = storeById.get(item.store_id) || storeByLocationId.get(locationId) || storeByAbbreviation.get(parsed?.store_abbreviation || "");
-        const amountCents = Number(item.amount_cents ?? toAmountCents(item.amount));
-
-        return {
-          id: `catalog-${item.square_catalog_object_id || item.id || index}`,
-          itemName: item.item_name || "Unnamed Catalog Item",
-          date: normalizeDate(item.delivery_date || delivery?.delivery_date || parsed?.delivery_date || item.updated_date || item.created_date),
-          locationId,
-          storeId: store?.id || delivery?.store_id || item.store_id || "",
-          storeName: store?.name || "Unknown Store",
-          amountCents,
-          amountLabel: formatCurrencyFromCents(amountCents),
-          catalogObjectId: item.square_catalog_object_id || "",
-          status: item.status || "active",
-        };
-      });
-
-      const deliveryRowsBase = deliveries
-        .map((delivery) => {
-          const locationId = locationIdByStoreId.get(delivery.store_id) || "";
-          const store = storeById.get(delivery.store_id);
-          const patient = patientById.get(delivery.patient_id);
-          const amountCents = toAmountCents(delivery.cod_total_amount_required);
-          const exportReference = store?.abbreviation && patient?.full_name
-            ? `${String(delivery.delivery_date || "").slice(5, 7)}/${String(delivery.delivery_date || "").slice(8, 10)}(${store.abbreviation})-${patient.full_name}`
-            : delivery.delivery_id || delivery.id;
-
-          return {
-            id: `delivery-${delivery.id}`,
-            itemName: exportReference,
-            date: normalizeDate(delivery.delivery_date),
-            locationId,
-            storeId: delivery.store_id || "",
-            storeName: store?.name || "Unknown Store",
-            amountCents,
-            amountLabel: formatCurrencyFromCents(amountCents),
-            deliveryId: delivery.id,
-            exportReference,
-            status: delivery.status || "pending",
-          };
-        })
-        .filter((row) => row.locationId && locationIdByStoreId.has(row.storeId));
-
-      const transactionRows = attachDiscrepancies(transactionRowsBase, [
-        { label: "Catalog", rows: catalogRowsBase },
-        { label: "Deliveries", rows: deliveryRowsBase },
-      ]);
-      const catalogRows = attachDiscrepancies(catalogRowsBase, [
-        { label: "Transactions", rows: transactionRowsBase },
-        { label: "Deliveries", rows: deliveryRowsBase },
-      ]);
-      const deliveryRows = attachDiscrepancies(deliveryRowsBase, [
-        { label: "Transactions", rows: transactionRowsBase },
-        { label: "Catalog", rows: catalogRowsBase },
-      ]).map((row) => {
-        const bestTransactionMatch = findBestTransactionMatchForDelivery(row, transactionRowsBase);
-        return {
-          ...row,
-          bestTransactionMatch,
-          actionMatchPercentage: bestTransactionMatch?.score || 0,
-        };
-      });
-
-      setTables({
-        transactions: transactionRows,
-        catalogItems: catalogRows,
-        deliveries: deliveryRows,
-      });
-      setLastLoadedAt(new Date());
     } catch (error) {
-      console.error("Square COD audit load failed:", error);
-      toast.error(error?.message || "Failed to load Square COD audit data");
-      throw error;
+      console.error("[SquareFinanceAudit] Error loading ledger:", error);
+      toast.error("Failed to load ledger from server");
     } finally {
-      setIsLoading(false);
+      setLoadProgress("");
     }
   }, []);
 
-  React.useEffect(() => {
-    if (!isLoadingUser && currentUser && isAppOwner(currentUser)) {
-      loadAuditData().catch(() => {});
-    }
-  }, [currentUser, isLoadingUser, loadAuditData]);
-
-  const handleReconciliation = async () => {
-    setIsReconciling(true);
+  const loadCardLabels = useCallback(async () => {
     try {
-      await loadAuditData();
-      toast.success("Square reconciliation completed");
+      const rows = await base44.entities.AppSettings.filter({ setting_key: CARD_LABELS_KEY });
+      const record = (rows || [])[0] || null;
+      if (record) {
+        setCardLabelsRecordId(record.id);
+        const labels = record?.setting_value?.labels;
+        setCardLabels(Array.isArray(labels) ? labels : []);
+      }
     } catch (error) {
-      console.error("Square reconciliation failed:", error);
-      toast.error(error?.message || "Failed to trigger reconciliation");
-    } finally {
-      setIsReconciling(false);
+      console.error("[SquareFinanceAudit] Error loading card labels:", error);
     }
-  };
+  }, []);
 
-  const handleExport = () => {
-    downloadAuditCsv(
-      [
-        {
-          title: "Collected Square Transactions",
-          headers: ["Date", "Store", "Square Location ID", "Amount", "Item Name", "Payment ID", "Order ID", "Issues"],
-          rows: tables.transactions.map((row) => [
-            row.date,
-            row.storeName,
-            row.locationId,
-            row.amountLabel,
-            row.itemName,
-            row.paymentId,
-            row.orderId,
-            row.issues.join(" | "),
-          ]),
-        },
-        {
-          title: "Current Square Catalog Items",
-          headers: ["Date", "Store", "Square Location ID", "Amount", "Item Name", "Catalog Object ID", "Status", "Issues"],
-          rows: tables.catalogItems.map((row) => [
-            row.date,
-            row.storeName,
-            row.locationId,
-            row.amountLabel,
-            row.itemName,
-            row.catalogObjectId,
-            row.status,
-            row.issues.join(" | "),
-          ]),
-        },
-        {
-          title: "In-App COD Deliveries",
-          headers: ["Date", "Store", "Square Location ID", "Amount", "Reference", "Status", "Issues"],
-          rows: tables.deliveries.map((row) => [
-            row.date,
-            row.storeName,
-            row.locationId,
-            row.amountLabel,
-            row.exportReference,
-            row.status,
-            row.issues.join(" | "),
-          ]),
-        },
-      ],
-      `square-cod-audit-${format(new Date(), "yyyy-MM-dd-HHmm")}.csv`,
-    );
-  };
+  const loadStores = useCallback(async () => {
+    try {
+      const rows = await base44.entities.Store.list();
+      const map = {};
+      for (const s of rows || []) map[s.id] = s;
+      setStoresById(map);
+    } catch {
+      setStoresById({});
+    }
+  }, []);
 
-  const summary = React.useMemo(() => {
-    const transactionIssues = tables.transactions.filter((row) => row.hasDiscrepancy).length;
-    const catalogIssues = tables.catalogItems.filter((row) => row.hasDiscrepancy).length;
-    const deliveryIssues = tables.deliveries.filter((row) => row.hasDiscrepancy).length;
-    return transactionIssues + catalogIssues + deliveryIssues;
-  }, [tables]);
+  const loadSyncHealth = useCallback(async () => {
+    try {
+      const res = await invokeWithLongTimeout("squareSyncHealth", {});
+      setSyncHealth(res?.data || res || { runs: [], logs: [] });
+    } catch {
+      setSyncHealth({ runs: [], logs: [] });
+    }
+  }, []);
 
-  if (isLoadingUser || (isLoading && !lastLoadedAt)) {
-    return <div className="p-6 text-sm text-soft">Loading Square COD audit…</div>;
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      // IDB first — render immediately from the offline snapshot
+      const cached = await getLedgerEntriesOffline();
+      if (!cancelled && cached.length > 0) {
+        setEntries(cached);
+        setIsLoading(false);
+      }
+      setLastLedgerSyncAt(getLedgerLastSyncAt());
+      await Promise.all([fetchLedgerFromServer(), loadCardLabels(), loadStores()]);
+      if (!cancelled) setIsLoading(false);
+    })();
+    // Backend ledger-sync stamp (Oct 7 2026): squareLedgerSync's
+    // splits/deletions are service-role writes — no WS echo reaches this
+    // page, so a mounted page kept showing the original grouped transaction.
+    // The stamp (AppSettings 'square_ledger_sync') broadcasts; refetch here.
+    const onLedgerSyncStamp = (e) => {
+      const updated = e?.detail?.data || e?.detail;
+      if (updated?.setting_key !== 'square_ledger_sync') return;
+      fetchLedgerFromServer().catch(() => {});
+    };
+    window.addEventListener('appSettingsUpdated', onLedgerSyncStamp);
+    return () => {cancelled = true; window.removeEventListener('appSettingsUpdated', onLedgerSyncStamp);};
+  }, [isAdmin, fetchLedgerFromServer, loadCardLabels, loadStores]);
+
+  // ---------- derived data ----------
+
+  const entriesBySquareId = useMemo(() => {
+    const m = new Map();
+    for (const e of entries || []) if (e.square_id) m.set(e.square_id, e);
+    return m;
+  }, [entries]);
+
+  const labelsByFingerprint = useMemo(() => {
+    const m = {};
+    for (const l of cardLabels || []) if (l?.fingerprint) m[l.fingerprint] = l;
+    return m;
+  }, [cardLabels]);
+
+  const locations = useMemo(() => {
+    const m = new Map();
+    for (const e of entries || []) {
+      if (e.location_id) m.set(e.location_id, e.location_name || e.location_id);
+    }
+    return Array.from(m.entries()).map(([id, name]) => ({ id, name }));
+  }, [entries]);
+
+  const activeLocations = useMemo(() => {
+    if (selectedLocations.length === 0) return locations;
+    return locations.filter((l) => selectedLocations.includes(l.id));
+  }, [locations, selectedLocations]);
+
+  // Summary tab only: hide the WIZARD WORXX card locations (owner request
+  // Oct 4 2026) — they still show in the Ledger tab rows for auditing.
+  const summaryLocations = useMemo(() => activeLocations.filter((l) => !isWizardWorxxCard(l.name)), [activeLocations]);
+
+  const fingerprintStats = useMemo(() => {
+    const stats = new Map();
+    for (const e of entries || []) {
+      if (!e.card_fingerprint) continue;
+      if (!stats.has(e.card_fingerprint)) {
+        stats.set(e.card_fingerprint, {
+          fingerprint: e.card_fingerprint,
+          last4: e.card_last4 || "",
+          brand: e.card_brand || "",
+          locations: new Set(),
+          saleCount: 0,
+          saleTotal: 0,
+          declineCount: 0,
+          lastSeen: ""
+        });
+      }
+      const st = stats.get(e.card_fingerprint);
+      if (e.location_name) st.locations.add(e.location_name);
+      const cls = classifyEntry(e, labelsByFingerprint, entriesBySquareId);
+      if (["sale", "collected"].includes(String(e.entry_kind || ""))) {st.saleCount++;st.saleTotal += Number(e.amount_cents || 0);}
+      if (e.entry_kind === "decline") st.declineCount++;
+      if (e.occurred_at > st.lastSeen) st.lastSeen = e.occurred_at;
+    }
+    return Array.from(stats.values()).map((st) => ({
+      ...st,
+      locations: Array.from(st.locations),
+      likelyBusinessCard: st.locations.length >= 2
+    }));
+  }, [entries, labelsByFingerprint, entriesBySquareId]);
+
+  // Store-card learning (same rule as Square Balances): a card swiped 5+
+  // times at ONE location whose sales never match a COD is that store's own
+  // Square Card — its swipes are money SPENT from the card.
+  const storeCardFps = useMemo(
+    () => learnStoreCardFingerprints((entries || []).filter((e) => ["sale", "collected"].includes(String(e.entry_kind || "")))),
+    [entries]
+  );
+
+  const enhancedEntries = useMemo(() => {
+    return (entries || []).map((e) => {
+      const cls = classifyEntry(e, labelsByFingerprint, entriesBySquareId, storeCardFps);
+      const wall = wallOf(e.occurred_at);
+      return { ...e, cls, wall, classCode: cls.code };
+    });
+  }, [entries, labelsByFingerprint, entriesBySquareId, storeCardFps]);
+
+  const filteredEntries = useMemo(() => {
+    const from = fromDate ? `${fromDate}T00:00:00` : "";
+    const to = toDate ? `${toDate}T23:59:59` : "";
+    const search = searchText.trim().toLowerCase();
+    const locSet = selectedLocations.length ? new Set(selectedLocations) : null;
+    return enhancedEntries.
+    filter((e) => {
+      if (locSet && !locSet.has(e.location_id)) return false;
+      if (from && e.wall < from) return false;
+      if (to && e.wall > to) return false;
+      // Owner rule (Oct 6 2026): Card Top-Up (actual) rows duplicate the
+      // Settled To Card amounts on the sale rows — hide them from the
+      // Transaction Ledger list.
+      if (String(e.entry_kind || "") === "store_topup") return false;
+      if (kindFilter !== "all" && e.classCode !== kindFilter) return false;
+      if (search) {
+        const hay = `${e.location_name || ""} ${e.cod_item_name || ""} ${e.reason || ""} ${e.card_brand || ""} ${e.card_last4 || ""}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    }).
+    sort((a, b) => a.occurred_at < b.occurred_at ? 1 : -1);
+  }, [enhancedEntries, fromDate, toDate, kindFilter, searchText, selectedLocations]);
+
+  // MULTI-ITEM RING GROUPS (owner request Oct 7 2026): squareLedgerSync splits
+  // a grouped transaction (2+ COD items in one swipe, e.g. $4.53 MD + $23.60 CW
+  // = one $28.13 debit) into one ledger row PER delivery — all sharing the same
+  // order_id. This tags each row with its position inside its group so the
+  // Item/Reason column can show "1 of 2", "2 of 2" and the owner can see the
+  // ring was fully attributed to individual deliveries.
+  const multiItemGroupInfo = useMemo(() => {
+    const info = new Map();
+    const groups = new Map();
+    for (const e of filteredEntries) {
+      const oid = e.order_id;
+      if (!oid || String(e.sale_class || "") !== "cod_collection") continue;
+      if (!groups.has(oid)) groups.set(oid, []);
+      groups.get(oid).push(e);
+    }
+    for (const [oid, rows] of groups) {
+      if (rows.length < 2) continue;
+      rows.sort((a, b) => (a.amount_cents || 0) - (b.amount_cents || 0));
+      rows.forEach((e, idx) => info.set(e.id, { position: idx + 1, total: rows.length, orderIds: oid }));
+    }
+    return info;
+  }, [filteredEntries]);
+
+  const summaryRows = useMemo(() => {
+    const from = fromDate ? `${fromDate}T00:00:00` : "0000";
+    const to = toDate ? `${toDate}T23:59:59` : "9999";
+    const locSet = selectedLocations.length ? new Set(selectedLocations) : null;
+    const rows = new Map();
+    for (const e of enhancedEntries) {
+      // WIZARD WORXX = the Square Card (mobile) locations — top-ups/payouts
+      // for the business's own cards, not store activity. Owner request Oct 4
+      // 2026: keep them out of the Summary tab entirely.
+      if (isWizardWorxxCard(e.location_name)) continue;
+      if (locSet && !locSet.has(e.location_id)) continue;
+      if (e.wall < from || e.wall > to) continue;
+      const key = periodKeyOf(e.wall, granularity);
+      const locKey = `${key}::${e.location_id}`;
+      const getBucket = (k) => {
+        if (!rows.has(k)) rows.set(k, { collected: 0, spent: 0, other: 0, refundIn: 0, refundOut: 0, declines: 0, payout: 0, count: 0 });
+        return rows.get(k);
+      };
+      const b = getBucket(locKey);
+      b.count++;
+      const amt = Number(e.amount_cents || 0);
+      switch (e.classCode) {
+        // Owner spec (Oct 5 2026): Summary = CARD LEDGER. Collected = actual
+        // amounts swept ONTO each store card (store_topup rows). Spent =
+        // store-card swipes + withdrawals (money taken FROM the card).
+        // Register sales (cod/other) are NOT card flows — Ledger tab only.
+        case "topup":b.collected += amt;break;
+        case "spend":b.spent += amt;break;
+        case "refund_in":b.refundIn += amt;break;
+        case "refund_out":b.refundOut += amt;break;
+        case "decline":b.declines++;break;
+        default:break;
+      }
+    }
+    return rows;
+  }, [enhancedEntries, fromDate, toDate, selectedLocations, granularity]);
+
+  // CARD LEDGER math (owner spec Oct 5 2026): Collected - Spent - refunds = the
+  // store card's balance change (start + net ≈ current card balance).
+  const netOf = (b) => b ? b.collected + b.refundIn - b.spent - b.refundOut : 0;
+  const collectedOf = (b) => b ? b.collected : 0;
+  const refundsOf = (b) => b ? b.refundIn - b.refundOut : 0;
+
+  const totals = useMemo(() => {
+    let collected = 0,spent = 0,other = 0,refundIn = 0,refundOut = 0,declines = 0;
+    for (const [, b] of summaryRows) {
+      collected += b.collected;spent += b.spent;other += b.other;
+      refundIn += b.refundIn;refundOut += b.refundOut;declines += b.declines;
+    }
+    const collectedAll = collected;
+    return { collected: collectedAll, codOnly: collected, spent, other, refundIn, refundOut, declines, net: collectedAll + refundIn - spent - refundOut };
+  }, [summaryRows]);
+
+  // ---------- red flags ----------
+
+  const [redFlags, setRedFlags] = useState(null);
+  const [isLoadingFlags, setIsLoadingFlags] = useState(false);
+
+  const loadRedFlags = useCallback(async () => {
+    setIsLoadingFlags(true);
+    try {
+      const toWall = edmontonWallString(new Date()).slice(0, 10);
+      const fromWall = edmontonWallString(new Date(Date.now() - 90 * 86400000)).slice(0, 10);
+      const deliveries = await base44.entities.Delivery.filter({
+        delivery_date: { $gte: fromWall, $lte: toWall }
+      }, "-updated_date", 2000).catch(() => []);
+      const flagged = (deliveries || []).filter((d) =>
+      ["failed", "returned"].includes(String(d?.status || "").toLowerCase())
+      );
+      const collectedByDelivery = new Map();
+      for (const e of enhancedEntries) {
+        if (["sale", "collected"].includes(String(e.entry_kind || "")) && e.sale_class === "cod_collection" && e.delivery_id) {
+          collectedByDelivery.set(e.delivery_id, e);
+        }
+      }
+      const refundByDelivery = new Map();
+      for (const e of enhancedEntries) {
+        if (e.entry_kind === "refund" && e.delivery_id) refundByDelivery.set(e.delivery_id, e);
+      }
+      const unlinkedRefunds = enhancedEntries.
+      filter((e) => e.entry_kind === "refund" && !e.delivery_id).
+      sort((a, b) => a.occurred_at < b.occurred_at ? 1 : -1).
+      slice(0, 50);
+      const rows = flagged.map((d) => {
+        const collected = collectedByDelivery.get(d.id) || null;
+        const refund = refundByDelivery.get(d.id) || null;
+        return {
+          id: d.id,
+          date: d.delivery_date,
+          status: d.status,
+          storeName: storesById[d.store_id]?.name || "Unknown store",
+          codRequired: d.cod_total_amount_required || 0,
+          collected: collected ? { amount: collected.amount_cents, wall: collected.wall, item: collected.cod_item_name } : null,
+          refund: refund ? { amount: refund.amount_cents, wall: refund.wall } : null,
+          needsRefund: Boolean(collected) && !refund
+        };
+      });
+      setRedFlags({ rows: rows.sort((a, b) => a.date < b.date ? 1 : -1), unlinkedRefunds });
+    } catch (error) {
+      console.error("[SquareFinanceAudit] Error loading red flags:", error);
+      toast.error("Failed to load red flags");
+    } finally {
+      setIsLoadingFlags(false);
+    }
+  }, [enhancedEntries, storesById]);
+
+  useEffect(() => {
+    if (activeTab === "flags" && redFlags === null && isAdmin) {
+      loadRedFlags();
+    }
+  }, [activeTab, redFlags, isAdmin, loadRedFlags]);
+
+  // Range-selection dropdown drives the displayed date window for Ledger + Summaries
+  useEffect(() => {
+    const { from, to } = rangeSelectionToDates(rangeSelection);
+    setFromDate(from);
+    setToDate(to);
+  }, [rangeSelection]);
+
+  // ---------- sync actions ----------
+
+  const runMonthlyBackfill = useCallback(async (months) => {
+    setIsSyncing(true);
+    syncAbortRef.current = false;
+    let totalUpserted = 0;
+    try {
+      for (let i = months - 1; i >= 0; i--) {
+        if (syncAbortRef.current) break;
+        const win = monthWindowUtc(i);
+        setSyncProgress(`Backfilling ${win.label} (${months - i} of ${months})…`);
+        const res = await invokeWithLongTimeout("squareLedgerSync", { startDate: win.start, endDate: win.end });
+        const data = res?.data || res || {};
+        if (data?.success === false) throw new Error(data?.error || "Sync failed");
+        totalUpserted += Number(data?.entriesUpserted || 0);
+        setLastSyncResult(data);
+      }
+      toast.success(`Backfill complete — ${totalUpserted} ledger entries synced`);
+      await fetchLedgerFromServer();
+    } catch (error) {
+      console.error("[SquareFinanceAudit] Backfill failed:", error);
+      toast.error(`Backfill failed: ${error?.message || error}`);
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress("");
+    }
+  }, [fetchLedgerFromServer]);
+
+  const runRecentSync = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      setSyncProgress("Syncing recent Square activity (last 3 days)…");
+      const res = await invokeWithLongTimeout("squareLedgerSync", { startDate: new Date(Date.now() - 3 * 86400000).toISOString() });
+      const data = res?.data || res || {};
+      if (data?.success === false) throw new Error(data?.error || "Sync failed");
+      setLastSyncResult(data);
+      toast.success(`Synced ${data?.entriesUpserted ?? 0} ledger entries`);
+      await fetchLedgerFromServer();
+    } catch (error) {
+      console.error("[SquareFinanceAudit] Sync failed:", error);
+      toast.error(`Sync failed: ${error?.message || error}`);
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress("");
+    }
+  }, [fetchLedgerFromServer]);
+
+  const saveCardLabel = useCallback(async (fingerprint, patch) => {
+    setCardLabels((prev) => {
+      const next = [...(prev || [])];
+      const idx = next.findIndex((l) => l.fingerprint === fingerprint);
+      if (idx >= 0) next[idx] = { ...next[idx], ...patch };else
+      next.push({ fingerprint, ...patch });
+      return next;
+    });
+  }, []);
+
+  const persistCardLabels = useCallback(async () => {
+    setIsSavingLabels(true);
+    try {
+      const settingValue = { labels: cardLabels };
+      if (cardLabelsRecordId) {
+        await base44.entities.AppSettings.update(cardLabelsRecordId, { setting_value: settingValue });
+      } else {
+        const created = await base44.entities.AppSettings.create({
+          setting_key: CARD_LABELS_KEY,
+          setting_value: settingValue,
+          description: "Square card fingerprints -> friendly labels for the finance audit"
+        });
+        if (created?.id) setCardLabelsRecordId(created.id);
+      }
+      toast.success("Card labels saved");
+    } catch (error) {
+      toast.error(`Failed to save card labels: ${error?.message || error}`);
+    } finally {
+      setIsSavingLabels(false);
+    }
+  }, [cardLabels, cardLabelsRecordId]);
+
+  const downloadCsv = useCallback(() => {
+    const header = ["Date (Edmonton)", "Location", "Card", "Type", "Entry Method", "Status", "Amount (CAD)", "Order ID", "Delivery ID", "Item / Reason"];
+    const lines = filteredEntries.map((e) => {
+      const label = e.card_fingerprint ? labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}` : e.tender_type === "CASH" ? "Cash" : "";
+      const sign = e.cls.sign;
+      const amount = sign * Number(e.amount_cents || 0) / 100;
+      return [
+      displayDateTime(e.wall), e.location_name || "", label,
+      e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode], e.entry_method || "", e.status || "",
+      amount.toFixed(2), e.order_id || "", e.delivery_id || "", e.cod_item_name || e.reason || ""].
+      map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+    });
+    const csv = [header.join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `square-ledger-${edmontonWallString(new Date()).slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filteredEntries, labelsByFingerprint]);
+
+  const loadRawPreview = useCallback(async () => {
+    setRawPreviewLoading(true);
+    try {
+      const startDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z";
+      const res = await invokeWithLongTimeout("squareLedgerSync", { rawPreview: true, limit: 100, startDate, endDate: new Date().toISOString() });
+      // invokeWithLongTimeout may return either the raw axios response
+      // ({data: {...}}) or the unwrapped body depending on the client build —
+      // every other call site on this page uses the same `res?.data || res`
+      // normalization. Mine didn't — that was the whole bug (r3 and earlier
+      // read `res.rawPreview` off the axios wrapper, which is always
+      // undefined, so the tab always bailed out or showed nothing).
+      const body = res?.data || res || {};
+      if (!body?.rawPreview) {
+        // Stale backend still serving the previous build (origin propagation
+        // lag) — it ignored the flag and ran a normal sync instead.
+        toast.error("The deployed function hasn't received the raw preview update yet. Give it a few minutes and retry.");
+        return;
+      }
+      setRawPreview(body);
+      setRawPreviewOpen(body?.entries?.length ? `${body.entries[0].source}-0` : null);
+      toast.success(`Loaded ${body?.count ?? 0} raw records`);
+    } catch (e) {
+      toast.error(`Raw preview failed: ${e?.message || e}`);
+    } finally {
+      setRawPreviewLoading(false);
+    }
+  }, []);
+
+  if (isLoadingUser || !currentUser) {
+    return <div className="p-6 text-slate-500 dark:text-slate-400">Loading…</div>;
+  }
+  if (!isAdmin) {
+    return <div className="p-6 text-slate-500 dark:text-slate-400">Admin access required.</div>;
   }
 
-  if (!currentUser || !isAppOwner(currentUser)) {
-    return <div className="p-6 text-sm text-soft">This page is only available to the App Owner.</div>;
-  }
+  const tabs = [
+  { id: "ledger", label: "Transaction Ledger", icon: Table2 },
+  { id: "summary", label: "Summaries", icon: CalendarRange },
+  { id: "cards", label: "Cards & Red Flags", icon: CreditCard },
+  { id: "health", label: "COD Sync Health", icon: RefreshCw },
+  { id: "raw", label: "Raw API (100)", icon: Braces }];
+
 
   return (
-    <div className="h-[calc(100vh-1rem)] overflow-hidden p-4 md:h-[calc(100vh-1.5rem)] md:p-6" style={{ background: "var(--bg-slate-50)" }}>
-      <div className="flex h-full w-full flex-col gap-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-body">Square COD Audit</h1>
-            <p className="text-sm text-soft">
-              Comparing collected transactions, current Square catalog items, and in-app COD deliveries using Date + Square Location ID + Amount.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={handleExport} className="gap-2">
-              <Download className="h-4 w-4" />
-              Download CSV
-            </Button>
-            <Button onClick={handleReconciliation} disabled={isReconciling} className="gap-2">
-              <RefreshCw className={`h-4 w-4 ${isReconciling ? "animate-spin" : ""}`} />
-              Trigger Reconciliation
-            </Button>
-          </div>
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-body">Square Finance Audit</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Card spends, COD collections, refunds, declines and transfers per location
+            {lastLedgerSyncAt ? ` · cached ${displayDateTime(edmontonWallString(parseAnyTimestamp(lastLedgerSyncAt)))}` : ""}
+          </p>
         </div>
-
-        <Card className="shadow-sm bg-surface border-surface">
-          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
-                {tables.transactions.length} transactions
-              </Badge>
-              <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
-                {tables.catalogItems.length} catalog items
-              </Badge>
-              <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
-                {tables.deliveries.length} in-app deliveries
-              </Badge>
-              {summary > 0 && (
-                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                  <AlertTriangle className="mr-1 h-3.5 w-3.5" />
-                  {summary} flagged rows
-                </Badge>
-              )}
-            </div>
-            <div className="text-xs text-soft">
-              Last loaded {lastLoadedAt ? format(lastLoadedAt, "MMM d, yyyy h:mm a") : "—"}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          <div className="space-y-4">
-        <AuditTable
-          title="Collected Square Transactions"
-          description="Fresh Square payment/order items used as the collected transaction audit source."
-          rows={tables.transactions}
-          defaultSortKey="date"
-          columns={[
-            { key: "date", label: "Date", headerClassName: "whitespace-nowrap w-[120px]", cellClassName: "whitespace-nowrap" },
-            { key: "storeName", label: "Store", sortValue: (row) => row.storeName },
-            { key: "locationId", label: "Square Location ID" },
-            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents, headerClassName: "whitespace-nowrap" },
-            { key: "itemName", label: "Item Name", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
-            { key: "paymentId", label: "Payment ID", headerClassName: "whitespace-nowrap" },
-            { key: "orderId", label: "Order ID", headerClassName: "whitespace-nowrap" },
-          ]}
-        />
-
-        <AuditTable
-          title="Current Square Catalog Items"
-          description="Current active COD-style catalog items available in Square."
-          rows={tables.catalogItems}
-          defaultSortKey="date"
-          columns={[
-            { key: "date", label: "Date", headerClassName: "whitespace-nowrap w-[120px]", cellClassName: "whitespace-nowrap" },
-            { key: "storeName", label: "Store", sortValue: (row) => row.storeName },
-            { key: "locationId", label: "Square Location ID" },
-            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents, headerClassName: "whitespace-nowrap" },
-            { key: "itemName", label: "Item Name", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
-            { key: "catalogObjectId", label: "Catalog Object ID", headerClassName: "whitespace-nowrap" },
-            { key: "status", label: "Status", headerClassName: "whitespace-nowrap" },
-          ]}
-        />
-
-        <AuditTable
-          title="In-App COD Deliveries"
-          description="Deliveries from the app that still require COD comparison against Square."
-          rows={tables.deliveries}
-          defaultSortKey="date"
-          columns={[
-            { key: "date", label: "Date", headerClassName: "whitespace-nowrap w-[120px]", cellClassName: "whitespace-nowrap" },
-            { key: "storeName", label: "Store", sortValue: (row) => row.storeName },
-            { key: "locationId", label: "Square Location ID" },
-            { key: "amountCents", label: "Amount", render: (row) => row.amountLabel, sortValue: (row) => row.amountCents, headerClassName: "whitespace-nowrap" },
-            { key: "deliveryId", label: "Delivery ID", headerClassName: "whitespace-nowrap" },
-            { key: "status", label: "Status", headerClassName: "whitespace-nowrap" },
-            { key: "itemName", label: "Reference", headerClassName: "whitespace-nowrap min-w-[320px]", cellClassName: "whitespace-nowrap" },
-            {
-              key: "actionMatchPercentage",
-              label: "Actions",
-              headerClassName: "whitespace-nowrap min-w-[220px]",
-              sortValue: (row) => row.actionMatchPercentage || 0,
-              render: (row) => {
-                const score = Number(row.actionMatchPercentage || 0);
-                return score > 0 ? `${score}% match` : "0% match";
-              },
-            },
-          ]}
-        />
-          </div>
+        <div className="flex items-center gap-2">
+          <Select value={rangeSelection} onValueChange={setRangeSelection}>
+            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="1">1 mo</SelectItem>
+              <SelectItem value="3">3 mo</SelectItem>
+              <SelectItem value="6">6 mo</SelectItem>
+              <SelectItem value="12">1 yr</SelectItem>
+              <SelectItem value="24">2 yrs</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" disabled={isSyncing || isLoading} onClick={runRecentSync}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} /> Refresh Recent
+          </Button>
+          <Button size="sm" disabled={isSyncing || isLoading} onClick={() => runMonthlyBackfill(rangeSelectionToMonths(rangeSelection))}>
+            <Wallet className="h-4 w-4 mr-1" /> {isSyncing ? "Syncing…" : "Full Backfill"}
+          </Button>
         </div>
       </div>
-    </div>
-  );
+
+      {(syncProgress || loadProgress) &&
+      <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-4 py-2 text-sm text-blue-700 dark:text-blue-300">
+          {syncProgress || loadProgress}
+        </div>
+      }
+
+      {lastSyncResult && !isSyncing &&
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-2 text-xs text-slate-600 dark:text-slate-400">
+          Last sync: {lastSyncResult.entriesUpserted ?? 0} entries ({lastSyncResult.entriesFailed ?? 0} failed)
+          {lastSyncResult.payoutsAvailable === false && " · payouts unavailable (missing PAYOUTS_READ scope)"}
+          {Array.isArray(lastSyncResult.errors) && lastSyncResult.errors.length > 0 && ` · ${lastSyncResult.errors.length} warnings`}
+        </div>
+      }
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((t) =>
+        <button
+          key={t.id}
+          onClick={() => {setActiveTab(t.id);if (t.id === "health") loadSyncHealth();}}
+          className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${activeTab === t.id ? "border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500 dark:text-white" : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}>
+          
+            <t.icon className="h-4 w-4" /> {t.label}
+          </button>
+        )}
+      </div>
+
+      {isLoading && entries.length === 0 ?
+      <div className="p-6 text-slate-500 dark:text-slate-400">Loading ledger…</div> :
+      entries.length === 0 ?
+      <Card><CardContent className="p-6 space-y-2">
+          <div className="font-semibold">No Square ledger data yet.</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Run a Full Backfill to pull card spends, collections, refunds and declines from Square.</div>
+        </CardContent></Card> :
+
+      <>
+          {/* Filters bar (ledger + summary) */}
+          {(activeTab === "ledger" || activeTab === "summary") &&
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+              <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Locations:</span>
+                {locations.map((l) =>
+            <label key={l.id} className="inline-flex items-center gap-1 cursor-pointer">
+                    <Checkbox
+                checked={selectedLocations.includes(l.id)}
+                onCheckedChange={(c) => setSelectedLocations((prev) => c ? [...prev, l.id] : prev.filter((x) => x !== l.id))} />
+              
+                    <span className="text-xs">{l.name}</span>
+                  </label>
+            )}
+                {selectedLocations.length > 0 &&
+            <button className="text-xs underline text-slate-500 dark:text-slate-400" onClick={() => setSelectedLocations([])}>all</button>
+            }
+              </div>
+              <Input type="date" className="w-36" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <span className="text-slate-400">→</span>
+              <Input type="date" className="w-36" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              {activeTab === "ledger" &&
+          <>
+                  <Select value={kindFilter} onValueChange={setKindFilter}>
+                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All types</SelectItem>
+                      <SelectItem value="cod">COD Collected</SelectItem>
+                      <SelectItem value="spend">Card Spends (store cards)</SelectItem>
+                        <SelectItem value="other">Other Sales</SelectItem>
+                      <SelectItem value="refund_in">Refunds (charge)</SelectItem>
+                      <SelectItem value="refund_out">Refunds (customer)</SelectItem>
+                      <SelectItem value="refund_unlinked">Refunds (unlinked)</SelectItem>
+                      <SelectItem value="decline">Declines</SelectItem>
+                      <SelectItem value="payout">Bank Transfers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-2 top-2.5 text-slate-400" />
+                    <Input className="pl-7 w-48" placeholder="Search…" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+                  </div>
+                  <Button variant="outline" size="sm" onClick={downloadCsv}><Download className="h-4 w-4 mr-1" /> CSV</Button>
+                </>
+          }
+              {activeTab === "summary" &&
+          <Select value={granularity} onValueChange={setGranularity}>
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="year">Yearly</SelectItem>
+                    <SelectItem value="month">Monthly</SelectItem>
+                    <SelectItem value="week">Weekly</SelectItem>
+                    <SelectItem value="day">Daily</SelectItem>
+                  </SelectContent>
+                </Select>
+          }
+            </div>
+        }
+
+          {/* LEDGER TAB */}
+          {activeTab === "ledger" &&
+        <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-slate-50 dark:bg-slate-900 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Location</th>
+                        <th className="px-3 py-2">Card / Tender</th>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Method</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2 text-right">Amount</th>
+                        <th className="px-3 py-2 text-right">Fee</th>
+                        <th className="px-3 py-2 text-right">Folder</th>
+                        <th className="px-3 py-2 text-right">Loan</th>
+                        <th className="px-3 py-2 text-right">Settled to Card</th>
+                        <th className="px-3 py-2">Item / Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredEntries.slice(0, ledgerLimit).map((e) => {
+                    const style = CLASS_STYLES[e.classCode] || CLASS_STYLES.other;
+                    const cardLabel = e.card_fingerprint ?
+                    labelsByFingerprint[e.card_fingerprint]?.label || `${e.card_brand || "Card"} •${e.card_last4 || ""}` :
+                    e.tender_type === "CASH" ? "Cash" : e.tender_type || "";
+                    const rowKey = `${e.entry_kind}-${e.square_id}`;
+                    const isExpanded = expandedRowKey === rowKey;
+                    const rawFields = Object.entries(e).filter(([k]) => !["cls", "classCode", "wall"].includes(k));
+                    return (
+                      <>
+                          <tr key={rowKey} onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/50 cursor-pointer">
+                            <td className="px-3 py-2 whitespace-nowrap">{displayDateTime(e.wall)}</td>
+                            <td className="px-3 py-2">{e.location_name || e.location_id}</td>
+                            <td className="px-3 py-2 text-xs">{cardLabel}</td>
+                            <td className="px-3 py-2"><Badge className={style.badge}>{e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode]}</Badge></td>
+                            <td className="px-3 py-2 text-xs">{e.entry_method || (e.tender_type === "CASH" ? "cash" : "")}</td>
+                            <td className="px-3 py-2 text-xs">{e.status}</td>
+                            <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${style.amount}`}>
+                              {e.cls.sign === -1 ? "-" : ""}{fmtCents(e.amount_cents)}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.fee_cents != null ? fmtCents(e.fee_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.folder_cents != null ? fmtCents(e.folder_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap">{e.loan_cents != null ? fmtCents(e.loan_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs text-right whitespace-nowrap font-medium">{e.settled_cents != null ? fmtCents(e.settled_cents) : ""}</td>
+                            <td className="px-3 py-2 text-xs max-w-48 truncate" title={e.cod_item_name || e.reason || ""}>
+                              {e.cod_item_name || e.reason || ""}
+                              {multiItemGroupInfo.get(e.id) && (
+                                <span className="ml-1.5 inline-flex items-center rounded border border-amber-300 bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300" title={`Multi-item transaction — item ${multiItemGroupInfo.get(e.id).position} of ${multiItemGroupInfo.get(e.id).total} in one grouped swipe`}>
+                                  {multiItemGroupInfo.get(e.id).position}/{multiItemGroupInfo.get(e.id).total} items
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded &&
+                        <tr key={`${rowKey}-raw`} className="border-b bg-slate-100/60 dark:bg-slate-900/60">
+                              <td colSpan={12} className="px-3 py-2">
+                                <div className="text-[11px] font-mono leading-5 text-slate-600 dark:text-slate-300 max-h-64 overflow-y-auto">
+                                  {rawFields.map(([k, v]) =>
+                              <div key={k}><span className="text-slate-400 dark:text-slate-500">{k}:</span> {v == null || v === "" ? "—" : String(v)}</div>
+                              )}
+                                </div>
+                              </td>
+                            </tr>
+                        }
+                          </>);
+
+                  })}
+                    </tbody>
+                  </table>
+                </div>
+                {filteredEntries.length > ledgerLimit &&
+            <div className="p-3 text-center">
+                    <Button variant="outline" size="sm" onClick={() => setLedgerLimit((l) => l + LEDGER_PAGE_SIZE * 2)}>
+                      Load more ({filteredEntries.length - ledgerLimit} remaining)
+                    </Button>
+                  </div>
+            }
+                <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                  {filteredEntries.length} of {entries.length} entries
+                </div>
+              </CardContent>
+            </Card>
+        }
+
+          {/* SUMMARY TAB */}
+          {activeTab === "summary" &&
+        <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="rounded-lg border p-3"><div className="text-xs text-slate-500 dark:text-slate-400">COD Collected</div><div className="font-bold text-emerald-600 dark:text-emerald-400">{fmtCents(totals.collected)}</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-xs text-slate-500 dark:text-slate-400">Card Spends</div><div className="font-bold text-red-600 dark:text-red-400">-{fmtCents(totals.spent)}</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-xs text-slate-500 dark:text-slate-400">Refunds</div><div className="font-bold">{fmtCents(totals.refundIn - totals.refundOut)} <span className="text-xs font-normal">({fmtCents(totals.refundIn)} in / {fmtCents(totals.refundOut)} out)</span></div></div>
+                  <div className="rounded-lg border p-3"><div className="text-xs text-slate-500 dark:text-slate-400">Net</div><div className={`font-bold ${totals.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fmtCents(totals.net)}</div></div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+                        <th className="px-3 py-2">Period</th>
+                        {summaryLocations.map((l) =>
+                    <th key={l.id} colSpan={4} className="px-3 py-2 border-l text-center">{l.name}</th>
+                    )}
+                        <th className="px-3 py-2 border-l text-right">All Net</th>
+                      </tr>
+                      <tr className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-400">
+                        <th className="px-3 py-1"></th>
+                        {summaryLocations.map((l) =>
+                    <React.Fragment key={l.id}>
+                            <th className="px-3 py-1 border-l text-right font-normal">Collected</th>
+                            <th className="px-3 py-1 text-right font-normal">Spent</th>
+                            <th className="px-3 py-1 text-right font-normal">Refunds</th>
+                            <th className="px-3 py-1 text-right font-normal">Net</th>
+                          </React.Fragment>
+                    )}
+                        <th className="px-3 py-1 border-l"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                    const periodKeys = Array.from(new Set(
+                      Array.from(summaryRows.keys()).map((k) => k.split("::")[0])
+                    )).sort().reverse();
+                    return periodKeys.map((pk) => {
+                      let allNet = 0;
+                      return (
+                        <tr key={pk} className="border-t hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                              <td className="px-3 py-2 font-medium whitespace-nowrap">{periodLabelOf(pk, granularity)}</td>
+                              {summaryLocations.map((l) => {
+                            const b = summaryRows.get(`${pk}::${l.id}`);
+                            const net = netOf(b);
+                            const refunds = refundsOf(b);
+                            allNet += net;
+                            return (
+                              <React.Fragment key={l.id}>
+                                    <td className="px-3 py-2 border-l text-right whitespace-nowrap">{b ? fmtCents(collectedOf(b)) : "–"}</td>
+                                    <td className="px-3 py-2 text-right text-red-600 dark:text-red-400 whitespace-nowrap">{b?.spent ? `-${fmtCents(b.spent)}` : "–"}</td>
+                                    <td className={`px-3 py-2 text-right whitespace-nowrap ${refunds < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>{b ? fmtCents(refunds) : "–"}</td>
+                                    <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fmtCents(net)}</td>
+                                  </React.Fragment>);
+
+                          })}
+                              <td className={`px-3 py-2 border-l text-right font-bold whitespace-nowrap ${allNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{fmtCents(allNet)}</td>
+                            </tr>);
+
+                    });
+                  })()}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  CARD LEDGER (owner spec Oct 5): Collected = ACTUAL amounts Square swept ONTO each store's card (real payout records — not the settled formula). Spent = money taken FROM the card: store-card swipes (cards used 5+ times at one store that never match a COD, auto-learned) plus any withdrawals. Refunds are separate (never in Collected). Collected − Spent − Refunds = the card's balance change, so start + Net ≈ the current card balance (matches Square Balances). Register sales stay in the Transaction Ledger tab. WIZARD WORXX cards hidden.
+                </div>
+              </CardContent>
+            </Card>
+        }
+
+          {/* CARDS & RED FLAGS TAB */}
+          {activeTab === "cards" &&
+        <div className="space-y-4">
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold">Business Cards (fingerprints)</h2>
+                    <Button size="sm" disabled={isSavingLabels} onClick={persistCardLabels}>{isSavingLabels ? "Saving…" : "Save Labels"}</Button>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Name the business Square Cards and toggle “Business card” — that flag drives the Square Balances card-spend tracking. The Audit summary counts ALL sales as Collected regardless of which card paid; only real card purchases show as Spent.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+                          <th className="px-2 py-1">Card</th>
+                          <th className="px-2 py-1">Label</th>
+                          <th className="px-2 py-1">Business</th>
+                          <th className="px-2 py-1 text-right">Sales</th>
+                          <th className="px-2 py-1 text-right">Volume</th>
+                          <th className="px-2 py-1">Locations</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fingerprintStats.length === 0 &&
+                    <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">No card fingerprints yet — run a sync.</td></tr>
+                    }
+                        {fingerprintStats.map((st) => {
+                      const label = labelsByFingerprint[st.fingerprint];
+                      return (
+                        <tr key={st.fingerprint} className="border-b last:border-0">
+                              <td className="px-2 py-1.5 text-xs">{st.brand} •{st.last4} {st.likelyBusinessCard && !label?.is_business_card && <span className="text-amber-600 text-[10px]">(likely business)</span>}</td>
+                              <td className="px-2 py-1.5">
+                                <Input
+                              className="h-7 w-44 text-xs"
+                              placeholder="e.g. Callingwood's Card"
+                              value={label?.label || ""}
+                              onChange={(e) => saveCardLabel(st.fingerprint, { label: e.target.value })} />
+                            
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <Checkbox
+                              checked={Boolean(label?.is_business_card)}
+                              onCheckedChange={(c) => saveCardLabel(st.fingerprint, { is_business_card: Boolean(c) })} />
+                            
+                              </td>
+                              <td className="px-2 py-1.5 text-right text-xs">{st.saleCount}{st.declineCount > 0 && <span className="text-amber-600"> ({st.declineCount} declines)</span>}</td>
+                              <td className="px-2 py-1.5 text-right text-xs font-medium">{fmtCents(st.saleTotal)}</td>
+                              <td className="px-2 py-1.5 text-xs">{st.locations.join(", ")}</td>
+                            </tr>);
+
+                    })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold flex items-center gap-1.5"><Flag className="h-4 w-4 text-red-500" /> Failed / Returned deliveries with COD activity (last 90 days)</h2>
+                    <Button variant="outline" size="sm" disabled={isLoadingFlags} onClick={() => loadRedFlags()}>
+                      <RefreshCw className={`h-4 w-4 mr-1 ${isLoadingFlags ? "animate-spin" : ""}`} /> Refresh
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+                          <th className="px-2 py-1">Date</th>
+                          <th className="px-2 py-1">Store</th>
+                          <th className="px-2 py-1">Status</th>
+                          <th className="px-2 py-1">COD Item</th>
+                          <th className="px-2 py-1 text-right">Collected</th>
+                          <th className="px-2 py-1">Refund</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {!redFlags && isLoadingFlags && <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">Loading…</td></tr>}
+                        {redFlags && redFlags.rows.length === 0 && <tr><td colSpan={6} className="px-2 py-3 text-sm text-slate-500">No failed/returned deliveries in the last 90 days.</td></tr>}
+                        {redFlags?.rows.map((r) =>
+                    <tr key={r.id} className="border-b last:border-0">
+                            <td className="px-2 py-1.5 whitespace-nowrap">{r.date}</td>
+                            <td className="px-2 py-1.5">{r.storeName}</td>
+                            <td className="px-2 py-1.5"><Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{r.status}</Badge></td>
+                            <td className="px-2 py-1.5 text-xs max-w-56 truncate" title={r.collected?.item || ""}>{r.collected?.item || "—"}</td>
+                            <td className="px-2 py-1.5 text-right whitespace-nowrap">{r.collected ? fmtCents(r.collected.amount) : <span className="text-slate-400">not collected</span>}</td>
+                            <td className="px-2 py-1.5">
+                              {r.refund ?
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Refunded {fmtCents(r.refund.amount)}</Badge> :
+                        r.needsRefund ?
+                        <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"><AlertTriangle className="h-3 w-3 mr-1" />No refund</Badge> :
+
+                        <span className="text-slate-400 text-xs">n/a</span>
+                        }
+                            </td>
+                          </tr>
+                    )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <h3 className="text-sm font-semibold pt-2">Unlinked refunds (eyeball against failed/returned deliveries)</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Refunds with no COD delivery link — likely Rx charge refunds. Cross-check dates/stores against the table above.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+                          <th className="px-2 py-1">Date</th>
+                          <th className="px-2 py-1">Location</th>
+                          <th className="px-2 py-1 text-right">Amount</th>
+                          <th className="px-2 py-1">Status</th>
+                          <th className="px-2 py-1">Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {redFlags?.unlinkedRefunds.length === 0 && <tr><td colSpan={5} className="px-2 py-3 text-sm text-slate-500">No unlinked refunds.</td></tr>}
+                        {redFlags?.unlinkedRefunds.map((e) =>
+                    <tr key={e.id || e.square_id} className="border-b last:border-0">
+                            <td className="px-2 py-1.5 whitespace-nowrap">{displayDateTime(e.wall)}</td>
+                            <td className="px-2 py-1.5">{e.location_name || e.location_id}</td>
+                            <td className="px-2 py-1.5 text-right font-medium">{fmtCents(e.amount_cents)}</td>
+                            <td className="px-2 py-1.5 text-xs">{e.status}</td>
+                            <td className="px-2 py-1.5 text-xs">{e.reason || "—"}</td>
+                          </tr>
+                    )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+        }
+
+          {/* HEALTH TAB */}
+          {activeTab === "raw" &&
+        <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Button size="sm" onClick={loadRawPreview} disabled={rawPreviewLoading}>
+                    {rawPreviewLoading ? "Fetching from Square..." : "Fetch first 100 raw records"}
+                  </Button>
+                  {rawPreview && !rawPreviewLoading &&
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {rawPreview.count} shown of {rawPreview.pulled} pulled · window {String(rawPreview.windowStart || "").slice(0, 10)} → {String(rawPreview.windowEnd || "").slice(0, 10)}
+                      {Array.isArray(rawPreview.errors) && rawPreview.errors.length > 0 && ` · ${rawPreview.errors.length} warnings`}
+                    </div>
+              }
+                </div>
+                {Array.isArray(rawPreview?.errors) && rawPreview.errors.length > 0 &&
+            <div className="text-xs text-amber-600 dark:text-amber-400">{rawPreview.errors.slice(0, 5).join(" · ")}</div>
+            }
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Tap a record to see the full raw JSON exactly as Square returned it (pre-mapping, no DB writes).
+                </div>
+                <div className="text-[10px] text-slate-400 dark:text-slate-500">raw preview build r4</div>
+                <div className="space-y-2">
+                  {(rawPreview?.entries || []).map((rec, i) => {
+                const key = `${rec.source}-${i}`;
+                const open = rawPreviewOpen === key;
+                return (
+                  <div key={key} className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <button onClick={() => setRawPreviewOpen(open ? null : key)} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                          <span className="text-xs font-semibold">
+                            {rec.at ? displayDateTime(wallOf(rec.at)) : "—"} · <span className="uppercase text-slate-500 dark:text-slate-400">{rec.source}</span> · {rec.location}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{open ? "hide" : "show raw"}</span>
+                        </button>
+                        {open &&
+                    <pre className="max-h-96 overflow-auto bg-slate-50 dark:bg-slate-900 leading-4 p-3 whitespace-pre-wrap break-all text-xs">{JSON.stringify(rec.raw, null, 2)}</pre>
+                    }
+                      </div>);
+
+              })}
+                </div>
+              </CardContent>
+            </Card>
+        }
+
+          {activeTab === "health" &&
+        <div className="space-y-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Health of the COD catalog sync jobs (Square Catalog DB Daily Prune, reconciles).
+              </p>
+              <SyncHealthPanel runs={syncHealth.runs || []} logs={syncHealth.logs || []} />
+            </div>
+        }
+        </>
+      }
+    </div>);
+
 }

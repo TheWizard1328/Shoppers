@@ -6,6 +6,7 @@ import { MapPinOff, AlertCircle, Activity, RefreshCw, Satellite, Eye, EyeOff } f
 import { locationTracker } from "../utils/locationTracker";
 import { getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNativeApp, requestNativeLocationAuthorization } from "../utils/locationProviders/capacitorRuntime";
 import { base44 } from "@/api/base44Client";
+import { localUpdateAppUser } from "../utils/entityMutations";
 import { userHasRole, isAppOwner } from "../utils/userRoles";
 import { isMobileDevice as checkIsMobileDevice } from "../utils/deviceUtils";
 
@@ -204,7 +205,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           }
         }
 
-        const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
+        const updatedAppUser = await localUpdateAppUser(appUserId, {
           location_tracking_enabled: true
         });
 
@@ -237,7 +238,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         // TURNING OFF: Hide location from other drivers
         setPermissionStatus('Disabling location sharing...');
 
-        const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
+        const updatedAppUser = await localUpdateAppUser(appUserId, {
           location_tracking_enabled: false
         });
 

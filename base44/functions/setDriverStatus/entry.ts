@@ -11,62 +11,63 @@ const isNaiveTimestamp = (str) => {
   return !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str);
 };
 
+// Moment the Nov 2026 fall-back is skipped: 1st Sun Nov 2026, 2:00 local MDT = 08:00 UTC
+const ALBERTA_PERMANENT_UTC6_MS = Date.UTC(2026, 10, 1, 8, 0, 0);
+
 // Converts a naive "YYYY-MM-DDTHH:MM:SS" string that represents America/Edmonton
 // wall-clock time into a true UTC ISO instant.
 //
-// ROOT CAUSE THIS FIXES: this backend function runs on a UTC server. new Date()
-// on a naive string with no timezone suffix parses it as UTC (per the JS spec's
-// "date-time string without offset" rule for the runtime's local zone, which on
-// this server IS UTC) — NOT as Edmonton local time. That silently shifted every
-// activity-segment boundary derived from a naive timestamp (client anchorTime,
-// or a DB actual_delivery_time fallback) by Edmonton's UTC offset (6h MDT / 7h
-// MST) into the past, corrupting on-duty segment durations.
-//
-// Uses a 2-pass Intl.DateTimeFormat convergence so it's correct even for
-// timestamps that fall near a DST transition.
+// Pure UTC arithmetic — NO Intl and NO timezone-engine reads anywhere in this
+// conversion. History: naive strings were once Date-parsed as UTC here (6-7h
+// shift); the Intl-based fix that followed was itself vulnerable to premature or
+// broken tz databases describing Alberta's legislated change early (seen on
+// fleet Windows machines reporting UTC-7 before the real Nov 1 2026 switch).
+// The offset is now computed from the legislated rule directly.
 const edmontonNaiveToUTCISOString = (naiveStr) => {
   const match = String(naiveStr).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
   if (!match) return new Date(naiveStr).toISOString();
+
+  // Pure-UTC Alberta wall math — NO Intl, NO timezone-engine reads. This server's
+  // tz database (like some client machines') may describe Alberta's legislated
+  // change prematurely (UTC-7 before the real Nov 1 2026 switch), so the old
+  // Intl.DateTimeFormat({timeZone:'America/Edmonton'}) convergence could convert
+  // naive wall strings an hour off. The rule: standard North American DST
+  // (2nd Sun Mar 2:00 local -> 1st Sun Nov 2:00 local, -6/-7) through October
+  // 2026, then permanent UTC-6 from Nov 1 2026 (08:00 UTC).
   const y = Number(match[1]), mo = Number(match[2]), d = Number(match[3]);
-  const h = Number(match[4]), mi = Number(match[5]), s = Number(match[6]);
-  const targetMs = Date.UTC(y, mo - 1, d, h, mi, s); // naive components read as if UTC
+  const h = Number(match[4]), mi = Number(match[5]), sec = Number(match[6]);
 
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Edmonton',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-  });
-
-  let guessMs = targetMs;
-  for (let i = 0; i < 2; i++) {
-    const parts = dtf.formatToParts(new Date(guessMs));
-    const get = (type) => Number(parts.find((p) => p.type === type)?.value);
-    let edmH = get('hour'); if (edmH === 24) edmH = 0;
-    const edmProjectedMs = Date.UTC(get('year'), get('month') - 1, get('day'), edmH, get('minute'), get('second'));
-    const offsetMs = guessMs - edmProjectedMs; // how far ahead UTC is vs Edmonton at this instant
-    guessMs = targetMs + offsetMs;
-  }
-  return new Date(guessMs).toISOString();
+  const albertaOffsetHoursForWallDate = (yy, mm, dd) => {
+    if (Date.UTC(yy, mm - 1, dd) >= ALBERTA_PERMANENT_UTC6_MS) return -6;
+    const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(yy, monthIdx, 1)).getUTCDay()) % 7);
+    const afterMar = mm - 1 > 2 || (mm - 1 === 2 && dd >= firstSundayDate(2) + 7);
+    const beforeNov = mm - 1 < 10 || (mm - 1 === 10 && dd < firstSundayDate(10));
+    return afterMar && beforeNov ? -6 : -7;
+  };
+  const offsetHours = albertaOffsetHoursForWallDate(y, mo, d);
+  return new Date(Date.UTC(y, mo - 1, d, h, mi, sec) - offsetHours * 3600000).toISOString();
 };
 
-// Normalizes any timestamp that MIGHT be a naive Edmonton-local string into a
-// real UTC ISO string. Already-correct 'Z'/offset timestamps pass through untouched.
 const normalizeToUTC = (timestamp) => {
   if (!timestamp) return timestamp;
   return isNaiveTimestamp(timestamp) ? edmontonNaiveToUTCISOString(timestamp) : timestamp;
 };
 
 const getEdmDate = () => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Edmonton',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date());
-  const year = parts.find((p) => p.type === 'year')?.value;
-  const month = parts.find((p) => p.type === 'month')?.value;
-  const day = parts.find((p) => p.type === 'day')?.value;
-  return `${year}-${month}-${day}`;
+  // Pure-UTC Alberta date (no Intl / tz-engine reads — see comment above)
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
+  const utcMs = now.getTime();
+  if (utcMs < ALBERTA_PERMANENT_UTC6_MS) {
+    const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);
+    const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);
+    const offsetHours = utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
+    const local = new Date(utcMs + offsetHours * 3600000);
+    return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
+  }
+  const local = new Date(utcMs - 6 * 3600000);
+  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
 };
 
 /**

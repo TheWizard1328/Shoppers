@@ -25,15 +25,11 @@
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "It is 8am \u2014 the daily driver weather briefing is running now. Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver briefing function, which pushes each scheduled/default/route driver today's weather + day preview and returns the full result JSON):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverWeatherBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, send the owner a SHORT WhatsApp message (he uses text-to-speech \u2014 keep it under ~350 characters, no markdown, no emoji). Include only: how many drivers got the briefing pushed, today's weather summary (city, condition, temps), and any drivers where weather data failed or pushes errored. Broadcast it via broadcast_message, then stop. If zero drivers were briefed, say so in one sentence.",
+            "message": "It is 8am — the daily driver weather briefing is running now. Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver briefing function, which pushes each scheduled/default/route driver today's weather + day preview and returns the full result JSON):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverWeatherBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, send the owner a SHORT WhatsApp message (he uses text-to-speech — keep it under ~350 characters, no markdown, no emoji). Include only: how many drivers got the briefing pushed, today's weather summary (city, condition, temps), and any drivers where weather data failed or pushes errored. Broadcast it via broadcast_message, then stop. If zero drivers were briefed, say so in one sentence.",
             "x-base44": {
               "description": "Push weather + day preview to scheduled/default drivers, brief the owner",
               "title": "Send driver weather briefings"
             }
-          },
-          "x-base44": {
-            "description": "Push weather + day preview to scheduled/default drivers",
-            "title": "Send driver weather briefings"
           }
         }
       }

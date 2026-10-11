@@ -7,7 +7,7 @@
  *   Advanced: priority, stop_on_match, cooldown, shadow_mode
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2, Plus, Trash2, Save, X, GripVertical, Bell, BellRing,
-  Eye, EyeOff, Zap, Clock, Copy, ChevronDown, ChevronRight, FlaskConical, CheckCircle
+  Eye, EyeOff, Pencil, Clock, Copy, ChevronDown, ChevronRight, FlaskConical, CheckCircle
 } from 'lucide-react';
 import { loadEnabledRules, clearRuleCache, dispatchMessageRules, renderTemplate } from '@/components/utils/messageRuleEngine';
 import { applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -58,6 +58,9 @@ const FIELD_OPTIONS = [
   { value: 'user_role',                 label: 'User Role',             type: 'role' },
   { value: 'user_roles',                label: 'User Roles (Contains)', type: 'roles' },
   { value: 'page_context',              label: 'Page/Screen',           type: 'text' },
+  { value: 'patient_name',              label: 'Patient Name',          type: 'text' },
+  { value: 'patient_notes',             label: 'Patient Notes',         type: 'text' },
+  { value: 'delivery_notes',            label: 'Driver Notes',          type: 'text' },
 ];
 
 const OPERATOR_OPTIONS = [
@@ -136,14 +139,21 @@ const ACTION_PRESETS_BY_EVENT = {
 // ── Template variable suggestions ───────────────────────────────────────────
 
 const TEMPLATE_VARIABLES = [
-  '{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
+  '{{driverName}}', '{{adminName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
   '{{pendingCount}}', '{{pendingCountLabel}}', '{{existingStopCount}}', '{{hasExistingStops}}',
-  '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
+  '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}', '{{date}}',
 ];
 
 // Sample values used to render a test message preview
 const SAMPLE_DATA = {
   driverName: 'John D.',
+  // {{adminName}} — the real AppUser name of whoever performed the action
+  // (the admin/dispatcher who assigned or accepted stops), NOT the platform
+  // admin. Use it in place of a generic "An Administrator" phrase, e.g.
+  // "{{adminName}} has assigned you...". If that same person is also the
+  // credited driver (self-service admin/driver), the push to them is
+  // automatically skipped — see MessageRuleEngine self-action bypass.
+  adminName: 'Robert T.',
   patientName: 'Jane Smith',
   storeName: 'Main Pharmacy',
   deliveryCount: '3',
@@ -155,6 +165,8 @@ const SAMPLE_DATA = {
   status: 'completed',
   timestamp: new Date().toLocaleTimeString(),
   eventName: 'Test Event',
+  // {{date}} — '' for today, 'for Tomorr ' for tomorrow, 'for Mon Oct 05 ' beyond
+  date: 'for Tomorr ',
 };
 
 // ── Entity multi-select ─────────────────────────────────────────────────────
@@ -229,6 +241,12 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
       if (!DROPDOWN_OPERATORS.includes(condition.operator)) {
         onChange(index, 'operator', 'equals');
       }
+    } else if (newField?.type === 'text') {
+      // Name/notes search fields — default to substring match, the natural
+      // operator for "find a matching string" conditions.
+      if (!['equals', 'not_equals', 'contains'].includes(condition.operator)) {
+        onChange(index, 'operator', 'contains');
+      }
     } else if (condition.operator === 'is_true' || condition.operator === 'is_false') {
       onChange(index, 'operator', 'equals');
     }
@@ -292,6 +310,8 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
 function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  // All hooks must run before any conditional early return (rules of hooks).
+  const messageTemplateRef = useRef(null);
 
   useEffect(() => {
     if (open && initialRule) {
@@ -343,7 +363,25 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
   };
 
   const insertVariable = (varStr) => {
-    setDraft((d) => ({ ...d, message_template: (d.message_template || '') + varStr }));
+    // Insert at the TEXTAREA'S CURRENT CURSOR POSITION, not the end of the
+    // text. Reads selectionStart at click time; if the textarea never had
+    // focus this falls back to appending. After the state update lands,
+    // refocus and park the caret right after the inserted variable.
+    const el = messageTemplateRef.current;
+    const current = draft.message_template || '';
+    const pos = el && typeof el.selectionStart === 'number' && el.selectionStart <= current.length
+      ? el.selectionStart
+      : current.length;
+    const next = current.slice(0, pos) + varStr + current.slice(pos);
+    setDraft((d) => ({ ...d, message_template: next }));
+    requestAnimationFrame(() => {
+      const ta = messageTemplateRef.current;
+      if (ta) {
+        ta.focus();
+        const caret = pos + varStr.length;
+        try { ta.setSelectionRange(caret, caret); } catch (_) { /* detached */ }
+      }
+    });
   };
 
   // ── Action button handlers ───────────────────────────────────────────────
@@ -470,9 +508,10 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Message Template</Label>
               <Textarea
+                ref={messageTemplateRef}
                 value={draft.message_template}
                 onChange={(e) => setDraft({ ...draft, message_template: e.target.value })}
-                placeholder="Enter message… use {{driverName}}, {{patientName}}, etc."
+                placeholder="Enter message… use {{driverName}}, {{patientName}}, {{date}}, etc."
                 className="text-sm min-h-[60px]"
               />
               <div className="flex flex-wrap gap-1 mt-1.5">
@@ -619,7 +658,6 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
 // ── Rule card ────────────────────────────────────────────────────────────────
 
 function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drivers, onTest, testingId, testSuccessId, testPushStatus }) {
-  const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
   const [expanded, setExpanded] = useState(false);
 
   const recipientLabels = (rule.recipients || []).map((r) => {
@@ -655,7 +693,6 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold truncate">{rule.rule_label}</span>
-            <Badge variant="outline" className="text-xs shrink-0">{eventLabel}</Badge>
             {rule.shadow_mode && <Badge variant="outline" className="text-xs shrink-0 bg-amber-50 dark:bg-amber-950 border-amber-300 text-amber-700"><Eye className="w-2.5 h-2.5 mr-1" />Shadow</Badge>}
             {rule.cooldown_seconds > 0 && <Badge variant="outline" className="text-xs shrink-0"><Clock className="w-2.5 h-2.5 mr-1" />{rule.cooldown_seconds}s</Badge>}
             <Badge variant="outline" className="text-xs shrink-0">#{rule.priority || 10}</Badge>
@@ -684,25 +721,31 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
-          <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
-            className={`h-7 px-2 text-xs gap-1 ${testSuccessId === rule.id ? 'border-green-500 text-green-600' : ''}`}>
-            {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
-            {testSuccessId === rule.id ? 'Sent!' : 'Test'}
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
-            {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(rule)}>
-            <Zap className="w-3.5 h-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onDuplicate(rule)}>
-            <Copy className="w-3.5 h-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => onDelete(rule)}>
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+        <div className="flex flex-col gap-1.5 items-end shrink-0">
+          {/* Row 1: enable toggle + Test + expand chevron */}
+          <div className="flex items-center gap-1">
+            <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
+            <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
+              className={`h-7 px-2 text-xs gap-1 ${testSuccessId === rule.id ? 'border-green-500 text-green-600' : ''}`}>
+              {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {testSuccessId === rule.id ? 'Sent!' : 'Test'}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </Button>
+          </div>
+          {/* Row 2: edit + copy + delete */}
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(rule)}>
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onDuplicate(rule)}>
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => onDelete(rule)}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -920,11 +963,13 @@ export default function MessageRuleBuilder() {
             </h4>
             <Badge variant="outline" className="text-xs">{rulesByEvent[eventKey].length}</Badge>
           </div>
-          {rulesByEvent[eventKey].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((rule) => (
-            <RuleCard key={rule.id} rule={rule} onEdit={(r) => { setEditingRule(r); setShowEditor(true); }}
-              onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers}
-              onTest={handleTest} testingId={testingId} testSuccessId={testSuccessId} testPushStatus={testPushStatus} />
-          ))}
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {rulesByEvent[eventKey].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((rule) => (
+              <RuleCard key={rule.id} rule={rule} onEdit={(r) => { setEditingRule(r); setShowEditor(true); }}
+                onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers}
+                onTest={handleTest} testingId={testingId} testSuccessId={testSuccessId} testPushStatus={testPushStatus} />
+            ))}
+          </div>
         </div>
       ))}
 

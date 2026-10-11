@@ -328,8 +328,8 @@ function DeliveryMarkers({
 
     const markerStoreColor = delivery.store ? getStoreColor(delivery.store) : null;
     const icon = delivery.useSimpleCircle || delivery.isOtherDriver
-      ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor)
-      : createDeliveryIcon(delivery.status, delivery.pinColor, isFanned, delivery.status === 'pending' ? null : delivery.number, delivery.isFirstTime, delivery.duplicateCount, currentZoom, delivery.isNextInLine, isHighlighted, hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver, delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, delivery.fridge_item === true);
+      ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor, delivery.isDriverOnDuty)
+      : createDeliveryIcon(delivery.status, delivery.pinColor, isFanned, delivery.status === 'pending' ? null : delivery.number, delivery.isFirstTime, delivery.duplicateCount, currentZoom, delivery.isNextInLine, isHighlighted, hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver, delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, delivery.fridge_item === true, delivery.isDriverOnDuty);
 
     const handlers = delivery.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isDeliveryFaded) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); handleMarkerClickForFanning(delivery, 'delivery'); },

@@ -116,8 +116,8 @@ export default function PatientLogin() {
     <div
       className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4"
       style={{
-        paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))',
-        paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
+        paddingTop: 'calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))',
+        paddingBottom: 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))',
       }}
     >
       <div className="w-full max-w-md">

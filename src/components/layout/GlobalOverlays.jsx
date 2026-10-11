@@ -1,8 +1,8 @@
-import React from 'react';
 import ConnectionRecoveryBanner from './ConnectionRecoveryBanner';
 import MobileOverlayBackHandler from './MobileOverlayBackHandler';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
 import PushNotificationPrompt from '../common/PushNotificationPrompt';
+import DriverAvailabilityPrompt from './DriverAvailabilityPrompt';
 import CitySelectionPopup from '../cities/CitySelectionPopup';
 import DeviceRegistration from '../devices/DeviceRegistration';
 import MessagingPanel from '../messaging/MessagingPanel';
@@ -11,6 +11,7 @@ import ConflictManager from '../dashboard/ConflictManager';
 import MessageNotificationBalloon from '../messaging/MessageNotificationBalloon';
 import WebSocketDiagnosticsCard from './WebSocketDiagnosticsCard';
 import { isAppOwner, userHasRole } from '../utils/userRoles';
+import { useSquareLedgerCacheGuard } from '../utils/squareLedgerOfflineManager';
 import { useDevice } from '../utils/DeviceContext';
 
 /**
@@ -40,9 +41,11 @@ export default function GlobalOverlays({
   setPendingBlinkConversationId,
 }) {
   const { isMobile, isTabletPortrait } = useDevice();
+  // Owner-only: Square finance-audit ledger IDB cache is purged for non-owner accounts
+  useSquareLedgerCacheGuard(currentUser);
   return (
     <>
-      <ConnectionRecoveryBanner />
+      <ConnectionRecoveryBanner currentUser={currentUser} />
       <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => {if (sidebarOpen) setSidebarOpen(false);if (showMessaging) {setShowMessaging(false);setInitialConversation(null);}if (showInviteQRModal) setShowInviteQRModal(false);if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));}} />
 
       {/* PWA Install Prompt */}
@@ -50,6 +53,10 @@ export default function GlobalOverlays({
 
       {/* Push Notification Permission Prompt */}
       <PushNotificationPrompt userId={currentUser?.id} />
+
+      {/* Driver-side Yes/No prompt for an active availability request —
+          the in-app fallback for pushes received while the app was killed */}
+      <DriverAvailabilityPrompt currentUser={currentUser} />
 
       {showCitySelectionPopup && currentUser &&
       <CitySelectionPopup

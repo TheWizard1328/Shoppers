@@ -6,6 +6,7 @@ import { getRemoteLoggingSettings } from '@/components/utils/configCache';
 
 const STORAGE_KEY = 'rxdeliver_remote_log_buffer';
 const SESSION_KEY = 'rxdeliver_remote_log_session_id';
+const SETTINGS_STORAGE_KEY = 'rxdeliver_remote_log_settings';
 const MAX_BUFFER = 200;
 
 let initialized = false;
@@ -101,7 +102,19 @@ const loadSettings = async (force = false) => {
       .then((settings) => {
         activeSettings = settings;
         settingsCheckedAt = Date.now();
+        try { if (settings) localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings)); } catch {}
         return activeSettings;
+      })
+      .catch((error) => {
+        try {
+          const cached = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || 'null');
+          if (cached) {
+            activeSettings = cached;
+            settingsCheckedAt = Date.now();
+            return cached;
+          }
+        } catch {}
+        throw error;
       })
       .finally(() => {
         settingsPromise = null;
@@ -183,7 +196,7 @@ const scheduleFlush = (interval) => {
   }, interval);
 };
 
-const enqueue = async (level, args) => {
+const enqueue = async (level, args, extra = {}) => {
   if (suppressConsoleCapture) return;
   const settings = activeSettings || await loadSettings();
   if (!settings?.enabled) return;
@@ -207,6 +220,7 @@ const enqueue = async (level, args) => {
   current.push({
     level,
     message,
+    ...(extra.eventType ? { event_type: extra.eventType } : {}),
     timestamp: new Date().toISOString(),
     user_id: me?.id || null,
     user_name: me?.full_name || null,
@@ -218,7 +232,8 @@ const enqueue = async (level, args) => {
     metadata: {
       device_name: currentDevice?.device_name || null,
       device_os: currentDevice?.device_info?.os || os || null,
-      device_type: currentDevice?.device_info?.device_type || deviceType || null
+      device_type: currentDevice?.device_info?.device_type || deviceType || null,
+      ...(extra.metadata || {})
     }
   });
   writeBuffer(current);
@@ -233,7 +248,9 @@ export const remoteLogger = {
   info: (...args) => enqueue('info', args),
   warn: (...args) => enqueue('warn', args),
   error: (...args) => enqueue('error', args),
-  debug: (...args) => enqueue('debug', args)
+  debug: (...args) => enqueue('debug', args),
+  event: (eventType, message, metadata = {}, level = 'warn') =>
+    enqueue(level, [`[DEVICE_HEALTH] ${eventType} | ${message}`], { eventType, metadata })
 };
 
 export const initRemoteLogger = async () => {

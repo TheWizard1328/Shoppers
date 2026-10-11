@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { haversineMeters } from '@/components/utils/geoUtils';
-import { MapContainer, Marker, Pane, Polyline, Popup } from "react-leaflet";
+import { MapContainer, Pane, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { CachedTileLayer } from "../utils/hereTileCache";
-import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 
 
@@ -13,7 +12,7 @@ const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z
 const buildHereSatelliteTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
 const buildHereHybridBaseTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
 const buildHereHybridOverlayTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=hybrid.day&size=512&apiKey=${apiKey}`;
-import { isMobileDevice } from "../utils/deviceUtils";
+import { isMobileDevice, getUserAgentInfo } from "../utils/deviceUtils";
 import { getHereApiKey } from "../utils/hereApiKeyStore";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole, isAppOwner } from "../utils/userRoles";
@@ -24,6 +23,8 @@ import { buildMapPadding } from "./DashboardHelpers";
 import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } from "./completedRouteView";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
+import LiveDriverLocationMarker from "./LiveDriverLocationMarker";
+import { decodeGooglePolyline } from "../utils/dynamicPolylineManager";
 import HereTileUsageTracker from "./HereTileUsageTracker";
 import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
@@ -35,6 +36,7 @@ import { createLiveLocationDot, bucketZoom } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
 import { getInterStoreLocationSync, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
 import { countLegendStops } from "./legendStopCounter";
+import { getCurrentDevice } from "../utils/deviceManager";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -574,6 +576,7 @@ function DeliveryMap({
           number: delivery.display_stop_order || delivery.stop_order || 0,
           isFirstTime: !!delivery.first_delivery,
           isNextInLine: !!delivery.isNextDelivery,
+          isDriverOnDuty: driver?.driver_status === 'on_duty',
           markerType: "delivery",
           useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver) || useDispatcherPlaceholder,
           isOtherDriver: isOtherDriver || useDispatcherPlaceholder,
@@ -621,7 +624,8 @@ function DeliveryMap({
         markerType: "pickup",
         isInterStorePickup: isInterStore,
         useSimpleCircle: false,
-        isOtherDriver
+        isOtherDriver,
+        isDriverOnDuty: driver?.driver_status === 'on_duty'
       });
     });
 
@@ -801,8 +805,67 @@ function DeliveryMap({
     return prevDriverLocationMarkersRef.current;
   }, [safeUsers, currentUser, deliveriesForLocationFilter, selectedDate, isMobile, driverNameLookupMap, overlayDriverId, selectedDriverId, showOtherDriverDeliveries]);
 
+  // FOLDABLE FIX (Sep 30 2026): getUserAgentInfo() classifies Android by
+  // innerWidth (>768px => 'Tablet'), so a Z Fold opened to its inner screen
+  // is 'Tablet', not 'Mobile'. isMobileDevice() === (deviceType === 'Mobile')
+  // is memoized ONCE per module load, and this component memoizes it again
+  // with [] deps — so the app booted while unfolded kept isMobile=false for
+  // the whole session and the driver's OWN blue dot (this marker) vanished,
+  // even after folding closed, until the app was restarted on the outer
+  // screen. The dot's visibility must follow the PHYSICAL device (any
+  // handheld: phone OR tablet), never the viewport-width classification —
+  // only real desktop browsers should be excluded.
+  const isHandheldDevice = useMemo(() => {
+    try {
+      const { deviceType } = getUserAgentInfo();
+      return deviceType === 'Mobile' || deviceType === 'Tablet';
+    } catch (_) {
+      return isMobileDevice();
+    }
+  }, []);
+
+  // ── PRIMARY-DEVICE RESOLUTION (Sep 30 2026 owner directive) ─────────────────
+  // The driver's OWN blue dot renders on the registered PRIMARY device ONLY —
+  // phone, tablet, foldable inner/outer screen, portrait or landscape are all
+  // irrelevant; only primary-device status decides. Mirrors Dashboard.jsx's
+  // canonical rule exactly: null device record => primary (unregistered =
+  // assume primary); inactive or explicit is_primary_tracker === false =>
+  // non-primary. Non-primary devices see the driver through the shared
+  // DriverLocationMarkers self marker (server-synced coords from the primary
+  // phone), which is exactly what they should show. Initialized from
+  // window.__isPrimaryDevice (set by Dashboard.jsx / locationTracker when
+  // known) so the dot never flickers in on a non-primary device.
+  const [isPrimaryTrackerDevice, setIsPrimaryTrackerDevice] = useState(() =>
+    typeof window !== "undefined" ? window.__isPrimaryDevice === true : false
+  );
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+    let retryTimer = null;
+    const resolvePrimary = (attempt = 1) => {
+      getCurrentDevice(currentUser.id).then((device) => {
+        if (cancelled) return;
+        if (device === null && attempt === 1) {
+          // null on first attempt could be a stale cache hit — retry once after 5s
+          retryTimer = setTimeout(() => resolvePrimary(2), 5000);
+          return;
+        }
+        const primary = device === null
+          || (device.status !== "inactive" && device.is_primary_tracker !== false);
+        setIsPrimaryTrackerDevice(primary);
+      }).catch(() => {
+        if (!cancelled) setIsPrimaryTrackerDevice(true);
+      });
+    };
+    resolvePrimary(1);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [currentUser?.id]);
+
   const currentDriverMarker = useMemo(() => {
-    if (!isMobile || !currentUser) return null;
+    if (!currentUser) return null;
     const today = getEdmDate();
     if (selectedDate && selectedDate < today) return null;
 
@@ -811,6 +874,15 @@ function DeliveryMap({
     const isCurrentUserDispatcher = userHasRole(currentUser, "dispatcher");
     const isPureDispatcher = isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin;
     if (!(isCurrentUserDriver || isCurrentUserAdmin) || isPureDispatcher) return null;
+
+    // Drivers: PRIMARY-device gate ONLY (owner directive Sep 30 2026). Screen
+    // size, fold state, and orientation are irrelevant — the blue self-dot
+    // shows on the driver's primary device and nowhere else. Secondary
+    // devices follow the driver via the shared server-synced marker.
+    if (isCurrentUserDriver && !isPrimaryTrackerDevice) return null;
+    // Admins (non-driver): keep the handheld gate — desktop admin browsers
+    // stay excluded; an admin's own location rarely exists anyway.
+    if (!isCurrentUserDriver && !isHandheldDevice) return null;
 
     let locationData = currentDriverLocation;
     if (!locationData?.latitude || !locationData?.longitude) {
@@ -825,7 +897,39 @@ function DeliveryMap({
     }
 
     return { ...locationData, driver: currentUser, driverId: currentUser.id, driver_id: currentUser.id };
-  }, [currentDriverLocation, safeUsers, currentUser, isMobile, selectedDate]);
+  }, [currentDriverLocation, safeUsers, currentUser, isHandheldDevice, isPrimaryTrackerDevice, selectedDate]);
+
+  // ── Road geometry for the self-marker polyline-follow interpolation ──────────
+  // The next stop's leg polyline (origin → stop, including the live-GPS via
+  // point) is the road path the driver is currently driving. LiveDriverLocationMarker
+  // uses it to glide the blue dot ALONG THE ROAD between 5s GPS fixes instead of
+  // stepping (Sep 18 2026 battery work: native fixes reduced 1s → 5s + 10m filter).
+  // Display-only — nothing here feeds geofences, ETAs, breadcrumbs, or the DB.
+  const livePathCoords = useMemo(() => {
+    try {
+      const selfId = currentUser?.id;
+      if (!selfId) return null;
+      const mine = [...pickupMarkers, ...deliveryMarkers].filter(
+        (stop) => stop && stop.driver_id === selfId
+          && !FINISHED_STATUSES.includes(stop.status)
+          && stop.status !== "pending"
+          && !stop.is_cycling_marker
+      );
+      if (!mine.length) return null;
+      mine.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      const next = mine.find((stop) => stop.isNextDelivery === true) || mine[0];
+      // Delivery records store the leg geometry in `encoded_polyline` (the
+      // legacy bare `polyline` field is never written). Reading the wrong
+      // field here left livePathCoords null, so the self-marker ran in
+      // straight-line mode and arced off-route through every turn (Sep 21 fix).
+      const encoded = next?.encoded_polyline || next?.polyline;
+      if (!encoded || typeof encoded !== "string") return null;
+      const coords = decodeGooglePolyline(encoded);
+      return Array.isArray(coords) && coords.length > 1 ? coords : null;
+    } catch (_) {
+      return null;
+    }
+  }, [pickupMarkers, deliveryMarkers, currentUser?.id]);
 
   // NOTE (Robert, Sep 4 2026): the routeLocationSnapshot override on driver
   // location markers was REMOVED. The snapshot is gated to 150m/10s (its job is
@@ -875,12 +979,22 @@ function DeliveryMap({
       if (FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).complete += 1;
       else if (stop.status !== "pending") byDriver.get(stop.driver_id).incomplete += 1;
     });
+    // Normalize BOTH id forms into the set: Delivery.driver_id stores the
+    // platform user id (AppUser.user_id — verified live: Sharuk's deliveries
+    // carry 696825d8...), while home-marker driverKey uses AppUser.id
+    // (6968265f...). Without both forms the home marker's isRouteComplete
+    // never matched, so a driver's own "Go Home" button never appeared.
     const result = new Set();
     byDriver.forEach((value, key) => {
-      if (value.incomplete === 0 && value.complete > 0) result.add(key);
+      if (value.incomplete === 0 && value.complete > 0) {
+        result.add(key);
+        const u = driverLookupMap.get(key);
+        if (u?.id && u.id !== key) result.add(u.id);
+        if (u?.user_id && u.user_id !== key) result.add(u.user_id);
+      }
     });
     return result;
-  }, [deliveryMarkers, pickupMarkers]);
+  }, [deliveryMarkers, pickupMarkers, driverLookupMap]);
 
   const driverHomeVisibilityById = useMemo(() => {
     const byDriver = new Map();
@@ -1426,6 +1540,30 @@ function DeliveryMap({
     };
   }, [map, isMobile, isStatsCardExpanded, areStopCardsVisible, stopCardsHeight, effectiveTopOverlayHeight]);
 
+  // PHASE 1 ASPECT-CHANGE RE-FIT (Sep 19, 2026): Leaflet fires 'resize' when the
+  // map container's size/aspect changes (rotation, window resize, invalidateSize).
+  // Phases 2/3 stay fresh via GPS ticks + the useDriverLocationSync watchdog, but
+  // Phase 1's fitBounds is one-shot — an aspect change after the fit leaves markers
+  // occluded by the stats card / stop cards. Relay a debounced window event so
+  // Dashboard can re-fire the Phase 1 fit. fitBounds never changes the container
+  // size, so this cannot loop.
+  useEffect(() => {
+    if (!map) return;
+    let aspectTimer = null;
+    const handleMapResize = () => {
+      if (aspectTimer != null) clearTimeout(aspectTimer);
+      aspectTimer = setTimeout(() => {
+        aspectTimer = null;
+        window.dispatchEvent(new CustomEvent('mapAspectChanged'));
+      }, 250);
+    };
+    map.on('resize', handleMapResize);
+    return () => {
+      if (aspectTimer != null) clearTimeout(aspectTimer);
+      map.off('resize', handleMapResize);
+    };
+  }, [map]);
+
   // Delegated marker hover: replaces the per-marker `:has()` selectors that were
   // too costly for Chrome/Safari's compositor to re-evaluate during every paint
   // while panning/zooming (a `.leaflet-marker-icon:has(.delivery-marker:hover)`
@@ -1481,13 +1619,17 @@ function DeliveryMap({
     const targetZoom = Math.max(currentZoom, 15);
     const size = map.getSize();
     const topObscured = isMobile ? (immersiveHidden ? 0 : (effectiveTopOverlayHeight || 116)) : 0;
-    const bottomObscured = immersiveHidden ? 0 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0);
-    // Place marker slightly below the vertical midpoint of the visible area
-    const verticalCenter = topObscured + (size.y - topObscured - bottomObscured) * 0.38;
+    const bottomObscured = immersiveHidden ? 0 : (areStopCardsVisible ? stopCardsHeight : 0);
+    // Keep the selected marker in the unobscured map area, clear of the
+    // stop-card controls and the temp badge floating above them.
+    const markerY = topObscured + (size.y - topObscured - bottomObscured) * 0.58;
     const point = map.project([lat, lng], targetZoom);
-    const newCenter = map.unproject(L.point(point.x, point.y - (size.y / 2 - verticalCenter)), targetZoom);
-    map.setView(newCenter, targetZoom, { animate: true }); // false
-  }, [map, currentZoom, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
+    // Screen marker position = projected marker - projected map center + half
+    // the viewport. The old subtraction here mirrored markerY around the
+    // viewport midpoint and pushed clicked markers down behind the badge.
+    const newCenter = map.unproject(L.point(point.x, point.y + size.y / 2 - markerY), targetZoom);
+    map.setView(newCenter, targetZoom, { animate: true });
+  }, [map, currentZoom, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight, immersiveHidden]);
 
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
     const locationKey = getLocationKey(marker.latitude, marker.longitude, currentZoom);
@@ -1725,14 +1867,11 @@ function DeliveryMap({
             open Popup (which lives in popupPane=700) correctly cover the dot. */}
         <Pane name="driverMarkerPane" style={{ zIndex: 630 }}>
           {currentDriverMarker && (
-            <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} pane="driverMarkerPane" eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
-              <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
-                <div className="min-w-[150px]">
-                  <div className="font-semibold text-xs">Your Location</div>
-                  {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600 dark:text-slate-400">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
-                </div>
-              </Popup>
-            </Marker>
+            <LiveDriverLocationMarker
+              marker={currentDriverMarker}
+              pathCoords={livePathCoords}
+              onMarkerClick={onMarkerClick}
+            />
           )}
 
           {mapReady && (

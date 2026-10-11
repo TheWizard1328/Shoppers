@@ -58,6 +58,15 @@ export function buildHistoryEntry(deliveryId, deliveryDate, actualDeliveryTime, 
  * @param {Object} newEntry - History entry from buildHistoryEntry()
  * @returns {Array} New sorted array with entry at index 0
  */
+// (Sep 23 2026) Cap on stored history entries. Long-running recurring patients
+// accumulated 100+ entries, pushing Patient records past the realtime
+// broadcast size limit (>10 KB) — every save then triggered "oversize slimmed"
+// errors on every client in the fleet and oversize WS payloads (see Sep 23
+// sluggishness incident, patient 68e1e249f45648303b222f9e). Older history is
+// still derivable from the Delivery records themselves; the array is a
+// convenience cache, not the source of truth.
+const MAX_HISTORY_ENTRIES = 60;
+
 export function appendToHistory(existingHistory, newEntry) {
   const history = Array.isArray(existingHistory) ? [...existingHistory] : [];
   history.unshift(newEntry);
@@ -70,6 +79,8 @@ export function appendToHistory(existingHistory, newEntry) {
     const bTime = b.actual_delivery_time || '';
     return bTime.localeCompare(aTime);
   });
+  // Trim oldest entries beyond the cap (sort is newest-first).
+  if (history.length > MAX_HISTORY_ENTRIES) history.length = MAX_HISTORY_ENTRIES;
   return history;
 }
 

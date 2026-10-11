@@ -1,6 +1,6 @@
 {
   "name": "Driver COD Briefing",
-  "description": "9pm Edmonton: push worked drivers their COD wrap-up, then send the owner a formatted WhatsApp briefing with cash collected counted as Outstanding until processed through Square.",
+  "description": "Daily 9pm Edmonton evening wrap-up: calls the RxDeliver driverCodBriefing function which pushes every driver who worked today a day summary (CODs collected today incl. cash, plus anything still outstanding), then the agent composes and sends the app owner a full briefing broken down by driver.",
   "trigger": {
     "condition": null,
     "config": {
@@ -23,7 +23,7 @@
       "dsl": "1.0.0",
       "name": "driver_cod_briefing",
       "namespace": "base44",
-      "version": "1.3.0"
+      "version": "1.1.0"
     },
     "do": [
       {
@@ -31,15 +31,11 @@
           "call": "invoke_superagent_step",
           "then": "end",
           "with": {
-            "message": "It is 9pm \u2014 the evening driver COD wrap-up briefing is running now. Follow these steps exactly:\n\n1. Trigger the RxDeliver briefing function using the call_base44_backend_function tool (NOT bash curl \u2014 the curl path can serve a stale copy of the function):\n   app_id: 68570f3cd01bfa2d2408a9d6\n   function_name: driverCodBriefing\n   payload: {}\n   It sends push notifications to every driver who WORKED TODAY and returns the full grouped JSON. If that tool call fails, fall back to this bash command:\n   curl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverCodBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, compose the app-owner wrap-up in PLAIN TEXT (WhatsApp, no markdown) and send it to the owner. Use EXACTLY this layout:\n\nCOD WRAP-UP: Sep 28\nTOTAL:\nCollected $ 187.97 (3)\nOutstanding $ 384.64 (7)\n\nROBERT\nCollected: $ 127.14 (2)\n$  79.46 \u00b7 Debit \u00b7 Louise O'Hara\nOutstanding: $ 222.03 (3)\n$   5.12 \u00b7 09/28(LD)-Eva Koziar\n$  16.89 \u00b7 09/28(LD)-Melanie Brigden\n$ 200.02 \u00b7 09/03(HS)-Glenn Bursey\n\nANNA\nCollected: $  30.13 (1)\n$  30.13 \u00b7 Debit \u00b7 Larry Mccubbin\nOutstanding: $  69.00 (2)\n$  48.88 \u00b7 07/09(MD)-Susan Gillie\n$  20.12 \u00b7 07/13(MD)-Susan Gillie\n\nPushes:\nRobert 12 sent, Anna 1, Sharuk 9, Erin 0 (no subscription).\n\nFORMAT RULES:\na) Title line: COD WRAP-UP: <Mon> <DD> (e.g. Sep 28).\nb) Driver blocks: only drivers in the JSON's driverBriefings (worked today). Header = the driver's first name in UPPERCASE on its own line. Put ONE BLANK LINE between driver blocks so headers are clearly separated.\nc) CASH RECLASSIFICATION (critical): collected items whose types include 'Cash' were collected but are NOT yet processed through Square. Do NOT list or count them in Collected. Move them into that driver's Outstanding list, formatted like other outstanding items: $ <amount> \u00b7 MM/DD(ST)-<patient_name>, where the date is today and (ST) is the item's store_abbreviation.\nd) Collected section = Square-processed tenders only (Debit etc.). Line: Collected: $ <sum> (<count>). Items: $ <amount> \u00b7 <Tender> \u00b7 <patient_name>. Sum and count cover ONLY the listed non-cash items.\ne) Outstanding section = reclassified cash items first, then uncollected_today, then older_outstanding (date order). Line: Outstanding: $ <sum> (<count>). Items: $ <amount> \u00b7 MM/DD(ST)-<patient_name> \u2014 today's items and cash use today's date, older_outstanding uses its own delivery_date, (ST) = store_abbreviation.\nf) TOTAL block: Collected = fleet-wide sum and count of Square-processed items; Outstanding = fleet-wide sum and count of everything in drivers' Outstanding sections (including reclassified cash).\ng) Money column right-aligned: pad every amount (totals and items) to the same width so all $ signs and decimals line up vertically.\nh) Pushes footer: a 'Pushes:' line, then one line with each driver's sent count from the pushes array; note failures or skips briefly in parentheses.\ni) If nobody worked today or there was no COD activity, say so in one sentence.",
+            "message": "It is 9pm — the evening driver COD wrap-up briefing is running now. Follow these steps exactly:\n\n1. Run this bash command (it triggers the RxDeliver briefing function, which sends push notifications to every driver who WORKED TODAY with their day's COD summary — collected today including cash, plus anything still outstanding — and returns the full grouped JSON):\ncurl -s -X POST 'https://base44.app/api/apps/68570f3cd01bfa2d2408a9d6/functions/driverCodBriefing' -H \"Authorization: Bearer $BASE44_SERVICE_TOKEN\" -H 'Content-Type: application/json' -d '{}'\n\n2. From the returned JSON, compose a compact app-owner briefing in PLAIN TEXT (WhatsApp, no markdown) broken down BY DRIVER (only the drivers listed in the JSON — those are the ones who worked today). For each driver show a header line like: ROBERT T — collected $ 36.44 (2) · outstanding $ 12.79 (1). Under it, list the collected items in the format: $ 36.44 · Cash · Melinda Martin, then the outstanding items in the format: $ 12.79 · 09/25(HS)-Marta Maingat.\nLAYOUT RULE: within each driver block, right-align the money column — pad all amounts (including the header totals) to the same width so every $ sign and decimal lines up vertically.\nEnd with the overall day totals (collected and outstanding) across drivers. Also note any driver whose push failed (pushes array shows sent/skipped/errors per driver) — mention delivery failures briefly at the end. If nobody worked today or there was no COD activity, just say so in one sentence.",
             "x-base44": {
               "description": "Evening COD wrap-up: push worked drivers, brief the owner",
               "title": "Driver COD evening wrap-up"
             }
-          },
-          "x-base44": {
-            "description": "Push driver COD notifications, brief the owner",
-            "title": "Driver COD briefing"
           }
         }
       }

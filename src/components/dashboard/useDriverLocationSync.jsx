@@ -407,6 +407,53 @@ export default function useDriverLocationSync({
       pendingPhaseRef, lastProgrammaticMapMoveRef]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // EFFECT 1c: PHASE 2/3 GLIDE FOLLOWER — pan the map toward the INTERPOLATED
+  // dot, not just per 5s fix (owner report Oct 5 2026: "my marker moves 3-5
+  // times before Phase 2 recenters — it should pan every time the marker
+  // moves"). Hardware GPS fires every 5s (Sep 18 battery work) while the
+  // blue dot glides at ~20fps (liveMarkerInterpolator); the per-fix trigger
+  // left the map visibly lagging the dot between fixes. The glide positions
+  // are published to window.__liveMarkerDisplay by the trail paint loop; this
+  // follower re-fires the map trigger at ~1s cadence toward the live glide
+  // position. Guards mirror Effect 1 (lock, phase, user control, suppression).
+  // 1s is far below any paint cost: the Dashboard effect only issues a Tier-1
+  // fast pan (0.5s setView) and DeliveryMap queues behind an in-flight fit.
+  useEffect(() => {
+    if (!isDriver || !isMobile || !currentUser) return;
+    let lastLat = null;
+    let lastLng = null;
+    const follower = setInterval(() => {
+      const effectivelyPrimary = isPrimaryDeviceRef.current || window.__isPrimaryDevice === true;
+      if (!effectivelyPrimary) return;
+      const phase = mapViewPhaseRef.current;
+      if (phase !== 2 && phase !== 3) return;
+      if (!isMapViewLockedRef.current || mapUserUnlockedRef?.current) return;
+      const now = Date.now();
+      if ((window._suppressMapRepositionUntil || 0) > now) return;
+      if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
+      if ((window._lastImmersiveEntryAt || 0) > now - 1500) return;
+      if ((window._isUserTouchingMap || false) === true) return;
+      if ((window._userMapControlUntil || 0) > now) return;
+      const selectedId = selectedDriverIdRef.current;
+      if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
+      const disp = (window.__liveMarkerDisplay || {})[currentUser.id];
+      if (!disp || now - (disp.ts || 0) > 2000 || !Number.isFinite(disp.lat) || !Number.isFinite(disp.lng)) return;
+      // Skip when the glide hasn't meaningfully advanced (< ~3m)
+      if (lastLat != null && Math.abs(disp.lat - lastLat) < 0.00003 && Math.abs(disp.lng - lastLng) < 0.00003) return;
+      lastLat = disp.lat; lastLng = disp.lng;
+      lastProgrammaticMapMoveRef.current = now;
+      window._lastProgrammaticMapMove = now;
+      pendingPhaseRef.current = phase;
+      lastMapTriggerTimeRef.current = now;
+      setMapViewTrigger((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(follower);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDriver, isMobile, currentUser, setMapViewTrigger, mapViewPhaseRef,
+      isMapViewLockedRef, isPrimaryDeviceRef, lastProgrammaticMapMoveRef, pendingPhaseRef,
+      selectedDriverIdRef]);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // EFFECT 2b: PHASE 2/3 WATCHDOG — re-fire map trigger if GPS ticks go silent
   //
   // On some Android devices, watchPosition callbacks can be throttled by the OS

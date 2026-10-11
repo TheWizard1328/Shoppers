@@ -1,12 +1,17 @@
-// driverCodBriefing — 9am driver COD briefing.
-// Reads SquareCatalogItems (source of truth for outstanding/uncollected CODs,
-// kept clean by the daily squarePruneCatalogDb 8:30am job), maps each item to
-// its driver via the linked Delivery, and:
-//   1. Sends each driver with outstanding CODs a push notification listing
-//      every outstanding item (amount, date, store, patient), total and count.
-//   2. Returns the full grouped breakdown (all drivers, all items) so the
-//      app-owner briefing can be composed and delivered (agent/WhatsApp).
+// driverCodBriefing — 9pm EVENING driver COD wrap-up (moved from 9am mornings).
+// v3 owner wrap-up format (Oct 6 2026) — outstanding lines mirror collected lines:
+// Cash/Cheque for finished in-hand payments, store abbreviation for future/unfinished.
+// Audience: ONLY drivers who worked today (>=1 non-cancelled, non-cycling
+// delivery today). Each such driver gets a push + in-app Message with the
+// day's COD summary: COLLECTED today (cash/debit/cheque, per-item amounts)
+// plus anything still outstanding (today's uncollected + older CODs from
+// the SquareCatalogItems source of truth). Returns the full grouped JSON so
+// the app-owner briefing can be composed and delivered (agent/WhatsApp).
+// At 9pm MDT, UTC has already rolled over — the briefing date is computed in
+// America/Edmonton, never from new Date().toISOString().
 //
+// Params: { dry_run?, owner_only?, test_driver_id? } — dry_run=true computes everything but does
+// NOT send pushes (used for test runs).
 // Params: { dry_run?, owner_only?, test_driver_id? } — dry_run=true computes everything but does
 // NOT send pushes (used for test runs).
 //
@@ -165,7 +170,23 @@ const extractPatientName = (itemName) => {
   return m ? m[1].trim() : (String(itemName || '').trim() || 'Unknown');
 };
 // MM/DD from a YYYY-MM-DD date for compact display
-const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[1]}` : (iso || ''); };
+const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[3]}` : (iso || ''); };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthDay = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}` : (iso || ''); };
+// v2 wrap-up classification (owner spec, Sep 28 2026): cash collected is NOT
+// yet processed through Square — it renders under Outstanding until processed.
+const isCashItem = (c) => (c.types || []).some((t) => String(t).toLowerCase() === 'cash');
+// Cash is only "awaiting Square processing" while it is NOT confirmed-collected.
+// A sync-stamped cash COD (cod_confirmed_collected) has already been rung
+// through the register — it counts as Collected like any Square tender.
+const isUnrungCash = (c) => isCashItem(c) && c.confirmed !== true;
+// v3 (owner spec, Oct 6 2026): cheques collected in-hand are ALSO not processed
+// through Square until deposited/rung — they render under Outstanding as
+// 'Cheque' alongside unrung cash, until confirmed-collected.
+const isChequeItem = (c) => (c.types || []).some((t) => String(t).toLowerCase() === 'cheque');
+const isUnrungManual = (c) => (isCashItem(c) || isChequeItem(c)) && c.confirmed !== true;
+const manualType = (c) => (isChequeItem(c) ? 'Cheque' : 'Cash');
+const firstNameUpper = (nm) => String(nm || '').trim().split(/\s+/)[0].toUpperCase();
 
 async function listAll(base44, entityName, sortField, limit = 2000) {
   const out = [];
@@ -262,155 +283,231 @@ async function findOwner(base44) {
   return { id: OWNER_PLATFORM_USER_ID, full_name: 'App Owner' };
 }
 
+// Edmonton-local date — the briefing runs at 9pm MDT, when UTC has already
+// rolled to the next day, so new Date().toISOString() would give tomorrow.
+function edmontonToday() {
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
+  return fmt.format(new Date());
+}
+
 async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
-  // Optional: send a TEST push to a single driver only (targets a real driver's real data)
   const testDriverId = params?.test_driver_id || null;
-  // Optional: send ONLY the App Owner copy (full cross-driver briefing) and
-  // skip all driver pushes — used to test/demo the owner briefing without
-  // re-notifying every driver.
   const ownerOnly = !!params?.owner_only;
+  const correctionTag = params?.correction_tag || ''; // e.g. 'CORRECTION — ' prepended to every push title
   const startedAt = Date.now();
 
-  // App Owner (Robert T): now receives the SAME treatment as drivers — in-app
-  // message + push notification — in addition to the full multi-driver briefing
-  // the owner workflow sends via WhatsApp (owner requested all channels).
-  // 1. Outstanding CODs (source of truth — pruned daily to mirror live Square catalog)
-  console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none');
+  const today = edmontonToday();
+
+  console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none', '| date:', today);
+
+  // 1. Today's deliveries — define who WORKED today and the day's COD activity.
+  const todaysDeliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: today }).catch((e) => {
+    console.log('[briefing] FATAL: today Delivery.filter failed:', e?.message || String(e));
+    return null;
+  });
+  if (todaysDeliveriesRaw === null) {
+    return { success: false, error: 'Today Delivery.filter failed — no briefing sent (cannot distinguish clean from broken).', duration_ms: Date.now() - startedAt };
+  }
+  const todaysDeliveries = (Array.isArray(todaysDeliveriesRaw) ? todaysDeliveriesRaw : []).map(unwrapEntityRecord).filter(Boolean);
+  console.log('[briefing] today\'s deliveries:', todaysDeliveries.length);
+
+  // Worked today = ≥1 non-cancelled, non-cycling-marker delivery today.
+  const worked = new Map(); // driverId -> { driver_id, driver_name, deliveries }
+  for (const d of todaysDeliveries) {
+    if (!d?.driver_id || d.status === 'cancelled' || d.is_cycling_marker) continue;
+    if (!worked.has(d.driver_id)) worked.set(d.driver_id, { driver_id: d.driver_id, driver_name: d.driver_name || 'Unknown driver', deliveries: 0 });
+    worked.get(d.driver_id).deliveries += 1;
+  }
+  if (testDriverId) {
+    if (!worked.has(testDriverId)) {
+      return { success: false, error: `Test driver ${testDriverId} did not work today (${today}) — no briefing data.`, duration_ms: Date.now() - startedAt };
+    }
+    for (const k of Array.from(worked.keys())) if (k !== testDriverId) worked.delete(k);
+  }
+  console.log('[briefing] worked-today drivers:', Array.from(worked.values()).map((w) => w.driver_name).join(', ') || 'none');
+
+  // 2. Day COD activity per worked driver (from today's deliveries).
+  const patientIds = new Set(); const storeIdsNeeded = new Set();
+  const codTodayByDriver = new Map(); // driverId -> [{ amount, collected, types, patient_id, store_id, delivery_id }]
+  for (const d of todaysDeliveries) {
+    if (!d?.driver_id || d.status === 'cancelled' || d.is_cycling_marker) continue;
+    const codAmt = Number(d.cod_total_amount_required) || 0;
+    if (codAmt <= 0) continue;
+    const pays = (Array.isArray(d.cod_payments) ? d.cod_payments : []).filter((p) => Number(p?.amount || 0) > 0);
+    const types = Array.from(new Set(pays.map((p) => String(p?.type || 'Unknown'))));
+    if (!codTodayByDriver.has(d.driver_id)) codTodayByDriver.set(d.driver_id, []);
+    // `confirmed` = the sync stamped cod_confirmed_collected (a real Square order
+    // matched this delivery — the store HAS rung it). A confirmed CASH COD is
+    // fully processed through Square and belongs under Collected, NOT Outstanding
+    // (owner report, Sep 30 2026: the briefing kept listing ring-through cash
+    // CODs as outstanding all evening = the "stale data" complaint).
+    codTodayByDriver.get(d.driver_id).push({ delivery_id: d.id, amount: codAmt, collected: pays.length > 0, confirmed: d.cod_confirmed_collected === true, types, patient_id: d.patient_id || null, store_id: d.store_id || null });
+    if (d.patient_id) patientIds.add(d.patient_id);
+    if (d.store_id) storeIdsNeeded.add(d.store_id);
+  }
+
+  // 3. OLDER outstanding CODs (SquareCatalogItems — source of truth, pruned daily).
   let catalogItems = [];
   try {
     catalogItems = await listAll(base44, 'SquareCatalogItems', '-updated_date');
   } catch (err) {
-    // LOUD failure: never send a briefing based on a failed read. If the
-    // catalog list fails we cannot tell "clean" from "broken" — abort the
-    // whole run so no driver/owner gets a false briefing.
     console.log('[briefing] FATAL: SquareCatalogItems list failed:', err?.message || String(err));
     return { success: false, error: `SquareCatalogItems list failed: ${err?.message || String(err)}`, duration_ms: Date.now() - startedAt };
   }
-  console.log('[briefing] catalog items (raw):', catalogItems.length);
-  // Dedupe: the reconciler sweep's bookkeeping upsert can create duplicate rows
-  // for the same COD when its existence-check filter fails under platform strain
-  // (429/500 storms) — Sep 10 2026 every outstanding COD had 3-5 rows, which made
-  // every driver briefing (and the owner copy) list each COD 3-5 times. One row
-  // per delivery_id; rows without a delivery_id dedupe on name+amount+store.
   const seenCodKeys = new Set();
   catalogItems = catalogItems.filter((x) => {
-    const key = x.delivery_id || `nodel:${x.item_name}|${x.amount}|${x.store_id}`;
+    // Include item_name + amount even when delivery_id is present — a single
+    // delivery can legitimately carry TWO distinct catalog line items (a
+    // multi-item Square order). Keying on delivery_id alone collapsed those
+    // into one, silently dropping the second item from the briefing.
+    const key = `${x.delivery_id || 'nodel'}|${x.item_name}|${x.amount}|${x.store_id}`;
     if (seenCodKeys.has(key)) return false;
     seenCodKeys.add(key);
     return true;
   });
   console.log('[briefing] catalog items (deduped):', catalogItems.length);
-  if (!catalogItems.length) {
-    // Clean slate still reaches the owner in-app (same as the WhatsApp copy —
-    // "the COD slate is clean"). Drivers have nothing to collect, so no
-    // driver pushes go out.
-    let cleanOwnerPush = null;
-    if (!dryRun) {
-      try {
-        const owner = await findOwner(base44);
-        if (owner?.id) {
-          const today = new Date().toISOString().slice(0, 10);
-          const ownerName = owner.full_name || owner.name || 'App Owner';
-          const cleanBody = `${ownerOnly ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}\n\nNo outstanding CODs — the slate is clean.`;
-          let cleanMessageId = null;
-          try {
-            const created = await base44.asServiceRole.entities.Message.create({
-              sender_id: 'cod_briefing',
-              sender_name: 'COD Briefing',
-              receiver_id: owner.id,
-              receiver_name: ownerName,
-              conversation_id: ['cod_briefing', owner.id].sort().join('_'),
-              content: cleanBody,
-              read: false,
-              message_type: 'text',
-            });
-            cleanMessageId = created?.id || null;
-          } catch (err) {
-            console.log('[briefing] clean Message.create failed:', err?.message || String(err));
-          }
-          const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-          const result = await sendPushToUser(base44, owner.id, `${ownerOnly ? 'TEST — ' : ''}COD Briefing (All Drivers) — ${shortDate(today)}`, cleanBody, chatUrl, `cod-briefing-owner-${today}`);
-          cleanOwnerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: cleanMessageId, ...result };
-          console.log('[briefing] clean-slate owner push result:', JSON.stringify(result));
-        }
-      } catch (err) {
-        console.log('[briefing] clean-slate owner briefing failed:', err?.message || String(err));
-      }
-    }
-    return { success: true, dry_run: dryRun, owner_only: ownerOnly, drivers: [], totals: { drivers: 0, items: 0, amount: 0 }, pushes: [], owner_push: cleanOwnerPush, message: 'No outstanding CODs.', duration_ms: Date.now() - startedAt };
-  }
 
-  // 2. Map to deliveries (driver assignment)
-  const deliveryIds = catalogItems.map((x) => x.delivery_id);
-  const deliveries = await fetchByIds(base44, 'Delivery', deliveryIds);
-  const deliveryById = new Map(deliveries.map((d) => [d.id, d]));
-
-  // 3. Store names
-  const storeIds = catalogItems.map((x) => x.store_id);
-  const stores = await fetchByIds(base44, 'Store', storeIds);
-  const storeById = new Map(stores.map((s) => [s.id, s]));
-
-  // 4. Group by driver, items oldest first
-  const groups = new Map(); // driver_id -> { driver_id, driver_name, items: [], total, count, byStore }
+  // Map catalog items → deliveries (driver + date)
+  const deliveryIds = catalogItems.map((x) => x.delivery_id).filter(Boolean);
+  const olderDeliveries = await fetchByIds(base44, 'Delivery', deliveryIds);
+  const olderDeliveryById = new Map(olderDeliveries.map((d) => [d?.id, d]));
+  const olderByDriver = new Map(); // driverId -> [{ amount, patient_name, delivery_date, store_id }]
+  const driverNameById = new Map(); // driverId -> driver_name (for non-worked driver sections)
   const unassigned = [];
   for (const item of catalogItems) {
-    const delivery = item.delivery_id ? deliveryById.get(item.delivery_id) : null;
-    const store = storeById.get(item.store_id);
+    const del = item.delivery_id ? olderDeliveryById.get(item.delivery_id) : null;
     const entry = {
       item_name: item.item_name,
       amount: Number(item.amount) || 0,
-      delivery_date: item.delivery_date || delivery?.delivery_date || null,
+      delivery_date: item.delivery_date || del?.delivery_date || null,
       patient_name: extractPatientName(item.item_name),
-      store_name: store?.name || store?.abbreviation || null,
-      store_abbreviation: store?.abbreviation || null,
-      delivery_status: delivery?.status || null,
+      delivery_status: del?.status || null,
+      store_id: del?.store_id || null,
     };
-    if (!delivery?.driver_id) { unassigned.push(entry); continue; }
-    if (!groups.has(delivery.driver_id)) {
-      groups.set(delivery.driver_id, { driver_id: delivery.driver_id, driver_name: delivery.driver_name || 'Unknown driver', items: [], total: 0, count: 0, byStore: new Map() });
-    }
-    const g = groups.get(delivery.driver_id);
-    g.items.push(entry);
-    g.total += entry.amount;
-    g.count += 1;
-    g.byStore.set(entry.store_name || 'Unknown store', (g.byStore.get(entry.store_name || 'Unknown store') || 0) + entry.amount);
+    if (!del?.driver_id) { unassigned.push(entry); continue; }
+    // Track driver names for the owner copy (non-worked drivers too).
+    if (del.driver_name) driverNameById.set(del.driver_id, del.driver_name);
+    // For drivers who WORKED today, only pre-today items belong here (today's
+    // items are covered by the day section). For non-worked drivers, keep
+    // every item — the owner copy reports ALL uncollected CODs across the
+    // fleet, not just today's drivers.
+    if (worked.has(del.driver_id) && String(entry.delivery_date || '') >= today) continue;
+    if (entry.store_id) storeIdsNeeded.add(entry.store_id);
+    if (!olderByDriver.has(del.driver_id)) olderByDriver.set(del.driver_id, []);
+    olderByDriver.get(del.driver_id).push(entry);
   }
 
-  const driverBriefings = Array.from(groups.values()).map((g) => {
-    g.items.sort((a, b) => String(a.delivery_date || '').localeCompare(String(b.delivery_date || '')));
-    return {
-      ...g,
-      byStore: Array.from(g.byStore.entries()).map(([store, amount]) => ({ store, amount: Math.round(amount * 100) / 100 })),
-    };
-  }).sort((a, b) => b.total - a.total);
+  // 4. Patient + store lookups for compact line rendering.
+  const patients = await fetchByIds(base44, 'Patient', Array.from(patientIds));
+  const patientNameById = new Map(patients.map((p) => [p.id, p.full_name || p.name || 'Unknown']));
+  const stores = await fetchByIds(base44, 'Store', Array.from(storeIdsNeeded));
+  const storeAbbrById = new Map(stores.map((s) => [s.id, s.abbreviation || (s.name || '').slice(0, 2)]));
 
-  // 5. Send pushes (skip in dry-run)
+  // 5. Per-driver briefing objects (worked-today drivers only).
+  const driverBriefings = [];
+  for (const w of worked.values()) {
+    const cods = (codTodayByDriver.get(w.driver_id) || []).map((c) => ({
+      amount: c.amount,
+      collected: c.collected,
+      confirmed: c.confirmed,
+      types: c.types,
+      patient_name: (c.patient_id && patientNameById.get(c.patient_id)) || 'Unknown',
+      store_abbreviation: c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—',
+    }));
+    const collected = cods.filter((c) => c.collected);
+    const uncollectedToday = cods.filter((c) => !c.collected);
+    const older = olderByDriver.get(w.driver_id) || [];
+    const outstandingTotal = uncollectedToday.reduce((s, c) => s + c.amount, 0) + older.reduce((s, c) => s + c.amount, 0);
+    driverBriefings.push({
+      driver_id: w.driver_id,
+      driver_name: w.driver_name,
+      deliveries_today: w.deliveries,
+      collected_today: { count: collected.length, amount: Math.round(collected.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: collected },
+      uncollected_today: { count: uncollectedToday.length, amount: Math.round(uncollectedToday.reduce((s, c) => s + c.amount, 0) * 100) / 100, items: uncollectedToday },
+      older_outstanding: {
+        count: older.length,
+        amount: Math.round(older.reduce((s, c) => s + c.amount, 0) * 100) / 100,
+        items: older
+          .map((c) => ({ ...c, store_abbreviation: c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—' }))
+          .sort((a, b) => String(a.delivery_date || '').localeCompare(String(b.delivery_date || ''))),
+      },
+      outstanding_total: Math.round(outstandingTotal * 100) / 100,
+    });
+  }
+  // OWNER SPEC (Oct 9 2026 night): drivers must appear in the SAME order the
+  // app shows them — AppUser.sort_order first, then name (parity with the
+  // client's sortUsers in src/components/utils/sorting.jsx). Replaces the old
+  // amount-descending order. Keyed on BOTH AppUser.user_id and AppUser.id
+  // (delivery driver_id is the platform user id).
+  const appUserOrder = new Map();
+  try {
+    const appUsers = await listAll(base44, 'AppUser', '-updated_date').catch(() => []);
+    for (const au of appUsers || []) {
+      const so = Number.isFinite(au?.sort_order) ? Number(au.sort_order) : null;
+      if (so == null) continue;
+      if (au?.id) appUserOrder.set(String(au.id), so);
+      if (au?.user_id) appUserOrder.set(String(au.user_id), so);
+    }
+  } catch (_) { /* ordering falls back to name sort */ }
+  const orderOf = (b) => {
+    const o = appUserOrder.get(String(b.driver_id));
+    return o != null ? o : Infinity;
+  };
+  driverBriefings.sort((a, b) => {
+    const oa = orderOf(a), ob = orderOf(b);
+    if (oa !== ob) return oa - ob;
+    return String(a.driver_name || '').localeCompare(String(b.driver_name || ''));
+  });
+
+  // Resolve the App Owner once — used both to skip his individual driver
+  // briefing (he gets the All Drivers copy instead) and to deliver it.
+  let ownerUser = null;
+  if (!dryRun) ownerUser = await findOwner(base44);
+
+  // 6. Driver pushes (skip in dry-run / owner_only) — only drivers with
+  // something to report (collected, uncollected, or older outstanding).
   const pushes = [];
   if (!dryRun && !ownerOnly) {
-    const today = new Date().toISOString().slice(0, 10);
     for (const g of driverBriefings) {
-      if (testDriverId && g.driver_id !== testDriverId) continue;
-      // Money column alignment: pad every amount (incl. the total) to the same
-      // width so the $ signs and decimals line up down the list.
-      const moneyStrs = g.items.map((it) => (Number(it.amount) || 0).toFixed(2));
-      const totalStr = (Math.round(g.total * 100) / 100).toFixed(2);
-      const moneyWidth = Math.max(totalStr.length, ...moneyStrs.map((m) => m.length));
-      const lines = g.items.map((it, idx) => `$ ${moneyStrs[idx].padStart(moneyWidth)} · ${shortDate(it.delivery_date)}(${it.store_abbreviation || (it.store_name || '').slice(0, 12)})-${it.patient_name}`);
+      // The App Owner does NOT get an individual driver briefing on days he
+      // drives — the All Drivers owner copy already covers him.
+      if (ownerUser?.id && g.driver_id === ownerUser.id) continue;
+      const hasCollected = g.collected_today.count > 0;
+      // v3 (Oct 6 2026): outstanding lines formatted like collected lines —
+      // $ amount-<store abbr>-<patient name> for future/unfinished deliveries.
+      // Older-than-today items keep the date as a suffix on the name.
+      const outstandingItems = [
+        ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation}-${c.patient_name}` })),
+        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation}-${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
+      ];
+      const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
+      if (!hasCollected && outstandingCount === 0) continue; // worked today, zero COD activity — no push
+      const moneyStrs = [
+        ...g.collected_today.items.map((c) => c.amount.toFixed(2)),
+        ...outstandingItems.map((c) => c.amount.toFixed(2)),
+      ];
+      const biggestStr = Math.max(g.collected_today.amount, g.outstanding_total).toFixed(2);
+      const mw = Math.max(biggestStr.length, ...(moneyStrs.length ? moneyStrs.map((x) => x.length) : [0]));
+      const lines = [];
+      if (hasCollected) {
+        lines.push(`Collected today: ${g.collected_today.count} COD${g.collected_today.count === 1 ? '' : 's'}, $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
+        for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.types.join('/')}-${c.patient_name}`);
+        lines.push('');
+      }
+      if (outstandingCount > 0) {
+        lines.push(`Still to collect: ${outstandingCount} COD${outstandingCount === 1 ? '' : 's'}, $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
+        for (const c of outstandingItems) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.label}`);
+      } else {
+        lines.push('Nothing outstanding — clean slate.');
+      }
       const body = [
-        `${g.count} uncollected COD${g.count === 1 ? '' : 's'} totaling $${totalStr}.`,
+        `${testDriverId ? 'TEST — ' : ''}COD Wrap-Up: ${shortDate(today)}`,
         '',
         ...lines,
-        '',
-        'Collect at your earliest convenience.',
       ].join('\n');
-      const title = `${testDriverId ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`;
-      // In-app message: create a Message record from the system 'COD Briefing'
-      // sender so the driver also gets the briefing inside the app's messaging
-      // section. The push's deep link opens that exact thread on tap.
-      // Thread shape mirrors the existing system_updates pattern:
-      // conversation_id = sorted([senderId, driverId]).join('_'), display name
-      // comes from the denormalized sender_name (no user record needed).
+      const title = `${testDriverId ? 'TEST — ' : ''}${correctionTag}COD Wrap-Up: ${shortDate(today)}`;
+      // In-app Message copy in the same system 'COD Briefing' thread shape.
       let inAppMessageId = null;
       try {
         const created = await base44.asServiceRole.entities.Message.create({
@@ -435,44 +532,152 @@ async function handleBriefing(base44, params = {}) {
     }
   }
 
-  // ── App Owner copy (Sep 15 2026): the owner asked to receive the FULL
-  // cross-driver briefing as an in-app push + in-app Message (previously the
-  // only push they got was their own driver-specific one when they drive; the
-  // full version only went out via the WhatsApp workflow broadcast). The
-  // owner is identified by platform User.role === 'admin' — the same check
-  // the frontend isAppOwner() uses. Sent as the same 'COD Briefing' system
-  // thread shape drivers get.
+  // ── App Owner copy: full per-driver breakdown of the day's COD wrap-up ──
   let ownerPush = null;
   if (!dryRun) {
     try {
-      const owner = await findOwner(base44);
+      const owner = ownerUser;
       if (owner?.id) {
-        const today = new Date().toISOString().slice(0, 10);
         const ownerName = owner.full_name || owner.name || 'App Owner';
-        // Compose full per-driver breakdown with aligned money columns
-        const moneyStrsAll = driverBriefings.flatMap((g) => g.items.map((it) => (Number(it.amount) || 0).toFixed(2)));
-        const totalAll = (Math.round(driverBriefings.reduce((sm, g) => sm + g.total, 0) * 100) / 100).toFixed(2);
-        const moneyWidth = Math.max(totalAll.length, ...(moneyStrsAll.length ? moneyStrsAll : ['0']));
-        const lines = [];
+        // ── v2 owner wrap-up format (Sep 28 2026) ──
+        // TOTAL block up top, blank-line-separated driver blocks (first-name
+        // headers), cash-collected CODs reclassified into Outstanding (they
+        // are collected but not yet processed through Square), Pushes footer.
+        const sections = [];
         for (const g of driverBriefings) {
-          const gTotal = (Math.round(g.total * 100) / 100).toFixed(2);
-          lines.push(`${String(g.driver_name).toUpperCase()} — ${g.count} COD${g.count === 1 ? '' : 's'}, $ ${gTotal.padStart(moneyWidth)}`);
-          g.items.forEach((it, idx) => {
-            const amt = (Number(it.amount) || 0).toFixed(2);
-            lines.push(`$ ${amt.padStart(moneyWidth)} · ${shortDate(it.delivery_date)}(${(it.store_abbreviation || it.store_name || '—').slice(0, 12)})-${it.patient_name}`);
+          const hadCods = g.collected_today.count + g.uncollected_today.count + g.older_outstanding.count > 0;
+          if (!hadCods) { sections.push({ name: firstNameUpper(g.driver_name), noActivity: true, deliveries: g.deliveries_today }); continue; }
+          const sq = g.collected_today.items.filter((c) => !isUnrungManual(c));
+          const cash = g.collected_today.items.filter(isUnrungManual);
+          // v3 (owner spec, Oct 6 2026): outstanding lines formatted like
+          // collected lines — 'Cash'/'Cheque' for finished (in-hand, not yet
+          // processed through Square) deliveries, store abbreviation for
+          // future/unfinished ones. Older-than-today items keep the date as a
+          // suffix on the name so aging info isn't lost.
+          const out = [
+            ...cash.map((c) => ({ amount: c.amount, label: `${manualType(c)} · ${c.patient_name}` })),
+            ...g.uncollected_today.items.filter((c) => c.confirmed !== true).map((c) => ({ amount: c.amount, label: `${c.store_abbreviation} · ${c.patient_name}` })),
+            ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation} · ${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
+          ];
+          sections.push({
+            name: firstNameUpper(g.driver_name),
+            sq,
+            sqAmt: Math.round(sq.reduce((acc, c) => acc + c.amount, 0) * 100) / 100,
+            out,
+            outAmt: Math.round(out.reduce((acc, c) => acc + c.amount, 0) * 100) / 100,
           });
+        }
+        // Non-worked drivers with outstanding CODs — fleet-wide completeness.
+        const workedIds2 = new Set(driverBriefings.map((g) => g.driver_id));
+        const noStopSections = [];
+        for (const [driverId, items] of olderByDriver.entries()) {
+          if (workedIds2.has(driverId) || !items.length) continue;
+          const drvName = driverNameById.get(driverId) || 'Unknown driver';
+          const out = items.map((c) => ({ amount: c.amount, label: `${c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—'} · ${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` }));
+          noStopSections.push({ name: `${firstNameUpper(drvName)} (NO STOPS TODAY)`, out, outAmt: Math.round(out.reduce((acc, c) => acc + c.amount, 0) * 100) / 100 });
+        }
+        // Fleet totals across everything rendered.
+        let cTotal = 0, cCount = 0, oTotal = 0, oCount = 0;
+        const amtStrs = [];
+        for (const sec of sections) {
+          if (sec.noActivity) continue;
+          cTotal += sec.sqAmt; cCount += sec.sq.length; oTotal += sec.outAmt; oCount += sec.out.length;
+          amtStrs.push(sec.sqAmt.toFixed(2), ...sec.sq.map((c) => c.amount.toFixed(2)), sec.outAmt.toFixed(2), ...sec.out.map((c) => c.amount.toFixed(2)));
+        }
+        for (const sec of noStopSections) { oTotal += sec.outAmt; oCount += sec.out.length; amtStrs.push(sec.outAmt.toFixed(2), ...sec.out.map((c) => c.amount.toFixed(2))); }
+        cTotal = Math.round(cTotal * 100) / 100; oTotal = Math.round(oTotal * 100) / 100;
+        amtStrs.push(cTotal.toFixed(2), oTotal.toFixed(2));
+        const mw = Math.max(...amtStrs.map((x) => x.length), 5);
+        const money = (amt) => `$ ${amt.toFixed(2).padStart(mw)}`;
+        const lines = [];
+        lines.push('TOTAL:');
+        lines.push(`Collected ${money(cTotal)} (${cCount})`);
+        lines.push(`Outstanding ${money(oTotal)} (${oCount})`);
+        lines.push('');
+        for (const sec of sections) {
+          if (sec.noActivity) { lines.push(`${sec.name} — worked today (${sec.deliveries} stops), no COD activity`); lines.push(''); continue; }
+          lines.push(sec.name);
+          lines.push(`Collected: ${money(sec.sqAmt)} (${sec.sq.length})`);
+          for (const c of sec.sq) lines.push(`${money(c.amount)} · ${c.types.join('/')} · ${c.patient_name}`);
+          lines.push(`Outstanding: ${money(sec.outAmt)} (${sec.out.length})`);
+          for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
           lines.push('');
         }
+        for (const sec of noStopSections) {
+          lines.push(sec.name);
+          lines.push(`Outstanding: ${money(sec.outAmt)} (${sec.out.length})`);
+          for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
+          lines.push('');
+        }
+        // ── Card / Loan / Folder balance estimates (owner-only section, Oct 2026) ──
+        // Loan repayment + folder contribution are NOT in Square's API; they're
+        // computed from owner-supplied rates in the AppSettings 'square_balances'
+        // record. Freshens the SquareLedgerEntry ledger first (cross-function
+        // invoke; squareLedgerSync has softened auth so it proceeds without a
+        // forwarded user context).
+        try {
+          const cfgRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => []);
+          const cfg = cfgRows?.[0]?.setting_value;
+          if (cfg?.locations?.length && cfg.trued_up_at) {
+            const ledgerRes = await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at, includeCodOutstanding: true }).catch((e) => { console.log('[briefing] ledger freshen skipped:', e?.message || e); return null; });
+            const codOutByLoc = new Map((ledgerRes?.codOutstanding || []).map((o) => [o.location_id, Number(o.total || 0)]));
+            const codOutAll = (ledgerRes?.codOutstanding || []).reduce((s, o) => s + Number(o.total || 0), 0);
+            const sinceRows = await base44.asServiceRole.entities.SquareLedgerEntry.filter(
+              { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
+              '-occurred_at', 2000
+            ).catch(() => []);
+            const since = (sinceRows || []).filter((s) => ['sale', 'collected'].includes(String(s?.entry_kind || '')));
+            // INTEGER-CENT MATH (owner spec Oct 7 2026, "CW shows $10.64,
+            // should be $10.65"): every fee component is rounded to the cent
+            // per transaction and the whole estimate is summed in cents —
+            // float dollar math drifted a cent. Also fixes the TDZ bug that
+            // silently killed this BALANCES section (folderTotal was used
+            // above its `let` declaration, so the catch block swallowed a
+            // ReferenceError every night).
+            const folderRate = Number(cfg.folder_rate ?? 0.02);
+            const balParts = [];
+            const balStrs = [];
+            let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
+            for (const loc of cfg.locations) {
+              let grossC = 0, feeC = 0, loanC = 0, folderC = 0;
+              for (const s of since) {
+                if (s?.location_id !== loc.location_id) continue;
+                const g = Math.round(Number(s.amount_cents || 0));
+                const f = Math.round(Number(s.fee_cents || 0));
+                const l = Math.round(g * Number(loc.loan_rate || 0));
+                const fo = Math.floor(g * folderRate); // folder % truncates (verified vs Square's SIMPLE payouts, Oct 7 2026)
+                grossC += g; feeC += f; loanC += l; folderC += fo;
+              }
+              folderTotalC += folderC;
+              const cardEstC = Math.round(Number(loc.card_start || 0) * 100) + grossC - feeC - loanC - folderC - Math.round((codOutByLoc.get(loc.location_id) || 0) * 100);
+              const loanLeftC = Math.max(0, Math.round(Number(loc.loan_start || 0) * 100) - loanC);
+              const name = String(loc.name || loc.location_id);
+              const card = cardEstC / 100;
+              const loan = loanLeftC / 100;
+              balParts.push({ name, card, loan });
+              balStrs.push(name, card.toFixed(2), loan.toFixed(2));
+            }
+            const bw = Math.max(...balStrs.map((x) => x.length), 5);
+            const bmoney = (amt) => `$ ${amt.toFixed(2).padStart(bw)}`;
+            lines.push('BALANCES (est):');
+            for (const b of balParts) lines.push(`${b.name} Card ${bmoney(b.card)} Loan ${bmoney(b.loan)}`);
+            lines.push(`Folder ${bmoney(folderTotalC / 100)} (2% since true-up)`);
+            lines.push(`CODs out ${bmoney(Math.round(codOutAll * 100) / 100)} (pending + cash awaiting Square)`);
+            lines.push('');
+          }
+        } catch (e) {
+          console.log('[briefing] balance estimates failed:', e?.message || e);
+        }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
-        lines.push(`OVERALL TOTAL: ${catalogItems.length} COD${catalogItems.length === 1 ? '' : 's'}, $ ${totalAll}`);
-        const failedPushes = pushes.filter((p) => p.sent === 0 || (p.errors && p.errors.length));
-        if (failedPushes.length) lines.push(`Push failed: ${failedPushes.map((p) => p.driver_name).join(', ')}`);
-        const ownerBody = [
-          `${ownerOnly ? 'TEST — ' : ''}COD Briefing — ${shortDate(today)}`,
-          '',
-          ...lines,
-        ].join('\n');
-        // In-app Message: same system-thread shape as the driver copies
+        lines.push('Pushes:');
+        lines.push(pushes.map((pr) => {
+          const nm = firstNameUpper(pr.driver_name);
+          if (pr.sent > 0) return `${nm} ${pr.sent} sent`;
+          const why = pr.errors && pr.errors.length ? String(pr.errors[0]).slice(0, 40) : 'no active subscription';
+          return `${nm} 0 (${why})`;
+        }).join(', ') + '.');
+        const title = `${ownerOnly ? 'TEST — ' : ''}${correctionTag}COD WRAP-UP: ${monthDay(today)}`;
+        const ownerBody = [title, '', ...lines].join('\n');
         let ownerMessageId = null;
         try {
           const created = await base44.asServiceRole.entities.Message.create({
@@ -490,7 +695,6 @@ async function handleBriefing(base44, params = {}) {
           console.log('[briefing] owner Message.create failed:', err?.message || String(err));
         }
         const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-        const title = `${ownerOnly ? 'TEST — ' : ''}COD Briefing (All Drivers) — ${shortDate(today)}`;
         const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
         ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
         console.log('[briefing] owner push result:', JSON.stringify(result));
@@ -504,16 +708,31 @@ async function handleBriefing(base44, params = {}) {
     }
   }
 
+  // v2 semantics: Collected = Square-processed tenders only; Outstanding
+  // includes reclassified cash (not yet processed through Square).
+  let tcCount = 0, tcAmt = 0, toCount = 0, toAmt = 0;
+  for (const g of driverBriefings) {
+    const sq = g.collected_today.items.filter((c) => !isUnrungManual(c));
+    const cash = g.collected_today.items.filter(isUnrungManual);
+    const uncollectedUnconfirmed = g.uncollected_today.items.filter((c) => c.confirmed !== true);
+    tcCount += sq.length;
+    tcAmt += sq.reduce((acc, c) => acc + c.amount, 0);
+    toCount += uncollectedUnconfirmed.length + g.older_outstanding.count + cash.length;
+    toAmt += uncollectedUnconfirmed.reduce((acc, c) => acc + c.amount, 0) + g.older_outstanding.amount + cash.reduce((acc, c) => acc + c.amount, 0);
+  }
   const totals = {
-    drivers: driverBriefings.length,
-    items: catalogItems.length,
-    amount: Math.round(driverBriefings.reduce((s, g) => s + g.total, 0) * 100) / 100,
+    worked_drivers: driverBriefings.length,
+    collected_count: tcCount,
+    collected_amount: Math.round(tcAmt * 100) / 100,
+    outstanding_count: toCount,
+    outstanding_amount: Math.round(toAmt * 100) / 100,
   };
 
   return {
     success: true,
     dry_run: dryRun,
     owner_only: ownerOnly,
+    briefing_date: today,
     generated_at: new Date().toISOString(),
     totals,
     drivers: driverBriefings,
@@ -523,6 +742,7 @@ async function handleBriefing(base44, params = {}) {
     duration_ms: Date.now() - startedAt,
   };
 }
+
 
 Deno.serve(async (req) => {
   try {

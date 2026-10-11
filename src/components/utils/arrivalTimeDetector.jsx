@@ -1,4 +1,3 @@
-import { base44 } from "@/api/base44Client";
 import { haversineMeters } from './geoUtils';
 // NOTE: locationTracker is imported LAZILY at the two call sites below to avoid a
 // circular dependency — locationTracker.jsx imports the `arrivalTimeDetector`
@@ -189,7 +188,8 @@ class ArrivalTimeDetector {
             const arrivalTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
             console.log(`✅ [ARRIVAL] Picked target pickup ${target.id} (rule applied) after ${(stationaryDuration / 1000).toFixed(1)}s`);
             try {
-              await base44.entities.Delivery.update(target.id, { arrival_time: arrivalTime });
+              const { updateDeliveryLocal } = await import('./offlineMutations');
+              await updateDeliveryLocal(target.id, { arrival_time: arrivalTime }, { skipSmartRefresh: true });
 
               // ── Write arrival_time into IDB so local state reflects it immediately ──
               try {
@@ -302,6 +302,12 @@ class ArrivalTimeDetector {
                     if (!d || d.id === nextDelivery.id) return false;
                     if (!allowedStatuses.includes(String(d.status))) return false;
                     if (d.arrival_time) return false;
+                    // Cycling markers are sequential route boundaries — a marker only
+                    // gets arrival_time when IT is the isNextDelivery stop. Start and
+                    // end markers frequently share identical coordinates, so co-located
+                    // stamping would record arrival for a marker the driver isn't at
+                    // "yet" (its turn hasn't come).
+                    if (d.is_cycling_marker) return false;
                     // Resolve this stop's coordinates
                     let stopLat, stopLon;
                     if (d.is_cycling_marker) { stopLat = d.cycling_latitude; stopLon = d.cycling_longitude; }
@@ -313,7 +319,8 @@ class ArrivalTimeDetector {
 
                   const allArrivalUpdates = [nextDelivery, ...coLocatedStops];
 
-                  await Promise.all(allArrivalUpdates.map(d => base44.entities.Delivery.update(d.id, { arrival_time: _arrivalTime })));
+                  const { updateDeliveryLocal } = await import('./offlineMutations');
+                  await Promise.all(allArrivalUpdates.map(d => updateDeliveryLocal(d.id, { arrival_time: _arrivalTime }, { skipSmartRefresh: true })));
 
                   // Write into IDB immediately
                   try {
@@ -432,6 +439,9 @@ class ArrivalTimeDetector {
           if (!d || d.id === nextStop.id) return false;
           if (!['en_route', 'in_transit'].includes(String(d.status))) return false;
           if (d.arrival_time) return false;
+          // Cycling markers only get arrival_time via their own isNextDelivery turn
+          // (start/end markers share coordinates — co-located stamping is wrong for them).
+          if (d.is_cycling_marker) return false;
           let stopLat, stopLon;
           if (d.is_cycling_marker) { stopLat = d.cycling_latitude; stopLon = d.cycling_longitude; }
           else if (d.patient_id) { const p = patients.find(p => p?.id === d.patient_id); stopLat = p?.latitude; stopLon = p?.longitude; }
@@ -442,7 +452,8 @@ class ArrivalTimeDetector {
 
         const allImmediateUpdates = [nextStop, ...coLocatedImmediate];
 
-        await Promise.all(allImmediateUpdates.map(d => base44.entities.Delivery.update(d.id, { arrival_time: arrivalTime })));
+        const { updateDeliveryLocal } = await import('./offlineMutations');
+        await Promise.all(allImmediateUpdates.map(d => updateDeliveryLocal(d.id, { arrival_time: arrivalTime }, { skipSmartRefresh: true })));
 
         // Write into IDB immediately so local state is consistent
         try {

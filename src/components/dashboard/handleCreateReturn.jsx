@@ -254,6 +254,34 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
       // isn't ours.
       finalDeliveries = finalDeliveries.filter((d) => d?.id === tempId || d?.id === realReturn?.id || !String(d?.id || '').startsWith('temp_'));
 
+      // ── STEP 4a — AUTHORITATIVE server-side flag reconciliation ───────────
+      // OWNER BUG (Sep 29 2026, corrected): the STEP 2 sweep reads the CLIENT
+      // snapshot — which can be STALE. Scenario: the Failed flow's
+      // clearAndSetNextDelivery had just promoted the next in-line stop to
+      // true ON THE SERVER, but this device's snapshot didn't reflect it yet,
+      // so sweptFlags missed it; the optimizer then crowned the return stop
+      // and both stayed true. Snapshot-based patches (like the previous fix)
+      // can't see flags the snapshot doesn't know about. Instead, reconcile
+      // AUTHORITATIVELY via clearAndSetNextDelivery — the sole authority for
+      // this flag (standing rule). It reads every truthy flag for the route
+      // service-role from primary (no replica lag, no stale client snapshot),
+      // clears ALL of them except the promote target, then promotes the
+      // optimizer's winner. Also absorbs any in-flight flag writes (e.g. the
+      // Failed flow's) that land after this flow's own commit.
+      const flagWinner = (finalDeliveries || []).find((d) => d?.id && d?.isNextDelivery === true && !String(d.id).startsWith('temp_'));
+      const _winnerRawId = (finalDeliveries || []).find((d) => d?.isNextDelivery === true)?.id || null;
+      const promoteId = _winnerRawId === tempId
+        ? (realReturn?.id || tempId)
+        : (flagWinner?.id || realReturn?.id || null);
+      console.log(`[CREATE RETURN] flag reconciliation: promoting ${promoteId} via clearAndSetNextDelivery`);
+      base44.functions.invoke('clearAndSetNextDelivery', {
+        driverId,
+        deliveryDate: routeDate,
+        promoteId,
+      }).catch((e) => {
+        console.warn('⚠️ [CREATE RETURN] clearAndSetNextDelivery reconciliation failed:', e?.message || e);
+      });
+
       // Server writes for the re-sequenced stops (return excluded — created above
       // with its final stop_order/polyline already attached)
       const writeBatch = (coordResult?.optimizeData?.writeBatch || []).filter((w) => w && w.id !== tempId && (!realReturn?.id || w.id !== realReturn.id));

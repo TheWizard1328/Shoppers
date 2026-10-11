@@ -87,6 +87,7 @@ import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
+import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
 import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
@@ -97,6 +98,7 @@ const DEFAULT_APP_VERSION = 'v1.0.0';
 
 import QuickStats from './components/layout/DashboardQuickStats';
 import { initTileCacheManager } from '@/components/utils/tileCacheManager';
+import { installGlobalFocusTrap } from '@/components/utils/focusTrapManager';
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
@@ -195,6 +197,26 @@ export default function Layout({ children, currentPageName }) {
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
   useAutoThemeSync(themePreference);
+
+  // FIX (Sep 29 2026): the Settings > Appearance dialog dispatches
+  // 'themePreferenceChanged' after saving a new theme, but NOTHING listened for
+  // it — the saved theme only took effect after a full page reload (and on
+  // desktop it never took effect at all, see useLayoutInit). Listen here and
+  // apply immediately so a theme switch is live everywhere, on every device.
+  useEffect(() => {
+    const onThemePreferenceChanged = (e) => {
+      const nextTheme = e?.detail?.theme;
+      if (nextTheme) setThemePreference(nextTheme);
+    };
+    window.addEventListener('themePreferenceChanged', onThemePreferenceChanged);
+    return () => window.removeEventListener('themePreferenceChanged', onThemePreferenceChanged);
+  }, []);
+
+  // GLOBAL FOCUS TRAP (owner request Oct 8 2026): while any hand-rolled dialog
+  // or form overlay is open, Tab cycles only through that overlay's elements
+  // (Radix/shadcn dialogs already trap their own focus). One listener for the
+  // whole app — installed once here, never per-dialog.
+  useEffect(() => installGlobalFocusTrap(), []);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
   const [branding, setBranding] = useState({
     // Default to the actual App Logo served by the platform so freshly-installed /
@@ -240,6 +262,112 @@ export default function Layout({ children, currentPageName }) {
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
+
+  // ── Auto-update while backgrounded (owner request, Sep 28 2026) ────────────
+  // When an update bubble is showing and the app stays backgrounded/minimized
+  // for 10+ minutes, clear the user cache and reload so the new build loads
+  // WITHOUT the driver having to tap anything. A one-shot localStorage flag
+  // then makes the update balloon reappear on next foreground with a
+  // "your app was just updated automatically" message instead of the
+  // "update available" prompt.
+  const [autoUpdatedNotice, setAutoUpdatedNotice] = useState(false);
+
+  useEffect(() => {
+    // Boot side: if a recent background auto-reload happened, surface the
+    // "just updated" balloon once the app is foregrounded.
+    try {
+      const ts = Number(localStorage.getItem('rxdeliver_auto_updated_at')) || 0;
+      if (ts && Date.now() - ts < 15 * 60 * 1000) {
+        localStorage.removeItem('rxdeliver_auto_updated_at');
+        if (document.hidden) {
+          const onVis = () => {
+            if (!document.hidden) {
+              document.removeEventListener('visibilitychange', onVis);
+              setAutoUpdatedNotice(true);
+            }
+          };
+          document.addEventListener('visibilitychange', onVis);
+          return () => document.removeEventListener('visibilitychange', onVis);
+        }
+        setAutoUpdatedNotice(true);
+      }
+    } catch { /* storage unavailable — skip notice */ }
+  }, []);
+
+  useEffect(() => {
+    // Idle clock must start counting from app boot, not from when the update
+    // is detected — this is what detects "already idle 10+ min" at the moment
+    // the update becomes ready.
+    initInteractionIdleTracker();
+  }, []);
+
+  useEffect(() => {
+    if (!hasWebUpdate) return; // no pending update — nothing to auto-apply
+
+    // Case 1 (backgrounded/minimized): apply after 10 min away.
+    const BACKGROUND_THRESHOLD_MS = 10 * 60 * 1000;
+    // Case 2 (foreground but idle 10+ min when the update appears): the update
+    // bubble is already showing to nobody — give it its 1 minute of visibility,
+    // then restart onto the new build. Any tap/key/scroll during that minute
+    // cancels the restart (someone is watching; they can tap the bubble
+    // themselves) and re-arms later if they idle out again.
+    const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
+    const IDLE_RESTART_DELAY_MS = 60 * 1000;
+
+    const applyUpdate = () => {
+      try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { }
+      try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
+      window.location.reload(true);
+    };
+
+    let backgroundedAt = document.hidden ? Date.now() : null;
+    let idleRestartTimer = null;
+    const armIdleRestart = () => {
+      if (idleRestartTimer) return;
+      idleRestartTimer = setTimeout(() => {
+        if (document.hidden) return; // background path owns that case
+        applyUpdate();
+      }, IDLE_RESTART_DELAY_MS);
+    };
+    const disarmIdleRestart = () => {
+      if (idleRestartTimer) { clearTimeout(idleRestartTimer); idleRestartTimer = null; }
+    };
+
+    // Update just became ready — if the device is already foreground-idle past
+    // the threshold, arm the 1-minute restart right away.
+    if (!document.hidden && getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+
+    const tick = () => {
+      if (document.hidden) {
+        disarmIdleRestart();
+        if (backgroundedAt == null) backgroundedAt = Date.now();
+        if (Date.now() - backgroundedAt >= BACKGROUND_THRESHOLD_MS) {
+          applyUpdate(); // same refresh path as the bubble's own tap
+        }
+      } else {
+        backgroundedAt = null;
+        if (getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+      }
+    };
+    const iv = setInterval(tick, 60 * 1000);
+    const onVis = () => {
+      backgroundedAt = document.hidden ? Date.now() : null;
+      if (document.hidden) disarmIdleRestart();
+    };
+    // A user coming back cancels a pending idle restart mid-countdown.
+    const onActivity = () => disarmIdleRestart();
+    window.addEventListener('pointerdown', onActivity, { capture: true, passive: true });
+    window.addEventListener('keydown', onActivity, { capture: true, passive: true });
+    window.addEventListener('touchstart', onActivity, { capture: true, passive: true });
+    return () => {
+      clearInterval(iv);
+      disarmIdleRestart();
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pointerdown', onActivity, { capture: true });
+      window.removeEventListener('keydown', onActivity, { capture: true });
+      window.removeEventListener('touchstart', onActivity, { capture: true });
+    };
+  }, [hasWebUpdate]);
   // APK update detection — compares installed build vs latest GitHub Actions build
   const { updateAvailable: hasApkUpdate } = useAndroidAppUpdateCheck(latestBuild?.buildNumber ?? null);
 
@@ -322,6 +450,22 @@ export default function Layout({ children, currentPageName }) {
     window.addEventListener('appSettingsUpdated', handleAppSettingsUpdate);
     return () => window.removeEventListener('appSettingsUpdated', handleAppSettingsUpdate);
   }, [currentUser]);
+
+  // Patients synced from the server (priority sync / patient DB priority sync /
+  // filter date-change sync) — merge them into the patients state the moment
+  // they land. Without this, a patient missing from the boot IDB snapshot kept
+  // its stop card showing "Unknown" for the whole session even though the
+  // record had been saved to IndexedDB seconds after boot.
+  useEffect(() => {
+    const onPatientsSynced = (e) => {
+      const synced = e?.detail?.patients;
+      if (Array.isArray(synced) && synced.length > 0) {
+        setPatients((prev) => mergePatients(prev, synced));
+      }
+    };
+    window.addEventListener('patientsSyncedFromServer', onPatientsSynced);
+    return () => window.removeEventListener('patientsSyncedFromServer', onPatientsSynced);
+  }, []);
 
   // ATOMIC INIT: Unified loading state - keeps spinner until device+auth+data confirmed
   // ─── App bootstrap + sync lifecycle ────────────────────────────────────
@@ -527,6 +671,19 @@ export default function Layout({ children, currentPageName }) {
             const existing = prevById.get(d?.id);
             return existing ? applyRealtimeMergeWithLockout(d.id, d, existing) : d;
           });
+          // CRITICAL: Preserve locally-created, not-yet-server-synced records.
+          // Full replacements are built from server reads (driver change, Pull to
+          // Sync, data-source toggle, Step 9 priority refresh). A record created
+          // offline-first (temp ID + _isLocal=true — cycling markers, pickups,
+          // returns) is ABSENT from that read while its bulkCreate is in flight or
+          // queued, and would be silently dropped from the UI until a manual app
+          // refresh (the "cycling markers keep disappearing" bug). Carry unsynced
+          // local records over unless they were explicitly deleted here.
+          const nextIds = new Set(next.filter(Boolean).map((d) => d.id));
+          const unsyncedLocal = prev.filter(Boolean).filter((d) =>
+            d?._isLocal === true && d.id && !nextIds.has(d.id) && !(_deletedIds && _deletedIds.has(d.id))
+          );
+          if (unsyncedLocal.length > 0) next = [...next, ...unsyncedLocal];
         }
         // Only use the replacement if it has content or prev is empty
         next = next.length || !prev.length ? next : prev;
@@ -566,32 +723,102 @@ export default function Layout({ children, currentPageName }) {
     }
   }, []);
 
-  // Granular AppUser update function for immediate UI synchronization
-  const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
-    if (isFullReplacement) {
-      setAppUsers((prev) => {
-        const next = newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev;
-        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
-        // state immediately — before the useEffect in AppDataContext fires after paint.
-        if (typeof window !== 'undefined') window.__appUsers = next;
-        return next;
-      });
-    } else {
-      setAppUsers((prevAppUsers) => {
-        const updatesMap = new Map(newAppUsers.map((u) => [u.id, u]));
-        const next = prevAppUsers.map((appUser) => {
-          if (!appUser) return appUser;
-          const update = updatesMap.get(appUser.id);
-          if (update) return { ...appUser, ...update };
-          return appUser;
-        });
-        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
-        // state immediately — before the useEffect in AppDataContext fires after paint.
-        if (typeof window !== 'undefined') window.__appUsers = next;
-        return next;
-      });
+  // PERF (Oct 9 2026 deep dive, GPS re-render fix): every remote driver GPS
+  // tick used to commit a brand-new appUsers array, re-rendering the whole
+  // Layout/Dashboard tree (map, header, dialogs) several times a minute.
+  // Location-only changes are now coalesced to at most ONE React commit per
+  // second; the window.__appUsers mirror stays synchronous (flushRealtimeBatch
+  // and merge paths still see fresh coords instantly), and any non-location
+  // change (duty status, name, role, ...) commits immediately, flushing any
+  // pending GPS coalescing first so ordering is preserved.
+  const LOC_ONLY_USER_FIELDS = new Set(['current_latitude', 'current_longitude', 'location_updated_at', 'last_seen_at', 'last_seen_device', 'updated_date']);
+  const isLocationOnlyUserDiff = (a, b) => {
+    if (!a || !b) return false;
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const k of keys) {
+      if (a[k] === b[k]) continue;
+      if (LOC_ONLY_USER_FIELDS.has(k)) continue;
+      return false;
+    }
+    return true;
+  };
+  const pendingLocOnlyUsersRef = useRef(null);
+  const locOnlyFlushTimerRef = useRef(null);
+  const locOnlyEpochRef = useRef(0); // bumped by every immediate (non-loc) commit
+  const committedAppUsersRef = useRef([]); // last committed array (mirror of window.__appUsers)
+  const committedAppUsersSync = () => {
+    const arr = committedAppUsersRef.current;
+    if (typeof window !== 'undefined') window.__appUsers = arr;
+    return arr;
+  };
+  const commitAppUsersCoalesced = useCallback((next) => {
+    committedAppUsersRef.current = next;
+    const prev = committedAppUsersSync();
+    if (next === prev) return;
+    let locOnly = false;
+    if (prev.length === next.length) {
+      locOnly = true;
+      const byId = new Map(prev.filter(Boolean).map((u) => [u.id, u]));
+      for (const nu of next) {
+        if (!nu?.id) continue;
+        const pu = byId.get(nu.id);
+        if (pu === nu) continue;
+        if (!isLocationOnlyUserDiff(pu, nu)) { locOnly = false; break; }
+      }
+    }
+    if (typeof window !== 'undefined') window.__appUsers = next; // sync mirror always fresh
+    if (!locOnly) {
+      // Non-location change (or shape change): commit immediately and drop the timer.
+      locOnlyEpochRef.current += 1; // invalidates any pending coalesced GPS commit
+      if (locOnlyFlushTimerRef.current) { clearTimeout(locOnlyFlushTimerRef.current); locOnlyFlushTimerRef.current = null; }
+      pendingLocOnlyUsersRef.current = null;
+      setAppUsers(next);
+      return;
+    }
+    // Location-only: coalesce — commit at most once per second.
+    pendingLocOnlyUsersRef.current = next;
+    if (!locOnlyFlushTimerRef.current) {
+      const epoch = locOnlyEpochRef.current;
+      locOnlyFlushTimerRef.current = setTimeout(() => {
+        locOnlyFlushTimerRef.current = null;
+        const pending = pendingLocOnlyUsersRef.current;
+        pendingLocOnlyUsersRef.current = null;
+        // A full/merge commit happened since scheduling — pending is stale, drop it.
+        if (epoch !== locOnlyEpochRef.current || !pending) return;
+        setAppUsers(pending);
+      }, 1000);
     }
   }, []);
+
+  // Granular AppUser update function for immediate UI synchronization
+  const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
+    // PERF: computed OUTSIDE setAppUsers (the committed-array mirror is the
+    // synchronous source the merge paths already rely on) so the location
+    // coalescer can classify the diff before committing.
+    const prev = committedAppUsersRef.current || [];
+    let next;
+    if (isFullReplacement) {
+      next = newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev;
+    } else {
+      const updatesMap = new Map((newAppUsers || []).map((u) => [u.id, u]));
+      next = prev.map((appUser) => {
+        if (!appUser) return appUser;
+        const update = updatesMap.get(appUser.id);
+        if (update) return { ...appUser, ...update };
+        return appUser;
+      });
+    }
+    commitAppUsersCoalesced(next);
+  }, [commitAppUsersCoalesced]);
+
+  // WS realtime sync AppUser changes (upserts + deletes) — same coalescer.
+  const applyAppUserChangesLocally = useCallback(({ upserts = [], deleteIds = [] } = {}) => {
+    const prev = committedAppUsersRef.current || [];
+    const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+    (deleteIds || []).forEach((id) => map.delete(id));
+    (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); });
+    commitAppUsersCoalesced(Array.from(map.values()));
+  }, [commitAppUsersCoalesced]);
 
   // Callback to update state from smartRefreshManager
   const updateAppDataState = useCallback(async (updates) => {
@@ -625,6 +852,8 @@ export default function Layout({ children, currentPageName }) {
         if (updatedAppUserForCurrentUser && !hasOnlyTransientChanges) {
           if (hasCurrentUserRefreshImpact(currentUser, updatedAppUserForCurrentUser)) {
             isReloadingFromAppUserChange.current = true;
+            committedAppUsersRef.current = updates.appUsers;
+            if (typeof window !== 'undefined') window.__appUsers = updates.appUsers;
             setAppUsers(updates.appUsers);
             clearUserCache();
             invalidate('AppUser');
@@ -645,6 +874,8 @@ export default function Layout({ children, currentPageName }) {
         }
       }
 
+      committedAppUsersRef.current = updates.appUsers;
+      if (typeof window !== 'undefined') window.__appUsers = updates.appUsers;
       setAppUsers(updates.appUsers);
     }
     if (updates.users) setUsers(updates.users);
@@ -813,7 +1044,11 @@ export default function Layout({ children, currentPageName }) {
         ));
         setUsers(initialUsers);
         setDrivers(activeDrivers);
-        if (appUsers && appUsers.length > 0) setAppUsers(appUsers);
+        if (appUsers && appUsers.length > 0) {
+          committedAppUsersRef.current = appUsers;
+          if (typeof window !== 'undefined') window.__appUsers = appUsers;
+          setAppUsers(appUsers);
+        }
         // CRITICAL: Merge deliveries — never replace. A full replacement wipes other
         // drivers' data if the incoming set is date-scoped or city-filtered.
         updateDeliveriesLocally(deliveries || [], false);
@@ -1398,7 +1633,7 @@ export default function Layout({ children, currentPageName }) {
           squareLocationConfigs: squareLocationConfigs || [],
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,
           applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) {const existing = map.get(item.id);const base = existing ? { ...existing, ...item } : item;/* applyRealtimeMergeWithLockout applies the global terminal-stickiness guard even when no per-delivery lock is armed (receiving devices) — prevents stale WS/server payloads from resurrecting just-terminal stops. */map.set(item.id, existing ? applyRealtimeMergeWithLockout(item.id, base, existing) : base);}});return Array.from(map.values());}),
-          applyAppUserChangesLocally: ({ upserts = [], deleteIds = [] }) => setAppUsers((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
+          applyAppUserChangesLocally,
           applyPatientChangesLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});const _next = Array.from(map.values());if (typeof window !== 'undefined') window.__appPatients = _next;return _next;}),
           updatePatientsLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});const _next = Array.from(map.values());if (typeof window !== 'undefined') window.__appPatients = _next;return _next;}),
           isFormOverlayOpen: isFormOverlayOpen, setIsFormOverlayOpen: setIsFormOverlayOpen, isEntityUpdating: isEntityUpdating, setIsEntityUpdating: setIsEntityUpdating,
@@ -1422,6 +1657,8 @@ export default function Layout({ children, currentPageName }) {
                   appVersion={sidebarVersion}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}
+                  autoUpdatedNotice={autoUpdatedNotice}
+                  onAutoUpdatedDismiss={() => setAutoUpdatedNotice(false)}
                   currentUser={effectiveCurrentUser}
                   setCurrentUser={setCurrentUser}
                   currentPageName={currentPageName}
@@ -1496,7 +1733,9 @@ export default function Layout({ children, currentPageName }) {
                   }
                 }}
                 isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen}
-                hasWebUpdate={hasWebUpdate} />
+                hasWebUpdate={hasWebUpdate}
+                autoUpdatedNotice={autoUpdatedNotice}
+                onAutoUpdatedDismiss={() => setAutoUpdatedNotice(false)} />
               }
 
                     <main className="flex-1 overflow-hidden relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>

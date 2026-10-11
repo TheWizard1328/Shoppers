@@ -110,7 +110,10 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     const now = new Date(), pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     try {
-      onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
+      // Preserve an existing arrival_time (e.g. set by the arrival detector when the
+      // driver reached the marker) — Complete must only stamp the completion time.
+      // Fall back to now only when no arrival_time was ever recorded.
+      onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: delivery.arrival_time || localNow });
       // Center the next isNextDelivery card after a brief delay for state to settle
       setTimeout(() => {
         const nextCard = (allDeliveries || []).find(

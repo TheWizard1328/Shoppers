@@ -1,6 +1,9 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
+import { toEdmontonWall } from '../utils/albertaTime';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
+import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import useStopCardActions from "./useStopCardActions";
@@ -127,6 +130,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const liveDriverLocationRef = useRef(null);
   const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "No driver notes");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Owner spec (Sep 24 2026): PAUSE the deferred 5s window-edit reoptimization
+  // countdown while this stop's delete confirmation is open (the delete itself
+  // runs its own optimization). The countdown restarts from the full 5s when
+  // the confirmation closes.
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    const token = pauseDeferredReoptimization('stop_delete_confirm');
+    return () => resumeDeferredReoptimization(token);
+  }, [showDeleteConfirm]);
   const [codPayments, setCodPayments] = useState(delivery?.cod_payments || []);
   const [showCODCollection, setShowCODCollection] = useState(false);
   const [showReturnConfirm, setShowReturnConfirm] = useState(false);
@@ -141,7 +154,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const [isProcessingBackground, setIsProcessingBackground] = useState(false);
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
-  const { setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally } = useAppData();
+  const { setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally, appUsers: liveAppUsers } = useAppData();
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState(null);
@@ -198,7 +211,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     // Only one fetch in flight at a time
     if (_squareAppIdFetching) return;
     _squareAppIdFetching = true;
-    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }).then((settings) => {
+    getAppSettingRows('refresh_intervals').then((settings) => {
       const appId = settings?.[0]?.setting_value?.square_app_id || null;
       _cachedSquareAppId = appId;
       _squareAppIdFetching = false;
@@ -377,6 +390,47 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const showCompletedRouteCenteredCondensed = shouldCondenseCompletedRouteForDriver;
   const showIncompleteRouteSideCondensed = !routeCompletedForLayout && !isExpanded && !isRailCentered;
   const showCenteredIncompleteCollapsed = !routeCompletedForLayout && !isExpanded && isRailCentered;
+  // ── COD footer-swap flag (owner directive, Sep 29 2026) ──────────────────────
+  // True when the driver opened COD collection (Collect link or Square POS tap)
+  // on the current next-delivery card whose Complete button would show. While
+  // true: the footer swaps Complete → Save & Complete, and the in-panel Save &
+  // Complete button hides (no duplicate). Single source of truth here — the
+  // footer (StopCardActionButtons) and the panel (StopCardCODCollection) both
+  // consume this flag instead of recomputing eligibility themselves.
+  // NOTE (bug fix, Sep 29 2026): must NOT gate on !isCODComplete. isCODComplete
+  // flips true as soon as the DRAFT codPayments total matches codTotalRequired —
+  // before the driver has hit Save. Gating on it made the swap disappear the
+  // instant the typed amount matched, which is exactly when it needs to show.
+  // The real "already done" gate is delivery.status/isFinishedDelivery below.
+  // LIVE today string, recomputed every render (see note above localNowParts).
+  const _liveNow = new Date();
+  const liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+  // Driver-status source for the swap MUST match the footer's own check exactly
+  // (StopCardActionButtons.jsx computes driverOnDutyOrBreak from useAppData()'s
+  // LIVE appUsers, read directly via context inside that component — not from
+  // the appUsers PROP threaded down through Dashboard -> DashboardView ->
+  // StopCardsSection -> StopCard). That prop can lag a beat behind the live
+  // context value, so codFooterSwapActive's own driver_status read (via the
+  // prop-sourced currentDriverAppUser) could evaluate on_duty=false for an
+  // instant where the footer's live context read already says on_duty=true —
+  // Complete stays eligible in the footer while the swap fails to activate
+  // (root cause of the Sep 30 2026 report: panel open, totals matched, footer
+  // still showing Complete). Recompute driver status here from the SAME live
+  // context array the footer uses, keyed identically (delivery.driver_id only,
+  // no currentUser fallback) so the two checks can never disagree.
+  const liveAssignedDriverAppUser = useMemo(() => {
+    if (!Array.isArray(liveAppUsers)) return null;
+    return liveAppUsers.find((u) => u?.user_id === delivery?.driver_id) || null;
+  }, [liveAppUsers, delivery?.driver_id]);
+  const codFooterSwapActive = !!(
+    hasCODRequired &&
+    showCODCollection &&
+    isNextDelivery &&
+    !isFinishedDelivery &&
+    !FINISHED_STATUSES.includes(delivery?.status) &&
+    comparisonRouteDateStr <= liveTodayStr &&
+    (liveAssignedDriverAppUser?.driver_status === 'on_duty' || liveAssignedDriverAppUser?.driver_status === 'on_break')
+  );
   const isDispatcherCenteredCard = userHasRole(currentUser, 'dispatcher') && isRailCentered;
   const hideBodyForDispatcherCenteredCard = isDispatcherCenteredCard && !isStrippedForDispatcher && !isExpanded;
   const forceCompactCollapsed = compact && !isExpanded;
@@ -830,6 +884,41 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const handleReturnClickWithBle    = useCallback((e) => { dispatchBleReconnect(); return handleReturnClick(e);    }, [dispatchBleReconnect, handleReturnClick]);
   const restartWithBle              = useCallback((...args) => { dispatchBleReconnect(); return restartCurrentDelivery(...args); }, [dispatchBleReconnect, restartCurrentDelivery]);
 
+  // ── Hey Doc voice stop actions ─────────────────────────────────────
+  // The voice hook (useHeyDoc) asks "say yes to confirm"; only after the
+  // driver says yes does it fire 'heydoc:stopAction' with the resolved
+  // deliveryId. This card executes it if it's the targeted stop.
+  // 'return' runs in two hops: handleReturnClick resolves the return
+  // patient (needs a re-render for handleConfirmReturn's closure to see
+  // it), so a delayed 'return_confirm' event re-enters this listener
+  // after React has re-rendered with the fresh state.
+  useEffect(() => {
+    const handler = async (e) => {
+      const { deliveryId, action } = e.detail || {};
+      if (!delivery?.id || deliveryId !== delivery.id) return;
+      try {
+        if (action === 'complete') {
+          handleCompleteActionWithBle();
+        } else if (action === 'fail') {
+          setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+          handleFailureConfirmWithBle('');
+        } else if (action === 'return') {
+          await handleReturnClick();
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('heydoc:stopAction', { detail: { deliveryId, action: 'return_confirm' } }));
+          }, 150);
+        } else if (action === 'return_confirm') {
+          await handleConfirmReturn();
+          setShowReturnConfirm(false);
+        }
+      } catch (err) {
+        console.warn('[StopCard] Hey Doc action failed:', err?.message || err);
+      }
+    };
+    window.addEventListener('heydoc:stopAction', handler);
+    return () => window.removeEventListener('heydoc:stopAction', handler);
+  }, [delivery?.id, isPickup, handleCompleteActionWithBle, handleFailureConfirmWithBle, handleReturnClick, handleConfirmReturn]);
+
   if (!delivery) return null;
 
   const handleUpdateGPS = async (e) => {
@@ -958,6 +1047,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 <a
                   href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
                   onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
+                  aria-label="Call customer"
                   className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
                   
                         <Phone className="w-6 h-6" />
@@ -975,6 +1065,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
                 <button
                   type="button"
+                  aria-label="Navigate to stop"
                   onClick={(e) => {
                   e.stopPropagation();
                   dispatchStopCardActionCollapse();
@@ -1089,14 +1180,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 const localTimeString = generateCompletionTimestamp(targetDelivery, allDeliveries, FINISHED_STATUSES);
                 const completionUpdate = {
                   status: 'completed',
-                  actual_delivery_time: localTimeString || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                  actual_delivery_time: localTimeString || (() => { const w = toEdmontonWall(now); return `${String(w.h).padStart(2,'0')}:${String(w.mi).padStart(2,'0')}`; })(),
                   isNextDelivery: false,
                   PolylineUpdated: true,
                   finished_leg_transport_mode: currentDriverAppUser?.preferred_travel_mode || 'driving',
                 };
                 // 1. Write status update locally + backend
                 await updateDeliveryLocal(targetDelivery.id, completionUpdate, { skipSmartRefresh: true });
-                await base44.entities.Delivery.update(targetDelivery.id, completionUpdate).catch(() => null);
 
                 // 2. Recalculate isNextDelivery across all stops for this driver+date — same as executeTerminalAction
                 const allDriverDeliveries = allDeliveries
@@ -1135,14 +1225,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 const failUpdate = {
                   status: 'failed',
                   delivery_notes: updatedNotes,
-                  actual_delivery_time: localTimeString || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                  actual_delivery_time: localTimeString || (() => { const w = toEdmontonWall(now); return `${String(w.h).padStart(2,'0')}:${String(w.mi).padStart(2,'0')}`; })(),
                   isNextDelivery: false,
                   PolylineUpdated: true,
                   finished_leg_transport_mode: currentDriverAppUser?.preferred_travel_mode || 'driving',
                 };
                 // 1. Write status update locally + backend
                 await updateDeliveryLocal(targetDelivery.id, failUpdate, { skipSmartRefresh: true });
-                await base44.entities.Delivery.update(targetDelivery.id, failUpdate).catch(() => null);
 
                 // 2. Recalculate isNextDelivery across all stops — same as executeTerminalAction
                 const allDriverDeliveries = allDeliveries
@@ -1235,6 +1324,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             setCodPayments={setCodPayments}
             showCODCollection={showCODCollection}
             setShowCODCollection={setShowCODCollection}
+            codFooterSwapActive={codFooterSwapActive}
             handleAddCODPayment={handleAddCODPayment}
             isStrippedForDriver={isStrippedForDriver}
             currentUser={currentUser}
@@ -1276,6 +1366,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           }
 
           <StopCardFooter
+            driverWithinStopRange={isWithinActiveStopRange}
             shouldAnchorExpandedCard={shouldAnchorExpandedCard}
             showCenteredIncompleteCollapsed={showCenteredIncompleteCollapsed}
             shouldCondenseCompletedRouteForDriver={shouldCondenseCompletedRouteForDriver}
@@ -1349,7 +1440,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             setCodPayments={setCodPayments}
             codPayments={codPayments}
             codTotalRequired={codTotalRequired}
-            codTotalCollected={codTotalCollected} />
+            codTotalCollected={codTotalCollected}
+            showCODCollection={showCODCollection}
+            onCODUpdate={onCODUpdate}
+            setIsCompleting={setIsCompleting}
+            FINISHED_STATUSES={FINISHED_STATUSES}
+            onSelectionChange={onSelectionChange}
+            onClick={onClick}
+            codFooterSwapActive={codFooterSwapActive} />
           
         </CardContent>
       </Card>

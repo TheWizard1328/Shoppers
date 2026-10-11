@@ -1,3 +1,4 @@
+import { filterDeleted } from './deletedDeliveryRegistry';
 /**
  * Offline Sync Manager v3 - Timestamp-Based Sync with Date-Range Delivery Syncing
  * 
@@ -35,6 +36,8 @@ import { processPendingMutationsInternal } from './offlineSyncMutationProcessor'
 import { createOfflineSyncHistoricalHelpers } from './offlineSyncHistorical';
 import { createOfflineSyncPriorityHelpers } from './offlineSyncPriority';
 import { queueEntityRequest } from './requestQueue';
+import { applyPendingAppUserMutations } from './pendingAppUserMutations';
+import { applyPendingEntityMutations } from './pendingEntityMutations';
 
 export {
   pauseOfflineSync,
@@ -271,7 +274,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         if (newLocTime > exLocTime) appUsersByUserId.set(au.user_id, au);
       }
     });
-    const appUsers = Array.from(appUsersByUserId.values());
+    const appUsers = await applyPendingAppUserMutations(Array.from(appUsersByUserId.values()));
     // Merge-only: bulkSave upserts by id and never clears existing offline AppUsers
     if (appUsers && appUsers.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
@@ -289,7 +292,13 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
         .map(s => s.id);
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
-    const deliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
+    const serverDeliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
+    const deliveries = filterDeleted(await applyPendingEntityMutations({
+      entityName: 'Delivery',
+      serverRows: serverDeliveries || [],
+      storeName: offlineDB.STORES.DELIVERIES,
+      filter: deliveryFilter,
+    }));
     // CRITICAL: Use bulkSave to merge, not replaceRecordsByIndex which clears data
     if (getSyncPaused()) {
       console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');
@@ -313,10 +322,23 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     let syncedPatients = [];
     if (patientIds.length > 0) {
       const { freshPatients = [] } = await syncPatientsByIds(patientIds);
-      if (freshPatients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-        syncedPatients = freshPatients;
+      const protectedPatients = await applyPendingEntityMutations({
+        entityName: 'Patient',
+        serverRows: freshPatients,
+        storeName: offlineDB.STORES.PATIENTS,
+      });
+      if (protectedPatients.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, protectedPatients);
+        syncedPatients = protectedPatients;
       }
+    }
+    // CRITICAL: tell the UI about the synced patients. The boot priority sync
+    // previously ONLY wrote IndexedDB — the patients React state stayed frozen
+    // at the boot IDB snapshot, so a patient missing from IDB at boot kept its
+    // stop card showing "Unknown" for the WHOLE SESSION even though the record
+    // was already saved offline.
+    if (Array.isArray(syncedPatients) && syncedPatients.length > 0) {
+      try { window.dispatchEvent(new CustomEvent('patientsSyncedFromServer', { detail: { patients: syncedPatients } })); } catch (_) {}
     }
     invalidateEntityCache('Patient');
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: patientIds.length });
@@ -464,8 +486,10 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   if (getSyncPaused()) return [];
   
   try {
-    const deliveries = await Delivery.filter({ delivery_date: dateStr });
+    const deliveries = filterDeleted(await Delivery.filter({ delivery_date: dateStr }));
     // Upsert fresh records, then prune any offline records that no longer exist on the server
+    // (filterDeleted first: an in-flight fetch captured BEFORE a delete's backend commit
+    // can still return the deleted row — never bulkSave it back into IDB).
     const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
     const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
     const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
@@ -667,8 +691,9 @@ export const forceSyncAll = async () => {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
-    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+    const deliveries = filterDeleted(await Delivery.filter({ delivery_date: selectedDateStr }));
     // Upsert + prune deleted — never clear the date's data before writing
+    // (filterDeleted: drop rows deleted on this device that arrived via stale in-flight fetches).
     {
       const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
       const fsExisting = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
@@ -730,9 +755,10 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null,
     if (cityStoreIds.length > 0) {
       deliveryFilter.store_id = { $in: cityStoreIds };
     }
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    const deliveries = filterDeleted(await Delivery.filter(deliveryFilter, '-updated_date', 5000));
 
     // CRITICAL: Merge deliveries, never delete — user edits must be preserved
+    // (filterDeleted: drop rows deleted on this device that arrived via stale in-flight fetches).
     if (getSyncPaused()) {
       console.log('⏸️ [ManualSyncSelected] Skipping deliveries bulkSave — paused during action');
       return { skipped: true, reason: 'paused_during_action' };
@@ -1172,9 +1198,18 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
   window.__rxdeliverReconnectSyncRegistered = true;
 
   const triggerOfflineBackgroundSync = () => {
-    setTimeout(() => {
-      processPendingMutations().catch(() => {});
-      performBackgroundSync(getLocalDateString()).catch(() => {});
+    setTimeout(async () => {
+      // Push local intent first. Pulling server state concurrently used to let a
+      // stale AppUser.driver_status overwrite an offline duty toggle before its
+      // queued mutation reached the server.
+      try {
+        await processPendingMutations();
+        const { flushPendingBreadcrumbMasters } = await import('./locationBreadcrumbService');
+        await flushPendingBreadcrumbMasters();
+      } catch (error) {
+        console.warn('[OfflineSync] Reconnect upload replay failed:', error?.message);
+      }
+      await performBackgroundSync(getLocalDateString()).catch(() => {});
     }, 1500);
   };
 

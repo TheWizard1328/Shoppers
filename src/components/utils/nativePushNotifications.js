@@ -87,8 +87,22 @@ export async function initNativePushNotifications(userId) {
             {
               id: 'AVAILABILITY_ACTIONS',
               actions: [
-                { id: 'availability_yes', title: "Yes, I'm available" },
+                { id: 'availability_yes', title: 'I Accept' },
                 { id: 'availability_no', title: 'Unavailable' },
+              ],
+            },
+            // Idle alerts (owner request, Sep 28 2026)
+            {
+              id: 'OFFDUTY_IDLE_ACTIONS',
+              actions: [
+                { id: 'offduty_force_close', title: 'Force Close' },
+              ],
+            },
+            {
+              id: 'ONBREAK_IDLE_ACTIONS',
+              actions: [
+                { id: 'onbreak_acknowledge', title: 'Acknowledge' },
+                { id: 'onbreak_continue', title: 'Continue Route' },
               ],
             },
           ],
@@ -151,12 +165,12 @@ export async function initNativePushNotifications(userId) {
             title: notifTitle,
             body: notifBody,
             extra: extraData,
-            // Colorized large icon — shown in the expanded notification shade
-            // next to the title/body. Android's resource system auto-selects
-            // drawable-night/ variant for dark theme.
-            largeIcon: 'ic_notification_large',
-            // Small status-bar icon — monochrome silhouette (required by
-            // Android Lollipop+, OS discards RGB and only uses alpha). Tinted brand green via iconColor.
+            // Large icon REMOVED (owner directive, Sep 28 2026): the OS already
+            // shows the app icon on the left of every card, so the large icon
+            // rendered as a SECOND duplicate app icon on the right side of the
+            // card. Cards drawn by this JS path had it; OS-drawn (killed-app)
+            // pushes didn't — that was the some-do/some-don't inconsistency.
+            // Small status-bar icon stays — monochrome silhouette, tinted brand green.
             smallIcon: 'ic_stat_notify',
             iconColor: '#22c55e',
           };
@@ -204,6 +218,29 @@ export async function initNativePushNotifications(userId) {
             // Both "Yes" and "No" are intentionally silent — the driver just wants
             // to submit their response without the app popping open, reloading, or
             // navigating to the chat. The backend call above already handles it.
+            return;
+          }
+
+          // ── Idle alert actions (owner request, Sep 28 2026) ──
+          if (actionId === 'offduty_force_close' && extra.__idle_alert === 'offduty') {
+            // Driver acknowledged the off-duty running alert — force close the app
+            // (same path the idle-kill uses: stop tracking + App.exitApp()).
+            try {
+              const { locationTracker } = await import('./locationTracker');
+              await locationTracker._forceCloseApp('App closed from notification to save battery.');
+            } catch (err) {
+              console.error('[NativePush] Idle-alert force close failed:', err?.message);
+            }
+            return;
+          }
+          if (extra.__idle_alert === 'onbreak') {
+            // Acknowledge = dismiss only (Android auto-dismisses on action tap).
+            if (actionId === 'onbreak_continue') {
+              // Continue Route = toggle the driver back on duty. DriverStatusToggle
+              // runs its full on-duty flow (tracker upgrade, FAB phase restore) —
+              // the component is mounted whenever the app process is alive.
+              window.dispatchEvent(new CustomEvent('triggerOnDutyFromNotification'));
+            }
             return;
           }
 
