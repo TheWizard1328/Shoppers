@@ -40,6 +40,17 @@ export const resumeRealtimeSync = () => {
 // A non-zero debounce gives the IDB write lock time to commit both events from a
 // two-broadcast polyline save before flushBuffered reads the IDB snapshot back.
 const DEBOUNCE_MS = 50;
+
+// GPS pings from driver devices update ONLY these AppUser fields (see
+// locationTracker.updateLocationInDatabase). Used to scope WS handling on
+// receiving devices: a location-only ping moves the shared marker via
+// driverLocationsUpdated but must NOT rewrite appUsers React state, which
+// was re-rendering the whole dashboard every ~15s per active driver.
+const APPUSER_LOCATION_ONLY_FIELDS = ['current_latitude', 'current_longitude', 'location_updated_at', 'last_seen_at', 'updated_date'];
+export const isLocationOnlyAppUserChange = (changedFields) =>
+  Array.isArray(changedFields) &&
+  changedFields.length > 0 &&
+  changedFields.every((f) => APPUSER_LOCATION_ONLY_FIELDS.includes(f));
 const eventBuffers = {
   Delivery: new Map(),
   Patient: new Map(),
@@ -165,7 +176,7 @@ async function flushBuffered(entityName) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
-        emitGatedEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }), `wsAppUser:${data?.id || 'unknown'}`);
+        emitGatedEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true, locationOnly: isLocationOnlyAppUserChange(changedFields) } }), `wsAppUser:${data?.id || 'unknown'}`);
         if (data.preferred_travel_mode && data.user_id) {
           window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
             detail: { driverId: data.user_id, travelMode: data.preferred_travel_mode, fromRealtime: true }
@@ -495,9 +506,11 @@ async function flushBuffered(entityName) {
       // the stale values while preserving city_ids, driver_status, location_tracking_enabled, etc.
       return cached ? { ...cached, ...i.data } : i.data;
     }).filter(Boolean);
+    const _locOnlyById = new Map();
+    items.forEach((i) => { if (i?.data?.id) _locOnlyById.set(i.data.id, isLocationOnlyAppUserChange(i.changedFields)); });
     incomingUsers.forEach((itemData) => {
       emitGatedEvent(new CustomEvent('appUserUpdated', {
-        detail: { appUser: itemData, fromRealtime: true }
+        detail: { appUser: itemData, fromRealtime: true, locationOnly: _locOnlyById.get(itemData?.id) === true }
       }), `wsAppUser:${itemData?.id || 'unknown'}`);
     });
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {

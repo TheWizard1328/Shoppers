@@ -10,6 +10,8 @@ import { globalFilters } from './globalFilters';
 import { seedHereApiKey, initHereApiKey } from './hereApiKeyStore';
 import { computeRouteStarted, persistRouteStarted, readPersistedRouteStarted } from './routeStartedFlag';
 import { filterDeleted } from './deletedDeliveryRegistry';
+import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
+import { isLocationOnlyAppUserChange } from './realtimeSync';
 
 const AppDataContext = createContext(null);
 
@@ -56,7 +58,7 @@ export const AppDataProvider = ({ children, value }) => {
   const [isProgressiveSyncing, setIsProgressiveSyncing] = useState(false);
   const realtimeBatchRef = useRef({
     deliveries: { upserts: new Map(), deletes: new Set() },
-    appUsers: { upserts: new Map(), deletes: new Set() },
+    appUsers: { upserts: new Map(), deletes: new Set(), locationOnly: new Map() },
     patients: { upserts: new Map(), deletes: new Set() }
   });
   const realtimeBatchTimerRef = useRef(null);
@@ -76,13 +78,31 @@ export const AppDataProvider = ({ children, value }) => {
 
     realtimeBatchRef.current = {
       deliveries: { upserts: new Map(), deletes: new Set() },
-      appUsers: { upserts: new Map(), deletes: new Set() },
+      appUsers: { upserts: new Map(), deletes: new Set(), locationOnly: new Map() },
       patients: { upserts: new Map(), deletes: new Set() }
     };
 
     const deliveryChanged = deliveryUpserts.length > 0 || deliveryDeletes.length > 0;
     const appUsersChanged = appUserUpserts.length > 0 || appUserDeletes.length > 0;
     const patientsChanged = patientUpserts.length > 0 || patientDeletes.length > 0;
+
+    // ── Scoped WS updates (owner Oct 11) ──────────────────────────────────
+    // Receiving devices must NOT re-render the dashboard for WebSocket events
+    // belonging to drivers the user isn't viewing. IDB stays the cache for ALL
+    // incoming data (the bulkSave above is untouched) — we only gate the React
+    // state writes:
+    //  • Deliveries: apply to state only when at least one upsert matches the
+    //    selected driver + date (or a delete must be cleaned out of state).
+    //  • AppUsers: a pure GPS ping (location fields only) just moves the shared
+    //    marker via driverLocationsUpdated; real field changes (driver_status,
+    //    travel mode, ...) still rewrite appUsers state for the legend.
+    const _appUserLocationOnly = batch.appUsers.locationOnly || new Map();
+    const shouldApplyDeliveriesToState =
+      deliveryUpserts.some((item) => isDeliveryRelevantToCurrentSelection(item)) ||
+      deliveryDeletes.length > 0;
+    const shouldApplyAppUsersToState =
+      appUserDeletes.length > 0 ||
+      appUserUpserts.some((item) => !_appUserLocationOnly.get(item?.id));
 
     let nextDeliveries = deliveriesRef.current || [];
     let nextAppUsers = appUsersRef.current || [];
@@ -126,7 +146,7 @@ export const AppDataProvider = ({ children, value }) => {
         ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null))
       ]);
 
-      if (deliveryChanged) {
+      if (deliveryChanged && shouldApplyDeliveriesToState) {
         // CRITICAL: Read from window.__appDeliveries (synchronously updated by updateDeliveriesLocally)
         // rather than deliveriesRef.current (which is updated by useEffect — async, after paint).
         // This prevents the race where flushRealtimeBatch builds nextDeliveries from a stale
@@ -217,7 +237,7 @@ export const AppDataProvider = ({ children, value }) => {
         nextPatients = Array.from(patientById.values());
       }
 
-      if (appUsersChanged) {
+      if (appUsersChanged && shouldApplyAppUsersToState) {
         // CRITICAL: Do NOT re-read IDB here (offlineDB.getAll). The IDB bulkSave above
         // is async and may not have committed yet — getAll can return the pre-write snapshot,
         // injecting STALE coordinates into nextAppUsers. This is the primary cause of the
@@ -266,7 +286,7 @@ export const AppDataProvider = ({ children, value }) => {
       console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
     }
 
-    if (deliveryChanged && !nextDeliveries.length && deliveriesRef.current?.length) {
+    if (deliveryChanged && shouldApplyDeliveriesToState && !nextDeliveries.length && deliveriesRef.current?.length) {
       const byId = new Map(deliveriesRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
       deliveryDeletes.forEach((id) => byId.delete(id));
       // Apply lockout in the fallback path too — same protection as the main merge.
@@ -283,7 +303,7 @@ export const AppDataProvider = ({ children, value }) => {
       nextDeliveries = Array.from(byId.values());
     }
 
-    if (appUsersChanged && !nextAppUsers.length) {
+    if (appUsersChanged && shouldApplyAppUsersToState && !nextAppUsers.length) {
       const _fallbackAppUsers = (typeof window !== 'undefined' && Array.isArray(window.__appUsers) && window.__appUsers.length > 0)
         ? window.__appUsers
         : (appUsersRef.current || []);
@@ -326,7 +346,7 @@ export const AppDataProvider = ({ children, value }) => {
       nextPatients = Array.from(byId.values());
     }
 
-    if (deliveryChanged) {
+    if (deliveryChanged && shouldApplyDeliveriesToState) {
       const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
       if (applyDeliveryChangesLocallyRef.current) {
         applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: deliveryDeletes });
@@ -378,7 +398,7 @@ export const AppDataProvider = ({ children, value }) => {
       }
     }
 
-    if (appUsersChanged) {
+    if (appUsersChanged && shouldApplyAppUsersToState) {
       if (updateAppUsersLocallyRef.current) {
         updateAppUsersLocallyRef.current(nextAppUsers, true);
       } else if (applyAppUserChangesLocallyRef.current) {
@@ -427,7 +447,7 @@ export const AppDataProvider = ({ children, value }) => {
 
         if (appUserUpserts.length === 1) {
           window.dispatchEvent(new CustomEvent('appUserUpdated', {
-            detail: { appUser: appUserUpserts[0], appUsers: nextAppUsers, fromRealtime: true, fullReplacement: true }
+            detail: { appUser: appUserUpserts[0], appUsers: nextAppUsers, fromRealtime: true, fullReplacement: true, locationOnly: _appUserLocationOnly.get(appUserUpserts[0]?.id) === true }
           }));
         } else if (appUserUpserts.length > 1) {
           window.dispatchEvent(new CustomEvent('appUsersUpdated', {
@@ -456,7 +476,7 @@ export const AppDataProvider = ({ children, value }) => {
     }
   }, [value.currentUser?.id, value.refreshUser, value.updatePatientsLocally]);
 
-  const scheduleRealtimeEntityUpdate = useCallback((entityType, eventType, data) => {
+  const scheduleRealtimeEntityUpdate = useCallback((entityType, eventType, data, changedFields) => {
     const entityBatch = entityType === 'Delivery'
       ? realtimeBatchRef.current.deliveries
       : entityType === 'Patient'
@@ -472,6 +492,14 @@ export const AppDataProvider = ({ children, value }) => {
     } else {
       entityBatch.deletes.delete(recordId);
       entityBatch.upserts.set(recordId, data);
+      // Track per-id whether this AppUser change is ONLY a GPS location ping.
+      // A batch stays "state-relevant" if ANY upsert carries real field
+      // changes; pure location pings are marker-only (no appUsers state write).
+      if (entityType === 'AppUser') {
+        if (!entityBatch.locationOnly) entityBatch.locationOnly = new Map();
+        const _locOnly = isLocationOnlyAppUserChange(changedFields);
+        entityBatch.locationOnly.set(recordId, entityBatch.locationOnly.get(recordId) === false ? false : _locOnly);
+      }
     }
 
     if (realtimeBatchTimerRef.current) {
@@ -639,7 +667,7 @@ export const AppDataProvider = ({ children, value }) => {
     // Start real-time subscriptions
     cityFilteredRealtimeSync.start(selectedCityId, selectedDate);
 
-    const handleRealtimeEvent = ({ entityType, entity, eventType, type, data, id }) => {
+    const handleRealtimeEvent = ({ entityType, entity, eventType, type, data, id, changedFields }) => {
       const resolvedEntityType = entityType || entity;
       const resolvedEventType = eventType || type;
       const payload = resolvedEventType === 'delete'
@@ -647,17 +675,17 @@ export const AppDataProvider = ({ children, value }) => {
         : data;
 
       if (resolvedEntityType === 'Delivery') {
-        scheduleRealtimeEntityUpdate('Delivery', resolvedEventType, payload);
+        scheduleRealtimeEntityUpdate('Delivery', resolvedEventType, payload, changedFields);
         return;
       }
 
       if (resolvedEntityType === 'Patient') {
-        scheduleRealtimeEntityUpdate('Patient', resolvedEventType, payload);
+        scheduleRealtimeEntityUpdate('Patient', resolvedEventType, payload, changedFields);
         return;
       }
 
       if (resolvedEntityType === 'AppUser') {
-        scheduleRealtimeEntityUpdate('AppUser', resolvedEventType, payload);
+        scheduleRealtimeEntityUpdate('AppUser', resolvedEventType, payload, changedFields);
       }
     };
 

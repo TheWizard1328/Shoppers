@@ -546,6 +546,12 @@ export function useLayoutEventHandlers({
     const handleAppUserUpdated = (event) => {
       const { appUser, fromLocationTracker } = event.detail || {};
       if (!appUser?.id) return;
+      // Scoped WS updates (owner Oct 11): a location-only GPS ping carries no
+      // state the legend/status UI needs (driver_status and friends arrive as
+      // their own events). Shared markers move via driverLocationsUpdated, so
+      // skip the setAppUsers merge — that merge was re-rendering the whole
+      // dashboard every ~15s per active driver on every dispatcher device.
+      if (event.detail?.locationOnly === true) return;
       // UI GATE: defer while backgrounded — heartbeat/GPS echoes arrive every
       // 15s per driver; one replay per user on resume covers them all.
       if (isUIHidden()) {
