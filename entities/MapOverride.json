@@ -1,0 +1,49 @@
+{
+  "name": "MapOverride",
+  "type": "object",
+  "properties": {
+    "map_key": {
+      "type": "string",
+      "description": "overworld | dungeon | town | castle"
+    },
+    "edits_json": {
+      "type": "string",
+      "description": "Sparse tile edits: JSON array of [x, y, char]"
+    },
+    "width": {
+      "type": "number"
+    },
+    "height": {
+      "type": "number"
+    },
+    "version": {
+      "type": "number",
+      "description": "Increments on every save"
+    },
+    "edited_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "map_key",
+    "edits_json"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
