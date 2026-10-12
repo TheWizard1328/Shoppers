@@ -331,6 +331,10 @@ export default function DriverPayroll() {
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Owner Oct 12: true while ANY payroll fetch is in flight (manual click OR
+  // automatic background sync). Drives the header refresh spinner + the
+  // "Syncing Payroll" balloon so the owner always sees when a sync is running.
+  const [isPayrollSyncing, setIsPayrollSyncing] = useState(false);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
@@ -1052,6 +1056,7 @@ export default function DriverPayroll() {
     }
 
     const runFetch = async () => {
+      setIsPayrollSyncing(true);
       // Owner Oct 12: Manual Payroll Sync blanked the whole screen and showed
       // the "First-time sync" banner because it flipped the BLOCKING flag even
       // though data was already rendered. Only block on a true first load
@@ -1091,6 +1096,7 @@ export default function DriverPayroll() {
         throw error;
       } finally {
         fetchPayrollInFlightRef.current = null;
+        setIsPayrollSyncing(false);
         // Always clear: by the time any fetch (foreground or background)
         // settles, there is something on screen (fresh data, cache, or an
         // error toast) — the blocking state must never outlive the request.
@@ -1561,17 +1567,25 @@ export default function DriverPayroll() {
                 )}
                 </SelectContent>
               </Select>
-              <Button
+              <div className="relative flex items-center">
+                {isPayrollSyncing && (
+                  <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 whitespace-nowrap bg-emerald-600 text-white text-xs font-medium px-2 py-1 rounded-md shadow-lg z-30 animate-pulse">
+                    Syncing Payroll
+                    <span className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-emerald-600" />
+                  </span>
+                )}
+                <Button
  onClick={handleManualRefresh}
- disabled={isRefreshing || isLoadingPayroll}
+ disabled={isRefreshing || isPayrollSyncing || isLoadingPayroll}
  size="sm"
  variant="ghost"
  className="p-2 h-auto border border-slate-900 dark:border-white text-body"
  title="Refresh payroll data"
  >
               
-                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
+                <RefreshCw className={`w-5 h-5 ${isPayrollSyncing ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
               {loadedFromOffline && !isLoadingPayroll && (
                 <span className="text-xs text-slate-400 dark:text-slate-500 italic whitespace-nowrap" title="Showing your last saved payroll data — live sync running in the background">
                   saved data • syncing…
@@ -1680,17 +1694,25 @@ export default function DriverPayroll() {
 
             {/* Icon Buttons - Far Right (Desktop only) */}
             <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
-              <Button
+              <div className="relative flex items-center">
+                {isPayrollSyncing && (
+                  <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 whitespace-nowrap bg-emerald-600 text-white text-xs font-medium px-2 py-1 rounded-md shadow-lg z-30 animate-pulse">
+                    Syncing Payroll
+                    <span className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-emerald-600" />
+                  </span>
+                )}
+                <Button
  onClick={handleManualRefresh}
- disabled={isRefreshing || isLoadingPayroll}
+ disabled={isRefreshing || isPayrollSyncing || isLoadingPayroll}
  size="sm"
  variant="ghost"
  className="p-2 h-auto text-body"
  title="Refresh payroll data"
  >
               
-                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
+                <RefreshCw className={`w-5 h-5 ${isPayrollSyncing ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
               <Button
  onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}
@@ -1795,7 +1817,7 @@ export default function DriverPayroll() {
         onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         onShare={handleSharePayroll}
         onRefresh={handleManualRefresh}
-        refreshing={isRefreshing || isLoadingPayroll}
+        refreshing={isRefreshing || isPayrollSyncing || isLoadingPayroll}
         capturing={isSharingPdf || isCapturingScreenshot} />
       
 

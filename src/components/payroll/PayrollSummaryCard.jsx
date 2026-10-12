@@ -935,18 +935,31 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     return adminMetricsFeeTotals.monthlyFees.slice(0, selectedMonthIndex + 1).reduce((sum, value) => sum + (Number(value) || 0), 0);
   }, [adminMetricsFeeTotals, selectedMonthIndex]);
 
-  // Calculate YTD data from payroll records
+  // Calculate YTD data from payroll records.
+  // Owner Oct 12 FIX: the internal `payrollRecords` copy flips between the
+  // full-year list, the once-per-period server YTD fetch, and the parent's
+  // PERIOD-FILTERED list (refreshPayrollRecords filters to the selected
+  // period). Summing YTD over that churn made the YTD columns flicker
+  // between correct year totals and single-period (wrong) totals. YTD now
+  // always sums over a merged FULL-YEAR pool: allPayrollRecords (full year
+  // from the page's payroll data) as the base, overridden per-id by the
+  // fresher internal records (server YTD fetch + live edits). The pool can
+  // only grow per id, never shrink to a period subset.
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
+    const pool = new Map();
+    (allPayrollRecords || []).forEach((r) => { if (r?.id) pool.set(r.id, r); });
+    (payrollRecords || []).forEach((r) => { if (r?.id) pool.set(r.id, r); });
+    const poolArr = Array.from(pool.values());
     payrollData.forEach((data) => {
       const yearStart = `${currentPeriod.start.getFullYear()}-01-01`;
       const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-      const ytdRecords = payrollRecords.filter((r) => r && r.driver_id === data.driver.id && r.pay_period_end >= yearStart && r.pay_period_end <= periodEnd);
+      const ytdRecords = poolArr.filter((r) => r && r.driver_id === data.driver.id && r.pay_period_end >= yearStart && r.pay_period_end <= periodEnd);
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
       ytdMap[data.driver.id] = calculateYtdPayroll(ytdRecords, data, cities, appUser);
     });
     return ytdMap;
-  }, [payrollData, payrollRecords, currentPeriod, appUsers, cities]);
+  }, [payrollData, payrollRecords, allPayrollRecords, currentPeriod, appUsers, cities]);
 
   // Load app fees per delivery setting
   useEffect(() => {
