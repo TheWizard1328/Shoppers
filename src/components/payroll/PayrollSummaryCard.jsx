@@ -1037,7 +1037,12 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const withStableDeductionUids = (list) => (list || []).map((d, i) => {
     if (!d) return d;
     if (d._uid) return d;
-    return { ...d, _uid: `ded:${d.is_one_time ? 'ot' : 'rc'}:${recurringDeductionKey(d)}#${i}` };
+    // Identity must NOT depend on the editable values (name/amount/dates), or the
+    // uid changes the instant an edit is saved and the editor/row desync.
+    // An owner override of a recurring deduction inherits the ORIGINAL recurring
+    // entry's identity (its key), so the override replaces it in place.
+    const base = d.overrides_recurring_key || (d.is_one_time ? `ot:${d.created_at_ms || ''}:${i}` : recurringDeductionKey(d));
+    return { ...d, _uid: `ded:${base}` };
   });
 
 // Initialize and sync driver edits with payroll records
@@ -1379,7 +1384,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                 <div className="mt-2 space-y-1">
                   {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) => {
                     if (ded?.removed) return null; // owner-removed recurring entry (tombstone)
-                    const isOneTime = !!ded?.is_one_time;
+                    const isOneTime = !!ded?.is_one_time && !ded?.was_recurring;
                     const dateRangeLabel = formatDeductionDateRange(ded);
                     const isEditingThis = editingDeductionUid === ded._uid;
 
@@ -1432,9 +1437,10 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                   start_date: normalizeDate(editDeductionStartDate) || undefined,
                                   end_date: normalizeDate(editDeductionEndDate) || undefined,
                                   is_one_time: true,
-                                  // owner editing a RECURRING deduction: this cycle only. Keep the
-                                  // original's key so the live recurring entry is hidden here.
-                                  ...(!d.is_one_time ? { overrides_recurring_key: recurringDeductionKey(d) } : {})
+                                  // owner editing a RECURRING deduction: this cycle only. The stored
+                                  // entry replaces the live recurring one (same _uid, hides it via the
+                                  // original's key) and keeps displaying as recurring.
+                                  ...(!d.is_one_time ? { overrides_recurring_key: recurringDeductionKey(d), was_recurring: true } : {})
                                 } :
                                 d
                                 );
@@ -1578,7 +1584,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                             name,
                             amount: parseFloat(amount), // negatives allowed (credit / deduction correction)
                             is_one_time: true,
-                            _uid: `ded:ot:new:${Date.now()}`,
+                            created_at_ms: Date.now(),
+                            _uid: `ded:ot:${Date.now()}:new`,
                             start_date: normalizeDate(deductionDraftStartDate) || undefined,
                             end_date: normalizeDate(deductionDraftEndDate) || undefined
                           };

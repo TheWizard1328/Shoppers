@@ -100,6 +100,26 @@
           "is_one_time": {
             "type": "boolean",
             "description": "True for a single-pay-cycle extra added via the Payroll page's Manage Deductions overlay \u2014 exists ONLY on this record, never on AppUser.deductions. False/absent for a recurring deduction snapshotted live from the driver's AppUser.deductions each sync."
+          },
+          "overrides_recurring_key": {
+            "type": "string",
+            "description": "Owner per-cycle override: identity key (name|amount|start|end) of the live RECURRING deduction this entry replaces for THIS pay cycle only. The live recurring entry with this key is hidden."
+          },
+          "was_recurring": {
+            "type": "boolean",
+            "description": "True when this entry is an owner edit of a recurring deduction (keeps displaying as recurring)."
+          },
+          "removed": {
+            "type": "boolean",
+            "description": "Tombstone: owner removed the overridden recurring deduction for this cycle. Amount is 0 and the entry is hidden in the UI."
+          },
+          "created_at_ms": {
+            "type": "number",
+            "description": "Creation timestamp (ms) for a one-time extra, used for a stable client identity."
+          },
+          "_uid": {
+            "type": "string",
+            "description": "Client-side stable row identity for the Manage Deductions dialog."
           }
         },
         "required": [
