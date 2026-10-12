@@ -131,7 +131,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const [deductionDraftAmount, setDeductionDraftAmount] = useState('');
   const [deductionDraftStartDate, setDeductionDraftStartDate] = useState('');
   const [deductionDraftEndDate, setDeductionDraftEndDate] = useState('');
-  const [editingDeductionIdx, setEditingDeductionIdx] = useState(null);
+  const [editingDeductionUid, setEditingDeductionUid] = useState(null);
   const [editDeductionName, setEditDeductionName] = useState('');
   const [editDeductionAmount, setEditDeductionAmount] = useState('');
   const [editDeductionStartDate, setEditDeductionStartDate] = useState('');
@@ -361,7 +361,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, netPay: graphNetPay, appFeePercentage, storedPaidAmount
       };
     });
-  }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
+  }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod, payrollRecords]);
 
   const lastAutoCreatePeriodRef = React.useRef(null);
   const autoCreateInProgressRef = React.useRef(false);
@@ -646,7 +646,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     setDeductionDraftAmount('');
     setDeductionDraftStartDate(deductionOverlayDriverId ? periodStartStr || '' : '');
     setDeductionDraftEndDate(deductionOverlayDriverId ? periodEndStr || '' : '');
-    setEditingDeductionIdx(null);
+    setEditingDeductionUid(null);
     setEditDeductionName('');
     setEditDeductionAmount('');
     setEditDeductionStartDate('');
@@ -1028,7 +1028,19 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
-  // Initialize and sync driver edits with payroll records
+    // Owner Oct 12 FIX: the Manage Deductions dialog used ARRAY INDEX to target
+  // the row being edited/deleted. When the list rebuilt mid-edit (background
+  // sync / record refresh), the stale index hit the WRONG row — the edited
+  // values were written onto a different entry while the original survived,
+  // which looked like "the check mark duplicated the deduction". Every entry
+  // now carries a stable _uid, and edit/delete target that instead of index.
+  const withStableDeductionUids = (list) => (list || []).map((d, i) => {
+    if (!d) return d;
+    if (d._uid) return d;
+    return { ...d, _uid: `ded:${d.is_one_time ? 'ot' : 'rc'}:${recurringDeductionKey(d)}#${i}` };
+  });
+
+// Initialize and sync driver edits with payroll records
   useEffect(() => {
     setDriverEdits((prev) => {
       const next = {};
@@ -1075,9 +1087,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           // instead of being silently discarded (previous bug: any non-empty
           // recurring array wholesale replaced the entire persisted list,
           // throwing away one-time adds/edits/removals on every re-sync).
-          deductions: [
+          deductions: withStableDeductionUids([
           ...applyRecurringOverrides(data.deductionsArray || [], pr?.deductions),
-          ...(pr?.deductions || []).filter((d) => d?.is_one_time)],
+          ...(pr?.deductions || []).filter((d) => d?.is_one_time)]),
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
           appFeePercent: autoFillFees ? savedPercentByDriver[k] || 0 : pr?.app_fee_percentage ?? 0,
           appFeeAmount: pr?.app_fee_amount ?? (autoFillFees && savedPercentByDriver[k] > 0 ? calculateAppFeeAmount(k, savedPercentByDriver[k]) : 0),
@@ -1369,11 +1381,11 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                     if (ded?.removed) return null; // owner-removed recurring entry (tombstone)
                     const isOneTime = !!ded?.is_one_time;
                     const dateRangeLabel = formatDeductionDateRange(ded);
-                    const isEditingThis = editingDeductionIdx === idx;
+                    const isEditingThis = editingDeductionUid === ded._uid;
 
                     if (isEditingThis) {
                       return (
-                        <div key={idx} className="p-2 bg-slate-50 dark:bg-slate-800 rounded space-y-1.5">
+                        <div key={ded._uid || idx} className="p-2 bg-slate-50 dark:bg-slate-800 rounded space-y-1.5">
                           <input
                             type="text"
                             value={editDeductionName}
@@ -1406,8 +1418,13 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                 const name = editDeductionName.trim();
                                 const amount = editDeductionAmount;
                                 if (!name || !amount) return;
-                                const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.map((d, i) =>
-                                i === idx ?
+                                // resolve the row by stable uid at click time (the list may
+                                // have rebuilt while the edit popover was open)
+                                const liveList = driverEdits[deductionOverlayDriverId].deductions || [];
+                                const curIdx = liveList.findIndex((x) => x?._uid === editingDeductionUid);
+                                if (curIdx < 0) { setEditingDeductionUid(null); return; }
+                                const updatedDeductions = liveList.map((d, i) =>
+                                i === curIdx ?
                                 {
                                   ...d,
                                   name,
@@ -1428,7 +1445,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                     deductions: updatedDeductions
                                   }
                                 }));
-                                setEditingDeductionIdx(null);
+                                setEditingDeductionUid(null);
                                 await savePayrollChanges(deductionOverlayDriverId, {
                                   deductions: updatedDeductions,
                                   total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
@@ -1438,7 +1455,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <Check className="w-4 h-4 text-emerald-600" />
                             </button>
                             <button
-                              onClick={() => setEditingDeductionIdx(null)}
+                              onClick={() => setEditingDeductionUid(null)}
                               className="p-1 hover:bg-slate-200 rounded">
                               <X className="w-4 h-4 text-slate-500" />
                             </button>
@@ -1448,7 +1465,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                     }
 
                     return (
-                      <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded gap-2">
+                      <div key={ded._uid || idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="truncate">{ded.name}</div>
                           {(dateRangeLabel || !isOneTime) &&
@@ -1458,12 +1475,12 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                           }
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className="font-semibold">-${Number(ded.amount || 0).toFixed(2)}</span>
+                          <span className="font-semibold">{Number(ded.amount || 0) < 0 ? `+$${Math.abs(Number(ded.amount)).toFixed(2)}` : `-$${Number(ded.amount || 0).toFixed(2)}`}</span>
                           {isOneTime || isAppOwner(currentUser) ?
                           <>
                             <button
                               onClick={() => {
-                                setEditingDeductionIdx(idx);
+                                setEditingDeductionUid(ded._uid);
                                 setEditDeductionName(ded.name || '');
                                 setEditDeductionAmount(String(ded.amount ?? ''));
                                 setEditDeductionStartDate(normalizeDate(ded.start_date));
@@ -1477,10 +1494,14 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                 // owner removing a RECURRING deduction: this cycle only. Replace it
                                 // with a $0 tombstone carrying the override key so the live recurring
                                 // entry stays hidden on every re-sync. One-time entries just go away.
-                                const target = driverEdits[deductionOverlayDriverId].deductions[idx];
+                                // Resolve by stable uid at click time (list may have rebuilt).
+                                const liveList = driverEdits[deductionOverlayDriverId].deductions || [];
+                                const curIdx = liveList.findIndex((x) => x?._uid === ded._uid);
+                                if (curIdx < 0) return;
+                                const target = liveList[curIdx];
                                 const updatedDeductions = target && !target.is_one_time ?
-                                driverEdits[deductionOverlayDriverId].deductions.map((d, i) => i === idx ? { name: d.name, amount: 0, is_one_time: true, removed: true, overrides_recurring_key: recurringDeductionKey(d) } : d) :
-                                driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
+                                liveList.map((d, i) => i === curIdx ? { name: d.name, amount: 0, is_one_time: true, removed: true, overrides_recurring_key: recurringDeductionKey(d), _uid: d._uid } : d) :
+                                liveList.filter((_, i) => i !== curIdx);
                                 setDriverEdits((prev) => ({
                                   ...prev,
                                   [deductionOverlayDriverId]: {
@@ -1555,8 +1576,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                         if (name && amount) {
                           const newDed = {
                             name,
-                            amount: parseFloat(amount),
+                            amount: parseFloat(amount), // negatives allowed (credit / deduction correction)
                             is_one_time: true,
+                            _uid: `ded:ot:new:${Date.now()}`,
                             start_date: normalizeDate(deductionDraftStartDate) || undefined,
                             end_date: normalizeDate(deductionDraftEndDate) || undefined
                           };

@@ -383,7 +383,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                     <div key={idx} className="p-2 bg-surface-2 rounded text-sm">
                       <div className="flex items-center gap-2">
                         <span className="flex-1 font-medium text-body-2 truncate">{deduction.name}</span>
-                        <span className="text-sm font-semibold text-body">${Number(deduction.amount || 0).toFixed(2)}</span>
+                        <span className="text-sm font-semibold text-body">{Number(deduction.amount || 0) < 0 ? `+$${Math.abs(Number(deduction.amount)).toFixed(2)}` : `$${Number(deduction.amount || 0).toFixed(2)}`}</span>
                         <Button
                           type="button"
                           variant="ghost"
@@ -458,16 +458,16 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                   onChange={(e) => setNewDeductionAmount(e.target.value)}
                   className="w-24 h-8 text-sm"
                   step="0.01"
-                  min="0"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="h-8 px-2"
-                  disabled={!newDeductionName.trim() || !newDeductionAmount || parseFloat(newDeductionAmount) <= 0}
+                  disabled={!newDeductionName.trim() || !newDeductionAmount || !(parseFloat(newDeductionAmount) !== 0)}
                   onClick={() => {
-                    if (newDeductionName.trim() && parseFloat(newDeductionAmount) > 0) {
+                    const parsedAmount = parseFloat(newDeductionAmount);
+                    if (newDeductionName.trim() && !isNaN(parsedAmount) && parsedAmount !== 0) { // negatives allowed (credit / correction)
                       setFormData(prev => ({
                         ...prev,
                         deductions: [
