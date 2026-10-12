@@ -85,3 +85,20 @@ export const formatDeductionDateRange = (deduction) => {
 };
 
 export { normalizeDate };
+
+// Stable identity of a RECURRING deduction (name + amount + range). Used so the
+// app owner can override ("edit" / "remove") a recurring deduction for ONE pay
+// cycle: the override lives on the Payroll record as a one-time entry carrying
+// `overrides_recurring_key`, and the live recurring entry with that key is hidden
+// for that cycle (owner Oct 12 2026).
+export const recurringDeductionKey = (d) =>
+  `${String(d?.name || '').trim().toLowerCase()}|${Number(d?.amount || 0).toFixed(2)}|${d?.start_date || ''}|${d?.end_date || ''}`;
+
+// Drop live recurring deductions that the owner overrode for this cycle.
+export const applyRecurringOverrides = (liveDeductions, storedDeductions) => {
+  const live = Array.isArray(liveDeductions) ? liveDeductions : [];
+  const keys = new Set((Array.isArray(storedDeductions) ? storedDeductions : [])
+    .map((d) => d?.overrides_recurring_key).filter(Boolean));
+  if (!keys.size) return live;
+  return live.filter((d) => !keys.has(recurringDeductionKey(d)));
+};

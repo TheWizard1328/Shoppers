@@ -320,6 +320,8 @@ export default function DriverPayroll() {
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(null); // null until determined
   const [hasInitialized, setHasInitialized] = useState(false);
   const [payrollData, setPayrollData] = useState(null);
+  const payrollDataRef = useRef(null);
+  payrollDataRef.current = payrollData;
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
   // Grace timer: the first-ever load (no IDB cache) must wait on the full-year
   // backend gather, which can run 25-60s. After LOAD_GRACE_MS we swap the
@@ -1030,7 +1032,7 @@ export default function DriverPayroll() {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
 
     const cacheKey = `${selectedYear}-${selectedCityId}`;
-    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}`;
+    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}-${bypassSummary}`;
     const now = Date.now();
     if (lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 5000) {
       return fullYearPayrollDataRef.current;
@@ -1041,11 +1043,20 @@ export default function DriverPayroll() {
     }
 
     if (fetchPayrollInFlightRef.current) {
-      return fetchPayrollInFlightRef.current;
+      // a manual bypass-summary request waits for the in-flight load, then runs its own
+      if (bypassSummary && !fetchPayrollInFlightRef.bypass) {
+        try { await fetchPayrollInFlightRef.current; } catch (e) {}
+      } else {
+        return fetchPayrollInFlightRef.current;
+      }
     }
 
     const runFetch = async () => {
-      if (!isAutoRefresh) setIsLoadingPayroll(true);
+      // Owner Oct 12: Manual Payroll Sync blanked the whole screen and showed
+      // the "First-time sync" banner because it flipped the BLOCKING flag even
+      // though data was already rendered. Only block on a true first load
+      // (nothing on screen); otherwise sync quietly behind the visible data.
+      if (!isAutoRefresh && !fullYearPayrollDataRef.current && !payrollDataRef.current) setIsLoadingPayroll(true);
       try {
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
@@ -1087,6 +1098,7 @@ export default function DriverPayroll() {
       }
     };
 
+    fetchPayrollInFlightRef.bypass = !!bypassSummary;
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
   }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive, saveOfflinePayroll]);
@@ -1153,7 +1165,10 @@ export default function DriverPayroll() {
       // First-ever visit (no cache) keeps the blocking spinner.
       const gotOffline = await loadOfflinePayroll(selectedYear, selectedCityId).catch(() => false);
       if (cancelled) return;
-      fetchPayroll(!!gotOffline, true).catch(() => {});
+      // Owner Oct 12: sync right after the page loads so values are current.
+      // bypassSummary skips the server-side PayrollSummary fast path (which
+      // can be stale) and re-gathers + rewrites it, quietly behind the cache.
+      fetchPayroll(!!gotOffline, true, { bypassSummary: true }).catch(() => {});
     })();
     return () => { cancelled = true; };
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll, loadOfflinePayroll]);

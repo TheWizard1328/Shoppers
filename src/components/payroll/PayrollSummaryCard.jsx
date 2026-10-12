@@ -27,7 +27,7 @@ import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
-import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate } from '../utils/deductionHelpers';
+import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate, recurringDeductionKey, applyRecurringOverrides } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
@@ -278,9 +278,10 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       // Use date-range OVERLAP (not period-start reference) so a one-time deduction
       // whose start_date falls mid-period is still applied to that pay period — e.g.
       // a Aug 15 one-time deduction applies to the Aug 1–31 monthly period.
-      const deductionsArray = periodStartStr && periodEndStr ?
+      const cycleRecord = payrollRecords.find((r) => r.driver_id === driverId && r.pay_period_start === periodStartStr && r.pay_period_end === periodEndStr);
+      const deductionsArray = applyRecurringOverrides(periodStartStr && periodEndStr ?
       getActiveDeductionsForPeriod(allDriverDeductions, periodStartStr, periodEndStr) :
-      allDriverDeductions;
+      allDriverDeductions, cycleRecord?.deductions);
       const totalDeductions = totalPay > 0 ? sumDeductionAmounts(deductionsArray) : 0;
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
       const storedPaidAmount = payrollRecord?.paid_amount;
@@ -1062,7 +1063,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           // recurring array wholesale replaced the entire persisted list,
           // throwing away one-time adds/edits/removals on every re-sync).
           deductions: [
-          ...(data.deductionsArray || []),
+          ...applyRecurringOverrides(data.deductionsArray || [], pr?.deductions),
           ...(pr?.deductions || []).filter((d) => d?.is_one_time)],
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
           appFeePercent: autoFillFees ? savedPercentByDriver[k] || 0 : pr?.app_fee_percentage ?? 0,
@@ -1352,6 +1353,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                 <label className="text-xs font-semibold text-label">Current Deductions:</label>
                 <div className="mt-2 space-y-1">
                   {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) => {
+                    if (ded?.removed) return null; // owner-removed recurring entry (tombstone)
                     const isOneTime = !!ded?.is_one_time;
                     const dateRangeLabel = formatDeductionDateRange(ded);
                     const isEditingThis = editingDeductionIdx === idx;
@@ -1399,7 +1401,10 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                   amount: parseFloat(amount),
                                   start_date: normalizeDate(editDeductionStartDate) || undefined,
                                   end_date: normalizeDate(editDeductionEndDate) || undefined,
-                                  is_one_time: true
+                                  is_one_time: true,
+                                  // owner editing a RECURRING deduction: this cycle only. Keep the
+                                  // original's key so the live recurring entry is hidden here.
+                                  ...(!d.is_one_time ? { overrides_recurring_key: recurringDeductionKey(d) } : {})
                                 } :
                                 d
                                 );
@@ -1441,7 +1446,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span className="font-semibold">-${Number(ded.amount || 0).toFixed(2)}</span>
-                          {isOneTime ?
+                          {isOneTime || isAppOwner(currentUser) ?
                           <>
                             <button
                               onClick={() => {
@@ -1456,7 +1461,13 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                             </button>
                             <button
                               onClick={async () => {
-                                const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
+                                // owner removing a RECURRING deduction: this cycle only. Replace it
+                                // with a $0 tombstone carrying the override key so the live recurring
+                                // entry stays hidden on every re-sync. One-time entries just go away.
+                                const target = driverEdits[deductionOverlayDriverId].deductions[idx];
+                                const updatedDeductions = target && !target.is_one_time ?
+                                driverEdits[deductionOverlayDriverId].deductions.map((d, i) => i === idx ? { name: d.name, amount: 0, is_one_time: true, removed: true, overrides_recurring_key: recurringDeductionKey(d) } : d) :
+                                driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
                                 setDriverEdits((prev) => ({
                                   ...prev,
                                   [deductionOverlayDriverId]: {

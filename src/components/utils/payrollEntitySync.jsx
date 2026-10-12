@@ -8,6 +8,7 @@
  */
 import { base44 } from '@/api/base44Client';
 import { sumDeductionAmounts } from '@/components/payroll/payrollSummaryCalculations';
+import { applyRecurringOverrides } from '@/components/utils/deductionHelpers';
 
 // Round currency values to 2 decimals
 const round2 = (v) => Math.round((v || 0) * 100) / 100;
@@ -88,8 +89,9 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
     // (e.g. right after adding one). Now the drift check + rebuild only ever
     // touch the recurring subset and always re-append the preserved one-time ones.
     if (canSyncDeductions) {
-      const liveDeductions = Array.isArray(data.deductionsArray) ? data.deductionsArray : [];
       const storedDeductions = Array.isArray(record.deductions) ? record.deductions : [];
+      // owner per-cycle overrides of recurring deductions hide the live entry
+      const liveDeductions = applyRecurringOverrides(Array.isArray(data.deductionsArray) ? data.deductionsArray : [], storedDeductions);
       const storedOneTime = storedDeductions.filter((d) => d?.is_one_time);
       const storedRecurring = storedDeductions.filter((d) => !d?.is_one_time);
       const sameDeduction = (a, b) =>
