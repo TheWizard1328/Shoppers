@@ -533,7 +533,8 @@ Deno.serve(async (req) => {
       payrollPageMonths = [],
       payrollPaginationMode = 'full_year',
       forceRefreshCurrentYear = false,
-      refreshCurrentMonthSummary = false
+      refreshCurrentMonthSummary = false,
+      payrollRefreshMonths = []
     } = body;
 
     const isInvalidCitySelection = (value) => value == null || value === '' || value === 'all';
@@ -1106,7 +1107,62 @@ Deno.serve(async (req) => {
           }
         }
       } else {
-        console.log(`⚡ [getAdminMetricsAndPayrollData] payroll served from PayrollSummary (city=${normalizedPayrollCityId}, year=${payrollYear})`);
+        // Owner Oct 12: BACKGROUND LOAD FAST PATH — the summary serves the whole
+        // year, but only the last few months actually change (deduction edits,
+        // retro deliveries, record updates). Re-gather JUST those months, merge
+        // them into the summary payload, and persist the refreshed summary —
+        // a full-year regather on every page load was far too slow.
+        const refreshMonths = (Array.isArray(payrollRefreshMonths) ? payrollRefreshMonths : [])
+          .map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
+        const yearIsNow = Number(payrollYear) === new Date().getFullYear();
+        if (summaryEligible && yearIsNow && refreshMonths.length > 0) {
+          const range = getPageDateRange(payrollYear, refreshMonths);
+          if (range) {
+            try {
+              const refreshed = await fetchYearData(payrollYear, normalizedPayrollCityId, {
+                includePayroll: true,
+                startDate: range.start,
+                endDate: range.end
+              });
+              const inRefreshedMonth = (dateStr) => refreshMonths.includes(Number(String(dateStr || '').slice(5, 7)));
+              const mergedById = (existingArr, freshArr) => {
+                const map = new Map();
+                (existingArr || []).forEach((r) => r?.id && map.set(r.id, r));
+                (freshArr || []).forEach((r) => r?.id && map.set(r.id, r));
+                return Array.from(map.values());
+              };
+              yearData = {
+                ...yearData,
+                // replace the refreshed months' deliveries wholesale; keep older months from the summary
+                deliveries: [
+                  ...(yearData.deliveries || []).filter((d) => !inRefreshedMonth(d?.delivery_date)),
+                  ...(refreshed.deliveries || [])
+                ],
+                patients: mergedById(yearData.patients, refreshed.patients),
+                appUsers: mergedById(yearData.appUsers, refreshed.appUsers),
+                stores: mergedById(yearData.stores, refreshed.stores),
+                cities: mergedById(yearData.cities, refreshed.cities),
+                cityName: refreshed.cityName || yearData.cityName,
+                appFeeRate: refreshed.appFeeRate || yearData.appFeeRate,
+                // refreshed records win per id; every summary record is kept as a
+                // base so a gather miss can never silently drop a period's record.
+                // A record deleted in the DB lingers in the summary cache until a
+                // manual full sync rewrites it — benign vs. losing a live record.
+                payrollRecords: mergedById(yearData.payrollRecords, refreshed.payrollRecords)
+              };
+              try {
+                await writePayrollSummary(payrollYear, normalizedPayrollCityId, yearData, { collectDebug: !!body?.debugSummary });
+              } catch (e) {
+                console.warn('⚠️ payroll recent-months summary rewrite failed (non-fatal):', e?.message || e);
+              }
+              console.log(`⚡ [getAdminMetricsAndPayrollData] payroll summary + refreshed months [${refreshMonths.join(',')}] (city=${normalizedPayrollCityId}, year=${payrollYear})`);
+            } catch (e) {
+              console.warn('⚠️ payroll recent-months refresh failed (non-fatal, serving plain summary):', e?.message || e);
+            }
+          }
+        } else {
+          console.log(`⚡ [getAdminMetricsAndPayrollData] payroll served from PayrollSummary (city=${normalizedPayrollCityId}, year=${payrollYear})`);
+        }
       }
       payrollData = buildPayrollData(yearData);
       payrollPagination = {

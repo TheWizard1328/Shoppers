@@ -1428,21 +1428,40 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                 const liveList = driverEdits[deductionOverlayDriverId].deductions || [];
                                 const curIdx = liveList.findIndex((x) => x?._uid === editingDeductionUid);
                                 if (curIdx < 0) { setEditingDeductionUid(null); return; }
-                                const updatedDeductions = liveList.map((d, i) =>
+                                const parsedAmount = parseFloat(amount);
+                                const newStart = normalizeDate(editDeductionStartDate) || undefined;
+                                const newEnd = normalizeDate(editDeductionEndDate) || undefined;
+                                const isRecurringRow = !d.is_one_time || d.was_recurring;
+                                // Owner Oct 12: editing a RECURRING deduction updates the driver's
+                                // recurring definition on AppUser too, so EVERY unfinalized pay period
+                                // (and future ones) syncs to the new value — not just this cycle.
+                                // The old behavior stored a per-cycle override only, so other periods
+                                // kept syncing the old value. This record still gets the override
+                                // (keyed to the NEW values so the updated live entry hides here).
+                                if (isRecurringRow) {
+                                  const auKey = d.overrides_recurring_key || recurringDeductionKey(d);
+                                  const au = (appUsers || []).find((a) => a && (a.user_id === deductionOverlayDriverId || a.id === deductionOverlayDriverId));
+                                  if (au?.id && Array.isArray(au.deductions)) {
+                                    const auList = au.deductions.map((x) => recurringDeductionKey(x) === auKey
+                                      ? { ...x, name, amount: parsedAmount, start_date: newStart, end_date: newEnd }
+                                      : x);
+                                    base44.entities.AppUser.update(au.id, { deductions: auList }).catch(() => {});
+                                  }
+                                }
+                                const updatedDeductions = liveList.map((x, i) =>
                                 i === curIdx ?
                                 {
-                                  ...d,
+                                  ...x,
                                   name,
-                                  amount: parseFloat(amount),
-                                  start_date: normalizeDate(editDeductionStartDate) || undefined,
-                                  end_date: normalizeDate(editDeductionEndDate) || undefined,
+                                  amount: parsedAmount,
+                                  start_date: newStart,
+                                  end_date: newEnd,
                                   is_one_time: true,
-                                  // owner editing a RECURRING deduction: this cycle only. The stored
-                                  // entry replaces the live recurring one (same _uid, hides it via the
-                                  // original's key) and keeps displaying as recurring.
-                                  ...(!d.is_one_time ? { overrides_recurring_key: recurringDeductionKey(d), was_recurring: true } : {})
+                                  // override keyed to the NEW recurring identity (after the AppUser
+                                  // update the live entry carries these values, and must stay hidden)
+                                  ...(isRecurringRow ? { overrides_recurring_key: recurringDeductionKey({ name, amount: parsedAmount, start_date: newStart, end_date: newEnd }), was_recurring: true } : {})
                                 } :
-                                d
+                                x
                                 );
                                 setDriverEdits((prev) => ({
                                   ...prev,
@@ -1505,7 +1524,18 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                 const curIdx = liveList.findIndex((x) => x?._uid === ded._uid);
                                 if (curIdx < 0) return;
                                 const target = liveList[curIdx];
-                                const updatedDeductions = target && !target.is_one_time ?
+                                if (target && (!target.is_one_time || target.was_recurring)) {
+                                  // Same propagation rule as edits: a removed recurring deduction is
+                                  // removed from the driver's AppUser definition so other unfinalized
+                                  // periods stop syncing it. This record keeps a hidden $0 tombstone.
+                                  const auKey = target.overrides_recurring_key || recurringDeductionKey(target);
+                                  const au = (appUsers || []).find((a) => a && (a.user_id === deductionOverlayDriverId || a.id === deductionOverlayDriverId));
+                                  if (au?.id && Array.isArray(au.deductions)) {
+                                    const auList = au.deductions.filter((x) => recurringDeductionKey(x) !== auKey);
+                                    base44.entities.AppUser.update(au.id, { deductions: auList }).catch(() => {});
+                                  }
+                                }
+                                const updatedDeductions = target && (!target.is_one_time || target.was_recurring) ?
                                 liveList.map((d, i) => i === curIdx ? { name: d.name, amount: 0, is_one_time: true, removed: true, overrides_recurring_key: recurringDeductionKey(d), _uid: d._uid } : d) :
                                 liveList.filter((_, i) => i !== curIdx);
                                 setDriverEdits((prev) => ({

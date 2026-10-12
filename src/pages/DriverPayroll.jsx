@@ -1032,11 +1032,11 @@ export default function DriverPayroll() {
     }
   }, [getPayrollPageCacheKey]);
 
-  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false } = {}) => {
+  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false, refreshMonths = 0 } = {}) => {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
 
     const cacheKey = `${selectedYear}-${selectedCityId}`;
-    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}-${bypassSummary}`;
+    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}-${bypassSummary}-${refreshMonths}`;
     const now = Date.now();
     if (lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 5000) {
       return fullYearPayrollDataRef.current;
@@ -1070,7 +1070,14 @@ export default function DriverPayroll() {
           payrollPaginationMode: 'full_year',
           // Manual refresh: bypass the server-side PayrollSummary fast path and
           // force a full re-gather (which rewrites the summary).
-          forceRefreshCurrentYear: bypassSummary
+          forceRefreshCurrentYear: bypassSummary,
+          // Background load fast path: serve the year from the PayrollSummary but
+          // re-gather only the most recent pay periods — anything farther back is
+          // historical and doesn't change. Much faster than a full-year regather
+          // on every page load.
+          payrollRefreshMonths: !bypassSummary && refreshMonths > 0
+            ? Array.from({ length: refreshMonths }, (_, i) => new Date().getMonth() + 1 - i).filter((m) => m >= 1)
+            : []
         });
         const rawData = response?.data?.payrollData || response?.payrollData;
         const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
@@ -1172,9 +1179,11 @@ export default function DriverPayroll() {
       const gotOffline = await loadOfflinePayroll(selectedYear, selectedCityId).catch(() => false);
       if (cancelled) return;
       // Owner Oct 12: sync right after the page loads so values are current.
-      // bypassSummary skips the server-side PayrollSummary fast path (which
-      // can be stale) and re-gathers + rewrites it, quietly behind the cache.
-      fetchPayroll(!!gotOffline, true, { bypassSummary: true }).catch(() => {});
+      // Fast path: the server serves the year from its PayrollSummary but
+      // re-gathers only the last 3 calendar months (recent pay periods) —
+      // full-year regathers on every load were too slow. Manual sync still
+      // does the deep full-year refresh.
+      fetchPayroll(!!gotOffline, true, { refreshMonths: 3 }).catch(() => {});
     })();
     return () => { cancelled = true; };
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll, loadOfflinePayroll]);
