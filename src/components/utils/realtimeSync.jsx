@@ -79,7 +79,7 @@ const flushTimers = {};
 // event often only carries the timestamp field. The merge must preserve any
 // polyline/route fields from the first event so they are not silently dropped.
 const POLYLINE_PRESERVE_FIELDS = [
-  'encoded_polyline', 'travel_dist', 'polyline_saved_at',
+  'encoded_polyline', 'polyline_from_order', 'travel_dist', 'polyline_saved_at',
   'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes',
   'deviation_waypoints',
 ];

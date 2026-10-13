@@ -18,6 +18,24 @@ import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 
+/**
+ * OWNER RULE (Oct 13 2026): a stored leg is only reusable when it was
+ * generated under the stop_order the record CURRENTLY carries. Legs are
+ * stamped with polyline_from_order at generation time (written atomically
+ * with encoded_polyline). A manual reorder through the adjust panel changes
+ * stop_order WITHOUT regenerating legs — that mismatch (or a missing stamp
+ * on a legacy record) means the stored geometry is not trustworthy, and the
+ * ENTIRE remaining route must be regenerated, not just the moved stops.
+ */
+export const isLegOrderStampStale = (delivery) => {
+  if (!delivery || typeof delivery.encoded_polyline !== 'string' || delivery.encoded_polyline.length <= 10) return true;
+  const stamp = Number(delivery.polyline_from_order);
+  const currentOrder = Number(delivery.stop_order);
+  if (!Number.isFinite(stamp) || !Number.isFinite(currentOrder)) return true; // legacy/unstamped → conservative
+  return stamp !== currentOrder;
+};
+
+
 // ─── HERE API Usage Logger ───────────────────────────────────────────────────
 // Best-effort: logs each HERE API hit to GoogleAPILog so the admin badge stays accurate.
 // Never throws — logging failure must never block routing.
@@ -369,6 +387,16 @@ export async function generateRoutePolylines({
       };
       let _staleLegIdx = -1;
       for (let i = 0; i < polyTargets.length; i++) {
+        // OWNER RULE (Oct 13 2026): even ONE leg whose generation stamp
+        // (polyline_from_order) doesn't match the record's current stop_order
+        // — i.e. ANY stop renumbered anywhere on the route without an atomic
+        // leg regen (manual adjust-panel reordering) — forces full
+        // regeneration of ALL remaining stops.
+        if (isLegOrderStampStale(polyTargets[i].delivery)) {
+          console.log(`[routePolylineGenerator] ${source} — order unchanged but leg ${i + 1}/${polyTargets.length} stop_order stamp mismatch (manual reorder / unstamped) → full generation`);
+          _staleLegIdx = i;
+          break;
+        }
         const expectedAnchor = i === 0
           ? { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
           : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };

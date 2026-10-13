@@ -74,7 +74,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     if (isEditing && driverWasChanged) {
       await saveDriverChangedDelivery({ base44, deliveries, editingDelivery, deliveryData, deliveryDate, driverId, driver, originalDriverId });
       invalidate('Delivery');
-      await handleDualDriverOptimization(originalDriverId, driverId, deliveryDate);
+      await handleDualDriverOptimization(originalDriverId, driverId, deliveryDate, editingDelivery?.delivery_date);
       await refreshData();
       setShowDeliveryForm(false); setEditingDelivery(null); hasAutoSelectedRef.current = false;
       fabControlEvents.resetToPhaseOneAfterDone(500);
@@ -87,6 +87,12 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       const STRUCTURAL_FIELDS = [
         'status', 'delivery_time_start', 'delivery_time_end',
         'actual_delivery_time', 'delivery_time_eta',
+        // Owner report (Oct 13 2026): a delivery_date move is a ROUTE MEMBERSHIP
+        // change — the date the stop LEFT must be re-sequenced and its polylines
+        // re-anchored (the stop that followed the moved one keeps a leg anchored
+        // to a stop no longer on the route). Without this, a date-only edit hit
+        // the anyFieldChanged early-return and was never even saved.
+        'delivery_date',
       ];
 
       // BUG FIX: a pure Staged→pending status flip (no other structural field changed)
@@ -140,6 +146,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         'transport_mode', 'finished_leg_transport_mode',
         'puid', 'store_id', 'paid_km_override',
         'tracking_number', 'after_hours_pickup',
+        'delivery_date',
       ];
 
       const anyFieldChanged = ALL_TRACKED_FIELDS.some((field) => {
@@ -229,6 +236,14 @@ export async function handleSaveDelivery(deliveryData, ctx) {
               /*skipPolylineIfNoOrderChange=*/ false
             );
             requestDeferredOptimization(driverId, deliveryDate, orderChanged);
+            // Owner report (Oct 13 2026): a DATE move also leaves a hole on the
+            // ORIGINAL date's route — request its optimization too. The deferred
+            // coordinator's adjacency validation regenerates the stale legs
+            // (the leg that ran through the moved stop) on its next pass.
+            const originalDate = editingDelivery?.delivery_date;
+            if (originalDate && originalDate !== deliveryDate) {
+              requestDeferredOptimization(driverId, originalDate, true);
+            }
           }
           invalidate('Delivery');
         } catch (err) {

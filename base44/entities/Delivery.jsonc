@@ -374,6 +374,10 @@
       "type": "string",
       "description": "Display name of the ISP destination store"
     },
+    "polyline_from_order": {
+      "type": "number",
+      "description": "Stop_order the leg polyline was generated under — written atomically with encoded_polyline. A mismatch vs the record's current stop_order (manual reorder without leg regen) forces full route polyline regeneration."
+    },
     "polyline_saved_at": {
       "type": "string",
       "description": "ISO timestamp of the last time breadcrumb polyline was saved to this delivery \u2014 used to force a full WebSocket broadcast"

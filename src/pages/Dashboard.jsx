@@ -2360,8 +2360,8 @@ function Dashboard() {
     });
   };
 
-  const handleDualDriverOptimization = (originalDriverId, newDriverId, deliveryDate) =>
-    runDualDriverOptimization({ originalDriverId, newDriverId, deliveryDate, drivers, patients, stores, appUsers, deliveriesWithStopOrder, updateDeliveryLocal, updateDeliveriesLocally });
+  const handleDualDriverOptimization = (originalDriverId, newDriverId, deliveryDate, originalDeliveryDate) =>
+    runDualDriverOptimization({ originalDriverId, newDriverId, deliveryDate, originalDeliveryDate, patients, stores, appUsers });
 
   const handleEditDelivery = useCallback((delivery) => {
     // Pause any pending debounced optimization for this driver+date

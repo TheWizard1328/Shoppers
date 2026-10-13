@@ -202,6 +202,10 @@ export async function regenerateCurrentLegPolyline({
 
   const updateData = {
     encoded_polyline: seg.encodedPolyline,
+    // OWNER RULE (Oct 13 2026): stamp the stop_order this leg was generated
+    // under (atomic with the polyline) so the generator's skip can detect
+    // manual reorders that changed stop_order without regenerating legs.
+    polyline_from_order: Number.isFinite(Number(nextStop.stop_order)) ? Number(nextStop.stop_order) : null,
     transport_mode: safeTransportMode,
     // Record this deviation point on the stop so later regens (manual re-opt,
     // admin regenerate) keep the leg snapped to the driven path (Sep 17 2026).

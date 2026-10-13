@@ -1421,8 +1421,13 @@ let _inheritedWindowCount = 0;
         ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) : null),
       ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
       ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
-      ...(!isPending && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode } : {}),
-      ...(isPending ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
+      // OWNER RULE (Oct 13 2026): stamp the stop_order this leg was generated
+      // under, written atomically with encoded_polyline. The generator's skip
+      // compares it against the record's CURRENT stop_order — if a manual
+      // reorder (adjust panel) changed stop_order without regenerating legs,
+      // the mismatch forces a full regeneration of ALL remaining stops.
+      ...(!isPending && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
+      ...(isPending ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
     // Deviation-waypoint transfer changes ride along with stop_order/polyline
@@ -1744,7 +1749,7 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   for (const w of writeBatch) {
     const seg = futurePolylineByDeliveryId.get(w.id);
     if (!seg) continue;
-    if (seg.encodedPolyline != null) w.data.encoded_polyline = seg.encodedPolyline;
+    if (seg.encodedPolyline != null) { w.data.encoded_polyline = seg.encodedPolyline; w.data.polyline_from_order = w.data.stop_order ?? null; }
     if (seg.transportMode) w.data.transport_mode = seg.transportMode;
     if (seg.estimatedDistanceKm != null) w.data.estimated_distance_km = seg.estimatedDistanceKm;
     if (seg.estimatedDurationMinutes != null) w.data.estimated_duration_minutes = seg.estimatedDurationMinutes;

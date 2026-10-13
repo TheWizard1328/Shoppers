@@ -17,13 +17,23 @@ export async function handleQuickReorder(reorderUpdates, selectedDate, currentUs
     await updateDeliveryLocal(update.id, { stop_order: update.stop_order });
   }
 
-  // 2. Recalculate ETAs (preserving the new order) via client-side engine
+  // 2. Recalculate ETAs (preserving the new order) via client-side engine.
+  // OWNER RULE (Oct 13 2026): pass the POST-drag local (IDB) data — fetching
+  // from the backend here raced the queued stop_order writes and made the
+  // engine "preserve" the STALE pre-drag order, regenerating every leg for
+  // the wrong route and reverting the manual drag.
+  const { offlineDB: _odb } = await import('@/components/utils/offlineDatabase');
+  const _idbAll = (await _odb.getAll(_odb.STORES.DELIVERIES).catch(() => [])) || [];
+  const _scoped = _idbAll.filter(
+    (d) => d && String(d.driver_id) === String(currentUser.id) && d.delivery_date === deliveryDate
+  );
   const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
   await performRouteOptimization({
     driverId: currentUser.id,
     deliveryDate,
     preserveExistingOrder: true,
     bypassDriverStatus: true,
+    deliveries: _scoped,
     source: 'quick_reorder',
   });
 

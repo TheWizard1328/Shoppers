@@ -17,6 +17,7 @@ import { updateDeliveryLocal, deleteDeliveryLocal, updatePatientLocal } from "@/
 import { enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { getDriverNameForStorage } from "@/components/utils/driverUtils";
+import { optimizeRoutesForMovePairs, collectRouteMovePairs } from "@/components/utils/routeMoveOptimizer";
 import { invalidate } from "@/components/utils/dataManager";
 import { base44 } from "@/api/base44Client";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
@@ -283,6 +284,17 @@ export default function DashboardBulkEditControls({
             preserveLocalState: true
           }
         }));
+      }
+
+      // STEP 8 (owner report, Oct 13 2026): a bulk move (driver / date / store /
+      // travel mode) changes route MEMBERSHIP or geometry, but this panel never
+      // ran any optimization — the SOURCE route kept polylines chained through
+      // the moved stop and the TARGET route never re-sequenced. Optimize every
+      // affected route pair (fire-and-forget; the KITT bar shows progress and
+      // the engine's adjacency validation regenerates exactly the stale legs).
+      const movePairs = collectRouteMovePairs(perDeliveryPayloads);
+      if (movePairs.length > 0) {
+        optimizeRoutesForMovePairs({ pairs: movePairs, source: 'bulk_edit_move' }).catch(() => {});
       }
 
       clearSelection();

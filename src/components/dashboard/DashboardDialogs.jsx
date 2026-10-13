@@ -245,6 +245,10 @@ export default function DashboardDialogs({
                   deliveryDate,
                   preserveExistingOrder: true,
                   bypassDriverStatus: true,
+                  // OWNER RULE (Oct 13 2026): use the optimistic post-drag
+                  // local list — a backend fetch can race the stop_order writes
+                  // above and "preserve" the stale pre-drag order.
+                  deliveries: optimisticDeliveries,
                   source: 'admin_reset_polylines',
                 }).catch(() => null);
 

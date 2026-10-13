@@ -34,6 +34,7 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'ampm_deliveries',
   // ── Route / polyline ──────────────────────────────────────────────────────
   'encoded_polyline',
+  'polyline_from_order',
   'deviation_waypoints',
   'transport_mode',
   'estimated_distance_km',
