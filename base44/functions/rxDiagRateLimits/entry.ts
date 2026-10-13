@@ -36,10 +36,26 @@ Deno.serve(async (req) => {
       byMessagePrefix[prefix] = (byMessagePrefix[prefix] || 0) + 1;
     }
 
+    // Full-volume aggregation: which component floods the logs (and thus the API).
+    const allByDevice = {};
+    const allByPrefix = {};
+    const allByType = {};
+    for (const r of rows) {
+      const dev = (r.metadata && r.metadata.device_name) || (r.device_identifier || '?').slice(0, 8);
+      allByDevice[dev] = (allByDevice[dev] || 0) + 1;
+      const prefix = String(r.message || '').split('\n')[0].slice(0, 80);
+      allByPrefix[prefix] = (allByPrefix[prefix] || 0) + 1;
+      const et = r.event_type || '(none)';
+      allByType[et] = (allByType[et] || 0) + 1;
+    }
+
     return Response.json({
       since,
       total_logs: total,
       rate_limit_hits: n429,
+      all_by_device: Object.fromEntries(Object.entries(allByDevice).sort((a, b) => b[1] - a[1]).slice(0, 10)),
+      all_by_prefix_top: Object.fromEntries(Object.entries(allByPrefix).sort((a, b) => b[1] - a[1]).slice(0, 25)),
+      all_by_event_type: Object.fromEntries(Object.entries(allByType).sort((a, b) => b[1] - a[1]).slice(0, 10)),
       by_device: byDevice,
       by_minute_top: Object.fromEntries(Object.entries(byMinute).sort((a, b) => b[1] - a[1]).slice(0, 30)),
       by_message_prefix: Object.fromEntries(Object.entries(byMessagePrefix).sort((a, b) => b[1] - a[1]).slice(0, 15)),
