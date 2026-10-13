@@ -9,7 +9,7 @@ import { filterDeleted } from './deletedDeliveryRegistry';
  * 4. NEVER clear the entire DB - only merge/update records
  */
 
-import { format, subDays } from 'date-fns';
+import { format, subDays, addDays } from 'date-fns';
 import { offlineSyncDeps } from '@/components/services/offlineSyncDeps';
 import { offlineSyncConfig } from '@/components/services/offlineSyncConfig';
 import { createOfflineSyncEntityService } from '@/components/services/offlineSyncEntityService';
@@ -239,6 +239,19 @@ export const loadPriorityDataForced = async (selectedDateStr, cityId = null, fil
   return loadPriorityData(selectedDateStr, cityId, filters);
 };
 
+// ── Incremental boot sync (owner spec, Oct 13 2026) ───────────────────────────
+// Priority sync fetches only records CHANGED since the last successful pass
+// (per date+city scope) and merges them into the offline DB (bulkSave is
+// upsert-only, so partial pulls never clear data). Stamps live in the IDB
+// SYNC_STATUS store; a missing stamp falls back to a full pull (self-heals
+// after storage loss). A 60s overlap guards writes racing the stamp update.
+const PRIORITY_DELTA_OVERLAP_MS = 60 * 1000;
+const isRateLimitError = (e) => /429|rate.?limit|volume limit/i.test(String(e?.message || e));
+const readSyncStamp = (key) =>
+  offlineDB.getSyncStatus(key).then(r => (r && r.lastSyncDate) || null).catch(() => null);
+const overlapIso = (stamp) =>
+  new Date(new Date(stamp).getTime() - PRIORITY_DELTA_OVERLAP_MS).toISOString();
+
 export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
 
@@ -260,8 +273,25 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     invalidateEntityCache('City');
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 10, count: cities?.length || 0 });
     
-    // Step 2: Sync ALL AppUsers (entire entity)
-    const appUsersRaw = await fetchAppUsersDedup();
+    // Step 2: Sync AppUsers — INCREMENTAL (Oct 13 2026): only users changed
+    // since the last successful pass; falls back to a full pull when no stamp
+    // exists, and to a full pull on any non-rate-limit delta failure.
+    const auStampKey = 'AppUser:priority';
+    const auStamp = await readSyncStamp(auStampKey);
+    const auDeltaFrom = auStamp ? overlapIso(auStamp) : null;
+    let appUsersRaw;
+    let appUsersPartial = false;
+    try {
+      appUsersRaw = await fetchAppUsersDedup(auDeltaFrom ? { deltaFrom: auDeltaFrom } : {});
+      appUsersPartial = !!auDeltaFrom;
+    } catch (err) {
+      if (isRateLimitError(err)) {
+        notifySyncStatus({ status: 'error', error: 'AppUser sync rate-limited — aborting boot pass (WebSockets will catch up)' });
+        console.warn('⏸️ [PrioritySync] Rate-limited on AppUser delta fetch — aborting pass without stamp updates');
+        return { error: 'rate_limited', aborted: true };
+      }
+      appUsersRaw = await fetchAppUsersDedup();
+    }
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -279,20 +309,42 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     if (appUsers && appUsers.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     }
+    // Stamp only after a successful merge so a failed pass re-pulls the same delta
+    await offlineDB.updateSyncStatus(auStampKey, { status: 'synced', recordCount: appUsers.length });
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 25, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 3: Sync Deliveries for SELECTED DATE + CITY ONLY
+    // Step 3: Sync Deliveries for SELECTED DATE + CITY ONLY — INCREMENTAL
+    // (Oct 13 2026): delta-fetch only rows updated since the last successful
+    // pass for this date+city scope. First pass (no stamp) = full day pull.
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
+    const cityStores = [];
     const deliveryFilter = { delivery_date: selectedDateStr };
     if (cityId) {
-      const cityStores = (await offlineDB.getAll(offlineDB.STORES.STORES) || [])
+      const allCityStores = (await offlineDB.getAll(offlineDB.STORES.STORES) || [])
         .filter(s => s && s.city_id === cityId)
         .map(s => s.id);
+      cityStores.push(...allCityStores);
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
-    const serverDeliveries = await queueEntityRequest(() => Delivery.filter(deliveryFilter, '-updated_date', 5000), 'Delivery.filter:priority');
+    const dStampKey = `Delivery:priority:${selectedDateStr}:${cityId || 'all'}`;
+    const dStamp = await readSyncStamp(dStampKey);
+    const fetchFilter = { ...deliveryFilter };
+    if (dStamp) fetchFilter.updated_date = { $gte: overlapIso(dStamp) };
+    const serverDeliveries = await queueEntityRequest(() => Delivery.filter(fetchFilter, '-updated_date', 5000), 'Delivery.filter:priority')
+      .catch((err) => {
+        if (isRateLimitError(err)) {
+          notifySyncStatus({ status: 'error', error: 'Delivery sync rate-limited — aborting boot pass (WebSockets will catch up)' });
+          console.warn('⏸️ [PrioritySync] Rate-limited on Delivery delta fetch — aborting pass without stamp updates');
+          return { __rateLimited: true };
+        }
+        throw err;
+      });
+    if (serverDeliveries && serverDeliveries.__rateLimited) {
+      return { error: 'rate_limited', aborted: true };
+    }
+    let deliveriesPartial = !!dStamp;
     const deliveries = filterDeleted(await applyPendingEntityMutations({
       entityName: 'Delivery',
       serverRows: serverDeliveries || [],
@@ -307,9 +359,32 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     }
+    await offlineDB.updateSyncStatus(dStampKey, { status: 'synced', recordCount: (deliveries || []).length });
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // Step 3b: Future deliveries D+1..D+7 for the same city — ONE range query
+    // (owner spec, Oct 13 2026). Delta-filtered by the future stamp so steady
+    // boots pull only the handful of rows that changed.
+    try {
+      const fStampKey = `Delivery:future:${cityId || 'all'}`;
+      const fStamp = await readSyncStamp(fStampKey);
+      const futureFilter = {
+        delivery_date: { $gte: format(addDays(new Date(), 1), 'yyyy-MM-dd'), $lte: format(addDays(new Date(), 7), 'yyyy-MM-dd') }
+      };
+      if (cityStores.length > 0) futureFilter.store_id = { $in: cityStores };
+      if (fStamp) futureFilter.updated_date = { $gte: overlapIso(fStamp) };
+      const futureRows = await queueEntityRequest(() => Delivery.filter(futureFilter, 'delivery_date', 2000), 'Delivery.filter:future7');
+      if (futureRows && futureRows.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, futureRows);
+      }
+      await offlineDB.updateSyncStatus(fStampKey, { status: 'synced', recordCount: (futureRows || []).length });
+      console.log(`🚀 [PrioritySync] Future 7-day delta: ${(futureRows || []).length} rows`);
+    } catch (futureErr) {
+      // Non-fatal — future dates are also covered by WebSockets + historical cycle
+      console.warn('⚠️ [PrioritySync] Future 7-day pass failed:', futureErr?.message || futureErr);
+    }
     
     // Step 4: Sync ONLY patients for these deliveries (priority light-weight sync)
     notifySyncStatus({ status: 'syncing', entity: 'Patients (priority)', progress: 60 });
@@ -380,7 +455,12 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     
     markPrioritySyncComplete(selectedDateStr);
     notifySyncStatus({ status: 'complete', progress: 100 });
-    return { success: true, cities, appUsers, deliveries, patients: syncedPatients };
+    return {
+      success: true, cities, appUsers, deliveries, patients: syncedPatients,
+      // Consumers with replace-semantics (appLoadDataSync) merge partial rows
+      // into the offline snapshot; full pulls keep the old replace semantics.
+      partial: { appUsers: appUsersPartial, deliveries: deliveriesPartial }
+    };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };

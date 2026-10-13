@@ -52,11 +52,25 @@ export const executeAppLoadDataSync = async (selectedDateStr, selectedCityId) =>
       return { success: false, snapshot: snapshotData, error: syncResult.error };
     }
     
-    // STEP 3: Dispatch fresh synced data to UI
+    // STEP 3: Dispatch fresh synced data to UI.
+    // Oct 13 2026 (incremental boot sync): when priority sync ran in delta mode
+    // its arrays contain only CHANGED rows — merge them by id into the offline
+    // snapshot so replace-semantics consumers (AppLoadDataManager) still get a
+    // complete set. Full pulls keep the original replace behavior.
+    const mergeById = (base, rows) => {
+      const m = new Map((base || []).map(r => [r?.id, r]));
+      (rows || []).forEach(r => { if (r?.id) m.set(r.id, r); });
+      return Array.from(m.values());
+    };
+    const partial = syncResult.partial || {};
     const freshData = {
-      deliveries: syncResult.deliveries || snapshotData.deliveries,
+      deliveries: partial.deliveries
+        ? mergeById(snapshotData.deliveries, syncResult.deliveries)
+        : (syncResult.deliveries || snapshotData.deliveries),
       patients: syncResult.patients || snapshotData.patients,
-      appUsers: syncResult.appUsers || snapshotData.appUsers,
+      appUsers: partial.appUsers
+        ? mergeById(snapshotData.appUsers, syncResult.appUsers)
+        : (syncResult.appUsers || snapshotData.appUsers),
       stores: syncResult.stores || snapshotData.stores,
       cities: syncResult.cities || snapshotData.cities
     };

@@ -55,24 +55,31 @@ const deduplicateRequest = (key) => {
 };
 
 /**
- * Fetch AppUsers with deduplication
+ * Fetch AppUsers with deduplication.
+ * Oct 13 2026 (incremental boot sync): pass { deltaFrom: <ISO> } to fetch only
+ * users whose updated_date >= deltaFrom (Mongo $gte — verified supported). Delta
+ * fetches bypass the cache entirely and are NOT dedup-queued by the shared key,
+ * so a full list() elsewhere is never answered with partial rows.
  */
-export const fetchAppUsersDedup = async () => {
-  const cacheKey = 'AppUser:list';
+export const fetchAppUsersDedup = async ({ deltaFrom = null } = {}) => {
+  const cacheKey = deltaFrom ? null : 'AppUser:list';
   
   // Check cache
-  if (isCacheValid(cacheKey)) {
+  if (cacheKey && isCacheValid(cacheKey)) {
     return applyPendingAppUserMutations(dataCache.get(cacheKey).data);
   }
   
   // Check if already fetching
-  const pending = deduplicateRequest(cacheKey);
+  const pending = cacheKey ? deduplicateRequest(cacheKey) : null;
   if (pending) {
     return pending;
   }
   
   // New request
-  const request = base44.entities.AppUser.list().then(data => {
+  const request = (deltaFrom
+    ? base44.entities.AppUser.filter({ updated_date: { $gte: deltaFrom } })
+    : base44.entities.AppUser.list()
+  ).then(data => {
     // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at)
     const deduped = new Map();
     (data || []).forEach(au => {
@@ -92,20 +99,21 @@ export const fetchAppUsersDedup = async () => {
     const result = Array.from(deduped.values());
     
     // Cache result
-    dataCache.set(cacheKey, {
-      data: result,
-      timestamp: Date.now(),
-      ttl: getStrategy('AppUser').ttl
-    });
-    
-    pendingRequests.delete(cacheKey);
+    if (cacheKey) {
+      dataCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now(),
+        ttl: getStrategy('AppUser').ttl
+      });
+      pendingRequests.delete(cacheKey);
+    }
     return applyPendingAppUserMutations(result);
   }).catch(error => {
-    pendingRequests.delete(cacheKey);
+    if (cacheKey) pendingRequests.delete(cacheKey);
     throw error;
   });
   
-  pendingRequests.set(cacheKey, request);
+  if (cacheKey) pendingRequests.set(cacheKey, request);
   return request;
 };
 
