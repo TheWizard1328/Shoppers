@@ -20,19 +20,19 @@ Deno.serve(async (req) => {
     const logRes = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 3000);
     const logs = (Array.isArray(logRes) ? logRes : (Array.isArray(logRes?.data) ? logRes.data : []))
       .map(unwrapEntityRecord).filter(Boolean);
-    const since = new Date(Date.now() - 8 * 3600 * 1000).toISOString();
+    const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
     const relevant = [];
     for (const l of logs) {
       if (String(l.created_date || '') < since) continue;
       const msg = String(l.message || '');
       for (const id of revertedIds) {
         if (msg.includes(id)) {
-          relevant.push({ id: id.slice(-6), dev: (l.metadata && (l.metadata.device_name || l.metadata.device_identifier)) || l.device_identifier || null, at: String(l.created_date).slice(11, 19), m: msg.slice(0, 260) });
+          relevant.push({ id: id.slice(-6), dev: (l.metadata && (l.metadata.device_name || l.metadata.device_identifier)) || l.device_identifier || null, at: String(l.created_date).slice(11, 19), m: msg.slice(0, 200) });
         }
       }
     }
     relevant.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-    return Response.json({ reverted_count: reverted.length, reverted, logs: relevant.slice(-35) });
+    return Response.json({ reverted_count: reverted.length, reverted, logs: relevant.slice(-30) });
   } catch (e) {
     return Response.json({ error: e?.message || String(e) });
   }
