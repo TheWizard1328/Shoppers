@@ -190,7 +190,20 @@ async function flushBuffered(entityName) {
         const _rcDate = _rcData.delivery_date || _rcFallback?.delivery_date || null;
         if (_rcDriverId && _rcDate) {
           try {
-            const _freshRoute = await base44.entities.Delivery.filter({ driver_id: _rcDriverId, delivery_date: _rcDate }).catch(() => null);
+            // RETRY WITH BACKOFF (Oct 13 2026): the acting device's Accept All burst
+            // shares the per-USER rate limit with this device, so the first fetch can
+            // 429 exactly when the marker arrives. Retry a few times with growing
+            // delays; a final delayed self-heal covers longer rate-limit windows.
+            const _fetchRoute = async () => {
+              const _delays = (typeof window !== 'undefined' && Array.isArray(window.__routeCommitRetryDelays)) ? window.__routeCommitRetryDelays : [2000, 6000, 15000, 40000]; // 4 attempts total, then scheduled self-heal
+              for (let _i = 0; _i <= _delays.length; _i++) {
+                const _res = await base44.entities.Delivery.filter({ driver_id: _rcDriverId, delivery_date: _rcDate }).catch((e) => { console.warn(`[RealtimeSync] route_commit fetch attempt ${_i + 1} failed:`, e?.message || e); return null; });
+                if (Array.isArray(_res) && _res.length > 0) return _res;
+                if (_i < _delays.length) await new Promise(r => setTimeout(r, _delays[_i]));
+              }
+              return null;
+            };
+            const _freshRoute = await _fetchRoute();
             if (Array.isArray(_freshRoute) && _freshRoute.length > 0) {
               fullReplacementData = filterDeleted(_freshRoute);
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fullReplacementData).catch(() => {});
@@ -215,6 +228,23 @@ async function flushBuffered(entityName) {
                   });
                 });
               }
+            }
+            // Scheduled self-heal: if every attempt failed (long 429 window),
+            // try once more after 90s so this device converges without a manual
+            // reload. Idempotent — the merge path is a no-op if state already matches.
+            if (!Array.isArray(_freshRoute) || _freshRoute.length === 0) {
+              console.warn(`[RealtimeSync] [${rsTime()}] route_commit fetch exhausted retries — scheduling 90s self-heal for driver ${_rcDriverId}`);
+              setTimeout(async () => {
+                try {
+                  const _heal = await base44.entities.Delivery.filter({ driver_id: _rcDriverId, delivery_date: _rcDate }).catch(() => null);
+                  if (Array.isArray(_heal) && _heal.length > 0) {
+                    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filterDeleted(_heal)).catch(() => {});
+                    const _healList = filterDeleted(_heal);
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveries: _healList, freshDeliveries: _healList, deliveryDate: _rcDate, triggeredBy: 'realtimeBufferedFullRefresh', source: 'routeCommitSelfHeal', fromRealtime: true, fullReplacement: false, skipMapPhaseOneRefresh: true } }));
+                    console.log(`📦 [RealtimeSync] route_commit self-heal applied ${_heal.length} deliveries for driver ${_rcDriverId}`);
+                  }
+                } catch (_) {}
+              }, 90000);
             }
           } catch (_rcErr) {
             console.warn(`[RealtimeSync] [${rsTime()}] route_commit fetch failed, falling back to buffered merge:`, _rcErr?.message || _rcErr);
