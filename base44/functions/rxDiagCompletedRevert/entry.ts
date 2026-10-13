@@ -10,31 +10,50 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const payload = await req.json().catch(() => ({}));
-    const minutes = Math.min(Number(payload?.minutes) || 40, 180);
-    const since = new Date(Date.now() - minutes * 60000).toISOString();
+    const hours = Math.min(Number(payload?.hours) || 2, 6);
+    const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
 
-    const logRes = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 1500);
-    const logs = (Array.isArray(logRes) ? logRes : (Array.isArray(logRes?.data) ? logRes.data : []))
+    const logRes = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 3000);
+    const rows = (Array.isArray(logRes) ? logRes : (Array.isArray(logRes?.data) ? logRes.data : []))
       .map(unwrapEntityRecord).filter(Boolean);
 
-    const pick = (re, n, len) => {
-      const out = [];
-      for (const l of logs) {
-        if (out.length >= n) break;
-        const at = String(l.created_date || '');
-        if (at < since) continue;
-        const msg = String(l.message || '');
-        if (re.test(msg)) out.push({ at: at.slice(11, 19), dev: (l.metadata && (l.metadata.device_name || l.metadata.device_identifier)) || l.device_identifier || null, lvl: l.level || null, m: msg.slice(0, len) });
+    const isRate = (m) => m.includes('429') || m.toLowerCase().includes('rate limit') || m.toLowerCase().includes('volume limit');
+    const dev = (r) => (r.metadata && (r.metadata.device_name || r.metadata.device_identifier)) || r.device_identifier || (r.user_name || '?');
+
+    const byDevice = {};
+    const kingswayHits = [];
+    for (const r of rows) {
+      const at = String(r.created_date || '');
+      if (at < since) continue;
+      const m = String(r.message || '');
+      if (isRate(m)) {
+        const d = dev(r);
+        if (!byDevice[d]) byDevice[d] = { n: 0, first: at, last: at, top: {} };
+        const e = byDevice[d];
+        e.n++;
+        if (at < e.first) e.first = at;
+        if (at > e.last) e.last = at;
+        const prefix = m.split('\n')[0].slice(0, 90);
+        e.top[prefix] = (e.top[prefix] || 0) + 1;
       }
-      return out;
-    };
+    }
+    // compact: top 3 endpoints per device
+    const out = {};
+    for (const [d, e] of Object.entries(byDevice)) {
+      out[d] = { n: e.n, first: e.first.slice(11, 19), last: e.last.slice(11, 19), top: Object.entries(e.top).sort((a, b) => b[1] - a[1]).slice(0, 3) };
+    }
 
-    const syncFailed = pick(/Background sync failed|durable mutation retained|volume limit|429|rate.?limit/i, 10, 200);
-    const boots = pick(/app_start|app restart|appRestart|PreBoundary/, 10, 150);
-    const drains = pick(/drain|replay|pending mutation|pendingMutation/i, 8, 160);
-    const completions = pick(/updateDeliveryLocal\] incoming[\s\S]{0,60}completed/, 8, 180);
+    // Kingsway mentions (user_name, store, or message) in the window — any level
+    for (const r of rows) {
+      const at = String(r.created_date || '');
+      if (at < since) continue;
+      const hay = `${r.user_name || ''} ${r.message || ''}`;
+      if (/kingsway|\bkw\b/i.test(hay) && kingswayHits.length < 25) {
+        kingswayHits.push({ at: at.slice(11, 19), dev: dev(r), user: r.user_name || null, lvl: r.level || null, m: String(r.message || '').slice(0, 160) });
+      }
+    }
 
-    return Response.json({ since: since.slice(11, 19), sync_failed_n: syncFailed.length, sync_failed: syncFailed, boots_n: boots.length, boots, drains_n: drains.length, drains, completions_n: completions.length, completions });
+    return Response.json({ since: since.slice(11, 19), n429_devices: Object.keys(out).length, by_device: out, kingsway_hits: kingswayHits });
   } catch (e) {
     return Response.json({ error: e?.message || String(e) });
   }
