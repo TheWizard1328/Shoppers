@@ -385,25 +385,24 @@ export function useRouteDeviationMonitor({
   // (locationTracker). On web/PWA isUIHidden() tracks document.hidden exactly.
   // The 10s CHECK_THROTTLE dedupes against Trigger 1 when both fire.
   useEffect(() => {
+    // Owner rule (Oct 13 2026): deviation detection is a driver-primary-device
+    // feature. Non-primary driver devices, admins, and dispatchers never run
+    // the safety interval AT ALL — previously every device ran it and logged
+    // gate:no_last_position / gate:not_driver_device on each 15s tick, which
+    // flooded RemoteLogEntry (each write is an API call against the shared
+    // per-user rate budget) and helped cause the afternoon 429 storms.
+    if (!isDriver || !isPrimaryDevice) return;
     const iv = setInterval(() => {
       if (isUIHidden()) { _diag('gate:hidden_ui'); return; } // background OFF by owner design
       const lp = locationTracker?.lastPosition;
       if (!Number.isFinite(Number(lp?.latitude)) || !Number.isFinite(Number(lp?.longitude))) {
-        _diag('gate:no_last_position'); // tracker has no fix yet (was a SILENT skip)
+        _diag('gate:no_last_position'); // tracker has no fix yet
         return;
       }
-      const s = stateRef.current;
-      if (s.isDriver && s.isPrimaryDevice) {
-        tick({ latitude: lp.latitude, longitude: lp.longitude, timestamp: new Date().toISOString(), accuracy: lp.accuracy });
-      } else {
-        // was a SILENT skip — a suspected cause of the Sep 23 12:16-12:23 MDT
-        // foreground dead window (device-context/IDB flakiness flipping
-        // isPrimaryDevice). Logged now so the next test drive pins it.
-        _diag('gate:not_driver_device', `isDriver=${!!s.isDriver} isPrimaryDevice=${!!s.isPrimaryDevice}`);
-      }
+      tick({ latitude: lp.latitude, longitude: lp.longitude, timestamp: new Date().toISOString(), accuracy: lp.accuracy });
     }, 15000);
     return () => clearInterval(iv);
-  }, [tick]);
+  }, [tick, isDriver, isPrimaryDevice]);
 }
 
 export default useRouteDeviationMonitor;
