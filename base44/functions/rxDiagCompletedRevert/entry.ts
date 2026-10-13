@@ -53,7 +53,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    return Response.json({ since: since.slice(11, 19), n429_devices: Object.keys(out).length, by_device: out, kingsway_hits: kingswayHits });
+    const compact = Object.fromEntries(Object.entries(out).map(([d, e]) => [d, e.n]));
+    return Response.json({ since: since.slice(11, 19), n429_by_device: compact, kingsway_hits: kingswayHits.slice(-22) });
   } catch (e) {
     return Response.json({ error: e?.message || String(e) });
   }
