@@ -107,6 +107,33 @@ export function useStopCardCompletionActions({
   setShowInterStoreDialog,
   setInterStoreMatch,
 }) {
+  // Single-broadcast helper for the Accept All silent commit (Oct 13 2026).
+  // Writes the route_commit marker user-scoped so exactly ONE WS event reaches
+  // other devices; receivers fetch the driver's finished route on sight.
+  const _fireRouteCommitMarker = (committedCount = 0) => {
+    (async () => {
+      try {
+        const markerData = {
+          route_commit_at: new Date().toISOString(),
+          route_commit_count: committedCount
+        };
+        // Pre-write the marker fields to IDB so the content-aware self-echo
+        // check (echoGuard) sees matching content and suppresses our own echo.
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const [existing] = await offlineDB.getByIds(offlineDB.STORES.DELIVERIES, [delivery.id]).catch(() => []);
+          if (existing) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, ...markerData }]).catch(() => {});
+        } catch (_) {}
+        if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+        window.__localDeliveryWrites.set(delivery.id, Date.now() + 30 * 1000); // suppress own echo
+        await base44.entities.Delivery.update(delivery.id, markerData);
+        console.log(`[AcceptAll] route-commit marker broadcast (${committedCount} records committed silently)`);
+      } catch (mErr) {
+        console.warn('[AcceptAll] route-commit marker write failed:', mErr?.message || mErr);
+      }
+    })();
+  };
+
   const executeAcceptAllStops = useCallback(async () => {
     setIsAcceptingAll(true);
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -391,20 +418,34 @@ export function useStopCardCompletionActions({
           ...(existing.delivery_time_eta ? {} : { delivery_time_eta: d.delivery_time_eta }),
         });
       }
+      // Fold the pickup summary notes into the SAME commit — the separate notes
+      // server write (Step 7b) was an extra WS wave after the route commit.
+      if (pickupNoteData) {
+        const _noteBase = _mergedAcceptAllMap.get(delivery.id) || {};
+        _mergedAcceptAllMap.set(delivery.id, { ..._noteBase, delivery_notes: pickupNoteData });
+      }
       const mergedServerUpdates = Array.from(_mergedAcceptAllMap.entries()).map(([id, data]) => ({ id, data }));
+      // SILENT commit (owner rule Oct 13 2026): silent service-role writes emit
+      // NO WebSocket events, so other devices never watch the route build one
+      // stop at a time. One route_commit marker write (Step 5.6) is the single
+      // broadcast; receivers fetch the finished route once.
       const serverCommitPromise = mergedServerUpdates.length > 0
-        ? base44.functions.invoke('bulkUpdateDeliveries', { updates: mergedServerUpdates })
+        ? base44.functions.invoke('bulkUpdateDeliveries', { updates: mergedServerUpdates, silent: true })
             .then(() => {
-              console.log(`[AcceptAll] Step 5.5 — single merged commit: ${mergedServerUpdates.length} update(s) (one broadcast)`);
+              console.log(`[AcceptAll] Step 5.5 — silent merged commit: ${mergedServerUpdates.length} update(s) (no WS events)`);
               return true;
             })
             .catch(async (e) => {
-              console.warn('[AcceptAll] Step 5.5 merged commit failed, falling back to chunked individual writes:', e?.message || e);
+              console.warn('[AcceptAll] Step 5.5 silent commit failed, retrying in silent chunks:', e?.message || e);
+              // Chunked re-invokes stay silent — direct user-scoped Delivery.update
+              // calls would re-create the per-stop WS broadcast storm.
               const CHUNK = 20; let okCount = 0;
               for (let i = 0; i < mergedServerUpdates.length; i += CHUNK) {
-                await Promise.all(mergedServerUpdates.slice(i, i + CHUNK).map(({ id, data }) =>
-                  base44.entities.Delivery.update(id, data).then(() => { okCount++; }).catch(() => {})
-                )).catch(() => {});
+                const chunk = mergedServerUpdates.slice(i, i + CHUNK);
+                try {
+                  const r = await base44.functions.invoke('bulkUpdateDeliveries', { updates: chunk, silent: true });
+                  okCount += typeof r?.updatedCount === 'number' ? r.updatedCount : chunk.length;
+                } catch (_) {}
               }
               console.warn(`[AcceptAll] Step 5.5 fallback commit: ${okCount}/${mergedServerUpdates.length} landed`);
               return okCount === mergedServerUpdates.length;
@@ -446,13 +487,22 @@ export function useStopCardCompletionActions({
 
         if (missedUpdates.length > 0) {
           console.log(`[AcceptAll] Safety-net status write for ${missedUpdates.length} deliveries missed by coordinator`);
-          base44.functions.invoke('bulkUpdateDeliveries', { updates: missedUpdates }).catch(e =>
+          base44.functions.invoke('bulkUpdateDeliveries', { updates: missedUpdates, silent: true }).then((r) => {
+            if (r && typeof r.updatedCount === 'number' && r.updatedCount > 0) _fireRouteCommitMarker(r.updatedCount);
+          }).catch(e =>
             console.warn('[AcceptAll] Safety-net status write failed:', e?.message)
           );
         }
 
         // Clear echo suppression — server + IDB are now in sync
         for (const id of transitionedIds) window.__localDeliveryWrites?.delete(id);
+
+        // ── STEP 5.6: ONE route-commit broadcast ────────────────────────────
+        // The silent commit emitted zero WS events. This single user-scoped
+        // marker write on the pickup record is THE broadcast other devices
+        // receive; their realtimeSync sees route_commit_at in changedFields and
+        // fetches the finished route from the server — one fetch, one render.
+        if (serverCommitOk) _fireRouteCommitMarker(mergedServerUpdates.length);
       }
 
       // ── STEP 7b: Write pickup summary notes (deferred from Step 3b) ──────────
@@ -463,8 +513,12 @@ export function useStopCardCompletionActions({
       if (pickupNoteData) {
         // IDB + state immediately (so UI shows now)
         updateDeliveriesLocally?.([{ ...delivery, delivery_notes: pickupNoteData }], false);
-        // Server write fire-and-forget (coordinator has already committed stop_order/TR#)
-        updateDeliveryLocal(delivery.id, { delivery_notes: pickupNoteData }, { skipSmartRefresh: true }).catch(() => {});
+        // Server write NO LONGER fires here — the notes ride the Step 5.5 silent
+        // commit (folded into mergedServerUpdates). Only if that commit failed
+        // entirely do we fall back to a direct write so notes are never lost.
+        if (pickupNoteData && !(await serverCommitPromise)) {
+          updateDeliveryLocal(delivery.id, { delivery_notes: pickupNoteData }, { skipSmartRefresh: true }).catch(() => {});
+        }
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────

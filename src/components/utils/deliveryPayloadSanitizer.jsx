@@ -16,6 +16,8 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'puid',
   'prescription_number',
   'delivery_notes',
+  'route_commit_at',
+  'route_commit_count',
   'delivery_instructions',
   'store_id',
   // ── Inter-store transfer metadata ──────────────────────────────────────────

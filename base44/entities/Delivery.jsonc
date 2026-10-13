@@ -122,6 +122,14 @@
       "type": "string",
       "description": "Driver notes from this specific delivery"
     },
+    "route_commit_at": {
+      "type": "string",
+      "description": "Timestamp of the single route-commit broadcast (silent bulk commit finished; receivers fetch the finished route once)"
+    },
+    "route_commit_count": {
+      "type": "number",
+      "description": "Number of records included in the silent route commit that this marker completes"
+    },
     "delivery_instructions": {
       "type": "string",
       "description": "Special delivery instructions from patient record"

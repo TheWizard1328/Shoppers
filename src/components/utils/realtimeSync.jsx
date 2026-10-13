@@ -147,6 +147,80 @@ async function flushBuffered(entityName) {
           fullReplacementData = filterDeleted(Array.from(snapshotMap.values()));
         }
       }
+
+      // ROUTE COMMIT MARKER (Oct 13 2026, Accept All single-broadcast design):
+      // The acting device commits the finished route with silent service-role
+      // writes that emit NO WS events, then sends ONE user-scoped marker write
+      // (route_commit_at). When that marker arrives, the DB already holds the
+      // final state — fetch the driver's full route once and use it as the
+      // snapshot, so this device renders ONE complete update instead of
+      // merging partial per-stop states as they stream in.
+      const _routeCommit = items.find(it => {
+        if (!it?.data?.id) return false;
+        // Detection 1: named in changedFields (device had the record cached).
+        if (Array.isArray(it.changedFields) && it.changedFields.includes('route_commit_at')) return true;
+        // Detection 2: changedFields is EMPTY (boot/reconnect/first event per
+        // delivery — no entityDataCache entry) but the payload carries a FRESH
+        // marker. The marker write is the only writer of route_commit_at, and
+        // the 15-minute freshness window keeps old markers on later unrelated
+        // broadcasts from re-triggering fetches. Repeat echoes of the same
+        // marker within the window only cause idempotent re-fetches.
+        // NOTE: comparing against window.__appDeliveries does NOT work here —
+        // the subscription handler merges the incoming record into live app
+        // state BEFORE the debounced flush runs, so the pre-event value is gone.
+        const _at = it.data.route_commit_at;
+        if (typeof _at !== 'string' || _at.length < 10) return false;
+        const _atMs = Date.parse(_at);
+        if (!Number.isFinite(_atMs) || Math.abs(Date.now() - _atMs) > 15 * 60 * 1000) return false;
+        return Array.isArray(it.changedFields) && it.changedFields.length === 0;
+      });
+      if (_routeCommit?.data?.id) {
+        const _rcData = _routeCommit.data || {};
+        const _rcFallback = (() => {
+          try {
+            const local = (typeof window !== 'undefined' ? window.__appDeliveries : null) || [];
+            const hit = local.find(d => d?.id === _routeCommit.data.id);
+            if (hit) return hit;
+            // Second fallback: the IDB snapshot loaded above for the selected date.
+            if (Array.isArray(fullReplacementData)) return fullReplacementData.find(d => d?.id === _routeCommit.data.id) || null;
+            return null;
+          } catch (_) { return null; }
+        })();
+        const _rcDriverId = _rcData.driver_id || _rcFallback?.driver_id || null;
+        const _rcDate = _rcData.delivery_date || _rcFallback?.delivery_date || null;
+        if (_rcDriverId && _rcDate) {
+          try {
+            const _freshRoute = await base44.entities.Delivery.filter({ driver_id: _rcDriverId, delivery_date: _rcDate }).catch(() => null);
+            if (Array.isArray(_freshRoute) && _freshRoute.length > 0) {
+              fullReplacementData = filterDeleted(_freshRoute);
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fullReplacementData).catch(() => {});
+              // Hydrate the buffered marker item with the fetched record so the
+              // relevance filter (isDeliveryRelevantToCurrentSelection) sees
+              // driver_id/delivery_date — the raw marker payload may carry only
+              // the changed fields, which would skip the deliveriesUpdated dispatch.
+              const _rcFull = fullReplacementData.find(d => d?.id === _routeCommit.data.id);
+              if (_rcFull) _routeCommit.data = { ..._routeCommit.data, ..._rcFull };
+              console.log(`📦 [RealtimeSync] [${rsTime()}] route_commit marker → fetched ${fullReplacementData.length} deliveries for driver ${_rcDriverId} (single update)`);
+              // Preserve receiver auto-center: the per-stop WS events that used to
+              // carry isNextDelivery=true no longer exist (silent commit). Derive
+              // the next stop from the fetched route and center it once.
+              const _rcNext = fullReplacementData.find(d => d?.isNextDelivery === true && d?.driver_id === _rcDriverId);
+              if (_rcNext?.id) {
+                scheduleAfterUISettled(() => {
+                  triggerCenterNextDeliveryCard({
+                    source: 'routeCommitMarker',
+                    deliveryId: _rcNext.id,
+                    driverId: _rcDriverId,
+                    deliveryDate: _rcDate
+                  });
+                });
+              }
+            }
+          } catch (_rcErr) {
+            console.warn(`[RealtimeSync] [${rsTime()}] route_commit fetch failed, falling back to buffered merge:`, _rcErr?.message || _rcErr);
+          }
+        }
+      }
     } else if (entityName === 'AppUser') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else if (entityName === 'Patient') {
@@ -1113,6 +1187,8 @@ const subscribeToEntity = (entityName) => {
                     'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
                     // Sequencing
                     'stop_order', 'isNextDelivery',
+                    // Route-commit marker (single-broadcast design Oct 13 2026)
+                    'route_commit_at', 'route_commit_count',
                     // Identity
                     'puid', 'stop_id', 'delivery_id', 'tracking_number',
                     // Inter-store
