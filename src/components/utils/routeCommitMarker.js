@@ -21,8 +21,39 @@ import { base44 } from '@/api/base44Client';
  * Returns the number of records committed (0 when nothing to commit or
  * everything failed).
  */
+// Status-protection guard (owner report, Oct 13 2026 — completed stops reverting
+// to en_route/in_transit after app restart). The Start full-path optimizer builds
+// its writeBatch from a possibly-stale state snapshot; a stop completed seconds
+// earlier can still appear active in that snapshot, and the batch's status
+// re-assert silently overwrites the completion on the SERVER (IDB/UI stay
+// 'completed' until the next cloud pull — when the revert becomes visible and
+// cascades). IDB is the local-first authority (every action writes IDB before
+// the server), so any batch entry that would write an ACTIVE status over an
+// IDB-TERMINAL record is dropped. Fails OPEN on IDB errors.
+const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
+const _dropTerminalStomps = async (updates) => {
+  const statusWriters = updates.filter((u) => u?.data?.status && !TERMINAL_STATUSES.includes(String(u.data.status)));
+  if (statusWriters.length === 0) return updates;
+  try {
+    const { offlineDB } = await import('./offlineDatabase');
+    const records = await offlineDB.getByIds(offlineDB.STORES.DELIVERIES, statusWriters.map((u) => u.id)).catch(() => null);
+    if (!Array.isArray(records)) return updates; // fail open
+    const terminalIds = new Set(
+      records.filter((r) => r && TERMINAL_STATUSES.includes(String(r.status || ''))).map((r) => r.id)
+    );
+    if (terminalIds.size === 0) return updates;
+    const kept = updates.filter((u) => !terminalIds.has(u.id));
+    console.warn(`[RouteCommit] dropped ${updates.length - kept.length} update(s) that would revert a terminal (completed/failed/cancelled) IDB record to an active status`);
+    return kept;
+  } catch (_) {
+    return updates; // fail open
+  }
+};
+
 export const commitDeliveryUpdatesSilently = async (updates = []) => {
-  const valid = (updates || []).filter((u) => u?.id && u?.data && Object.keys(u.data).length > 0);
+  let valid = (updates || []).filter((u) => u?.id && u?.data && Object.keys(u.data).length > 0);
+  if (valid.length === 0) return 0;
+  valid = await _dropTerminalStomps(valid);
   if (valid.length === 0) return 0;
   try {
     const r = await base44.functions.invoke('bulkUpdateDeliveries', { updates: valid, silent: true });

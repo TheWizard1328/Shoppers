@@ -784,6 +784,37 @@ export function useStopCardStartActions({
               ...(startedRouteDeliveries || []).filter(d => d?.id && !_startScopedDeliveries.find(a => a?.id === d.id))
             ];
 
+            // ── IDB freshness override (owner report, Oct 13 2026) ─────────────
+            // Completing a stop and tapping Start seconds apart can run the
+            // optimizer with a PRE-completion state snapshot: the just-completed
+            // stop still reads active, gets included in the route, and the
+            // writeBatch re-asserts its OLD status (en_route/in_transit) —
+            // silently overwriting the completion on the server. IDB is the
+            // local-first authority (completion writes IDB before the server),
+            // so re-read the scoped route from IDB and force any IDB-terminal
+            // record back to terminal in the engine input. Non-terminal records
+            // keep the closure values (they may carry the optimistic start state).
+            try {
+              const { offlineDB: _startDB } = await import('../utils/offlineDatabase');
+              const _startIds = _startFullDeliveries.map(d => d?.id).filter(Boolean);
+              const _idbRecs = await _startDB.getByIds(_startDB.STORES.DELIVERIES, _startIds).catch(() => null);
+              if (Array.isArray(_idbRecs)) {
+                const _idbMap = new Map(_idbRecs.filter(Boolean).map(r => [r.id, r]));
+                let _revived = 0;
+                for (let i = 0; i < _startFullDeliveries.length; i++) {
+                  const _rec = _startFullDeliveries[i];
+                  const _idb = _idbMap.get(_rec?.id);
+                  if (_idb && ['completed', 'failed', 'cancelled'].includes(String(_idb.status || ''))) {
+                    if (!['completed', 'failed', 'cancelled'].includes(String(_rec?.status || ''))) {
+                      _revived++;
+                      _startFullDeliveries[i] = { ..._rec, status: _idb.status, actual_delivery_time: _idb.actual_delivery_time, arrival_time: _idb.arrival_time };
+                    }
+                  }
+                }
+                if (_revived > 0) console.warn(`[start_button] IDB override: restored ${_revived} terminal stop(s) the stale state snapshot still showed active — preventing writeBatch status stomp`);
+              }
+            } catch (_) { /* IDB unavailable — keep closure state */ }
+
 
             // Resolve driver current location from appUsers (same as manual FAB)
             const _startDriverAppUser = (appUsers || []).find(au => au?.user_id === delivery.driver_id || au?.id === delivery.driver_id) || null;
