@@ -308,6 +308,11 @@ Deno.serve(async (req) => {
       if (u.rateLimits >= (Number(cfg.rate_limit_threshold) || 5)) candidates.push('rate_limit');
       if (u.errors >= (Number(cfg.errors_threshold) || 12)) candidates.push('errors');
       for (const type of candidates) {
+        // Owner request (Oct 13 2026): the owner's primary phone restarts on
+        // every preview-update reload — expected behavior, not an issue. Never
+        // alert (in-app or push) on the owner's own app restarts. Rate-limit and
+        // error alerts for the owner are unaffected.
+        if (type === 'app_restarts' && u.user_id === OWNER_PLATFORM_USER_ID) continue;
         const key = `${u.user_id}:${type}`;
         const last = state.lastAlertAt[key] ? new Date(state.lastAlertAt[key]).getTime() : 0;
         if (last && now - last < cooldownMs) continue; // cooldown active
