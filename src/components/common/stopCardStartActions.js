@@ -674,7 +674,32 @@ export function useStopCardStartActions({
           _minActiveStopOrder === null ||
           (Number(delivery?.stop_order) || 9999) <= _minActiveStopOrder;
 
-        if (_isNaturalNextStart) {
+        // OWNER REPORT (Oct 13 2026): the fast path assumes "the last
+        // optimization pass already sequenced this stop first and generated
+        // its legs". That assumption breaks when the previous pass FAILED to
+        // generate legs (HERE/Google 429/500, offline accept, polyline write
+        // lost) — those stops then sit without polylines FOREVER, because
+        // natural-next starts never invoke the engine. Require every active
+        // leg (started stop + remaining en_route/in_transit + cycling markers
+        // — same eligibility as routePolylineGenerator) to already have a
+        // stored polyline; if any leg is missing, fall through to the full
+        // optimization path, whose order-unchanged skip has its own
+        // allLegsPresent guard and regenerates ALL legs.
+        const _fastPathActiveLegs = startedRouteDeliveries.filter((d) =>
+          d && d.id !== delivery.id &&
+          (d.is_cycling_marker || ['en_route', 'in_transit'].includes(d.status))
+        );
+        const _startedLegRecord = startedRouteDeliveries.find((d) => d?.id === delivery.id) || delivery;
+        const _legsNeedingPolyline = [
+          ...(_startedLegRecord && !FINISHED_STATUSES.includes(_startedLegRecord.status) ? [_startedLegRecord] : []),
+          ..._fastPathActiveLegs
+        ];
+        const _missingLegCount = _legsNeedingPolyline.filter((d) =>
+          !(typeof d.encoded_polyline === 'string' && d.encoded_polyline.length > 10)
+        ).length;
+        const _fastPathLegsPresent = _missingLegCount === 0;
+
+        if (_isNaturalNextStart && _fastPathLegsPresent) {
           console.log('[Start fast path] natural next stop — skipping HERE/Google optimization');
           window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           Promise.resolve().then(async () => {
@@ -729,6 +754,9 @@ export function useStopCardStartActions({
             }
           });
         } else {
+          if (_isNaturalNextStart && !_fastPathLegsPresent) {
+            console.log(`[Start fast path] natural next stop, but ${_missingLegCount} active leg(s) missing polylines — running full optimization to regenerate them`);
+          }
         // ── Background: optimization + polyline regen via unified coordinator ──
         // KITT bar activates IMMEDIATELY on Start button click
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -1077,16 +1105,24 @@ export function useStopCardStartActions({
 
       Promise.resolve().then(async () => {
         try {
-          await Promise.all(updatedRemainingWithEtas.map((stop) => Promise.all([
-            updateDeliveryLocal(stop.id, { delivery_time_eta: stop.delivery_time_eta }, { skipSmartRefresh: true }),
-            base44.entities.Delivery.update(stop.id, { delivery_time_eta: stop.delivery_time_eta }).catch(() => null),
-          ])));
-          const { broadcastMutation } = await import('../utils/realtimeSync');
-          await Promise.all(updatedRemainingWithEtas.map((item) =>
-            broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })
-          ));
+          // SINGLE SILENT COMMIT (owner rule, Oct 13 2026 — Accept All pattern):
+          // the old path did updateDeliveryLocal + a user-scoped
+          // Delivery.update + broadcastMutation PER STOP — up to three writes
+          // per stop and one WS broadcast per stop, storming every observer
+          // device one flickering ETA at a time. Now: one IDB bulkSave, one
+          // silent server commit (zero WS events), then ONE route_commit
+          // marker write on the finished stop — the only broadcast remotes
+          // receive; their marker receiver fetches the route once.
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRemainingWithEtas).catch(() => {});
+          for (const _stop of updatedRemainingWithEtas) {
+            if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+            window.__localDeliveryWrites.set(_stop.id, Date.now() + 90 * 1000);
+          }
+          const _etaCommitted = await commitDeliveryUpdatesSilently(updatedRemainingWithEtas.map((stop) => ({ id: stop.id, data: { delivery_time_eta: stop.delivery_time_eta } })));
+          await fireRouteCommitMarker(delivery.id, _etaCommitted);
         } catch (broadcastError) {
-          console.warn(`⚠️ [${status} ETA] broadcast failed:`, broadcastError?.message || broadcastError);
+          console.warn(`⚠️ [${status} ETA] silent commit failed:`, broadcastError?.message || broadcastError);
         }
         // refreshDriverRoute fires AFTER IDB is settled — prevents stale-read bounce
         try {
