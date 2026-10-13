@@ -30,6 +30,14 @@ const isStaleAssetError = (error) => {
     msg.includes('Unable to preload CSS') ||
     msg.includes('Loading chunk') ||
     msg.includes('ChunkLoadError') ||
+    // Dev-sandbox hot-update drift can duplicate the AuthContext module, so
+    // useAuth reads a second context instance and throws "must be used within
+    // an AuthProvider" even though the provider IS mounted. A single clean
+    // reload re-links the module graph; treat it like a stale asset (one
+    // purge+reload per session, no crash-screen loop). Restart-storm fix,
+    // Oct 13 2026: the desktop crash-looped on this ~22x/hour, and every
+    // reload re-ran the full boot sync against the shared rate budget.
+    msg.includes('must be used within an AuthProvider') ||
     (error.name === 'TypeError' && msg.includes('Failed to fetch'))
   );
 };
