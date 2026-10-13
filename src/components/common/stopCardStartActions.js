@@ -28,6 +28,7 @@ import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
+import { commitDeliveryUpdatesSilently, fireRouteCommitMarker } from '../utils/routeCommitMarker';
 import { notifyDriverStarted, notifyDriverRetry } from "../utils/deliveryMessaging";
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields, unlockDeliveryFields } from '../utils/completionLockout';
@@ -311,6 +312,11 @@ export function useStopCardStartActions({
       // Writing status='en_route' to a cycling marker crashes the app because cycling
       // markers only support in_transit/completed/pending transitions.
       if (delivery.is_cycling_marker) {
+        // ONE silent commit replaces the per-stop user-scoped writes below
+        // (Accept All pattern, Oct 13 2026): service-role writes emit NO WS
+        // events. The single route_commit marker fires in the background
+        // optimizer tail after the writeBatch lands.
+        const _cyclingSilentUpdates = [];
         pauseOfflineSync('delivery_actions');
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
@@ -337,9 +343,7 @@ export function useStopCardStartActions({
               const convertedCyclingStops = remainingCyclingStops.map((d) => ({ ...d, transport_mode: 'driving' }));
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, convertedCyclingStops);
               updateDeliveriesLocally?.(convertedCyclingStops, false);
-              await Promise.all(convertedCyclingStops.map((item) =>
-                base44.entities.Delivery.update(item.id, { transport_mode: 'driving' }).catch(() => null)
-              ));
+              _cyclingSilentUpdates.push(...convertedCyclingStops.map((item) => ({ id: item.id, data: { transport_mode: 'driving' } })));
               const convertedIds = new Set(convertedCyclingStops.map((d) => d.id));
               optimizationDeliveries = allDeliveries.map((d) =>
                 convertedIds.has(d?.id) ? { ...d, transport_mode: 'driving' } : d
@@ -366,12 +370,18 @@ export function useStopCardStartActions({
                 isNextDelivery: item.isNextDelivery,
               });
             }
-            await Promise.all(changed.map((item) =>
-              base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery }).catch(() => null)
-            ));
+            _cyclingSilentUpdates.push(...changed.map((item) => ({ id: item.id, data: { isNextDelivery: item.isNextDelivery } })));
           }
 
-          await setAndCenterNextDelivery({ driverDeliveries: updatedDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
+          // persistToBackend:false — its per-stop user-scoped writes would
+          // broadcast per stop; the returned flag changes join the silent batch.
+          const _cyclingCenterResult = await setAndCenterNextDelivery({ driverDeliveries: updatedDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: false });
+          for (const _cd of (_cyclingCenterResult?.changedDeliveries || [])) {
+            if (_cd?.id) _cyclingSilentUpdates.push({ id: _cd.id, data: { isNextDelivery: !!_cd.isNextDelivery, travel_dist: _cd.travel_dist } });
+          }
+          // Fire the ONE silent commit (no WS events). The optimizer tail below
+          // awaits this promise before sending the single marker broadcast.
+          const _cyclingFlagsCommitPromise = commitDeliveryUpdatesSilently(_cyclingSilentUpdates).catch(() => 0);
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: changed } }));
 
@@ -401,7 +411,7 @@ export function useStopCardStartActions({
             pauseOfflineSync('delivery_actions');
             pauseOfflineMutations();
             try {
-              await performRouteOptimization({
+              const _cycCoord = await performRouteOptimization({
                 driverId: delivery.driver_id,
                 deliveryDate: delivery.delivery_date,
                 deliveries: optimizationDeliveries,
@@ -410,8 +420,18 @@ export function useStopCardStartActions({
                 appUsers,
                 source: 'start_button',
                 bypassDriverStatus: true,
+                // Caller commits the writeBatch silently + ONE marker broadcast
+                // (Accept All pattern, Oct 13 2026) instead of the coordinator's
+                // non-silent commit firing one WS event per stop.
+                skipServerWrite: true,
                 awaitServerWrite: true,
               }).catch(() => null);
+              const _cycBatch = Array.isArray(_cycCoord?.optimizeData?.writeBatch) ? _cycCoord.optimizeData.writeBatch : [];
+              const _cycFlagsCommitted = await _cyclingFlagsCommitPromise;
+              const _cycBatchCommitted = await commitDeliveryUpdatesSilently(_cycBatch);
+              if (_cycBatch.length > 0 || _cyclingSilentUpdates.length > 0) {
+                await fireRouteCommitMarker(delivery.id, _cycFlagsCommitted + _cycBatchCommitted);
+              }
             } finally {
               resumeOfflineSync('delivery_actions');
               resumeOfflineMutations();
@@ -512,6 +532,15 @@ export function useStopCardStartActions({
         // optimistic state from the bulkSave above. Awaiting these adds ~3-6s of
         // blocking time (N parallel server round-trips). The 90s WS echo suppression
         // window above already handles the echoes from these writes.
+        // SINGLE SILENT COMMIT (owner rule, Oct 13 2026 — Accept All pattern):
+        // previously each changed stop fired a direct user-scoped
+        // Delivery.update — one WS broadcast per stop storming observer
+        // devices one flickering update at a time. Now all optimistic writes
+        // go through ONE bulkUpdateDeliveries {silent:true} call (service-role
+        // writes emit NO WS events). The single route_commit marker broadcast
+        // fires at the end of whichever tail path runs (fast path ETA commit
+        // or full optimization commit).
+        const _startOptimisticUpdates = [];
         for (const item of startedChangedDeliveries) {
           const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
           if (!existing) continue;
@@ -524,16 +553,9 @@ export function useStopCardStartActions({
             updates.delivery_time_start = currentLocalTime;
           }
           if (Object.keys(updates).length === 0) continue;
-          // OWNER BUG (Sep 29 2026): updateDeliveryLocal re-saved IDB and fired
-          // notifyMutation PER STOP right after updateDeliveriesLocally already
-          // rendered the same optimistic values — N redundant card/marker repaints
-          // during the optimization window (the 5-flicker Start bug). IDB + React
-          // state already hold these values (bulkSave + updateDeliveriesLocally
-          // above), so this is a SERVER-ONLY fire-and-forget write. The optimizer's
-          // bulkUpdateDeliveries and the handleStartDelivery backend re-confirm
-          // these fields authoritatively moments later.
-          base44.entities.Delivery.update(item.id, updates).catch(() => {});
+          _startOptimisticUpdates.push({ id: item.id, data: updates });
         }
+        const _startOptimisticCommit = commitDeliveryUpdatesSilently(_startOptimisticUpdates).catch(() => 0);
 
         if (!isPickup && patient?.id && patient?.status === 'inactive') {
           updatePatientLocal(patient.id, { status: 'active' }).catch(() => null);
@@ -675,13 +697,24 @@ export function useStopCardStartActions({
                   return { deliveryId: stop.id, newEta };
                 });
                 window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
-                await Promise.all(etaUpdates.map((u) => Promise.all([
-                  updateDeliveryLocal(u.deliveryId, { delivery_time_eta: u.newEta }, { skipSmartRefresh: true }),
-                  base44.entities.Delivery.update(u.deliveryId, { delivery_time_eta: u.newEta }).catch(() => null),
-                ])));
-                import('../utils/realtimeSync').then(({ broadcastMutation }) => {
-                  Promise.all(etaUpdates.map((u) => broadcastMutation('Delivery', 'update', u.deliveryId, { delivery_time_eta: u.newEta }))).catch(() => {});
-                }).catch(() => {});
+                // SINGLE SILENT COMMIT (owner rule, Oct 13 2026 — Accept All
+                // pattern): the old path did updateDeliveryLocal + a user-scoped
+                // Delivery.update + broadcastMutation PER STOP — up to three
+                // writes per stop and one WS broadcast per stop, storming every
+                // observer device. Now: one IDB bulkSave, one silent server
+                // commit (zero WS events), then ONE route_commit marker write —
+                // the only broadcast remote devices receive.
+                const { offlineDB: _fastDB } = await import('../utils/offlineDatabase');
+                const _etaRecords = remainingStops.map((stop, i) => ({ ...stop, delivery_time_eta: etaUpdates[i].newEta }));
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, _etaRecords).catch(() => {});
+                for (const u of etaUpdates) {
+                  if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+                  window.__localDeliveryWrites.set(u.deliveryId, Date.now() + 90 * 1000);
+                }
+                updateDeliveriesLocally?.(_etaRecords, false);
+                const _etaCommitted = await commitDeliveryUpdatesSilently(etaUpdates.map((u) => ({ id: u.deliveryId, data: { delivery_time_eta: u.newEta } })));
+                const _optCommittedFast = await _startOptimisticCommit;
+                await fireRouteCommitMarker(delivery.id, _etaCommitted + _optCommittedFast);
               }
             } catch (fastErr) {
               console.warn('⚠️ [Start fast path] local ETA cascade failed:', fastErr?.message || fastErr);
@@ -741,6 +774,12 @@ export function useStopCardStartActions({
               appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
+              // Caller commits the writeBatch via ONE silent bulkUpdateDeliveries
+              // (zero WS events) and fires ONE route_commit marker broadcast —
+              // the Accept All pattern (owner rule, Oct 13 2026). The
+              // coordinator's internal commit was non-silent: one WS broadcast
+              // per stop in the writeBatch.
+              skipServerWrite: true,
               // Read-your-write: the finally block below restarts SmartRefresh /
               // backgroundSync the moment this returns. A fire-and-forget server
               // write would still be mid-commit — the first re-pull would return
@@ -755,6 +794,17 @@ export function useStopCardStartActions({
             // Use freshDeliveries from the optimizer — it already wrote to IDB and
             // the backend via bulkUpdateDeliveries. No need to re-fetch from server
             // (the old forceRefreshDriverDeliveries call added up to 15s of latency).
+            // Silent commit of the optimizer's writeBatch — the read-your-write
+            // guarantee now comes from THIS awaited silent commit (the
+            // coordinator deferred its server write). Then the ONE marker
+            // broadcast. Remotes fetch the finished route once and render once.
+            const _startWriteBatch = Array.isArray(coordResult?.optimizeData?.writeBatch) ? coordResult.optimizeData.writeBatch : [];
+            const _wbCommitted = await commitDeliveryUpdatesSilently(_startWriteBatch);
+            const _optCommittedFull = await _startOptimisticCommit;
+            if (_startWriteBatch.length > 0 || _startOptimisticUpdates.length > 0) {
+              await fireRouteCommitMarker(delivery.id, _wbCommitted + _optCommittedFull);
+            }
+
             const refreshedList = coordResult?.freshDeliveries || null;
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
