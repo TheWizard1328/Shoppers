@@ -49,7 +49,32 @@ Deno.serve(async (req) => {
       allByType[et] = (allByType[et] || 0) + 1;
     }
 
+    // Restart-loop spotlight: app_start + crash markers per device/minute.
+    const startsByDevice = {};
+    const startsByMinute = {};
+    const crashByDevice = {};
+    const squareComputeByDevice = {};
+    for (const r of rows) {
+      const dev = (r.metadata && r.metadata.device_name) || (r.device_identifier || '?').slice(0, 8);
+      const m = String(r.message || '');
+      const minute = String(r.timestamp || r.created_date || '').slice(0, 16);
+      if (r.event_type === 'app_start') {
+        startsByDevice[dev] = (startsByDevice[dev] || 0) + 1;
+        startsByMinute[minute] = (startsByMinute[minute] || 0) + 1;
+      }
+      if (m.includes('useAuth must be used within an AuthProvider') || m.includes('PreBoundary')) {
+        crashByDevice[dev] = (crashByDevice[dev] || 0) + 1;
+      }
+      if (m.includes('server compute unavailable')) {
+        squareComputeByDevice[dev] = (squareComputeByDevice[dev] || 0) + 1;
+      }
+    }
+
     return Response.json({
+      app_starts_by_device: startsByDevice,
+      app_starts_by_minute: startsByMinute,
+      auth_crash_by_device: crashByDevice,
+      square_compute_fail_by_device: squareComputeByDevice,
       since,
       total_logs: total,
       rate_limit_hits: n429,
