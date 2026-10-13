@@ -31,6 +31,7 @@ import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
+import { getAutoCyclingTargets } from '../utils/autoCyclingMode';
 import { recalculateTrackingNumbersLocal, applyTrackingNumberUpdates } from '../utils/recalculateTrackingNumbersLocal';
 import { notifyDriverCompleted, notifyDriverFailed } from "../utils/deliveryMessaging";
 import { notifyDriverAcceptedStops } from "../deliveries/driverAcceptedStopsNotifier";
@@ -183,7 +184,8 @@ export function useStopCardCompletionActions({
       // Accept All's Step 4 optimizer handles the full route after the transition.
       const driverAppUser = appUsers.find(u => u?.user_id === delivery.driver_id);
       const isCyclingMode = String(driverAppUser?.preferred_travel_mode || '').toLowerCase() === 'cycling';
-      if (isDriverAction && isCyclingMode) {
+      const cyclingDialogRan = !!(isDriverAction && isCyclingMode);
+      if (cyclingDialogRan) {
         await new Promise(resolve => {
           const onDone = () => { window.removeEventListener('cyclingModeDialogDone', onDone); resolve(); };
           window.addEventListener('cyclingModeDialogDone', onDone);
@@ -237,6 +239,29 @@ export function useStopCardCompletionActions({
       const transitionedMap = new Map();
       for (const d of [...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])]) {
         if (d?.id) transitionedMap.set(d.id, d);
+      }
+
+      // ── STEP 1b: Auto-cycling sweep (owner rule, Oct 13 2026) ────────────────
+      // If this driver+date has an ACTIVE cycling end marker, every transitioning
+      // patient delivery inside the cycling range (the same 50 km window the
+      // cycling dialog uses) flips to transport_mode='cycling' BEFORE the Step 4
+      // optimizer runs, so the engine's bicycle sequencing includes it. The
+      // coordinator writes transport_mode in its bulk commit, so this lands in
+      // IDB + server atomically with stop_order/ETA/polylines.
+      // SKIPPED when the cycling dialog ran above — an explicit driver selection
+      // (or deselection) always beats auto-assignment.
+      if (!cyclingDialogRan) {
+        try {
+          const autoTargets = getAutoCyclingTargets({
+            deliveries: scopedAllDeliveries,
+            targets: [...transitionedMap.values()],
+            patients
+          });
+          for (const t of autoTargets) {
+            t.transport_mode = 'cycling';
+            console.log(`[AcceptAll] auto-cycling: ${t.patient_name || t.patient_id} within range of active cycling end marker`);
+          }
+        } catch (_) {}
       }
 
       // CRITICAL: Scope to this driver+date ONLY. Passing all-drivers allDeliveries

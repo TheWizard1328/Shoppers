@@ -10,6 +10,7 @@ import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
 import { flushPendingInterStoreOptimizationsDeferred } from '../utils/deliveryFormActionHelpers';
 import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { getAutoCyclingTargets } from '../utils/autoCyclingMode';
 import { syncDeliveriesSquareCod } from '../utils/squareCodSync';
 
 export async function handleBatchSave({
@@ -99,6 +100,21 @@ export async function handleBatchSave({
   });
 
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
+
+  // ── Auto-cycling stamp (owner rule, Oct 13 2026) ─────────────────────────
+  // New stops created while their driver has an ACTIVE cycling end marker on
+  // the same date, inside the cycling-mode dialog's 50 km range, get
+  // transport_mode='cycling' at creation so every downstream optimization
+  // (Accept All / Accept Single / Start) buckets them into the bike loop.
+  // Patient deliveries only; pickups/InterStore stay driving. No active end
+  // marker → getAutoCyclingTargets returns nothing (feature skipped).
+  try {
+    const autoTargets = getAutoCyclingTargets({ deliveries: allDeliveries, targets: newDeliveries, patients });
+    for (const t of autoTargets) {
+      t.transport_mode = 'cycling';
+      console.log(`[AddToRoute] auto-cycling: stamped ${t.patient_name || t.patient_id} (driver ${t.driver_id}) — within cycling range of active end marker`);
+    }
+  } catch (_) {}
   // Include Staged-status deliveries (activating to route) AND any existing delivery that was
   // directly edited by the user (status/time fields changed while viewing in the staged list).
   // Pre-TR: Staged deliveries being activated + directly-edited existing deliveries.
