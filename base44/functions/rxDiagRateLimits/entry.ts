@@ -49,6 +49,20 @@ Deno.serve(async (req) => {
       allByType[et] = (allByType[et] || 0) + 1;
     }
 
+    // Crash stack samples: full message text of useAuth/PreBoundary errors.
+    const crashSamples = [];
+    for (const r of rows) {
+      const m = String(r.message || '');
+      if (m.includes('AuthProvider') || m.includes('PreBoundary')) {
+        crashSamples.push({
+          dev: (r.metadata && r.metadata.device_name) || (r.device_identifier || '?').slice(0, 8),
+          at: r.timestamp || r.created_date,
+          msg: m.slice(0, 1400),
+        });
+        if (crashSamples.length >= 3) break;
+      }
+    }
+
     // Restart-loop spotlight: app_start + crash markers per device/minute.
     const startsByDevice = {};
     const startsByMinute = {};
@@ -71,6 +85,7 @@ Deno.serve(async (req) => {
     }
 
     return Response.json({
+      crash_samples: crashSamples,
       app_starts_by_device: startsByDevice,
       app_starts_by_minute: startsByMinute,
       auth_crash_by_device: crashByDevice,
