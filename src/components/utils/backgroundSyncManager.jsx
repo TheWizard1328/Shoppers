@@ -86,7 +86,7 @@ class BackgroundSyncManager {
         { start: '22:00', end: '08:00' }
       ],
       historicalMaxDatesPerCycleDaytime: 1,   // 1 date per cycle during daytime (gentle trickle)
-      historicalMaxDatesPerCycleOffpeak: 20,  // 20 dates per cycle off-peak (capped to respect rate limits)
+      historicalMaxDatesPerCycleOffpeak: 1,   // Oct 14 owner spec: ALWAYS 1 date per cycle — the off-peak 20-date blast burned rate limits on every device at once
       throttleBetweenCallsMsDaytime: 2000,
       throttleBetweenCallsMsOffpeak: 500,
       priorities: {
@@ -504,7 +504,7 @@ class BackgroundSyncManager {
 
   /**
    * Sync historical deliveries incrementally (city-scoped, runs day and night).
-   * Daytime: 1 date per cycle (gentle trickle). Off-peak: 60 dates per cycle (fast batch).
+   * Daytime: 1 date per cycle (gentle trickle). Off-peak: 1 date per cycle too (owner spec Oct 14).
    * Cursor persisted to IndexedDB keyed by the user's city assignment.
    */
   async syncHistoricalDeliveries() {
@@ -523,8 +523,12 @@ class BackgroundSyncManager {
 
     // Rate: fast batch off-peak, gentle trickle during the day
     const isOffPeak = this.isOffPeakNow();
+    // Oct 14 2026 owner spec: 1 date per cycle, always — "only supposed to be
+    // checking 1 day at a time every few minutes when idle only". The previous
+    // off-peak batch (20 dates/cycle, 500ms apart) was a full blast feeding the
+    // nightly 429 storms. Off-peak now only relaxes the per-date throttle.
     const maxDatesPerCycle = isOffPeak
-      ? (this.config.historicalMaxDatesPerCycleOffpeak || 60)
+      ? (this.config.historicalMaxDatesPerCycleOffpeak || 1)
       : (this.config.historicalMaxDatesPerCycleDaytime || 1);
     const throttleMs = isOffPeak
       ? (this.config.throttleBetweenCallsMsOffpeak || 500)

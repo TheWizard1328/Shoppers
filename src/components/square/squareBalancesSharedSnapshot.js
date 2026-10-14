@@ -50,12 +50,12 @@ export const buildSummaryPayload = (data) => {
  * publish. Returns the published version, or null on failure (caller just
  * skips — the next fresh compute will try again).
  */
-export const publishSharedSnapshot = async (data, { version, userId, userName } = {}) => {
+export const publishSharedSnapshot = async (data, { version, userId, userName, deviceName } = {}) => {
   try {
     const payload = buildSummaryPayload(data);
     if (!payload) return null;
     const ver = Number(version || Date.now());
-    const rec = { payload, version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null };
+    const rec = { payload, version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null };
     let existing = null;
     try {
       const rows = await base44.entities.SquareBalancesSnapshot.list('-version', 10, 0);

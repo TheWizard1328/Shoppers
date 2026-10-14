@@ -1696,7 +1696,49 @@ let storeEventTimers = {};
 // one small read). No 5-minute schedule — delivery events, page load and
 // Refresh are the only initiators. The local loadSummary pipeline stays as
 // the FALLBACK for the deploy window and function failures.
-const storeReload = async (force = false, attempt = 0) => {
+// ── Owner-spec gates (Oct 14 2026, rate-limit storm) ─────────────────────────
+// (1) DRIVER-ON-DUTY GATE: automatic computes only run while ≥1 driver is
+//     on_duty. With no drivers working, the summary cannot change — the
+//     cached snapshot/IDB mirror is served instead and the heavy server
+//     compute + its config/marks reads are skipped entirely. Manual refresh
+//     (Refresh Square button) always computes.
+// (2) SINGLE-HOST GATE: only ONE owner device computes at a time.
+//     THE-DESKTOP(Editor) is the designated host (always-running instance)
+//     and always computes. Every other owner device first pulls the shared
+//     snapshot: if the host published within the last 90s it applies it and
+//     skips the compute; if the host looks mid-cycle (stale snapshot right
+//     after an event) it waits 12s and re-pulls once before falling back to
+//     its own compute (host offline / no publish). This stops the multi-
+//     device compute stampede that burned the account's rate budget.
+let storeDutyCache = { at: 0, onDuty: null };
+const hasDriverOnDuty = async () => {
+  try {
+    if (storeDutyCache.onDuty !== null && Date.now() - storeDutyCache.at < 60_000) return storeDutyCache.onDuty;
+    const users = await offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []);
+    const onDuty = (users || []).some((u) => u?.driver_status === 'on_duty');
+    storeDutyCache = { at: Date.now(), onDuty };
+    return onDuty;
+  } catch (_) { return true; } // fail open — never strand the badge
+};
+
+let storeDeviceName = null;
+const loadStoreDeviceName = async () => {
+  if (storeDeviceName) return storeDeviceName;
+  try {
+    const { getCurrentDevice } = await import('@/components/utils/deviceManager');
+    const rec = await getCurrentDevice(storeUserId);
+    storeDeviceName = rec?.device_name || 'Unknown Device';
+  } catch (_) { storeDeviceName = 'Unknown Device'; }
+  return storeDeviceName;
+};
+const DESIGNATED_COMPUTE_HOST = 'THE-DESKTOP(Editor)';
+const HOST_PUBLISH_FRESH_MS = 90_000;
+const snapshotIsFresh = (rec) => {
+  const at = Date.parse(rec?.computed_at || rec?.savedAt || '') || Number(rec?.version) || 0;
+  return at > 0 && Date.now() - at < HOST_PUBLISH_FRESH_MS;
+};
+
+const storeReload = async (force = false, attempt = 0, opts = {}) => {
   const seq = ++storeSeq;
   // OWNER-ONLY COMPUTE (owner spec Oct 13 2026, rate-limit storm): only
   // owner devices may invoke the heavy squareBalancesCompute. Store PCs and
@@ -1718,9 +1760,31 @@ const storeReload = async (force = false, attempt = 0) => {
     } catch (e2) {
       console.warn('[useSquareBalancesSummary] non-owner reload failed:', String(e2?.message || e2));
       if (seq !== storeSeq) return;
-      if (attempt < 2) setTimeout(() => storeReload(false, attempt + 1), 30000);
+      if (attempt < 2) setTimeout(() => storeReload(false, attempt + 1, opts), 30000);
     }
     return;
+  }
+  const manual = opts?.manual === true;
+  // GATE 1 — driver on duty (skipped for manual refresh)
+  if (!manual) {
+    const onDuty = await hasDriverOnDuty();
+    if (!onDuty) {
+      console.log('⏭️ [useSquareBalancesSummary] No driver on duty — skipping server compute (cached snapshot served)');
+      return;
+    }
+  }
+  // GATE 2 — single compute host
+  const deviceName = await loadStoreDeviceName();
+  if (deviceName !== DESIGNATED_COMPUTE_HOST) {
+    let rec = await fetchLatestSharedSnapshot().catch(() => null);
+    if (rec && applyRemoteSharedSnapshot(rec)) return; // newer host publish applied
+    if (snapshotIsFresh(rec)) return;                   // host published moments ago
+    // The designated host may be mid-compute on the same event — give its
+    // publish one chance to land before spending our own compute.
+    await new Promise((r) => setTimeout(r, 12_000));
+    rec = await fetchLatestSharedSnapshot().catch(() => null);
+    if (rec && applyRemoteSharedSnapshot(rec)) return;
+    if (snapshotIsFresh(rec)) return;
   }
   try {
     const res = await base44.functions.invoke('squareBalancesCompute', { force: force !== false });
@@ -1741,7 +1805,7 @@ const storeReload = async (force = false, attempt = 0) => {
     // write fires the WS broadcast that pings every other device to its own
     // small pull. Publishing happens ONLY here and on the local-fallback
     // path (a remote-snapshot apply never publishes), so no loop.
-    publishSharedSnapshot(fdata, { version: storeSharedVersion, userId: storeUserId }).catch?.(() => {});
+    publishSharedSnapshot(fdata, { version: storeSharedVersion, userId: storeUserId, deviceName: storeDeviceName || deviceName }).catch?.(() => {});
     return;
   } catch (e) {
     // Deploy-window / function failure — the local pipeline still works.
@@ -1754,7 +1818,7 @@ const storeReload = async (force = false, attempt = 0) => {
       if (storeIsOwner && storeUserId && Array.isArray(data?.autoRefundedFailed) && data.autoRefundedFailed.length) {
         void sendFailedRefundAlerts(data.config, data.autoRefundedFailed, storeUserId);
       }
-      publishSharedSnapshot(data, { version: Date.now(), userId: storeUserId }).catch?.(() => {});
+      publishSharedSnapshot(data, { version: Date.now(), userId: storeUserId, deviceName: storeDeviceName || deviceName }).catch?.(() => {});
       if (degraded) {
         if (storeHealTimer) clearTimeout(storeHealTimer);
         storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, 30000);
@@ -1770,7 +1834,7 @@ const storeReload = async (force = false, attempt = 0) => {
         // RATE-AWARE BACKOFF (Oct 2 2026): retries only need to EVENTUALLY
         // succeed — the badge renders the IDB snapshot meanwhile.
         const wait = rateLimited ? [30000, 90000, 180000][attempt] : 2000 * Math.pow(2, attempt);
-        setTimeout(() => storeReload(true, attempt + 1), wait);
+        setTimeout(() => storeReload(true, attempt + 1, opts), wait);
       }
     }
   }
@@ -1941,7 +2005,7 @@ function startSummaryStore(userId, isOwner = false) {
     invalidateLedgerWindows();
     invalidateServerOverlay();
     clearTimeout(storeCfgTimer);
-    storeReload(true);
+    storeReload(true, 0, { manual: true }); // Refresh Square button — bypasses the driver-on-duty gate
   };
   window.addEventListener('squareBalancesRefreshed', onSquareBalancesRefreshed);
   // FOREGROUND FRESHNESS HEAL (owner report Oct 9 2026): updates are
