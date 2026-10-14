@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apkUpdatesFromRunNumber, formatAppVersion } from '@/version';
+import { apkUpdatesFromSuccessCount, formatAppVersion } from '@/version';
 import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from './locationProviders/capacitorRuntime';
 
 /**
@@ -36,6 +36,7 @@ function loadCachedBuildInfo() {
     return {
       dateStr: parsed.dateStr || '',
       buildNumber: parsed.buildNumber || null,
+      successCount: Number.isFinite(Number(parsed.successCount)) ? Number(parsed.successCount) : null,
       apkUrl: parsed.apkUrl || null,
       etagRelease: parsed.etagRelease || null,
       etagRuns: parsed.etagRuns || null,
@@ -110,6 +111,7 @@ export function useLatestApkBuildInfo() {
       // take the fresh value. null (rate-limited/error) → also keep cached.
       let dateStr = cached?.dateStr || '';
       let buildNumber = cached?.buildNumber || null;
+      let successCount = cached?.successCount || null;
       let apkUrl = cached?.apkUrl || null;
       let etagRelease = cached?.etagRelease || null;
       let etagRuns = cached?.etagRuns || null;
@@ -126,12 +128,15 @@ export function useLatestApkBuildInfo() {
       const runsData = runsRes?.notModified ? null : runsRes?.json || null;
       if (runsData) {
         buildNumber = runsData.workflow_runs?.[0]?.run_number || buildNumber;
+        // total_count = successful build-apk.yml runs; drives the APK_UPDATES
+        // digit. A 304 means no new runs, so the cached count stays valid.
+        successCount = Number.isFinite(Number(runsData.total_count)) ? runsData.total_count : successCount;
         etagRuns = runsRes.etag || etagRuns;
       }
 
       // If we got valid data, update cache and state
       if (buildNumber != null || apkUrl != null) {
-        const newInfo = { dateStr, buildNumber, apkUrl, etagRelease, etagRuns };
+        const newInfo = { dateStr, buildNumber, successCount, apkUrl, etagRelease, etagRuns };
         saveCachedBuildInfo(newInfo);
         if (!cancelled) {
           setBuildInfo((prev) => {
@@ -159,7 +164,9 @@ export function useLatestApkBuildInfo() {
   // Display scheme (owner spec Oct 13 2026): vMAJOR.APK_UPDATES.WEB_UPDATES.
   // The RAW buildNumber (workflow run_number) is preserved for the update-arrow
   // comparison logic — only the display label switches to the new scheme.
-  const versionLabel = buildInfo?.buildNumber ? formatAppVersion(apkUpdatesFromRunNumber(buildInfo.buildNumber)) : '';
+  const versionLabel = buildInfo?.buildNumber
+    ? formatAppVersion(apkUpdatesFromSuccessCount(buildInfo.successCount))
+    : '';
 
   const buildText = buildInfo
     ? buildInfo.buildNumber
@@ -197,7 +204,9 @@ export function useInstalledAppVersion() {
         const buildMatch = /build (\d+)/.exec(versionStr) || /1\.0\.(\d+)/.exec(versionStr);
         const buildNumber = buildMatch ? buildMatch[1] : null;
         if (!cancelled && buildNumber) {
-          setInstalled({ buildNumber, versionLabel: formatAppVersion(apkUpdatesFromRunNumber(buildNumber)) });
+          const versionMatch = /(\d+\.\d+\.\d+)/.exec(versionStr);
+          const installedLabel = versionMatch ? `v${versionMatch[1]}` : null;
+          setInstalled({ buildNumber, versionLabel: installedLabel || formatAppVersion(0) });
         }
       } catch {
         // Not a native app or Capacitor not available

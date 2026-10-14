@@ -540,8 +540,10 @@ public class MainActivity extends BridgeActivity {
         return FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apkFile);
     }
 
-    @Override
     // ── Hey Doc native recognizer helpers (main thread only) ────────────
+    // (stray @Override removed — evalSpeechCb is a plain private helper and
+    // the annotation broke :app:compileDebugJavaWithJavac on every APK build
+    // since it was added, which is why the APK froze at build 334)
     private void evalSpeechCb(String fn, String argLiteral) {
         try {
             WebView wv = this.bridge != null ? this.bridge.getWebView() : null;

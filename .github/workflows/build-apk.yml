@@ -62,15 +62,22 @@ jobs:
 
       - name: Compute version label (owner scheme vMAJOR.APK_UPDATES.WEB_UPDATES)
         # Version scheme (Oct 13 2026): vMAJOR.APK.WEB — MAJOR bumps only on
-        # owner request; APK updates = workflow run_number - baseline (starts
-        # at 0 as of run 334); WEB updates = deploy counter in src/version.js
-        # (starts at 334, bumped per web deploy). The raw run number is kept
-        # in the artifact filename tail so update detection stays monotonic.
+        # owner request; APK updates = SUCCESSFUL build count - baseline
+        # (baseline 316 = successful runs when the scheme took effect, so the
+        # digit starts at 0; failed runs never increment it); WEB updates =
+        # deploy counter in src/version.js (starts at 334, bumped per web
+        # deploy). The raw run number is kept in the artifact filename tail
+        # so update detection stays monotonic.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           MAJOR=$(grep -oP 'APP_VERSION_MAJOR = \K[0-9]+' src/version.js)
-          BASELINE=$(grep -oP 'APK_VERSION_BASELINE = \K[0-9]+' src/version.js)
+          BASELINE=$(grep -oP 'APK_SUCCESS_BASELINE = \K[0-9]+' src/version.js)
           WEB=$(grep -oP 'WEB_VERSION = \K[0-9]+' src/version.js)
-          APK_UPDATES=$(( GITHUB_RUN_NUMBER - BASELINE ))
+          # Count SUCCESSFUL builds only; this run is still in progress so it
+          # is not counted — if this build succeeds it becomes the +1.
+          SUCCESSES=$(gh api "repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1" --jq '.total_count')
+          APK_UPDATES=$(( SUCCESSES - BASELINE ))
           if [ "$APK_UPDATES" -lt 0 ]; then APK_UPDATES=0; fi
           echo "APK_VERSION_NAME=v${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
           echo "APP_VERSION_NAME=${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
