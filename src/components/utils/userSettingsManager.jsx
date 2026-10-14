@@ -517,6 +517,22 @@ export async function saveSetting(userId, key, value) {
   const deviceType = getDeviceType();
   const isGlobal = isGlobalSetting(key);
 
+  // CHANGE GATE (owner spec Oct 14 2026): "pointless to be writing data to the
+  // server if it hasn't changed" — selected_date re-saves on every boot did a
+  // server READ + WRITE for an identical value, feeding the rate-limit storms.
+  // The cache is hydrated from IDB+server and kept fresh by the WS diff-check,
+  // so an unchanged value needs no write at all. Fail-open: no cache loaded yet
+  // (cachedSettings null) -> proceed with the write as before.
+  if (cachedSettings) {
+    const prevValue = cachedSettings[key];
+    const known = Object.prototype.hasOwnProperty.call(cachedSettings, key);
+    const unchanged = known ? Object.is(prevValue, value) : Object.is(DEFAULT_SETTINGS[key], value);
+    if (unchanged) {
+      console.log(`⏭️ [UserSettings] ${isGlobal ? 'GLOBAL' : 'DEVICE'} setting ${key}=${value} unchanged — skipping server write`);
+      return cachedSettings;
+    }
+  }
+
   console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : 'DEVICE'} setting: ${key}=${value}`);
 
   if (cachedSettings) {

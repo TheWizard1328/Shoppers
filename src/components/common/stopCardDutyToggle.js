@@ -100,6 +100,16 @@ export function useStopCardDutyToggle({
       console.warn('[ensureDriverOnline] Optimistic flip failed (non-critical, backend will still run):', idbErr?.message);
     }
 
+    // NO-OP GATE (owner spec Oct 14 2026): if the FRESH IDB read (done just above,
+    // not stale React state) already shows on_duty, the backend call is a guaranteed
+    // idempotent no-op — and a wasted API call on every Accept/Start/Complete during
+    // rate-limit storms. Skip it entirely. Fail-open: if the IDB read above threw,
+    // optimisticPrevStatus stays null and the backend call proceeds as before.
+    if (optimisticPrevStatus === 'on_duty') {
+      console.log('[ensureDriverOnline] Skipped backend setDriverStatus — already on_duty (no-op write avoided)');
+      return;
+    }
+
     try {
       const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({
         newStatus: 'on_duty',
