@@ -56,10 +56,6 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Build debug APK
-        working-directory: capacitor/android
-        run: ./gradlew assembleDebug --no-daemon -x test
-
       - name: Compute version label (owner scheme vMAJOR.APK_UPDATES.WEB_UPDATES)
         # Version scheme (Oct 13 2026): vMAJOR.APK.WEB — MAJOR bumps only on
         # owner request; APK updates = SUCCESSFUL build count - baseline
@@ -82,6 +78,10 @@ jobs:
           echo "APK_VERSION_NAME=v${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
           echo "APP_VERSION_NAME=${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
           echo "Version label: v${MAJOR}.${APK_UPDATES}.${WEB} (build run ${GITHUB_RUN_NUMBER})"
+
+      - name: Build debug APK
+        working-directory: capacitor/android
+        run: ./gradlew assembleDebug --no-daemon -x test
 
       - name: Rename APK with version label
         working-directory: capacitor/android/app/build/outputs/apk/debug

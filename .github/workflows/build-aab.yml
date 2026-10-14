@@ -66,6 +66,23 @@ jobs:
         working-directory: capacitor/android/app
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > rxdeliver-release.p12
 
+      - name: Compute version label (owner scheme vMAJOR.APK_UPDATES.WEB_UPDATES)
+        # Same version source as build-apk.yml — the AAB versionName must
+        # match the APK (APP_VERSION_NAME env read by app/build.gradle).
+        # APK_UPDATES counts successful build-apk.yml releases (this AAB run
+        # is not part of that count).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MAJOR=$(grep -oP 'APP_VERSION_MAJOR = \K[0-9]+' src/version.js)
+          BASELINE=$(grep -oP 'APK_SUCCESS_BASELINE = \K[0-9]+' src/version.js)
+          WEB=$(grep -oP 'WEB_VERSION = \K[0-9]+' src/version.js)
+          SUCCESSES=$(gh api "repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1" --jq '.total_count')
+          APK_UPDATES=$(( SUCCESSES - BASELINE ))
+          if [ "$APK_UPDATES" -lt 0 ]; then APK_UPDATES=0; fi
+          echo "APK_VERSION_NAME=v${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
+
       - name: Build release AAB (Play Store build)
         working-directory: capacitor/android
         run: ./gradlew bundleRelease --no-daemon -x test

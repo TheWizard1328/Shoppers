@@ -37,7 +37,12 @@ export function useAndroidAppUpdateCheck(latestBuildNumber) {
         const { App } = await import('@capacitor/app');
         const info = await App.getInfo();
         const versionStr = info?.version || '';
-        const buildMatch = /1\.0\.(\d+)/.exec(versionStr);
+        // New APKs: "1.<apkUpdates>.<web> (build <runNumber> · date)" — the
+        // run number lives in the "(build N)" tail. Old APKs: "1.0.<runNumber>
+        // (date)". Parse the tail first; a bare "1.0.0 (build 342 ...)" from
+        // the broken v342 APK must yield 342, NOT 0 (0 made every reload
+        // claim a new update was available).
+        const buildMatch = /build (\d+)/.exec(versionStr) || /1\.0\.(\d+)/.exec(versionStr);
         const installedNum = buildMatch ? parseInt(buildMatch[1], 10) : null;
 
         if (!cancelled) setInstalledVersion({ buildNumber: installedNum, versionStr });
