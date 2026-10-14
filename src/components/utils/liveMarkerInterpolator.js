@@ -48,6 +48,10 @@ const TURN_LEAD_LIMIT_DEG = 135;    // only near-hairpin corners cap the lead; n
 const RE_ANCHOR_MAX_M = 30;         // dot farther than this from a new fix → snap, don't arc
 const TRAIL_MIN_INTERVAL_MS = 2000; // trail mode: clamp heartbeat interval lower bound
 const TRAIL_MAX_INTERVAL_MS = 30000;// trail mode: clamp heartbeat interval upper bound
+const TRAIL_JUMP_THRESHOLD_M = 1000;  // owner request Oct 13 2026: peer marker fix
+                                      // farther than this from the dot's current
+                                      // display position JUMPS instantly instead of
+                                      // sliding over the (possibly 15-30s) interval
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 
@@ -221,6 +225,16 @@ export function createLiveMarkerInterpolator(options = {}) {
         const intervalMs = clamp(ts - prev[2], TRAIL_MIN_INTERVAL_MS, TRAIL_MAX_INTERVAL_MS);
         const curDisp = this.getDisplayPosition(now);
         const curPt = curDisp ? [curDisp.latitude, curDisp.longitude] : fix;
+
+        // Big teleport (device offline/backgrounded, GPS batched, app
+        // resume, stale heartbeat): a >1km hop slid over a 15-30s interval
+        // looked like the driver crawling across the city — owner request
+        // Oct 13 2026 — JUMP the shared marker straight to the fresh fix.
+        if (haversineM(curPt, fix) > TRAIL_JUMP_THRESHOLD_M) {
+          anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now };
+          prevProj = path ? projectOnPath(path, fix) : null;
+          return;
+        }
 
         let m = "line";
         let wp = null;
