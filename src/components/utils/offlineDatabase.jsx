@@ -63,14 +63,30 @@ const isPHIStore = (storeName) => PHI_STORES.has(storeName);
 // lock for 10–20s, causing every concurrent getAll to hit its 6s timeout
 // simultaneously. The counter below lets getAll WAIT for writes to drain
 // instead of false-failing.
-let _activeWrites = 0;
-const _writeDrainResolvers = [];
+// PER-STORE write gate (owner spec Oct 14 2026): IndexedDB transactions lock
+// PER OBJECT STORE — a readwrite tx on `deliveries` never blocks a readonly tx
+// on `patients`/`payroll`/`app_users`. The old GLOBAL counter made one
+// bulkSave(deliveries) (historical backfill, boot sync, WS event caching)
+// block reads of EVERY store: cross-store reads waited 10s, failed, returned
+// [] — and callers fell back to SERVER reads, pinning the shared account-wide
+// pool (store-PC chronic stall pattern, Oct 14 logs). Only SAME-store reads
+// wait now, matching real IDB semantics.
+const _activeWritesByStore = new Map();
+const _writeDrainResolversByStore = new Map();
 
-const _beginWrite = () => { _activeWrites++; };
-const _endWrite = () => {
-  _activeWrites = Math.max(0, _activeWrites - 1);
-  if (_activeWrites === 0) {
-    _writeDrainResolvers.splice(0).forEach((resolve) => resolve());
+const _beginWrite = (storeName) => {
+  _activeWritesByStore.set(storeName, (_activeWritesByStore.get(storeName) || 0) + 1);
+};
+const _endWrite = (storeName) => {
+  const n = _activeWritesByStore.get(storeName) || 0;
+  if (n <= 1) _activeWritesByStore.delete(storeName);
+  else _activeWritesByStore.set(storeName, n - 1);
+  if (!_activeWritesByStore.has(storeName)) {
+    const resolvers = _writeDrainResolversByStore.get(storeName);
+    if (resolvers) {
+      _writeDrainResolversByStore.delete(storeName);
+      resolvers.forEach((resolve) => resolve());
+    }
   }
 };
 
@@ -78,21 +94,30 @@ const _endWrite = () => {
  * Wait for all in-flight write transactions to complete (up to timeoutMs).
  * Returns true if writes drained, false if timed out.
  */
-const waitForWritesToDrain = (timeoutMs = 10000) => {
-  if (_activeWrites <= 0) return Promise.resolve(true);
+const waitForWritesToDrain = (storeName, timeoutMs = 10000) => {
+  if (!_activeWritesByStore.has(storeName)) return Promise.resolve(true);
   return new Promise((resolve) => {
     let settled = false;
     const finish = (drained) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const index = _writeDrainResolvers.indexOf(onDrain);
-      if (index >= 0) _writeDrainResolvers.splice(index, 1);
+      const resolvers = _writeDrainResolversByStore.get(storeName);
+      if (resolvers) {
+        const index = resolvers.indexOf(onDrain);
+        if (index >= 0) resolvers.splice(index, 1);
+        if (!resolvers.length) _writeDrainResolversByStore.delete(storeName);
+      }
       resolve(drained);
     };
     const onDrain = () => finish(true);
     const timer = setTimeout(() => finish(false), timeoutMs);
-    _writeDrainResolvers.push(onDrain);
+    let resolvers = _writeDrainResolversByStore.get(storeName);
+    if (!resolvers) {
+      resolvers = [];
+      _writeDrainResolversByStore.set(storeName, resolvers);
+    }
+    resolvers.push(onDrain);
   });
 };
 
@@ -572,7 +597,7 @@ const bulkSave = async (storeName, records) => {
     console.warn(`[OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
   }
 
-  _beginWrite();
+  _beginWrite(storeName);
   try {
     let successCount = 0;
 
@@ -586,19 +611,27 @@ const bulkSave = async (storeName, records) => {
       const transaction = db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
 
-      const promises = chunkToWrite.map(record => {
-        return new Promise((resolve, reject) => {
-          const request = store.put(record);
-          request.onsuccess = () => {
-            successCount++;
-            resolve();
-          };
-          request.onerror = () => reject(request.error);
+      // Fail-fast abort handling: a transaction that auto-aborts (quota,
+      // version change) fires onabort — put requests that never started never
+      // fire onsuccess/onerror, so without this the chunk would hang until the
+      // 8s timeout while HOLDING the per-store write gate.
+      const chunkPromise = new Promise((resolve, reject) => {
+        const promises = chunkToWrite.map(record => {
+          return new Promise((resolve, reject) => {
+            const request = store.put(record);
+            request.onsuccess = () => {
+              successCount++;
+              resolve();
+            };
+            request.onerror = () => reject(request.error);
+          });
         });
+        transaction.onabort = () => reject(transaction.error || new Error(`IDB bulkSave(${storeName}) transaction aborted`));
+        Promise.all(promises).then(resolve, reject);
       });
 
       try {
-        await withTimeout(Promise.all(promises), IDB_OPERATION_TIMEOUT_MS, `IDB bulkSave(${storeName})`);
+        await withTimeout(chunkPromise, IDB_OPERATION_TIMEOUT_MS, `IDB bulkSave(${storeName})`);
       } catch (error) {
         try { transaction.abort(); } catch (_) {}
         throw error;
@@ -615,7 +648,7 @@ const bulkSave = async (storeName, records) => {
   } catch (error) {
     return { success: false, error: error.message };
   } finally {
-    _endWrite();
+    _endWrite(storeName);
   }
 };
 
@@ -662,8 +695,8 @@ const getAll = async (storeName) => {
     // for them to drain before reading — a readwrite transaction holds the
     // IDB lock and blocks ALL reads, so the 6s getAll timeout would fire
     // simultaneously across every store during a write burst.
-    if (_activeWrites > 0) {
-      const drained = await waitForWritesToDrain(10000);
+    if (_activeWritesByStore.has(storeName)) {
+      const drained = await waitForWritesToDrain(storeName, 10000);
       if (!drained) throw new Error(`IDB getAll(${storeName}) blocked by a stalled write`);
     }
     const db = await openDatabase();
@@ -708,8 +741,8 @@ const getAll = async (storeName) => {
 const getAllStrict = async (storeName) => {
   // Same write-drain discipline as getAll (a readwrite transaction holds the
   // IDB lock and blocks reads), but a stall REJECTS instead of returning [].
-  if (_activeWrites > 0) {
-    const drained = await waitForWritesToDrain(10000);
+  if (_activeWritesByStore.has(storeName)) {
+    const drained = await waitForWritesToDrain(storeName, 10000);
     if (!drained) throw new Error(`IDB getAllStrict(${storeName}) blocked by a stalled write`);
   }
   const db = await openDatabase();
@@ -832,19 +865,32 @@ const getDeliveriesSortedByDate = async (limit = null) => {
  * Clear all data from a store
  */
 const clearStore = async (storeName) => {
-  _beginWrite();
+  // LEAK FIX (owner spec Oct 14 2026): the old clearStore had NO timeout and NO
+  // onabort handler — if the clear transaction aborted (quota, version change,
+  // auto-abort), neither onsuccess nor onerror fired, the promise never
+  // settled, and _endWrite never ran: the write gate was stuck OPEN forever,
+  // making every subsequent read on the device wait 10s, fail, and fall back
+  // to server reads (store-PC permanent-stall pattern). Now: fail-fast abort,
+  // operation timeout, and a guaranteed gate release.
+  _beginWrite(storeName);
+  let transaction = null;
   try {
     const db = await openDatabase();
-    const transaction = db.transaction([storeName], 'readwrite');
+    transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
 
-    return new Promise((resolve, reject) => {
+    const result = await withTimeout(new Promise((resolve, reject) => {
       const request = store.clear();
-      request.onsuccess = () => resolve();
+      request.onsuccess = () => resolve({ success: true });
       request.onerror = () => reject(request.error);
-    });
-  } catch (error) {} finally {
-    _endWrite();
+      transaction.onabort = () => reject(transaction.error || new Error(`IDB clear(${storeName}) aborted`));
+    }), IDB_OPERATION_TIMEOUT_MS, `IDB clear(${storeName})`);
+    return result;
+  } catch (error) {
+    try { if (transaction) transaction.abort(); } catch (_) {}
+    return { success: false, error: error?.message || String(error) };
+  } finally {
+    _endWrite(storeName);
   }
 };
 
@@ -1231,7 +1277,7 @@ const getById = async (storeName, recordId) => {
  * Delete a single record from a store by ID
  */
 const deleteRecord = async (storeName, recordId) => {
-  _beginWrite();
+  _beginWrite(storeName);
   try {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
@@ -1251,7 +1297,7 @@ const deleteRecord = async (storeName, recordId) => {
   } catch (error) {
     return { success: false, error: error.message };
   } finally {
-    _endWrite();
+    _endWrite(storeName);
   }
 };
 
