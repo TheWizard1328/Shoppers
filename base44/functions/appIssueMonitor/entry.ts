@@ -294,10 +294,10 @@ Deno.serve(async (req) => {
 
       const uid = row.user_id;
       if (!perUser.has(uid)) {
-        perUser.set(uid, { user_id: uid, user_name: row.user_name || 'Unknown user', appStarts: 0, rateLimits: 0, errors: 0, samples: [], devices: new Set() });
+        perUser.set(uid, { user_id: uid, user_name: row.user_name || 'Unknown user', appStarts: 0, rateLimits: 0, errors: 0, samples: [], deviceCounts: new Map() });
       }
       const u = perUser.get(uid);
-      if (row.device_identifier) u.devices.add(row.device_identifier);
+      if (row.device_identifier) u.deviceCounts.set(row.device_identifier, (u.deviceCounts.get(row.device_identifier) || 0) + 1);
       if (isAppStart) {
         u.appStarts++;
         if (u.samples.length < 4) u.samples.push(`${edmTime(tsRaw)} · app started`);
@@ -309,6 +309,35 @@ Deno.serve(async (req) => {
         if (u.samples.length < 4) u.samples.push(`${edmTime(tsRaw)} · ${String(row.message || '').slice(0, 140)}`);
       }
     }
+
+    // ── Resolve registered device names (owner request Oct 13 2026: pushes
+    // must say WHICH registered device — desktop, laptop, tablet, phone —
+    // so e.g. the two Callingwood computers can be told apart).
+    let deviceNameById = new Map(); // device_identifier -> device_name
+    try {
+      const userDevices = await listAll(base44, 'UserDevice', '-updated_date', 500);
+      for (const ud of userDevices) {
+        if (ud?.device_identifier && ud?.device_name) {
+          const existing = deviceNameById.get(ud.device_identifier);
+          // Keep the most recently updated record's name if duplicates exist.
+          if (!existing) deviceNameById.set(ud.device_identifier, String(ud.device_name));
+        }
+      }
+    } catch (err) {
+      console.log('[appIssueMonitor] UserDevice read failed — falling back to raw identifiers:', err?.message || String(err));
+    }
+    const deviceLabelFor = (u) => {
+      if (!u || !u.deviceCounts || u.deviceCounts.size === 0) return null;
+      const entries = Array.from(u.deviceCounts.entries())
+        .sort((a, b) => b[1] - a[1]) // most hits first
+        .slice(0, 3)
+        .map(([ident, hits]) => {
+          const name = deviceNameById.get(ident);
+          return name ? (u.deviceCounts.size > 1 ? `${name} (${hits})` : name) : (ident || 'unregistered');
+        });
+      const extra = u.deviceCounts.size > 3 ? `, +${u.deviceCounts.size - 3} more` : '';
+      return entries.join(', ') + extra;
+    };
 
     // ── Detect issues per user.
     const alerts = [];
@@ -337,16 +366,18 @@ Deno.serve(async (req) => {
       const meta = ISSUE_META[alert.type];
       const u = alert.user;
       const isOwner = u.user_id === OWNER_PLATFORM_USER_ID;
-      const deviceNote = u.devices.size ? ` (device: ${Array.from(u.devices)[0]})` : '';
+      const deviceLabel = deviceLabelFor(u);
+      const deviceNote = deviceLabel ? ` (device: ${deviceLabel})` : '';
 
       // Owner message — description + affected user.
       const countLine =
         alert.type === 'app_restarts' ? `${u.appStarts} app starts within the last ${cfg.window_minutes} minutes.`
         : alert.type === 'rate_limit' ? `${u.rateLimits} rate limit hits within the last ${cfg.window_minutes} minutes.`
         : `${u.errors} app errors within the last ${cfg.window_minutes} minutes.`;
+      const deviceLine = deviceLabel ? `Devices (this window): ${deviceLabel}\n` : '';
       const ownerContent = isOwner
-        ? `Issue detected: ${meta.label} on your device.\n${countLine}\nRecent activity:\n${u.samples.map((s) => `- ${s}`).join('\n')}`
-        : `Issue detected: ${meta.label}.\nAffected user: ${u.user_name}${deviceNote}\n${countLine}\nRecent activity:\n${u.samples.map((s) => `- ${s}`).join('\n')}\nThe user has been notified in-app.`;
+        ? `Issue detected: ${meta.label} on your device.\n${deviceLine}${countLine}\nRecent activity:\n${u.samples.map((s) => `- ${s}`).join('\n')}`
+        : `Issue detected: ${meta.label}.\nAffected user: ${u.user_name}\n${deviceLine}${countLine}\nRecent activity:\n${u.samples.map((s) => `- ${s}`).join('\n')}\nThe user has been notified in-app.`;
 
       // Affected-user message — the issue was detected and the developer notified.
       const userContent =
@@ -355,7 +386,7 @@ Deno.serve(async (req) => {
         `No action is needed from you right now.`;
 
       if (dryRun) {
-        results.push({ type: alert.type, user_id: u.user_id, user_name: u.user_name, dry_run: true, counts: { appStarts: u.appStarts, rateLimits: u.rateLimits, errors: u.errors } });
+        results.push({ type: alert.type, user_id: u.user_id, user_name: u.user_name, dry_run: true, devices: deviceLabelFor(u), counts: { appStarts: u.appStarts, rateLimits: u.rateLimits, errors: u.errors } });
         continue;
       }
 
@@ -386,9 +417,18 @@ Deno.serve(async (req) => {
       // Owner push — simple: user's name + simple description. Tap opens the
       // App Issues conversation via the deep-link param.
       const firstName = String(u.user_name || 'User').trim().split(/\s+/)[0];
-      const pushTitle = isOwner ? 'App Issue — your device' : `App Issue — ${firstName}`;
+      // Push carries the REGISTERED DEVICE NAME (owner request Oct 13 2026) —
+      // e.g. "App Issue — Robert (THE-DESKTOP)" so the two Callingwood
+      // computers can be told apart at a glance.
+      const primaryDevice = deviceLabel ? deviceLabel.split(' (')[0].split(',')[0].trim() : null;
+      const pushTitle = primaryDevice
+        ? `App Issue — ${isOwner ? 'your device' : firstName} (${primaryDevice})`
+        : (isOwner ? 'App Issue — your device' : `App Issue — ${firstName}`);
+      const pushBody = deviceLabel && deviceLabel !== primaryDevice
+        ? `${meta.push_body} — ${deviceLabel}`
+        : meta.push_body;
       const pushUrl = ownerMessage?.id ? `/?app_issue_message=${ownerMessage.id}` : '/';
-      const push = await sendPushToUser(base44, OWNER_PLATFORM_USER_ID, pushTitle, meta.push_body, pushUrl, 'app_issues');
+      const push = await sendPushToUser(base44, OWNER_PLATFORM_USER_ID, pushTitle, pushBody, pushUrl, 'app_issues');
 
       state.lastAlertAt[`${u.user_id}:${alert.type}`] = new Date(now).toISOString();
       results.push({
@@ -396,6 +436,7 @@ Deno.serve(async (req) => {
         user_id: u.user_id,
         user_name: u.user_name,
         counts: { appStarts: u.appStarts, rateLimits: u.rateLimits, errors: u.errors },
+        devices: deviceLabel,
         owner_message_id: ownerMessage?.id || null,
         push,
       });
