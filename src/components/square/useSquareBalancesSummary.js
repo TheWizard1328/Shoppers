@@ -1822,6 +1822,25 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     //     host publishes.
     //   • The designated host keeps the fallback but its degraded heal delay
     //     GROWS (30s → 2min → 5min) instead of re-volleying every 30s.
+    // STORM RULE (Oct 14 2026, owner report "and these still"): when the
+    // failure IS the rate limit (429, or 409 "config not initialized" — the
+    // function's own internal reads 429'd), even the designated host must NOT
+    // fire the local volley — every one of those reads lands in the same
+    // throttled bucket and deepens the storm. Serve the IDB snapshot and retry
+    // on the heal ladder. The local fallback stays ONLY for non-rate failures
+    // (deploy window, bad payload) where the account can actually honor it.
+    const _em = String(e?.message || e);
+    const _es = Number(e?.status || e?.response?.status || 0);
+    const _rateLimited = _es === 429 || _es === 409 || /429|rate.?limit/i.test(_em);
+    if (_rateLimited) {
+      if (seq !== storeSeq) return;
+      storeDegradedHeals = Math.min(storeDegradedHeals + 1, 3);
+      const _healDelay = [30_000, 120_000, 300_000, 300_000][storeDegradedHeals - 1] || 300_000;
+      console.warn(`[useSquareBalancesSummary] compute rate-limited — serving cached snapshot, retrying in ${Math.round(_healDelay / 1000)}s`);
+      if (storeHealTimer) clearTimeout(storeHealTimer);
+      storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true, 0, opts); }, _healDelay);
+      return;
+    }
     if (deviceName !== DESIGNATED_COMPUTE_HOST) {
       // Non-host: no local volley — serve the IDB snapshot, converge via one
       // delayed shared pull when the host publishes again.
