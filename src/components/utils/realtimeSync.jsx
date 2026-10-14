@@ -188,7 +188,20 @@ async function flushBuffered(entityName) {
         })();
         const _rcDriverId = _rcData.driver_id || _rcFallback?.driver_id || null;
         const _rcDate = _rcData.delivery_date || _rcFallback?.delivery_date || null;
-        if (_rcDriverId && _rcDate) {
+        // RELEVANCE GATE (owner spec Oct 14 2026): the marker broadcast reaches
+        // EVERY subscribed device, but only devices actually displaying that
+        // driver's route need the fetch. A completion by any driver previously
+        // made every store PC and every secondary instance read that driver's
+        // whole route — a per-completion read fan-out against the shared
+        // account-wide pool. Non-relevant receivers keep the marker record via
+        // the normal IDB upsert path and converge at the next boot/delta sync.
+        const _gateCtx = { ...(_rcFallback || {}), ..._rcData };
+        let _routeCommitRelevant = true; // fail-open: relevance errors keep the old fetch behavior
+        try { _routeCommitRelevant = isDeliveryRelevantToCurrentSelection(_gateCtx); } catch (_) { _routeCommitRelevant = true; }
+        if (_rcDriverId && _rcDate && !_routeCommitRelevant) {
+          console.log(`⏭️ [RealtimeSync] [${rsTime()}] route_commit marker for driver ${_rcDriverId} not relevant to this view — skipping fetch (light path)`);
+          _routeCommit.data = { ..._routeCommit.data, ..._gateCtx };
+        } else if (_rcDriverId && _rcDate) {
           try {
             // RETRY WITH BACKOFF (Oct 13 2026): the acting device's Accept All burst
             // shares the per-USER rate limit with this device, so the first fetch can

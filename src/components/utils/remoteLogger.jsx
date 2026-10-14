@@ -60,6 +60,20 @@ const REMOTE_LOG_CAPTURE_BLACKLIST = [
   /\[HistoricalSync\] .+ already synced/,  // same walk, different manager
 ];
 
+// ── RATE-LIMIT NOISE SUPPRESSION (owner spec Oct 14 2026) ──────────────────
+// Every 429 used to ship to RemoteLogEntry as 2+ log writes per device per
+// error (SDK error line + Error data line) — and log writes are API calls
+// competing for the very account-wide pool that is exhausted. A storm on any
+// device multiplied itself across every logging device. Rate-limit lines now
+// stay in the LOCAL console (UI flag + Issue Balloon + RequestQueue all still
+// see them) and ship remotely at most ONCE per 5 minutes per device, enough
+// for the App Issue Monitor + Issue Balloon to see a real storm without
+// feeding it. One-shot per device (not per message): a burst of mixed 429
+// variants still counts as the same noise event.
+const RATE_LIMIT_NOISE_RX = /rate limit exceeded|\b429\b|\[RequestQueue\] Rate-limited|\[UserSettings\] Rate limited|server compute unavailable/i;
+let lastRateLimitNoiseSentAt = 0;
+const RATE_LIMIT_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
 const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
 const FINGERPRINT_MAX_PER_WINDOW = 5;
 const FINGERPRINT_WINDOW_MS = 60000;
@@ -210,6 +224,11 @@ const enqueue = async (level, args, extra = {}) => {
   // any stragglers from legacy cached bundles still emitting them.
   for (const rx of REMOTE_LOG_CAPTURE_BLACKLIST) {
     if (rx.test(message)) return;
+  }
+  if (RATE_LIMIT_NOISE_RX.test(message)) {
+    const _noiseNow = Date.now();
+    if (_noiseNow - lastRateLimitNoiseSentAt < RATE_LIMIT_NOISE_MIN_INTERVAL_MS) return;
+    lastRateLimitNoiseSentAt = _noiseNow; // this one ships as the device's storm heartbeat
   }
   if (shouldSkipDuplicateLog(level, message)) return;
 
