@@ -1710,6 +1710,7 @@ let storeEventTimers = {};
 //     after an event) it waits 12s and re-pulls once before falling back to
 //     its own compute (host offline / no publish). This stops the multi-
 //     device compute stampede that burned the account's rate budget.
+let storeDegradedHeals = 0; // consecutive degraded local computes — grows the heal delay
 let storeDutyCache = { at: 0, onDuty: null };
 const hasDriverOnDuty = async () => {
   try {
@@ -1791,6 +1792,7 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     const fdata = deserializeSummary(res?.payload);
     if (!fdata) throw new Error('compute returned no payload');
     if (seq !== storeSeq) return;
+    storeDegradedHeals = 0; // server compute healthy again — reset the heal backoff
     storeSharedVersion = Number(res?.version) || Date.now();
     fdata.autoRefundedFailed = res?.autoRefundedFailed || [];
     storeApply(fdata);
@@ -1808,7 +1810,25 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     publishSharedSnapshot(fdata, { version: storeSharedVersion, userId: storeUserId, deviceName: storeDeviceName || deviceName }).catch?.(() => {});
     return;
   } catch (e) {
-    // Deploy-window / function failure — the local pipeline still works.
+    // Deploy-window / function failure. Oct 14 2026 (rate-limit storm): the
+    // local compute fallback fires a ~10-read volley (ledger windows, 45-day
+    // deliveries, marks, config). When the compute fails because the ACCOUNT
+    // is rate-limited (429, or 409 "config not initialized" — the function's
+    // own reads 429'd), running that volley on EVERY owner device, with a 30s
+    // degraded-heal loop, IS the storm. Now:
+    //   • NON-HOST devices never run the local fallback — they keep serving
+    //     the IDB snapshot and converge via one delayed shared pull when the
+    //     host publishes.
+    //   • The designated host keeps the fallback but its degraded heal delay
+    //     GROWS (30s → 2min → 5min) instead of re-volleying every 30s.
+    if (deviceName !== DESIGNATED_COMPUTE_HOST) {
+      // Non-host: no local volley — serve the IDB snapshot, converge via one
+      // delayed shared pull when the host publishes again.
+      if (seq !== storeSeq) return;
+      console.warn('[useSquareBalancesSummary] compute unavailable — deferring to host, serving cached snapshot:', String(e?.message || e));
+      setTimeout(() => { void pullAndApplySharedSnapshot(); }, 45_000);
+      return;
+    }
     console.warn('[useSquareBalancesSummary] server compute unavailable, using local compute:', String(e?.message || e));
     try {
       const { data, degraded } = await loadSummary(true, storeUserId);
@@ -1820,8 +1840,12 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
       }
       publishSharedSnapshot(data, { version: Date.now(), userId: storeUserId, deviceName: storeDeviceName || deviceName }).catch?.(() => {});
       if (degraded) {
+        storeDegradedHeals = Math.min(storeDegradedHeals + 1, 3);
+        const healDelay = [30_000, 120_000, 300_000, 300_000][storeDegradedHeals - 1] || 300_000;
         if (storeHealTimer) clearTimeout(storeHealTimer);
-        storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, 30000);
+        storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, healDelay);
+      } else {
+        storeDegradedHeals = 0;
       }
       return;
     } catch (e2) {
