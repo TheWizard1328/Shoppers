@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apkUpdatesFromRunNumber, formatAppVersion } from '@/version';
 import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from './locationProviders/capacitorRuntime';
 
 /**
@@ -155,15 +156,18 @@ export function useLatestApkBuildInfo() {
     };
   }, []);
 
+  // Display scheme (owner spec Oct 13 2026): vMAJOR.APK_UPDATES.WEB_UPDATES.
+  // The RAW buildNumber (workflow run_number) is preserved for the update-arrow
+  // comparison logic — only the display label switches to the new scheme.
+  const versionLabel = buildInfo?.buildNumber ? formatAppVersion(apkUpdatesFromRunNumber(buildInfo.buildNumber)) : '';
+
   const buildText = buildInfo
     ? buildInfo.buildNumber
-      ? `Built: v1.0.${buildInfo.buildNumber} · ${buildInfo.dateStr}`
+      ? `Built: ${versionLabel} · ${buildInfo.dateStr}`
       : buildInfo.dateStr
         ? `Built: ${buildInfo.dateStr}`
         : ''
     : '';
-
-  const versionLabel = buildInfo?.buildNumber ? `v1.0.${buildInfo.buildNumber}` : '';
 
   return { ...buildInfo, buildText, versionLabel, loaded: !!buildInfo };
 }
@@ -186,10 +190,14 @@ export function useInstalledAppVersion() {
         const { App } = await import('@capacitor/app');
         const info = await App.getInfo();
         const versionStr = info?.version || '';
-        const buildMatch = /1\.0\.(\d+)/.exec(versionStr);
+        // New APKs: "1.<apkUpdates>.<web> (build <run> · date)". Old APKs:
+        // "1.0.<run> (date)". Extract the workflow run number from whichever
+        // format is installed, then derive the display label under the new
+        // scheme (vMAJOR.APK_UPDATES.WEB_UPDATES).
+        const buildMatch = /build (\d+)/.exec(versionStr) || /1\.0\.(\d+)/.exec(versionStr);
         const buildNumber = buildMatch ? buildMatch[1] : null;
         if (!cancelled && buildNumber) {
-          setInstalled({ buildNumber, versionLabel: `v1.0.${buildNumber}` });
+          setInstalled({ buildNumber, versionLabel: formatAppVersion(apkUpdatesFromRunNumber(buildNumber)) });
         }
       } catch {
         // Not a native app or Capacitor not available

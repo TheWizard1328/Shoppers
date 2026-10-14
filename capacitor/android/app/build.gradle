@@ -22,7 +22,11 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode computedVersionCode
-        versionName "1.0.${buildNumber} (${buildDateStr})"
+        // Owner version scheme (Oct 13 2026): MAJOR.APK_UPDATES.WEB_UPDATES.
+        // APP_VERSION_NAME is exported by build-apk.yml (e.g. "1.0.334").
+        // Local builds fall back to a plain label; the raw build number stays
+        // in the tail so update detection keeps working across schemes.
+        versionName "${System.env.APP_VERSION_NAME ?: '1.0.0'} (build ${buildNumber} · ${buildDateStr})"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

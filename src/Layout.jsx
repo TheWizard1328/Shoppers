@@ -18,6 +18,7 @@ import {
   DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from
 "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { formatAppVersion } from '@/version';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -94,7 +95,7 @@ import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatch
 import { useSystemUpdatesReadSync } from './components/messaging/useSystemUpdatesReadSync';
 
 // App version will be loaded from AppSettings
-const DEFAULT_APP_VERSION = 'v1.0.0';
+const DEFAULT_APP_VERSION = formatAppVersion(0); // v1.0.334 — GitHub unreachable fallback
 
 import QuickStats from './components/layout/DashboardQuickStats';
 import { initTileCacheManager } from '@/components/utils/tileCacheManager';
