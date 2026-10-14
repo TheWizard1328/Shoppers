@@ -548,7 +548,9 @@ export function useLayoutInit({
           // pushes the merged IDB slice to the UI via pullToSyncDataReady.
           import('../utils/offlineSync').then(async ({ loadPriorityDataWithRetry, applyPrioritySyncResultToUI }) => {
             try {
-              const res = await loadPriorityDataWithRetry(todayStr, cityIdForSync);
+              const { isSecondaryOwnerInstance } = await import('@/components/utils/deviceManager');
+              const secondary = await isSecondaryOwnerInstance(currentUser).catch(() => false);
+              const res = await loadPriorityDataWithRetry(todayStr, cityIdForSync, secondary ? { skipFutureDates: true } : {});
               if (res?.success) {
                 await applyPrioritySyncResultToUI(todayStr, res, 'bootPrioritySync');
               } else if (res?.skipped) {

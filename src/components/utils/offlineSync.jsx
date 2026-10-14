@@ -367,7 +367,12 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     // Step 3b: Future deliveries D+1..D+7 for the same city — ONE range query
     // (owner spec, Oct 13 2026). Delta-filtered by the future stamp so steady
     // boots pull only the handful of rows that changed.
-    try {
+    // LIGHT PROFILE (owner spec Oct 14 2026): secondary owner instances (every
+    // owner device except THE-DESKTOP(Editor)) pass skipFutureDates — they
+    // converge future-dated rows via WebSockets and the shared snapshot instead.
+    if (filters?.skipFutureDates) {
+      console.log('⏭️ [PrioritySync] Future 7-day pass skipped — secondary owner instance (light profile)');
+    } else try {
       const fStampKey = `Delivery:future:${cityId || 'all'}`;
       const fStamp = await readSyncStamp(fStampKey);
       const futureFilter = {

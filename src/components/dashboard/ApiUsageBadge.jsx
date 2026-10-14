@@ -54,7 +54,28 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   // since this only runs once on mount + on WS events (never re-fetches on
   // its own). Now retries up to 3 times with backoff (1.5s, 3s, 6s) before
   // giving up, which is enough to ride out the boot-loader race.
+  // LIGHT PROFILE (owner spec Oct 14 2026): on secondary owner instances the
+  // badge serves cached counts and refetches at most once per hour — the Editor
+  // instance polls the same account-wide numbers, so extra fetches only fed
+  // the rate-limit storms.
+  const secondaryRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { isSecondaryOwnerInstance } = await import('@/components/utils/deviceManager');
+        const sec = await isSecondaryOwnerInstance(currentUser);
+        if (alive) secondaryRef.current = sec;
+      } catch (_) {}
+    })();
+    return () => { alive = false; };
+  }, [currentUser?.id]);
+
   const fetchCounts = async (attempt = 0) => {
+    if (attempt === 0 && secondaryRef.current && Date.now() - lastFetchAtRef.current < 3600_000) {
+      return; // hourly cap on secondary instances
+    }
     try {
       const { startISO, endISO } = getDayBoundsISO();
 
@@ -67,6 +88,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
       const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
       setSelectedApiKey(activeKey);
+      lastFetchAtRef.current = Date.now();
       setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'google'));
       setHereRoutingCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing'));
       setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));

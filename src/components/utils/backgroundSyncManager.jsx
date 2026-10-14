@@ -513,6 +513,17 @@ class BackgroundSyncManager {
       console.log('⏭️ [BackgroundSync] Historical sync skipped — no current user set');
       return;
     }
+    // LIGHT PROFILE (owner spec Oct 14 2026): secondary owner instances (every
+    // owner device except THE-DESKTOP(Editor)) do NOT run the historical
+    // backfill at all — one device backfilling the year is enough, and every
+    // extra device re-walked the cursor on its own quota.
+    try {
+      const { isSecondaryOwnerInstance } = await import('./deviceManager');
+      if (await isSecondaryOwnerInstance(this.currentUser)) {
+        console.log('⏭️ [BackgroundSync] Historical sync skipped — secondary owner instance (light profile)');
+        return;
+      }
+    } catch (_) { /* fail-open: lookup error keeps the full profile */ }
 
     // Load latest stores from offline DB (cheap local read — ensures fresh city→store mapping)
     const stores = await offlineDB.getAll(offlineDB.STORES.STORES);

@@ -5,6 +5,7 @@ import { edmontonBusinessDayKey, edmontonWallString } from '@/components/utils/a
 import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedgerWindows, getLedgerWindows } from '@/components/square/squareBalancesOfflineManager';
 import { buildSummaryPayload, publishSharedSnapshot, fetchLatestSharedSnapshot, subscribeSharedSnapshot } from '@/components/square/squareBalancesSharedSnapshot';
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { EDITOR_HOST_DEVICE_NAME } from '@/components/utils/deviceManager';
 
 /**
  * useSquareBalancesSummary — lightweight per-card balance estimates for the
@@ -1732,7 +1733,7 @@ const loadStoreDeviceName = async () => {
   } catch (_) { storeDeviceName = 'Unknown Device'; }
   return storeDeviceName;
 };
-const DESIGNATED_COMPUTE_HOST = 'THE-DESKTOP(Editor)';
+const DESIGNATED_COMPUTE_HOST = EDITOR_HOST_DEVICE_NAME;
 const HOST_PUBLISH_FRESH_MS = 90_000;
 const snapshotIsFresh = (rec) => {
   const at = Date.parse(rec?.computed_at || rec?.savedAt || '') || Number(rec?.version) || 0;

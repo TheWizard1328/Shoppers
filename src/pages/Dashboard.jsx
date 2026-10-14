@@ -817,10 +817,12 @@ function Dashboard() {
         if (_catchUpInFlight) return;
         _catchUpInFlight = true;
         const { loadPriorityDataWithRetry, applyPrioritySyncResultToUI } = await import('@/components/utils/offlineSync');
+        const { isSecondaryOwnerInstance } = await import('@/components/utils/deviceManager');
+        const secondary = await isSecondaryOwnerInstance(currentUser).catch(() => false);
         const selectedCityId = globalFilters.getSelectedCityId();
         const cityIdForCatchUp = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
         // maxAttempts 1: the 60s heartbeat IS the retry cadence. No tight loops.
-        const res = await loadPriorityDataWithRetry(dateStr, cityIdForCatchUp, {}, { maxAttempts: 1 });
+        const res = await loadPriorityDataWithRetry(dateStr, cityIdForCatchUp, secondary ? { skipFutureDates: true } : {}, { maxAttempts: 1 });
         if (res?.success) await applyPrioritySyncResultToUI(dateStr, res, 'dashboardCatchUp');
       } catch (_) { /* next tick retries */ } finally { _catchUpInFlight = false; }
     };

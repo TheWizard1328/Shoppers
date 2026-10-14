@@ -275,3 +275,32 @@ export function clearDeviceIdentifier() {
     deleteDeviceRecordFromIdb(deviceId).catch(() => {});
   }
 }
+
+// ── Editor compute-host designation (owner spec Oct 14 2026) ──────────────────
+// THE-DESKTOP(Editor) is the always-running main instance. Every OTHER owner
+// device (PWA, phone, tablet, laptop) runs the LIGHT profile: no historical
+// backfill, no future-dates boot sync, no usage-badge polling, and never
+// computes Square (snapshot pulls only). Device lookup is IDB-cached, so the
+// steady-state check costs zero API calls.
+export const EDITOR_HOST_DEVICE_NAME = 'THE-DESKTOP(Editor)';
+let editorHostCache = { key: null, value: false };
+export const isEditorHostInstance = async (userId) => {
+  try {
+    if (!userId) return false;
+    const key = `${userId}:${getDeviceIdentifier() || 'no-id'}`;
+    if (editorHostCache.key === key) return editorHostCache.value;
+    const rec = await getCurrentDevice(userId).catch(() => null);
+    const value = rec?.device_name === EDITOR_HOST_DEVICE_NAME;
+    editorHostCache = { key, value };
+    return value;
+  } catch (_) { return false; }
+};
+export const isSecondaryOwnerInstance = async (user) => {
+  try {
+    if (!user || user?.role !== 'admin') return false; // non-owners keep their existing behavior
+    return !(await isEditorHostInstance(user.id));
+  } catch (_) { return false; }
+  // NOTE: an owner device whose UserDevice record can't be resolved counts as
+  // SECONDARY (fail toward light) — matching the Square host gate, which also
+  // requires the exact Editor name to run heavy work.
+};
