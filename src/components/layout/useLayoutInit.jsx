@@ -542,10 +542,23 @@ export function useLayoutInit({
           const todayStr = format(new Date(), 'yyyy-MM-dd');
           const selectedCityId = globalFilters.getSelectedCityId();
           const cityIdForSync = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
-          import('../utils/offlineSync').then(({ loadPriorityData }) => {
-            loadPriorityData(todayStr, cityIdForSync).catch((e) => {
+          // Oct 13 2026: abort-on-429 left the dashboard stale for hours when a
+          // device booted into a rate-limit storm (no retry + no UI dispatch).
+          // Now: rate-limited passes retry with backoff, and a successful pass
+          // pushes the merged IDB slice to the UI via pullToSyncDataReady.
+          import('../utils/offlineSync').then(async ({ loadPriorityDataWithRetry, applyPrioritySyncResultToUI }) => {
+            try {
+              const res = await loadPriorityDataWithRetry(todayStr, cityIdForSync);
+              if (res?.success) {
+                await applyPrioritySyncResultToUI(todayStr, res, 'bootPrioritySync');
+              } else if (res?.skipped) {
+                console.log(`⏭️ [Init] Boot priority sync skipped: ${res.fresh ? 'fresh (<5min)' : 'paused'}`);
+              } else {
+                console.warn('⚠️ [Init] Boot priority sync did not complete:', res?.error || 'unknown');
+              }
+            } catch (e) {
               console.warn('⚠️ [Init] Boot priority sync failed:', e?.message || e);
-            });
+            }
           }).catch(() => {});
         }, 6000); // 6s — after UI settle, before the 5-min historical sync
       } catch (error) {

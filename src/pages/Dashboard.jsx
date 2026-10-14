@@ -798,7 +798,48 @@ function Dashboard() {
         console.warn('⚠️ [Periodic Refresh] Error:', error.message);
       }
     };
-    const initialDelay = setTimeout(() => {if (format(_intervalSelectedDateRef.current, 'yyyy-MM-dd') !== getEdmDate()) return;runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
+    // ── DELIVERY CATCH-UP CYCLE (Oct 13 2026) ──────────────────────────────
+    // The smart refresh never fetches deliveries (only appUsers/cities/stores),
+    // so a failed boot priority pass left today's stops stale until a manual
+    // pull. This catch-up runs on the same 60s heartbeat: loadPriorityData's
+    // 5-min freshness guard makes it a NO-OP whenever data is fresh (including
+    // when live WebSocket events are flowing — see the freshness listener
+    // below), and a single delta attempt per tick when stale. On success the
+    // merged IDB date slice is pushed to the UI.
+    let _catchUpInFlight = false;
+    const runBootDataCatchUp = async () => {
+      try {
+        const dateStr = format(_intervalSelectedDateRef.current, 'yyyy-MM-dd');
+        if (dateStr !== getEdmDate()) return; // catch-up only guards TODAY's view
+        const { showDeliveryForm: _cf, showPatientForm: _pf, showOptimizationSettings: _of, showAIAssistant: _af } = _intervalShowFormsRef.current;
+        if (_cf || _pf || _of || _af) return; // never fight an open form for state
+        if (smartRefreshManager.isPaused()) return; // actions own the sync plane while paused
+        if (_catchUpInFlight) return;
+        _catchUpInFlight = true;
+        const { loadPriorityDataWithRetry, applyPrioritySyncResultToUI } = await import('@/components/utils/offlineSync');
+        const selectedCityId = globalFilters.getSelectedCityId();
+        const cityIdForCatchUp = selectedCityId && selectedCityId !== 'all' && selectedCityId !== 'waiting-for-selection' ? selectedCityId : null;
+        // maxAttempts 1: the 60s heartbeat IS the retry cadence. No tight loops.
+        const res = await loadPriorityDataWithRetry(dateStr, cityIdForCatchUp, {}, { maxAttempts: 1 });
+        if (res?.success) await applyPrioritySyncResultToUI(dateStr, res, 'dashboardCatchUp');
+      } catch (_) { /* next tick retries */ } finally { _catchUpInFlight = false; }
+    };
+    // Real-time WS delivery events for today = the UI is live: stamp the boot
+    // priority data fresh so the catch-up cycle doesn't burn quota on redundant
+    // delta pulls while WebSockets are healthy. Stamp ages out 5 min after the
+    // last WS event, re-arming the delta catch-up (WS-gap self-heal).
+    const handleRealtimeFreshnessStamp = (e) => {
+      try {
+        const d = e?.detail || {};
+        if (d.fromRealtime !== true) return;
+        const todayStr = getEdmDate();
+        if (d.deliveryDate && d.deliveryDate === todayStr) {
+          import('@/components/utils/offlineSync').then(({ markBootDataFresh }) => markBootDataFresh(todayStr)).catch(() => {});
+        }
+      } catch (_) {}
+    };
+    window.addEventListener('deliveriesUpdated', handleRealtimeFreshnessStamp);
+    const initialDelay = setTimeout(() => {if (format(_intervalSelectedDateRef.current, 'yyyy-MM-dd') !== getEdmDate()) return;runPeriodicSmartRefresh();runBootDataCatchUp();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
     // 60s SmartRefresh heartbeat — the lightweight delta-poll that keeps the
     // dashboard fresh between WebSocket events. The heavy PullToSync
     // auto-dispatch was removed to stop redundant 7-call bursts that bypassed
@@ -806,9 +847,10 @@ function Dashboard() {
     // remains available to the user via the pull gesture.
     const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
+      runBootDataCatchUp();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
     }, 60000);
-    return () => {clearTimeout(initialDelay);clearInterval(interval);};
+    return () => {clearTimeout(initialDelay);clearInterval(interval);window.removeEventListener('deliveriesUpdated', handleRealtimeFreshnessStamp);};
   }, [isDataLoaded, currentUser?.id, isFiltersReady]);
 
   // driverLocationsUpdated — merge appUser location data and run the poller.

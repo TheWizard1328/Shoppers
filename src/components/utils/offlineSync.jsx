@@ -469,6 +469,85 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
   }
 };
 
+// ── Boot catch-up layer (owner spec, Oct 13 2026) ──────────────────────────────
+// Root cause of the Oct 13 stale-dashboard incident: a device opened 12h after
+// its last session booted into a 429 storm; the boot priority pass aborted on
+// the first rate-limit error and NOTHING retried it — WebSockets cannot replay
+// the backlog, the 60s smart refresh never fetches deliveries, so the UI sat
+// on the stale IDB snapshot until a manual refresh.
+
+/**
+ * Retry wrapper around loadPriorityData. Retries ONLY rate-limit failures
+ * (the pass aborts without writing stamps, so a retry re-pulls the same
+ * delta — never a partial state). Freshness/paused skips are returned as-is.
+ */
+export const loadPriorityDataWithRetry = async (
+  selectedDateStr, cityId = null, filters = {},
+  { maxAttempts = 4, baseDelayMs = 45000 } = {}
+) => {
+  let last = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    last = await loadPriorityData(selectedDateStr, cityId, filters);
+    if (!last) return null;
+    if (!last.error && !last.skipped) return last;            // success
+    if (last.skipped) return last;                             // paused / fresh — never retry
+    const isRateLimited = last.error === 'rate_limited' || isRateLimitError(last.error);
+    if (!isRateLimited) return last;                           // real failure — surface it
+    if (attempt < maxAttempts) {
+      const delay = baseDelayMs * attempt + Math.floor(Math.random() * 15000);
+      console.warn(`⏳ [PrioritySync] Rate-limited (attempt ${attempt}/${maxAttempts}) — retrying boot sync in ${Math.round(delay / 1000)}s`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  return last;
+};
+
+/**
+ * Push a successful priority-sync result to the React UI. loadPriorityData only
+ * writes IndexedDB; without this the dashboard keeps rendering the boot IDB
+ * snapshot until a manual pull-to-sync (the Oct 13 stale-UI bug). Reads the
+ * merged IDB date slice (full, not delta) and dispatches the same event the
+ * PullToSync priority path uses — every consumer already guards against empty
+ * payloads and merges by date.
+ * Returns true if the UI event was dispatched.
+ */
+export const applyPrioritySyncResultToUI = async (selectedDateStr, priorityResult, reason = 'bootPrioritySync') => {
+  try {
+    if (!priorityResult || priorityResult.success !== true) return false;
+    const slice = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+    if (!Array.isArray(slice) || slice.length === 0) return false;
+    window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+      detail: {
+        deliveryDate: selectedDateStr,
+        deliveries: slice,
+        patients: [],   // patientsSyncedFromServer already dispatched inside loadPriorityData
+        appUsers: [],
+        cities: [],
+        stores: [],
+        triggeredBy: reason,
+        batchedUiUpdate: true,
+        preserveLocalState: false, // AppDataContext pulls skip (replace consumers take it)
+      },
+    }));
+    console.log(`✅ [PrioritySync] UI catch-up applied for ${selectedDateStr} (${reason}) — ${slice.length} deliveries`);
+    return true;
+  } catch (e) {
+    console.warn('⚠️ [PrioritySync] UI apply failed:', e?.message || e);
+    return false;
+  }
+};
+
+/**
+ * Mark the boot priority data fresh WITHOUT running a pass. Used when real-time
+ * WebSocket delivery events are flowing for today: the dashboard catch-up cycle
+ * then knows the UI is live and skips redundant delta pulls (5-min freshness
+ * guard). When WS goes quiet the stamp ages out and the next cycle pulls a
+ * delta — self-healing any WS gap.
+ */
+export const markBootDataFresh = (selectedDateStr) => {
+  markPrioritySyncComplete(selectedDateStr);
+};
+
 // ==================== BACKGROUND SYNC ====================
 
 /**
