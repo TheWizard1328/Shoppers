@@ -24,6 +24,10 @@
     "computed_by_name": {
       "type": "string",
       "description": "AppUser name of the computing device"
+    },
+    "computed_by_device": {
+      "type": "string",
+      "description": "UserDevice name of the computing device (e.g. THE-DESKTOP(Editor)) — diagnostics for the single-compute-host gate"
     }
   },
   "required": [

@@ -50,19 +50,61 @@ export const buildSummaryPayload = (data) => {
  * publish. Returns the published version, or null on failure (caller just
  * skips — the next fresh compute will try again).
  */
+const PUBLISH_FETCH_ATTEMPTS = 3; // retries before giving up — NEVER blind-create on a failed fetch
+const DUPE_DELETE_CAP = 5;        // opportunistic cleanup: max stale dupes deleted per publish
+
+const fetchTopRows = async (limit = 10) => {
+  const rows = await base44.entities.SquareBalancesSnapshot.list('-version', limit, 0);
+  return (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0));
+};
+
 export const publishSharedSnapshot = async (data, { version, userId, userName, deviceName } = {}) => {
   try {
     const payload = buildSummaryPayload(data);
     if (!payload) return null;
     const ver = Number(version || Date.now());
     const rec = { payload, version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null };
-    let existing = null;
+
+    // DUPLICATE-PROLIFERATION FIX (owner spec Oct 14 2026): ~600 snapshot records
+    // accumulated because a FAILED fetch (429 storms) fell through to a blind
+    // create. A skipped publish is harmless (snapshots are ephemeral; the next
+    // fresh compute retries) — a duplicate record is not: every create
+    // broadcasts to all running instances, each of which pulls the record.
+    // So: retry the fetch; only create when the fetch SUCCEEDS and genuinely
+    // returns zero records. Any fetch failure = abort, no write.
+    let rows = null;
+    let fetchOk = false;
+    for (let attempt = 0; attempt < PUBLISH_FETCH_ATTEMPTS; attempt++) {
+      try {
+        rows = await fetchTopRows();
+        fetchOk = true;
+        break;
+      } catch (e) {
+        if (attempt < PUBLISH_FETCH_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
+    }
+    if (!fetchOk) {
+      console.warn('[squareBalancesSharedSnapshot] publish aborted — could not read existing record (rate limited); will retry on next compute');
+      return null;
+    }
+    const existing = rows[0] || null;
+
+    if (existing?.id) {
+      await base44.entities.SquareBalancesSnapshot.update(existing.id, rec);
+    } else {
+      await base44.entities.SquareBalancesSnapshot.create(rec);
+    }
+
+    // Opportunistic self-cleanup: delete a few stale duplicates each publish
+    // (versions older than the record we just wrote). Capped so the delete
+    // broadcasts fan out slowly; new-code subscribers ignore delete events.
     try {
-      const rows = await base44.entities.SquareBalancesSnapshot.list('-version', 10, 0);
-      existing = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0] || null;
-    } catch { /* first publish / transient — create below */ }
-    if (existing?.id) await base44.entities.SquareBalancesSnapshot.update(existing.id, rec);
-    else await base44.entities.SquareBalancesSnapshot.create(rec);
+      const stale = (rows || []).filter((r) => r?.id && r.id !== existing?.id && Number(r?.version || 0) < ver).slice(0, DUPE_DELETE_CAP);
+      for (const dup of stale) {
+        base44.entities.SquareBalancesSnapshot.delete(dup.id).catch(() => {});
+      }
+    } catch { /* cleanup is best-effort */ }
+
     return ver;
   } catch (e) {
     console.error('[squareBalancesSharedSnapshot] publish failed:', e);
@@ -75,8 +117,7 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
  */
 export const fetchLatestSharedSnapshot = async () => {
   try {
-    const rows = await base44.entities.SquareBalancesSnapshot.list('-version', 10, 0);
-    return (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0] || null;
+    return (await fetchTopRows())[0] || null;
   } catch (e) {
     return null;
   }
@@ -89,6 +130,14 @@ export const fetchLatestSharedSnapshot = async () => {
  */
 export const subscribeSharedSnapshot = (cb) => {
   try {
-    return base44.entities.SquareBalancesSnapshot.subscribe(() => { try { cb(); } catch {} });
+    // Ignore DELETE events: the dupe-cleanup deletes (and any future purge)
+    // must NOT trigger a pull on every device — that fan-out was part of the
+    // Oct 14 rate-limit feedback loop. Only create/update publishes matter.
+    return base44.entities.SquareBalancesSnapshot.subscribe((event) => {
+      try {
+        if (event?.type === 'delete') return;
+        cb();
+      } catch {}
+    });
   } catch { return null; }
 };
