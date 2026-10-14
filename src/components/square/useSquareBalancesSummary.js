@@ -1698,6 +1698,30 @@ let storeEventTimers = {};
 // the FALLBACK for the deploy window and function failures.
 const storeReload = async (force = false, attempt = 0) => {
   const seq = ++storeSeq;
+  // OWNER-ONLY COMPUTE (owner spec Oct 13 2026, rate-limit storm): only
+  // owner devices may invoke the heavy squareBalancesCompute. Store PCs and
+  // driver devices previously polled it every ~60s and, once traffic was
+  // exhausted, each poll became a 429 that fed the storm. Non-owners now
+  // converge the cheap way: pull the shared snapshot ONE device published
+  // (a small read), and only when no usable snapshot exists fall back to
+  // the local loadSummary pipeline (the pre-Oct-9 behavior). Non-owners
+  // never publish the shared record — publishing stays with the owner
+  // device that ran the compute.
+  if (!storeIsOwner) {
+    try {
+      const rec = await fetchLatestSharedSnapshot().catch(() => null);
+      if (rec && applyRemoteSharedSnapshot(rec)) return;
+      const { data } = await loadSummary(true, storeUserId);
+      if (seq !== storeSeq) return;
+      storeApply(data);
+      persistSnapshotModule(data);
+    } catch (e2) {
+      console.warn('[useSquareBalancesSummary] non-owner reload failed:', String(e2?.message || e2));
+      if (seq !== storeSeq) return;
+      if (attempt < 2) setTimeout(() => storeReload(false, attempt + 1), 30000);
+    }
+    return;
+  }
   try {
     const res = await base44.functions.invoke('squareBalancesCompute', { force: force !== false });
     const fdata = deserializeSummary(res?.payload);

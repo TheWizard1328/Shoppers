@@ -206,9 +206,19 @@ const ISSUE_META = {
 
 const RATE_LIMIT_RX = /\b429\b|rate.?limit/i;
 
+// FALLBACK WARNINGS (owner spec Oct 13 2026): "server compute unavailable,
+// using local compute" lines are graceful-degradation notices — the local
+// compute handled the failure, the badge kept working. They mention 429/rate
+// limit when the compute was rate-limited, which used to trip the rate_limit
+// alert threshold over and over. A fallback line is neither a rate-limit hit
+// nor an error; only REAL failures (the follow-up "reload attempt N failed"
+// line, SDK 429s, level-error rows) count toward the thresholds.
+const FALLBACK_WARN_RX = /server compute unavailable, using local compute/;
+
 const classifyRow = (row) => {
   const msg = String(row.message || '');
   const isAppStart = row.event_type === 'app_start' || /\[DEVICE_HEALTH\] app_start/.test(msg);
+  if (FALLBACK_WARN_RX.test(msg)) return { isAppStart: false, isRateLimit: false, isError: false };
   const isRateLimit = !isAppStart && RATE_LIMIT_RX.test(msg);
   const isError = row.level === 'error' && !isRateLimit && !isAppStart;
   return { isAppStart, isRateLimit, isError };
