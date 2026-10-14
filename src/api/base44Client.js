@@ -2,6 +2,7 @@ import axios from 'axios';
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 import { connectionMonitor } from '@/components/utils/connectionMonitor';
+import { publishApiIssue } from '@/components/utils/apiIssueBus';
 
 const { appId, serverUrl, token, functionsVersion } = appParams;
 
@@ -38,6 +39,9 @@ const LONG_TIMEOUT_MS = 120000;
 const originalAxiosCreate = axios.create.bind(axios);
 axios.create = (config) => {
   const instance = originalAxiosCreate(config);
+  // Owner issue balloon: tag every failed SDK request with entity/function + method
+  // (the SDK's own console error drops the URL). Passes the error through untouched.
+  instance.interceptors.response.use((r) => r, (error) => { publishApiIssue(error); return Promise.reject(error); });
   instance.interceptors.request.use((cfg) => {
     const fnMatch = typeof cfg?.url === 'string' ? cfg.url.match(/\/functions\/([A-Za-z0-9_]+)(?:\?|$)/) : null;
     if (fnMatch && LONG_TIMEOUT_FUNCTIONS.has(fnMatch[1])) {

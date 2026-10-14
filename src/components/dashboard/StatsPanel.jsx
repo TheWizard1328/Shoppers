@@ -21,6 +21,7 @@ import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import ConnectionIndicator from "@/components/dashboard/ConnectionIndicator";
+import IssueBalloon from "@/components/dashboard/IssueBalloon";
 import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
 import HeyDocToggleButton from "@/components/voice/HeyDocToggleButton";
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
@@ -439,6 +440,7 @@ export default function StatsPanel({
 
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
                 <ConnectionIndicator />
+                <IssueBalloon currentUser={currentUser} />
                 <ErrorFlagIndicator />
                 {heyDocAvailable && <HeyDocToggleButton armed={heyDocArmed} onToggle={onToggleHeyDoc} />}
               </div>}
