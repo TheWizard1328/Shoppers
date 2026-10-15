@@ -206,13 +206,40 @@ export const calculateRetroactiveStopTiming = async ({
     const destination = getStopCoordinates(delivery, patients, stores);
 
     if (baseTime && origin && destination) {
-      const res = await base44.functions.invoke('getHereDirections', {
-        origin: { lat: origin.lat, lng: origin.lng },
-        destination: { lat: destination.lat, lng: destination.lng }
-      });
-      const data = res?.data || res || {};
-      const travelMinutes = Number(data.estimated_duration_minutes) || 0;
-      travelDistanceKm = Number(data.estimated_distance_km);
+      // OWNER REPORT (Oct 15 2026): last-stop retro completions were stamping
+      // REAL times. The backdate chain needs travel minutes to the stop, and
+      // this block made a LIVE getHereDirections call for it — a 429/timeout
+      // THREW out of the whole calculator, and the completion flow's catch
+      // silently fell back to the real wall clock. Resilience ladder, no
+      // throw possible: (1) the route optimizer's stored leg duration
+      // (estimated_duration_minutes — zero API calls, zero rate-limit
+      // exposure, exactly what the leg was sequenced with); (2) live HERE
+      // directions ONLY when the stored estimate is missing (failures
+      // swallowed); (3) distance-based estimate from stored travel_dist
+      // (~35 km/h city) or a 5-minute default.
+      let travelMinutes = null;
+      const _storedMinutes = Number(delivery?.estimated_duration_minutes);
+      if (Number.isFinite(_storedMinutes) && _storedMinutes > 0) {
+        travelMinutes = _storedMinutes;
+      } else {
+        try {
+          const res = await base44.functions.invoke('getHereDirections', {
+            origin: { lat: origin.lat, lng: origin.lng },
+            destination: { lat: destination.lat, lng: destination.lng }
+          });
+          const data = res?.data || res || {};
+          const _hereMinutes = Number(data.estimated_duration_minutes);
+          if (Number.isFinite(_hereMinutes) && _hereMinutes > 0) travelMinutes = _hereMinutes;
+          const _hereKm = Number(data.estimated_distance_km);
+          if (Number.isFinite(_hereKm)) travelDistanceKm = _hereKm;
+        } catch (_) { /* fall through to distance estimate */ }
+      }
+      if (travelMinutes == null) {
+        const _km = Number(travelDistanceKm ?? delivery?.travel_dist);
+        travelMinutes = Number.isFinite(_km) && _km > 0
+          ? Math.max(2, Math.round((_km / 35) * 60))
+          : 5;
+      }
       baseTime = new Date(baseTime.getTime() + travelMinutes * 60000);
     }
   }
