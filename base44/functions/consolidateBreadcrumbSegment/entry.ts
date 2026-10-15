@@ -1240,10 +1240,18 @@ async function handleSingle(base44, body) {
     }
 
     // ── 7. Save each segment to DeliveryBreadcrumbs ────────────────────────────
-    const existingSegments = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
-      driver_id,
-      delivery_date
-    }).catch(() => []);
+    let existingSegments;
+    try {
+      existingSegments = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id,
+        delivery_date
+      });
+    } catch (e) {
+      // Oct 15 2026: a failed read used to fall through to [] and every segment
+      // then took the CREATE branch — duplicating the whole route (owner report).
+      // Abort instead: the caller can retry once the read succeeds.
+      return Response.json({ error: 'Failed to read existing breadcrumb records — aborting to avoid duplicates: ' + (e?.message || e) }, { status: 503 });
+    }
 
     // Two indexes: linked_delivery_id (stable, preferred) and stop_order
     // (legacy fallback for records sealed before linked_delivery_id existed).
@@ -1380,7 +1388,44 @@ async function handleSingle(base44, body) {
       }
     }
 
-    console.log(`✅ [consolidateBreadcrumbSegment] Home-anchored slicing complete: ${results.length} segments saved, driver=${driver_id}, date=${delivery_date}`);
+    // ── POST-SAVE DEDUPE SWEEP (Oct 15 2026) ──────────────────────────────────
+    // Owner report: resnip duplicated stops that already had a record (same
+    // route, identical point counts). The pre-save index keys by
+    // linked_delivery_id OR stop_order, so a legacy record without a linked id
+    // can coexist with a newer one that has it, and concurrent resnips can
+    // race the fetch. Sweep all per-stop records for this route, keep ONE per
+    // effective key (prefer saved_to_route, then newest), delete the rest.
+    let dupes_deleted = 0;
+    try {
+      const sweep = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id, delivery_date
+      });
+      const byKey = new Map();
+      const toDelete = [];
+      for (const rec of (sweep || [])) {
+        if (rec?.stop_order == null || Number(rec.stop_order) === -1) continue;
+        const key = rec.linked_delivery_id ? `d:${rec.linked_delivery_id}` : `s:${Number(rec.stop_order)}`;
+        const cur = byKey.get(key);
+        if (!cur) { byKey.set(key, rec); continue; }
+        const better = (a, b) => {
+          if ((a.saved_to_route === true) !== (b.saved_to_route === true)) return a.saved_to_route === true ? a : b;
+          return (Date.parse(a.updated_date || 0) >= Date.parse(b.updated_date || 0)) ? a : b;
+        };
+        const winner = better(cur, rec);
+        const loser = winner === cur ? rec : cur;
+        toDelete.push(loser.id);
+        byKey.set(key, winner);
+      }
+      for (const id of toDelete) {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(id).catch(() => null);
+        dupes_deleted += 1;
+      }
+      if (toDelete.length) console.log(`🧹 [consolidateBreadcrumbSegment] Dedupe sweep deleted ${toDelete.length} duplicate segment(s) for driver=${driver_id}, date=${delivery_date}`);
+    } catch (e) {
+      console.warn('[consolidateBreadcrumbSegment] dedupe sweep failed (non-fatal):', e?.message || e);
+    }
+
+    console.log(`✅ [consolidateBreadcrumbSegment] Home-anchored slicing complete: ${results.length} segments saved, dupes_deleted=${dupes_deleted}, driver=${driver_id}, date=${delivery_date}`);
 
     return Response.json({
       success: true,
@@ -1388,6 +1433,7 @@ async function handleSingle(base44, body) {
       total_segments: results.length,
       master_point_count: masterPoints.length,
       unresolved_stops: stopsWithoutCoords.length,
+      dupes_deleted,
       driver_id,
       delivery_date,
     });

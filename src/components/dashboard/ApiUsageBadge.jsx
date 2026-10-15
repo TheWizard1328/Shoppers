@@ -80,8 +80,13 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       const { startISO, endISO } = getDayBoundsISO();
 
       const [apiLogs, appSettings] = await Promise.all([
+      // Oct 15 2026: filtered on `timestamp` (unindexed) this query scanned the
+      // ever-growing GoogleAPILog collection and timed out at 15s on all 5
+      // retries. `created_date` is the platform's built-in field (indexed) and
+      // log rows are written at the moment they describe, so the day window is
+      // identical.
       base44.entities.GoogleAPILog.filter({
-        timestamp: { $gte: startISO, $lte: endISO }
+        created_date: { $gte: startISO, $lte: endISO }
       }),
       getAppSettingRows('refresh_intervals')]
       );
