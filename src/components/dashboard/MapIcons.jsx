@@ -140,6 +140,17 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
         ${pulseAnim}
       ">
         <span style="pointer-events: none;">${number || ''}</span>
+        <!-- Tap pad (Oct 15 2026): extends the touch target ~8px beyond the
+             badge — mobile taps land a few px off-center, below the visual. -->
+        <div style="
+          position: absolute;
+          top: -8px;
+          left: -8px;
+          width: ${baseSize + 16}px;
+          height: ${baseSize + 16}px;
+          border-radius: 50%;
+          pointer-events: auto;
+        "></div>
         ${clusterCount > 1 ? `
           <div class="cluster-badge" style="
             position: absolute;
@@ -266,8 +277,8 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
             pointer-events: none;
           ">${duplicateCount}</div>
         ` : ''}
-        <!-- Hit area restricted to pin head only -->
-        <div class="store-marker ${isHighlighted ? 'highlighted' : ''}" style="position: absolute; top: 0; left: 0; width: ${size}px; height: ${pinHeadHStore}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
+        <!-- Hit area (Oct 15 2026): whole pin + a few px below the tip — mobile taps land a few px below the visual, which the old head-only hitbox rejected -->
+        <div class="store-marker ${isHighlighted ? 'highlighted' : ''}" style="position: absolute; top: 0; left: -4px; width: ${size + 8}px; height: ${size * 1.4 + 8}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
       </div>
     `,
     className: 'custom-store-icon',
@@ -382,8 +393,8 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
             pointer-events: none;
           ">${duplicateCount}</div>
         ` : ''}
-        <!-- Hit area restricted to pin head only -->
-        <div class="delivery-marker ${isHighlighted ? 'highlighted' : ''}" style="position: absolute; top: 0; left: 0; width: ${size}px; height: ${pinHeadHDel}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
+        <!-- Hit area (Oct 15 2026): whole pin + a few px below the tip — mobile taps land a few px below the visual, which the old head-only hitbox rejected -->
+        <div class="delivery-marker ${isHighlighted ? 'highlighted' : ''}" style="position: absolute; top: 0; left: -4px; width: ${size + 8}px; height: ${size * 1.4 + 8}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
       </div>
     `,
     className: 'custom-delivery-icon',
@@ -426,6 +437,18 @@ export const createLiveLocationDot = () => {
           border: 3px solid white;
           border-radius: 50%;
           box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        "></div>
+        <!-- Tap pad (Oct 15 2026): the pulsing halo reads as part of the marker
+             visually — taps there must register, not just dead-center on the dot. -->
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: ${size * 2}px;
+          height: ${size * 2}px;
+          border-radius: 50%;
+          pointer-events: auto;
         "></div>
       </div>
     `,
@@ -534,8 +557,8 @@ export const createHomeIcon = (color = '#10B981') => {
             <rect x="-1.5" y="0" width="3" height="3" fill="${color}" stroke="${color}" stroke-width="0.3" />
           </g>
         </svg>
-        <!-- Hit area restricted to pin head only, not the tail -->
-        <div class="home-marker" style="position: absolute; top: 0; left: 0; width: ${w}px; height: ${pinHeadH}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
+        <!-- Hit area (Oct 15 2026): whole pin + a few px below the tip — mobile taps land a few px below the visual, which the old head-only hitbox rejected -->
+        <div class="home-marker" style="position: absolute; top: 0; left: -4px; width: ${w + 8}px; height: ${h + 8}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
       </div>
     `,
     className: 'custom-home-icon',

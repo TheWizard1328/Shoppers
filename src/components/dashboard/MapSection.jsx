@@ -77,6 +77,17 @@ export default function MapSection({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap, isDispatcher, isAdmin, isDriver, handleMapViewCycle, immersiveHidden]);
+
+  // Owner directive Oct 15 2026: tapping a map marker temporarily disables
+  // immersive mode — same forceShowUI override (MAP_TAP_OVERRIDE_MS) as the
+  // double-tap, so the UI comes back for the same window and re-hides itself.
+  useEffect(() => {
+    const onMarkerTapped = () => {
+      if (immersiveHidden) onImmersiveMapTap?.();
+    };
+    window.addEventListener('rxMarkerTapped', onMarkerTapped);
+    return () => window.removeEventListener('rxMarkerTapped', onMarkerTapped);
+  }, [immersiveHidden, onImmersiveMapTap]);
   const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const routeCompleteForSelectedDriver = selectedDriverId && selectedDriverId !== 'all'
     ? deliveriesWithStopOrder.filter((d) => d && d.patient_id && d.driver_id === selectedDriverId).length > 0 &&
