@@ -248,11 +248,12 @@ const tickHost = async (currentUser) => {
 export const usePayrollHistorySync = (currentUser) => {
   const userId = currentUser?.id;
   const cityId = currentUser?.city_id || (Array.isArray(currentUser?.city_ids) && currentUser.city_ids[0]);
+  // Ref (top-level hook — calling useRef inside useEffect throws) so the armed
+  // WS listener always reads the LATEST user even after role changes.
+  const userRef = useRef(currentUser);
+  userRef.current = currentUser;
   useEffect(() => {
     // Consumers are drivers/admins (NOT dispatchers — they're not in payroll).
-    // A ref keeps the armed listener reading the LATEST user even after role changes.
-    const userRef = useRef(currentUser);
-    userRef.current = currentUser;
     armPayrollHistoryMarkerListener(() => userRef.current);
     if (!userId || !cityId || !isAppOwner(currentUser)) return;
     let stopped = false;
