@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { base44 } from "@/api/base44Client";
 import { edmontonWallString, parseAnyTimestamp } from './albertaTime';
 
@@ -252,3 +253,36 @@ export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
   const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES);
   return isFirstFinished || isLastFinished;
 }
+// ── Retro-timing live flag (owner directive Oct 14 2026) ────────────────────
+// The Complete-button arrival gate (footer + popup menu) must NEVER hold during
+// retro times: retro completion backdates arrival_time itself, so the gate is
+// bypassed entirely (today after 21:00, or any past-due date). The flag used
+// to be computed once at render time — a memoized stop card rendered before
+// 21:00 kept its stale "not retro" value after 21:00, leaving Complete dead
+// during retro hours until an unrelated re-render. computeRetroTiming() is
+// the pure core; useRetroTiming() re-evaluates it on a light 30s tick that
+// only triggers a re-render when the flag actually flips (React bails on the
+// identical setState, so the steady state costs nothing).
+export const computeRetroTiming = (deliveryDate, now = new Date()) => {
+  const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const currentTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const isFutureDate = !!deliveryDate && deliveryDate > todayDateString;
+  const isRetroTiming = !!deliveryDate && !isFutureDate &&
+    !shouldUseRegularTiming({ deliveryDate, todayDateString, currentTimeString });
+  return { isFutureDate, isRetroTiming, todayDateString };
+};
+
+export const useRetroTiming = (deliveryDate) => {
+  const compute = useCallback(() => computeRetroTiming(deliveryDate).isRetroTiming, [deliveryDate]);
+  const [isRetroTiming, setIsRetroTiming] = useState(compute);
+  useEffect(() => {
+    const next = compute();
+    setIsRetroTiming((prev) => (prev === next ? prev : next));
+    const id = setInterval(() => {
+      const cur = compute();
+      setIsRetroTiming((prev) => (prev === cur ? prev : cur));
+    }, 30000);
+    return () => clearInterval(id);
+  }, [compute]);
+  return isRetroTiming;
+};

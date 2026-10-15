@@ -13,7 +13,7 @@ import { recordSquarePosLaunch } from "../utils/squareTenderVerify";
 import { remoteLogger } from "../utils/remoteLogger";
 import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 import RestartConfirmDialog from "./RestartConfirmDialog";
-import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { shouldUseRegularTiming, computeRetroTiming, useRetroTiming } from '../utils/timeRoundingHelper';
 import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
 import { useArrivalRecheck } from './useArrivalRecheck';
 
@@ -98,19 +98,16 @@ export default function StopCardActionButtons(props) {
   // from "regular" stop-timing to "retroactive" backdated timing. Visually flag
   // that mode on the Start/Complete buttons so the driver knows times will be
   // rounded/backdated if they complete now.
-  const now = new Date();
-  const _todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const _nowTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   // Retro (purple) timing only applies to today (after 21:00) and past-due dates.
   // Future delivery dates always use the regular button colors.
-  const _isFutureDate = !!delivery?.delivery_date && delivery.delivery_date > _todayStr;
-  // Alias used by the action-row Complete button so the future-date hide rule reads cleanly.
-  const isFutureDate = _isFutureDate;
-  const isRetroTiming = !_isFutureDate && !shouldUseRegularTiming({
-    deliveryDate: delivery?.delivery_date,
-    todayDateString: _todayStr,
-    currentTimeString: _nowTimeStr,
-  });
+  // OWNER DIRECTIVE (Oct 14 2026): this flag now comes from useRetroTiming — a
+  // LIVE flag that re-evaluates on a 30s tick — because the old render-time
+  // `new Date()` computation went stale on memoized cards (rendered before
+  // 21:00, never re-rendered after), leaving the Complete button gated dead
+  // during retro hours. The arrival gate's retro bypass (BYPASS 2) now always
+  // sees the fresh value, so Complete is ACTIVE during retro times.
+  const isRetroTiming = useRetroTiming(delivery?.delivery_date);
+  const { isFutureDate } = computeRetroTiming(delivery?.delivery_date);
 
   // Arrival gate is active on the current stop (blank arrival_time, non-retro).
   // useArrivalRecheck is the SECONDARY path: it re-records the missing arrival_time

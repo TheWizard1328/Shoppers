@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CheckCircle, Edit, History, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
-import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { shouldUseRegularTiming, useRetroTiming } from '../utils/timeRoundingHelper';
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
 export default function StopCardFooterMenu(props) {
@@ -95,14 +95,10 @@ export default function StopCardFooterMenu(props) {
   // is set or retro timing is active (the inline button covers completion).
   // isRetroTimingLive mirrors StopCardActionButtons: retro = today after 21:00
   // or past-due dates, computed via shouldUseRegularTiming.
-  const _nowForRetro = new Date();
-  const _todayStrForRetro = `${_nowForRetro.getFullYear()}-${String(_nowForRetro.getMonth() + 1).padStart(2, '0')}-${String(_nowForRetro.getDate()).padStart(2, '0')}`;
-  const _nowTimeStrForRetro = `${String(_nowForRetro.getHours()).padStart(2, '0')}:${String(_nowForRetro.getMinutes()).padStart(2, '0')}`;
-  const isRetroTimingLive = !!(delivery?.delivery_date && delivery.delivery_date <= _todayStrForRetro) && !shouldUseRegularTiming({
-    deliveryDate: delivery?.delivery_date,
-    todayDateString: _todayStrForRetro,
-    currentTimeString: _nowTimeStrForRetro,
-  });
+  // OWNER DIRECTIVE (Oct 14 2026): live retro flag (30s re-eval tick) — the old
+  // render-time value went stale on memoized cards after the 21:00 crossover,
+  // so the menu's inline Complete could stay hidden/gated during retro hours.
+  const isRetroTimingLive = useRetroTiming(delivery?.delivery_date);
   // Mirrors StopCardActionButtons' arrivalGateActive including the Oct 8 2026
   // proximity BACKUP: within 100m (the Navigate→"Update GPS" swap signal) the
   // gate lifts, so the popup menu's Complete hides again and the footer buttons
