@@ -873,7 +873,21 @@ export function useStopCardCompletionActions({
         }
 
         // ── Terminal engine ──────────────────────────────────────────────────
-        const actedOnNextDelivery = delivery?.isNextDelivery === true;
+        // OWNER RULE (Oct 15 2026): completing the isNextDelivery stop (in-order,
+        // retro OR regular timing) must produce ZERO stop_order changes. Every
+        // out-of-order mechanism (queue resequencing, STEP 10 optimizer chain,
+        // stale-flag protections) keys off THIS value, so it must come from the
+        // authoritative IDB record, not the possibly-stale `delivery` prop
+        // (a stale isNextDelivery=false here misfires the whole out-of-order
+        // chain: resequencing + optimizer + polyline regen on an in-order tap).
+        let actedOnNextDelivery = delivery?.isNextDelivery === true;
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const _freshActed = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id).catch(() => null);
+          if (_freshActed?.id && typeof _freshActed.isNextDelivery !== 'undefined') {
+            actedOnNextDelivery = _freshActed.isNextDelivery === true;
+          }
+        } catch (_) { /* keep prop value */ }
         const terminalResult = await executeTerminalAction({
           status: 'completed',
           criticalUpdate: completionUpdate,
