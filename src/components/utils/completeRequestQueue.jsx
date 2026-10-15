@@ -39,6 +39,8 @@ const flushAppUserUpdate = async (entry) => {
   }
 };
 
+const TERMINAL_STATUS_SET = new Set(['completed', 'failed', 'cancelled']);
+
 export const scheduleAppUserUpdate = (appUserId, payload, delay = COMPLETION_DEBOUNCE_MS) => {
   if (!appUserId || !payload) return Promise.resolve(null);
   const payloadKey = stableStringify(payload);
@@ -250,6 +252,19 @@ const flushCompletionJob = async (entry) => {
               .filter(Boolean)
               .map((srv) => {
                 const loc = _localMap.get(srv.id) || {};
+                // ── LOCAL-TERMINAL AUTHORITY (owner directive Oct 15 2026) ──────
+                // This device's own finished stops are the source of truth.
+                // If this stop's completion upload hit a 429 and the bulk flush
+                // hasn't landed yet, the server copy still shows an active
+                // status — the old server-wins merge reopened the finished stop
+                // right here, bulkSaving the revert back into IDB (owner report:
+                // stops reverting ~1 min after completion or after a restart).
+                // A locally-terminal record NEVER loses to a server copy that
+                // claims an active status; the dirty-flag flush will converge
+                // the server when it succeeds.
+                const _locTerminal = loc && TERMINAL_STATUS_SET.has(String(loc.status || '')) && loc.actual_delivery_time;
+                const _srvActive = typeof srv?.status === 'string' && !TERMINAL_STATUS_SET.has(String(srv.status));
+                if (_locTerminal && _srvActive) return loc;
                 const out = { ...loc, ...srv };
                 // Preserve client-side polyline/leg fields when the server copy
                 // is null/absent but local has them (mid-optimization legs not
@@ -344,7 +359,7 @@ const flushCompletionJob = async (entry) => {
           // produced the delayed flood of stop_order rate limits about a minute
           // after a retro completion (owner report Oct 15). Silent bulk = one
           // API call, zero WS events; cross-device sync already happens in
-          // STEP 4 below via broadcastMutation with full records.
+          // STEP 4 below via the route_commit marker (remotes pull).
           if (_computeServerUpdates.length > 0) {
             try {
               const { commitDeliveryUpdatesSilently } = await import('./routeCommitMarker');
@@ -398,26 +413,25 @@ const flushCompletionJob = async (entry) => {
     // ── STEP 4: Broadcast to OTHER devices (not this one) ───────────────────
     // IDB is already pre-seeded above + smartRefreshManager registered, so
     // this device ignores incoming WS echoes. Other devices receive fresh
-    // authoritative data. We use broadcastMutation for cross-device delivery.
+    // Other devices pull authoritative data themselves via the marker.
     //
     // CRITICAL: Only broadcast if we did NOT already write via entityMutations
     // (which does its own broadcast). Since we're in batch silent mode above,
     // the entity writes above don't broadcast. So we broadcast once here.
-    if (Array.isArray(freshRecords) && freshRecords.length > 0 && driverId && deliveryDate) {
+    if (driverId && deliveryDate) {
+      // Owner architecture (Oct 15 2026): changed records were already flushed
+      // to the server in ONE silent bulk (STEP 3 commit); other devices receive
+      // ONLY the lightweight route_commit marker (an ID signal, not record
+      // payloads) and pull the route themselves — the proven Start-button
+      // pattern. The old per-record full-record broadcastMutation loop shipped
+      // every changed record's entire payload to every device (heavy) and was
+      // another stale-overwrite vector: remotes merged whatever this device
+      // held at broadcast time, even if a flush had failed.
       try {
-        const { broadcastMutation } = await import('./realtimeSync');
-        // Broadcast FULL records (minus polyline) sorted by stop_order.
-        // Receiving devices do a full IDB merge — no partial-payload logic needed.
-        // Polyline is excluded because it's sent via its own dedicated WS event
-        // when route optimization completes. The IDB merge on the receiving side
-        // naturally preserves the existing polyline when it's absent from the payload.
-        const sortedRecords = [...freshRecords]
-          .filter(r => r?.id)
-          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-        for (const rec of sortedRecords) {
-          // Strip polyline fields — they're sent separately via dedicated WS events
-          const { encoded_polyline, polyline_saved_at, ...fullRecord } = rec;
-          broadcastMutation('Delivery', 'update', rec.id, fullRecord).catch(() => null);
+        const { fireRouteCommitMarker } = await import('./routeCommitMarker');
+        const _markerTarget = nextDeliveryId || lastCompletedDeliveryId;
+        if (_markerTarget) {
+          await fireRouteCommitMarker(_markerTarget, freshRecords?.length || 0).catch(() => null);
         }
       } catch (_) {}
     }
