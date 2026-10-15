@@ -19,6 +19,9 @@ export const seedRoutingKey = (key) => {
   if (key && typeof key === 'string') {
     _routingKey = key;
     if (typeof window !== 'undefined') window.__routingApiKey = key;
+    // Persist (owner directive Oct 15 2026): boots during a backend outage
+    // (DB timeouts) must still be able to resolve the routing key.
+    try { localStorage.setItem('rx_routing_key_v1', key); } catch (_) {}
     console.log('✅ [RoutingKeyStore] route-optimization key seeded');
   }
 };
@@ -36,6 +39,18 @@ export const getOrFetchRoutingKey = async () => {
     _routingKey = window.__routingApiKey;
     return _routingKey;
   }
+  // Last-known key from localStorage — a fresh boot while the backend is
+  // degraded cannot fetch from getActiveHereApiKey; routing (HERE sequencing,
+  // polyline generation) must not die with it.
+  try {
+    const _saved = localStorage.getItem('rx_routing_key_v1');
+    if (_saved) {
+      _routingKey = _saved;
+      if (typeof window !== 'undefined') window.__routingApiKey = _saved;
+      console.log('✅ [RoutingKeyStore] route-optimization key restored from localStorage');
+      return _saved;
+    }
+  } catch (_) {}
   if (_loadPromise) return _loadPromise;
   _loadPromise = (async () => {
     try {
@@ -45,6 +60,7 @@ export const getOrFetchRoutingKey = async () => {
       if (key) {
         _routingKey = key;
         if (typeof window !== 'undefined') window.__routingApiKey = key;
+        try { localStorage.setItem('rx_routing_key_v1', key); } catch (_) {}
         console.log('✅ [RoutingKeyStore] route-optimization key fetched');
         return key;
       }

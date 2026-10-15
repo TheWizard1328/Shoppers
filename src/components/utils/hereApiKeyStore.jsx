@@ -22,6 +22,11 @@ export const seedHereApiKey = (key) => {
   if (key && typeof key === 'string') {
     _cachedApiKey = key;
     _loadPromise = Promise.resolve(key);
+    // Persist (owner directive Oct 15 2026): a fresh boot while the backend is
+    // degraded (DB timeouts) can't fetch the key from the server — HERE calls
+    // and polyline generation then fail. The last known key survives in
+    // localStorage so routing works even when every server read times out.
+    try { localStorage.setItem('rx_here_key_v1', key); } catch (_) {}
     console.log('✅ [HereApiKeyStore] HERE API key seeded from bootstrap manifest');
   }
 };
@@ -34,6 +39,17 @@ export const seedHereApiKey = (key) => {
 export const initHereApiKey = async () => {
   // Already available — no network call needed
   if (_cachedApiKey) return _cachedApiKey;
+  // Last-known key from localStorage (backend may be unreachable)
+  try {
+    const _saved = localStorage.getItem('rx_here_key_v1');
+    if (_saved) {
+      _cachedApiKey = _saved;
+      _loadPromise = Promise.resolve(_saved);
+      if (typeof window !== 'undefined') window.__hereApiKey = _saved;
+      console.log('✅ [HereApiKeyStore] HERE API key restored from localStorage (no network call)');
+      return _saved;
+    }
+  } catch (_) {}
   // Re-use the in-flight (or already-resolved) promise so concurrent callers collapse
   if (_loadPromise) return _loadPromise;
 
@@ -45,6 +61,7 @@ export const initHereApiKey = async () => {
       const key = response?.data?.apiKey || response?.apiKey || null;
       if (key) {
         _cachedApiKey = key;
+        try { localStorage.setItem('rx_here_key_v1', key); } catch (_) {}
         // Also expose via window so any late seedHereApiKey callers can pick it up
         if (typeof window !== 'undefined') window.__hereApiKey = key;
         console.log('✅ [HereApiKeyStore] HERE API key fetched and cached (fallback path)');
