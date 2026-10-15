@@ -311,6 +311,7 @@ const flushCompletionJob = async (entry) => {
           // `status: 'in_transit'` from IDB. Including `status` ensures the WS
           // broadcast carries it, so the remote device sees the correct status
           // even if this WS event arrives before the completion status event.
+          const _computeServerUpdates = [];
           for (const d of result.changedDeliveries) {
             const update = {};
             // OWNER DIRECTIVE (Oct 14 2026): send ONLY genuinely changed fields.
@@ -333,7 +334,26 @@ const flushCompletionJob = async (entry) => {
               if (d.actual_delivery_time != null) update.actual_delivery_time = d.actual_delivery_time;
             }
             if (Object.keys(update).length > 0) {
-              base44.entities.Delivery.update(d.id, update).catch(() => null);
+              _computeServerUpdates.push({ id: d.id, data: update });
+            }
+          }
+          // OWNER DIRECTIVE (Oct 15 2026): ONE silent bulk commit, not per-stop
+          // user-scoped updates. The out-of-order resequencing can legitimately
+          // change stop_order on many later stops — writing those one-by-one
+          // (each one a separate API call + WS broadcast to every device)
+          // produced the delayed flood of stop_order rate limits about a minute
+          // after a retro completion (owner report Oct 15). Silent bulk = one
+          // API call, zero WS events; cross-device sync already happens in
+          // STEP 4 below via broadcastMutation with full records.
+          if (_computeServerUpdates.length > 0) {
+            try {
+              const { commitDeliveryUpdatesSilently } = await import('./routeCommitMarker');
+              const _committed = await commitDeliveryUpdatesSilently(_computeServerUpdates);
+              if (_committed !== _computeServerUpdates.length) {
+                console.warn(`[CompleteQueue] silent compute commit: ${_committed}/${_computeServerUpdates.length} updates committed`);
+              }
+            } catch (e) {
+              console.warn('[CompleteQueue] silent compute commit failed:', e?.message || e);
             }
           }
 
