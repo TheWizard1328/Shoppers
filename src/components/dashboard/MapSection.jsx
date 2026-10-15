@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
