@@ -522,10 +522,10 @@ export async function generateRoutePolylines({
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         });
     console.log(`[routePolylineGenerator] ${source} — ${useGooglePoly ? 'Google' : 'HERE'} ${group.mode} returned ${result.sections.length} sections for ${points.length} points${useVia ? ' (incl. live-GPS via)' : ''}${viaTotal ? ` (incl. ${viaTotal} via point(s))` : ''}`);
-    return { group, sections: result.sections || [], useVia, liveViaIdx, stopIdxs, stopViaCounts };
+    return { group, sections: result.sections || [], useVia, liveViaIdx, stopIdxs, stopViaCounts, points };
   }));
 
-  for (const { group, sections, useVia, liveViaIdx, stopIdxs, stopViaCounts } of groupResults) {
+  for (const { group, sections, useVia, liveViaIdx, stopIdxs, stopViaCounts, points } of groupResults) {
     group.stops.forEach((stop, groupLocalIndex) => {
       const stopIdx = stopIdxs[groupLocalIndex];
       const viaCount = stopViaCounts[groupLocalIndex] || 0;
