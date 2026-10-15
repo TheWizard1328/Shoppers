@@ -190,6 +190,27 @@ const calculateAllPeriods = (year, payPeriodType) => {
   return periods;
 };
 
+// Oct 15 owner spec: the ONLY months client devices re-gather on payroll page
+// load / manual refresh are the months spanned by the CURRENT pay period.
+// Past years never re-gather; historical accuracy belongs to the history host.
+const getCurrentPayrollCycleMonths = (year, payPeriodType) => {
+  const now = new Date();
+  if (parseInt(year, 10) !== now.getFullYear()) return [];
+  try {
+    const periods = calculateAllPeriods(year, payPeriodType || 'monthly');
+    const cur = periods.find((p) => now >= p.start && now <= p.end);
+    if (!cur) return [now.getMonth() + 1];
+    const months = [];
+    [cur.start, cur.end].forEach((d) => {
+      const m = d.getMonth() + 1;
+      if (!months.includes(m)) months.push(m);
+    });
+    return months;
+  } catch (_) {
+    return [now.getMonth() + 1];
+  }
+};
+
 // Helper: Find current period index based on today's date
 // For weekly/biweekly, if today is near year boundary ensure we use the classification-year set
 const findCurrentPeriodIndex = (periods, today) => {
@@ -1076,8 +1097,17 @@ export default function DriverPayroll() {
       return;
     }
 
+    // Oct 15: refreshMonths is now an EXPLICIT list of months (the current pay
+    // cycle's months) — historical months are never re-gathered by client
+    // devices anymore; the payroll history host owns them (payrollHistorySync).
+    const refreshMonthsList = Array.isArray(refreshMonths)
+      ? refreshMonths.map((m) => Number(m)).filter((m) => m >= 1 && m <= 12)
+      : (refreshMonths > 0
+          ? Array.from({ length: refreshMonths }, (_, i) => new Date().getMonth() + 1 - i).filter((m) => m >= 1)
+          : []);
+
     const cacheKey = `${selectedYear}-${selectedCityId}`;
-    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}-${bypassSummary}-${refreshMonths}`;
+    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}-${bypassSummary}-${refreshMonthsList.join(',')}`;
     const now = Date.now();
     if (lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 5000) {
       return fullYearPayrollDataRef.current;
@@ -1116,9 +1146,7 @@ export default function DriverPayroll() {
           // re-gather only the most recent pay periods — anything farther back is
           // historical and doesn't change. Much faster than a full-year regather
           // on every page load.
-          payrollRefreshMonths: !bypassSummary && refreshMonths > 0
-            ? Array.from({ length: refreshMonths }, (_, i) => new Date().getMonth() + 1 - i).filter((m) => m >= 1)
-            : []
+          payrollRefreshMonths: !bypassSummary ? refreshMonthsList : []
         });
         const rawData = response?.data?.payrollData || response?.payrollData;
         const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
@@ -1166,7 +1194,9 @@ export default function DriverPayroll() {
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
     try {
-      await fetchPayroll(false, true, { bypassSummary: true });
+      // Oct 15 owner spec: the Refresh button syncs ONLY the current pay cycle —
+      // the deep full-year regather is the history host's job (Editor/PWA).
+      await fetchPayroll(false, true, { refreshMonths: getCurrentPayrollCycleMonths(selectedYear, payPeriod) });
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
@@ -1177,7 +1207,7 @@ export default function DriverPayroll() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchPayroll, refreshPayrollRecords, selectedCityId]);
+  }, [fetchPayroll, refreshPayrollRecords, selectedCityId, selectedYear, payPeriod]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
@@ -1223,15 +1253,14 @@ export default function DriverPayroll() {
       // First-ever visit (no cache) keeps the blocking spinner.
       const gotOffline = await loadOfflinePayroll(selectedYear, selectedCityId).catch(() => false);
       if (cancelled) return;
-      // Owner Oct 12: sync right after the page loads so values are current.
-      // Fast path: the server serves the year from its PayrollSummary but
-      // re-gathers only the last 3 calendar months (recent pay periods) —
-      // full-year regathers on every load were too slow. Manual sync still
-      // does the deep full-year refresh.
-      fetchPayroll(!!gotOffline, true, { refreshMonths: 3 }).catch(() => {});
+      // Owner Oct 15: sync right after load covers ONLY the current pay cycle
+      // (1-2 months). Historical cycles are owned by the payroll history host
+      // (Editor → PWA fallback, payrollHistorySync.js) — client devices never
+      // re-gather history on load or refresh anymore.
+      fetchPayroll(!!gotOffline, true, { refreshMonths: getCurrentPayrollCycleMonths(selectedYear, payPeriod) }).catch(() => {});
     })();
     return () => { cancelled = true; };
-  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll, loadOfflinePayroll]);
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, payPeriod, fetchPayroll, loadOfflinePayroll]);
 
   // Grace timer for the blocking spinner: only counts when a blocking load is in
   // flight (isAutoRefresh loads never set isLoadingPayroll).

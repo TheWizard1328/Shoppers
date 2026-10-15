@@ -83,6 +83,7 @@ import { initPushNotifications } from '@/components/utils/pushNotifications';
 import { isNativePushAvailable, checkNativePushPermission } from '@/components/utils/nativePushNotifications';
 import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
 import { usePayrollBadge } from './components/layout/usePayrollBadge';
+import { usePayrollHistorySync } from './components/utils/payrollHistorySync';
 import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandlers';
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
@@ -1398,6 +1399,10 @@ export default function Layout({ children, currentPageName }) {
     setDrivers(activeDrivers);
   }, [appUsers, currentUser]);
   const currentPayrollNetPay = usePayrollBadge(currentUser, appUsers, dataLoaded);
+  // Oct 15 owner spec: payroll HISTORY accuracy is owned by the idle host
+  // (THE-DESKTOP(Editor), PWA fallback) which verifies hourly and broadcasts
+  // changed cycles; every other device applies the marker to its offline DB.
+  usePayrollHistorySync(currentUser);
 
   // Calculate online user counts based on heartbeat (location_updated_at < 5 min = online)
   const onlineCounts = useMemo(() => {
