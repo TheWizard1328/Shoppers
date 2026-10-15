@@ -21,6 +21,7 @@ import { syncDeliverySquareCod } from '../utils/squareCodSync';
 import { createDeliveryLocal, updateDeliveryLocal, updatePatientLocal, pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { parseLocalTimestamp } from '../utils/timeRoundingHelper';
+import { parseAnchorToMinutes } from '../utils/etaCascadeUtil';
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -1189,20 +1190,27 @@ export function useStopCardStartActions({
       // the StopCard MOUNT time (useMemo with [] deps). After a long door stop
       // (signature + COD) that value was minutes stale, projecting the next
       // stop's ETA into the PAST (stop 14 ETA 13:56 when completed at 14:00).
-      let currentLocalTime;
+      // OWNER REPORT (Oct 15 2026): the retro Complete cascade was anchoring an
+      // hour EARLY (finished 15:27 → ETAs chained from 14:27). Root cause: the
+      // anchor string is a NAIVE Edmonton wall timestamp, but this block ran it
+      // through parseLocalTimestamp (→ UTC Date) and read .getHours() — the
+      // DEVICE-LOCAL hour. On machines with premature tz data the wall↔UTC
+      // round-trip skews by an hour (the exact class of bug pure Alberta math
+      // exists to prevent). Parse the anchor string with pure component math
+      // (etaCascadeUtil.parseAnchorToMinutes) — no Date object, no tz engine.
       const etaAnchorTime = etaBaseTime || criticalUpdate?.actual_delivery_time || null;
-      const parsedBase = etaAnchorTime ? parseLocalTimestamp(etaAnchorTime) : null;
-      if (parsedBase) {
-        // Parse the actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
-        currentLocalTime = `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`;
+      const _anchorMinutes = etaAnchorTime ? parseAnchorToMinutes(etaAnchorTime) : null;
+      let currentEtaMinutes;
+      if (_anchorMinutes != null) {
+        currentEtaMinutes = _anchorMinutes;
       } else {
-        currentLocalTime = getCurrentLocalTime?.() || getCurrentLocalTimeString();
+        const currentLocalTime = getCurrentLocalTime?.() || getCurrentLocalTimeString();
+        const [hrs, mins] = String(currentLocalTime).split(':').map(Number);
+        currentEtaMinutes = (hrs || 0) * 60 + (mins || 0);
       }
-      const [hrs, mins] = currentLocalTime.split(':').map(Number);
       // Start from the actual completion time of the just-finished stop.
       // For each remaining stop, add its own travel duration to arrive, then
       // a 2-minute dwell before moving to the next stop.
-      let currentEtaMinutes = hrs * 60 + mins;
       // HH:MM → minutes-past-midnight parser (regex only — never Date-parse
       // naive time strings, device tz engines are not trusted).
       const toWindowMinutes = (t) => {

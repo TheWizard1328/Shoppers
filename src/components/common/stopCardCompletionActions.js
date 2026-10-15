@@ -894,8 +894,8 @@ export function useStopCardCompletionActions({
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateCompletionEtas,
           skipCollapseCard: false,
-          // ETA anchor: backdated time ONLY for past-due routes; same-day retro
-          // (and regular) anchor to the REAL completion clock, never the backdate.
+          // ETA anchor: backdated completion time for ALL retro (same-day
+          // after 21:00 AND past-due); real clock for regular timing.
           etaBaseTime: useRetroactiveTiming ? completionActualTime : localTimeString,
           etaSkipWindowFloor: useRetroactiveTiming === true,
           freshDeliveriesOverride: ispFreshDeliveriesOverride,
