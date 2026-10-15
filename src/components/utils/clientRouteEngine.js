@@ -357,8 +357,21 @@ export async function optimizeRouteClientSide({
   let driverAppUser = (appUsers || []).find((au) => au?.user_id === driverId || au?.id === driverId) || null;
   if (!driverAppUser) {
     console.warn(`[clientRouteEngine] ${source} — driver AppUser NOT FOUND in appUsers (array size=${(appUsers || []).length}, driverId=${driverId}). Fetching from DB...`);
+    // Owner report Oct 15: Accept All kept hitting the 90s optimizer timeout.
+    // Trigger chain: an IDB getAll(app_users) stall hands the engine an EMPTY
+    // appUsers array, this DB fallback runs mid-optimization with NO cap, and
+    // on a hot/rate-limited account pool the request can burn the whole 90s
+    // budget before HERE/polyline work even starts. Cap the fallback at 8s —
+    // on failure the existing soft-fallback ({}) proceeds with stop-coord
+    // origins; optimization completes instead of timing out.
     try {
-      const dbResults = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
+      const dbResults = await Promise.race([
+        base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []),
+        new Promise((res) => setTimeout(() => {
+          console.warn(`[clientRouteEngine] ${source} — DB fallback for AppUser capped at 8s (pool hot?) — proceeding with defaults`);
+          res([]);
+        }, 8000)),
+      ]);
       if (Array.isArray(dbResults) && dbResults.length > 0) {
         driverAppUser = dbResults[0];
         console.log(`[clientRouteEngine] ${source} — driver AppUser found via DB fallback: user_id=${driverAppUser.user_id}, gps=${driverAppUser.current_latitude ?? 'null'},${driverAppUser.current_longitude ?? 'null'}, home=${driverAppUser.home_latitude ?? 'null'},${driverAppUser.home_longitude ?? 'null'}`);
