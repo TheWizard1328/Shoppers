@@ -1273,7 +1273,7 @@ const COD_SIG_FIELDS = [
   'cod_retried_at',
   'cod_retry_delivery_id'
 ];
-const codEventSigs = new Map(); // delivery id → last seen signature
+const codEventSigs = new Map(); // delivery id → { sig, hasCod }
 const _codSig = (d) => {
   if (!d) return 'NONE';
   const parts = COD_SIG_FIELDS.map((f) => {
@@ -1293,15 +1293,22 @@ function isCodRelevantEvent(ev) {
   // Bound the signature map (45-day window scrolls; IDs never reused).
   if (codEventSigs.size > 4000) codEventSigs.clear();
   const sig = _codSig(d);
-  const prevSig = codEventSigs.get(d.id);
-  codEventSigs.set(d.id, sig);
-  if (prevSig === sig) return false; // same COD-relevant values — pure noise
-  if (prevSig === undefined) {
+  const hasCod = recordHasCod(d);
+  const prev = codEventSigs.get(d.id);
+  codEventSigs.set(d.id, { sig, hasCod });
+  if (prev?.sig === sig) return false; // same COD-relevant values — pure noise
+  if (prev === undefined) {
     // First sighting: fire only if the record actually carries a COD now
     // (a plain non-COD delivery must not trigger a compute on boot).
-    return recordHasCod(d);
+    return hasCod;
   }
-  // Known record: fire only when a COD-relevant field actually changed.
+  // Owner rule (Oct 15 2026): a completion WITHOUT COD must NEVER trigger a
+  // compute. The old gate tracked EVERY delivery's status field, so any
+  // non-COD stop completion flipped the signature and forced a Square
+  // recompute. A record only matters while it HAS a COD now or HAD one at
+  // last sighting (COD removed via edit still balances out once, then quiet).
+  if (!hasCod && !prev.hasCod) return false;
+  // Known COD record: fire only when a COD-relevant field actually changed.
   const changed = ev.changedFields || ev.changed_fields || [];
   if (Array.isArray(changed) && changed.length > 0) {
     const relevantChange = changed.some((f) =>
