@@ -801,17 +801,16 @@ export function useStopCardCompletionActions({
         };
 
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
-        // OWNER DIRECTIVE (Oct 14 2026): retro ETA recalculation is PAST-DUE ONLY.
-        // Previously EVERY retro completion (incl. same-day after 21:00) recascaded
-        // ETAs for ALL remaining stops from the BACKDATED completion time — on a
-        // live same-day route that stamped past-time ETAs on every remaining card
-        // and triggered a storm of writes. Same-day-after-21:00 completions now
-        // follow the REGULAR staleness rule with the REAL clock; only a genuinely
-        // past-due route (whole route being closed out retroactively) recascades
-        // ETAs from the backdated base.
-        const _isPastDueRetro = useRetroactiveTiming && delivery?.delivery_date < _liveTodayStr;
+        // OWNER DIRECTIVE (Oct 15 2026, v2): the RETRO finishing flow (same-day
+        // after 21:00 AND past-due) ALWAYS updates the remaining stops' ETAs
+        // via the ETA calculator, anchored to the BACKDATED completion time —
+        // the retro presentation keeps the whole route timeline backdated and
+        // consistent, so ETAs follow the same backdated chain (previously the
+        // same-day retro path fell back to the REGULAR staleness rule, which
+        // skipped the update for fresh ETAs — wrong for the retro flow). Regular
+        // timing keeps the staleness rule with the REAL clock.
         const _remainingCount = sameRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
-        const shouldRecalculateCompletionEtas = _isPastDueRetro
+        const shouldRecalculateCompletionEtas = useRetroactiveTiming
           ? _remainingCount > 0
           : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString));
 
@@ -897,7 +896,7 @@ export function useStopCardCompletionActions({
           skipCollapseCard: false,
           // ETA anchor: backdated time ONLY for past-due routes; same-day retro
           // (and regular) anchor to the REAL completion clock, never the backdate.
-          etaBaseTime: _isPastDueRetro ? completionActualTime : localTimeString,
+          etaBaseTime: useRetroactiveTiming ? completionActualTime : localTimeString,
           freshDeliveriesOverride: ispFreshDeliveriesOverride,
         });
         // ────────────────────────────────────────────────────────────────────
@@ -1145,8 +1144,10 @@ export function useStopCardCompletionActions({
         // OWNER DIRECTIVE (Oct 14 2026): retro ETA recalculation is PAST-DUE ONLY
         // (same rule as the Complete path) — same-day retro failures follow the
         // regular staleness rule with the REAL clock.
-        const _failIsPastDueRetro = useRetroactiveTiming && delivery?.delivery_date < _liveTodayStr;
-        const shouldRecalculateFailureEtas = _failIsPastDueRetro
+        // OWNER DIRECTIVE (Oct 15 2026, v2): retro failures recascade remaining
+        // ETAs via the calculator from the BACKDATED fail time (same rule as the
+        // Complete path); regular keeps the staleness rule with the real clock.
+        const shouldRecalculateFailureEtas = useRetroactiveTiming
           ? _failRemainingCount > 0
           : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString));
 
@@ -1165,7 +1166,7 @@ export function useStopCardCompletionActions({
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateFailureEtas,
           skipCollapseCard: false,
-          etaBaseTime: _failIsPastDueRetro ? failActualTime : localTimeString,
+          etaBaseTime: useRetroactiveTiming ? failActualTime : localTimeString,
         });
         // ────────────────────────────────────────────────────────────────────
 
