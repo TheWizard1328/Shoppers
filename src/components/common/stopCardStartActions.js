@@ -999,6 +999,14 @@ export function useStopCardStartActions({
     shouldRecalculateEtas,
     skipCollapseCard = false,
     etaBaseTime = null,   // ISO timestamp to use as ETA cascade base (for retro timing)
+    // OWNER DIRECTIVE (Oct 15 2026): during RETRO timing the ETA chain follows the
+    // BACKDATED timeline (most recent finished stop's actual_delivery_time +
+    // travel + dwell) WITHOUT the window-floor clamp — retro routes run outside
+    // delivery windows by definition, and clamping each ETA up to the next stop's
+    // delivery_time_start made the cascade look like it was computing FROM the
+    // window start instead of the finished stop's actual time. Regular timing
+    // keeps the Sep 29 window-floor rule.
+    etaSkipWindowFloor = false,
     freshDeliveriesOverride = null, // Post-Accept-All fresh deliveries (avoids stale allDeliveries closure)
   }) => {
     // 1. Atomic IDB write — offline-first, no smart-refresh trigger.
@@ -1147,7 +1155,7 @@ export function useStopCardStartActions({
         // arrives earlier, clamp the ETA UP to the window start and CONTINUE the
         // cascade from that window time (later stops inherit the wait).
         const windowStartMin = toWindowMinutes(stop.delivery_time_start || stop.time_window_start);
-        if (windowStartMin != null && currentEtaMinutes < windowStartMin) {
+        if (!etaSkipWindowFloor && windowStartMin != null && currentEtaMinutes < windowStartMin) {
           currentEtaMinutes = windowStartMin;
         }
         const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
