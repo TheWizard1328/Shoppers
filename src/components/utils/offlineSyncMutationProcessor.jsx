@@ -262,29 +262,48 @@ export const processPendingMutationsInternal = async () => {
             ? sanitizeAppUserMutationPayload(mutation.payload)
             : mutation.payload;
 
-        // ── TERMINAL-REVERT GUARD (Robert, Sep 4 2026) ─────────────────────────
-        // Rule: the online database is only pushed from DIRECT user actions.
-        // A queued replay can arrive MINUTES after capture — by then another
-        // device may have completed/failed/cancelled the stop. Only a mutation
-        // explicitly marked _userInitiated (Complete/Fail/Cancel/Restart/batch
-        // staging) may flip a terminal status. Unmarked replays are treated as
-        // indirect writes: their status/actual_delivery_time changes are
-        // stripped so a stale snapshot can never resurrect a finished stop.
-        const _mutationUserInitiated = !!(mutation._userInitiated || mutation.payload?._userInitiated);
+        // ── TERMINAL-REVERT GUARD v2 (owner directive Oct 15 2026) ─────────────
+        // Rule: a queued replay can arrive MINUTES after capture — by then the
+        // stop may have been completed/failed/cancelled (on this device or
+        // another). NO replay may flip a terminal stop back to an active
+        // status — including _userInitiated replays. The Sep 4 guard exempted
+        // user-initiated mutations, but Start/accept notes are ALSO
+        // user-initiated: a Start note queued during a rate-limit failure
+        // ({status:'in_transit', arrival_time} with NO actual_delivery_time
+        // field) replayed after the completion and reverted the stop — owner
+        // report Oct 15 (Robert stop 26 reverted 2 min after completion,
+        // Sharuk stop 12 reverted 18s after). The ONLY replay that may
+        // downgrade a terminal record is a deliberate restart, which ALWAYS
+        // carries actual_delivery_time in the payload (cleared to null by the
+        // restart writer) — that explicit field is the discriminator.
         if (
           mutation.entity === 'Delivery' &&
           typeof finalPayload?.status === 'string' &&
           !TERMINAL_STATUSES.has(finalPayload.status) &&
-          !_mutationUserInitiated
+          !('actual_delivery_time' in finalPayload)
         ) {
+          let shouldStrip = false;
           try {
             const serverRec = await Entity.get(mutation.recordId);
-            if (serverRec && TERMINAL_STATUSES.has(String(serverRec.status || ''))) {
-              console.log(`🛡️ [OfflineSync] Stripping status revert from queued update for ${mutation.recordId} — server is '${serverRec.status}', stale replay wanted '${finalPayload.status}'`);
-              const { status: _s, actual_delivery_time: _t, ...restPayload } = finalPayload;
-              finalPayload = restPayload;
+            if (serverRec && TERMINAL_STATUSES.has(String(serverRec.status || ''))) shouldStrip = true;
+          } catch (_) { /* server fetch failed — fall through to local IDB check */ }
+          if (!shouldStrip) {
+            try {
+              const localRec = await offlineDB.getById(offlineDB.STORES.DELIVERIES, mutation.recordId);
+              if (localRec && TERMINAL_STATUSES.has(String(localRec.status || '')) && localRec.actual_delivery_time) shouldStrip = true;
+            } catch (_) { /* local read failed — fail open on this leg */ }
+          }
+          if (shouldStrip) {
+            console.log(`🛡️ [OfflineSync] Stripping stale active-status replay for ${mutation.recordId} — stop is already finished (wanted '${finalPayload.status}')`);
+            const { status: _s, actual_delivery_time: _t, arrival_time: _a, ...restPayload } = finalPayload;
+            finalPayload = restPayload;
+            if (Object.keys(finalPayload).length === 0) {
+              // Nothing left to write — drop the mutation instead of sending a no-op.
+              await offlineDB.removePendingMutation(mutation.mutationId);
+              successCount++;
+              continue;
             }
-          } catch (_) { /* server fetch failed — proceed with the write as-is */ }
+          }
         }
 
         await Entity.update(mutation.recordId, finalPayload);

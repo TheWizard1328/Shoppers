@@ -78,6 +78,14 @@ const flushTimers = {};
 // two events because the backend does two field updates in sequence), the second
 // event often only carries the timestamp field. The merge must preserve any
 // polyline/route fields from the first event so they are not silently dropped.
+// ── TERMINAL-DOWNGRADE GUARD (owner directive Oct 15 2026) ───────────────────
+// Once a stop is finished locally (terminal status + actual_delivery_time), a
+// later WS event or stale server pull must never revert it to an active status
+// or drag back its arrival time. Only a deliberate restart may downgrade —
+// the restart writer always carries actual_delivery_time (cleared to null) in
+// the payload, so an explicit null/empty value is the restart signature.
+const TERMINAL_STATUS_SET = new Set(['completed', 'failed', 'cancelled']);
+
 const POLYLINE_PRESERVE_FIELDS = [
   'encoded_polyline', 'polyline_from_order', 'travel_dist', 'polyline_saved_at',
   'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes',
@@ -1307,6 +1315,28 @@ const subscribeToEntity = (entityName) => {
                     // lock, en_route, terminal) — drop the stamp so the ratchet doesn't
                     // fire again for this era. Staying in in_transit keeps the stamp.
                     inTransitTransitionAt.delete(data.id);
+                  }
+
+                  // ── TERMINAL-DOWNGRADE GUARD (owner directive Oct 15 2026) ──────────
+                  // Once a stop is finished locally, later websocket events or stale
+                  // server data must not revert it. Blocks an ACTIVE incoming status
+                  // over a locally-TERMINAL record unless the payload explicitly
+                  // clears actual_delivery_time (restart signature) or a bulk-edit
+                  // status lock governs the transition. Arrival time is held with it.
+                  if (
+                    existing &&
+                    TERMINAL_STATUS_SET.has(String(existing.status || '')) &&
+                    existing.actual_delivery_time &&
+                    merged.status &&
+                    !TERMINAL_STATUS_SET.has(String(merged.status))
+                  ) {
+                    const _explicitRestart =
+                      ('actual_delivery_time' in data && (data.actual_delivery_time == null || data.actual_delivery_time === '')) ||
+                      (mergeSource && 'actual_delivery_time' in mergeSource && (mergeSource.actual_delivery_time == null || mergeSource.actual_delivery_time === ''));
+                    if (!_explicitRestart && !isFieldLocked(data.id, 'status')) {
+                      merged.status = existing.status;
+                      if (existing.arrival_time) merged.arrival_time = existing.arrival_time;
+                    }
                   }
 
                   for (const field of PRESERVE_FIELDS) {
