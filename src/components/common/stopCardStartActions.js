@@ -279,6 +279,68 @@ export function useStopCardStartActions({
 
           if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) syncDeliverySquareCod(delivery.id);
 
+          // OWNER DIRECTIVE (Oct 15 2026): the restart path MUST recalculate
+          // ETAs too. After a restart the acted stop is active again as the
+          // only isNextDelivery — its ETA (and the stops after it) must chain
+          // from the MOST RECENT FINISHED stop's actual_delivery_time via the
+          // ETA calculator, not keep the stale ETA from before its completion
+          // (owner report: restarted stop kept a stale 14:39). Applies to the
+          // minimal (most-recent) path AND the full path — the optimizer may
+          // skip when nothing else changed, but the ETA chain anchor changed.
+          // Retro timing (after 21:00 / past-due) skips the window-floor clamp.
+          try {
+            const { computeCascadeEtas, parseAnchorToMinutes } = await import('../utils/etaCascadeUtil');
+            const { shouldUseRegularTiming } = await import('../utils/timeRoundingHelper');
+            const _nowRs = new Date();
+            const _todayRs = `${_nowRs.getFullYear()}-${String(_nowRs.getMonth() + 1).padStart(2, '0')}-${String(_nowRs.getDate()).padStart(2, '0')}`;
+            const _timeRs = `${String(_nowRs.getHours()).padStart(2, '0')}:${String(_nowRs.getMinutes()).padStart(2, '0')}`;
+            const _retroRs = !shouldUseRegularTiming({ deliveryDate: delivery.delivery_date, todayDateString: _todayRs, currentTimeString: _timeRs });
+            // Anchor: latest finished stop's actual_delivery_time (excluding the restarted one).
+            const _finishedRs = driverDeliveries.filter((d) =>
+              d && d.id !== delivery.id && FINISHED_STATUSES.includes(d.status) && d.actual_delivery_time);
+            let _anchorMinRs = parseAnchorToMinutes(_timeRs);
+            if (_finishedRs.length > 0) {
+              const _latest = _finishedRs.reduce((a, b) =>
+                (new Date(b.actual_delivery_time).getTime() || 0) > (new Date(a.actual_delivery_time).getTime() || 0) ? b : a);
+              const _parsed = parseAnchorToMinutes(_latest.actual_delivery_time);
+              if (_parsed != null) _anchorMinRs = _parsed;
+            }
+            // Stops to recascade: the restarted stop + the later incomplete stops
+            // (by stop_order) — earlier stops are untouched (owner rule).
+            const _actedOrderRs = Number(restartDelivery?.stop_order) || Number(delivery?.stop_order) || 0;
+            const _incompleteRs = restartedRouteDeliveries.filter((d) =>
+              d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) &&
+              (Number(d.stop_order) || 0) >= _actedOrderRs
+            ).sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+            const _restartedRec = restartedRouteDeliveries.find((d) => d?.id === delivery.id);
+            const _cascadeStops = _restartedRec ? [_restartedRec, ..._incompleteRs] : _incompleteRs;
+            const _etaUpdates = computeCascadeEtas({
+              anchorMinutes: _anchorMinRs,
+              stops: _cascadeStops,
+              skipWindowFloor: _retroRs === true,
+            });
+            if (_etaUpdates.length > 0) {
+              const { offlineDB: _rsEtaDB } = await import('../utils/offlineDatabase');
+              const _etaRecords = _cascadeStops.map((stop) => {
+                const u = _etaUpdates.find((x) => x.id === stop.id);
+                return u ? { ...stop, delivery_time_eta: u.delivery_time_eta } : stop;
+              });
+              await _rsEtaDB.bulkSave(_rsEtaDB.STORES.DELIVERIES, _etaRecords).catch(() => {});
+              for (const u of _etaUpdates) {
+                if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+                window.__localDeliveryWrites.set(u.id, Date.now() + 90 * 1000);
+              }
+              updateDeliveriesLocally?.(_etaRecords, false);
+              const { commitDeliveryUpdatesSilently, fireRouteCommitMarker } = await import('../utils/routeCommitMarker');
+              const _rsCommitted = await commitDeliveryUpdatesSilently(
+                _etaUpdates.map((u) => ({ id: u.id, data: { delivery_time_eta: u.delivery_time_eta } }))
+              );
+              await fireRouteCommitMarker(delivery.id, _rsCommitted);
+            }
+          } catch (_rsEtaErr) {
+            console.warn('⚠️ [Restart] ETA recascade failed:', _rsEtaErr?.message || _rsEtaErr);
+          }
+
           // Robert's rule (2026-09-03): restarting a stop must put the stop's
           // driver On Duty if they were Off Duty / On Break — including when an
           // admin/owner restarts the stop on the driver's behalf (targetUserId path).

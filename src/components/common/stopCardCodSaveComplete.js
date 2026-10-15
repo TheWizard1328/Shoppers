@@ -142,6 +142,44 @@ export async function performSaveAndCompleteCOD({
 
     if (incompleteDeliveries.length > 0) {
       await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
+
+      // OWNER DIRECTIVE (Oct 15 2026): Save & Complete must recalculate the
+      // incomplete stops' ETAs via the ETA calculator — same rule as the main
+      // Complete path. Previously this COD path never cascaded ETAs at all, so
+      // the next stop kept a STALE ETA from the original route planning (owner
+      // report: finished stop 15:27 but the isNextDelivery stop still showed a
+      // stale 14:39). Anchor = this completion's actual time (backdated for
+      // retro); retro skips the window-floor clamp. ONE silent bulk commit +
+      // route_commit marker — no per-stop writes.
+      try {
+        const { computeCascadeEtas, parseAnchorToMinutes } = await import('../utils/etaCascadeUtil');
+        const _anchorMin = parseAnchorToMinutes(completionActualTime);
+        const _etaUpdates = computeCascadeEtas({
+          anchorMinutes: _anchorMin,
+          stops: incompleteDeliveries,
+          skipWindowFloor: useRetroactiveTiming === true,
+        });
+        if (_etaUpdates.length > 0) {
+          const { offlineDB: _codEtaDB } = await import('../utils/offlineDatabase');
+          const _etaRecords = incompleteDeliveries.map((stop) => {
+            const u = _etaUpdates.find((x) => x.id === stop.id);
+            return u ? { ...stop, delivery_time_eta: u.delivery_time_eta } : stop;
+          });
+          await _codEtaDB.bulkSave(_codEtaDB.STORES.DELIVERIES, _etaRecords).catch(() => {});
+          for (const u of _etaUpdates) {
+            if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+            window.__localDeliveryWrites.set(u.id, Date.now() + 90 * 1000);
+          }
+          updateDeliveriesLocally?.(_etaRecords, false);
+          const { commitDeliveryUpdatesSilently, fireRouteCommitMarker } = await import('../utils/routeCommitMarker');
+          const _committed = await commitDeliveryUpdatesSilently(
+            _etaUpdates.map((u) => ({ id: u.id, data: { delivery_time_eta: u.delivery_time_eta } }))
+          );
+          await fireRouteCommitMarker(delivery.id, _committed);
+        }
+      } catch (etaErr) {
+        console.warn('⚠️ [Save&Complete] ETA cascade failed:', etaErr?.message || etaErr);
+      }
       window._suppressAutoCenterUntil = Date.now() + 1500;
       setTimeout(() => {
         const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
