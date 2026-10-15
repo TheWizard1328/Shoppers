@@ -311,10 +311,17 @@ const flushCompletionJob = async (entry) => {
           // even if this WS event arrives before the completion status event.
           for (const d of result.changedDeliveries) {
             const update = {};
-            if (d.stop_order != null) update.stop_order = d.stop_order;
-            if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
-            if (d.first_leg_origin_lat != null) update.first_leg_origin_lat = d.first_leg_origin_lat;
-            if (d.first_leg_origin_lng != null) update.first_leg_origin_lng = d.first_leg_origin_lng;
+            // OWNER DIRECTIVE (Oct 14 2026): send ONLY genuinely changed fields.
+            // Previously stop_order was copied into EVERY write (identical value or
+            // spurious "repair"), so one completion fired per-stop PUTs carrying
+            // stop_order for many stops that never changed — dozens of rate-limit
+            // errors on retro completions (owner report). changedFields is the
+            // authoritative change list from computeNextDeliveryState.
+            const _cf = new Set(d.__changedFields || []);
+            if (_cf.has('stop_order') && d.stop_order != null) update.stop_order = d.stop_order;
+            if (_cf.has('isNextDelivery') && d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+            if (_cf.has('first_leg_origin_lat') && d.first_leg_origin_lat != null) update.first_leg_origin_lat = d.first_leg_origin_lat;
+            if (_cf.has('first_leg_origin_lng') && d.first_leg_origin_lng != null) update.first_leg_origin_lng = d.first_leg_origin_lng;
             // STALE-REVERT GUARD: status/actual_delivery_time only for the
             // directly-acted record. Ordering/flag writes never carry status
             // for other stops — a stale IDB copy of another device's completed

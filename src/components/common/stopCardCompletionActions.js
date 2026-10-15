@@ -801,12 +801,19 @@ export function useStopCardCompletionActions({
         };
 
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
-        // Always recalculate ETAs when using retro timing — the stored ETAs were based on
-        // current time at the time they were set, which is wrong for past-day completions.
+        // OWNER DIRECTIVE (Oct 14 2026): retro ETA recalculation is PAST-DUE ONLY.
+        // Previously EVERY retro completion (incl. same-day after 21:00) recascaded
+        // ETAs for ALL remaining stops from the BACKDATED completion time — on a
+        // live same-day route that stamped past-time ETAs on every remaining card
+        // and triggered a storm of writes. Same-day-after-21:00 completions now
+        // follow the REGULAR staleness rule with the REAL clock; only a genuinely
+        // past-due route (whole route being closed out retroactively) recascades
+        // ETAs from the backdated base.
+        const _isPastDueRetro = useRetroactiveTiming && delivery?.delivery_date < _liveTodayStr;
         const _remainingCount = sameRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
-        const shouldRecalculateCompletionEtas = useRetroactiveTiming
+        const shouldRecalculateCompletionEtas = _isPastDueRetro
           ? _remainingCount > 0
-          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionActualTime));
+          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString));
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -874,7 +881,9 @@ export function useStopCardCompletionActions({
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateCompletionEtas,
           skipCollapseCard: false,
-          etaBaseTime: useRetroactiveTiming ? completionActualTime : null,
+          // ETA anchor: backdated time ONLY for past-due routes; same-day retro
+          // (and regular) anchor to the REAL completion clock, never the backdate.
+          etaBaseTime: _isPastDueRetro ? completionActualTime : localTimeString,
           freshDeliveriesOverride: ispFreshDeliveriesOverride,
         });
         // ────────────────────────────────────────────────────────────────────
@@ -1119,9 +1128,13 @@ export function useStopCardCompletionActions({
 
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
         const _failRemainingCount = allRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
-        const shouldRecalculateFailureEtas = useRetroactiveTiming
+        // OWNER DIRECTIVE (Oct 14 2026): retro ETA recalculation is PAST-DUE ONLY
+        // (same rule as the Complete path) — same-day retro failures follow the
+        // regular staleness rule with the REAL clock.
+        const _failIsPastDueRetro = useRetroactiveTiming && delivery?.delivery_date < _liveTodayStr;
+        const shouldRecalculateFailureEtas = _failIsPastDueRetro
           ? _failRemainingCount > 0
-          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, failActualTime));
+          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString));
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -1138,7 +1151,7 @@ export function useStopCardCompletionActions({
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateFailureEtas,
           skipCollapseCard: false,
-          etaBaseTime: useRetroactiveTiming ? failActualTime : null,
+          etaBaseTime: _failIsPastDueRetro ? failActualTime : localTimeString,
         });
         // ────────────────────────────────────────────────────────────────────
 

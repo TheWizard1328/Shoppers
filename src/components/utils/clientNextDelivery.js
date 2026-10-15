@@ -153,13 +153,18 @@ export function computeNextDeliveryState({
   patientLookup = null,
   storeLookup = null,
 }) {
-  const repairs = buildStopOrderRepairs(deliveries);
-  const repairMap = new Map(repairs.map((r) => [r.id, r.stop_order]));
-
-  const repairedDeliveries = (deliveries || []).map((d) => ({
-    ...d,
-    stop_order: repairMap.has(d.id) ? repairMap.get(d.id) : d.stop_order,
-  }));
+  // OWNER DIRECTIVE (Oct 14 2026): NO stop_order renumbering on completion.
+  // The old repair pass re-derived a 1..N order (finished-first-by-completion-
+  // time, then ETA) and rewrote stop_order on every stop whose stored value did
+  // not match that convention — even when the route's order was perfectly valid
+  // as sequenced by the route engine. On retro completions the ETA cascade made
+  // the ETA sort order diverge, so a SINGLE completion re-stamped stop_order on
+  // many unrelated stops (owner report: dozens of rate limits), and per the
+  // Oct 13 polyline rule every stop_order change forces a full route polyline
+  // regeneration. stop_order is owned by the route engine / stopOrderManager /
+  // manual reorder paths; completion only manages isNextDelivery + origin
+  // stamps here.
+  const repairedDeliveries = deliveries || [];
 
   const activeDeliveries = getSortedActiveDeliveries(repairedDeliveries);
 
@@ -180,21 +185,26 @@ export function computeNextDeliveryState({
     const isNext = Boolean(nextDelivery && delivery.id === nextDelivery.id);
     const wasNext = Boolean(delivery.isNextDelivery);
 
-    const stopOrderChanged = repairMap.has(delivery.id);
     const isNextChanged = isNext !== wasNext;
     const needsOriginStamp = isNext && lastFinishedOrigin &&
       (delivery.first_leg_origin_lat !== lastFinishedOrigin.lat ||
        delivery.first_leg_origin_lng !== lastFinishedOrigin.lng);
 
-    if (!stopOrderChanged && !isNextChanged && !needsOriginStamp) {
+    if (!isNextChanged && !needsOriginStamp) {
       return delivery;
     }
 
     const update = { ...delivery, isNextDelivery: isNext };
+    const changedFields = [];
+    if (isNextChanged) changedFields.push('isNextDelivery');
     if (needsOriginStamp) {
       update.first_leg_origin_lat = lastFinishedOrigin.lat;
       update.first_leg_origin_lng = lastFinishedOrigin.lng;
+      changedFields.push('first_leg_origin_lat', 'first_leg_origin_lng');
     }
+    // Non-enumerable so IDB bulkSave / spreads never persist it; the writer
+    // uses it to send ONLY genuinely changed fields to the server.
+    Object.defineProperty(update, '__changedFields', { value: changedFields, enumerable: false });
 
     changedDeliveries.push(update);
     return update;
@@ -203,7 +213,7 @@ export function computeNextDeliveryState({
   return {
     updatedDeliveries,
     nextDeliveryId: nextDelivery?.id || null,
-    repairsCount: repairs.length,
+    repairsCount: 0,
     changedDeliveries,
   };
 }
