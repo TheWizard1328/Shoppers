@@ -32,6 +32,7 @@ export async function handleQuickReorder(reorderUpdates, selectedDate, currentUs
     driverId: currentUser.id,
     deliveryDate,
     preserveExistingOrder: true,
+    forceRegenerate: true, // OWNER REQUEST (Oct 15 2026): regenerate ALL remaining stops' polylines even when order unchanged
     bypassDriverStatus: true,
     deliveries: _scoped,
     source: 'quick_reorder',

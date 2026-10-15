@@ -280,6 +280,7 @@ async function _performRouteOptimizationInner({
         clearNextDeliveryLock,
         source,
         preserveExistingOrder,
+        forceRegenerate,
         cyclingSegmentOnly,
         cyclingOrigin,
         cyclingDestination,

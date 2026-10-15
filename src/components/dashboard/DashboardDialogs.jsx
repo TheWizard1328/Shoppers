@@ -240,10 +240,15 @@ export default function DashboardDialogs({
                 const now = new Date();
                 const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
-                await performRouteOptimization({
+                // OWNER REQUEST (Oct 15 2026): the Regenerate/Reoptimize button must
+                // regenerate polylines for ALL remaining stops even when NO stop
+                // changed order — forceRegenerate bypasses every order-unchanged /
+                // leg-reuse skip in the engine and generator.
+                const coordResult = await performRouteOptimization({
                   driverId: targetDriverId,
                   deliveryDate,
                   preserveExistingOrder: true,
+                  forceRegenerate: true,
                   bypassDriverStatus: true,
                   // OWNER RULE (Oct 13 2026): use the optimistic post-drag
                   // local list — a backend fetch can race the stop_order writes
@@ -252,10 +257,18 @@ export default function DashboardDialogs({
                   source: 'admin_reset_polylines',
                 }).catch(() => null);
 
-                // Wait for backend to finish writing polylines before fetching fresh data
-                await new Promise(resolve => setTimeout(resolve, 1500));
-
-                const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: targetDriverId, delivery_date: deliveryDate });
+                // OWNER FIX (Oct 15 2026): use the coordinator's freshDeliveries
+                // (IDB-written, carrying the regenerated polylines) for the UI —
+                // the old 1.5s sleep + blind server fetch raced the silent bulk
+                // commit and, on a rate-limited pool, re-painted STALE server
+                // polylines over the just-regenerated legs.
+                let freshDeliveries = (coordResult && Array.isArray(coordResult.freshDeliveries) && coordResult.freshDeliveries.length > 0)
+                  ? coordResult.freshDeliveries
+                  : null;
+                if (!freshDeliveries) {
+                  await new Promise(resolve => setTimeout(resolve, 1500));
+                  freshDeliveries = await base44.entities.Delivery.filter({ driver_id: targetDriverId, delivery_date: deliveryDate });
+                }
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder', freshDeliveries, fullReplacement: true } }));
               } catch (err) {
                 console.warn('[QuickReorder] Reorder failed:', err?.message);

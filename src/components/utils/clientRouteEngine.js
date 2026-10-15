@@ -312,6 +312,10 @@ export async function optimizeRouteClientSide({
   currentLocation = null,
   source = 'client_engine',
   preserveExistingOrder = false,
+  forceRegenerate = false,    // OWNER REQUEST (Oct 15 2026): Quick Route Adjustments
+                              // Regenerate — ALL remaining stops must get fresh polylines
+                              // even when no stop changed order. Bypasses every
+                              // order-unchanged / leg-reuse skip downstream.
   cyclingSegmentOnly = false,
   cyclingOrigin = null,
   cyclingDestination = null,
@@ -1075,7 +1079,8 @@ let _inheritedWindowCount = 0;
     .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
     .map(d => String(d.id));
   const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
-  const orderUnchangedForPolylines = !preserveExistingOrder
+  const orderUnchangedForPolylines = !forceRegenerate
+    && !preserveExistingOrder
     && !cyclingSegmentOnly && !drivingSegmentOnly
     && _preOptOrderIds.length === _optimizedOrderIds.length
     && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
@@ -1203,6 +1208,7 @@ let _inheritedWindowCount = 0;
 
     segmentPolylineByDeliveryId = await generateRoutePolylines({
       orderUnchanged: orderUnchangedForPolylines,
+      forceRegenerate,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
       originPoint: polylineOrigin,
       cyclingSegmentOnly,

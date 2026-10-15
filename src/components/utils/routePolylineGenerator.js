@@ -281,6 +281,10 @@ export async function generateRoutePolylines({
                               // right after the origin (first mode group only). Current-leg
                               // polyline bends through the driver's position; the first
                               // stop's ETA/distance metrics use the GPS→stop leg only.
+  forceRegenerate = false,   // OWNER REQUEST (Oct 15 2026): the Quick Route Adjustments
+                              // Regenerate button demands ALL remaining stops get fresh
+                              // polylines even when no stop changed order. When true, the
+                              // order-unchanged leg-reuse block below never runs.
   orderUnchanged = false,    // OWNER REQUEST (Oct 5 2026): the optimizer produced the
                               // SAME stop order as the deliveries' existing stop_order.
                               // The legs are identical geometry, so polyline generation
@@ -358,7 +362,10 @@ export async function generateRoutePolylines({
   //     renumber jumps a stop to the front, shifting adjacency) → FULL
   //     regeneration (owner report, Oct 7 2026).
   let polyTargets = stopsToPolyline;
-  if (orderUnchanged && polyTargets.length > 0) {
+  if (forceRegenerate && polyTargets.length > 0) {
+    console.log(`[routePolylineGenerator] ${source} — FORCE REGENERATE (${polyTargets.length} leg(s)) — full generation, leg-reuse skips bypassed`);
+  }
+  if (!forceRegenerate && orderUnchanged && polyTargets.length > 0) {
     const allLegsPresent = polyTargets.every(s =>
       typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10
     );
