@@ -1,3 +1,4 @@
+import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
@@ -248,30 +249,6 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
 
 // ─── ETA calculation ─────────────────────────────────────────────────────────
 
-const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5, preferLeg = false, winterPadFactor = null, legMode = 'driving' }) => {
-  if (typeof segmentPolyline?.estimatedDurationMinutes === 'number' && segmentPolyline.estimatedDurationMinutes > 0)
-    return Math.ceil(segmentPolyline.estimatedDurationMinutes);
-  // OWNER REQUEST (Oct 5 2026): when polyline generation was SKIPPED because the
-  // optimizer kept the existing stop order, there is no fresh segmentPolyline —
-  // ETAs must still update. Prefer the FRESH findsequence2 leg duration over the
-  // stored (possibly hours-old) estimated_duration_minutes, with the same winter
-  // pad the generator applies to fresh durations (cycling excluded).
-  if (preferLeg) {
-    const _legSeconds = Number(leg?.duration || 0);
-    if (_legSeconds > 0) {
-      let _minutes = Math.ceil(_legSeconds / 60);
-      if (winterPadFactor && Number(winterPadFactor) > 0 && String(legMode).toLowerCase() !== 'cycling') {
-        _minutes = Math.ceil(_minutes * Number(winterPadFactor));
-      }
-      return _minutes;
-    }
-  }
-  if (typeof stop?.delivery?.estimated_duration_minutes === 'number' && stop.delivery.estimated_duration_minutes > 0)
-    return Math.ceil(stop.delivery.estimated_duration_minutes);
-  const travelSeconds = Number(leg?.duration || 0);
-  if (travelSeconds > 0) return Math.ceil(travelSeconds / 60);
-  return fallbackMinutes;
-};
 
 // ─── Main engine: optimizeRouteClientSide ────────────────────────────────────
 
@@ -1249,7 +1226,10 @@ let _inheritedWindowCount = 0;
     for (let i = 1; i < routeStops.length; i++) {
       const stop = routeStops[i];
       const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-      cumulativeTime += getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
+      const _prev = routeStops[i - 1];
+      const _nearPrev = Number.isFinite(_prev?.lat) && Number.isFinite(stop?.lat)
+        && calculateCrowFliesDistance(_prev.lat, _prev.lng, stop.lat, stop.lng) < 0.05;
+      cumulativeTime += getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, nearPreviousStop: _nearPrev });
       const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
       stageEtaMap.set(stop.delivery.id, formatMinutesToTime(cumulativeTime));
@@ -1267,9 +1247,12 @@ let _inheritedWindowCount = 0;
       const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
       // Cycling markers: only add travel time if we have a polyline segment, otherwise treat as zero-travel anchor
       const _legMode = String(stop.delivery?.transport_mode || effectiveTravelMode || 'driving').toLowerCase();
+      const _prev = i > 0 ? routeStops[i - 1] : null;
+      const _nearPrev = _prev && Number.isFinite(_prev.lat) && Number.isFinite(stop.lat)
+        && calculateCrowFliesDistance(_prev.lat, _prev.lng, stop.lat, stop.lng) < 0.05;
       const travelMinutes = stop.delivery.is_cycling_marker && !seg
         ? 0
-        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, preferLeg: _etaPreferLeg, winterPadFactor: _etaWinterPadFactor, legMode: _legMode });
+        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, preferLeg: _etaPreferLeg, winterPadFactor: _etaWinterPadFactor, legMode: _legMode, nearPreviousStop: _nearPrev });
       cumulativeTime += travelMinutes;
       const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
@@ -1388,6 +1371,20 @@ let _inheritedWindowCount = 0;
     return formatMinutesToTime(baseMinutes + 5);
   };
 
+  // OWNER FIX (Oct 15 2026): consecutive stops at (nearly) the same coordinates
+  // must not keep a STALE stored estimated_duration_minutes from an old route
+  // position when their polyline segment failed to regenerate (HERE 429/timeouts).
+  // The ETA ladder caps their travel; persist that cap so later completion
+  // cascades (which chain from the stored estimate) stay correct too.
+  const sameCoordsAdjacentIds = new Set();
+  for (let i = 1; i < routeStops.length; i++) {
+    const a = routeStops[i - 1], b = routeStops[i];
+    if (a && b && Number.isFinite(a.lat) && Number.isFinite(b.lat)
+      && calculateCrowFliesDistance(a.lat, a.lng, b.lat, b.lng) < 0.05) {
+      sameCoordsAdjacentIds.add(b.delivery.id);
+    }
+  }
+
   // Assign stop_order sequentially based on position in the final ordered array.
   // Every stop (including cycling markers) gets a clean sequential number.
   const computedStopOrders = activeStops.map((stop, i) => {
@@ -1439,6 +1436,8 @@ let _inheritedWindowCount = 0;
       travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
         ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) : null),
       ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
+      ...(!isPending && logicalDurationMinutes == null && sameCoordsAdjacentIds.has(stop.id)
+        ? { estimated_duration_minutes: SAME_ADDRESS_TRAVEL_MINUTES, estimated_distance_km: 0 } : {}),
       ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
       // OWNER RULE (Oct 13 2026): stamp the stop_order this leg was generated
       // under, written atomically with encoded_polyline. The generator's skip
