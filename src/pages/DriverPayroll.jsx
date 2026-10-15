@@ -370,6 +370,13 @@ export default function DriverPayroll() {
       if (isDriverRole && !appUser.ETrans_Email) {
         setShowETransEmailDialog(true);
       }
+      // Oct 15: last-resort city repair — if init could not resolve a city from
+      // the merged user or the offline DB, use the fresh AppUser record so the
+      // payroll page can load (all current users are Edmonton-based).
+      const appCity = appUser.city_id || (Array.isArray(appUser.city_ids) && appUser.city_ids[0]);
+      if (appCity) {
+        setSelectedCityId((prev) => (prev && prev !== 'all' ? prev : appCity));
+      }
     }).catch(() => {});
   }, [currentUser?.id]);
   const isPayrollPageActive = typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('driverpayroll');
@@ -1032,8 +1039,42 @@ export default function DriverPayroll() {
     }
   }, [getPayrollPageCacheKey]);
 
+  // Oct 15 owner spec step 3: after the server-side sync, persist the selected
+  // year's Payroll records into the offline DB one cycle (pay period) at a time.
+  // Scoped to the selected year only — older years are never touched.
+  const persistPayrollCyclesToIdb = useCallback(async (year, payrollRecords) => {
+    if (!year || !Array.isArray(payrollRecords) || payrollRecords.length === 0) return;
+    const yearNum = parseInt(year, 10);
+    const scoped = payrollRecords.filter((r) => {
+      const startY = r?.pay_period_start ? parseInt(String(r.pay_period_start).slice(0, 4), 10) : null;
+      return startY === yearNum;
+    });
+    const cycles = new Map();
+    scoped.forEach((r) => {
+      const key = `${r.pay_period_start}_${r.pay_period_end}`;
+      if (!cycles.has(key)) cycles.set(key, []);
+      cycles.get(key).push(r);
+    });
+    let saved = 0;
+    for (const [key, recs] of cycles) {
+      try {
+        await offlineDB.bulkSave(offlineDB.STORES.PAYROLL, recs);
+        saved += recs.length;
+        console.log(`💾 [DriverPayroll] IDB payroll cycle saved ${key}: ${recs.length} records`);
+      } catch (e) {
+        console.warn(`⚠️ [DriverPayroll] IDB payroll cycle save failed ${key}:`, e?.message || e);
+      }
+    }
+    if (saved > 0) console.log(`💾 [DriverPayroll] IDB payroll sync complete: ${saved}/${scoped.length} records across ${cycles.size} cycle(s) for ${yearNum}`);
+  }, []);
+
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false, refreshMonths = 0 } = {}) => {
-    if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
+    if (!currentUser || !isPayrollPageActive || !selectedCityId) {
+      // Oct 15: this guard silently killed the page for users whose city never
+      // resolved — ship the reason so the deadlock is visible in remote logs.
+      console.warn(`⚠️ [DriverPayroll] fetchPayroll blocked — user=${!!currentUser} pageActive=${isPayrollPageActive} city=${selectedCityId || 'NONE'}`);
+      return;
+    }
 
     const cacheKey = `${selectedYear}-${selectedCityId}`;
     const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}-${bypassSummary}-${refreshMonths}`;
@@ -1095,6 +1136,10 @@ export default function DriverPayroll() {
         setPayrollData(data);
         setPayrollRecords(data?.payrollRecords || []);
         setLoadedFromOffline(false);
+        // Oct 15 owner spec: server sync first (current cycle up to date online),
+        // then sync online→offline for the SELECTED YEAR only, one payroll cycle
+        // at a time, so the offline DB holds the current cycle for this city.
+        persistPayrollCyclesToIdb(selectedYear, data?.payrollRecords).catch(() => {});
         saveOfflinePayroll(selectedYear, selectedCityId, data);
         return data;
       } catch (error) {
@@ -1203,7 +1248,33 @@ export default function DriverPayroll() {
     if (!currentUser || hasInitialized || !isPayrollPageActive) return;
 
     const initFromOfflineData = async () => {
-      const defaultCityId = currentUser?.city_id || '';
+      // Oct 15: city resolution ladder — merged-user city_id, then city_ids[0],
+      // then the OWN AppUser record from the offline DB. A missing city used to
+      // deadlock the whole page (no fetch, no city prompt, no data).
+      let defaultCityId = currentUser?.city_id ||
+        (Array.isArray(currentUser?.city_ids) && currentUser.city_ids[0]) || '';
+
+      // Step 1: Read AppUsers from offline DB to determine pay cycle
+      // (hoisted above city selection so the AppUser city fallback is available)
+      let determinedPayCycle = 'monthly'; // fallback
+      let offlineAppUsers = [];
+      try {
+        // 5s guard: a stalled IDB transaction must not hang init forever
+        // (hasInitialized would never set and the page would never fetch).
+        offlineAppUsers = await Promise.race([
+          offlineDB.getAll(offlineDB.STORES.APP_USERS),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('offlineDB getAll APP_USERS timed out')), 5000))
+        ]) || [];
+      } catch (e) {
+        console.warn('⚠️ [DriverPayroll] Could not read offline AppUsers for pay cycle:', e);
+      }
+      if (!defaultCityId) {
+        const myAppUser = (offlineAppUsers || []).find((au) => au.user_id === currentUser.id);
+        defaultCityId = myAppUser?.city_id ||
+          (Array.isArray(myAppUser?.city_ids) && myAppUser.city_ids[0]) || '';
+        if (defaultCityId) console.log(`📍 [DriverPayroll] City resolved from offline AppUser: ${defaultCityId}`);
+      }
+
       setSelectedCityId(defaultCityId && defaultCityId !== 'all' ? defaultCityId : '');
 
       if (isDriver) {
@@ -1212,10 +1283,7 @@ export default function DriverPayroll() {
         setSelectedDriverId('all');
       }
 
-      // Step 1: Read AppUsers from offline DB to determine pay cycle
-      let determinedPayCycle = 'monthly'; // fallback
       try {
-        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
         const activeDrivers = (offlineAppUsers || []).filter((au) => au.app_roles?.includes('driver'));
 
         if (isDriver) {
@@ -1269,7 +1337,12 @@ export default function DriverPayroll() {
 
       // Step 3: Read offline Payroll records and prefer previous period only when the whole cycle is still not admin finalized
       try {
-        const offlinePayrolls = (await offlineDB.getAll('payroll_records')) || [];
+        // Oct 15 fix: the store is 'payroll' (offlineDB.STORES.PAYROLL) — the old
+        // 'payroll_records' name threw "object store was not found" on EVERY device.
+        const offlinePayrolls = await Promise.race([
+          offlineDB.getAll(offlineDB.STORES.PAYROLL),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('offlineDB getAll PAYROLL timed out')), 5000))
+        ]).catch(() => []) || [];
         determinedPeriodIndex = determinePreferredPayrollPeriodIndex({
           periods,
           payrollRecords: offlinePayrolls,
