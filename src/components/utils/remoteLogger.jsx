@@ -74,6 +74,22 @@ const RATE_LIMIT_NOISE_RX = /rate limit exceeded|\b429\b|\[RequestQueue\] Rate-l
 let lastRateLimitNoiseSentAt = 0;
 const RATE_LIMIT_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
+// GPS / diagnostic traffic noise (owner spec Oct 14 2026): per-tick [LOC] log
+// lines embed FRESH COORDINATES and per-check deviation lines embed changing
+// distances — unique text defeats the fingerprint dedup (5/60s per EXACT
+// message), so every one shipped as its own RemoteLogEntry API write. Driver
+// phones were burning several API writes/min on success chatter alone
+// ([LOC] UPLOAD-SUCCESS rides every 15s GPS tick; [RouteDeviation] ok/gate
+// lines ride every 10s deviation check; breadcrumb jump/gap warns ride every
+// GPS outage). These stay LOCAL (console/sniffer unchanged) and ship remotely
+// at most once per 5 min per device (storm heartbeat). REAL events are NOT
+// matched and still ship immediately: [LOC] UPLOAD-FAILED,
+// [RouteDeviation] regen / regen_failed / regen failed / regen lock / current-leg
+// regen lines.
+const GPS_NOISE_RX = /\[LOC\] UPLOAD-SUCCESS|\[LOC\] DISPATCHER-HEARTBEAT|\[LOC\] SKIP-NON-PRIMARY|\[RouteDeviation\] (ok |gate:)|\[Breadcrumbs\] Large GPS jump|\[Breadcrumb Gap\]/;
+let lastGpsNoiseSentAt = 0;
+const GPS_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
 const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
 const FINGERPRINT_MAX_PER_WINDOW = 5;
 const FINGERPRINT_WINDOW_MS = 60000;
@@ -229,6 +245,11 @@ const enqueue = async (level, args, extra = {}) => {
     const _noiseNow = Date.now();
     if (_noiseNow - lastRateLimitNoiseSentAt < RATE_LIMIT_NOISE_MIN_INTERVAL_MS) return;
     lastRateLimitNoiseSentAt = _noiseNow; // this one ships as the device's storm heartbeat
+  }
+  if (GPS_NOISE_RX.test(message)) {
+    const _gpsNoiseNow = Date.now();
+    if (_gpsNoiseNow - lastGpsNoiseSentAt < GPS_NOISE_MIN_INTERVAL_MS) return;
+    lastGpsNoiseSentAt = _gpsNoiseNow; // this one ships as the device's traffic heartbeat
   }
   if (shouldSkipDuplicateLog(level, message)) return;
 
