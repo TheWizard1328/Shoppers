@@ -464,11 +464,32 @@ export const seedHomeAnchorOnDuty = async ({
 export const flushPendingBreadcrumbMasters = async () => {
   const { offlineDB } = await import('./offlineDatabase');
   const records = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS).catch(() => []);
-  const pending = (records || []).filter((record) =>
+  // OWNER DIRECTIVE (Oct 15 2026): the flush exists to catch the LIVE master
+  // trail records (written seconds/minutes ago) whose server sync failed — it
+  // was iterating EVERY record with an uncleared _pending_server_sync flag,
+  // including months-old slices from June routes where the flag write never
+  // completed, re-syncing them (2 API calls each: find + update/create) on
+  // EVERY sync cycle after every boot/restart. On the owner's Editor that was
+  // dozens of DeliveryBreadcrumbs GETs per flush — the delayed post-restart
+  // 429 flood (one per historical date/stop_order). Gate to the last 2 days
+  // and CLEAR the flag on anything older so stale records are never retried.
+  const _cutoffMs = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const _isRecent = (record) => {
+    try { return new Date(`${record.delivery_date}T12:00:00Z`).getTime() >= _cutoffMs; } catch (_) { return false; }
+  };
+  const _allFlagged = (records || []).filter((record) =>
     record?._pending_server_sync !== false &&
     record?.driver_id && record?.delivery_date && record?.encoded_polyline && record?.timestamps
   );
-  if (!pending.length) return { flushed: 0 };
+  // Stale flagged records: clear the flag once (IDB only, no server calls).
+  const _stale = _allFlagged.filter((r) => !_isRecent(r));
+  if (_stale.length > 0) {
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS,
+      _stale.map((r) => ({ ...r, _pending_server_sync: false }))).catch(() => {});
+  }
+  // Cap the per-cycle burst: the live trail only needs the newest handful.
+  const pending = _allFlagged.filter((r) => _isRecent(r)).slice(-30);
+  if (!pending.length) return { flushed: 0, staleCleared: _stale.length };
 
   const releaseLock = await acquireBreadcrumbSyncLock();
   let flushed = 0;
