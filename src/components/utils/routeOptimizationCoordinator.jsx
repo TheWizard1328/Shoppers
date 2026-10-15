@@ -416,9 +416,46 @@ async function _performRouteOptimizationInner({
             if (_failCount > 0) console.warn(`[RouteOptimization] ${source} — fallback commit: ${_okCount} ok, ${_failCount} failed`);
             return { okCount: _okCount, failCount: _failCount };
           };
-          optimizationServerCommit = base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch })
-            .then(() => true)
+          // OWNER DIRECTIVE (Oct 15 2026): ALL optimization commits are SILENT
+          // (single-broadcast pattern, Oct 13): ONE bulkUpdateDeliveries
+          // {silent:true} (service-role, ZERO WS events) + ONE user-scoped
+          // route_commit_at marker write on a route record — previously the
+          // manual reoptimization broadcast one WS update event PER STOP to
+          // every subscribed device, and each observer then re-checked square
+          // relevance / refresh logic per event. After a successful silent
+          // commit, fire the marker so remote devices fetch the route once.
+          optimizationServerCommit = base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch, silent: true })
+            .then(async () => {
+              try {
+                const { fireRouteCommitMarker } = await import('./routeCommitMarker');
+                const _markerId = (optimizeData.writeBatch.find((w) => w?.data?.isNextDelivery === true) || optimizeData.writeBatch[0])?.id || null;
+                if (_markerId) await fireRouteCommitMarker(_markerId, optimizeData.writeBatch.length);
+              } catch (_) {}
+              return true;
+            })
             .catch(async (e) => {
+              // OWNER DIRECTIVE (Oct 15 2026): a RATE-LIMIT failure must NOT
+              // fan out into dozens of individual per-stop writes — that
+              // amplifies the storm (owner report: manual reopt flooded the
+              // console with dozens of stop_order 429s). On 429, wait 30s and
+              // retry the silent BULK once; only for non-rate-limit failures use
+              // the chunked individual fallback.
+              const _isRateLimit = /429|rate.?limit/i.test(String(e?.message || e || ''));
+              if (_isRateLimit) {
+                await new Promise((res) => setTimeout(res, 30000));
+                try {
+                  await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch, silent: true });
+                  try {
+                    const { fireRouteCommitMarker } = await import('./routeCommitMarker');
+                    const _markerId = (optimizeData.writeBatch.find((w) => w?.data?.isNextDelivery === true) || optimizeData.writeBatch[0])?.id || null;
+                    if (_markerId) await fireRouteCommitMarker(_markerId, optimizeData.writeBatch.length);
+                  } catch (_) {}
+                  return true;
+                } catch (e2) {
+                  console.warn(`[RouteOptimization] ${source} — silent bulk commit still rate-limited after 30s retry; server will converge on next sync/heal`, e2?.message || e2);
+                  return false;
+                }
+              }
               const fallback = await _commitFallback(e);
               return fallback.failCount === 0 && fallback.okCount === optimizeData.writeBatch.length;
             });
