@@ -232,6 +232,29 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
 // for the throw case so a degraded/unreachable HERE endpoint degrades to straight
 // lines instead of producing NO polylines.
 // Returns one section per leg (points.length - 1), matching the HERE shape.
+/**
+ * OWNER FIX (Oct 15 2026): a stop whose inbound anchor sits at (nearly) the
+ * same coordinates (duplicate address — e.g. two deliveries to 223 Heagle Cres)
+ * must never RETAIN its previous route's polyline. HERE v8 omits or zero-fills
+ * the section between identical points, leaving chainSections empty/zero —
+ * and the writeBatch then keeps the stale leg (owner report: a 31km line
+ * stamped at an old stop_order survived every re-optimization). Synthesize a
+ * clean degenerate leg instead: 2-point polyline, 2-minute travel, ~0 km.
+ */
+export const SAME_ANCHOR_TRAVEL_MINUTES = 2;
+export const sameAnchorLeg = (anchorPoint, stopPoint) => {
+  const a = { lat: Number(anchorPoint?.lat), lon: Number(anchorPoint?.lon) };
+  const b = { lat: Number(stopPoint?.lat), lon: Number(stopPoint?.lon) };
+  if (![a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) return null;
+  const km = haversineKm(a.lat, a.lon, b.lat, b.lon);
+  if (!(km < 0.05)) return null;
+  return {
+    encoded: encodeGooglePolyline([[a.lat, a.lon], [b.lat, b.lon]]),
+    durationMinutes: SAME_ANCHOR_TRAVEL_MINUTES,
+    distanceKm: Number(km.toFixed(3)),
+  };
+};
+
 export function crowFliesSections(points, transportMode) {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return [];
@@ -541,6 +564,17 @@ export async function generateRoutePolylines({
         // so the leg's ETA/distance reflect the true path through the vias.
         metricDuration = metricSections.reduce((s, sec) => s + (Number(sec?.estimated_duration_minutes) || 0), 0);
         metricDistance = Number(metricSections.reduce((s, sec) => s + (Number(sec?.estimated_distance_km) || 0), 0).toFixed(3));
+      }
+
+      // Duplicate-coordinate leg (owner fix, Oct 15 2026): synthesize a clean
+      // degenerate leg when this stop sits at (nearly) the same point as its
+      // inbound anchor — HERE's zero/missing section would otherwise leave the
+      // STALE previous-route polyline attached to this stop.
+      const _sameLeg = sameAnchorLeg(points[stopIdx - 1], points[stopIdx]);
+      if (_sameLeg) {
+        encoded = _sameLeg.encoded;
+        metricDuration = _sameLeg.durationMinutes;
+        metricDistance = _sameLeg.distanceKm;
       }
 
       const _winterDurationMinutes = _winterPad(metricDuration, group.mode);
