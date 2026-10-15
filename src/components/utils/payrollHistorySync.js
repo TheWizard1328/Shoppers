@@ -7,7 +7,7 @@
 // publishes an AppSettings marker record; the WS broadcast tells every device
 // to fingerprint-compare its offline payroll store and pull just the changed
 // cycles. This keeps the account's API budget off the store PCs and phones.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from '@/components/utils/deviceManager';
@@ -151,8 +151,17 @@ export const applyPayrollHistoryMarker = async (marker, { force = false } = {}) 
 };
 
 // ── WS broadcast listener (armed once app-wide) ───────────────────────────────
+// Owner rule Oct 15: only PAYROLL members consume markers — drivers and
+// administrators. Dispatchers/store PCs are not part of payroll, so they are
+// skipped entirely (no fetch, no IDB writes).
 let markerListenerArmed = false;
-export const armPayrollHistoryMarkerListener = () => {
+export const isPayrollParticipant = (user) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true; // owner (platform admin)
+  const roles = Array.isArray(user?.app_roles) ? user.app_roles : [];
+  return roles.includes('admin') || roles.includes('driver');
+};
+export const armPayrollHistoryMarkerListener = (getUser) => {
   if (markerListenerArmed || typeof window === 'undefined') return;
   markerListenerArmed = true;
   window.addEventListener('appSettingsUpdated', (event) => {
@@ -160,6 +169,8 @@ export const armPayrollHistoryMarkerListener = () => {
       const data = event?.detail?.data;
       const key = data?.setting_key;
       if (!key || !String(key).startsWith(PAYROLL_HISTORY_MARKER_PREFIX)) return;
+      const user = typeof getUser === 'function' ? getUser() : null;
+      if (!isPayrollParticipant(user)) return;
       const value = data?.setting_value;
       if (!value?.year) return;
       applyPayrollHistoryMarker(value).catch(() => {});
@@ -238,8 +249,11 @@ export const usePayrollHistorySync = (currentUser) => {
   const userId = currentUser?.id;
   const cityId = currentUser?.city_id || (Array.isArray(currentUser?.city_ids) && currentUser.city_ids[0]);
   useEffect(() => {
-    // Consumers are EVERY device — arm the WS listener regardless of role.
-    armPayrollHistoryMarkerListener();
+    // Consumers are drivers/admins (NOT dispatchers — they're not in payroll).
+    // A ref keeps the armed listener reading the LATEST user even after role changes.
+    const userRef = useRef(currentUser);
+    userRef.current = currentUser;
+    armPayrollHistoryMarkerListener(() => userRef.current);
     if (!userId || !cityId || !isAppOwner(currentUser)) return;
     let stopped = false;
     const first = setTimeout(() => { if (!stopped) tickHost(currentUser); }, HOST_FIRST_PASS_DELAY_MS);
