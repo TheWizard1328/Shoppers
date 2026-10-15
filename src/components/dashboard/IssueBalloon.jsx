@@ -149,7 +149,7 @@ export default function IssueBalloon({ currentUser }) {
           />
           {items.map((it) => (
             <div key={it.key} className="leading-tight">
-              <div className="flex items-center gap-1.5 max-w-[25px]">
+              <div className="flex items-center gap-1.5 max-w-[50px]">
                 <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${it.kind === 'rate_limit' ? 'bg-red-600 text-white' : 'bg-amber-500 text-black'}`}>
                   {it.kind === 'rate_limit' ? 'RATE LIMIT' : 'ERROR'}
                 </span>
