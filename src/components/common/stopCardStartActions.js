@@ -179,7 +179,35 @@ export function useStopCardStartActions({
           const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
           const isInterStoreStop = !!(restartDelivery._interstore_source_id || restartDelivery._interstore_dest_id);
           const newStatus = (isPickup && !isInterStoreStop) ? 'en_route' : 'in_transit';
-          const restartedRouteDeliveries = reorderActiveRouteLocally(driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false } : { ...item, isNextDelivery: false }), delivery.id);
+          // ── OWNER DIRECTIVE (Oct 15 2026): MINIMAL restart for the MOST RECENT
+          // finished stop (applies to regular AND retro timing). When the driver
+          // restarts the stop they just finished, the route order, legs, and
+          // remaining ETAs are all still correct — all that is needed is: clear
+          // actual_delivery_time, flip status back to in_transit/en_route, and
+          // make the restarted stop the ONLY isNextDelivery=true for the driver.
+          // No route reorder, NO optimizer run (the next_delivery_sync full
+          // optimization — server re-fetch, HERE sequencing, stop_order writeBatch,
+          // polyline regen — is what made restarts heavy), no ETA rewrites.
+          // Restarting an OLDER finished stop keeps the existing full path.
+          const _finishTimeOf = (d) => {
+            try { return d?.actual_delivery_time ? new Date(d.actual_delivery_time).getTime() : 0; } catch (_) { return 0; }
+          };
+          const _isMostRecentFinished = !driverDeliveries.some((d) =>
+            d && d.id !== delivery.id && FINISHED_STATUSES.includes(d.status) &&
+            _finishTimeOf(d) > _finishTimeOf(restartDelivery));
+          let restartedRouteDeliveries;
+          if (_isMostRecentFinished) {
+            restartedRouteDeliveries = driverDeliveries.map((item) => {
+              if (!item) return item;
+              if (item.id === delivery.id) {
+                return { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false };
+              }
+              if (item.isNextDelivery) return { ...item, isNextDelivery: false };
+              return item; // untouched — the diff writer produces zero updates for it
+            });
+          } else {
+            restartedRouteDeliveries = reorderActiveRouteLocally(driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false } : { ...item, isNextDelivery: false }), delivery.id);
+          }
           // Merge any fresh server fields into the restarted record before it
           // is persisted/broadcast (patient name, windows, polylines etc).
           if (restartDelivery !== delivery) {
@@ -257,10 +285,15 @@ export function useStopCardStartActions({
           ensureDriverOnline({ allowAdminToggleForDriver: true }).catch(() => {});
 
           let restartOptimizeData = null;
-          try {
-            const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: delivery.id, runOptimization: true });
-            restartOptimizeData = optimizationResult?.optimizeData || null;
-          } catch {}
+          // OWNER DIRECTIVE (Oct 15 2026): skip the optimizer entirely for a
+          // most-recent-finished restart — flag + status writes above are the
+          // whole action; legs, stop_order, and ETAs are already correct.
+          if (!_isMostRecentFinished) {
+            try {
+              const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: delivery.id, runOptimization: true });
+              restartOptimizeData = optimizationResult?.optimizeData || null;
+            } catch {}
+          }
 
           if (restartOptimizeData?.success && Array.isArray(restartOptimizeData.optimizedRoute) && restartOptimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: restartOptimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
