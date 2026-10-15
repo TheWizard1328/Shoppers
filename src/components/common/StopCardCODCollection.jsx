@@ -7,6 +7,7 @@ import { userHasRole } from '../utils/userRoles';
 import { invalidate } from '../utils/dataManager';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
+import { useAppData } from '../utils/AppDataContext';
 import { getPendingSquarePosLaunch, verifySquareTender, clearPendingSquarePosLaunch } from '../utils/squareTenderVerify';
 import { toast } from 'sonner';
 
@@ -32,6 +33,10 @@ export default function StopCardCODCollection({
   onClick,
   hideSaveButtonForFooterSwap = false
 }) {
+
+  // OWNER DIRECTIVE (Oct 14 2026): retro/off-duty parity — pass AppData context
+  // to the shared Save & Complete handler (retro backdating + route-finish off-duty).
+  const appDataForCod = useAppData();
   const codAmountInputRefs = useRef([]);
   const codRefreshPauseRef = useRef(false);
 
@@ -254,6 +259,9 @@ export default function StopCardCODCollection({
                 onSelectionChange,
                 onClick,
                 codRefreshPauseRef,
+                patients: appDataForCod?.patients,
+                appUsers: appDataForCod?.appUsers,
+                currentUser,
               });
             }}
             disabled={codPayments.length === 0 || isCompleting}>

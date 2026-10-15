@@ -241,6 +241,28 @@ export const calculateRetroactiveStopTiming = async ({
   // actual_delivery_time = arrival + random 1-5 min (time spent at the door)
   const randomDwellMinutes = Math.floor(Math.random() * 5) + 1;
   const actualDeliveryTime = new Date(baseTime.getTime() + randomDwellMinutes * 60000);
+
+  // OWNER DIRECTIVE (Oct 14 2026): same finishing rounding as regular time.
+  // generateCompletionTimestamp applies the 5-min first/last rounding to the
+  // ACTUAL completion time; the retro path previously rounded only the arrival
+  // base and then added an unrounded 1-5 min dwell, so a retro last stop never
+  // landed on the 5-min grid (and the off-duty anchor inherited the off-grid
+  // time). Round the post-dwell actual with the identical rules:
+  // first finished -> floor, last finished -> ceil, middle -> exact.
+  // (isFirst/isLast already computed above; reuse the same flags.)
+  if (isFirstFinished || isLastFinished) {
+    const fiveMinActual = 5 * 60 * 1000;
+    const msActual = actualDeliveryTime.getTime();
+    let roundedActualMs;
+    if (isFirstFinished) {
+      roundedActualMs = Math.floor(msActual / fiveMinActual) * fiveMinActual;
+    } else if (msActual % fiveMinActual === 0) {
+      roundedActualMs = msActual;
+    } else {
+      roundedActualMs = Math.ceil(msActual / fiveMinActual) * fiveMinActual;
+    }
+    actualDeliveryTime = new Date(roundedActualMs);
+  }
   return {
     arrival_time: formatLocalTimestamp(baseTime),
     actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),

@@ -9,7 +9,10 @@
 // (StopCardActionButtons.jsx) call the exact same code path — no duplicated
 // business logic, no drift between the two render sites.
 import { base44 } from "@/api/base44Client";
-import { generateCompletionTimestamp } from '../utils/timeRoundingHelper';
+import { generateCompletionTimestamp, calculateRetroactiveStopTiming, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { setDriverStatus } from '@/functions/setDriverStatus';
+import { parseAnyTimestamp } from '../utils/albertaTime';
+import { getCurrentLocalTimeString } from './stopCardActionHelpers';
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
@@ -33,6 +36,12 @@ export async function performSaveAndCompleteCOD({
   onSelectionChange,
   onClick,
   codRefreshPauseRef, // optional — object with .current boolean, used to resume smartRefreshManager if it was paused for this panel
+  // OWNER DIRECTIVE (Oct 14 2026): retro/off-duty finishing parity params.
+  // All optional — the footer caller passes all four; the COD panel passes what
+  // AppDataContext provides. Retro backdating degrades gracefully without
+  // patients/stores (prev-stop-time base, no travel leg); the off-duty gate
+  // falls back to currentUser.driver_status.
+  patients, stores, appUsers, currentUser,
 }) {
   if (!onCODUpdate) return;
   try {
@@ -73,11 +82,45 @@ export async function performSaveAndCompleteCOD({
 
     const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
 
+    // OWNER DIRECTIVE (Oct 14 2026): retro timing + finishing parity with the
+    // main Complete path (stopCardCompletionActions). Previously this COD path
+    // ALWAYS stamped the real wall clock — a retro (after 21:00 / past-due)
+    // Save & Complete recorded 23:xx instead of a backdated route-plausible
+    // time, and skipped the auto off-duty entirely. Now: same live retro flag,
+    // same calculateRetroactiveStopTiming backdating (which also applies the
+    // 5-min first/last rounding to the actual completion time), and the same
+    // route-finish off-duty rules below.
+    const _liveNow = new Date();
+    const _liveTodayStr = `${_liveNow.getFullYear()}-${String(_liveNow.getMonth() + 1).padStart(2, '0')}-${String(_liveNow.getDate()).padStart(2, '0')}`;
+    const _liveTimeStr = getCurrentLocalTimeString(_liveNow);
+    const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _liveTodayStr, currentTimeString: _liveTimeStr });
+    let completionActualTime = localTimeString;
+    let completionArrivalTime = !delivery.arrival_time ? localTimeString : null;
+    let retroTravelDist = null;
+    if (useRetroactiveTiming) {
+      try {
+        const retroactiveTiming = await calculateRetroactiveStopTiming({
+          delivery, allDeliveries,
+          patients: patients || [],
+          stores: stores || [],
+          todayDateString: _liveTodayStr,
+          allowSameDay: true
+        });
+        if (retroactiveTiming) {
+          completionActualTime = retroactiveTiming.actual_delivery_time;
+          if (retroactiveTiming.arrival_time) completionArrivalTime = retroactiveTiming.arrival_time;
+          if (typeof retroactiveTiming.travel_dist === 'number') retroTravelDist = retroactiveTiming.travel_dist;
+        }
+      } catch (_) { /* fall back to localTimeString */ }
+    }
+
     const completionUpdate = {
       status: 'completed',
-      actual_delivery_time: localTimeString,
+      actual_delivery_time: completionActualTime,
       isNextDelivery: false,
-      cod_payments: codPayments
+      cod_payments: codPayments,
+      ...(completionArrivalTime ? { arrival_time: completionArrivalTime } : {}),
+      ...(typeof retroTravelDist === 'number' ? { travel_dist: retroTravelDist } : {})
     };
 
     await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
@@ -105,6 +148,30 @@ export async function performSaveAndCompleteCOD({
         if (nextCardElement) nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }, 100);
     } else {
+      // OWNER DIRECTIVE (Oct 14 2026): same route-finish off-duty rules as the
+      // main Complete path — mirrors stopCardCompletionActions exactly: fire
+      // setDriverStatus('off_duty') with anchorTime = this delivery's actual
+      // (retro-backdated, rounded) completion time converted to a real UTC
+      // instant on the client, and broadcast the optimistic status flip so the
+      // driver dot updates immediately.
+      const _routeFinishedAppUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id) || null;
+      const _routeFinishedStatus = _routeFinishedAppUser?.driver_status ?? currentUser?.driver_status;
+      if (_routeFinishedStatus === 'on_duty' && completionActualTime) {
+        try {
+          const anchorTimeUTC = parseAnyTimestamp(completionActualTime).toISOString();
+          setDriverStatus({
+            newStatus: 'off_duty',
+            selectedDate: delivery?.delivery_date,
+            targetUserId: delivery?.driver_id,
+            anchorTime: anchorTimeUTC,
+          }).catch((e) => console.warn('⚠️ COD route-complete off_duty failed:', e?.message));
+          if (_routeFinishedAppUser?.id) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [{ ..._routeFinishedAppUser, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
+            }));
+          }
+        } catch (_) { /* non-fatal */ }
+      }
       fabControlEvents.notifyDoneButtonClicked();
       window.dispatchEvent(new CustomEvent('showRouteSummary', {
         detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
