@@ -1428,6 +1428,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                                 const liveList = driverEdits[deductionOverlayDriverId].deductions || [];
                                 const curIdx = liveList.findIndex((x) => x?._uid === editingDeductionUid);
                                 if (curIdx < 0) { setEditingDeductionUid(null); return; }
+                                const d = liveList[curIdx];
                                 const parsedAmount = parseFloat(amount);
                                 const newStart = normalizeDate(editDeductionStartDate) || undefined;
                                 const newEnd = normalizeDate(editDeductionEndDate) || undefined;

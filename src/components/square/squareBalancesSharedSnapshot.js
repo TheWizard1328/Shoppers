@@ -107,6 +107,14 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
 
     return ver;
   } catch (e) {
+    // A 429 here means the account-wide write limit is exhausted — the
+    // snapshot is ephemeral and the next fresh compute retries, so just bail
+    // silently. console.error would re-enqueue into RemoteLogEntry, competing
+    // for the very pool that's exhausted (noise filter throttles it, but
+    // skipping the call entirely is cleaner).
+    if (e && /\b429\b|traffic volume limit exceeded|rate limit exceeded/i.test(String(e?.message || e?.detail || e))) {
+      return null;
+    }
     console.error('[squareBalancesSharedSnapshot] publish failed:', e);
     return null;
   }

@@ -262,6 +262,7 @@ export default function StopCardCODCollection({
                 patients: appDataForCod?.patients,
                 appUsers: appDataForCod?.appUsers,
                 currentUser,
+                updateDeliveriesLocally: appDataForCod?.updateDeliveriesLocally,
               });
             }}
             disabled={codPayments.length === 0 || isCompleting}>

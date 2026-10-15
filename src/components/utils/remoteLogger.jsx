@@ -16,6 +16,32 @@ let settingsPromise = null;
 let mePromise = null;
 let isFlushing = false;
 let suppressConsoleCapture = false;
+
+// ── 429 WRITE-COOLDOWN (owner spec Oct 15 2026) ───────────────────────────
+// When the app hits the account-wide entity-write limit, every RemoteLogEntry
+// bulkCreate also 429s. Without a cooldown the flush timer retries the same
+// batch every 15s — competing for the very pool that's exhausted. Parse the
+// server's "Retry after N seconds" and pause ALL remote log writes until it
+// passes. Logs stay in the local buffer (localStorage) during cooldown and
+// flush once it lifts. Cap consecutive failures so a permanently-stuck batch
+// is eventually dropped rather than blocking the queue forever.
+let writeCooldownUntil = 0;
+let consecutiveWriteFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 5;
+
+const is429Error = (err) => {
+  if (!err) return false;
+  const msg = String(err?.message || err?.detail || err);
+  return /\b429\b|traffic volume limit exceeded|rate limit exceeded/i.test(msg);
+};
+
+const parseRetryAfterSeconds = (err) => {
+  const detail = String(err?.detail || '');
+  const msg = String(err?.message || '');
+  const m = (detail || msg).match(/retry after (\d+)\s*seconds?/i);
+  if (m) return Math.max(2, Number(m[1]) + 2); // small buffer past the server's ask
+  return 25; // safe default if the server didn't specify
+};
 let lastLogFingerprint = null;
 let lastLogTimestamp = 0;
 
@@ -70,7 +96,7 @@ const REMOTE_LOG_CAPTURE_BLACKLIST = [
 // for the App Issue Monitor + Issue Balloon to see a real storm without
 // feeding it. One-shot per device (not per message): a burst of mixed 429
 // variants still counts as the same noise event.
-const RATE_LIMIT_NOISE_RX = /rate limit exceeded|\b429\b|\[RequestQueue\] Rate-limited|\[UserSettings\] Rate limited|server compute unavailable/i;
+const RATE_LIMIT_NOISE_RX = /rate limit exceeded|traffic volume limit exceeded|\b429\b|\[RequestQueue\] Rate-limited|\[UserSettings\] Rate limited|server compute unavailable|publish failed/i;
 let lastRateLimitNoiseSentAt = 0;
 const RATE_LIMIT_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -192,6 +218,9 @@ const maybeTrimOldLogs = () => {
 
 const flushNow = async () => {
   if (isFlushing) return;
+  // Skip remote writes entirely while in a 429 cooldown — logs stay in the
+  // local buffer (localStorage) and flush once the cooldown lifts.
+  if (Date.now() < writeCooldownUntil) return;
   isFlushing = true;
   try {
     const canCapture = await shouldCapture();
@@ -204,11 +233,37 @@ const flushNow = async () => {
     const nextBatch = buffer.slice(0, batchSize);
     const remaining = buffer.slice(batchSize);
 
-    await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
-    writeBuffer(remaining);
-
-    // Retention: keep only the last 24h of logs (hourly fire-and-forget trim)
-    maybeTrimOldLogs();
+    try {
+      await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
+      consecutiveWriteFailures = 0;
+      writeBuffer(remaining);
+      maybeTrimOldLogs();
+    } catch (err) {
+      if (is429Error(err)) {
+        // Account-wide write limit hit: pause all remote log writes for the
+        // server's "Retry after" window (+ buffer). Keep the batch in the
+        // buffer so it ships once the cooldown lifts.
+        const waitMs = parseRetryAfterSeconds(err) * 1000;
+        writeCooldownUntil = Date.now() + waitMs;
+        consecutiveWriteFailures += 1;
+        // If the same batch keeps failing across cooldowns, drop it so the
+        // queue doesn't block forever behind a toxic payload.
+        if (consecutiveWriteFailures >= MAX_CONSECUTIVE_FAILURES) {
+          writeBuffer(remaining);
+          consecutiveWriteFailures = 0;
+        }
+        // Suppress the console.error here so the logger's own 429 doesn't
+        // re-enqueue itself into the buffer (noise filter already throttles
+        // it, but this avoids the enqueue round-trip entirely).
+        suppressConsoleCapture = true;
+        console.warn('[remoteLogger] RemoteLogEntry write paused — account write-limit hit, retrying in', Math.round(waitMs / 1000) + 's');
+        suppressConsoleCapture = false;
+      } else {
+        // Non-429 error: drop this batch (don't let a malformed record block
+        // the flush timer forever) but keep logging new entries.
+        writeBuffer(remaining);
+      }
+    }
   } finally {
     isFlushing = false;
   }

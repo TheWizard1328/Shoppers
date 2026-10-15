@@ -482,6 +482,7 @@ export default function StopCardActionButtons(props) {
                     stores,
                     appUsers: appData?.appUsers,
                     currentUser,
+                    updateDeliveriesLocally: appData?.updateDeliveriesLocally,
                   });
                 }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {
                 e.preventDefault();

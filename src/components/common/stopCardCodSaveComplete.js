@@ -9,7 +9,7 @@
 // (StopCardActionButtons.jsx) call the exact same code path — no duplicated
 // business logic, no drift between the two render sites.
 import { base44 } from "@/api/base44Client";
-import { generateCompletionTimestamp, calculateRetroactiveStopTiming, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { generateCompletionTimestamp, calculateRetroactiveStopTiming, computeRetroTimingFallback, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { setDriverStatus } from '@/functions/setDriverStatus';
 import { parseAnyTimestamp } from '../utils/albertaTime';
 import { getCurrentLocalTimeString } from './stopCardActionHelpers';
@@ -42,6 +42,7 @@ export async function performSaveAndCompleteCOD({
   // patients/stores (prev-stop-time base, no travel leg); the off-duty gate
   // falls back to currentUser.driver_status.
   patients, stores, appUsers, currentUser,
+  updateDeliveriesLocally,
 }) {
   if (!onCODUpdate) return;
   try {
