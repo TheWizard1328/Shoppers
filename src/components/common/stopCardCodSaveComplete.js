@@ -110,8 +110,26 @@ export async function performSaveAndCompleteCOD({
           completionActualTime = retroactiveTiming.actual_delivery_time;
           if (retroactiveTiming.arrival_time) completionArrivalTime = retroactiveTiming.arrival_time;
           if (typeof retroactiveTiming.travel_dist === 'number') retroTravelDist = retroactiveTiming.travel_dist;
+        } else {
+          const fb = computeRetroTimingFallback({ delivery, allDeliveries });
+          if (fb) {
+            console.warn('[Retro][COD] calculator returned null — pure fallback applied', { deliveryId: delivery.id });
+            completionActualTime = fb.actual_delivery_time;
+            completionArrivalTime = fb.arrival_time;
+          } else {
+            console.warn('[Retro][COD] calculator null AND fallback null — keeping real clock', { deliveryId: delivery.id });
+          }
         }
-      } catch (_) { /* fall back to localTimeString */ }
+      } catch (err) {
+        const fb = computeRetroTimingFallback({ delivery, allDeliveries });
+        if (fb) {
+          console.warn('[Retro][COD] calculator threw — pure fallback applied:', err?.message || err);
+          completionActualTime = fb.actual_delivery_time;
+          completionArrivalTime = fb.arrival_time;
+        } else {
+          console.warn('[Retro][COD] calculator threw and fallback null — keeping real clock:', err?.message || err);
+        }
+      }
     }
 
     const completionUpdate = {

@@ -312,6 +312,65 @@ export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
 // the pure core; useRetroTiming() re-evaluates it on a light 30s tick that
 // only triggers a re-render when the flag actually flips (React bails on the
 // identical setState, so the steady state costs nothing).
+/**
+ * PURE retro timing fallback (owner directive Oct 15 2026).
+ *
+ * The completion flow used to fall back to the REAL wall clock whenever
+ * calculateRetroactiveStopTiming threw or returned null — on a retro route
+ * that stamped REAL arrival/completion times on the record (owner report:
+ * final stop stamped 01:25/01:30 real instead of the backdated chain). This
+ * fallback computes the backdated chain with ZERO live API calls, using only
+ * data already on the route records: previous finished stop's actual time +
+ * stored leg duration + random 1-5 min dwell + first/last 5-min grid rounding
+ * (same rules as generateCompletionTimestamp, applied to the retro chain).
+ *
+ * Returns { arrival_time, actual_delivery_time } or null when no base can be
+ * resolved at all (only then may the caller keep the real-clock fallback).
+ */
+export const computeRetroTimingFallback = ({ delivery, allDeliveries = [] }) => {
+  if (!delivery || !delivery.delivery_date) return null;
+  const routeStops = allDeliveries.filter(d => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
+  const finishedStops = routeStops.filter(d => d.id !== delivery.id && ['completed','failed','cancelled'].includes(d.status) && d.actual_delivery_time);
+  const prev = finishedStops
+    .map(d => ({ d, t: parseLocalTimestamp(d.actual_delivery_time) }))
+    .filter(x => x.t)
+    .sort((a, b) => b.t.getTime() - a.t.getTime())[0] || null;
+  const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, ['completed','failed','cancelled']);
+
+  let baseMs = prev ? prev.t.getTime() : null;
+  if (baseMs == null) {
+    const firstStart = getStoreFirstStopStartTime(delivery, []);
+    const parsed = parseDateTimeParts(delivery.delivery_date, firstStart);
+    baseMs = parsed ? parsed.getTime() : null;
+  }
+  if (baseMs == null) return null;
+
+  // Travel: optimizer's stored leg duration first, then distance estimate, then default
+  const storedMinutes = Number(delivery?.estimated_duration_minutes);
+  let travelMinutes = Number.isFinite(storedMinutes) && storedMinutes > 0 ? storedMinutes : null;
+  if (travelMinutes == null) {
+    const km = Number(delivery?.travel_dist);
+    travelMinutes = Number.isFinite(km) && km > 0 ? Math.max(2, Math.round((km / 35) * 60)) : 5;
+  }
+  baseMs += travelMinutes * 60000;
+
+  // Arrival grid rounding: first floor, last ceil, middle exact
+  const fiveMin = 5 * 60 * 1000;
+  if (isFirstFinished) baseMs = Math.floor(baseMs / fiveMin) * fiveMin;
+  else if (isLastFinished && baseMs % fiveMin !== 0) baseMs = Math.ceil(baseMs / fiveMin) * fiveMin;
+
+  // Dwell + actual grid rounding (same rules as generateCompletionTimestamp)
+  const dwell = Math.floor(Math.random() * 5) + 1;
+  let actualMs = baseMs + dwell * 60000;
+  if (isFirstFinished) actualMs = Math.floor(actualMs / fiveMin) * fiveMin;
+  else if (isLastFinished && actualMs % fiveMin !== 0) actualMs = Math.ceil(actualMs / fiveMin) * fiveMin;
+
+  return {
+    arrival_time: formatLocalTimestamp(new Date(baseMs)),
+    actual_delivery_time: formatLocalTimestamp(new Date(actualMs)),
+  };
+};
+
 export const computeRetroTiming = (deliveryDate, now = new Date()) => {
   const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;

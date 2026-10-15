@@ -22,7 +22,7 @@ import { syncDeliverySquareCod, syncDeliveriesSquareCod } from '../utils/squareC
 import { updateDeliveryLocal, pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
-import { generateCompletionTimestamp, calculateRetroactiveStopTiming, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
+import { generateCompletionTimestamp, calculateRetroactiveStopTiming, computeRetroTimingFallback, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { waitForRouteTransitionSettle, getCurrentLocalTimeString } from "./stopCardActionHelpers";
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
@@ -780,8 +780,28 @@ export function useStopCardCompletionActions({
               completionActualTime = retroactiveTiming.actual_delivery_time;
               if (retroactiveTiming.arrival_time) completionArrivalTime = retroactiveTiming.arrival_time;
               if (typeof retroactiveTiming.travel_dist === 'number') retroTravelDist = retroactiveTiming.travel_dist;
+            } else {
+              // NEVER keep the real clock on a retro route (owner directive Oct 15):
+              // a calculator null previously stamped REAL times on the record.
+              const fb = computeRetroTimingFallback({ delivery, allDeliveries });
+              if (fb) {
+                console.warn('[Retro] calculator returned null — pure fallback applied', { deliveryId: delivery.id });
+                completionActualTime = fb.actual_delivery_time;
+                completionArrivalTime = fb.arrival_time;
+              } else {
+                console.warn('[Retro] calculator null AND fallback null — keeping real clock', { deliveryId: delivery.id });
+              }
             }
-          } catch (_) { /* fall back to localTimeString */ }
+          } catch (err) {
+            const fb = computeRetroTimingFallback({ delivery, allDeliveries });
+            if (fb) {
+              console.warn('[Retro] calculator threw — pure fallback applied:', err?.message || err);
+              completionActualTime = fb.actual_delivery_time;
+              completionArrivalTime = fb.arrival_time;
+            } else {
+              console.warn('[Retro] calculator threw and fallback null — keeping real clock:', err?.message || err);
+            }
+          }
         }
 
         const fallbackTravelDist = retroTravelDist ?? resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
@@ -1094,8 +1114,26 @@ export function useStopCardCompletionActions({
               failActualTime = retroactiveTiming.actual_delivery_time;
               if (retroactiveTiming.arrival_time) failArrivalTime = retroactiveTiming.arrival_time;
               if (typeof retroactiveTiming.travel_dist === 'number') failTravelDist = retroactiveTiming.travel_dist;
+            } else {
+              const fb = computeRetroTimingFallback({ delivery, allDeliveries });
+              if (fb) {
+                console.warn('[Retro][Fail] calculator returned null — pure fallback applied', { deliveryId: delivery.id });
+                failActualTime = fb.actual_delivery_time;
+                failArrivalTime = fb.arrival_time;
+              } else {
+                console.warn('[Retro][Fail] calculator null AND fallback null — keeping real clock', { deliveryId: delivery.id });
+              }
             }
-          } catch (_) { /* fall back to localTimeString */ }
+          } catch (err) {
+            const fb = computeRetroTimingFallback({ delivery, allDeliveries });
+            if (fb) {
+              console.warn('[Retro][Fail] calculator threw — pure fallback applied:', err?.message || err);
+              failActualTime = fb.actual_delivery_time;
+              failArrivalTime = fb.arrival_time;
+            } else {
+              console.warn('[Retro][Fail] calculator threw and fallback null — keeping real clock:', err?.message || err);
+            }
+          }
         }
 
         const fallbackTravelDist = failTravelDist ?? resolveTravelDistFallback(delivery, null, allRouteDeliveries);
