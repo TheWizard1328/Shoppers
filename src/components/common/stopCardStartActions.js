@@ -1225,6 +1225,9 @@ export function useStopCardStartActions({
         skipRouteOptimization: true,
         skipNextLegPolylineRefresh: true,
         affectedFullRecords,
+        // OWNER DIRECTIVE (Oct 15 2026): out-of-order stop_order resequencing —
+        // flag the queue so only out-of-order finishes renumber stop_order.
+        completedOutOfOrder: actedOnNextDelivery !== true,
       }).catch(() => {})
     );
 

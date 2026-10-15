@@ -6,6 +6,13 @@ import {
   isAppUpdateBroadcast,
   isHiddenSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
+
+// OWNER DIRECTIVE (Oct 15 2026): the App Issues watchdog (appIssueMonitor) sends
+// in-app error alerts to affected users — on dispatcher devices (store PCs) rate
+// limits/errors are frequent, and each alert was auto-opening the Messages panel
+// over whatever the dispatcher was doing. Too intrusive: exclude App Issues
+// messages from the dispatcher auto-open (the unread badge + balloon still show).
+const APP_ISSUES_SENDER_ID = 'app_issues';
 import { loadGroupsWithPreview } from './groupConversationLoader';
 
 /**
@@ -80,6 +87,7 @@ export function useDispatcherMessageAutoOpen({
       if (!isDirectToMe && !isGroupToMe) return;
       if (msg.sender_id === currentUser.id) return;
       if (msg.sender_id === SYSTEM_UPDATES_SENDER_ID) return;
+      if (msg.sender_id === APP_ISSUES_SENDER_ID) return;
       if (isAppUpdateBroadcast(msg.content)) return;
       if (isHiddenSystemBroadcastMessageForThisDevice(msg.id)) return;
 

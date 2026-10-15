@@ -91,7 +91,7 @@ export const scheduleAppUserUpdate = (appUserId, payload, delay = COMPLETION_DEB
 
 const flushCompletionJob = async (entry) => {
   entry.timer = null;
-  const { setOffDuty, driverId, deliveryDate, nextDeliveryId, lastCompletedDeliveryId, affectedFullRecords } = entry.payload;
+  const { setOffDuty, driverId, deliveryDate, nextDeliveryId, lastCompletedDeliveryId, affectedFullRecords, completedOutOfOrder } = entry.payload;
 
   // NOTE: purgeAndRegeneratePolylines (HERE API) is intentionally never called here.
   // Stop orders do not change on complete/fail/cancel, so existing polylines remain valid.
@@ -292,6 +292,8 @@ const flushCompletionJob = async (entry) => {
           deliveries: driverDeliveries,
           driverStatus,
           targetDeliveryId: nextDeliveryId || null,
+          lastCompletedDeliveryId: lastCompletedDeliveryId || null,
+          completedOutOfOrder: completedOutOfOrder === true,
         });
 
         // Write computed stop_order and isNextDelivery to server + IDB

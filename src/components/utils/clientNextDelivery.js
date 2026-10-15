@@ -152,6 +152,8 @@ export function computeNextDeliveryState({
   targetDeliveryId = null,
   patientLookup = null,
   storeLookup = null,
+  lastCompletedDeliveryId = null,
+  completedOutOfOrder = false,
 }) {
   // OWNER DIRECTIVE (Oct 14 2026): NO stop_order renumbering on completion.
   // The old repair pass re-derived a 1..N order (finished-first-by-completion-
@@ -180,6 +182,32 @@ export function computeNextDeliveryState({
 
   const lastFinishedOrigin = resolveLastFinishedOrigin(repairedDeliveries, patientLookup, storeLookup);
 
+  // ── OWNER DIRECTIVE (Oct 15 2026): out-of-order stop_order resequencing ──
+  // Fires ONLY when the finished stop was NOT the flagged next stop
+  // (isNextDelivery=false at finish time). Rules (owner spec):
+  //   1. NEVER touch any stop EARLIER than the finished one (stop_order < k).
+  //   2. The finished stop moves to the TAIL (after all remaining stops).
+  //   3. Stops LATER than the finished one compact upward into its vacated slot.
+  //   4. ONLY stops whose stop_order actually changed are written.
+  // In-order completions renumber NOTHING (previous behavior, storm fix 6f4580863).
+  const _stopOrderUpdates = new Map(); // id -> new stop_order
+  if (completedOutOfOrder && lastCompletedDeliveryId) {
+    const _completed = (repairedDeliveries || []).find((d) => d?.id === lastCompletedDeliveryId);
+    const _k = Number(_completed?.stop_order);
+    if (_completed && Number.isFinite(_k) && _k > 0) {
+      const _later = (repairedDeliveries || [])
+        .filter((d) => d?.id !== _completed.id && Number(d?.stop_order) > _k)
+        .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+      let _next = _k;
+      for (const d of _later) {
+        if (Number(d.stop_order) !== _next) _stopOrderUpdates.set(d.id, _next);
+        _next += 1;
+      }
+      const _tail = _k + _later.length;
+      if (_tail !== _k) _stopOrderUpdates.set(_completed.id, _tail);
+    }
+  }
+
   const changedDeliveries = [];
   const updatedDeliveries = repairedDeliveries.map((delivery) => {
     const isNext = Boolean(nextDelivery && delivery.id === nextDelivery.id);
@@ -190,12 +218,17 @@ export function computeNextDeliveryState({
       (delivery.first_leg_origin_lat !== lastFinishedOrigin.lat ||
        delivery.first_leg_origin_lng !== lastFinishedOrigin.lng);
 
-    if (!isNextChanged && !needsOriginStamp) {
+    const _soUpdate = _stopOrderUpdates.get(delivery.id);
+    if (!isNextChanged && !needsOriginStamp && _soUpdate === undefined) {
       return delivery;
     }
 
     const update = { ...delivery, isNextDelivery: isNext };
     const changedFields = [];
+    if (_soUpdate !== undefined) {
+      update.stop_order = _soUpdate;
+      changedFields.push('stop_order');
+    }
     if (isNextChanged) changedFields.push('isNextDelivery');
     if (needsOriginStamp) {
       update.first_leg_origin_lat = lastFinishedOrigin.lat;
@@ -210,10 +243,23 @@ export function computeNextDeliveryState({
     return update;
   });
 
+  // Stops whose ONLY change is a stop_order resequencing (no flag/origin
+  // change) still need to be written — append them (they were skipped by the
+  // map() above when isNextChanged/needsOriginStamp were false).
+  for (const [id, newOrder] of _stopOrderUpdates) {
+    const already = changedDeliveries.find((d) => d.id === id);
+    if (already) continue;
+    const rec = (repairedDeliveries || []).find((d) => d?.id === id);
+    if (!rec) continue;
+    const update = { ...rec, stop_order: newOrder };
+    Object.defineProperty(update, '__changedFields', { value: ['stop_order'], enumerable: false });
+    changedDeliveries.push(update);
+  }
+
   return {
     updatedDeliveries,
     nextDeliveryId: nextDelivery?.id || null,
-    repairsCount: 0,
+    repairsCount: _stopOrderUpdates.size,
     changedDeliveries,
   };
 }
