@@ -259,6 +259,24 @@ function cardSettlementCents(rates: any, locId: any, amountCents: number, feeCen
 function ledgerNormalizeText(v: any): string {
   return String(v || '').replace(/\s+/g, ' ').trim();
 }
+// Item label for sales with no COD link (owner request Oct 15 2026: "Other
+// Sale items have no Item/Reason labels"). Populates from the payment's own
+// Square order line items (distinct names with qty) so every ledger row
+// carries SOMETHING identifying what was sold.
+function orderItemsLabel(order: any): string | null {
+  try {
+    const items = (order?.line_items || []).filter(Boolean);
+    if (!items.length) return null;
+    const counts = new Map<string, number>();
+    for (const li of items) {
+      const n = String(li?.name || '').trim() || 'Item';
+      counts.set(n, (counts.get(n) || 0) + Math.max(1, Math.round(Number(li?.qty || 1))));
+    }
+    const parts = Array.from(counts.entries()).slice(0, 4).map(([n, q]) => (q > 1 ? `${n} x${q}` : n));
+    return parts.join(', ') + (counts.size > 4 ? ' …' : '');
+  } catch { return null; }
+}
+
 // Same format as the catalog items (formatItemName in squareAdminCore) so
 // backfilled cod_item_name values match the names drivers see in Square.
 function ledgerFormatItemName(deliveryDate: any, storeAbbreviation: any, patientName: any): string {
@@ -589,7 +607,10 @@ Deno.serve(async (req) => {
           if (fee != null) { patch.fee_cents = fee; stampedTopupFees += 1; }
         }
         if (kind === 'sale') { patch.entry_kind = 'collected'; renameSales += 1; }
-        else if (kind === 'payout' || kind === 'card_spend') { payoutDeleteIds.push(row.id); }
+        // Owner spec Oct 15 2026: card_spend rows are REAL card-spend records
+        // (business Square Card charges). Only legacy 'payout' rows (the old
+        // SIMPLE folder + BATCH sweep duplicates) are deleted.
+        else if (kind === 'payout') { payoutDeleteIds.push(row.id); }
         const isSale = kind === 'sale' || kind === 'collected';
         const isCardSale = isSale
           && String(row.tender_type || '').toUpperCase() === 'CARD'
@@ -1053,7 +1074,10 @@ Deno.serve(async (req) => {
           order_id: payment.order_id || null,
           delivery_id: codLink?.delivery_id || null,
           patient_id: codLink?.patient_id || null,
-          cod_item_name: codLink?.item_name || null,
+          // Non-COD sales still get an identifying label (owner Oct 15 2026):
+          // fall back to the order's own line items, then the payment note.
+          cod_item_name: codLink?.item_name || (payment?.order_id ? orderItemsLabel(order) : null) || null,
+          reason: payment?.note || null,
           card_fingerprint: card?.fingerprint || null,
           card_last4: card?.last_4 || null,
           card_brand: card?.card_brand || null,
@@ -1113,7 +1137,7 @@ Deno.serve(async (req) => {
             order_id: order.id,
             delivery_id: codLink?.delivery_id || null,
             patient_id: codLink?.patient_id || null,
-            cod_item_name: codLink?.item_name || null,
+            cod_item_name: codLink?.item_name || orderItemsLabel(order),
           }));
         }
       }
@@ -1154,24 +1178,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── STORE-CARD SWEEP PAYOUTS (owner spec Oct 5 2026) ────────────────────────
-    // The Summaries page must be the CARD ledger: Collected = any amount
-    // ADDED to the store's Square Card, using the ACTUAL swept cents from
-    // Square payout records — NOT the settled_cents formula on sale rows
-    // (owner: "actual collected, not the settled amounts"). Each card sale's
-    // settled remainder sweeps from the location balance onto the store
-    // card's stored balance as a BATCH payout AT THE STORE LOCATION with
-    // destination SQUARE_STORED_BALANCE. SIMPLE payouts are folder transfers
-    // (not card money) -> skipped. Negative payouts driven by REFUND entries
-    // are refund reversals -> skipped (register refunds own that money). Any
-    // other negative payout is a real withdrawal from the card ->
-    // entry_kind 'store_withdraw' (Spent). Runs in BOTH the regular sync and
-    // mode:'topupBackfill' chunks.
+    // ── STORE-CARD SWEEPS + CARD-TO-CARD TRANSFERS (owner spec Oct 15 2026) ─────
+    // Card entities are per store, NOT per location: money lands on a store's
+    // Square Card as payouts with destination SQUARE_STORED_BALANCE at the
+    // store location. Classification per payout:
+    //   positive + CHARGE entry  -> per-sale sweep ('store_topup', unchanged)
+    //   positive + NO CHARGE    -> card-to-card / manual transfer IN
+    //                                ('card_transfer', reason "SENDER -> RECV")
+    //   negative (non-REFUND)    -> money OFF a card: pair with a same-amount
+    //                                transfer-in at another location (incl. the
+    //                                Wizard Worxx personal cards) to label
+    //                                "SENDER -> RECEIVER"; unpaired negatives at
+    //                                a store are bank withdrawals
+    //                                ('store_withdraw', unchanged).
+    // WW negatives are used for pairing only — never stored (personal cards
+    // stay off the audit). WW positives keep the legacy 'card_topup' records
+    // (money ONTO the personal card; the audit page hides WW rows).
     const locNameById = new Map<string, string>();
     try {
       const locsJson2: any = await squareFetch('/v2/locations', 'GET', accessToken);
       for (const l of (locsJson2?.locations || [])) locNameById.set(String(l?.id || ''), String(l?.name || l?.id || ''));
     } catch { /* names best effort */ }
+    const shortAbbr = (name: any): string => {
+      const n = String(name || '').trim();
+      if (/wizard\s*worxx\s*#?\s*2/i.test(n)) return 'WW2';
+      if (/wizard\s*worxx/i.test(n)) return 'WW';
+      const m = n.replace(/\s+Shoppers$/i, '').trim();
+      const KNOWN: any = { 'Callingwood': 'CW', 'Londonderry': 'LD', 'Bonnie Doon': 'BD', 'Hamptons': 'HS', 'Meadows': 'MD', 'Scona': 'SC' };
+      if (KNOWN[m]) return KNOWN[m];
+      const words = m.split(/\s+/).filter(Boolean);
+      return (words.length >= 2 ? words[0][0] + words[1][0] : m.slice(0, 2)).toUpperCase();
+    };
+    type SweepPayout = { id: string; locId: string; locName: string; abbr: string; amount: number; status: string; createdAt: string; type: string; entryTypes: string[]; chargePaymentId: string | null; isPersonalCard: boolean };
+    const sweepPayouts: SweepPayout[] = [];
+    const fetchPayoutEntries = async (payoutId: string): Promise<{ types: string[]; chargePaymentId: string | null }> => {
+      try {
+        const entsJson: any = await squareFetch(`/v2/payouts/${payoutId}/payout-entries`, 'GET', accessToken);
+        const ents = entsJson?.payout_entries || [];
+        const types = (ents.map((x: any) => String(x?.type || '')).filter(Boolean)) as string[];
+        const charge = ents.find((x: any) => x?.type_charge_details?.payment_id);
+        return { types, chargePaymentId: charge ? String(charge.type_charge_details.payment_id) : null };
+      } catch { return { types: [], chargePaymentId: null }; }
+    };
+    // pass 1 — gather payouts at every STORE location
     let storeTopupsFetched = 0;
     for (const cfg of (configs as any[])) {
       const locationId = String(cfg?.square_location_id || '');
@@ -1180,87 +1229,67 @@ Deno.serve(async (req) => {
       try {
         const payoutsPath = `/v2/payouts?location_id=${encodeURIComponent(locationId)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=ASC`;
         const pos = await paginatedSquareGet(payoutsPath, accessToken);
-        for (const po of pos || []) {
+        for (const po of pos) {
           if (String(po?.destination?.type || '') !== 'SQUARE_STORED_BALANCE') continue;
           const amt = Math.round(Number(po?.amount_money?.amount || 0));
           if (!po?.id || amt === 0) continue;
           if (amt > 0 && String(po?.type || '') !== 'BATCH') continue; // SIMPLE = folder transfer, never card money
-          let entryTypes: string[] = [];
           if (amt < 0) {
-            try {
-              const entsJson: any = await squareFetch(`/v2/payouts/${po.id}/payout-entries`, 'GET', accessToken);
-              entryTypes = (entsJson?.payout_entries || []).map((x: any) => String(x?.type || '')).filter(Boolean);
-            } catch { /* best effort */ }
-            if (entryTypes.includes('REFUND')) continue; // refund reversal — refunds own it
+            const { types } = await fetchPayoutEntries(String(po.id));
+            if (types.includes('REFUND')) continue; // refund reversal — refunds own it
+            sweepPayouts.push({ id: String(po.id), locId: locationId, locName: locationName, abbr: shortAbbr(locationName), amount: amt, status: po.status, createdAt: po.created_at, type: po.type, entryTypes: types, chargePaymentId: null, isPersonalCard: false });
+          } else {
+            const { types, chargePaymentId } = await fetchPayoutEntries(String(po.id));
+            sweepPayouts.push({ id: String(po.id), locId: locationId, locName: locationName, abbr: shortAbbr(locationName), amount: amt, status: po.status, createdAt: po.created_at, type: po.type, entryTypes: types, chargePaymentId, isPersonalCard: false });
           }
-          entries.set(String(po.id), buildEntry({
-            square_id: String(po.id),
-            entry_kind: amt > 0 ? 'store_topup' : 'store_withdraw',
-            amount_cents: Math.abs(amt),
-            status: po.status,
-            occurred_at: po.created_at,
-            location_id: locationId,
-            location_name: locationName,
-            reason: [amt > 0 ? 'STORE_CARD_TOPUP' : 'STORE_CARD_WITHDRAW', po.type, entryTypes.join('/') || null].filter(Boolean).join(' | '),
-          }));
-          storeTopupsFetched += 1;
           await sleep(60);
         }
       } catch (e: any) { syncErrors.push(`storePayouts(${locationName}): ${e?.message || e}`); }
     }
-
-    // ── CARD LOCATIONS — fund transfers onto the Square Cards (owner request,
-    // Oct 3 2026: "pull transfer records card-to-card / folder-to-card").
-    // Square models each Square Card as a MOBILE location; payouts with
-    // destination SQUARE_STORED_BALANCE at those locations are the money
-    // moves ONTO the card (per-sale top-ups today; manual folder/card
-    // transfers when Square exposes them). The per-store loop above never
-    // sees them (they are not attributed to store locations), so they are
-    // pulled separately and stored as entry_kind 'card_topup' — a CREDIT.
-    // Readers must never count card_topup as a bank sweep (PAYOUT_KINDS in
-    // useSquareBalancesSummary.js excludes it on purpose).
+    // pass 2 — gather payouts at the PERSONAL CARD locations (Wizard Worxx):
+    // positives keep the legacy card_topup records (fee-stamp source map intact);
+    // negatives are transfer SOURCES for pairing only.
     const topupSrcByPayout = new Map<string, string | null>();
     let topupsFetched = 0;
-    const storeLocIds = new Set(rates.loanRateByLoc.keys());
+    const configIdsForCards = new Set((configs as any[]).map((c: any) => String(c?.square_location_id || '')));
+    const cardLocationStats: any[] = [];
     try {
       const locsJson: any = await squareFetch('/v2/locations', 'GET', accessToken);
       const cardLocs = ((locsJson?.locations || []) as any[])
         .filter((l: any) => l?.id && String(l?.status || '').toUpperCase() === 'ACTIVE')
-        .filter((l: any) => !configIds.has(String(l.id)));
+        .filter((l: any) => !configIdsForCards.has(String(l.id)));
       for (const cl of cardLocs) {
         try {
           const payoutsPath = `/v2/payouts?location_id=${encodeURIComponent(cl.id)}&begin_time=${encodeURIComponent(windowStart)}&end_time=${encodeURIComponent(windowEnd)}&sort_order=ASC`;
           const pos = await paginatedSquareGet(payoutsPath, accessToken);
-          for (const po of pos || []) {
+          for (const po of pos) {
             if (!po?.id) continue;
             const destType = String(po?.destination?.type || '');
-            // Payout entries reveal the source sale (CHARGE -> payment id) so
-            // the transfer can be attributed to the store whose sale fed the
-            // card. Best effort: manual folder transfers have no CHARGE entry.
-            let srcPaymentId: string | null = null;
-            let entryTypes: string[] = [];
-            try {
-              const entsJson: any = await squareFetch(`/v2/payouts/${po.id}/payout-entries`, 'GET', accessToken);
-              const ents = entsJson?.payout_entries || [];
-              entryTypes = (ents.map((e: any) => String(e?.type || '')).filter(Boolean)) as string[];
-              const charge = ents.find((e: any) => e?.type_charge_details?.payment_id);
-              if (charge) srcPaymentId = String(charge.type_charge_details.payment_id);
-            } catch { /* entries best effort */ }
-            topupSrcByPayout.set(String(po.id), srcPaymentId);
-            entries.set(po.id, buildEntry({
-              square_id: po.id,
-              entry_kind: 'card_topup',
-              amount_cents: po?.amount_money?.amount,
-              status: po.status,
-              occurred_at: po.created_at,
-              location_id: cl.id,
-              location_name: cl.name || cl.id,
-              reason: [destType, po.type, entryTypes.join('/') || null, srcPaymentId].filter(Boolean).join(' | '),
-            }));
-            topupsFetched += 1;
+            const amt = Math.round(Number(po?.amount_money?.amount || 0));
+            if (amt > 0) {
+              // money ONTO the personal card — legacy card_topup record (audit-hidden)
+              const { types, chargePaymentId } = await fetchPayoutEntries(String(po.id));
+              topupSrcByPayout.set(String(po.id), chargePaymentId);
+              entries.set(po.id, buildEntry({
+                square_id: po.id,
+                entry_kind: 'card_topup',
+                amount_cents: po?.amount_money?.amount,
+                status: po.status,
+                occurred_at: po.created_at,
+                location_id: cl.id,
+                location_name: cl.name || cl.id,
+                reason: [destType, po.type, types.join('/') || null, chargePaymentId].filter(Boolean).join(' | '),
+              }));
+              topupsFetched += 1;
+            } else if (amt < 0 && destType === 'SQUARE_STORED_BALANCE') {
+              // money OFF the personal card — candidate transfer source (WW -> store)
+              const { types } = await fetchPayoutEntries(String(po.id));
+              if (types.includes('REFUND')) continue;
+              sweepPayouts.push({ id: `ww-${po.id}`, locId: cl.id, locName: cl.name || cl.id, abbr: shortAbbr(cl.name), amount: amt, status: po.status, createdAt: po.created_at, type: po.type, entryTypes: types, chargePaymentId: null, isPersonalCard: true });
+            }
             await sleep(60);
           }
-          locationStats.push({
+          cardLocationStats.push({
             location_id: cl.id,
             name: `${cl.name || cl.id} (card)`,
             payments: 0, orders: 0, refunds: 0, payouts: (pos || []).length,
@@ -1268,6 +1297,80 @@ Deno.serve(async (req) => {
         } catch (e: any) { syncErrors.push(`cardPayouts(${cl.name || cl.id}): ${e?.message || e}`); }
       }
     } catch (e: any) { syncErrors.push(`cardLocations: ${e?.message || e}`); }
+    // pass 3 — classify with cross-location pairing
+    let storeTransfersFetched = 0;
+    const usedNegativeIds = new Set<string>();
+    const dayDiff = (a: string, b: string) =>
+      Math.abs(new Date(a || 0).getTime() - new Date(b || 0).getTime()) / 86400000;
+    for (const sp of sweepPayouts) {
+      if (sp.amount > 0) {
+        if (sp.chargePaymentId) {
+          // per-sale sweep — same record shape as before (owner Oct 5 spec)
+          entries.set(String(sp.id), buildEntry({
+            square_id: String(sp.id),
+            entry_kind: 'store_topup',
+            amount_cents: Math.abs(sp.amount),
+            status: sp.status,
+            occurred_at: sp.createdAt,
+            location_id: sp.locId,
+            location_name: sp.locName,
+            reason: ['STORE_CARD_TOPUP', sp.type, sp.entryTypes.join('/') || null, sp.chargePaymentId].filter(Boolean).join(' | '),
+          }));
+          storeTopupsFetched += 1;
+        } else {
+          // card-to-card / manual transfer IN. Pair with a same-amount negative
+          // at another card location within 7 days to identify the sender.
+          const match = sweepPayouts.find((n: SweepPayout) =>
+            !usedNegativeIds.has(n.id) && n.amount < 0 && n.amount === -sp.amount &&
+            n.locId !== sp.locId && dayDiff(n.createdAt, sp.createdAt) <= 7);
+          const senderAbbr = match ? match.abbr : 'EXTERNAL';
+          const label = `${senderAbbr} -> ${sp.abbr}`;
+          if (match) {
+            usedNegativeIds.add(match.id);
+            if (!match.isPersonalCard) {
+              // sender side is a STORE card — record the transfer out too
+              entries.set(String(match.id), buildEntry({
+                square_id: String(match.id),
+                entry_kind: 'card_transfer',
+                amount_cents: Math.abs(match.amount),
+                status: match.status,
+                occurred_at: match.createdAt,
+                location_id: match.locId,
+                location_name: match.locName,
+                reason: label,
+              }));
+              storeTransfersFetched += 1;
+            }
+            // sender side is a personal (WW) card — receiver row carries the label
+          }
+          entries.set(String(sp.id), buildEntry({
+            square_id: String(sp.id),
+            entry_kind: 'card_transfer',
+            amount_cents: Math.abs(sp.amount),
+            status: sp.status,
+            occurred_at: sp.createdAt,
+            location_id: sp.locId,
+            location_name: sp.locName,
+            reason: label,
+          }));
+          storeTransfersFetched += 1;
+        }
+      } else if (!sp.isPersonalCard && !usedNegativeIds.has(sp.id)) {
+        // unpaired negative at a store — bank withdrawal (unchanged behavior)
+        entries.set(String(sp.id), buildEntry({
+          square_id: String(sp.id),
+          entry_kind: 'store_withdraw',
+          amount_cents: Math.abs(sp.amount),
+          status: sp.status,
+          occurred_at: sp.createdAt,
+          location_id: sp.locId,
+          location_name: sp.locName,
+          reason: ['STORE_CARD_WITHDRAW', sp.type, sp.entryTypes.join('/') || null].filter(Boolean).join(' | '),
+        }));
+      }
+    }
+    // card-location stats for the sync response (parity with the old loop)
+    locationStats.push(...cardLocationStats);
 
     // Persist — keyed on square_id: create new records, update existing ones.
     // (The functions runtime SDK has no .upsert(); use the proven list+create/update pattern.)
@@ -1324,6 +1427,9 @@ Deno.serve(async (req) => {
     let topupsAttributed = 0;
     // Source sales older than the scan pool (or from skipped store phases in
     // topup-only backfills) are fetched straight from the ledger by square_id.
+    // store location ids (config store ids) — used to attribute card_topup
+    // fee sources to stores below (declared here after the sweep restructure)
+    const storeLocIds = new Set((configs as any[]).map((c: any) => String(c?.square_location_id || '')));
     const unresolvedSrcs = new Set<string>();
     for (const rec of allEntries) {
       if (rec?.entry_kind !== 'card_topup') continue;

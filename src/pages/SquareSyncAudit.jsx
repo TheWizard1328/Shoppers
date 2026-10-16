@@ -108,7 +108,8 @@ const CLASS_STYLES = {
   refund_in: { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", amount: "text-emerald-600 dark:text-emerald-400", sign: 1 },
   refund_out: { badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300", amount: "text-orange-600 dark:text-orange-400", sign: -1 },
   refund_unlinked: { badge: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200", amount: "text-slate-700 dark:text-slate-300", sign: 1 },
-  payout: { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", amount: "text-violet-600 dark:text-violet-400", sign: 0 }
+  payout: { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", amount: "text-violet-600 dark:text-violet-400", sign: 0 },
+  transfer: { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", amount: "text-violet-600 dark:text-violet-400", sign: 0 },
 };
 
 const CLASS_LABELS = {
@@ -120,7 +121,112 @@ const CLASS_LABELS = {
   refund_in: "Refund (charge)",
   refund_out: "Refund (customer)",
   refund_unlinked: "Refund",
-  payout: "Bank Transfer"
+  payout: "Bank Transfer",
+  transfer: "Card Transfer"
+};
+
+// Match-state badges for card activity rows (owner spec Oct 15 2026).
+const MATCH_LABELS = {
+  spend: "Spend",
+  collect: "Collect",
+  spend_collect: "Spend & Collect",
+  spend_refund: "Spend & Refund",
+};
+const MATCH_STYLES = {
+  spend: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  collect: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  spend_collect: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  spend_refund: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+};
+// Match window: a spend only pairs with a sale/refund within this many days
+// (owner: order-independent — spend can come before or after the collect).
+const MATCH_WINDOW_DAYS = 45;
+
+// Per-store card matching (each card is its own entity, owner Oct 15):
+//   1:1 exact-amount spend<->sale (nearest-time first)
+//   2-4 spends -> 1 sale subset-sum (owner: "multiple card spends that will
+//     add up to a Card sales/collection")
+//   refund linked to a card-spend payment -> Spend & Refund (both rows)
+//   leftovers: Spend alone (un-swiped), Collect alone (refund still owed).
+const computeCardMatchBadges = (rows, entriesBySquareId) => {
+  const badges = new Map();
+  const storeBuckets = new Map();
+  const bucketOf = (loc) => {
+    if (!storeBuckets.has(loc)) storeBuckets.set(loc, { spends: [], sales: [], refunds: [] });
+    return storeBuckets.get(loc);
+  };
+  for (const e of rows || []) {
+    if (!e?.location_id) continue;
+    const kind = String(e.entry_kind || "");
+    const cls = String(e.sale_class || "");
+    if (cls === "card_spend") { bucketOf(e.location_id).spends.push(e); continue; }
+    if (kind === "refund") { bucketOf(e.location_id).refunds.push(e); continue; }
+    if (kind === "collected" && String(e.tender_type || "").toUpperCase() === "CARD"
+      && (cls === "cod_collection" || cls === "other_sale")) { bucketOf(e.location_id).sales.push(e); }
+  }
+  const dayMs = 86400000;
+  const tOf = (e) => new Date(e?.occurred_at || 0).getTime() || 0;
+  for (const { spends, sales, refunds } of storeBuckets.values()) {
+    // refunds that return a card-spend's money -> Spend & Refund
+    for (const r of refunds) {
+      const src = r?.refund_of_square_id ? entriesBySquareId.get(r.refund_of_square_id) : null;
+      if (src && String(src.sale_class || "") === "card_spend"
+        && Number(src.amount_cents) === Number(r.amount_cents)) {
+        badges.set(String(r.square_id), "spend_refund");
+        badges.set(String(src.square_id), "spend_refund");
+      }
+    }
+    const openSpends = spends.filter((sp) => !badges.has(String(sp.square_id))).sort((a, b) => tOf(a) - tOf(b));
+    const openSales = sales.filter((sl) => !badges.has(String(sl.square_id)));
+    const saleMatched = new Set();
+    // 1:1 exact amount, nearest in time, either order
+    for (const sp of openSpends) {
+      let best = null, bestDelta = Infinity;
+      for (const sl of openSales) {
+        if (saleMatched.has(String(sl.square_id))) continue;
+        if (Number(sl.amount_cents) !== Number(sp.amount_cents)) continue;
+        const delta = Math.abs(tOf(sl) - tOf(sp));
+        if (delta > MATCH_WINDOW_DAYS * dayMs) continue;
+        if (delta < bestDelta) { best = sl; bestDelta = delta; }
+      }
+      if (best) {
+        saleMatched.add(String(best.square_id));
+        badges.set(String(sp.square_id), "spend_collect");
+        badges.set(String(best.square_id), "spend_collect");
+      }
+    }
+    // 2-4 spends -> 1 sale subset-sum
+    for (const sl of openSales) {
+      if (saleMatched.has(String(sl.square_id))) continue;
+      const target = Number(sl.amount_cents);
+      const pool = openSpends
+        .filter((sp) => !badges.has(String(sp.square_id))
+          && Math.abs(tOf(sp) - tOf(sl)) <= MATCH_WINDOW_DAYS * dayMs)
+        .sort((a, b) => tOf(a) - tOf(b));
+      const combo = [];
+      const found = (idx, remaining, depth) => {
+        if (remaining === 0) return depth >= 2;
+        if (depth >= 4 || idx >= pool.length || remaining < 0) return false;
+        for (let i = idx; i < pool.length; i++) {
+          const v = Number(pool[i].amount_cents);
+          if (v > remaining) continue;
+          combo.push(pool[i]);
+          if (found(i + 1, remaining - v, depth + 1)) return true;
+          combo.pop();
+        }
+        return false;
+      };
+      if (found(0, target, 0)) {
+        for (const c of combo) badges.set(String(c.square_id), "spend_collect");
+        badges.set(String(sl.square_id), "spend_collect");
+        saleMatched.add(String(sl.square_id));
+      }
+    }
+    // leftovers — the audit's whole point
+    for (const sp of spends) if (!badges.has(String(sp.square_id))) badges.set(String(sp.square_id), "spend");
+    for (const sl of sales) if (!badges.has(String(sl.square_id))) badges.set(String(sl.square_id), "collect");
+  }
+  return badges;
 };
 
 // Payout-class rows: SIMPLE = Square's per-sale folder withholding (mirrors the
@@ -145,7 +251,14 @@ const classifyEntry = (entry, labelsByFingerprint, entriesBySquareId, storeCardF
   if (entry.entry_kind === "decline") return { code: "decline", sign: 0 };
   if (String(entry.entry_kind || "") === "payout") return { code: "payout", sign: 0 };
   // Actual purchases made with the business Square Card = money spent.
-  if (String(entry.entry_kind || "") === "card_spend") return { code: "spend", sign: -1 };
+  // Owner spec Oct 15 2026: card-spend rows are kind 'collected' with
+  // sale_class 'card_spend' (payments at the POS charged to the store card)
+  // — BOTH the legacy kind and the live sale_class must classify as spends.
+  if (String(entry.entry_kind || "") === "card_spend" || String(entry.sale_class || "") === "card_spend")
+    return { code: "spend", sign: -1 };
+  // Card-to-card / manual transfers onto the store cards (owner spec Oct 15):
+  // balance money, never income or spend.
+  if (String(entry.entry_kind || "") === "card_transfer") return { code: "transfer", sign: 0 };
   // Owner spec (Oct 5 2026): the Summaries page is the CARD ledger.
   // store_topup = ACTUAL cents Square swept onto the store's card (from
   // payout records, not the settled formula) -> Collected.
@@ -368,6 +481,12 @@ export default function SquareSyncAudit() {
       return { ...e, cls, wall, classCode: cls.code };
     });
   }, [entries, labelsByFingerprint, entriesBySquareId, storeCardFps]);
+
+  // Match-state badges for card rows (owner spec Oct 15 2026)
+  const matchBadges = useMemo(
+    () => computeCardMatchBadges(entries, entriesBySquareId),
+    [entries, entriesBySquareId]
+  );
 
   const filteredEntries = useMemo(() => {
     const from = fromDate ? `${fromDate}T00:00:00` : "";
@@ -778,6 +897,7 @@ export default function SquareSyncAudit() {
                       <SelectItem value="cod">COD Collected</SelectItem>
                       <SelectItem value="spend">Card Spends (store cards)</SelectItem>
                         <SelectItem value="other">Other Sales</SelectItem>
+                      <SelectItem value="transfer">Card Transfers</SelectItem>
                       <SelectItem value="refund_in">Refunds (charge)</SelectItem>
                       <SelectItem value="refund_out">Refunds (customer)</SelectItem>
                       <SelectItem value="refund_unlinked">Refunds (unlinked)</SelectItem>
@@ -843,7 +963,13 @@ export default function SquareSyncAudit() {
                             <td className="px-3 py-2 whitespace-nowrap">{displayDateTime(e.wall)}</td>
                             <td className="px-3 py-2">{e.location_name || e.location_id}</td>
                             <td className="px-3 py-2 text-xs">{cardLabel}</td>
-                            <td className="px-3 py-2"><Badge className={style.badge}>{e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode]}</Badge></td>
+                            <td className="px-3 py-2">{
+                              (() => {
+                                const mk = matchBadges.get(String(e.square_id));
+                                if (mk) return <Badge className={MATCH_STYLES[mk]}>{MATCH_LABELS[mk]}</Badge>;
+                                return <Badge className={style.badge}>{e.classCode === "payout" ? payoutLabel(e) : CLASS_LABELS[e.classCode]}</Badge>;
+                              })()
+                            }</td>
                             <td className="px-3 py-2 text-xs">{e.entry_method || (e.tender_type === "CASH" ? "cash" : "")}</td>
                             <td className="px-3 py-2 text-xs">{e.status}</td>
                             <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${style.amount}`}>
