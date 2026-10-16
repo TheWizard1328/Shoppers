@@ -155,19 +155,77 @@ export function useStopCardDutyToggle({
               // Owner rule (Oct 16 2026): a REAL transition into on_duty — the
               // driver resumes, or a dispatcher/admin triggers them on from a stop
               // card — re-anchors ALL remaining stops' ETAs from the driver's
-              // current position. ONE backend router call chains the whole route
-              // (fresh GPS comes from the driver's AppUser record). Runs BEFORE
-              // the refetch below so the fresh ETAs land in the same pull.
+              // current position. POLYLINE FIRST (owner spec): project the
+              // driver's position onto the next stop's leg polyline and chain the
+              // ETA calculator — ZERO API calls. Off-path / missing leg → full
+              // fallback: one backend router call chains the whole route. The
+              // refetch below lands the fresh ETAs in the same pull either way.
+              let _dutyEtaApplied = false;
               try {
-                const etaRes = await base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
-                  driverId: targetUserId,
-                  deliveryDate,
-                  routeChangeSource: 'duty_resume',
-                  forceEtaRefresh: true,
+                const freshDeliveriesPre = await base44.entities.Delivery.filter({
+                  driver_id: targetUserId,
+                  delivery_date: deliveryDate,
                 });
-                console.log(`[ensureDriverOnline] duty-resume ETA refresh: ${etaRes?.total_updated_deliveries || 0} stop(s) updated (reason: ${etaRes?.results?.[0]?.reason || 'updated'})`);
-              } catch (etaErr) {
-                console.warn('[ensureDriverOnline] duty-resume ETA refresh failed (non-blocking):', etaErr?.message || etaErr);
+                const TERMINAL_DUTY = ['completed', 'failed', 'cancelled'];
+                const orderedStops = (freshDeliveriesPre || [])
+                  .filter((d) => d && d.status !== 'pending' && !TERMINAL_DUTY.includes(String(d.status || '').toLowerCase()))
+                  .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+                if (orderedStops.length > 0) {
+                  const { computeDutyResumeEtas } = await import('../utils/onDutyPolylineEta');
+                  const { commitDeliveryUpdatesSilently, fireRouteCommitMarker } = await import('../utils/routeCommitMarker');
+                  // Driver's current position: fresh IDB APP_USERS read first
+                  // (the driver's own device uploads every 15s), state fallback.
+                  let _driverRec = null;
+                  try {
+                    const _recs = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', targetUserId).catch(() => []);
+                    _driverRec = _recs?.[0] || null;
+                  } catch (_) {}
+                  if (!_driverRec) _driverRec = appUsers.find((u) => u?.user_id === targetUserId) || null;
+                  const nowD = new Date();
+                  const proj = computeDutyResumeEtas({
+                    orderedStops,
+                    currentLocation: {
+                      lat: Number(_driverRec?.current_latitude),
+                      lng: Number(_driverRec?.current_longitude),
+                    },
+                    nowMinutes: nowD.getHours() * 60 + nowD.getMinutes(),
+                  });
+                  if (proj?.mode === 'polyline') {
+                    // SINGLE SILENT COMMIT pattern (Accept All, Oct 13): local
+                    // event + IDB bulkSave + one silent commit + one marker.
+                    const etaById = new Map(proj.etaUpdates.map((u) => [u.id, u.delivery_time_eta]));
+                    const etaRecords = orderedStops
+                      .map((st) => ({ ...st, delivery_time_eta: etaById.get(st.id) || st.delivery_time_eta }))
+                      .filter((st) => etaById.has(st.id));
+                    window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: targetUserId, updates: proj.etaUpdates.map((u) => ({ deliveryId: u.id, newEta: u.delivery_time_eta })) } }));
+                    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaRecords).catch(() => {});
+                    for (const u of proj.etaUpdates) {
+                      if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+                      window.__localDeliveryWrites.set(u.id, Date.now() + 90 * 1000);
+                    }
+                    const committed = await commitDeliveryUpdatesSilently(proj.etaUpdates.map((u) => ({ id: u.id, data: { delivery_time_eta: u.delivery_time_eta } })));
+                    await fireRouteCommitMarker(orderedStops[0].id, committed);
+                    console.log(`[ensureDriverOnline] duty-resume polyline ETAs: ${proj.etaUpdates.length} stop(s), first leg ${proj.remainingMinutes}min, ${proj.deviatedMeters}m off-path`);
+                    _dutyEtaApplied = true;
+                  } else {
+                    console.log(`[ensureDriverOnline] duty-resume polyline projection unavailable (${proj?.reason}) — full ETA refresh fallback`);
+                  }
+                }
+              } catch (projErr) {
+                console.warn('[ensureDriverOnline] duty-resume polyline ETAs failed (non-blocking):', projErr?.message || projErr);
+              }
+              if (!_dutyEtaApplied) {
+                try {
+                  const etaRes = await base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
+                    driverId: targetUserId,
+                    deliveryDate,
+                    routeChangeSource: 'duty_resume',
+                    forceEtaRefresh: true,
+                  });
+                  console.log(`[ensureDriverOnline] duty-resume ETA refresh: ${etaRes?.total_updated_deliveries || 0} stop(s) updated (reason: ${etaRes?.results?.[0]?.reason || 'updated'})`);
+                } catch (etaErr) {
+                  console.warn('[ensureDriverOnline] duty-resume ETA refresh failed (non-blocking):', etaErr?.message || etaErr);
+                }
               }
               const freshDeliveries = await base44.entities.Delivery.filter({
                 driver_id: targetUserId,

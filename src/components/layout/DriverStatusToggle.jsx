@@ -575,6 +575,59 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             // projection does it in ONE router call for the whole chain; the
             // force flag bypasses the movement / drift / cooldown guards.
             if (previousStatus === 'on_break' || previousStatus === 'off_duty') {
+              // OWNER SPEC (Oct 16 2026): POLYLINE FIRST — project the driver's
+              // position onto the next stop's current-leg polyline and derive the
+              // arrival from the REMAINING polyline distance (zero API calls),
+              // then chain ALL remaining stops via the ETA calculator. ONLY when
+              // the driver is off-path (> 200m) or the leg polyline is missing
+              // do we fall back to the full path: current-leg regeneration (the
+              // deviation check above) + the routing-call ETA projection below.
+              let _polylineEtaDone = false;
+              try {
+                if (nextStop && Number.isFinite(Number(gps?.lat)) && Number.isFinite(Number(gps?.lng))) {
+                  const _TERMINAL_DUTY = ['completed', 'failed', 'cancelled'];
+                  const _remainingStops = (allRouteDeliveries || [])
+                    .filter((d) => d && d.id !== nextStop.id && d.status !== 'pending' && !_TERMINAL_DUTY.includes(String(d.status || '').toLowerCase()))
+                    .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+                  const _orderedStops = [nextStop, ..._remainingStops].filter(Boolean);
+                  const { computeDutyResumeEtas } = await import('../utils/onDutyPolylineEta');
+                  const { commitDeliveryUpdatesSilently, fireRouteCommitMarker } = await import('../utils/routeCommitMarker');
+                  const _nowD = new Date();
+                  const _proj = computeDutyResumeEtas({
+                    orderedStops: _orderedStops,
+                    currentLocation: { lat: Number(gps.lat), lng: Number(gps.lng) },
+                    nowMinutes: _nowD.getHours() * 60 + _nowD.getMinutes(),
+                  });
+                  if (_proj?.mode === 'polyline') {
+                    // SINGLE SILENT COMMIT pattern (Accept All, Oct 13): local
+                    // event + IDB bulkSave + one silent commit + one marker.
+                    const _etaById = new Map(_proj.etaUpdates.map((u) => [u.id, u.delivery_time_eta]));
+                    const _etaRecords = _orderedStops
+                      .map((st) => ({ ...st, delivery_time_eta: _etaById.get(st.id) || st.delivery_time_eta }))
+                      .filter((st) => _etaById.has(st.id));
+                    window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: effectiveUser.id, updates: _proj.etaUpdates.map((u) => ({ deliveryId: u.id, newEta: u.delivery_time_eta })) } }));
+                    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, _etaRecords).catch(() => {});
+                    for (const _u of _proj.etaUpdates) {
+                      if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+                      window.__localDeliveryWrites.set(_u.id, Date.now() + 90 * 1000);
+                    }
+                    if (appDataContext?.applyDeliveryChangesLocally) {
+                      appDataContext.applyDeliveryChangesLocally({ upserts: _etaRecords });
+                    } else if (appDataContext?.updateDeliveriesLocally) {
+                      appDataContext.updateDeliveriesLocally(_etaRecords, false);
+                    }
+                    const _committed = await commitDeliveryUpdatesSilently(_proj.etaUpdates.map((u) => ({ id: u.id, data: { delivery_time_eta: u.delivery_time_eta } })));
+                    await fireRouteCommitMarker(nextStop.id, _committed);
+                    console.log(`[DriverStatusToggle] duty-resume polyline ETAs: ${_proj.etaUpdates.length} stop(s), first leg ${_proj.remainingMinutes}min, ${_proj.deviatedMeters}m off-path`);
+                    _polylineEtaDone = true;
+                  } else {
+                    console.log(`[DriverStatusToggle] duty-resume polyline projection unavailable (${_proj?.reason}) — full ETA refresh fallback`);
+                  }
+                }
+              } catch (_projErr) {
+                console.warn('[DriverStatusToggle] duty-resume polyline ETAs failed (non-blocking):', _projErr?.message || _projErr);
+              }
+              if (!_polylineEtaDone) {
               try {
                 const _dutyResumeSrc = previousStatus === 'off_duty' ? 'duty_resume' : 'break_return';
                 const etaResult = await base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
@@ -614,6 +667,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
                 }
               } catch (etaErr) {
                 console.warn('[DriverStatusToggle] break-return ETA refresh failed:', etaErr?.message || etaErr);
+              }
               }
             }
           }
