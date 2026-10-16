@@ -131,14 +131,16 @@ export const applyPayrollHistoryMarker = async (marker, { force = false } = {}) 
   const changed = Object.keys(cycles).filter((k) => local[k] !== cycles[k]);
   if (changed.length === 0) return { applied: false, reason: 'unchanged' };
 
-  // One fast-path year fetch (serves from the server PayrollSummary — no
-  // regather), then persist ONLY the changed cycles into the offline store.
+  // Oct 15 outage fix: full-year responses exceed the platform's function
+  // response limit (500 for every caller). Paged fetch with the current month
+  // still returns the YEAR-WIDE payrollRecords this path consumes — they are
+  // gathered fresh from the entity on every paged call.
   const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
     payrollYear: parseInt(year, 10),
     payrollCityId: cityId,
-    payrollPaginationMode: 'full_year',
-    forceRefreshCurrentYear: false,
-    payrollRefreshMonths: []
+    payrollPaginationMode: 'paged',
+    payrollPageMonths: [new Date().getMonth() + 1],
+    forceRefreshCurrentYear: false
   });
   const data = response?.data?.payrollData || response?.payrollData;
   const changedSet = new Set(changed);
@@ -191,14 +193,17 @@ const shouldRunDeepPass = (year, cityId) => {
 };
 
 const runHostPass = async ({ year, cityId, deviceName, deepPass }) => {
-  // ONE invoke per pass: deep = full re-gather (accuracy pass, rewrites the
-  // server summary); otherwise the fast summary path (picks up others' edits).
+  // ONE invoke per pass (Oct 15: paged — full-year responses blow the
+  // platform's function response limit). Paged responses still carry the
+  // YEAR-WIDE payrollRecords, fetched fresh from the entity, so fingerprints
+  // are as accurate as the old full re-gather; deliveries for one month are
+  // discarded (fingerprints never read them).
   const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
     payrollYear: year,
     payrollCityId: cityId,
-    payrollPaginationMode: 'full_year',
-    forceRefreshCurrentYear: !!deepPass,
-    payrollRefreshMonths: []
+    payrollPaginationMode: 'paged',
+    payrollPageMonths: [new Date().getMonth() + 1],
+    forceRefreshCurrentYear: false
   });
   const data = response?.data?.payrollData || response?.payrollData;
   const cycles = computePayrollCycleFingerprints(data?.payrollRecords, { year });

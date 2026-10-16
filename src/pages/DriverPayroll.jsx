@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
+import { mergePagedPayrollData, missingPayrollMonthsFor } from '@/components/utils/payrollPagedMerge';
 import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
 import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
@@ -1053,7 +1054,9 @@ export default function DriverPayroll() {
       // Cached data is on screen now — never leave the page on the blocking
       // spinner/banner waiting for the background refresh below to finish.
       setIsLoadingPayroll(false);
-      return true;
+      // Oct 15: return the DATA (truthy) — the caller passes it to fetchPayroll
+      // as the merge base so the paged refresh never drops historical months.
+      return data;
     } catch (e) {
       console.warn('⚠️ [DriverPayroll] No offline payroll cache:', e);
       return false;
@@ -1089,7 +1092,7 @@ export default function DriverPayroll() {
     if (saved > 0) console.log(`💾 [DriverPayroll] IDB payroll sync complete: ${saved}/${scoped.length} records across ${cycles.size} cycle(s) for ${yearNum}`);
   }, []);
 
-  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false, refreshMonths = 0 } = {}) => {
+  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false, refreshMonths = 0, baseData = null } = {}) => {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) {
       // Oct 15: this guard silently killed the page for users whose city never
       // resolved — ship the reason so the deadlock is visible in remote logs.
@@ -1134,22 +1137,44 @@ export default function DriverPayroll() {
       // (nothing on screen); otherwise sync quietly behind the visible data.
       if (!isAutoRefresh && !fullYearPayrollDataRef.current && !payrollDataRef.current) setIsLoadingPayroll(true);
       try {
-        console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
+        // Oct 15 outage fix: the FULL-YEAR response (~10MB+ with all months'
+        // deliveries + patients) exceeds the platform's function response limit —
+        // every user got a 500 (Anna, Riyaz, owner 23:2x). Paged mode fetches
+        // ONLY the current pay cycle's months; payroll records, drivers, stores
+        // and patients refs still arrive year-wide in every paged response.
+        const pageMonths = refreshMonthsList.length ? refreshMonthsList : [new Date().getMonth() + 1];
+        console.log(`📥 [DriverPayroll] Fetching paged payroll - Year: ${selectedYear} months: [${pageMonths.join(',')}]`);
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId,
-          payrollPaginationMode: 'full_year',
-          // Manual refresh: bypass the server-side PayrollSummary fast path and
-          // force a full re-gather (which rewrites the summary).
-          forceRefreshCurrentYear: bypassSummary,
-          // Background load fast path: serve the year from the PayrollSummary but
-          // re-gather only the most recent pay periods — anything farther back is
-          // historical and doesn't change. Much faster than a full-year regather
-          // on every page load.
-          payrollRefreshMonths: !bypassSummary ? refreshMonthsList : []
+          payrollPaginationMode: 'paged',
+          payrollPageMonths: pageMonths,
+          forceRefreshCurrentYear: bypassSummary
         });
         const rawData = response?.data?.payrollData || response?.payrollData;
-        const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
+        const priorYearData = baseData || fullYearPayrollDataRef.current || payrollDataRef.current || null;
+        let data = rawData ? { ...mergePagedPayrollData(priorYearData, rawData, pageMonths), __cacheKey: cacheKey } : rawData;
+        // Cold device (no cache, no prior year rendered — e.g. a driver's first
+        // payroll visit): stitch the missing months from one-month paged fetches
+        // so the full year lands on screen and in the offline cache. One-time
+        // cost; every later load serves instantly from the offline cache.
+        if (data && !priorYearData) {
+          const missingMonths = missingPayrollMonthsFor(selectedYear, pageMonths);
+          for (const m of missingMonths) {
+            try {
+              const res2 = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+                payrollYear: selectedYear,
+                payrollCityId: selectedCityId,
+                payrollPaginationMode: 'paged',
+                payrollPageMonths: [m]
+              });
+              const raw2 = res2?.data?.payrollData || res2?.payrollData;
+              if (raw2) data = { ...mergePagedPayrollData(data, raw2, [m]), __cacheKey: cacheKey };
+            } catch (e) {
+              console.warn(`⚠️ [DriverPayroll] cold-boot month ${m} fetch failed:`, e?.message || e);
+            }
+          }
+        }
 
         fullYearPayrollDataRef.current = data;
         lastFetchSignatureRef.current = fetchSignature;
@@ -1171,7 +1196,9 @@ export default function DriverPayroll() {
         saveOfflinePayroll(selectedYear, selectedCityId, data);
         return data;
       } catch (error) {
-        console.error('Failed to fetch payroll data:', error);
+        // Log the server's error body too — the Oct 15 outage showed only
+        // "status 500" client-side while the true cause sat in the response.
+        console.error('Failed to fetch payroll data:', error?.message, '| server:', error?.response?.data?.error || '(no body)');
         toast.error(error?.response?.data?.error || error?.message || 'Failed to refresh payroll data');
         throw error;
       } finally {
@@ -1253,11 +1280,12 @@ export default function DriverPayroll() {
       // First-ever visit (no cache) keeps the blocking spinner.
       const gotOffline = await loadOfflinePayroll(selectedYear, selectedCityId).catch(() => false);
       if (cancelled) return;
+      const offlineBase = (gotOffline && typeof gotOffline === 'object') ? gotOffline : null;
       // Owner Oct 15: sync right after load covers ONLY the current pay cycle
       // (1-2 months). Historical cycles are owned by the payroll history host
       // (Editor → PWA fallback, payrollHistorySync.js) — client devices never
       // re-gather history on load or refresh anymore.
-      fetchPayroll(!!gotOffline, true, { refreshMonths: getCurrentPayrollCycleMonths(selectedYear, payPeriod) }).catch(() => {});
+      fetchPayroll(!!gotOffline, true, { refreshMonths: getCurrentPayrollCycleMonths(selectedYear, payPeriod), baseData: offlineBase }).catch(() => {});
     })();
     return () => { cancelled = true; };
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, payPeriod, fetchPayroll, loadOfflinePayroll]);

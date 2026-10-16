@@ -68,8 +68,13 @@ export default function StoreMetricsPanel() {
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(selectedYear, 10),
         adminMetricsCityId: null,
+        // Oct 15: paged single-month payroll — this panel only reads the
+        // year-wide refs (stores/appUsers); full-year responses exceed the
+        // platform's function response limit (500).
         payrollYear: parseInt(selectedYear, 10),
-        payrollCityId: null
+        payrollCityId: null,
+        payrollPaginationMode: 'paged',
+        payrollPageMonths: [new Date().getMonth() + 1]
       });
 
       const data = response?.data || response;
