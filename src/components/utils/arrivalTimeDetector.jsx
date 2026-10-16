@@ -194,8 +194,7 @@ class ArrivalTimeDetector {
               // ── Write arrival_time into IDB so local state reflects it immediately ──
               try {
                 const { offlineDB } = await import('./offlineDatabase');
-                const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-                const existing = allDeliveries.find(d => d && d.id === target.id);
+                const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, target.id);
                 if (existing) {
                   await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, arrival_time: arrivalTime }]);
                 }
@@ -325,11 +324,10 @@ class ArrivalTimeDetector {
                   // Write into IDB immediately
                   try {
                     const { offlineDB } = await import('./offlineDatabase');
-                    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-                    const toSave = allArrivalUpdates.map(d => {
-                      const existing = allDeliveries.find(x => x && x.id === d.id);
+                    const toSave = (await Promise.all(allArrivalUpdates.map(async (d) => {
+                      const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, d.id);
                       return existing ? { ...existing, arrival_time: _arrivalTime } : null;
-                    }).filter(Boolean);
+                    }))).filter(Boolean);
                     if (toSave.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toSave);
                   } catch (idbErr) {
                     console.warn('[ARRIVAL] IDB update failed (non-critical):', idbErr.message);
@@ -458,11 +456,10 @@ class ArrivalTimeDetector {
         // Write into IDB immediately so local state is consistent
         try {
           const { offlineDB } = await import('./offlineDatabase');
-          const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const toSave = allImmediateUpdates.map(d => {
-            const existing = allDeliveries.find(x => x && x.id === d.id);
+          const toSave = (await Promise.all(allImmediateUpdates.map(async (d) => {
+            const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, d.id);
             return existing ? { ...existing, arrival_time: arrivalTime } : null;
-          }).filter(Boolean);
+          }))).filter(Boolean);
           if (toSave.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toSave);
         } catch (idbErr) {
           console.warn('[ARRIVAL immediate] IDB update failed (non-critical):', idbErr.message);

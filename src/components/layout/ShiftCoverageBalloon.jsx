@@ -57,7 +57,7 @@ function ShiftCoverageBalloon({ currentUser, records, anchorSelector, onGoToSche
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         let allDeliveries = [];
         try {
-          allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+          allDeliveries = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [todayStr, currentUser.id]) || [];
         } catch (_) { /* offline DB unavailable — proceed */ }
         const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
         const routeStarted = allDeliveries.some((d) =>

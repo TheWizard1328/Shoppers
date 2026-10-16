@@ -169,7 +169,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
   }, [syncSquareCODSnapshotOffline]);
 
   const loadDeliveriesFromOffline = useCallback(async (offlineDB, startDateStr, endDateStr) => {
-    const allDeliveries = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+    const allDeliveries = (await offlineDB.getDeliveriesByDateRange(startDateStr, endDateStr)) || [];
     return allDeliveries.filter((delivery) => delivery && delivery.delivery_date >= startDateStr && delivery.delivery_date <= endDateStr);
   }, []);
 

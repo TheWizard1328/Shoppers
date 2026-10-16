@@ -260,7 +260,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     if (newStatus === 'off_duty') {
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');
-        const localDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
+        const localDeliveries = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [selectedRouteDate, effectiveUser.id]).catch(() => []);
         let todayDeliveries = (localDeliveries || []).filter((delivery) =>
           delivery?.driver_id === effectiveUser.id && delivery?.delivery_date === selectedRouteDate
         );
@@ -717,7 +717,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             try {
               const { offlineDB } = await import('../utils/offlineDatabase');
               const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
-              const allIdbDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
+              const allIdbDeliveries = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [today, currentUser.id]).catch(() => []);
               const hasFinishedStops = (allIdbDeliveries || []).some((dl) =>
                 dl && dl.driver_id === currentUser.id && dl.delivery_date === today && TERMINAL.has(String(dl.status || '').toLowerCase())
               );

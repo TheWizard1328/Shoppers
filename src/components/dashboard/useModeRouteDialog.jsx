@@ -169,7 +169,7 @@ export default function useModeRouteDialog({
       let freshDeliveries = deliveriesWithStopOrder;
       try {
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
-        const allLocal = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
+        const allLocal = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDateStr, currentUser.id]).catch(() => []);
         const driverDateLocal = (allLocal || []).filter(
           (d) => d && d.driver_id === currentUser.id && d.delivery_date === deliveryDateStr && !d._isLocal && !String(d.id || '').startsWith('temp_')
         );

@@ -1656,7 +1656,7 @@ export const connect = () => {
           };
 
           const { offlineDB } = await import('./offlineDatabase');
-          const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const allDeliveries = await offlineDB.getDeliveriesByDateRange(new Date().toISOString().slice(0, 10), '9999-12-31');
           const activeStatuses = new Set(['pending','en_route','in_transit']);
           const toUpdate = (allDeliveries || []).filter(d => d?.patient_id === data.id && activeStatuses.has(d?.status || 'pending') && d?.delivery_date >= new Date().toISOString().slice(0, 10));
 

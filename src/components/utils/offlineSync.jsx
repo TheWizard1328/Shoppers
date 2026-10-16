@@ -655,7 +655,7 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
     // (filterDeleted first: an in-flight fetch captured BEFORE a delete's backend commit
     // can still return the deleted row — never bulkSave it back into IDB).
     const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
-    const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
+    const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
     const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
     if (getSyncPaused()) {
       console.log('⏸️ [LoadAndCacheDeliveries] Skipping bulkSave — paused during action');
@@ -671,7 +671,7 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
     return deliveries || [];
   } catch (error) {
     // On error (e.g. rate limit), return whatever is in the offline DB for this date
-    const cached = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
+    const cached = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
     return cached;
   }
 };
@@ -860,7 +860,7 @@ export const forceSyncAll = async () => {
     // (filterDeleted: drop rows deleted on this device that arrived via stale in-flight fetches).
     {
       const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
-      const fsExisting = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+      const fsExisting = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       const fsToDelete = fsExisting.filter(d => d?.id && !d.id.startsWith('temp_') && !fsIncomingIds.has(d.id));
       if (getSyncPaused()) {
         console.log('⏸️ [ForceSyncAll] Skipping deliveries bulkSave — paused during action');

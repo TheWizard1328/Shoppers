@@ -67,7 +67,7 @@ async function countRemainingStopsToday() {
   try {
     const { offlineDB } = await import('./offlineDatabase');
     const today = edmontonWallString(new Date()).slice(0, 10);
-    const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const all = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [today, _driverUserId]);
     return (all || []).filter(
       (d) => d &&
         d.driver_id === _driverUserId &&

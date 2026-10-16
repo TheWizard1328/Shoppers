@@ -828,6 +828,30 @@ const getByDate = async (storeName, dateStr) => {
 };
 
 /**
+ * Deliveries in a [fromDate, toDate] range via the delivery_date index —
+ * date-range consumers (stats loaders, finance windows) were getAll()-ing the
+ * ENTIRE multi-month store and filtering in memory (owner rule, Oct 16 2026).
+ */
+const getDeliveriesByDateRange = async (fromDate, toDate) => {
+  try {
+    if (!fromDate || !toDate) return [];
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.DELIVERIES], 'readonly');
+    const index = transaction.objectStore(STORES.DELIVERIES).index('delivery_date');
+    return await withTimeout(new Promise((resolve, reject) => {
+      const request = index.getAll(IDBKeyRange.bound(fromDate, toDate));
+      request.onsuccess = async () => {
+        const results = request.result;
+        resolve(isPHIStore(STORES.DELIVERIES) ? await decryptRecords(results) : results);
+      };
+      request.onerror = () => reject(request.error);
+    }), GETALL_TIMEOUT_MS, `IDB getDeliveriesByDateRange(${fromDate}..${toDate})`);
+  } catch (error) {
+    return [];
+  }
+};
+
+/**
  * Get all deliveries sorted by delivery_date in descending order (most recent first)
  */
 const getDeliveriesSortedByDate = async (limit = null) => {
@@ -1735,6 +1759,7 @@ export const offlineDB = {
   getByIndex,
   getByDate,
   getByCompoundIndex,
+  getDeliveriesByDateRange,
   getDeliveriesSortedByDate,
   clearStore,
   replaceAllRecords,

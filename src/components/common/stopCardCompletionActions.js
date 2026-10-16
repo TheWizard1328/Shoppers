@@ -740,7 +740,7 @@ export function useStopCardCompletionActions({
           if (!acceptAllFreshDeliveries || acceptAllFreshDeliveries.length === 0) {
             try {
               const { offlineDB } = await import('../utils/offlineDatabase');
-              const allIdbDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+              const allIdbDeliveries = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [delivery.delivery_date, delivery.driver_id]);
               acceptAllFreshDeliveries = allIdbDeliveries.filter(
                 d => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
               );

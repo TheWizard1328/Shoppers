@@ -5,8 +5,8 @@ import { waitForRateLimit } from './dataManagerRateLimit';
 
 export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}, forceRefresh = false) => {
   try {
-    const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    const filtered = allOfflineDeliveries.filter((d) => {
+    const allOfflineDeliveries = await offlineDB.getDeliveriesByDateRange(startDate, endDate);
+    const filtered = (allOfflineDeliveries || []).filter((d) => {
       if (!d?.delivery_date) return false;
       if (d.delivery_date < startDate || d.delivery_date > endDate) return false;
       for (const [key, value] of Object.entries(filters)) {
@@ -39,8 +39,8 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
     return deliveries;
   } catch {
     try {
-      const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      return allOfflineDeliveries.filter((d) => {
+      const allOfflineDeliveries = await offlineDB.getDeliveriesByDateRange(startDate, endDate);
+      return (allOfflineDeliveries || []).filter((d) => {
         if (!d?.delivery_date) return false;
         return d.delivery_date >= startDate && d.delivery_date <= endDate;
       });

@@ -138,7 +138,7 @@ export const createOfflineSyncPriorityHelpers = ({
       // Always upsert + prune (even if server returns 0 — that means all were deleted)
       {
         const incomingIds = new Set((deliveries || []).filter(d => d?.delivery_date === selectedDateStr).map(d => d?.id).filter(Boolean));
-        const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+        const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id)
           // Cycling markers are only safe to prune when a fetch that covers them positively
           // confirmed they're gone. A failed marker fetch must NOT purge live markers.
@@ -320,7 +320,7 @@ export const createOfflineSyncPriorityHelpers = ({
       // Upsert + prune deleted — never wipe the date's data before writing
       {
         const incomingIds2 = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
-        const existingForDate2 = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+        const existingForDate2 = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         const toDelete2 = existingForDate2.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds2.has(d.id)
           && !(!_markersConfirmed2 && d.is_cycling_marker));
         if (getSyncPaused()) {

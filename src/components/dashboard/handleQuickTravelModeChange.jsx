@@ -52,7 +52,7 @@ export async function handleQuickTravelModeChange(delivery, newMode, currentUser
     // Pull the fresh driver+date set from local IDB — updateDeliveryLocal has
     // already written the new transport_mode there, so this is guaranteed to
     // reflect the just-made change (no race with the in-flight server sync).
-    const allLocal = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const allLocal = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [delivery.delivery_date, delivery.driver_id]);
     let localDeliveries = (allLocal || []).filter(
       (d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
     );

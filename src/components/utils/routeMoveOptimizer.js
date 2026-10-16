@@ -38,25 +38,18 @@ export async function optimizeRoutesForMovePairs({ pairs, source, patients, stor
   // ── Local-first route data: IDB already holds the post-move truth ─────────
   // (the callers' React-state lists may still show the moved stop on its old
   // route; the backend fetch may race the queued server write).
-  let idbDeliveries = null;
-  try {
-    const { offlineDB } = await import('./offlineDatabase');
-    idbDeliveries = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => [])) || [];
-  } catch (e) {
-    console.warn(`⚠️ [routeMoveOptimizer] IDB read failed (${source}) — falling back to backend fetch:`, e?.message || e);
-    idbDeliveries = null;
-  }
-
+  // Oct 16 2026 (owner rule): read each affected route by the date_driver
+  // compound index instead of getAll()-ing the ENTIRE multi-month store.
   const results = [];
   for (const { driverId, deliveryDate } of dedupedPairs) {
     try {
       // Scope the local list to this route so the coordinator's active-stop
       // gate judges THIS route, not the whole day across drivers.
-      const scoped = Array.isArray(idbDeliveries)
-        ? idbDeliveries.filter(
-            (d) => d && String(d.driver_id) === String(driverId) && d.delivery_date === deliveryDate
-          )
-        : null;
+      const { offlineDB } = await import('./offlineDatabase');
+      const idbRouteDeliveries = (await offlineDB.getByCompoundIndex(
+        offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]
+      ).catch(() => null)) || null;
+      const scoped = Array.isArray(idbRouteDeliveries) ? idbRouteDeliveries : null;
       const result = await performRouteOptimization({
         driverId,
         deliveryDate,

@@ -82,7 +82,7 @@ export async function handleStartDelivery({
   try {
     // ─── STEP 2: Compute all transitions locally, write ONLY to offlineDB ────
     // Read the current driver route from IndexedDB (source of truth while syncs are paused)
-    const allLocalDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const allLocalDeliveries = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]);
     const driverLocalDeliveries = allLocalDeliveries.filter(
       (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
     );
@@ -340,7 +340,7 @@ export async function handleStartDelivery({
       const driver = users.find((u) => u && u.id === driverId);
       if (driver?.driver_status === 'on_duty' && driver?.location_tracking_enabled === true) {
         // Fetch the latest delivery set before computing the segment
-        const latestLocal = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const latestLocal = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]);
         const driverLatestDeliveries = latestLocal.filter(
           (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
         );

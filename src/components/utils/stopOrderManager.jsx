@@ -60,7 +60,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
   // ── STEP 1: Read all route deliveries from IDB ──────────────────────────────
   const driverDeliveries = await (async () => {
     try {
-      const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const all = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]);
       return (all || []).filter(d => d?.driver_id === driverId && d?.delivery_date === deliveryDate);
     } catch (err) {
       console.warn('[StopOrderManager] Offline DB read failed:', err?.message || err);

@@ -115,11 +115,21 @@ const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
     }
 
     if (entityName === 'Delivery') {
-      const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      await offlineDB.updateCacheSnapshot('Delivery', allDeliveries || [], { scopeKey: 'global', syncType: 'mutation' });
+      // Oct 16 2026 (owner rule): after EVERY delivery mutation this re-read the
+      // ENTIRE multi-month store and hashed it twice for the cache snapshots —
+      // the single biggest post-change IDB cost. The date-scoped snapshot now
+      // reads ONLY that date slice (delivery_date index); the global snapshot
+      // (an aggregate staleness heuristic) is debounced to once per 60s.
       const deliveryDate = record?.delivery_date;
       if (deliveryDate) {
-        await offlineDB.updateCacheSnapshot('Delivery', (allDeliveries || []).filter(d => d?.delivery_date === deliveryDate), { scopeKey: `date:${deliveryDate}`, syncType: 'mutation' });
+        const dateRows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+        await offlineDB.updateCacheSnapshot('Delivery', dateRows || [], { scopeKey: `date:${deliveryDate}`, syncType: 'mutation' });
+      }
+      const nowMs = Date.now();
+      if (nowMs - (entityMutations.lastGlobalDeliverySnapshotAt || 0) > 60000 || !deliveryDate) {
+        entityMutations.lastGlobalDeliverySnapshotAt = nowMs;
+        const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        await offlineDB.updateCacheSnapshot('Delivery', allDeliveries || [], { scopeKey: 'global', syncType: 'mutation' });
       }
     }
   } catch (error) {

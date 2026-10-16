@@ -234,7 +234,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     const loadDeliveries = async () => {
       try {
         // Try offline DB first
-        const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const cached = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
         const filtered = (cached || []).filter((d) => d?.delivery_date === selectedDate);
         if (!cancelled) setDeliveries(filtered);
         // Background fetch
