@@ -12,6 +12,7 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
+import { stageDeliveryEventIfLowPriority, noteImmediateDeliveryProcessed, setDeliveryStageFlushHandler } from './broadcastPriority';
 import { getLocalTimestampFromDate } from './localTimeHelper';
 import { applyRealtimeMergeWithLockout, isFieldLocked } from './completionLockout';
 import { isDeleted, isDeletedByContent, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
@@ -946,6 +947,30 @@ const subscribeToEntity = (entityName) => {
     const ENTITY_DATA_CACHE_MAX = 2000;
 
     const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
+      // BROADCAST PRIORITY STAGING (owner spec Oct 15 2026): low-priority
+      // delivery broadcasts are staged on THIS device (P1 ~15s, P2 ~45s) so a
+      // completion fan-out doesn't hit every device's main thread at once.
+      // Returns true when staged — the event re-enters handleRealtimeEvent at
+      // flush time with every guard below unchanged.
+      if (stageDeliveryEventIfLowPriority(entityName, event)) return;
+      if (entityName === 'Delivery') noteImmediateDeliveryProcessed(event?.id);
+      await handleRealtimeEvent(entityName, event);
+    });
+
+    // Registered flush path for staged delivery events (same guards, same merge
+    // logic — just later). Defined after subscribe() but before any WS event can
+    // arrive (the platform never fires events synchronously during subscribe).
+    if (entityName === 'Delivery') {
+      setDeliveryStageFlushHandler(async (events) => {
+        for (const ev of events) {
+          try { await handleRealtimeEvent('Delivery', ev); } catch (e) {
+            console.warn('[RealtimeSync] staged delivery event failed to apply:', e?.message || e);
+          }
+        }
+      });
+    }
+
+    const handleRealtimeEvent = async (entityName, event) => {
     const { type, id } = event;
     const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
 
@@ -1563,7 +1588,7 @@ const subscribeToEntity = (entityName) => {
       // The WS payload is already merged with the existing IDB record above (PRESERVE_FIELDS + STRICT_PRESERVE_FIELDS),
       // so a redundant Delivery.get() round-trip is not needed and was the primary source of
       // lag on receiving devices (extra network call + second IDB write + second UI reconciliation).
-    });
+    };
 
     activeSubscriptions.set(entityName, unsubscribe);
   } catch (error) {
