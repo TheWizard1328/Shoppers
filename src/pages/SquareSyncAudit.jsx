@@ -212,7 +212,11 @@ export default function SquareSyncAudit() {
         all.push(...list);
         if (list.length < FETCH_PAGE) break;
       }
-      setEntries(all);
+      // Owner request (Oct 15 2026): Wizard Worxx / Wizard Worxx #2 are the
+      // business's own Square Card locations — NOT RxDeliver store activity.
+      // They must not appear anywhere on the Finance Audit page (cards, chips,
+      // summary columns, ledger rows, red flags). Filter at the display source.
+      setEntries(all.filter((e) => !isWizardWorxxCard(e.location_name)));
       if (all.length > 0) {
         saveLedgerEntriesOffline(all);
         setLastLedgerSyncAt(getLedgerLastSyncAt());
@@ -266,7 +270,7 @@ export default function SquareSyncAudit() {
       // IDB first — render immediately from the offline snapshot
       const cached = await getLedgerEntriesOffline();
       if (!cancelled && cached.length > 0) {
-        setEntries(cached);
+        setEntries(cached.filter((e) => !isWizardWorxxCard(e.location_name)));
         setIsLoading(false);
       }
       setLastLedgerSyncAt(getLedgerLastSyncAt());
@@ -313,8 +317,10 @@ export default function SquareSyncAudit() {
     return locations.filter((l) => selectedLocations.includes(l.id));
   }, [locations, selectedLocations]);
 
-  // Summary tab only: hide the WIZARD WORXX card locations (owner request
-  // Oct 4 2026) — they still show in the Ledger tab rows for auditing.
+  // WIZARD WORXX hidden page-wide since Oct 15 2026 (filtered at the ledger
+  // source). These memo-level filters remain as a harmless second line of
+  // defense for any entry that slips in with a blank location_name on the
+  // record but the name present on a related/linked row.
   const summaryLocations = useMemo(() => activeLocations.filter((l) => !isWizardWorxxCard(l.name)), [activeLocations]);
 
   const fingerprintStats = useMemo(() => {
