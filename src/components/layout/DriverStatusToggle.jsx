@@ -564,24 +564,27 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
               }
             }
 
-            // ── Immediate ETA refresh on break return (owner rule, Sep 29 2026) ──
-            // While on break the ETAs froze (locationTracker only refreshes ETAs
-            // while on_duty AND after enough movement). Returning from a break
-            // must immediately re-anchor the next stop's ETA to now + travel time
-            // from the driver's current position, then mathematically chain the
-            // remaining stops' ETAs from each leg's estimated travel time.
-            // The backend HERE projection handles both; the force flag bypasses
-            // the movement / drift / cooldown guards that would skip it.
-            if (previousStatus === 'on_break') {
+            // ── Immediate ETA refresh on duty resume (owner rules, Sep 29 2026 +
+            // Oct 16 2026) ──
+            // While off duty or on break the ETAs froze (locationTracker only
+            // refreshes ETAs while on_duty AND after enough movement). Coming
+            // back on_duty — from a break OR from off_duty — must immediately
+            // re-anchor the next stop's ETA to now + travel time from the
+            // driver's current position, then mathematically chain the remaining
+            // stops' ETAs from each leg's estimated travel time. The backend HERE
+            // projection does it in ONE router call for the whole chain; the
+            // force flag bypasses the movement / drift / cooldown guards.
+            if (previousStatus === 'on_break' || previousStatus === 'off_duty') {
               try {
+                const _dutyResumeSrc = previousStatus === 'off_duty' ? 'duty_resume' : 'break_return';
                 const etaResult = await base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
                   driverId: effectiveUser.id,
                   deliveryDate: optimizerDate,
-                  routeChangeSource: 'break_return',
+                  routeChangeSource: _dutyResumeSrc,
                   forceEtaRefresh: true,
                 });
                 const etaUpdated = Number(etaResult?.total_updated_deliveries || 0);
-                console.log(`[DriverStatusToggle] break-return ETA refresh: ${etaUpdated} stop${etaUpdated !== 1 ? 's' : ''} updated`);
+                console.log(`[DriverStatusToggle] ${_dutyResumeSrc} ETA refresh: ${etaUpdated} stop${etaUpdated !== 1 ? 's' : ''} updated`);
                 if (etaUpdated > 0) {
                   // The backend writes are service-role (no WebSocket echo), so
                   // pull the fresh ETAs into local state + IDB right away instead

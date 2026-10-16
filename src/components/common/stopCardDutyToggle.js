@@ -152,6 +152,23 @@ export function useStopCardDutyToggle({
           if (deliveryDate && _prevStatus !== 'on_duty') {
             try {
               const { base44 } = await import('@/api/base44Client');
+              // Owner rule (Oct 16 2026): a REAL transition into on_duty — the
+              // driver resumes, or a dispatcher/admin triggers them on from a stop
+              // card — re-anchors ALL remaining stops' ETAs from the driver's
+              // current position. ONE backend router call chains the whole route
+              // (fresh GPS comes from the driver's AppUser record). Runs BEFORE
+              // the refetch below so the fresh ETAs land in the same pull.
+              try {
+                const etaRes = await base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
+                  driverId: targetUserId,
+                  deliveryDate,
+                  routeChangeSource: 'duty_resume',
+                  forceEtaRefresh: true,
+                });
+                console.log(`[ensureDriverOnline] duty-resume ETA refresh: ${etaRes?.total_updated_deliveries || 0} stop(s) updated (reason: ${etaRes?.results?.[0]?.reason || 'updated'})`);
+              } catch (etaErr) {
+                console.warn('[ensureDriverOnline] duty-resume ETA refresh failed (non-blocking):', etaErr?.message || etaErr);
+              }
               const freshDeliveries = await base44.entities.Delivery.filter({
                 driver_id: targetUserId,
                 delivery_date: deliveryDate,

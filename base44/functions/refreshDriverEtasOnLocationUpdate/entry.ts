@@ -369,6 +369,10 @@ Deno.serve(async (req) => {
     // Break-return force (owner rule, Sep 29 2026): toggling back on_duty from
     // on_break must immediately re-anchor the next stop's ETA to now + travel
     // time from the driver's current position, then chain the remaining stops.
+    // Owner rule (Oct 16 2026): the same forced re-anchor runs when a driver
+    // RESUMES on_duty from off_duty, or is TRIGGERED on by a dispatcher/admin —
+    // ETAs froze while off duty, so the whole chain must re-anchor from the
+    // driver's current position (one router call covers every remaining stop).
     const forceEtaRefresh = payload?.forceEtaRefresh === true || routeChangeSource === 'break_return';
 
     if (!explicitDriverId) {
@@ -378,12 +382,14 @@ Deno.serve(async (req) => {
     const isSameDriver = requesterIsDriver && user.id === explicitDriverId;
     const isDispatcherOverride = requesterIsDispatcher && ['assign_accept_all', 'accept_all', 'assign_all'].includes(routeChangeSource);
     const isAdminOverride = requesterIsAdmin && (payload?.force === true || ['admin_stop_edit', 'admin_edit', 'manual_refresh'].includes(routeChangeSource));
-    // Break-return refresh is allowed for the driver themselves (any device — the
-    // GPS comes from the DB record, not the caller) or any admin/dispatcher.
-    const isBreakReturnActor = forceEtaRefresh && routeChangeSource === 'break_return' &&
+    // Break-return / duty-resume refresh is allowed for the driver themselves
+    // (any device — the GPS comes from the DB record, not the caller) or any
+    // admin/dispatcher. Covers driver toggle, dispatcher-triggered duty, and
+    // stop-card auto on-duty (owner rule Oct 16 2026).
+    const isDutyResumeActor = forceEtaRefresh && ['break_return', 'duty_resume'].includes(routeChangeSource) &&
       (isSameDriver || requesterIsAdmin || requesterIsDispatcher);
 
-    if (!(isSameDriver && isPrimaryDevice) && !isDispatcherOverride && !isAdminOverride && !isBreakReturnActor) {
+    if (!(isSameDriver && isPrimaryDevice) && !isDispatcherOverride && !isAdminOverride && !isDutyResumeActor) {
       return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor', delivery_date: deliveryDate, driver_id: explicitDriverId });
     }
 
