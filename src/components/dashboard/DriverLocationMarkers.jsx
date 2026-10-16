@@ -309,17 +309,24 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const fiveMinMs = 5 * 60 * 1000;
     const hasFreshHeartbeat = updatedAt > 0 && (now - updatedAt) <= fiveMinMs;
 
+    // Owner rule (Oct 16 2026): an ON-DUTY driver whose heartbeat went stale
+    // (device offline, app backgrounded, GPS suspended) STAYS visible in ORANGE
+    // instead of vanishing — the staleness icon color already handles it.
+    // Off-duty/offline drivers still need a fresh heartbeat to show at all.
+    const staysVisibleWhenStale = user.driver_status === 'on_duty' && user.status !== 'inactive';
+
     // ── ROLE-BASED VISIBILITY RULES ──
     // App Owner: sees ANY driver with a fresh heartbeat (< 5 min) — no gate on
     // driver_status or location_tracking_enabled or city. Inactive users filtered above.
     // Marker COLOR (not visibility) reflects duty status / staleness — see createDriverIcon.
     if (_isAppOwner) {
-      return hasFreshHeartbeat;
+      return hasFreshHeartbeat || staysVisibleWhenStale;
     }
 
-    // Admin: sees all on_duty drivers with fresh heartbeat (city filter applied in DeliveryMap.jsx)
+    // Admin: sees all on_duty drivers (fresh heartbeat OR stale-but-on-duty,
+    // shown orange) — city filter applied in DeliveryMap.jsx
     if (isAdmin) {
-      return hasFreshHeartbeat && user.driver_status === 'on_duty';
+      return (hasFreshHeartbeat || staysVisibleWhenStale) && user.driver_status === 'on_duty';
     }
 
     // Dispatcher: sees all on_duty drivers in their same city — no Share Location gate.

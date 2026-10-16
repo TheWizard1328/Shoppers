@@ -811,7 +811,10 @@ class LocationTracker {
               current_longitude: previousEtaPosition.longitude
             } : null
           }).catch((etaError) => {
-            console.warn('⚠️ [LocationTracker] ETA refresh skipped:', etaError?.message || etaError);
+            // Server's own message beats the generic axios one (Oct 16: recurring
+            // 500s needed the real cause, e.g. HERE key missing vs rate limit).
+            const serverMsg = etaError?.response?.data?.error || etaError?.response?.data?.message;
+            console.warn('⚠️ [LocationTracker] ETA refresh skipped:', serverMsg || etaError?.message || etaError);
           });
         }
 
