@@ -148,7 +148,15 @@ const installGlobalErrorCapture = () => {
       timestamp: new Date().toISOString(),
       url: window.location.pathname,
     });
-    console.error('🔴 [PreBoundary] Unhandled rejection:', message, reason?.stack);
+    // Stale-asset rejections self-heal via ChunkErrorBoundary's purge+reload
+    // (owner rule, Oct 16 2026): they appear once per deploy on every open
+    // device and were tripping the App Issue Monitor's error counter. Log as
+    // warn so the monitor stops alerting on deploy days.
+    if (isStaleAssetError({ message })) {
+      console.warn('[ChunkLoad] PreBoundary stale-asset rejection (self-healing):', message);
+    } else {
+      console.error('🔴 [PreBoundary] Unhandled rejection:', message, reason?.stack);
+    }
   });
 };
 

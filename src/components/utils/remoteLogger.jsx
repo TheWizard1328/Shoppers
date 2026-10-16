@@ -116,6 +116,18 @@ const GPS_NOISE_RX = /\[LOC\] UPLOAD-SUCCESS|\[LOC\] DISPATCHER-HEARTBEAT|\[LOC\
 let lastGpsNoiseSentAt = 0;
 const GPS_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
+// Native plugin noise (owner rule, Oct 16 2026): raw JSON plugin errors with no
+// console prefix surface from the Android shell on every boot/reload cycle —
+// ALREADY_STARTED (foreground service still running during a deploy-triggered
+// reload) and FOREGROUND_SERVICE_START_NOT_ALLOWED (app backgrounded, GPS
+// intentionally suspended, the breadcrumb timer retries each tick). Both are
+// benign-by-design; they were flooding the App Issue Monitor's error counter
+// and firing owner alerts on every deploy day. Keep locally, ship at most one
+// per 5 min per device.
+const NATIVE_PLUGIN_NOISE_RX = /"code":"ALREADY_STARTED"|"code":"FOREGROUND_SERVICE_START_NOT_ALLOWED"|"Service already started"|Cannot start background location while the app is in the background/;
+let lastNativeNoiseSentAt = 0;
+const NATIVE_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
 const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
 const FINGERPRINT_MAX_PER_WINDOW = 5;
 const FINGERPRINT_WINDOW_MS = 60000;
@@ -305,6 +317,11 @@ const enqueue = async (level, args, extra = {}) => {
     const _gpsNoiseNow = Date.now();
     if (_gpsNoiseNow - lastGpsNoiseSentAt < GPS_NOISE_MIN_INTERVAL_MS) return;
     lastGpsNoiseSentAt = _gpsNoiseNow; // this one ships as the device's traffic heartbeat
+  }
+  if (NATIVE_PLUGIN_NOISE_RX.test(message)) {
+    const _natNoiseNow = Date.now();
+    if (_natNoiseNow - lastNativeNoiseSentAt < NATIVE_NOISE_MIN_INTERVAL_MS) return;
+    lastNativeNoiseSentAt = _natNoiseNow; // deploy/reload noise heartbeat only
   }
   if (shouldSkipDuplicateLog(level, message)) return;
 
