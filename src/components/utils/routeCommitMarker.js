@@ -78,13 +78,19 @@ export const commitDeliveryUpdatesSilently = async (updates = []) => {
  * Remote devices see route_commit_at in changedFields (or a fresh marker in the
  * payload), fetch the driver's route once, and render one update.
  */
-export const fireRouteCommitMarker = async (deliveryId, committedCount = 0) => {
+export const fireRouteCommitMarker = async (deliveryId, committedCount = 0, changedIds = null) => {
   if (!deliveryId) return;
   try {
     const markerData = {
       route_commit_at: new Date().toISOString(),
       route_commit_count: committedCount
     };
+    // OWNER DIRECTIVE (Oct 16 2026): the single end-of-action broadcast carries
+    // ALL stop IDs whose data changed, so receivers (and the issue balloon
+    // diagnostics) can see the full scope of the commit in one event.
+    if (Array.isArray(changedIds) && changedIds.length > 0) {
+      markerData.route_commit_ids = changedIds.filter(Boolean).slice(0, 50);
+    }
     // Pre-write the marker fields to IDB so the content-aware self-echo check
     // (echoGuard) sees matching content and suppresses our own echo.
     try {

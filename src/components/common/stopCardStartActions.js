@@ -1184,6 +1184,13 @@ export function useStopCardStartActions({
     });
 
     // 6. ETA cascade — fire-and-forget so it never blocks the lock or races the flag
+    // SINGLE-BROADCAST COORDINATION (owner directive Oct 16 2026): the cascade
+    // commits silently and resolves _etaCascadeGate; the completion queue
+    // (scheduleCompletionSideEffects) awaits that gate before firing the ONE
+    // end-of-action marker — so the single broadcast carries the FINAL data
+    // (fresh ETAs + isNextDelivery + stop_order), never stale mid-flight values.
+    let _etaCascadeGate = null;
+    const _etaCascadeChangedIds = [];
     if (actedOnNextDelivery && shouldRecalculateEtas && incompleteDeliveries.length > 0) {
       // Owner bug report (Sep 29 2026): the cascade MUST anchor to the actual
       // completion time (or a FRESH clock) — never localNowParts.time, which is
@@ -1245,16 +1252,17 @@ export function useStopCardStartActions({
       // committed values are identical, so no bounce is possible).
       updateDeliveriesLocally?.(updatedRemainingWithEtas, false);
 
-      Promise.resolve().then(async () => {
+      // Gate wiring (owner directive Oct 16 2026): the queue's STEP 4 awaits
+      // this promise so the single marker broadcast happens AFTER the ETA
+      // commit lands. No separate cascade marker anymore — the queue fires the
+      // ONE end-of-action broadcast with all changed stop IDs.
+      _etaCascadeChangedIds.push(delivery.id, ...updatedRemainingWithEtas.map((st) => st.id));
+      _etaCascadeGate = (async () => {
         try {
           // SINGLE SILENT COMMIT (owner rule, Oct 13 2026 — Accept All pattern):
-          // the old path did updateDeliveryLocal + a user-scoped
-          // Delivery.update + broadcastMutation PER STOP — up to three writes
-          // per stop and one WS broadcast per stop, storming every observer
-          // device one flickering ETA at a time. Now: one IDB bulkSave, one
-          // silent server commit (zero WS events), then ONE route_commit
-          // marker write on the finished stop — the only broadcast remotes
-          // receive; their marker receiver fetches the route once.
+          // one IDB bulkSave + one silent server commit (zero WS events). The
+          // ONE route_commit marker is fired by the completion queue after this
+          // gate resolves (single broadcast, final data, changed IDs attached).
           const { offlineDB } = await import('../utils/offlineDatabase');
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRemainingWithEtas).catch(() => {});
           for (const _stop of updatedRemainingWithEtas) {
@@ -1262,20 +1270,23 @@ export function useStopCardStartActions({
             window.__localDeliveryWrites.set(_stop.id, Date.now() + 90 * 1000);
           }
           const _etaCommitted = await commitDeliveryUpdatesSilently(updatedRemainingWithEtas.map((stop) => ({ id: stop.id, data: { delivery_time_eta: stop.delivery_time_eta } })));
-          await fireRouteCommitMarker(delivery.id, _etaCommitted);
+          return _etaCommitted;
         } catch (broadcastError) {
           console.warn(`⚠️ [${status} ETA] silent commit failed:`, broadcastError?.message || broadcastError);
+          return 0;
         }
-        // refreshDriverRoute fires AFTER IDB is settled — prevents stale-read bounce
-        try {
-          await refreshDriverRoute({
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            forceRefreshDriverDeliveries,
-            triggeredBy: `${status}EtaRefresh`,
-          });
-        } catch {}
-      });
+      })();
+      // refreshDriverRoute fires AFTER the commit settles — prevents stale-read
+      // bounce. Runs OUTSIDE the gate: the queue awaits only the commit, the
+      // route refresh is this device's own post-broadcast tidy-up.
+      Promise.resolve(_etaCascadeGate).then(() =>
+        refreshDriverRoute({
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          forceRefreshDriverDeliveries,
+          triggeredBy: `${status}EtaRefresh`,
+        })
+      ).catch(() => {});
     }
 
     // 7. Route finished — show EOD dialog, go off-duty, disable location sharing
@@ -1339,6 +1350,11 @@ export function useStopCardStartActions({
         // OWNER DIRECTIVE (Oct 15 2026): out-of-order stop_order resequencing —
         // flag the queue so only out-of-order finishes renumber stop_order.
         completedOutOfOrder: actedOnNextDelivery !== true,
+        // OWNER DIRECTIVE (Oct 16 2026 — single broadcast): the queue fires the
+        // ONE end-of-action marker AFTER this gate (ETA cascade commit done) and
+        // attaches every changed stop ID to it.
+        finalBroadcastGate: _etaCascadeGate,
+        finalBroadcastChangedIds: _etaCascadeChangedIds,
       }).catch(() => {})
     );
 

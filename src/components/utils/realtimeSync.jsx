@@ -1264,7 +1264,7 @@ const subscribeToEntity = (entityName) => {
                     // Sequencing
                     'stop_order', 'isNextDelivery',
                     // Route-commit marker (single-broadcast design Oct 13 2026)
-                    'route_commit_at', 'route_commit_count',
+                    'route_commit_at', 'route_commit_count', 'route_commit_ids',
                     // Identity
                     'puid', 'stop_id', 'delivery_id', 'tracking_number',
                     // Inter-store

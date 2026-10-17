@@ -157,6 +157,7 @@ const flushCompletionJob = async (entry) => {
   // Extract a minimal update payload per record: only the fields that are
   // meaningful for a completion event.
   const statusWritePromises = [];
+  const _statusSilentUpdates = [];
   if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
     // STALE-REVERT GUARD (Robert, Sep 4 2026): status + actual_delivery_time may
     // only be pushed for the record the user DIRECTLY acted on
@@ -194,10 +195,31 @@ const flushCompletionJob = async (entry) => {
           // this queue owns status/order/flags only.
           // If no meaningful fields to update, skip the server write entirely
           if (Object.keys(update).length === 0) return Promise.resolve(null);
-          return base44.entities.Delivery.update(rec.id, update).catch(() => null);
+          // OWNER DIRECTIVE (Oct 16 2026): NO per-record user-scoped writes.
+          // Each Delivery.update broadcast the full server record — which still
+          // held STALE pre-cascade ETAs at that moment — so remote (and own)
+          // devices applied stale ETAs over the cascade's fresh ones (the
+          // 'reverted then resettled' ETA bounce). All status writes now go
+          // through ONE silent bulk; the SINGLE end-of-action marker broadcast
+          // (STEP 4, after the ETA cascade settles) is the only WS event.
+          _statusSilentUpdates.push({ id: rec.id, data: update });
+          return Promise.resolve(null);
         })
       )
     );
+    if (_statusSilentUpdates.length > 0) {
+      statusWritePromises.push(
+        (async () => {
+          try {
+            const { commitDeliveryUpdatesSilently } = await import('./routeCommitMarker');
+            const _c = await commitDeliveryUpdatesSilently(_statusSilentUpdates);
+            console.log(`[CompleteQueue] silent status commit: ${_c}/${_statusSilentUpdates.length} updates (zero WS events)`);
+          } catch (e) {
+            console.warn('[CompleteQueue] silent status commit failed:', e?.message || e);
+          }
+        })()
+      );
+    }
   }
 
   // 3c. Set driver off-duty if last stop completed — via setDriverStatus backend
@@ -419,19 +441,31 @@ const flushCompletionJob = async (entry) => {
     // (which does its own broadcast). Since we're in batch silent mode above,
     // the entity writes above don't broadcast. So we broadcast once here.
     if (driverId && deliveryDate) {
-      // Owner architecture (Oct 15 2026): changed records were already flushed
-      // to the server in ONE silent bulk (STEP 3 commit); other devices receive
-      // ONLY the lightweight route_commit marker (an ID signal, not record
-      // payloads) and pull the route themselves — the proven Start-button
-      // pattern. The old per-record full-record broadcastMutation loop shipped
-      // every changed record's entire payload to every device (heavy) and was
-      // another stale-overwrite vector: remotes merged whatever this device
-      // held at broadcast time, even if a flush had failed.
+      // Owner architecture (Oct 15 2026, single-broadcast directive Oct 16):
+      // changed records were already flushed to the server in ONE silent bulk
+      // (STEP 3 commit); other devices receive ONLY the lightweight route_commit
+      // marker (an ID signal, not record payloads) and pull the route themselves
+      // — the proven Start-button pattern.
+      //
+      // ORDERING (owner directive Oct 16 2026 — the ETA revert bounce): the
+      // caller (executeTerminalAction) may hand us finalBroadcastGate — a
+      // promise resolving once the ETA cascade's silent commit has landed. We
+      // AWAIT it before broadcasting, so this ONE marker is the final data
+      // state: fresh ETAs + isNextDelivery + stop_order all settled. The marker
+      // also carries every changed stop ID (route_commit_ids).
       try {
+        if (payload.finalBroadcastGate) {
+          await payload.finalBroadcastGate.catch(() => null);
+        }
         const { fireRouteCommitMarker } = await import('./routeCommitMarker');
         const _markerTarget = nextDeliveryId || lastCompletedDeliveryId;
         if (_markerTarget) {
-          await fireRouteCommitMarker(_markerTarget, freshRecords?.length || 0).catch(() => null);
+          const _changedIds = [
+            lastCompletedDeliveryId,
+            ...(Array.isArray(affectedFullRecords) ? affectedFullRecords.map((r) => r?.id) : []),
+            ...(Array.isArray(payload.finalBroadcastChangedIds) ? payload.finalBroadcastChangedIds : []),
+          ].filter(Boolean);
+          await fireRouteCommitMarker(_markerTarget, freshRecords?.length || _changedIds.length, [...new Set(_changedIds)]).catch(() => null);
         }
       } catch (_) {}
     }
