@@ -108,11 +108,24 @@ export const useOptimizationEngineMode = (currentUser) => {
       const freshMode = await forceResolveOptimizationMode(currentUser);
       if (!cancelled) setMode(freshMode);
     };
+    // WS cross-device path: realtimeSync broadcasts 'appSettingsUpdated' when
+    // the route_optimization AppSettings record changes (appSettingsCache
+    // optimistically applies the fresh row), so OTHER owner devices flip their
+    // badges + engine gate immediately too — no poll wait, no restart.
+    const onAppSettingsUpdated = async (event) => {
+      const updated = event?.detail?.data || event?.detail;
+      if (updated?.setting_key !== 'route_optimization') return;
+      invalidateOptimizationModeCache();
+      const mode = await getActiveOptimizationEngine(currentUser);
+      if (!cancelled) setMode(mode);
+    };
     window.addEventListener('routeOptimizationSettingsSaved', onSettingsSaved);
+    window.addEventListener('appSettingsUpdated', onAppSettingsUpdated);
     return () => {
       cancelled = true;
       clearInterval(interval);
       window.removeEventListener('routeOptimizationSettingsSaved', onSettingsSaved);
+      window.removeEventListener('appSettingsUpdated', onAppSettingsUpdated);
     };
   }, [currentUser?.id]);
   return mode;
