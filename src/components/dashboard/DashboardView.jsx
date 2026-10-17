@@ -458,6 +458,7 @@ function DashboardView({
           handleMapViewCycle={handleMapViewCycle} isStatsCardCentered={isStatsCardCentered}
           dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded}
           statsContainerBaseHeight={statsContainerBaseHeight}
+          statsOverlayElRef={statsContainerRef}
           realTimeETAEnabled={realTimeETAEnabled}
           showDeliveryForm={showDeliveryForm} showPatientForm={showPatientForm} showOptimizationSettings={showOptimizationSettings}
           immersiveHidden={immersiveHidden}

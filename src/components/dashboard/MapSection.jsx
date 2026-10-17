@@ -21,7 +21,7 @@ export default function MapSection({
   setDriverRoutes, renderSequence, setRenderSequence,
   stopCardsBaseHeight, handleMarkerClick, handleCardInteraction,
   areCardsVisible, handleMapViewCycle, isStatsCardCentered,
-  dailyPolylineCount, isExpanded, statsContainerBaseHeight = 0,
+  dailyPolylineCount, isExpanded, statsContainerBaseHeight = 0, statsOverlayElRef = null,
   polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,

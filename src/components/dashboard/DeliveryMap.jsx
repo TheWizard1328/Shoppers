@@ -24,6 +24,7 @@ import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } fro
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
 import LiveDriverLocationMarker from "./LiveDriverLocationMarker";
+import { computeOverlayUnhide } from "@/components/utils/mapOverlayUnhide";
 import { decodeGooglePolyline } from "../utils/dynamicPolylineManager";
 import HereTileUsageTracker from "./HereTileUsageTracker";
 import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
@@ -231,7 +232,8 @@ function DeliveryMap({
   topOverlayHeight = 0,
   statsContainerBaseHeight = 0,
   immersiveHidden = false,
-  mapStyle = "explore"
+  mapStyle = "explore",
+  statsOverlayElRef = null,
 }) {
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
   const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
@@ -247,6 +249,11 @@ function DeliveryMap({
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomOverlayTimeoutRef = useRef(null);
   const markerRefs = useRef({});
+  // ── Stats-overlay unhide candidates (owner spec Oct 16 2026) ────────────────
+  // Live/self driver dot, shared driver dots, and INCOMPLETE stop markers
+  // (anything not terminal). Kept in a ref so the shouldFitBounds executor
+  // always reads fresh data without joining its dependency array.
+  const unhideCandidatesRef = useRef([]);
   const popupTimeoutsRef = useRef({});
   const lastTappedRef = useRef({ id: null, time: 0 });
   const legendRef = useRef(null);
@@ -939,6 +946,35 @@ function DeliveryMap({
   // available: live GPS (~1s) for the driver's own dot, server coords for peers.
   const routeAwareDriverLocationMarkers = driverLocationMarkers;
 
+  // Refresh the stats-overlay unhide candidates whenever any marker data changes.
+  useEffect(() => {
+    const terminal = ['completed', 'failed', 'cancelled'];
+    const cands = [];
+    // Live self dot (primary device) — icon is centered on the point.
+    if (currentDriverMarker?.latitude && currentDriverMarker?.longitude) {
+      cands.push({ lat: currentDriverMarker.latitude, lng: currentDriverMarker.longitude, r: 13, yOff: 0 });
+    }
+    // Shared driver dots (server-synced from each driver's primary device).
+    (routeAwareDriverLocationMarkers || []).forEach((u) => {
+      if (u?.current_latitude && u?.current_longitude) {
+        cands.push({ lat: u.current_latitude, lng: u.current_longitude, r: 12, yOff: 0 });
+      }
+    });
+    // Incomplete stop markers — classic teardrop icons anchor at the tip
+    // (bottom-center) and extend ~16px up, so the visual body sits above the point.
+    (deliveryMarkers || []).forEach((m) => {
+      if (m?.latitude && m?.longitude && !terminal.includes(m.status)) {
+        cands.push({ lat: m.latitude, lng: m.longitude, r: 15, yOff: -16 });
+      }
+    });
+    (pickupMarkers || []).forEach((m) => {
+      if (m?.latitude && m?.longitude && !terminal.includes(m.status)) {
+        cands.push({ lat: m.latitude, lng: m.longitude, r: 15, yOff: -16 });
+      }
+    });
+    unhideCandidatesRef.current = cands;
+  }, [currentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers]);
+
   const [isDarkTheme, setIsDarkTheme] = useState(() =>
     document.documentElement.classList.contains("dark-theme") ||
     (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
@@ -1422,11 +1458,64 @@ function DeliveryMap({
 
         // Compute the padding-adjusted center of the bounds — used by all three paths.
         const boundsCenter = bounds.getCenter();
-        const horizShift = (paddingBottomRight[0] - paddingTopLeft[0]) / 2;
-        const vertShift  = (paddingBottomRight[1] - paddingTopLeft[1]) / 2;
+        let horizShift = (paddingBottomRight[0] - paddingTopLeft[0]) / 2;
+        let vertShift  = (paddingBottomRight[1] - paddingTopLeft[1]) / 2;
         const zoomForProjection = zoomAlreadyCorrect ? currentZoom : targetZoomForBounds;
         const projected = map.project(boundsCenter, zoomForProjection);
-        const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), zoomForProjection);
+        let adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), zoomForProjection);
+
+        // ── STATS OVERLAY UNHIDE (owner spec Oct 16 2026) ─────────────────────
+        // Phase fits (map cycle FAB phase 1/2/3, map LOCKED, stats card
+        // collapsed) must not leave the driver dot, shared driver dots, or
+        // incomplete stop markers underneath the stats-cards parent container.
+        // Each candidate marker's post-fit screen position is computed
+        // analytically (exact linear projection — no waiting for the
+        // animation), and if any would sit under the overlay, grow the TOP or
+        // LEFT padding — whichever needs the SMALLER shift — so exactly ONE
+        // padding value changes and the markers clear the panel. Zoom is kept
+        // (the center just shifts), so there is no oscillation: the math is
+        // computed against the final post-fit geometry. Free-floating/
+        // unlocked maps, expanded stats cards, and immersive mode are never
+        // affected.
+        const _unhideGateOn =
+          [1, 2, 3].includes(mapViewPhase) &&
+          isMapViewLocked &&
+          !isStatsCardExpanded &&
+          !immersiveHidden &&
+          (window._userMapControlUntil || 0) <= Date.now();
+        if (_unhideGateOn && statsOverlayElRef?.current && map._container) {
+          try {
+            const _overlayRect = statsOverlayElRef.current.getBoundingClientRect();
+            const _containerRect = map.getContainer().getBoundingClientRect();
+            const _oRect = {
+              left:   _overlayRect.left   - _containerRect.left,
+              top:    _overlayRect.top    - _containerRect.top,
+              right:  _overlayRect.right  - _containerRect.left,
+              bottom: _overlayRect.bottom - _containerRect.top,
+            };
+            const _ms = map.getSize();
+            // Post-fit container-pixel position of each candidate marker.
+            const _centerPx = map.project(adjusted, zoomForProjection);
+            const _cands = (unhideCandidatesRef.current || []).map((c) => {
+              const _px = map.project(L.latLng(c.lat, c.lng), zoomForProjection);
+              return {
+                x: _px.x - _centerPx.x + _ms.x / 2,
+                // Stop-marker icons anchor at the tip (bottom-center) and extend
+                // ~16px up; driver dots are centered. Candidate carries yOff.
+                y: _px.y - _centerPx.y + _ms.y / 2 + (c.yOff || 0),
+                r: c.r,
+              };
+            });
+            const _unhide = computeOverlayUnhide({ overlayRect: _oRect, mapSize: _ms, points: _cands });
+            if (_unhide.axis && _unhide.shiftPx > 0) {
+              const _padDelta = 2 * _unhide.shiftPx; // padding delta = 2x the content shift
+              if (_unhide.axis === 'top') vertShift -= _unhide.shiftPx;
+              else horizShift -= _unhide.shiftPx;
+              adjusted = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), zoomForProjection);
+              console.log(`[MapUnhide] ${_unhide.hiddenCount} marker(s) under stats panel — +${_padDelta}px ${_unhide.axis} padding (shift ${_unhide.shiftPx}px, phase ${mapViewPhase})`);
+            }
+          } catch (_) { /* unhide is best-effort — never block the fit */ }
+        }
 
         if (zoomAlreadyCorrect) {
           // ── TIER 1: FAST PAN (every GPS tick) ─────────────────────────────
