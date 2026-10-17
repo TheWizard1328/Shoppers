@@ -801,16 +801,23 @@ export default function ResetPolylinesButton({
     console.log(`[ResetPolylinesButton] Writing ${updateEntries.length} delivery updates`);
 
     if (updateEntries.length > 0) {
-      // Write in chunks of 10 to avoid hammering the API
-      const CHUNK = 10;
-      for (let i = 0; i < updateEntries.length; i += CHUNK) {
-        const chunk = updateEntries.slice(i, i + CHUNK);
-        await Promise.all(
-          chunk.map(([id, data]) => base44.entities.Delivery.update(id, data).catch(err => {
-            console.warn(`[ResetPolylinesButton] Delivery update failed for ${id}:`, err?.message || err);
-          }))
-        );
-        await tick(100);
+      // OWNER DIRECTIVE (Oct 16 2026): commit ALL regeneration updates in ONE
+      // silent bulk (single-broadcast pattern) + ONE route_commit marker.
+      // Previously chunks of 10 user-scoped Delivery.update calls broadcast a
+      // WS event PER STOP — every device (including this one) re-rendered the
+      // route after each chunk as the legs landed, which the owner saw as the
+      // polylines "reverting 3-4 times and recovering" and the UI updating
+      // after nearly every polyline was saved. Now: zero WS events from the
+      // commit, one marker broadcast, and the single UI update below is the
+      // ONLY thing the user sees.
+      const { commitDeliveryUpdatesSilently, fireRouteCommitMarker } = await import('@/components/utils/routeCommitMarker');
+      const committed = await commitDeliveryUpdatesSilently(
+        updateEntries.map(([id, data]) => ({ id, data }))
+      );
+      console.log(`[ResetPolylinesButton] silent bulk committed ${committed}/${updateEntries.length} updates (single broadcast via marker)`);
+      if (committed > 0) {
+        const _markerId = updateEntries[0][0];
+        await fireRouteCommitMarker(_markerId, committed).catch(() => {});
       }
     }
 
