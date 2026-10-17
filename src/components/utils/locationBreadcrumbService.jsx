@@ -508,6 +508,12 @@ export const flushPendingBreadcrumbMasters = async () => {
         const payload = {
           driver_id: record.driver_id,
           delivery_id: record.delivery_id,
+          // linked_delivery_id (owner fix, Oct 17 2026): segment flushes must
+          // set the SAME stable link the consolidate slicer writes, or the
+          // two writers produce twin records for one stop (linked + legacy
+          // stop_order-only) that the dedupe used to miss — the duplicate
+          // snipped crumbs in the Route Viewer.
+          linked_delivery_id: record.linked_delivery_id || record.delivery_id || null,
           delivery_date: record.delivery_date,
           stop_order: record.stop_order,
           encoded_polyline: record.encoded_polyline,
@@ -515,11 +521,20 @@ export const flushPendingBreadcrumbMasters = async () => {
           transport_mode: record.transport_mode || 'driving',
           point_count: record.point_count,
         };
-        const existing = await base44.entities.DeliveryBreadcrumbs.filter({
-          driver_id: record.driver_id,
-          delivery_date: record.delivery_date,
-          stop_order: record.stop_order,
-        }).catch(() => []);
+        // Owner rule (Oct 15 2026, applied here Oct 17): a FAILED read must
+        // ABORT the flush, never fall through to a blind CREATE — every
+        // blind create is a future duplicate record (the Square snapshot
+        // bug pattern).
+        let existing;
+        try {
+          existing = await base44.entities.DeliveryBreadcrumbs.filter({
+            driver_id: record.driver_id,
+            delivery_date: record.delivery_date,
+            stop_order: record.stop_order,
+          });
+        } catch (_flushReadErr) {
+          continue; // keep the _pending_server_sync flag; retried next cycle
+        }
         if (existing?.[0]?.id) await base44.entities.DeliveryBreadcrumbs.update(existing[0].id, payload);
         else await base44.entities.DeliveryBreadcrumbs.create(payload);
       }

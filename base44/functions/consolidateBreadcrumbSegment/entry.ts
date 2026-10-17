@@ -1257,30 +1257,36 @@ async function handleSingle(base44, body) {
     // (legacy fallback for records sealed before linked_delivery_id existed).
     // A segment keeps following its delivery even after a repairStopOrders
     // renumber — only legacy un-migrated records can still be mismatched.
-    const existingByDeliveryId = new Map();
-    const existingByStopOrder = new Map();
+    //
+    // DUPLICATE RULE (owner report, Oct 17 2026 — "many duplicate snipped
+    // crumbs in the Route Viewer"): records are deduped PER (driver, date,
+    // stop_order), NOT per namespaced key. The old code keyed linked records
+    // as `d:<delivery_id>` and legacy ones as `s:<stop_order>`, so a linked
+    // record and a legacy record for the SAME stop never collided — the
+    // legacy twin (created by the client breadcrumb flush, which doesn't set
+    // linked_delivery_id) survived forever as a visible duplicate. Now: group
+    // by stop_order, keep exactly ONE best record per stop (linked id wins,
+    // then saved_to_route, then newest updated_date), delete the rest.
     const duplicateCrumbIds = [];
-    const seenKeys = new Set();
+    const byStopOrder = new Map(); // stop_order -> best record
     for (const rec of (existingSegments || [])) {
       if (rec.stop_order === -1) continue;
-      const key = rec.linked_delivery_id ? `d:${rec.linked_delivery_id}` : `s:${Number(rec.stop_order)}`;
-      if (seenKeys.has(key)) {
-        const map = rec.linked_delivery_id ? existingByDeliveryId : existingByStopOrder;
-        const mapKey = rec.linked_delivery_id || Number(rec.stop_order);
-        const existing = map.get(mapKey);
-        if (existing && existing.saved_to_route === true && rec.saved_to_route !== true) {
-          duplicateCrumbIds.push(rec.id);
-        } else if (existing && existing.saved_to_route !== true && rec.saved_to_route === true) {
-          duplicateCrumbIds.push(existing.id);
-          map.set(mapKey, rec);
-        } else {
-          duplicateCrumbIds.push(rec.id);
-        }
-      } else {
-        seenKeys.add(key);
-        if (rec.linked_delivery_id) existingByDeliveryId.set(rec.linked_delivery_id, rec);
-        else existingByStopOrder.set(Number(rec.stop_order), rec);
-      }
+      const so = Number(rec.stop_order);
+      const prev = byStopOrder.get(so);
+      if (!prev) { byStopOrder.set(so, rec); continue; }
+      const rank = (r) => (r.linked_delivery_id ? 2 : 0) + (r.saved_to_route === true ? 1 : 0);
+      const prevRank = rank(prev), recRank = rank(rec);
+      let keep, drop;
+      if (prevRank !== recRank) { keep = prevRank > recRank ? prev : rec; drop = prevRank > recRank ? rec : prev; }
+      else { keep = String(prev.updated_date || '') >= String(rec.updated_date || '') ? prev : rec; drop = keep === prev ? rec : prev; }
+      byStopOrder.set(so, keep);
+      duplicateCrumbIds.push(drop.id);
+    }
+    const existingByDeliveryId = new Map();
+    const existingByStopOrder = new Map();
+    for (const rec of byStopOrder.values()) {
+      if (rec.linked_delivery_id) existingByDeliveryId.set(rec.linked_delivery_id, rec);
+      else existingByStopOrder.set(Number(rec.stop_order), rec);
     }
 
     for (const dupId of duplicateCrumbIds) {
