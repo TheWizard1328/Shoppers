@@ -254,6 +254,16 @@ function DeliveryMap({
   // (anything not terminal). Kept in a ref so the shouldFitBounds executor
   // always reads fresh data without joining its dependency array.
   const unhideCandidatesRef = useRef([]);
+  // TRUE rendered shared-dot list, reported by DriverLocationMarkers (merged
+  // WS/SmartRefresh state — can be fresher than the `users` prop). Used for the
+  // stats-overlay unhide check so the selected driver's / other drivers' shared
+  // dots are checked at their ACTUAL painted positions.
+  const sharedVisibleDriversRef = useRef([]);
+  const [sharedLocationMarkersTick, setSharedLocationMarkersTick] = useState(0);
+  const handleVisibleDriversChange = useCallback((list) => {
+    sharedVisibleDriversRef.current = Array.isArray(list) ? list : [];
+    setSharedLocationMarkersTick((v) => v + 1);
+  }, []);
   const popupTimeoutsRef = useRef({});
   const lastTappedRef = useRef({ id: null, time: 0 });
   const legendRef = useRef(null);
@@ -954,8 +964,10 @@ function DeliveryMap({
     if (currentDriverMarker?.latitude && currentDriverMarker?.longitude) {
       cands.push({ lat: currentDriverMarker.latitude, lng: currentDriverMarker.longitude, r: 13, yOff: 0 });
     }
-    // Shared driver dots (server-synced from each driver's primary device).
-    (routeAwareDriverLocationMarkers || []).forEach((u) => {
+    // Shared driver dots (server-synced from each driver's primary device) —
+    // use the RENDERED list reported by DriverLocationMarkers (exact painted
+    // positions), not the possibly-lagging `users` prop.
+    (sharedVisibleDriversRef.current || []).forEach((u) => {
       if (u?.current_latitude && u?.current_longitude) {
         cands.push({ lat: u.current_latitude, lng: u.current_longitude, r: 12, yOff: 0 });
       }
@@ -973,7 +985,7 @@ function DeliveryMap({
       }
     });
     unhideCandidatesRef.current = cands;
-  }, [currentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers]);
+  }, [currentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, sharedLocationMarkersTick]);
 
   const [isDarkTheme, setIsDarkTheme] = useState(() =>
     document.documentElement.classList.contains("dark-theme") ||
@@ -1973,7 +1985,7 @@ function DeliveryMap({
           )}
 
           {mapReady && (
-            <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} selectedDriverId={selectedDriverId} showOtherDriverDeliveries={showOtherDriverDeliveries} overlayDriverId={overlayDriverId} />
+            <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} selectedDriverId={selectedDriverId} showOtherDriverDeliveries={showOtherDriverDeliveries} overlayDriverId={overlayDriverId} onVisibleDriversChange={handleVisibleDriversChange} />
           )}
         </Pane>
 

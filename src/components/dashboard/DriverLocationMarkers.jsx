@@ -225,9 +225,16 @@ const mergeDriversWithCache = (current = [], incoming = [], cacheMap = new Map()
 
 const MARKER_CACHE_TTL_MS = 3 * 60 * 1000;
 
-const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null, selectedDriverId = null, showOtherDriverDeliveries = false, overlayDriverId = null }) => {
+const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null, selectedDriverId = null, showOtherDriverDeliveries = false, overlayDriverId = null, onVisibleDriversChange = null }) => {
   const { isMobile } = useDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
+  // Report the settled rendered shared-dot list up to the parent (DeliveryMap)
+  // so the stats-overlay unhide check uses the EXACT positions being painted —
+  // not the possibly-lagging `users` prop. Shared dots come from the merged
+  // WS/SmartRefresh state here, which can be minutes fresher than the prop.
+  useEffect(() => {
+    onVisibleDriversChange?.(Array.isArray(visibleDrivers) ? visibleDrivers : []);
+  }, [visibleDrivers, onVisibleDriversChange]);
   const lastPropUpdateRef = useRef(0);
   const markerRefs = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
