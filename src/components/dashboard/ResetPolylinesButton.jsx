@@ -8,6 +8,7 @@ import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager"
 import { getOrFetchHereApiKey } from "@/components/utils/hereApiKeyStore";
 import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
 import { Loader2, RotateCcw } from "lucide-react";
+import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 
 // ─── HERE Flexible Polyline decode ──────────────────────────────────────────
 const HERE_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -311,6 +312,12 @@ export default function ResetPolylinesButton({
   onBreadcrumbsReloaded,
 }) {
   const [isResetting, setIsResetting] = useState(false);
+
+  // Engine badge (owner directive Oct 16 2026): the regen button follows the
+  // same client/server switch as the optimize FAB — blue + 'S' corner badge in
+  // server mode, green + 'C' in client mode. Resolves the auth user itself
+  // when currentUser isn't passed in.
+  const optimizationEngineMode = useOptimizationEngineMode(null);
 
   const driverIds = useMemo(() => {
     return Array.from(new Set((selectedDriverIds || []).filter(Boolean).filter(id => id !== "all")));
@@ -669,13 +676,72 @@ export default function ResetPolylinesButton({
       console.log(`[ResetPolylinesButton] PASS 1 — driving baseline, ${sorted.length} stops (1 API call)`);
     }
 
-    if (!allStopsSealed && hereApiKey) {
+    // ── ENGINE SWITCH (owner directive Oct 16 2026): the regen button follows
+    // the SAME client/server switch as the optimize FAB. In SERVER mode the
+    // driving baseline for the ACTIVE route comes from rxServerRouteOptimizer
+    // (stateless, preserveExistingOrder — the same call the FAB uses), while
+    // the COMPLETED portion of the chain (home → finished stops, which the
+    // server engine does not polyline) is patched by the client HERE call with
+    // deviation vias intact. Cycling loops (Pass 2) and breadcrumb overrides
+    // (Pass 3) always stay client-side — they own client-only data the server
+    // engine has no part of. Any server failure falls back to the full client
+    // chain.
+    let serverBaseline = null;
+    if (!allStopsSealed) {
+      try {
+        const { getActiveOptimizationEngine, runServerSideOptimization } = await import('@/components/utils/serverOptimizationMode');
+        if (await getActiveOptimizationEngine() === 'server') {
+          const _srv = await runServerSideOptimization({
+            deliveries: routeStops,
+            patients,
+            stores,
+            appUsers: driverAppUsers || [],
+            driverId,
+            deliveryDate: selectedDate,
+            preserveExistingOrder: true,
+          });
+          if (_srv?.supported && _srv?.success && (_srv.writeBatch || []).some(w => w?.data?.encoded_polyline != null)) {
+            serverBaseline = _srv;
+            let _srvLegs = 0;
+            for (const w of _srv.writeBatch) {
+              const d = w?.data || {};
+              if (d.encoded_polyline == null) continue;
+              _srvLegs++;
+              // POLYLINE-ONLY patch: a regen never rewrites stop_order / eta /
+              // isNextDelivery — only the geometry fields (owner ETA rules).
+              mergeUpdate(w.id, {
+                encoded_polyline: d.encoded_polyline,
+                ...(d.polyline_from_order != null ? { polyline_from_order: d.polyline_from_order } : {}),
+                ...(d.transport_mode != null ? { transport_mode: d.transport_mode } : {}),
+                ...(d.estimated_distance_km != null ? { estimated_distance_km: d.estimated_distance_km } : {}),
+                ...(d.estimated_duration_minutes != null ? { estimated_duration_minutes: d.estimated_duration_minutes } : {}),
+              });
+            }
+            console.log(`[ResetPolylinesButton] PASS 1 (SERVER engine) — baseline polylines for ${_srvLegs} active stop(s); client patches the completed legs`);
+          } else {
+            console.warn(`[ResetPolylinesButton] server engine not used (${_srv?.reason || 'no polylines'}) — full client chain`);
+          }
+        }
+      } catch (_srvErr) {
+        serverBaseline = null;
+        console.warn(`[ResetPolylinesButton] server engine failed (${_srvErr?.message || _srvErr}) — full client chain`);
+      }
+    }
+
+    // In server mode the client call only patches the COMPLETED portion of the
+    // chain (terminal stops); otherwise it regenerates the whole route.
+    const TERMINAL_FOR_CHAIN = ['completed', 'failed', 'cancelled'];
+    const _clientChainStops = serverBaseline
+      ? routeStops.filter(d => TERMINAL_FOR_CHAIN.includes(String(d.status || '').toLowerCase()))
+      : sorted;
+
+    if (!allStopsSealed && hereApiKey && (!serverBaseline || _clientChainStops.length >= 1)) {
       // Build waypoint list: origin first, then each stop in order
       const originPoint = homePosition
         ? { lat: homePosition.latitude, lon: homePosition.longitude }
         : null;
 
-      const stopPoints = (await Promise.all(sorted.map(async d => {
+      const stopPoints = (await Promise.all(_clientChainStops.map(async d => {
         const c = await resolveStopCoords(d, patientMap, storeMap);
         return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id, delivery: d } : null;
       }))).filter(Boolean);
@@ -926,12 +992,23 @@ export default function ResetPolylinesButton({
         disabled={disabled || isResetting || driverIds.length === 0}
         title="Reset and update all polylines"
         aria-label="Reset and update all polylines"
-        className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 bg-slate-700 hover:bg-slate-800 ${className}`}
+        className={`relative inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${
+          optimizationEngineMode === 'server'
+            ? 'bg-blue-600 hover:bg-blue-700'
+            : 'bg-emerald-600 hover:bg-emerald-700'
+        } ${className}`}
         style={{ pointerEvents: "auto", touchAction: "manipulation" }}
       >
         {isResetting
           ? <Loader2 className="w-5 h-5 text-white animate-spin" />
           : <RotateCcw className="w-5 h-5 text-white" />}
+        {!isResetting && (
+          <span className={`absolute top-0.5 left-0.5 font-bold text-[10px] pointer-events-none ${
+            optimizationEngineMode === 'server' ? 'text-blue-100' : 'text-emerald-100'
+          }`}>
+            {optimizationEngineMode === 'server' ? 'S' : 'C'}
+          </span>
+        )}
       </Button>
     );
   }
@@ -947,14 +1024,23 @@ export default function ResetPolylinesButton({
         size="sm"
         onClick={handleReset}
         disabled={disabled || isResetting || driverIds.length === 0}
-        className={`h-8 gap-2 ${className} text-body bg-surface`} style={{ borderColor: "var(--border-slate-300)" }}
+        className={`relative h-8 gap-2 ${className} ${
+          optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
+        } bg-surface`} style={{ borderColor: optimizationEngineMode === 'server' ? 'var(--border-blue-400, #60a5fa)' : 'var(--border-emerald-400, #34d399)' }}
         title={showCoverage
-          ? `Refresh polylines — ${coverage.sealed}/${coverage.total} stops saved from breadcrumbs`
-          : "Refresh polylines"}
+          ? `Refresh polylines — ${coverage.sealed}/${coverage.total} stops saved from breadcrumbs (${optimizationEngineMode === 'server' ? 'server' : 'client'} engine)`
+          : `Refresh polylines (${optimizationEngineMode === 'server' ? 'server' : 'client'} engine)`}
       >
         {isResetting
           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
           : <RotateCcw className="w-3.5 h-3.5" />}
+        {!isResetting && (
+          <span className={`absolute top-0.5 left-1 font-bold text-[9px] pointer-events-none ${
+            optimizationEngineMode === 'server' ? 'text-blue-500' : 'text-emerald-500'
+          }`}>
+            {optimizationEngineMode === 'server' ? 'S' : 'C'}
+          </span>
+        )}
       </Button>
       {showCoverage && (
         <span
