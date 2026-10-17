@@ -792,13 +792,20 @@ export default function ResetPolylinesButton({
         );
         if (!matchingEnd) continue;
 
-        const loopStops = sorted.filter(d =>
+        // ENGINE SWITCH (owner directive Oct 16 2026): in SERVER mode the ACTIVE
+        // cycling legs already came from rxServerRouteOptimizer (mixed-mode
+        // pipeline) — this client pass only patches the COMPLETED legs of the
+        // loop (historical bicycle geometry the server engine does not
+        // polyline), keeping transport modes correct.
+        const TERMINAL_FOR_LOOP = ['completed', 'failed', 'cancelled'];
+        const loopStops = (serverBaseline ? sorted.filter(d =>
+          TERMINAL_FOR_LOOP.includes(String(d.status || '').toLowerCase())) : sorted).filter(d =>
           Number(d.stop_order) >= Number(startMarker.stop_order) &&
           Number(d.stop_order) <= Number(matchingEnd.stop_order)
         );
         if (loopStops.length < 2) continue;
 
-        console.log(`[ResetPolylinesButton] Pass 2 — cycling loop: ${loopStops.length} stops → 1 HERE call`);
+        console.log(`[ResetPolylinesButton] Pass 2 — cycling loop: ${loopStops.length} stops → 1 HERE call${serverBaseline ? ' (completed legs only — server covered active)' : ''}`);
 
         // Build waypoints for this loop: stop[0] → stop[1] → ... → stop[N-1]
         const loopPoints = (await Promise.all(loopStops.map(async d => {

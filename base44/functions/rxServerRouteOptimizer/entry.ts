@@ -165,14 +165,18 @@ const decodeHereFlexiblePolyline = (encoded) => {
 };
 
 // ─── HERE findsequence2 (ported from callHereSequence) ───────────────────────
-async function callHereSequence({ origin, stops, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows }) {
+async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows }) {
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
   params.set('departure', buildLocalIso(deliveryDate, formatMinutesToTime(currentMinutes)));
-  params.set('mode', 'fastest;car;traffic:disabled');
+  params.set('mode', `fastest;${mode};traffic:disabled`);
   params.set('improveFor', 'time');
   params.set('start', `driverStart;${origin.lat},${origin.lng}`);
-  if (home && Number.isFinite(home.lat) && Number.isFinite(home.lng)) {
+  if (destination && Number.isFinite(destination.lat) && Number.isFinite(destination.lng)) {
+    // Explicit destination anchor (mixed-mode: the cycling END marker is the
+    // exit of the bicycle leg, mirroring the client engine's runHereSequence).
+    params.set('end', `routeEnd;${destination.lat},${destination.lng}`);
+  } else if (home && Number.isFinite(home.lat) && Number.isFinite(home.lng)) {
     params.set('end', `driverHome;${home.lat},${home.lng}`);
   }
   stops.forEach((stop, index) => {
@@ -198,13 +202,13 @@ async function callHereSequence({ origin, stops, home, apiKey, deliveryDate, cur
 }
 
 // ─── HERE Router v8 multi-stop polyline (ported from getMultiStopRouteHere) ──
-async function getMultiStopRouteSections(points, apiKey) {
+async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
-  params.set('transportMode', 'car');
+  params.set('transportMode', transportMode === 'bicycle' ? 'bicycle' : 'car');
   params.set('origin', `${validPoints[0].lat},${validPoints[0].lon}`);
   params.set('destination', `${validPoints[validPoints.length - 1].lat},${validPoints[validPoints.length - 1].lon}`);
   params.set('return', 'polyline,summary');
@@ -288,48 +292,50 @@ Deno.serve(async (req) => {
     if (routeStops.length > 40) {
       return Response.json({ success: true, supported: false, reason: 'too_many_stops' });
     }
-    // Phase 1 scope: cycling segments stay on the (working) client engine.
-    const hasCycling = routeStops.some((s) => s.isCyclingMarker ||
+    // ── Mixed-mode detection (owner directive Oct 16 2026): cycling routes now
+    // follow the SAME client/server switch as driving routes. Mirrors the
+    // client engine's split (clientRouteEngine.js): a route WITH an END cycling
+    // marker runs two-leg sequencing — bicycle leg (origin → cycling stops →
+    // END marker) + car leg (END marker → driving stops, home anchor) — then
+    // stitches [start marker] → [cycling ordered] → [end marker] → [driving
+    // ordered]. Cycling shape WITHOUT an END marker falls back to the client
+    // engine (Robert's rule, Sep 8 2026).
+    const _cyclingMarkers = routeStops.filter((s) => s.isCyclingMarker);
+    const _startMarker = _cyclingMarkers.find((s) => String(s.deliveryNotes || '').toLowerCase().includes('start')) || null;
+    const _endMarker = _cyclingMarkers.find((s) => String(s.deliveryNotes || '').toLowerCase().includes('end')) || null;
+    const _hasCyclingStops = routeStops.some((s) => !s.isCyclingMarker &&
       String(s.transportMode || '').toLowerCase() === 'cycling');
-    if (hasCycling) {
-      return Response.json({ success: true, supported: false, reason: 'cycling_route_not_supported_server_side' });
+    if ((_cyclingMarkers.length > 0 || _hasCyclingStops) && !_endMarker) {
+      return Response.json({ success: true, supported: false, reason: 'cycling_route_without_end_marker' });
     }
+    const mixedMode = !!_endMarker;
 
     const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false } = options;
 
-    // ── 1. HERE sequencing (ONE call for the whole pool) ────────────────────
+    // ── 1. HERE sequencing (ONE call for the whole pool; TWO in mixed mode) ─
     const includeTimeWindows = routeStops.some((s) => s.windowStart && parseTimeToMinutes(s.windowStart) > 0);
     let orderedStops = routeStops;
     let usedFallbackOrdering = false;
-    let seqLegs = []; // per-arrival leg data from findsequence2 (indexed to ordered waypoints)
+    let hereCalls = 0;
 
-    try {
-      const seqResult = await callHereSequence({
-        origin, stops: routeStops, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows,
-      });
-      // findsequence2 returns interconnecting legs per waypoint in sequence order.
-      const seqWaypoints = (seqResult.waypoints || []).filter((w) => w.id !== 'driverStart' && w.id !== 'driverHome');
-      const byId = new Map(routeStops.map((s) => [String(s.stopId || s.id), s]));
-      const byFallbackId = new Map(routeStops.map((s) => [String(s.id), s]));
+    // Resolve findsequence2 waypoints back to request stops (shared by the
+    // driving and bicycle legs).
+    const resolveSequence = (seqResult, pool) => {
+      const seqWaypoints = (seqResult.waypoints || []).filter((w) => w.id !== 'driverStart' && w.id !== 'driverHome' && w.id !== 'routeEnd');
+      const byId = new Map(pool.map((s) => [String(s.stopId || s.id), s]));
+      const byFallbackId = new Map(pool.map((s) => [String(s.id), s]));
       const resolved = seqWaypoints.map((w) => byId.get(String(w.id)) || byFallbackId.get(String(w.id))).filter(Boolean);
-      if (resolved.length === routeStops.length) {
-        orderedStops = resolved;
-      } else {
-        throw new Error(`sequence resolution incomplete (${resolved.length}/${routeStops.length})`);
+      if (resolved.length !== pool.length) {
+        throw new Error(`sequence resolution incomplete (${resolved.length}/${pool.length})`);
       }
-      seqLegs = (seqResult.interconnectingLegs || []).map((l) => ({
-        duration: Number(l?.duration || 0),
-        distance: Number(l?.distance || 0),
-      }));
-    } catch (seqErr) {
-      // Degraded: nearest-neighbor crow-flies ordering (client would retry on
-      // its own engine anyway if we report unsupported; instead we still
-      // produce a deterministic order + polylines so the route stays usable).
-      usedFallbackOrdering = true;
-      console.warn(`[rxServerRouteOptimizer] findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
-      const remaining = [...routeStops];
-      const nn = [remaining.shift()];
-      let cursor = { lat: origin.lat, lng: origin.lng };
+      return resolved;
+    };
+
+    // Nearest-neighbor crow-flies fallback ordering (shared by both legs).
+    const nearestNeighborOrder = (pool, from) => {
+      const remaining = [...pool];
+      const nn = [];
+      let cursor = { lat: from.lat, lng: from.lng };
       while (remaining.length > 0) {
         let bestIdx = 0, bestDist = Infinity;
         remaining.forEach((s, i) => {
@@ -340,56 +346,173 @@ Deno.serve(async (req) => {
         nn.push(picked);
         cursor = { lat: picked.lat, lng: picked.lng };
       }
-      orderedStops = nn;
-    }
+      return nn;
+    };
 
-    // ── 2. Window-band chronology (Sep 10 2026 semantics, 2-hour bands) ────
-    const hasTimeWindows = routeStops.some((s) => Number.isFinite(parseTimeToMinutes(s.windowStart)) && parseTimeToMinutes(s.windowStart) > 0);
-    if (hasTimeWindows && orderedStops.length > 1) {
-      const TIME_BAND_MINUTES = 120;
-      const nowBand = Math.floor(currentMinutes / TIME_BAND_MINUTES);
-      const bandOf = (stop) => {
-        const m = parseTimeToMinutes(stop.windowStart);
-        if (!Number.isFinite(m) || m <= 0) return nowBand; // no window → servable now
-        if (m <= currentMinutes) return nowBand; // window already open → servable now
-        return Math.floor(m / TIME_BAND_MINUTES); // future window → chronological band
-      };
-      const decorated = orderedStops.map((stop) => ({ stop, band: bandOf(stop) }));
-      decorated.sort((a, b) => a.band - b.band); // stable sort keeps HERE order in-band
-      orderedStops = decorated.map((d) => d.stop);
-    }
+    if (mixedMode) {
+      // ── Mixed-mode two-leg sequencing (client engine parity) ─────────────
+      // Leg 1 (bicycle): origin → cycling stops → END marker anchor.
+      // Leg 2 (car): END marker → driving stops → home anchor.
+      // Stitch: [start marker] → [cycling ordered] → [end marker] → [driving ordered].
+      // The start marker is NOT a HERE waypoint — fixed positional anchor.
+      const pool = routeStops.filter((s) => !s.isCyclingMarker);
+      const drivingPool = pool.filter((s) => String(s.transportMode || '').toLowerCase() !== 'cycling');
+      const cyclingPool = pool.filter((s) => String(s.transportMode || '').toLowerCase() === 'cycling');
 
-    // ── 3. ISP-before-ISD ordering constraint ───────────────────────────────
-    {
-      const ispByStopId = new Map(orderedStops.filter((s) => String(s.deliveryId || '').startsWith('ISP')).map((s) => [s.stopId, s]));
-      let swapped = false;
-      do {
-        swapped = false;
-        for (let i = 0; i < orderedStops.length; i++) {
-          const stop = orderedStops[i];
-          if (String(stop.deliveryId || '').startsWith('ISD') && stop.puid) {
-            const linkedISP = ispByStopId.get(stop.puid);
-            if (!linkedISP) continue;
-            const ispIdx = orderedStops.findIndex((s) => s.id === linkedISP.id);
-            if (ispIdx > i) {
-              orderedStops = [...orderedStops];
-              const tmp = orderedStops[i];
-              orderedStops[i] = orderedStops[ispIdx];
-              orderedStops[ispIdx] = tmp;
-              swapped = true;
-              break;
+      let orderedCycling = cyclingPool;
+      let orderedDriving = drivingPool;
+
+      if (cyclingPool.length > 0) {
+        try {
+          const seqResult = await callHereSequence({
+            origin, stops: cyclingPool, destination: { lat: _endMarker.lat, lng: _endMarker.lng },
+            mode: 'bicycle', apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+          });
+          orderedCycling = resolveSequence(seqResult, cyclingPool);
+          hereCalls++;
+        } catch (seqErr) {
+          usedFallbackOrdering = true;
+          console.warn(`[rxServerRouteOptimizer] bicycle findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
+          orderedCycling = nearestNeighborOrder(cyclingPool, origin);
+        }
+      }
+      if (drivingPool.length > 0) {
+        try {
+          const seqResult = await callHereSequence({
+            origin: { lat: _endMarker.lat, lng: _endMarker.lng }, stops: drivingPool, home,
+            mode: 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+          });
+          orderedDriving = resolveSequence(seqResult, drivingPool);
+          hereCalls++;
+        } catch (seqErr) {
+          usedFallbackOrdering = true;
+          console.warn(`[rxServerRouteOptimizer] car findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
+          orderedDriving = nearestNeighborOrder(drivingPool, { lat: _endMarker.lat, lng: _endMarker.lng });
+        }
+      }
+
+      // ISP-before-ISD ordering constraint (driving pool only — keeps the
+      // cycling structure intact).
+      {
+        const ispByStopId = new Map(orderedDriving.filter((s) => String(s.deliveryId || '').startsWith('ISP')).map((s) => [s.stopId, s]));
+        let swapped = false;
+        do {
+          swapped = false;
+          for (let i = 0; i < orderedDriving.length; i++) {
+            const stop = orderedDriving[i];
+            if (String(stop.deliveryId || '').startsWith('ISD') && stop.puid) {
+              const linkedISP = ispByStopId.get(stop.puid);
+              if (!linkedISP) continue;
+              const ispIdx = orderedDriving.findIndex((s) => s.id === linkedISP.id);
+              if (ispIdx > i) {
+                orderedDriving = [...orderedDriving];
+                const tmp = orderedDriving[i];
+                orderedDriving[i] = orderedDriving[ispIdx];
+                orderedDriving[ispIdx] = tmp;
+                swapped = true;
+                break;
+              }
             }
           }
-        }
-      } while (swapped);
+        } while (swapped);
+      }
+
+      orderedStops = [
+        ...(_startMarker ? [_startMarker] : []),
+        ...orderedCycling,
+        _endMarker,
+        ...orderedDriving,
+      ];
+      console.log(`[rxServerRouteOptimizer] mixed mode: ${cyclingPool.length} cycling + ${drivingPool.length} driving + ${_cyclingMarkers.length} marker(s)`);
+    } else {
+      try {
+        const seqResult = await callHereSequence({
+          origin, stops: routeStops, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+        });
+        orderedStops = resolveSequence(seqResult, routeStops);
+        hereCalls++;
+      } catch (seqErr) {
+        // Degraded: nearest-neighbor crow-flies ordering (client would retry on
+        // its own engine anyway if we report unsupported; instead we still
+        // produce a deterministic order + polylines so the route stays usable).
+        usedFallbackOrdering = true;
+        console.warn(`[rxServerRouteOptimizer] findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
+        orderedStops = nearestNeighborOrder(routeStops, origin);
+      }
+
+      // ── 2. Window-band chronology (Sep 10 2026 semantics, 2-hour bands) ────
+      const hasTimeWindows = routeStops.some((s) => Number.isFinite(parseTimeToMinutes(s.windowStart)) && parseTimeToMinutes(s.windowStart) > 0);
+      if (hasTimeWindows && orderedStops.length > 1) {
+        const TIME_BAND_MINUTES = 120;
+        const nowBand = Math.floor(currentMinutes / TIME_BAND_MINUTES);
+        const bandOf = (stop) => {
+          const m = parseTimeToMinutes(stop.windowStart);
+          if (!Number.isFinite(m) || m <= 0) return nowBand; // no window → servable now
+          if (m <= currentMinutes) return nowBand; // window already open → servable now
+          return Math.floor(m / TIME_BAND_MINUTES); // future window → chronological band
+        };
+        const decorated = orderedStops.map((stop) => ({ stop, band: bandOf(stop) }));
+        decorated.sort((a, b) => a.band - b.band); // stable sort keeps HERE order in-band
+        orderedStops = decorated.map((d) => d.stop);
+      }
+
+      // ── 3. ISP-before-ISD ordering constraint ───────────────────────────────
+      {
+        const ispByStopId = new Map(orderedStops.filter((s) => String(s.deliveryId || '').startsWith('ISP')).map((s) => [s.stopId, s]));
+        let swapped = false;
+        do {
+          swapped = false;
+          for (let i = 0; i < orderedStops.length; i++) {
+            const stop = orderedStops[i];
+            if (String(stop.deliveryId || '').startsWith('ISD') && stop.puid) {
+              const linkedISP = ispByStopId.get(stop.puid);
+              if (!linkedISP) continue;
+              const ispIdx = orderedStops.findIndex((s) => s.id === linkedISP.id);
+              if (ispIdx > i) {
+                orderedStops = [...orderedStops];
+                const tmp = orderedStops[i];
+                orderedStops[i] = orderedStops[ispIdx];
+                orderedStops[ispIdx] = tmp;
+                swapped = true;
+                break;
+              }
+            }
+          }
+        } while (swapped);
+      }
     }
 
-    // ── 4. Polylines: ONE multi-stop router call over [origin, ...stops] ────
-    const polylinePoints = [
+    // ── 4. Polylines: mode-grouped multi-stop router calls ──────────────────
+    // The leg INTO each stop uses that stop's transport mode (cycling engine
+    // rule: leg INTO the START marker is driving; legs into cycling stops and
+    // the END marker are bicycle; legs into driving stops are car). Consecutive
+    // legs sharing a mode go through ONE Router call — a mixed route costs two
+    // calls total, a pure driving route stays ONE (unchanged phase-1 behavior).
+    const legModeFor = (stop) => stop.isCyclingMarker
+      ? (String(stop.deliveryNotes || '').toLowerCase().includes('start') ? 'car' : 'bicycle')
+      : (String(stop.transportMode || '').toLowerCase() === 'cycling' ? 'bicycle' : 'car');
+    const polylineChain = [
       { lat: origin.lat, lon: origin.lng },
       ...orderedStops.map((s) => ({ lat: s.lat, lon: s.lng })),
     ];
-    const { sections, usedFallbackPolyline } = await getMultiStopRouteSections(polylinePoints, apiKey);
+    const sections = new Array(orderedStops.length).fill(null);
+    let usedFallbackPolyline = false;
+    {
+      let gi = 0;
+      while (gi < orderedStops.length) {
+        const mode = legModeFor(orderedStops[gi]);
+        let gj = gi;
+        while (gj < orderedStops.length && legModeFor(orderedStops[gj]) === mode) gj++;
+        const pts = polylineChain.slice(gi, gj + 1);
+        if (pts.length >= 2) {
+          const r = await getMultiStopRouteSections(pts, apiKey, mode);
+          usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
+          (r.sections || []).forEach((sec, k) => { sections[gi + k] = sec; });
+          hereCalls++;
+        }
+        gi = gj;
+      }
+    }
     // sections[i] = leg INTO orderedStops[i]
 
     // ── 5. ETA ladder (owner rules: window floors, dwell, same-address cap) ─
@@ -447,7 +570,9 @@ Deno.serve(async (req) => {
       const newOrder = preserveExistingOrder ? (Number(stop.currentStopOrder) || (startOrder + i + 1)) : (startOrder + i + 1);
       const seg = sections[i] || null;
       const isNextStop = stop.id === nextStopId;
-      const isPending = stop.status === 'pending';
+      // Cycling markers stay polyline-eligible even while pending (client
+      // engine rule — markers are full route stops, never 'unaccepted').
+      const isPending = stop.status === 'pending' && !stop.isCyclingMarker;
       const isPickupStop = stop.isPickup && !stop.isInterStore;
       const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
       const statusToWrite = correctedStatus || (stop.status === 'in_transit' ? 'in_transit' : undefined);
@@ -458,7 +583,7 @@ Deno.serve(async (req) => {
         stop_order: newOrder,
         delivery_time_eta: stageEtaMap.get(stop.id) || null,
         ...(isNextStop ? { isNextDelivery: true } : { isNextDelivery: false }),
-        transport_mode: 'driving',
+        transport_mode: legModeFor(stop) === 'bicycle' ? 'cycling' : 'driving',
         ...(statusToWrite ? { status: statusToWrite } : {}),
         travel_dist: isPending ? null : (logicalDistanceKm != null ? logicalDistanceKm : null),
         ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
@@ -483,7 +608,8 @@ Deno.serve(async (req) => {
       usedFallbackOrdering,
       usedFallbackPolyline,
       writeBatch,
-      here_calls: 2,
+      here_calls: hereCalls,
+      mixed_mode: mixedMode,
       elapsed_ms: Date.now() - startedAt,
     });
   } catch (error) {

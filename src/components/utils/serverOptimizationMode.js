@@ -238,6 +238,7 @@ export const buildServerOptimizeRequest = ({
       isPickup,
       isInterStore,
       isCyclingMarker: !!d.is_cycling_marker,
+      deliveryNotes: d.delivery_notes || null,
       transportMode: d.transport_mode || 'driving',
       extraTime: d.extra_time || (isPickup ? 15 : 5),
       windowStart,
