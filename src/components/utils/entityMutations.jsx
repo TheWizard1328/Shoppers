@@ -106,6 +106,8 @@ const emitImmediateRealtimeCreate = async (entity, record) => {
   }
 };
 
+let lastGlobalDeliverySnapshotAt = 0;
+
 const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
   try {
     if (entityName === 'Patient') {
@@ -126,8 +128,8 @@ const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
         await offlineDB.updateCacheSnapshot('Delivery', dateRows || [], { scopeKey: `date:${deliveryDate}`, syncType: 'mutation' });
       }
       const nowMs = Date.now();
-      if (nowMs - (entityMutations.lastGlobalDeliverySnapshotAt || 0) > 60000 || !deliveryDate) {
-        entityMutations.lastGlobalDeliverySnapshotAt = nowMs;
+      if (nowMs - lastGlobalDeliverySnapshotAt > 60000 || !deliveryDate) {
+        lastGlobalDeliverySnapshotAt = nowMs;
         const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
         await offlineDB.updateCacheSnapshot('Delivery', allDeliveries || [], { scopeKey: 'global', syncType: 'mutation' });
       }

@@ -39,6 +39,13 @@ const IN_FLIGHT_STATUSES = ['en_route', 'in_transit'];
 
 // Module-level (survive component remounts): per-driver cooldown + in-flight lock
 const lastRegenAtByDriver = new Map();
+// Oct 16 2026 (owner report — 2.5km deviation, phone never updated): the 5-min
+// cooldown armed at regen START, so a FAILED regen (e.g. HERE 403 during the
+// quota-exhaustion window before the UTC reset) blocked all retries for the
+// full 5 minutes while the driver kept driving off-path. Failed regens now get
+// a short 45s retry window; successful regens arm the full cooldown.
+const lastRegenFailedAtByDriver = new Map();
+const FAILED_REGEN_RETRY_MS = 45 * 1000;
 let regenInFlight = false;
 let regenInFlightAt = 0;
 // ── REGEN WATCHDOG (owner report Oct 5 2026) ────────────────────────────────
@@ -87,7 +94,6 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
   if (regenInFlight) console.warn('[RouteDeviation] regen lock was stuck >45s (hung import/fetch) — watchdog recovery, regenerating anyway');
   regenInFlight = true;
   regenInFlightAt = Date.now();
-  lastRegenAtByDriver.set(driverId, Date.now());
   try {
     // Keep the lock fresh while the regen is genuinely still working —
     // heartbeat pings let the watchdog distinguish 'slow but alive' from
@@ -106,6 +112,12 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
       driverId,
     });
 
+    if (result?.success) {
+      lastRegenAtByDriver.set(driverId, Date.now());
+      lastRegenFailedAtByDriver.delete(driverId);
+    } else {
+      lastRegenFailedAtByDriver.set(driverId, Date.now());
+    }
     if (result?.success) {
       // Belt-and-suspenders local state sync (updateDelivery already pushed the
       // optimistic record through the mutation subscription).
@@ -232,8 +244,10 @@ export async function checkCurrentLegDeviationOnDuty({
   }
 
   const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
-  if (Date.now() - lastRegenAt < cooldownMs) {
-    return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: 'cooldown' };
+  const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
+  const _effectiveCooldownMs = _failedAt >= lastRegenAt ? FAILED_REGEN_RETRY_MS : cooldownMs;
+  if (Date.now() - Math.max(lastRegenAt, _failedAt) < _effectiveCooldownMs) {
+    return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: _failedAt >= lastRegenAt ? 'cooldown_after_failure' : 'cooldown' };
   }
   if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) {
     return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: 'in_flight' };
@@ -347,7 +361,9 @@ export function useRouteDeviationMonitor({
 
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
-      if (now - lastRegenAt < cooldownMs) { _diag('cooldown', `dist=${Math.round(distance)}m`); return; }
+      const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
+      const _effectiveCooldownMs = _failedAt >= lastRegenAt ? FAILED_REGEN_RETRY_MS : cooldownMs;
+      if (now - Math.max(lastRegenAt, _failedAt) < _effectiveCooldownMs) { _diag(_failedAt >= lastRegenAt ? 'cooldown_after_failure' : 'cooldown', `dist=${Math.round(distance)}m`); return; }
       if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) { _diag('gate:regen_in_flight', `dist=${Math.round(distance)}m`); return; }
       if (regenInFlight) { _diag('watchdog:regen_lock_stuck', `dist=${Math.round(distance)}m — forcing regen`); }
 
