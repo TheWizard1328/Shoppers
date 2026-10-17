@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
@@ -54,6 +55,7 @@ export default function FABControls({
   immersiveInterStoreLocation,
   immersiveIsCyclingMarker,
 }) {
+  const optimizationEngineMode = useOptimizationEngineMode(currentUser);
   const { isMobile } = useDevice();
   const hasVisibleCards = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB;
 
@@ -159,10 +161,19 @@ export default function FABControls({
             onClick={handleImmersiveNavigate}
             title="Open in Google Maps"
             aria-label="Open in Google Maps"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 transition-colors hover:bg-blue-200"
+            className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+              optimizationEngineMode === 'server'
+                ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+            }`}
             style={{ touchAction: 'manipulation' }}
           >
             <Navigation className="w-5 h-5" />
+            <span className={`absolute top-0.5 left-0.5 font-bold text-[10px] pointer-events-none ${
+              optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
+            }`}>
+              {optimizationEngineMode === 'server' ? 'S' : 'C'}
+            </span>
           </button>
         </motion.div>
       )}

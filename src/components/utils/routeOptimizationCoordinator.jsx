@@ -267,7 +267,46 @@ async function _performRouteOptimizationInner({
     let optimizationServerCommit = Promise.resolve(false);
 
     if (!skipOptimize) {
-      const engineResult = await optimizeRouteClientSide({
+      let engineResult = null;
+
+      // ── Step 1a: SERVER-SIDE optimization (owner toggle, Oct 16 2026) ──────
+      // When armed AND the requester is the app owner (owner-only rollout
+      // phase), route through the rxServerRouteOptimizer backend function
+      // FIRST. The server runs on ONLY the live data in the request (built
+      // from this device's fresh resolved state — zero server-side reads), so
+      // the old stale-data failure cannot repeat. Any unsupported shape,
+      // failure, or toggle-off falls through to the client engine below.
+      const { getActiveOptimizationEngine, runServerSideOptimization } = await import('./serverOptimizationMode');
+      const _activeEngine = await getActiveOptimizationEngine();
+      if (_activeEngine === 'server'
+        && !cyclingSegmentOnly && !drivingSegmentOnly && !skipPolyline
+        && !(excludeStopIds || []).length && !orderedDeliveryIds) {
+        try {
+          const serverResult = await runServerSideOptimization({
+            deliveries: resolvedDeliveries,
+            patients: resolvedPatients,
+            stores: resolvedStores,
+            appUsers: resolvedAppUsers,
+            driverId,
+            deliveryDate,
+            preserveExistingOrder,
+            clearNextDeliveryLock,
+            startingStopOrder,
+          });
+          if (serverResult?.supported && serverResult?.success) {
+            engineResult = serverResult;
+            console.log(`[RouteOptimization] ${source} — SERVER-SIDE engine SUCCESS: ${serverResult.optimizedCount} stops, writeBatch=${serverResult.writeBatch?.length}, fallbackOrder=${serverResult.usedFallbackOrdering}, fallbackPolyline=${serverResult.usedFallbackPolyline}`);
+          } else {
+            console.warn(`[RouteOptimization] ${source} — server-side engine not used (${serverResult?.reason || 'unknown'}) — falling back to client engine`);
+          }
+        } catch (serverErr) {
+          console.warn(`[RouteOptimization] ${source} — server-side engine FAILED (${serverErr?.message || serverErr}) — falling back to client engine`);
+        }
+      }
+
+      // ── Step 1b: client-side optimization engine (default path) ───────────
+      if (!engineResult) {
+      engineResult = await optimizeRouteClientSide({
         deliveries: resolvedDeliveries,
         patients: resolvedPatients,
         stores: resolvedStores,
@@ -294,6 +333,7 @@ async function _performRouteOptimizationInner({
         console.error(`[RouteOptimization] ${source} — client engine error:`, err);
         return null;
       });
+      }
 
       if (!engineResult?.success) {
         console.error(`[RouteOptimization] ${source} — engine FAILED:`, engineResult?.error || 'unknown');

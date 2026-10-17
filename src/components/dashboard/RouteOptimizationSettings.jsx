@@ -29,7 +29,10 @@ const DEFAULT_SETTINGS = {
   routeDeviationThresholdMeters: 200,
   routeDeviationCooldownMinutes: 5,
   locationUpdateIntervalSeconds: 30,
-  minMovementDistanceMeters: 50
+  minMovementDistanceMeters: 50,
+  // OWNER-ONLY (Oct 16 2026): route optimization runs SERVER-SIDE (duplicated
+  // engine in rxServerRouteOptimizer) on the app owner's devices while armed.
+  serverSideOptimization: false
 };
 
 const getStoredSettings = () => {
@@ -53,7 +56,8 @@ const saveSettings = async (settings) => {
       routeDeviationThresholdMeters: settings.routeDeviationThresholdMeters,
       routeDeviationCooldownMinutes: settings.routeDeviationCooldownMinutes,
       locationUpdateIntervalSeconds: settings.locationUpdateIntervalSeconds,
-      minMovementDistanceMeters: settings.minMovementDistanceMeters
+      minMovementDistanceMeters: settings.minMovementDistanceMeters,
+      serverSideOptimization: settings.serverSideOptimization === true
     };
     const appSettings = await getFreshAppSettingRows('route_optimization');
     if (appSettings && appSettings.length > 0) {
@@ -68,6 +72,10 @@ const saveSettings = async (settings) => {
       });
     }
     console.log('✅ Route optimization settings saved to AppSettings');
+    // Cache-bust the engine-mode resolver so FAB/Navigate badges flip promptly.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('routeOptimizationSettingsSaved'));
+    }
   } catch (error) {
     console.error('Error saving route optimization settings:', error);
   }
@@ -78,6 +86,7 @@ export const getRouteOptimizationSettings = () => {
 };
 
 export default function RouteOptimizationSettings({ onClose, currentUser }) {
+  const isOwner = currentUser?.role === 'admin';
   const [settings, setSettings] = useState(getStoredSettings());
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -328,6 +337,23 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
               onCheckedChange={(checked) => handleSettingChange('useDriverHome', checked)} />
 
           </div>
+
+          {isOwner && (
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="serverSideOptimization" className="text-sm">
+                Server-side optimization (owner testing)
+              </Label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Owner devices only: route optimization + polylines run in the rxServerRouteOptimizer backend function. Blue + S badge when active, green + C when client-side.
+              </p>
+            </div>
+            <Switch
+              id="serverSideOptimization"
+              checked={settings.serverSideOptimization === true}
+              onCheckedChange={(checked) => handleSettingChange('serverSideOptimization', checked)} />
+          </div>
+          )}
 
           {settings.useDriverHome &&
           <div className="space-y-3 pl-4 border-l-2 border-emerald-200">

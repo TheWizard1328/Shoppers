@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ export default function RouteActionButtons({
   updateDeliveriesLocally,
   hideForExpandedCard = false,
 }) {
+  const optimizationEngineMode = useOptimizationEngineMode(currentUser);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareRows, setCompareRows] = useState([]);
   const [cyclingLocations, setCyclingLocations] = useState([]);
@@ -435,10 +437,12 @@ export default function RouteActionButtons({
             )
           }
           title="Re-optimize entire route"
-          className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${
+          className={`relative inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${
             isReoptimizing
               ? 'bg-amber-500 hover:bg-amber-600'
-              : 'bg-emerald-600 hover:bg-emerald-700'
+              : optimizationEngineMode === 'server'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-emerald-600 hover:bg-emerald-700'
           }`}
           style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
         >
@@ -447,6 +451,10 @@ export default function RouteActionButtons({
           ) : (
             <Navigation className="w-5 h-5 text-white" />
           )}
+          {/* S/C engine badge — same corner as the map cycle FAB's 1/2/3 */}
+          <span className="absolute top-1 left-1 font-bold text-[10px] text-white pointer-events-none">
+            {optimizationEngineMode === 'server' ? 'S' : 'C'}
+          </span>
         </Button>
       </motion.div>
     </>

@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { toEdmontonWall } from '../utils/albertaTime';
 import { haversineKm } from '@/components/utils/geoUtils';
@@ -124,6 +125,7 @@ function getClusterKey(driverId, deliveryDate, sortedDeliveryIds) {
 }
 
 export default function StopCard({ delivery, store, driver, patients = [], currentUser, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, pendingPickups = [], onSelectionChange, selectedDeliveryIds = {}, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true, bulkSelectionEnabled = false, cardWidthOverride }) {
+  const optimizationEngineMode = useOptimizationEngineMode(currentUser);
   const isNextDelivery = delivery?.isNextDelivery || false;
   const [squareAppId, setSquareAppId] = useState(_cachedSquareAppId);
   const [, setRangeRefreshTick] = useState(0);
@@ -1084,8 +1086,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                     window.open(navigationHref, '_blank');
                   }
                   }}
-                  className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200">
+                  className={`relative inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
+                    optimizationEngineMode === 'server'
+                      ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                      : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                  }`}>
                   <Navigation className="w-6 h-6" />
+                  <span className={`absolute top-1 left-1 font-bold text-[10px] pointer-events-none ${
+                    optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
+                  }`}>
+                    {optimizationEngineMode === 'server' ? 'S' : 'C'}
+                  </span>
                 </button>)
 
                 }
