@@ -682,17 +682,33 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
         .then(async (backendDelivery) => {
           await offlineDB.removePendingMutation(pendingMutationId);
           if (await hasPendingEntityMutation('Delivery', deliveryId)) return;
-          const deliveryToStore = existing ? {
-            ...backendDelivery,
-            encoded_polyline: backendDelivery.encoded_polyline ?? existing.encoded_polyline,
-            estimated_distance_km: backendDelivery.estimated_distance_km ?? existing.estimated_distance_km,
-            estimated_duration_minutes: backendDelivery.estimated_duration_minutes ?? existing.estimated_duration_minutes
-          } : backendDelivery;
+          // STALE-RESPONSE GUARD (owner report, Oct 16 2026): the update
+          // response can trail the fields we JUST wrote (read-your-writes lag
+          // under load) — the deviation regen's new polyline was re-clobbered
+          // on the triggering device by a response that omitted it, and the
+          // 15s echo suppression then blocked the WS correction until the
+          // next refresh cycle (other devices were fine via WS). Merge the
+          // response OVER our just-written toStore and fall back to toStore —
+          // NEVER the pre-write record — for the heavy routing fields; skip
+          // the local re-apply entirely when the response timestamp is older
+          // than what we just wrote.
+          const bdTs = backendDelivery?.updated_date ? Date.parse(backendDelivery.updated_date) : NaN;
+          const myTs = Date.parse(toStore.updated_date);
+          const responseIsStale = Number.isFinite(bdTs) && Number.isFinite(myTs) && bdTs < myTs;
+          const deliveryToStore = responseIsStale
+            ? toStore
+            : {
+                ...toStore,
+                ...(backendDelivery || {}),
+                encoded_polyline: backendDelivery?.encoded_polyline ?? toStore.encoded_polyline,
+                estimated_distance_km: backendDelivery?.estimated_distance_km ?? toStore.estimated_distance_km,
+                estimated_duration_minutes: backendDelivery?.estimated_duration_minutes ?? toStore.estimated_duration_minutes
+              };
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [deliveryToStore]);
           refreshOfflineEntitySnapshots('Delivery', deliveryToStore).catch(() => {});
-          import('./dataManager').then(({ updateCache }) => updateCache('Delivery', deliveryId, backendDelivery));
-          notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
-          broadcastMutation('Delivery', 'update', deliveryId, backendDelivery);
+          import('./dataManager').then(({ updateCache }) => updateCache('Delivery', deliveryId, deliveryToStore));
+          notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: deliveryToStore });
+          broadcastMutation('Delivery', 'update', deliveryId, deliveryToStore);
         })
         .catch((error) => {
           console.warn('⚠️ [EntityMutations] Delivery upload failed; durable mutation retained:', error.message);
