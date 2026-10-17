@@ -169,7 +169,7 @@ export default function FABControls({
             style={{ touchAction: 'manipulation' }}
           >
             <Navigation className="w-5 h-5" />
-            <span className={`absolute top-0.5 left-0.5 font-bold text-[10px] pointer-events-none ${
+            <span className={`absolute top-1.5 left-1.5 font-bold text-[10px] pointer-events-none ${
               optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
             }`}>
               {optimizationEngineMode === 'server' ? 'S' : 'C'}

@@ -1092,7 +1092,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                       : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
                   }`}>
                   <Navigation className="w-6 h-6" />
-                  <span className={`absolute top-1 left-1 font-bold text-[10px] pointer-events-none ${
+                  <span className={`absolute top-2 left-2 font-bold text-[10px] pointer-events-none ${
                     optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
                   }`}>
                     {optimizationEngineMode === 'server' ? 'S' : 'C'}
