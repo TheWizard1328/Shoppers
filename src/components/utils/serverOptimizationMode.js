@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getAppSettingRows } from './appSettingsCache';
+import { getAppSettingRows, refreshAppSetting } from './appSettingsCache';
 import { isAppOwner } from './userRoles';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
 
@@ -69,6 +69,28 @@ export const invalidateOptimizationModeCache = () => {
   _cachedMode = { mode: 'client', at: 0, checked: false };
 };
 
+/**
+ * Authoritative re-resolve: skips the shared settings cache (memory/IDB can
+ * serve rows up to 10 min old — the Oct 16 badge bug: toggling the switch
+ * didn't flip the S/C badges until an app restart because the 60s memory
+ * cache kept returning the pre-toggle value). Also refreshes the shared
+ * cache so every other consumer sees the new value immediately.
+ */
+export const forceResolveOptimizationMode = async (currentUser = null) => {
+  const user = currentUser || (await resolveAuthUser());
+  if (!user || !isAppOwner(user)) return 'client';
+  try {
+    const rows = await refreshAppSetting('route_optimization');
+    const value = rows?.[0]?.setting_value || {};
+    const armed = value?.serverSideOptimization === true;
+    const mode = armed ? 'server' : 'client';
+    _cachedMode = { mode, at: Date.now(), checked: true };
+    return mode;
+  } catch (_) {
+    return 'client';
+  }
+};
+
 /** React hook for badge/button rendering — 30s re-resolve, cache-bust aware. */
 export const useOptimizationEngineMode = (currentUser) => {
   const [mode, setMode] = useState('client');
@@ -80,7 +102,12 @@ export const useOptimizationEngineMode = (currentUser) => {
     };
     resolve();
     const interval = setInterval(resolve, 30 * 1000);
-    const onSettingsSaved = () => { invalidateOptimizationModeCache(); resolve(); };
+    const onSettingsSaved = async () => {
+      // Authoritative read — the shared settings cache is the reason the
+      // badges needed an app restart to flip (Oct 16 owner report).
+      const freshMode = await forceResolveOptimizationMode(currentUser);
+      if (!cancelled) setMode(freshMode);
+    };
     window.addEventListener('routeOptimizationSettingsSaved', onSettingsSaved);
     return () => {
       cancelled = true;
