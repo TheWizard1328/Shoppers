@@ -1179,6 +1179,36 @@ Deno.serve(async (req) => {
     if (payrollSummaryDebug) {
       return Response.json({ payrollSummaryDebug, delivered: payrollData?.deliveries?.length ?? 0 });
     }
+    // ── DRIVER-ONLY SCOPING (owner plan Oct 18 2026, step 2) ────────────────────
+    // Drivers sync ONLY their own payroll data to their devices — the city-wide
+    // payload (every driver's deliveries, records, patients) was wasted bytes on
+    // driver devices. Admins/owner keep the full city scope. The requester's role
+    // is resolved server-side (never trusted from the request body).
+    const isDriverOnly = user.role !== 'admin' && !appRoles.includes('admin') && appRoles.includes('driver');
+    if (isDriverOnly && payrollData) {
+      const myUserId = String(user.id);
+      const myDeliveries = (payrollData.deliveries || []).filter((d) => d && String(d.driver_id) === myUserId);
+      const patientIds = new Set(myDeliveries.map((d) => d?.patient_id).filter(Boolean));
+      const myPatients = (payrollData.patients || []).filter((p) => p && patientIds.has(p.id));
+      const myRecords = (payrollData.payrollRecords || []).filter((r) => r && String(r.driver_id) === myUserId);
+      const myDrivers = (payrollData.drivers || []).filter((d) => d && String(d.user_id) === myUserId);
+      payrollData = {
+        ...payrollData,
+        deliveries: myDeliveries,
+        patients: myPatients,
+        payrollRecords: myRecords,
+        drivers: myDrivers,
+        driverStats: payrollData.driverStats ? { [user.id]: payrollData.driverStats[user.id] } : payrollData.driverStats,
+        totals: {
+          ...(payrollData.totals || {}),
+          deliveries: myDeliveries.length,
+          drivers: myDrivers.length
+        },
+        __driverScoped: true
+      };
+      console.log(`[getAdminMetricsAndPayrollData] driver-scoped payroll for ${user.id}: ${myDeliveries.length} deliveries, ${myRecords.length} records`);
+    }
+
     return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);

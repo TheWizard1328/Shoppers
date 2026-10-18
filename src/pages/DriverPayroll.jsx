@@ -1092,6 +1092,78 @@ export default function DriverPayroll() {
     if (saved > 0) console.log(`💾 [DriverPayroll] IDB payroll sync complete: ${saved}/${scoped.length} records across ${cycles.size} cycle(s) for ${yearNum}`);
   }, []);
 
+  // ── QUIET HISTORY BACKFILL (owner plan Oct 18 2026, step 3) ─────────────────
+  // After the page renders from IDB and the CURRENT cycle syncs, slowly and
+  // quietly fill any MISSING historical months of the selected year into the
+  // offline cache — one month per paged call, staggered 2.5s, no sync banner,
+  // no blocking. Once a year+city+scope pass completes it is flagged and never
+  // repeated on this device. Drivers receive only their own records because
+  // the backend scopes driver-only requests to the requester.
+  const historyBackfillRef = useRef(null);
+  const quietHistoryBackfill = useCallback(async () => {
+    const year = selectedYear;
+    const cityId = selectedCityId;
+    const data = payrollDataRef.current;
+    if (!year || !cityId || !data || data.__cacheKey !== `${year}-${cityId}`) return;
+    if (historyBackfillRef.current) return; // a pass is already running
+
+    const scopeKey = isDriver ? 'self' : 'city';
+    const flagKey = `payroll_hist_bf_${year}_${cityId}_${scopeKey}`;
+    try { if (localStorage.getItem(flagKey) === 'done') return; } catch (_) {}
+
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const lastMonth = Number(year) === currentYear ? currentMonth : 12;
+    const loadedMonths = new Set(
+      (data.deliveries || []).map((d) => Number(String(d?.delivery_date || '').slice(5, 7))).filter(Boolean)
+    );
+    const missing = [];
+    for (let m = 1; m <= lastMonth; m++) {
+      if (!loadedMonths.has(m)) missing.push(m);
+    }
+    if (missing.length === 0) {
+      try { localStorage.setItem(flagKey, 'done'); } catch (_) {}
+      return;
+    }
+    console.log(`[DriverPayroll] quiet history backfill: ${missing.length} missing month(s) for ${year}/${cityId} [${scopeKey}]`);
+
+    const run = async () => {
+      let merged = payrollDataRef.current;
+      let ok = 0;
+      for (const m of missing) {
+        await new Promise((r) => setTimeout(r, 2500));
+        try {
+          const res = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+            payrollYear: year,
+            payrollCityId: cityId,
+            payrollPaginationMode: 'paged',
+            payrollPageMonths: [m]
+          });
+          const raw = res?.data?.payrollData || res?.payrollData;
+          if (raw) {
+            merged = { ...mergePagedPayrollData(merged, raw, [m]), __cacheKey: `${year}-${cityId}` };
+            // per-month cycle persistence into the offline DB (quiet)
+            persistPayrollCyclesToIdb(year, raw?.payrollRecords || []).catch(() => {});
+            ok++;
+          }
+        } catch (e) {
+          console.warn(`[DriverPayroll] quiet backfill month ${m} failed:`, e?.message || e);
+        }
+      }
+      if (ok > 0) {
+        fullYearPayrollDataRef.current = merged;
+        lastFetchTimestampRef.current = Date.now();
+        setPayrollData(merged);
+        setPayrollRecords(merged?.payrollRecords || []);
+        saveOfflinePayroll(year, cityId, merged);
+      }
+      try { localStorage.setItem(flagKey, 'done'); } catch (_) {}
+      console.log(`[DriverPayroll] quiet history backfill done: ${ok}/${missing.length} month(s) filled for ${year}/${cityId}`);
+    };
+
+    historyBackfillRef.current = run().finally(() => { historyBackfillRef.current = null; });
+  }, [selectedYear, selectedCityId, isDriver, mergePagedPayrollData, persistPayrollCyclesToIdb, saveOfflinePayroll]);
+
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false, { bypassSummary = false, refreshMonths = 0, baseData = null } = {}) => {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) {
       // Oct 15: this guard silently killed the page for users whose city never
@@ -1289,6 +1361,14 @@ export default function DriverPayroll() {
     })();
     return () => { cancelled = true; };
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, payPeriod, fetchPayroll, loadOfflinePayroll]);
+
+  // Kick the quiet history backfill whenever a fresh payload for the current
+  // year+city lands on screen (post IDB-render + current-cycle sync).
+  useEffect(() => {
+    if (!payrollData?.__cacheKey || !hasInitialized || !isPayrollPageActive) return;
+    const t = setTimeout(() => { quietHistoryBackfill().catch(() => {}); }, 1500);
+    return () => clearTimeout(t);
+  }, [payrollData?.__cacheKey, hasInitialized, isPayrollPageActive, quietHistoryBackfill]);
 
   // Grace timer for the blocking spinner: only counts when a blocking load is in
   // flight (isAutoRefresh loads never set isLoadingPayroll).
