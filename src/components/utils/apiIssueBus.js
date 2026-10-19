@@ -33,7 +33,11 @@ export const publishApiIssue = (error) => {
     const cfg = error?.config || {};
     const status = Number(error?.response?.status || error?.status || 0);
     const msg = String(error?.message || '').toLowerCase();
-    const isRate = status === 429 || msg.includes('rate limit');
+    // 'config not initialized' (squareBalancesCompute 409) is the function's
+    // own internal reads failing on a hot pool — the storm in disguise, not a
+    // real config problem (owner report Oct 19 2026). Group it with the rate
+    // limits instead of popping a misleading yellow ERROR badge.
+    const isRate = status === 429 || msg.includes('rate limit') || msg.includes('config not initialized');
     if (!isRate && status > 0 && status < 400) return;
     // Auth refresh noise & aborted requests are not actionable
     if (error?.code === 'ERR_CANCELED') return;

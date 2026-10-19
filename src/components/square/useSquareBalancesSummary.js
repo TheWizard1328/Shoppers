@@ -1992,6 +1992,31 @@ function startSummaryStore(userId, isOwner = false) {
   // pull (the device that DID compute publishes; one small read instead of
   // a heavy invoke). Explicit user paths (Refresh button, foreground heal,
   // first load) are NOT cooldown-gated.
+  // OWNER FIX (Oct 19 2026 — "rate limits after clicking Start"): while the
+  // Editor host is silent, event pokes (Start/Complete taps on COD stops) were
+  // making the FALLBACK host (My-Phone) invoke the heavy squareBalancesCompute
+  // every 90s+ — each attempt's internal reads land in the same pool the Start
+  // burst is saturating, so it failed ('config not initialized' 409) and the
+  // balloon filled with ERROR + the failed Delivery GETs around it. Non-Editor
+  // devices now converge via the cheap snapshot pull on events and attempt
+  // their own compute at most once every 5 minutes (manual refresh / Square
+  // page open are not affected).
+  const FALLBACK_EVENT_COMPUTE_COOLDOWN_MS = 5 * 60 * 1000;
+  let storeLastFallbackEventComputeAt = 0;
+  const runEventCompute = async () => {
+    try {
+      const devName = await loadStoreDeviceName();
+      if (devName !== DESIGNATED_COMPUTE_HOST) {
+        const nowMs = Date.now();
+        if (nowMs - storeLastFallbackEventComputeAt < FALLBACK_EVENT_COMPUTE_COOLDOWN_MS) {
+          scheduleSharedPull(3000); // cheap convergence only — no compute
+          return;
+        }
+        storeLastFallbackEventComputeAt = nowMs;
+      }
+    } catch (_) { /* device name unreadable — allow the compute */ }
+    storeReload(true);
+  };
   const scheduleEventForcedReload = (timerKey, delay = 2500) => {
     if (!storeBootDelayFired) return; // quiet boot window — snapshot still showing
     const now = Date.now();
@@ -2005,7 +2030,7 @@ function startSummaryStore(userId, isOwner = false) {
       storeEventTimers.cooldownExpiry = setTimeout(() => {
         storeEventTimers.cooldownExpiry = null;
         storeLastEventComputeAt = Date.now();
-        storeReload(true);
+        void runEventCompute();
       }, waitMs);
       return;
     }
@@ -2013,7 +2038,7 @@ function startSummaryStore(userId, isOwner = false) {
     storeEventTimers[timerKey] = setTimeout(() => {
       storeEventTimers[timerKey] = null;
       storeLastEventComputeAt = Date.now();
-      storeReload(true);
+      void runEventCompute();
     }, delay);
   };
   const scheduleCodReload = () => scheduleEventForcedReload('cod');
