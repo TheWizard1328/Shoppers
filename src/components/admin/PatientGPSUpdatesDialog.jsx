@@ -157,15 +157,15 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
         }
       </div>
 
-      <div className="flex items-center gap-2 border-t px-3 py-2 bg-white dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
-        <p className="flex-1 text-xs text-slate-400 dark:text-slate-400">
+      <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2 bg-white dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <p className="flex-1 min-w-0 basis-full md:basis-auto text-xs text-slate-400 dark:text-slate-400">
           {effectivePatients.length > 0 ? `Affects ${effectivePatients.length} patient(s).` : 'No others to update.'}
         </p>
-        <Button variant="outline" size="sm" disabled={isProcessing || disabled} onClick={() => handleAction('cancel')} className="text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 h-7 text-xs px-2">
+        <Button variant="outline" size="sm" disabled={isProcessing || disabled} onClick={() => handleAction('cancel')} className="shrink-0 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 h-7 text-xs px-2">
           {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
           Discard
         </Button>
-        <Button size="sm" disabled={isProcessing || disabled} onClick={() => handleAction('accept')} className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs px-2">
+        <Button size="sm" disabled={isProcessing || disabled} onClick={() => handleAction('accept')} className="shrink-0 bg-green-600 hover:bg-green-700 text-white h-7 text-xs px-2">
           {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
           Accept{effectivePatients.length > 0 ? ` (${effectivePatients.length})` : ''}
         </Button>
@@ -298,10 +298,13 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
           </DialogDescription>
         </DialogHeader>
 
-        {/* Body: split left/right */}
-        <div className="flex flex-1 min-h-0 gap-4 py-3">
+        {/* Body: stacked on portrait phones (owner report Oct 19 2026 — the
+            old fixed 380px left column + side map overflowed a ~390px phone
+            viewport, clipping the card action buttons and pushing Accept
+            All off-screen). md+ keeps the side-by-side split. */}
+        <div className="flex flex-1 min-h-0 flex-col md:flex-row gap-4 py-3">
           {/* Left: Patient Cards */}
-          <div className="w-[380px] shrink-0 flex flex-col min-h-0">
+          <div className="w-full md:w-[380px] shrink-0 flex flex-col min-h-[45%] md:min-h-0">
             {isLoading ?
             <div className="flex items-center justify-center py-10 text-slate-500 dark:text-slate-400">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -314,7 +317,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
 
             <div className="flex-1 overflow-y-auto pr-1 space-y-2">
                 <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{pendingLogs.length} pending update{pendingLogs.length !== 1 ? 's' : ''} — click to view on map</div>
-                <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+                <div className="grid gap-2 grid-cols-1 md:grid-cols-none md:[grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
                   {pendingLogs.map((log) =>
                 <LogEntryCard
                   key={log.id}
@@ -332,7 +335,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
               </div>
             }
             {/* Bottom action buttons */}
-            <div className="flex items-center gap-2 shrink-0 pt-3 pb-3 pr-6">
+            <div className="flex items-center gap-2 shrink-0 pt-3 pb-3 md:pr-6 pr-0">
               <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching || bulkProcessing} className="flex-1">
                 {isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 Refresh
@@ -351,7 +354,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
           </div>
 
           {/* Right: Map */}
-          <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 relative">
+          <div className="flex-1 min-h-[220px] md:min-h-0 shrink-0 md:shrink rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 relative">
             <PatientGPSMap
               key={selectedLog?.id || 'empty'}
               log={selectedLog}
