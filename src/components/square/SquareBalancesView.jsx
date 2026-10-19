@@ -1191,7 +1191,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
         const doneAt = String(d.actual_delivery_time || '');
-        if (!doneAt || doneAt.slice(0, 10) !== today) continue;
+        // OWNER SPEC (Oct 19 2026): a PAST-dated delivery whose COD was
+        // collected TODAY still belongs in "Collected today" — retro/backdated
+        // completions and old uncollected CODs whose tender was recorded or
+        // converted to Debit/Credit today (cod_card_spend_at is stamped at
+        // that moment). The collection moment shown is the card-spend stamp
+        // when it falls today, otherwise the completion time.
+        const spendAt = String(d.cod_card_spend_at || '');
+        const spentToday = spendAt.slice(0, 10) === today;
+        if (!spentToday && (!doneAt || doneAt.slice(0, 10) !== today)) continue;
+        const collectionMoment = spentToday ? spendAt : doneAt;
         const required = centsOf(d?.cod_total_amount_required);
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
         const paidSum = payments.reduce((s, pm) => s + centsOf(pm?.amount), 0);
@@ -1232,7 +1241,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: gross,
-          sub: doneAt.slice(11, 16),
+          sub: collectionMoment.slice(11, 16),
           collected: true,
           // Debit/Credit payments ARE card money by definition in the
           // delivery-data model — the sky "Card Spend" pill marks them.

@@ -38,6 +38,7 @@ function loadCachedBuildInfo() {
       buildNumber: parsed.buildNumber || null,
       successCount: Number.isFinite(Number(parsed.successCount)) ? Number(parsed.successCount) : null,
       apkUrl: parsed.apkUrl || null,
+      releaseVersion: parsed.releaseVersion || null,
       etagRelease: parsed.etagRelease || null,
       etagRuns: parsed.etagRuns || null,
     };
@@ -113,6 +114,7 @@ export function useLatestApkBuildInfo() {
       let buildNumber = cached?.buildNumber || null;
       let successCount = cached?.successCount || null;
       let apkUrl = cached?.apkUrl || null;
+      let releaseVersion = cached?.releaseVersion || null;
       let etagRelease = cached?.etagRelease || null;
       let etagRuns = cached?.etagRuns || null;
 
@@ -122,7 +124,18 @@ export function useLatestApkBuildInfo() {
         dateStr = rawDate
           ? new Date(rawDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : '';
-        apkUrl = (releaseData.assets || []).find((a) => a.name && a.name.endsWith('.apk'))?.browser_download_url || null;
+        const asset = (releaseData.assets || []).find((a) => a.name && a.name.endsWith('.apk'));
+        apkUrl = asset?.browser_download_url || null;
+        // OWNER REPORT (Oct 19 2026): sidebar said v1.5.336 while the Settings
+        // download section said v1.6.336 — but the downloaded file was
+        // v1.5.336. Root cause: the workflow bakes the APK version from the
+        // count of COMPLETED successful runs at build time (excluding itself:
+        // run 347 baked v1.5.336), while the display computed from the LIVE
+        // total_count AFTER that run succeeded (322 → 1.6) — always one ahead
+        // of what's actually downloadable. The display now derives from the
+        // RELEASE ASSET NAME (rxdeliver-v1.5.336-b347.apk), so sidebar,
+        // Settings and the downloaded APK all show the same version.
+        releaseVersion = (() => { const m = /v(\d+\.\d+\.\d+)/.exec(asset?.name || ''); return m ? m[1] : null; })();
         etagRelease = releaseRes.etag || etagRelease;
       }
       const runsData = runsRes?.notModified ? null : runsRes?.json || null;
@@ -136,11 +149,11 @@ export function useLatestApkBuildInfo() {
 
       // If we got valid data, update cache and state
       if (buildNumber != null || apkUrl != null) {
-        const newInfo = { dateStr, buildNumber, successCount, apkUrl, etagRelease, etagRuns };
+        const newInfo = { dateStr, buildNumber, successCount, apkUrl, releaseVersion, etagRelease, etagRuns };
         saveCachedBuildInfo(newInfo);
         if (!cancelled) {
           setBuildInfo((prev) => {
-            if (prev && prev.buildNumber === buildNumber && prev.dateStr === dateStr && prev.apkUrl === apkUrl) {
+            if (prev && prev.buildNumber === buildNumber && prev.dateStr === dateStr && prev.apkUrl === apkUrl && prev.releaseVersion === releaseVersion) {
               return prev;
             }
             return newInfo;
@@ -164,9 +177,11 @@ export function useLatestApkBuildInfo() {
   // Display scheme (owner spec Oct 13 2026): vMAJOR.APK_UPDATES.WEB_UPDATES.
   // The RAW buildNumber (workflow run_number) is preserved for the update-arrow
   // comparison logic — only the display label switches to the new scheme.
-  const versionLabel = buildInfo?.buildNumber
-    ? formatAppVersion(apkUpdatesFromSuccessCount(buildInfo.successCount))
-    : '';
+  const versionLabel = buildInfo?.releaseVersion
+    ? `v${buildInfo.releaseVersion}`
+    : buildInfo?.buildNumber
+      ? formatAppVersion(apkUpdatesFromSuccessCount(buildInfo.successCount))
+      : '';
 
   const buildText = buildInfo
     ? buildInfo.buildNumber
