@@ -395,7 +395,11 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
         lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
       }
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+      // ADMIN OWN-ROUTE GUARD (owner spec Oct 19 2026): an admin completing a
+      // stop on ANOTHER driver's route must not overwrite their own saved FAB
+      // phase — the reset to 1 stays session-only so their own route's phase
+      // survives the detour.
+      if (currentUser?.id && (!isAdmin || driverId === currentUser.id)) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
     }
 
     if (routeComplete) {
@@ -436,7 +440,10 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
         lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
       }
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+      // ADMIN OWN-ROUTE GUARD (owner spec Oct 19 2026): same rule as the
+      // dispatcher-last-stop reset above — route-complete on another driver's
+      // route never writes the admin's own saved phase.
+      if (currentUser?.id && (!isAdmin || driverId === currentUser.id)) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
 
       // Route optimization intentionally omitted here — completing/failing/cancelling
       // a stop does not change the route order. The FAB or explicit user action handles re-optimization.

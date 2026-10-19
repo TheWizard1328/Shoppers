@@ -2037,15 +2037,37 @@ function Dashboard() {
   const pendingFabReactivationComboRef = useRef(null);
   const lastFabComboRef = useRef(null);
   const fabReactivationTimerRef = useRef(null);
-  const runFabPhase1Reactivation = useCallback(() => {
+  // OWNER SPEC (Oct 19 2026): FAB-phase reactivation after a selection change.
+  // Admins returning to their OWN route reactivate their SAVED phase (the
+  // admin's most recent own-route phase, held in the fab_map_cycle_phase user
+  // setting) instead of always resetting to 1. While viewing another driver's
+  // route, phase changes stay session-only (the save guards in goPhase /
+  // handleStatusUpdate skip them), so switching back must restore this value.
+  // Availability is re-checked: phase 2 needs an active isNextDelivery stop on
+  // the admin's own route, phase 3 needs an in_transit/en_route stop; anything
+  // unavailable (or a saved phase of 1) falls back to the overview.
+  const getFabReactivationPhase = useCallback(() => {
+    if (isAdmin && selectedDriverId === currentUser?.id) {
+      const saved = Number(getSetting('fab_map_cycle_phase')) || 1;
+      if (saved === 2 || saved === 3) {
+        const own = (deliveriesWithStopOrder || []).filter((d) => d && d.driver_id === currentUser.id);
+        if (saved === 2 && own.some((d) => d.isNextDelivery && !['completed', 'failed', 'cancelled'].includes(d.status))) return 2;
+        if (saved === 3 && own.some((d) => d.status === 'in_transit' || d.status === 'en_route')) return 3;
+      }
+    }
+    return 1;
+  }, [isAdmin, selectedDriverId, currentUser?.id, deliveriesWithStopOrder]);
+
+  const runFabPhase1Reactivation = useCallback((targetPhaseOverride) => {
     // Date/driver change is a deliberate selection change — always refit, even if
     // the user had free-panned before (mirrors REACTIVATE_FAB's explicit-activation
     // clearing of mapUserUnlockedRef; without this the trigger effect bails out).
+    const targetPhase = Math.min(3, Math.max(1, Number(targetPhaseOverride) || 1));
     if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
-    mapViewPhaseRef.current = 1; isMapViewLockedRef.current = true; pendingPhaseRef.current = 1;
-    setMapViewPhase(1); setIsMapViewLocked(true);
+    mapViewPhaseRef.current = targetPhase; isMapViewLockedRef.current = true; pendingPhaseRef.current = targetPhase;
+    setMapViewPhase(targetPhase); setIsMapViewLocked(true);
     lastProgrammaticMapMoveRef.current = Date.now();
     if (typeof window !== 'undefined') window._lastProgrammaticMapMove = Date.now();
     setMapViewTrigger((p) => p + 1);
@@ -2071,12 +2093,12 @@ function Dashboard() {
     const t = setTimeout(() => {
       if (pendingFabReactivationComboRef.current === combo) {
         pendingFabReactivationComboRef.current = null;
-        runFabPhase1Reactivation();
+        runFabPhase1Reactivation(getFabReactivationPhase());
       }
     }, 2500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedDriverId, initialMapViewApplied, runFabPhase1Reactivation]);
+  }, [selectedDate, selectedDriverId, initialMapViewApplied, runFabPhase1Reactivation, getFabReactivationPhase]);
 
   // Fire once the new selection's markers have rendered (deliveriesWithStopOrder committed).
   // CRITICAL: NO cleanup here. This effect re-runs on every state update during the
@@ -2095,10 +2117,10 @@ function Dashboard() {
       fabReactivationTimerRef.current = null;
       if (pendingFabReactivationComboRef.current !== combo) return; // superseded by a newer combo
       pendingFabReactivationComboRef.current = null;
-      runFabPhase1Reactivation();
+      runFabPhase1Reactivation(getFabReactivationPhase());
     }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deliveriesWithStopOrder, selectedDate, selectedDriverId, runFabPhase1Reactivation]);
+  }, [deliveriesWithStopOrder, selectedDate, selectedDriverId, runFabPhase1Reactivation, getFabReactivationPhase]);
 
   // CRITICAL: Enable FAB repositioning once stop cards are measured
   useEffect(() => {
