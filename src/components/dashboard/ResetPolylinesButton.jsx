@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { toValidRecordIds } from '@/components/utils/recordIdUtils';
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
@@ -615,7 +616,7 @@ export default function ResetPolylinesButton({
 
     const [patients, stores] = await Promise.all([
       patientIds.length > 0
-        ? base44.entities.Patient.filter({ id: { $in: patientIds } }, undefined, 5000).catch(() => [])
+        ? base44.entities.Patient.filter({ id: { $in: toValidRecordIds(patientIds) } }, undefined, 5000).catch(() => [])
         : Promise.resolve([]),
       storeIds.length > 0
         ? base44.entities.Store.filter({ id: { $in: storeIds } }, undefined, 500).catch(() => [])

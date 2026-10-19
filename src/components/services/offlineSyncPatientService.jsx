@@ -1,8 +1,9 @@
 import { queueEntityRequest } from '../utils/requestQueue';
+import { toValidRecordIds } from '../utils/recordIdUtils';
 
 export const createOfflineSyncPatientService = ({ offlineDB, Patient, invalidateEntityCache }) => {
   const syncPatientsByIds = async (patientIds = [], batchSize = 50) => {
-    const uniquePatientIds = Array.from(new Set((patientIds || []).filter(Boolean)));
+    const uniquePatientIds = toValidRecordIds(patientIds);
     let totalPatients = 0;
     let freshPatients = [];
 

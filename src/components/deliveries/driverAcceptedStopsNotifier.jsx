@@ -26,6 +26,7 @@
  *     "relation:driver" recipients resolve correctly for on-behalf accepts.
  */
 import { base44 } from '@/api/base44Client';
+import { toValidRecordIds } from '@/components/utils/recordIdUtils';
 import { toast } from 'sonner';
 import { dispatchMessageRules, clearRuleCache, buildDateQualifier } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
@@ -192,7 +193,7 @@ export async function notifyDriverAcceptedStops({
   const patientNameMap = new Map();
   if (patientIds.length > 0) {
     try {
-      const patientRecords = await base44.entities.Patient.filter({ id: { $in: patientIds } });
+      const patientRecords = await base44.entities.Patient.filter({ id: { $in: toValidRecordIds(patientIds) } });
       patientNotesJoined = (patientRecords || []).map((p) => p?.notes).filter(Boolean).join(' | ');
       (patientRecords || []).forEach((p) => {
         if (p?.id && p?.full_name) patientNameMap.set(p.id, p.full_name);

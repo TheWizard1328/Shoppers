@@ -1,3 +1,4 @@
+import { toValidRecordIds } from './recordIdUtils';
 import { offlineDB } from './offlineDatabase';
 import { queueEntityRequest } from './requestQueue';
 import { createOfflineSyncPreRenderHelpers } from './offlineSyncPreRender';
@@ -336,7 +337,7 @@ export const createOfflineSyncPriorityHelpers = ({
       }
       invalidateEntityCache('Delivery');
       if (deliveries && deliveries.length > 0) {
-        const patientIds = new Set(deliveries.filter((d) => d && d.patient_id).map((d) => d.patient_id));
+        const patientIds = new Set(toValidRecordIds(deliveries.filter((d) => d && d.patient_id).map((d) => d.patient_id)));
         if (patientIds.size > 0) {
           const patientIdList = Array.from(patientIds);
           const batchSize = 50;

@@ -14,6 +14,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { toValidRecordIds } from './recordIdUtils';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { getOrFetchRoutingKey } from '@/components/utils/routingKeyStore';
@@ -180,7 +181,7 @@ async function _performRouteOptimizationInner({
   }
   if (!resolvedPatients) {
     const patientIds = [...new Set((resolvedDeliveries || []).filter(d => d.patient_id).map(d => d.patient_id))];
-    resolvedPatients = patientIds.length ? await base44.entities.Patient.filter({ id: { $in: patientIds } }).catch(() => []) : [];
+    resolvedPatients = patientIds.length ? await base44.entities.Patient.filter({ id: { $in: toValidRecordIds(patientIds) } }).catch(() => []) : [];
   }
   if (!resolvedStores) {
     const storeIds = [...new Set((resolvedDeliveries || []).map(d => d.store_id).filter(Boolean))];
@@ -219,7 +220,7 @@ async function _performRouteOptimizationInner({
     )];
     if (missingPatientIds.length > 0) {
       try {
-        const fetchedPatients = await base44.entities.Patient.filter({ id: { $in: missingPatientIds } }).catch(() => []);
+        const fetchedPatients = await base44.entities.Patient.filter({ id: { $in: toValidRecordIds(missingPatientIds) } }).catch(() => []);
         if (Array.isArray(fetchedPatients) && fetchedPatients.length > 0) {
           resolvedPatients = [...(resolvedPatients || []), ...fetchedPatients];
           console.log(`[RouteOptimization] ${source} — gap-filled ${fetchedPatients.length} missing patient(s) for coord resolution`);

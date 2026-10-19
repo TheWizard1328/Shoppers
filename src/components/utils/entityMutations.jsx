@@ -864,7 +864,42 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
 
   try {
     // CRITICAL: Sanitize all deliveries before saving
-    const sanitizedDeliveriesData = deliveriesData.map(d => sanitizeDeliveryData(d));
+    // TEMP-ID GUARD (owner report Oct 19 2026): a delivery created while the
+    // patient's server create was still queued carries `temp_patient_*` as its
+    // patient_id. Sending that to the server poisons every later
+    // Patient.filter({ id: { $in } }) batch ("id is not a valid record ID",
+    // 400, whole sync batch dies on EVERY device). Resolve the temp id to the
+    // real patient id if the mapping exists; otherwise (offline, no mapping
+    // yet) leave it — the offline drain remaps it after the patient syncs.
+    const { resolveTempPatientId } = await import('./tempPatientIdMap');
+    const resolveList = (list) => list.map(d => {
+      const clean = sanitizeDeliveryData(d);
+      if (clean?.patient_id) {
+        const resolved = resolveTempPatientId(clean.patient_id);
+        if (resolved !== clean.patient_id) {
+          console.log(`🔗 [EntityMutations] bulkCreate: resolved temp patient id → ${resolved}`);
+          clean.patient_id = resolved;
+        }
+      }
+      return clean;
+    });
+    let sanitizedDeliveriesData = resolveList(deliveriesData);
+    // ONLINE RACE (root cause of the Oct 19 400s): the patient create is QUEUED
+    // with a 30s delay even while online, so an immediate delivery create can
+    // outrun it and ship the unmapped temp id to the server. When we're online
+    // and a temp id is STILL unresolved, force ONE drain of the offline
+    // mutation queue (creates the queued patient, records the mapping, remaps
+    // orphan deliveries) and resolve again before the bulkCreate.
+    const stillTemp = sanitizedDeliveriesData.some(d => String(d?.patient_id || '').startsWith('temp_patient_'));
+    if (stillTemp && connectionMonitor.canAttemptNetwork()) {
+      try {
+        const { processPendingMutations } = await import('./offlineSync');
+        await processPendingMutations();
+        sanitizedDeliveriesData = resolveList(sanitizedDeliveriesData);
+      } catch (drainErr) {
+        console.warn('⚠️ [EntityMutations] bulkCreate: pre-drain for queued patients failed:', drainErr?.message || drainErr);
+      }
+    }
     const creatorAppUserId = await getCurrentCreatorAppUserId();
     const deliveriesWithCreator = sanitizedDeliveriesData.map(d => ({
       ...d,

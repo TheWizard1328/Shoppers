@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { isValidRecordId } from './recordIdUtils';
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import { shouldRefreshUserFromAppUser } from './appUserRefreshUtils';
@@ -1010,7 +1011,7 @@ export const AppDataProvider = ({ children, value }) => {
         const chunk = patientIdsNeeded.slice(i, i + BATCH);
         const chunkResults = await Promise.all(
           chunk.map(async (pid) => {
-            const res = await base44.entities.Patient.filter({ id: pid });
+            const res = isValidRecordId(pid) ? await base44.entities.Patient.filter({ id: pid }) : null;
             return Array.isArray(res) && res.length > 0 ? res[0] : null;
           })
         );

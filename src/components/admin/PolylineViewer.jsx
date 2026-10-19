@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { toValidRecordIds } from '@/components/utils/recordIdUtils';
 import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
@@ -424,7 +425,7 @@ export default function PolylineViewer({ users = [] }) {
         const storeIds   = [...new Set(terminal.map(d => d.store_id).filter(Boolean))];
 
         const [pats, strs] = await Promise.all([
-          patientIds.length ? base44.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 500) : Promise.resolve([]),
+          patientIds.length ? base44.entities.Patient.filter({ id: { $in: toValidRecordIds(patientIds) } }, 'id', 500) : Promise.resolve([]),
           storeIds.length   ? base44.entities.Store.filter({ id: { $in: storeIds } }, 'id', 500)    : Promise.resolve([]),
         ]);
 
