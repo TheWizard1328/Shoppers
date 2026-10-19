@@ -1793,7 +1793,7 @@ const snapshotIsFresh = (rec) => {
   return at > 0 && Date.now() - at < HOST_PUBLISH_FRESH_MS;
 };
 
-const storeReload = async (force = false, attempt = 0, opts = {}) => {
+const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
   const seq = ++storeSeq;
   // OWNER-ONLY COMPUTE (owner spec Oct 13 2026, rate-limit storm): only
   // owner devices may invoke the heavy squareBalancesCompute. Store PCs and
@@ -1957,6 +1957,21 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
 // Apply a remote shared snapshot (whole-database pull): paint UI + refresh
 // the IDB mirror. Never republishes (that only happens on fresh local
 // computes), so a publish → broadcast → apply chain can never loop.
+// IN-FLIGHT GUARD (owner report Oct 19 2026, app restart → a bunch of rate
+// limits): the Editor ran up to THREE concurrent compute reloads at once
+// (three heal-ladder lines in the same second: retry 300s/900s/1800s), each a
+// heavy invoke whose internal reads drain the same pool. Only ONE reload may
+// run per device at a time; triggers arriving mid-flight coalesce onto it.
+let storeReloadInFlight = null;
+const storeReload = (force = false, attempt = 0, opts = {}) => {
+  if (storeReloadInFlight) return storeReloadInFlight;
+  storeReloadInFlight = (async () => {
+    try { return await storeReloadInner(force, attempt, opts); }
+    finally { storeReloadInFlight = null; }
+  })();
+  return storeReloadInFlight;
+};
+
 const applyRemoteSharedSnapshot = (rec) => {
   try {
     const ver = Number(rec?.version || 0);
