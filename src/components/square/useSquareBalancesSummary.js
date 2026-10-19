@@ -1838,7 +1838,15 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     // (deploy window, bad payload) where the account can actually honor it.
     const _em = String(e?.message || e);
     const _es = Number(e?.status || e?.response?.status || 0);
-    const _rateLimited = _es === 429 || _es === 409 || /429|rate.?limit/i.test(_em);
+    // OWNER REPORT (Oct 19 2026, "square bounce transfer → 4 rate limits"):
+    // 'compute returned no payload' means the backend function bailed on its
+    // OWN internal entity reads — on a hot pool that IS the storm, but the
+    // message never matched the 429/409 regex, so the designated host fell
+    // through to the LOCAL compute volley (dozens of reads on the same
+    // throttled pool) 4 times in 16 minutes, re-heating the account for every
+    // device. Classify no-payload the same as a 429: cached snapshot + heal
+    // ladder, no local volley.
+    const _rateLimited = _es === 429 || _es === 409 || /429|rate.?limit|no.?payload/i.test(_em);
     if (_rateLimited) {
       if (seq !== storeSeq) return;
       storeDegradedHeals = Math.min(storeDegradedHeals + 1, 3);
