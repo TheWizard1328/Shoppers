@@ -1306,30 +1306,54 @@ function isCodRelevantEvent(ev) {
   const sig = _codSig(d);
   const hasCod = recordHasCod(d);
   const prev = codEventSigs.get(d.id);
-  codEventSigs.set(d.id, { sig, hasCod });
+  const fields = {};
+  for (const f of COD_SIG_FIELDS) fields[f] = _sigVal(d[f]);
+  codEventSigs.set(d.id, { sig, hasCod, fields });
   if (prev?.sig === sig) return false; // same COD-relevant values — pure noise
   if (prev === undefined) {
     // First sighting: fire only if the record actually carries a COD now
     // (a plain non-COD delivery must not trigger a compute on boot).
     return hasCod;
   }
-  // Owner rule (Oct 15 2026): a completion WITHOUT COD must NEVER trigger a
-  // compute. The old gate tracked EVERY delivery's status field, so any
-  // non-COD stop completion flipped the signature and forced a Square
-  // recompute. A record only matters while it HAS a COD now or HAD one at
-  // last sighting (COD removed via edit still balances out once, then quiet).
+  // OWNER SPEC (Oct 19 2026): "Start, Complete or Mark Failed on a delivery
+  // without a COD should be bypassing any and all COD checks — the Start
+  // button shouldn't be affecting Square at all; only creating, finishing
+  // and deleting stops, or editing a COD (type/amount/removed)."
+  //   • non-COD record changing (Start/Complete/Fail on a non-COD stop):
+  //     NEVER relevant.
+  //   • status flip to en_route/in_transit (Start/Accept): NEVER relevant —
+  //     even on a COD stop, starting changes nothing in the balance math.
+  //   • status flip to a TERMINAL state (completed/failed/returned) on a
+  //     COD stop: relevant (finishing).
+  //   • any cod_* field edit (type/amount/payments/collected/returned/
+  //     retried): relevant.
+  //   • driver_id / actual_delivery_time / stop_order / ETA writes alone:
+  //     NOT relevant.
   if (!hasCod && !prev.hasCod) return false;
-  // Known COD record: fire only when a COD-relevant field actually changed.
+  const newStatus = String(d.status || '').toLowerCase();
+  const terminalNow = newStatus === 'completed' || newStatus === 'failed' || newStatus === 'returned';
+  const prevFields = prev?.fields;
+  if (prevFields) {
+    for (const f of COD_SIG_FIELDS) {
+      if (prevFields[f] === fields[f]) continue;
+      if (String(f).startsWith('cod_')) return true;   // COD edit (amount/type/payment/removal)
+      if (f === 'status' && terminalNow) return true;  // Complete / Mark Failed of a COD stop
+      // every other field change alone (incl. Start's en_route/in_transit
+      // flip) is not a Square event — keep scanning in case a cod field
+      // also moved in the same batch.
+    }
+    return false;
+  }
+  // Legacy map entry (no per-field prev) — fall back to changedFields metadata.
   const changed = ev.changedFields || ev.changed_fields || [];
   if (Array.isArray(changed) && changed.length > 0) {
-    const relevantChange = changed.some((f) =>
-      String(f).startsWith('cod_') || COD_SIG_FIELDS.includes(String(f)));
-    return relevantChange;
+    return changed.some((f) => String(f).startsWith('cod_') || (String(f) === 'status' && terminalNow));
   }
-  // No changedFields metadata: the signature already proved something
-  // COD-relevant moved (or the record gained/lost its COD).
+  // No metadata at all: signature DID move on a COD record — conservative
+  // fire (cannot prove it was only a Start flip).
   return true;
 }
+
 
 // ── Owner reconcile plan (Oct 3 2026) ───────────────────────────────────────
 // Store-card fingerprint learning: a card swiped 5+ times at ONE location
