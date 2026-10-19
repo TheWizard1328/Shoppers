@@ -2236,8 +2236,16 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
 
-      mapViewPhaseRef.current = 1; isMapViewLockedRef.current = true; pendingPhaseRef.current = 1;
-      setMapViewPhase(1); setIsMapViewLocked(true);
+      // OWNER SPEC (Oct 19 2026, follow-up): this hard reset to phase 1 was
+      // overriding the saved-phase reactivation when an admin switched BACK to
+      // their own route — the owner saw phase 1 even though the saved setting
+      // said 2/3. The driver-change reset now honors the same rule as the
+      // combo-reactivation effects: admins returning to their OWN route
+      // reactivate their saved fab_map_cycle_phase (availability-checked);
+      // every other case (other drivers' routes, date changes) keeps phase 1.
+      const _reactPhase = getFabReactivationPhase();
+      mapViewPhaseRef.current = _reactPhase; isMapViewLockedRef.current = true; pendingPhaseRef.current = _reactPhase;
+      setMapViewPhase(_reactPhase); setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger); centerNextDeliveryCard(deliveriesWithStopOrder);
       fabControlEvents.notifyDoneButtonClicked(250);
@@ -2252,7 +2260,7 @@ function Dashboard() {
         driverChangeInProgressRef.current = false;
       }
     }
-  }, [currentUserId, selectedDate, refreshData, setIsEntityUpdating, appUsers, showAllDriverMarkers, mapViewTrigger]);
+  }, [currentUserId, selectedDate, refreshData, setIsEntityUpdating, appUsers, showAllDriverMarkers, mapViewTrigger, getFabReactivationPhase]);
 
   // KITT bar phased optimization messages — extracted to useKittOptimizationMessages
   useKittOptimizationMessages(setOptimizationMessage);
