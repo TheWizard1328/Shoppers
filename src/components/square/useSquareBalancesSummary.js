@@ -1891,8 +1891,8 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     const _rateLimited = _es === 429 || _es === 409 || _es === 401 || _es === 403 || /429|rate.?limit|no.?payload|unauthorized/i.test(_em);
     if (_rateLimited) {
       if (seq !== storeSeq) return;
-      storeDegradedHeals = Math.min(storeDegradedHeals + 1, 3);
-      const _healDelay = [30_000, 120_000, 300_000, 300_000][storeDegradedHeals - 1] || 300_000;
+      storeDegradedHeals = Math.min(storeDegradedHeals + 1, 5);
+      const _healDelay = [30_000, 120_000, 300_000, 900_000, 1_800_000][storeDegradedHeals - 1] || 1_800_000;
       console.warn(`[useSquareBalancesSummary] compute rate-limited — serving cached snapshot, retrying in ${Math.round(_healDelay / 1000)}s`);
       if (storeHealTimer) clearTimeout(storeHealTimer);
       storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true, 0, opts); }, _healDelay);
@@ -1917,8 +1917,8 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
       }
       publishSharedSnapshot(data, { version: Date.now(), userId: storeUserId, deviceName: storeDeviceName || deviceName }).catch?.(() => {});
       if (degraded) {
-        storeDegradedHeals = Math.min(storeDegradedHeals + 1, 3);
-        const healDelay = [30_000, 120_000, 300_000, 300_000][storeDegradedHeals - 1] || 300_000;
+        storeDegradedHeals = Math.min(storeDegradedHeals + 1, 5);
+        const healDelay = [30_000, 120_000, 300_000, 900_000, 1_800_000][storeDegradedHeals - 1] || 1_800_000;
         if (storeHealTimer) clearTimeout(storeHealTimer);
         storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, healDelay);
       } else {
