@@ -1754,6 +1754,17 @@ let storeEventTimers = {};
 //     its own compute (host offline / no publish). This stops the multi-
 //     device compute stampede that burned the account's rate budget.
 let storeDegradedHeals = 0; // consecutive degraded local computes — grows the heal delay
+// OWNER DIRECTIVE (Oct 19 2026): a SUCCESSFUL compute (fresh retry landed, or
+// a real COD-triggered calculate returned) must CANCEL every retry still
+// sitting in the wings from previous failures — heal-ladder timers and queued
+// event pokes. Without this, an old 5-minute retry could fire right after a
+// newer success and burn the pool on data that is already fresh.
+const clearPendingRetryTimers = () => {
+  if (storeHealTimer) { clearTimeout(storeHealTimer); storeHealTimer = null; }
+  Object.keys(storeEventTimers).forEach((k) => {
+    if (storeEventTimers[k]) { clearTimeout(storeEventTimers[k]); storeEventTimers[k] = null; }
+  });
+};
 let storeDutyCache = { at: 0, onDuty: null };
 const hasDriverOnDuty = async () => {
   try {
@@ -1836,6 +1847,7 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     if (!fdata) throw new Error('compute returned no payload');
     if (seq !== storeSeq) return;
     storeDegradedHeals = 0; // server compute healthy again — reset the heal backoff
+    clearPendingRetryTimers(); // owner Oct 19: success cancels every queued retry
     storeSharedVersion = Number(res?.version) || Date.now();
     fdata.autoRefundedFailed = res?.autoRefundedFailed || [];
     storeApply(fdata);
@@ -1923,6 +1935,7 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
         storeHealTimer = setTimeout(() => { storeHealTimer = null; storeReload(true); }, healDelay);
       } else {
         storeDegradedHeals = 0;
+        clearPendingRetryTimers(); // owner Oct 19: success cancels every queued retry
       }
       return;
     } catch (e2) {
