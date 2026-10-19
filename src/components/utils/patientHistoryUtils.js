@@ -52,11 +52,23 @@ export function buildHistoryEntry(deliveryId, deliveryDate, actualDeliveryTime, 
 }
 
 /**
+ * OWNER FIX (Oct 19 2026): the history array is HARD-CAPPED. It used to grow
+ * unbounded — Sarah Nicholle's Patient record hit 23.6KB of embedded history,
+ * every status update rewrote + rebroadcast the whole blob, the platform
+ * slimmed the oversize broadcast (fields >10KB emptied), and EVERY device
+ * then re-fetched the full record (Patient.get) to fill the stub — heating
+ * the shared pool and triggering the account-wide 429 storms. Every reader
+ * only uses [0] / length / a short display list, so a cap of 20 newest
+ * entries loses nothing; full history lives in the Delivery entity.
+ */
+const MAX_HISTORY_ENTRIES = 20;
+
+/**
  * Append a new entry to a patient's delivery_history array (newest first).
  * Returns a new array — does not mutate the original.
  * @param {Array} existingHistory - Current delivery_history array
  * @param {Object} newEntry - History entry from buildHistoryEntry()
- * @returns {Array} New sorted array with entry at index 0
+ * @returns {Array} New sorted array with entry at index 0, capped at MAX_HISTORY_ENTRIES
  */
 // (Sep 23 2026) Cap on stored history entries. Long-running recurring patients
 // accumulated 100+ entries, pushing Patient records past the realtime
@@ -64,8 +76,9 @@ export function buildHistoryEntry(deliveryId, deliveryDate, actualDeliveryTime, 
 // errors on every client in the fleet and oversize WS payloads (see Sep 23
 // sluggishness incident, patient 68e1e249f45648303b222f9e). Older history is
 // still derivable from the Delivery records themselves; the array is a
-// convenience cache, not the source of truth.
-const MAX_HISTORY_ENTRIES = 60;
+// convenience cache, not the source of truth. (Oct 19 2026: lowered 60 → 20 —
+// 60 entries ≈ 24KB on long-history patients, which oversize-slims every
+// broadcast and forces full-record Patient.get fetches on all devices.)
 
 export function appendToHistory(existingHistory, newEntry) {
   const history = Array.isArray(existingHistory) ? [...existingHistory] : [];
