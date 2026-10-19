@@ -2088,6 +2088,17 @@ function startSummaryStore(userId, isOwner = false) {
   const FALLBACK_EVENT_COMPUTE_COOLDOWN_MS = 5 * 60 * 1000;
   let storeLastFallbackEventComputeAt = 0;
   const runEventCompute = async () => {
+    // DEGRADED-STATE RULE (owner report Oct 19 2026, 15:24 — "still getting a
+    // lot of regular rate limits"): while the account pool is throttling the
+    // compute (storeDegradedHeals >= 2), event pokes must NOT invoke it —
+    // the Editor was attempting a compute every 1-2 minutes for hours, every
+    // attempt re-heating the pool it needs to recover from. Events converge
+    // via the snapshot pull; ONLY the heal ladder (30s → 30 min backoff)
+    // retries the compute until it lands.
+    if (storeDegradedHeals >= 2) {
+      scheduleSharedPull(3000);
+      return;
+    }
     try {
       const devName = await loadStoreDeviceName();
       if (devName !== DESIGNATED_COMPUTE_HOST) {
