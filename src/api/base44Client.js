@@ -22,6 +22,14 @@ axios.defaults.timeout = 15000;
 // SDK builds gets a request interceptor that raises the timeout per request,
 // matched by function name in the URL. All other requests keep the 15s cap.
 const LONG_TIMEOUT_FUNCTIONS = new Set([
+  // Square balances compute (owner report Oct 19 2026): the same multi-driver
+  // paginated Square fetches as the other sync fns — runs 17-25s+ on cold
+  // paths. Left at the 15s cap it "timed out", returned no payload, and every
+  // owner device retried every ~2 min all night while the Editor host slept.
+  'squareBalancesCompute',
+  'squareSyncCatalog2',
+  'squareSyncCatalogItems',
+  'squareCodTenderPeek',
   // Full-year payroll/metrics pull: computes a year of deliveries, payroll
   // records and driver stats server-side — legitimately 20-60s on cold cache.
   'getAdminMetricsAndPayrollData',
