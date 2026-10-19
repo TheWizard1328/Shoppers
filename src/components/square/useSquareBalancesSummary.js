@@ -1881,7 +1881,14 @@ const storeReload = async (force = false, attempt = 0, opts = {}) => {
     // throttled pool) 4 times in 16 minutes, re-heating the account for every
     // device. Classify no-payload the same as a 429: cached snapshot + heal
     // ladder, no local volley.
-    const _rateLimited = _es === 429 || _es === 409 || /429|rate.?limit|no.?payload/i.test(_em);
+    // OWNER REPORT (Oct 19 2026, "rate limits after completing my last
+    // stop"): a 401 (expired session token — the SDK refreshes it) also ran
+    // the local volley at noon on the hottest pool of the day. Transient
+    // invoke failures (auth 401/403, pool 429/409, empty payload) all take
+    // the SAME path: cached snapshot + heal ladder. The local fallback stays
+    // only for genuine non-rate, non-auth failures (deploy window, bad
+    // payload shape).
+    const _rateLimited = _es === 429 || _es === 409 || _es === 401 || _es === 403 || /429|rate.?limit|no.?payload|unauthorized/i.test(_em);
     if (_rateLimited) {
       if (seq !== storeSeq) return;
       storeDegradedHeals = Math.min(storeDegradedHeals + 1, 3);
