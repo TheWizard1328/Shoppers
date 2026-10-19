@@ -1274,13 +1274,24 @@ const COD_SIG_FIELDS = [
   'cod_retry_delivery_id'
 ];
 const codEventSigs = new Map(); // delivery id → { sig, hasCod }
+// SIGNATURE NORMALIZATION (owner report Oct 19 2026 — "Start on a non-COD
+// stop fired the COD checker anyway; the only COD is much further down the
+// route"): the same record read from IDB carries cod_payments: [] (sanitizer
+// default) while the server fetch returns cod_payments: null/undefined — the
+// raw signature saw "cod_payments=[]" vs "cod_payments=" and treated EVERY
+// full-route fetch after a Start as a COD-relevant change, firing the compute
+// even though no COD field actually moved. Normalize: null / undefined / ''
+// / [] all read as EMPTY; numbers through Number() (0.0 === 0).
+const _sigVal = (v) => {
+  if (v === null || v === undefined || v === '') return '';
+  if (Array.isArray(v)) return v.length === 0 ? '' : JSON.stringify(v);
+  if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'number') return String(Number(v) || 0);
+  return String(v);
+};
 const _codSig = (d) => {
   if (!d) return 'NONE';
-  const parts = COD_SIG_FIELDS.map((f) => {
-    const v = d[f];
-    return `${f}=${typeof v === 'object' && v !== null ? JSON.stringify(v) : (v ?? '')}`;
-  });
-  return parts.join('|');
+  return COD_SIG_FIELDS.map((f) => `${f}=${_sigVal(d[f])}`).join('|');
 };
 function isCodRelevantEvent(ev) {
   if (!ev) return false;
