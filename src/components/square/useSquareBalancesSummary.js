@@ -1829,17 +1829,31 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     }
   }
   // GATE 2 — single compute host
+  // OWNER DIRECTIVE (Oct 19 2026): "the calculate is only supposed to run on
+  // the desktop editor" — non-Editor devices NEVER invoke
+  // squareBalancesCompute, not even as a fallback host. When the Editor's
+  // publishes stall (its publish reads rate-limit on a hot pool), the
+  // tablet/phone were taking over the calculation and re-heating the pool
+  // (tablet 'just sitting there monitoring the route' kept showing rate
+  // limits). Non-hosts now: pull the shared snapshot, wait once for a
+  // mid-flight host publish, then serve the cached snapshot with ONE delayed
+  // pull. Computing is exclusively THE-DESKTOP(Editor)'s job.
   const deviceName = await loadStoreDeviceName();
   if (deviceName !== DESIGNATED_COMPUTE_HOST) {
     let rec = await fetchLatestSharedSnapshot().catch(() => null);
     if (rec && applyRemoteSharedSnapshot(rec)) return; // newer host publish applied
     if (snapshotIsFresh(rec)) return;                   // host published moments ago
     // The designated host may be mid-compute on the same event — give its
-    // publish one chance to land before spending our own compute.
+    // publish one chance to land.
     await new Promise((r) => setTimeout(r, 12_000));
     rec = await fetchLatestSharedSnapshot().catch(() => null);
     if (rec && applyRemoteSharedSnapshot(rec)) return;
     if (snapshotIsFresh(rec)) return;
+    // No usable snapshot — serve the cached one and check again later.
+    // NEVER fall through to the compute invoke from a non-Editor device.
+    if (seq !== storeSeq) return;
+    setTimeout(() => { void pullAndApplySharedSnapshot(); }, 120_000);
+    return;
   }
   try {
     const res = await base44.functions.invoke('squareBalancesCompute', { force: force !== false });
