@@ -2080,6 +2080,39 @@ function Dashboard() {
       if (mapLockExpiresAtRef.current === _exp) { isMapViewLockedRef.current = false; setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; }
     }, 250);
   }, []); // refs + stable setters only
+  // STALE-CLOSURE FIX (owner report Oct 20 2026): both reactivation timers used
+  // to call getFabReactivationPhase() from the CLOSURE CAPTURED AT ARM TIME. When
+  // the admin switches back to their own route, the closure still held the
+  // PREVIOUS selection's deliveriesWithStopOrder (the new selection's data hadn't
+  // committed yet), so the saved-phase restore check — own.some(isNextDelivery) —
+  // read the OTHER driver's data, failed, and fell back to Phase 1. The saved
+  // Phase 2 lock was never restored (owner: 'I'm not even seeing the phase 2
+  // activation and lock'). Timers now read the LATEST phase-getter through this
+  // ref, and when the own-route saved phase is 2/3 but this selection's own
+  // deliveries haven't committed yet, they RETRY (up to ~2.4s) instead of settling
+  // for Phase 1.
+  const getFabReactivationPhaseRef = useRef(getFabReactivationPhase);
+  getFabReactivationPhaseRef.current = getFabReactivationPhase;
+  const runFabPhase1ReactivationWithRestore = useCallback(() => {
+    const _saved = Number(getSetting('fab_map_cycle_phase')) || 1;
+    const _ownRoute = isAdmin && selectedDriverId === currentUser?.id;
+    const _evaluate = (attempt) => {
+      const target = getFabReactivationPhaseRef.current();
+      const ownCommitted = (deliveriesWithStopOrderRef.current || []).some((d) => d && d.driver_id === currentUser?.id);
+      if (target === 1 && _ownRoute && (_saved === 2 || _saved === 3) && !ownCommitted && attempt < 6) {
+        // Saved 2/3 but the own-route deliveries for this selection haven't
+        // committed — wait and re-evaluate with fresh data.
+        fabReactivationTimerRef.current = setTimeout(() => {
+          fabReactivationTimerRef.current = null;
+          _evaluate(attempt + 1);
+        }, 400);
+        return;
+      }
+      runFabPhase1Reactivation(target);
+    };
+    _evaluate(0);
+  }, [isAdmin, selectedDriverId, currentUser?.id, runFabPhase1Reactivation]);
+
 
   // Arm on combo change — post-boot only (the boot chain owns the first activation)
   useEffect(() => {
@@ -2093,12 +2126,12 @@ function Dashboard() {
     const t = setTimeout(() => {
       if (pendingFabReactivationComboRef.current === combo) {
         pendingFabReactivationComboRef.current = null;
-        runFabPhase1Reactivation(getFabReactivationPhase());
+        runFabPhase1ReactivationWithRestore();
       }
     }, 2500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedDriverId, initialMapViewApplied, runFabPhase1Reactivation, getFabReactivationPhase]);
+  }, [selectedDate, selectedDriverId, initialMapViewApplied, runFabPhase1ReactivationWithRestore]);
 
   // Fire once the new selection's markers have rendered (deliveriesWithStopOrder committed).
   // CRITICAL: NO cleanup here. This effect re-runs on every state update during the
@@ -2117,10 +2150,10 @@ function Dashboard() {
       fabReactivationTimerRef.current = null;
       if (pendingFabReactivationComboRef.current !== combo) return; // superseded by a newer combo
       pendingFabReactivationComboRef.current = null;
-      runFabPhase1Reactivation(getFabReactivationPhase());
+      runFabPhase1ReactivationWithRestore();
     }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deliveriesWithStopOrder, selectedDate, selectedDriverId, runFabPhase1Reactivation, getFabReactivationPhase]);
+  }, [deliveriesWithStopOrder, selectedDate, selectedDriverId, runFabPhase1ReactivationWithRestore]);
 
   // CRITICAL: Enable FAB repositioning once stop cards are measured
   useEffect(() => {
