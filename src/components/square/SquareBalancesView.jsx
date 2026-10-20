@@ -8,7 +8,7 @@ import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, Credit
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
@@ -1798,6 +1798,62 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       };
     });
   }, [config, deliveryCredits, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks, countedIdsSet]);
+
+  // ── PAGE-TRUTH PUBLISH (owner fix Oct 20 2026) ───────────────────────────
+  // The sidebar Card-Balances badge reads the shared snapshot, whose compute
+  // pipeline is duty-gated (no computes at night / rate-limit degradation), so
+  // the badge kept serving hours-old numbers ($9) while this page's fresh math
+  // (evening collections baked into deliveryCredits) showed $280.36. This page
+  // is the value the owner watches and trusts — publish its computed summary
+  // into the shared pipeline: local store (badge updates instantly here),
+  // IDB mirror, and the shared snapshot for every other device.
+  // OWNER/ADMIN ONLY (drivers view their own cards; only the owner's page is
+  // the trusted compute), throttled to one publish per 60s with a trailing
+  // publish so the LAST state always lands.
+  const pagePublishLastRef = useRef(0);
+  const pagePublishTimerRef = useRef(null);
+  const pagePublishDataRef = useRef(null);
+  const runPagePublish = useCallback(() => {
+    const snap = pagePublishDataRef.current;
+    if (!snap || !snap.byLocId || snap.byLocId.size === 0) return;
+    pagePublishLastRef.current = Date.now();
+    publishFromBalancesPage(snap, { userId: currentUser?.id || null, userName: currentUser?.full_name || 'Square Balances page' }).catch(() => {});
+  }, [currentUser?.id, currentUser?.full_name]);
+  useEffect(() => {
+    if (!ownerCanEdit || !config || !perLocation || perLocation.length === 0) return;
+    const byLocId = new Map(perLocation.map((p) => [p.location_id, {
+      name: p.name || p.location_id,
+      cardEstimate: p.cardEstimate,
+      loanRemaining: p.loanRemaining,
+      codAvg: p.weeklyCodAvg || 0,
+      sweptOut: p.sweptOut || 0,
+      chargedToCard: 0, chargedCount: 0,
+      pendingDeducted: p.pendingDeducted || 0,
+      pendingDeductCount: p.pendingDeductCount || 0,
+      storeCardSpend: p.storeCardSpend || 0,
+      level: p.level,
+    }]));
+    const codOutstandingDetailed = {};
+    for (const loc of config.locations || []) {
+      const out = localOutstanding?.[loc.location_id] || codOutstandingByLoc?.[loc.location_id] || null;
+      if (out) codOutstandingDetailed[loc.location_id] = out;
+    }
+    pagePublishDataRef.current = {
+      byLocId,
+      deliveryCredits, sales, payouts, codOutstandingDetailed,
+      config, configRecordId,
+      weeklyByLoc: weeklyCodAvgByLoc,
+    };
+    const now = Date.now();
+    const since = now - pagePublishLastRef.current;
+    if (since >= 60_000) { runPagePublish(); return; }
+    if (pagePublishTimerRef.current) return;
+    pagePublishTimerRef.current = setTimeout(() => {
+      pagePublishTimerRef.current = null;
+      if (Date.now() - pagePublishLastRef.current >= 60_000) runPagePublish();
+    }, 60_000 - since + 250);
+  }, [ownerCanEdit, config, perLocation, deliveryCredits, sales, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, configRecordId, runPagePublish]);
+  useEffect(() => () => { if (pagePublishTimerRef.current) clearTimeout(pagePublishTimerRef.current); }, []);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {

@@ -2006,6 +2006,60 @@ const pullAndApplySharedSnapshot = async () => {
   if (rec) applyRemoteSharedSnapshot(rec);
 };
 
+// ── PAGE-TRUTH PUBLISH (owner fix Oct 20 2026): the Square Balances page
+// computes FRESHER numbers than the shared snapshot (the sidebar badge's only
+// source) whenever the compute pipeline is gated off — at night after the last
+// driver goes off duty (duty gate skips server computes), while computes are
+// rate-limit-degraded, or while the designated host is offline. Owner report:
+// badge $9 vs page $280.36 — the evening card collections were baked into the
+// page's fresh math (its credits reload from local delivery data on open + the
+// 8s fast path) but the badge kept serving the last host snapshot from hours
+// earlier, and nothing ever reconciled the two. The page's summary is now
+// pushed into the shared pipeline: applied to the local store (this device's
+// sidebar badge updates instantly), mirrored to IDB (boot hydration stays
+// fresh), and published as the shared snapshot (every device's badge pulls it
+// via the existing WS subscribe). The Date.now() version is monotonic, so the
+// staleness/echo guards stay intact; a later fresh host compute still wins.
+export const publishFromBalancesPage = async ({ byLocId, payoutsByLoc = null, deliveryCredits = null, sales = [], payouts = [], codOutstandingDetailed = null, config = null, configRecordId = null, weeklyByLoc = null }, { userId = null, userName = null } = {}) => {
+  if (!byLocId || byLocId.size === 0) return false;
+  const base = storeCurrent || EMPTY_SUMMARY_STATE;
+  // The sidebar pipeline usually has the store→location map in the current
+  // store; if it's cold (fresh boot, page opened before the pipeline primed),
+  // load it the cheap IDB-first way.
+  let storeToLoc = base.storeToLoc || new Map();
+  if (!storeToLoc || storeToLoc.size === 0) {
+    try { storeToLoc = await buildStoreToLocMap(); } catch (_) { storeToLoc = base.storeToLoc || new Map(); }
+  }
+  // weeklyByStore (store → 7-day TOTAL) rebuild from the page's per-location
+  // averages when the store→location mapping is known.
+  let weeklyByStore = base.weeklyByStore || new Map();
+  if (weeklyByLoc && weeklyByLoc.size && storeToLoc && storeToLoc.size) {
+    weeklyByStore = new Map(base.weeklyByStore || []);
+    const locAvg = weeklyByLoc instanceof Map ? [...weeklyByLoc.entries()] : Object.entries(weeklyByLoc);
+    for (const [sid, lid] of storeToLoc.entries()) {
+      const hit = locAvg.find(([locId]) => String(locId) === String(lid));
+      if (hit) weeklyByStore.set(String(sid), Number(hit[1] || 0) * 7);
+    }
+  }
+  const data = {
+    byLocId,
+    storeToLoc,
+    weeklyByStore,
+    storeNames: base.storeNames,
+    dailyRemainingByStore: base.dailyRemainingByStore,
+    payoutsByLoc: payoutsByLoc || base.payoutsByLoc,
+    deliveryCredits, sales, payouts, codOutstandingDetailed, config, configRecordId,
+  };
+  const ver = Date.now();
+  if (ver > storeSharedVersion) storeSharedVersion = ver;
+  storeApply(data);
+  persistSnapshotModule(data);
+  let deviceName = 'Unknown Device';
+  try { deviceName = await loadStoreDeviceName(); } catch (_) {}
+  try { publishSharedSnapshot(data, { version: ver, userId: userId || storeUserId, userName, deviceName }).catch?.(() => {}); } catch (_) {}
+  return true;
+};
+
 function startSummaryStore(userId, isOwner = false) {
   if (storeRunningFor === String(userId)) return;
   if (teardownStore) { try { teardownStore(); } catch {} teardownStore = null; }
