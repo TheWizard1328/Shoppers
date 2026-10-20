@@ -598,13 +598,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     });
 
     prevVisibleIdsRef.current = incomingKeys;
-
-    // Clean up marker refs for drivers that are no longer in the incoming set
-    Object.keys(markerRefs.current).forEach(userId => {
-      if (!incomingKeys.has(userId)) delete markerRefs.current[userId];
-    });
-
   }, [users, currentUser, isMobile, deliveries, selectedDate, isAdmin, isDispatcher, isDriver, selectedDriverId, showOtherDriverDeliveries, overlayDriverId]);
+
+  // REF-CLEANUP FIX (owner report Oct 20 2026): the users-prop effect previously
+  // deleted markerRefs entries for any driver not in the PROP list. But a driver
+  // legitimately stays in visibleDrivers WITHOUT being in the prop list — e.g.
+  // kept alive by the 90s WS-grace window, or fed only by WS/poller events. When
+  // that happened the still-mounted Leaflet marker lost its ref and the rAF trail
+  // loop could never setLatLng it again — the dot froze at its last painted
+  // position while its record kept updating (legend timestamps fresh, marker
+  // stuck). Clean up refs against the ACTUAL rendered set (visibleDrivers), not
+  // the prop snapshot.
+  useEffect(() => {
+    const liveKeys = new Set((visibleDrivers || []).map((d) => getDriverIdentityKey(d) || d.id).filter(Boolean));
+    Object.keys(markerRefs.current).forEach((k) => {
+      if (!liveKeys.has(k)) delete markerRefs.current[k];
+    });
+  }, [visibleDrivers]);
 
   // Listen for location cleared events
   useEffect(() => {

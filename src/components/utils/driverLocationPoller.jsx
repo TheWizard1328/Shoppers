@@ -348,10 +348,19 @@ class DriverLocationPoller {
                      user.user_id === currentUserUserId;
       const isOnBreak = user.driver_status === 'on_break';
 
+      // IDENTITY-KEY FIX (owner report Oct 20 2026: on-break driver markers frozen):
+      // this poller shape previously set user_id/driver_id to the AppUser ROW id
+      // (e.g. 6a4186103ccd...) while the WebSocket/prop channels carry User.id
+      // (e.g. 6a41857fe036...). DriverLocationMarkers keys every marker by
+      // user_id — so the poller's records landed under a DIFFERENT key than the
+      // prop/WS records. The users-prop sync effect then DELETED the poller
+      // marker's ref (its key was not in the prop list), and the rAF paint loop
+      // can no longer setLatLng that marker: a duplicate dot frozen at its seed
+      // position forever, while the WS-keyed dot keeps moving. Unify the key.
       return {
         id: user.id,
-        user_id: user.id,
-        driver_id: user.id,
+        user_id: user.user_id || user.id,
+        driver_id: user.user_id || user.id,
         user_name: user.user_name || user.full_name,
         latitude: user.current_latitude,
         longitude: user.current_longitude,
