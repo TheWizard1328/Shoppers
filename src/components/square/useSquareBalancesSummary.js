@@ -1814,6 +1814,29 @@ const snapshotIsFresh = (rec) => {
   return at > 0 && Date.now() - at < HOST_PUBLISH_FRESH_MS;
 };
 
+// ── DUTY-GRACE WINDOW (owner directive Oct 20 2026) ──────────────────────────
+// Computes run while drivers are on duty, plus 30 minutes after the last one
+// goes off duty (final collections, Square ring-outs, ledger syncs land in
+// that tail), then the compute loop goes idle until the next on-duty flip or
+// a manual Refresh Square (manual bypasses this gate entirely).
+let storeLastDutySeenAt = 0;
+const DUTY_GRACE_WINDOW_MS = 30 * 60_000;
+const computeWithinDutyWindow = async () => {
+  const onDuty = await hasDriverOnDuty();
+  if (onDuty) { storeLastDutySeenAt = Date.now(); return true; }
+  if (storeLastDutySeenAt > 0 && Date.now() - storeLastDutySeenAt < DUTY_GRACE_WINDOW_MS) return true;
+  // Boot fallback: nobody on duty at boot and no in-session transition yet —
+  // anchor the grace window to the most recent driver AppUser updated_date
+  // (GPS heartbeats refresh it while any driver is out), so a compute started
+  // right after the last driver clocks out still lands inside the window.
+  try {
+    const users = await offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []);
+    const latest = Math.max(0, ...(users || []).map((u) => Date.parse(u?.updated_date || '') || 0));
+    if (latest > 0 && Date.now() - latest < DUTY_GRACE_WINDOW_MS) { storeLastDutySeenAt = latest; return true; }
+  } catch (_) { return true; } // fail open — never strand the badge
+  return false;
+};
+
 const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
   const seq = ++storeSeq;
   // OWNER-ONLY COMPUTE (owner spec Oct 13 2026, rate-limit storm): only

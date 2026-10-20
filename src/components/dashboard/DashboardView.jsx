@@ -355,8 +355,12 @@ function DashboardView({
     );
     if (!Number.isFinite(driverLat) || !Number.isFinite(driverLon)) return null;
 
-    const stopLat = Number(immersiveIsInterStore ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude);
-    const stopLon = Number(immersiveIsInterStore ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude);
+    // Cycling markers carry their own coords (cycling_latitude/longitude) and
+    // have no patient/store to resolve — use them so the panel shows the REAL
+    // distance to the marker instead of an unresolved null (owner report Oct 20).
+    const _isCyclingMarker = !!immersiveOverlayDelivery?.is_cycling_marker;
+    const stopLat = Number(_isCyclingMarker ? immersiveOverlayDelivery.cycling_latitude : immersiveIsInterStore ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude);
+    const stopLon = Number(_isCyclingMarker ? immersiveOverlayDelivery.cycling_longitude : immersiveIsInterStore ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude);
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) return null;
 
     // Consolidated into geoUtils — identical math, single source of truth.

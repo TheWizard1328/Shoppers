@@ -114,29 +114,36 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       shouldDeliver = true;
       frequency = 'Weekly';
     } else if (patient.recurring_biweekly && hasDaySelected) {
-      // Bi-weekly: show if no last delivery, or last delivery was ~14 days ago (±2 days: 12–16)
-      const biweeklyOk = !lastDate || (daysSinceLast !== null && daysSinceLast >= 12 && daysSinceLast <= 16);
+      // Bi-weekly: due 12+ days after the last delivery. The old 12-16 upper
+      // bound (Oct 19 2026 owner report) made an OVERDUE bi-weekly patient
+      // (e.g. 20 days) vanish from projections FOREVER while the Patient DB
+      // page kept ranking them due — once the window closed it never reopened.
+      // Overdue = still due: the dispatcher sees it and decides.
+      const biweeklyOk = !lastDate || (daysSinceLast !== null && daysSinceLast >= 12);
       if (biweeklyOk) {
         shouldDeliver = true;
         frequency = 'Bi-Weekly';
       }
     } else if (patient.recurring_weekly_x4) {
-      // Every 4 weeks (28 days): show if no last delivery, or it's been 25–31 days
-      const x4Ok = !lastDate || (daysSinceLast !== null && daysSinceLast >= 25 && daysSinceLast <= 31);
+      // Every 4 weeks (28 days): due 25+ days after the last delivery
+      // (upper bound removed — overdue patients stay visible, see bi-weekly).
+      const x4Ok = !lastDate || (daysSinceLast !== null && daysSinceLast >= 25);
       if (x4Ok) {
         shouldDeliver = true;
         frequency = 'x4 Weeks';
       }
     } else if (patient.recurring_monthly) {
-      // Monthly (~30 days): show if no last delivery, or it's been 27–33 days (±3 days)
-      const monthlyOk = !lastDate || (daysSinceLast !== null && daysSinceLast >= 27 && daysSinceLast <= 33);
+      // Monthly (~30 days): due 27+ days after the last delivery
+      // (upper bound removed — overdue patients stay visible, see bi-weekly).
+      const monthlyOk = !lastDate || (daysSinceLast !== null && daysSinceLast >= 27);
       if (monthlyOk) {
         shouldDeliver = true;
         frequency = 'Monthly';
       }
     } else if (patient.recurring_bimonthly) {
-      // Bi-monthly (~60 days): show if no last delivery, or it's been 57–63 days (±3 days)
-      const bimonthlyOk = !lastDate || (daysSinceLast !== null && daysSinceLast >= 57 && daysSinceLast <= 63);
+      // Bi-monthly (~60 days): due 57+ days after the last delivery
+      // (upper bound removed — overdue patients stay visible, see bi-weekly).
+      const bimonthlyOk = !lastDate || (daysSinceLast !== null && daysSinceLast >= 57);
       if (bimonthlyOk) {
         shouldDeliver = true;
         frequency = 'Bi-Monthly';
@@ -146,7 +153,17 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       frequency = 'Recurring';
     }
 
-    if (shouldDeliver && recentlyDeliveredPatientIds.has(patient.id)) shouldDeliver = false;
+    // OWNER DIRECTIVE (Oct 19 2026 — "Care Pro's Cal Tr" case): a recent
+    // delivery must NOT hide a patient whose due-ness comes from a DAY FLAG
+    // (daily / weekly weekday). That patient is weekly-Monday and was
+    // delivered Friday as an extra run — the blanket 5-day recency rule then
+    // dropped them from Monday's projections while the Patient DB page (no
+    // recency rule) correctly ranked them due. Day flags are absolute: the
+    // dispatcher decides whether the scheduled run still happens. Windowed
+    // patterns (bi-weekly/x4/monthly/bi-monthly) KEEP the suppression —
+    // their daysSince window already encodes recency.
+    const _isDayFlagDue = frequency === 'Daily' || frequency === 'Weekly';
+    if (shouldDeliver && !_isDayFlagDue && recentlyDeliveredPatientIds.has(patient.id)) shouldDeliver = false;
     if (shouldDeliver && lastDate && lastDate > dateObj) shouldDeliver = false;
     
     if (!shouldDeliver) return null;

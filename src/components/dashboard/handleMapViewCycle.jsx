@@ -48,7 +48,12 @@ export function createHandleMapViewCycle({
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       if (!skipMapTrigger) setMapViewTrigger((p) => p + 1);
-      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
+      // OWN-ROUTE SAVE ONLY (owner report Oct 20 2026): an admin cycling phases
+      // while viewing ANOTHER driver's route must not overwrite their own saved
+      // phase — the switch-back restore reads this setting. Drivers always save
+      // (their view is always their own route).
+      const _ownRoute = !isAdmin || selectedDriverId === currentUser?.id;
+      if (currentUser?.id && _ownRoute) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => {
         setAreCardsVisible(true);
         window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));

@@ -16,6 +16,10 @@ function formatStopOrder(value) {
 }
 
 function formatDistance(value) {
+  // null/undefined must read "--" — Number(null) is 0 (not NaN), so the old
+  // check rendered cycling markers (no resolvable overlay coords → null
+  // distance) as a constant "1 m" (owner report Oct 20 2026).
+  if (value == null) return "--";
   const km = Number(value);
   if (!Number.isFinite(km)) return "--";
   if (km >= 1) return `${km.toFixed(1)} km`;
