@@ -93,6 +93,16 @@ const getClassificationYearForDate = (date, payPeriodType) => {
 // Helper: Calculate all pay periods for a given year and pay period type
 // For weekly/biweekly, we generate Monday-anchored periods across the boundary
 // and then include only those whose majority of days fall in the requested year.
+// Compact date-range label for the cycle navigator ('Oct 1-15' style).
+// Crosses month boundaries as 'Sep 28-Oct 4'; same month keeps one month name.
+const formatPeriodRangeLabel = (start, end) => {
+  const sm = start.toLocaleString('default', { month: 'short' });
+  const em = end.toLocaleString('default', { month: 'short' });
+  const sd = start.getDate();
+  const ed = end.getDate();
+  return sm === em ? `${sm} ${sd}-${ed}` : `${sm} ${sd}-${em} ${ed}`;
+};
+
 const calculateAllPeriods = (year, payPeriodType) => {
   const periods = [];
 
@@ -115,7 +125,9 @@ const calculateAllPeriods = (year, payPeriodType) => {
               year,
               start,
               end,
-              label: `Week ${weekNum}`,
+              // Oct 20 owner spec: navigator label always shows the cycle's
+              // DATE RANGE (matching semimonthly 'Oct 1-15'), not 'Week N'.
+              label: formatPeriodRangeLabel(start, end),
               weekNum
             });
             weekNum++;
@@ -142,7 +154,8 @@ const calculateAllPeriods = (year, payPeriodType) => {
               year,
               start,
               end,
-              label: `Period ${periodNum}`,
+              // Oct 20 owner spec: date range instead of 'Period N'.
+              label: formatPeriodRangeLabel(start, end),
               periodNum
             });
             periodNum++;
