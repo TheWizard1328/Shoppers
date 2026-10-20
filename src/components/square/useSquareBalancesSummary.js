@@ -1841,11 +1841,15 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     return;
   }
   const manual = opts?.manual === true;
-  // GATE 1 — driver on duty (skipped for manual refresh)
+  // GATE 1 — duty window (skipped for manual refresh): computes run while
+  // drivers are on duty, plus 30 minutes after the last one goes off duty
+  // (final collections, Square ring-outs, ledger syncs land in that tail),
+  // then stop entirely until the next on-duty flip or a manual Refresh Square
+  // (owner directive Oct 20 2026).
   if (!manual) {
-    const onDuty = await hasDriverOnDuty();
-    if (!onDuty) {
-      console.log('⏭️ [useSquareBalancesSummary] No driver on duty — skipping server compute (cached snapshot served)');
+    const withinWindow = await computeWithinDutyWindow();
+    if (!withinWindow) {
+      console.log('⏭️ [useSquareBalancesSummary] No driver on duty (grace window elapsed) — skipping compute (cached snapshot served)');
       return;
     }
   }
