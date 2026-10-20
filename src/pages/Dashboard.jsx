@@ -48,6 +48,7 @@ import { handleNotesUpdate as _handleNotesUpdate, handleCODUpdate as _handleCODU
 import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboard/handleCreateReturn';
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
+import { remoteLogger } from '@/components/utils/remoteLogger';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
 import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';import { useDispatcherAutoPhaseController } from '@/components/dashboard/useDispatcherAutoPhaseController';
 
@@ -2106,6 +2107,7 @@ function Dashboard() {
     const _ownRoute = isAdmin && selectedDriverId === currentUser?.id;
     const _evaluate = (attempt) => {
       const target = getFabReactivationPhaseRef.current();
+    try { remoteLogger.info(`[FabPhaseRestore] comboTimer | selDriver=${selectedDriverId} | saved=${Number(getSetting('fab_map_cycle_phase')) || 1} | target=${target} | dwsoN=${(deliveriesWithStopOrderRef.current || []).length}`); } catch (_) {}
       const ownCommitted = (deliveriesWithStopOrderRef.current || []).some((d) => d && d.driver_id === currentUser?.id);
       if (target === 1 && _ownRoute && (_saved === 2 || _saved === 3) && !ownCommitted && attempt < 6) {
         // Saved 2/3 but the own-route deliveries for this selection haven't
@@ -2285,14 +2287,21 @@ function Dashboard() {
       // reactivate their saved fab_map_cycle_phase (availability-checked);
       // every other case (other drivers' routes, date changes) keeps phase 1.
       const _reactPhase = getFabReactivationPhase({ driverId, deliveries: freshDeliveries });
+      try { remoteLogger.info(`[FabPhaseRestore] driverChangeTail | target=${driverId} | own=${driverId === currentUser?.id} | saved=${Number(getSetting('fab_map_cycle_phase')) || 1} | react=${_reactPhase} | freshN=${(freshDeliveries || []).length}`); } catch (_) {}
       mapViewPhaseRef.current = _reactPhase; isMapViewLockedRef.current = true; pendingPhaseRef.current = _reactPhase;
       setMapViewPhase(_reactPhase); setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger); centerNextDeliveryCard(deliveriesWithStopOrder);
       fabControlEvents.notifyDoneButtonClicked(250);
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
-      const _exp = Date.now() + 250; mapLockExpiresAtRef.current = _exp;
-      mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === _exp) { isMapViewLockedRef.current = false; setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, 250);
+      // Phase 2/3 stay LOCKED after the switch (boot-chain parity: shouldLock = phase > 1);
+      // phase 1 keeps the brief lock-unlock so the user can pan the overview.
+      if (_reactPhase > 1) {
+        mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null;
+      } else {
+        const _exp = Date.now() + 250; mapLockExpiresAtRef.current = _exp;
+        mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === _exp) { isMapViewLockedRef.current = false; setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, 250);
+      }
     } catch (error) {
       console.error('❌ [Dashboard] Driver change failed:', error);
     } finally {
