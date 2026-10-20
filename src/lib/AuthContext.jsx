@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
-import { restoreTokenFromBridge } from '@/lib/authTokenBridge';
+import { restoreTokenFromBridge, shipBootDiags, recordBootDiag } from '@/lib/authTokenBridge';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
@@ -239,6 +239,7 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await _withTimeout(base44.auth.me(), 10000, 'auth.me');
       setUser(currentUser);
       setIsAuthenticated(true);
+      void shipBootDiags(); // ship any wipe-diag rows from earlier (possibly unauthenticated) boots
       setIsLoadingAuth(false);
 
       // Initialize IDB encryption — bypass for App Owner (Preview environment IDB conflicts)
@@ -262,6 +263,9 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
+      // AUTH-BOOT DIAG: the token (restored or live) was REJECTED server-side —
+      // distinguishes "wipe cleared storage" from "session expired platform-side".
+      void recordBootDiag({ auth_result: 'rejected', status: error?.status || null, msg: String(error?.message || error).slice(0, 120) });
       
       // If user auth fails, it might be an expired token
       if (error.status === 401 || error.status === 403) {

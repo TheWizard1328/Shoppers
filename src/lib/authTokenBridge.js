@@ -64,6 +64,87 @@ let intervalHandle = null;
  * it back (localStorage + SDK headers + appParams) BEFORE the auth check.
  * Returns true if a token was restored (caller can proceed to checkAppState).
  */
+// ── AUTH-BOOT DIAGNOSTIC (owner request Oct 20 2026) ────────────────────────
+// Shoppers store PCs get a nightly network-wide login wipe — every morning
+// dispatchers must re-login to ALL their apps and clear Google's "I am not a
+// robot". Before deciding whether a silent auto-restore can beat the wipe,
+// we need to know what the wipe actually clears on those PCs:
+//   • localStorage token gone but IDB bridge record alive → the existing
+//     restore path should already re-login them (if it fails anyway, the
+//     token expired SERVER-side — nothing client-side can fix that);
+//   • IDB gone too → nothing survives; the fix belongs to their IT
+//     (exempt the app's site from the nightly wipe).
+// Every boot records a small row INTO the IDB bridge DB itself (no auth
+// needed — the wiped boot may be unauthenticated and an API log write would
+// 401 anyway). The next AUTHENTICATED boot ships every unsent row once via
+// remoteLogger as [AuthBootDiag] lines. Absence of rows from a PC that runs
+// the app daily is itself the answer: its IDB is being wiped nightly.
+const DIAG_KEY = 'boot_diags';
+const DIAG_MAX_ROWS = 10;
+
+const _ceiling = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))]);
+
+async function _diagRows(db) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(DIAG_KEY);
+    req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function _diagPut(db, rows) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(rows, DIAG_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function _openDiagDb() {
+  return _ceiling(openBridgeDb(), 3000);
+}
+
+/** Record one boot observation. Fire-and-forget; never blocks boot. */
+export async function recordBootDiag(fields = {}) {
+  if (typeof window === 'undefined' || !window.indexedDB) return;
+  let db;
+  try {
+    db = await _openDiagDb();
+    if (!db) return;
+    const rows = (await _ceiling(_diagRows(db), 2000)) || [];
+    rows.push({ ts: Date.now(), tz_offset_min: new Date().getTimezoneOffset(), ...fields });
+    while (rows.length > DIAG_MAX_ROWS) rows.shift();
+    await _ceiling(_diagPut(db, rows), 2000);
+  } catch { /* diagnostic only */ }
+  try { db && db.close(); } catch {}
+}
+
+/** Ship every unsent diagnostic row exactly once (called on authenticated boots). */
+export async function shipBootDiags() {
+  if (typeof window === 'undefined' || !window.indexedDB) return;
+  let db;
+  try {
+    db = await _openDiagDb();
+    if (!db) return;
+    const rows = (await _ceiling(_diagRows(db), 2000)) || [];
+    if (!rows.length) return;
+    let changed = false;
+    for (const row of rows) {
+      if (row.sent) continue;
+      let logger;
+      try { logger = (await import('@/components/utils/remoteLogger')).remoteLogger; } catch { return; }
+      try {
+        logger.info(`[AuthBootDiag] ${JSON.stringify(row)}`);
+        row.sent = true; changed = true;
+      } catch { /* try again next boot */ }
+    }
+    if (changed) await _ceiling(_diagPut(db, rows), 2000);
+  } catch { /* diagnostic only */ }
+  try { db && db.close(); } catch {}
+}
+
 export async function restoreTokenFromBridge() {
   if (typeof window === 'undefined' || !window.indexedDB) return false;
   // HARD CEILING: never hold boot hostage on a wedged IDB (the restore is
@@ -74,7 +155,7 @@ export async function restoreTokenFromBridge() {
   ]);
   try {
     const existing = window.localStorage.getItem('base44_access_token') || window.localStorage.getItem('token');
-    if (existing) return false;
+    if (existing) { void recordBootDiag({ ls_token: 'present', bridge_restore: false }); return false; }
     const db = await withTimeout(openBridgeDb(), 3000);
     if (!db) return false;
     const rec = await withTimeout(new Promise((resolve, reject) => {
@@ -84,7 +165,13 @@ export async function restoreTokenFromBridge() {
       req.onerror = () => reject(req.error);
     }), 3000) || null;
     try { db.close(); } catch {}
-    if (!rec?.token) return false;
+    if (!rec?.token) { void recordBootDiag({ ls_token: 'absent', bridge: 'miss' }); return false; }
+    void recordBootDiag({
+      ls_token: 'absent',
+      bridge: 'hit',
+      bridge_age_h: rec.updated_at ? Math.round((Date.now() - rec.updated_at) / 360000) / 10 : null,
+      bridge_restore: true
+    });
     window.localStorage.setItem('base44_access_token', rec.token);
     window.localStorage.setItem('token', rec.token);
     if (rec.refresh_token) {
@@ -103,6 +190,7 @@ export async function restoreTokenFromBridge() {
     return true;
   } catch (e) {
     console.warn('[authTokenBridge] Boot restore failed:', e?.message || e);
+    void recordBootDiag({ ls_token: window.localStorage.getItem('base44_access_token') ? 'present' : 'absent', restore_error: String(e?.message || e).slice(0, 120) });
     return false;
   }
 }
