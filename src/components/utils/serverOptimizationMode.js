@@ -316,7 +316,14 @@ export const runServerSideOptimization = async (buildArgs) => {
   } catch (_) {}
 
   const { base44 } = await import('@/api/base44Client');
-  const result = await base44.functions.invoke('rxServerRouteOptimizer', request);
+  const rawResult = await base44.functions.invoke('rxServerRouteOptimizer', request);
+  // SDK WRAPPER FIX (owner report Oct 20 2026: 'bad response' balloon while the
+  // server function actually SUCCEEDS — verified live via a direct probe): the
+  // client SDK returns the function's JSON body nested under `.data`. The old
+  // validation read the WRAPPER object (supported===undefined passed the first
+  // gate, success!==true then always failed with no reason → 'server_bad_response').
+  // Unwrap first; tolerate both shapes.
+  const result = rawResult?.data ?? rawResult;
   if (!result || result.supported === false) {
     _consecutiveServerFailures++;
     if (_consecutiveServerFailures >= SERVER_BACKOFF_AFTER) _serverBackoffUntil = Date.now() + SERVER_BACKOFF_MS;
