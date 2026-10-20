@@ -2046,11 +2046,19 @@ function Dashboard() {
   // Availability is re-checked: phase 2 needs an active isNextDelivery stop on
   // the admin's own route, phase 3 needs an in_transit/en_route stop; anything
   // unavailable (or a saved phase of 1) falls back to the overview.
-  const getFabReactivationPhase = useCallback(() => {
-    if (isAdmin && selectedDriverId === currentUser?.id) {
+  // OVERRIDES (owner report Oct 20 2026, saved Phase 2 never restored on switch-back):
+  // async callers inside handleDriverChange evaluate this LONG after the click, and
+  // their closure captures selectedDriverId/deliveriesWithStopOrder from the render
+  // BEFORE the switch — so "am I on my own route?" read the PREVIOUS driver and the
+  // availability check read the previous route's data. Overrides let those callers
+  // pass the TARGET driverId and the freshly-loaded deliveries explicitly.
+  const getFabReactivationPhase = useCallback((overrides = null) => {
+    const _selDriver = overrides?.driverId ?? selectedDriverId;
+    const _list = overrides?.deliveries ?? deliveriesWithStopOrder;
+    if (isAdmin && _selDriver === currentUser?.id) {
       const saved = Number(getSetting('fab_map_cycle_phase')) || 1;
       if (saved === 2 || saved === 3) {
-        const own = (deliveriesWithStopOrder || []).filter((d) => d && d.driver_id === currentUser.id);
+        const own = (_list || []).filter((d) => d && d.driver_id === currentUser.id);
         if (saved === 2 && own.some((d) => d.isNextDelivery && !['completed', 'failed', 'cancelled'].includes(d.status))) return 2;
         if (saved === 3 && own.some((d) => d.status === 'in_transit' || d.status === 'en_route')) return 3;
       }
@@ -2276,7 +2284,7 @@ function Dashboard() {
       // combo-reactivation effects: admins returning to their OWN route
       // reactivate their saved fab_map_cycle_phase (availability-checked);
       // every other case (other drivers' routes, date changes) keeps phase 1.
-      const _reactPhase = getFabReactivationPhase();
+      const _reactPhase = getFabReactivationPhase({ driverId, deliveries: freshDeliveries });
       mapViewPhaseRef.current = _reactPhase; isMapViewLockedRef.current = true; pendingPhaseRef.current = _reactPhase;
       setMapViewPhase(_reactPhase); setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
