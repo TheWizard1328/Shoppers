@@ -1840,7 +1840,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
     pagePublishDataRef.current = {
       byLocId,
-      deliveryCredits, sales, payouts, codOutstandingDetailed,
+      deliveryCredits, payouts, codOutstandingDetailed,
       config, configRecordId,
       weeklyByLoc: weeklyCodAvgByLoc,
     };
@@ -1852,7 +1852,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       pagePublishTimerRef.current = null;
       if (Date.now() - pagePublishLastRef.current >= 60_000) runPagePublish();
     }, 60_000 - since + 250);
-  }, [ownerCanEdit, config, perLocation, deliveryCredits, sales, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, configRecordId, runPagePublish]);
+  }, [ownerCanEdit, config, perLocation, deliveryCredits, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, configRecordId, runPagePublish]);
   useEffect(() => () => { if (pagePublishTimerRef.current) clearTimeout(pagePublishTimerRef.current); }, []);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder

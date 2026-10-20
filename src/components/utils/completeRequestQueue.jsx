@@ -93,7 +93,7 @@ export const scheduleAppUserUpdate = (appUserId, payload, delay = COMPLETION_DEB
 
 const flushCompletionJob = async (entry) => {
   entry.timer = null;
-  const { setOffDuty, driverId, deliveryDate, nextDeliveryId, lastCompletedDeliveryId, affectedFullRecords, completedOutOfOrder } = entry.payload;
+  const { setOffDuty, driverId, deliveryDate, nextDeliveryId, lastCompletedDeliveryId, affectedFullRecords, completedOutOfOrder, finalBroadcastGate, finalBroadcastChangedIds } = entry.payload;
 
   // NOTE: purgeAndRegeneratePolylines (HERE API) is intentionally never called here.
   // Stop orders do not change on complete/fail/cancel, so existing polylines remain valid.
@@ -454,8 +454,8 @@ const flushCompletionJob = async (entry) => {
       // state: fresh ETAs + isNextDelivery + stop_order all settled. The marker
       // also carries every changed stop ID (route_commit_ids).
       try {
-        if (payload.finalBroadcastGate) {
-          await payload.finalBroadcastGate.catch(() => null);
+        if (finalBroadcastGate) {
+          await finalBroadcastGate.catch(() => null);
         }
         const { fireRouteCommitMarker } = await import('./routeCommitMarker');
         const _markerTarget = nextDeliveryId || lastCompletedDeliveryId;
@@ -463,7 +463,7 @@ const flushCompletionJob = async (entry) => {
           const _changedIds = [
             lastCompletedDeliveryId,
             ...(Array.isArray(affectedFullRecords) ? affectedFullRecords.map((r) => r?.id) : []),
-            ...(Array.isArray(payload.finalBroadcastChangedIds) ? payload.finalBroadcastChangedIds : []),
+            ...(Array.isArray(finalBroadcastChangedIds) ? finalBroadcastChangedIds : []),
           ].filter(Boolean);
           await fireRouteCommitMarker(_markerTarget, freshRecords?.length || _changedIds.length, [...new Set(_changedIds)]).catch(() => null);
         }

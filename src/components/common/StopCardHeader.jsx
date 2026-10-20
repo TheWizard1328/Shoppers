@@ -35,11 +35,12 @@ function getLatestTempReading(delivery) {
 
 // Shared live temp from the same source as LiveTempBadge (window events)
 function useLiveTempReading(driverId) {
-  if (TEMP_MONITORING_DISABLED) return null; // Oct 19 2026 kill switch — no live temp tracking
+  // Oct 19 2026 kill switch — no live temp tracking. Hooks must still be called
+  // unconditionally (rules-of-hooks); guard the effect + the returned value.
   const [liveReading, setLiveReading] = useState(null);
 
   useEffect(() => {
-    if (!driverId) return;
+    if (TEMP_MONITORING_DISABLED || !driverId) return;
 
     const handleRecorded = (e) => {
       const { temperature, timestamp, driverId: eventDriverId } = e.detail || {};
@@ -62,15 +63,16 @@ function useLiveTempReading(driverId) {
     };
   }, [driverId]);
 
-  return liveReading;
+  return TEMP_MONITORING_DISABLED ? null : liveReading;
 }
 
 // Fetches flat temperature readings for a driver+date from offline DB, kept live via WS events
 function useDriverTempReadings(driverId, deliveryDate) {
+  // Oct 19 2026 kill switch — no temp log reads. Hooks must still be called
+  // unconditionally (rules-of-hooks); guard both effects.
   const [readings, setReadings] = useState([]);
-  if (TEMP_MONITORING_DISABLED) return readings; // Oct 19 2026 kill switch — no temp log reads
   useEffect(() => {
-    if (!driverId || !deliveryDate) return;
+    if (TEMP_MONITORING_DISABLED || !driverId || !deliveryDate) return;
     let cancelled = false;
     offlineDB.getByCompoundIndex(offlineDB.STORES.RX_TEMP_LOGS, 'date_driver', [deliveryDate, driverId])
       .then((logs) => {
@@ -83,7 +85,7 @@ function useDriverTempReadings(driverId, deliveryDate) {
   }, [driverId, deliveryDate]);
 
   useEffect(() => {
-    if (!driverId || !deliveryDate) return;
+    if (TEMP_MONITORING_DISABLED || !driverId || !deliveryDate) return;
     const handleWsUpdate = (e) => {
       const { data } = e.detail || {};
       if (!data || data.driver_id !== driverId || data.delivery_date !== deliveryDate) return;
