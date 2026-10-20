@@ -392,16 +392,28 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
   // is credited here. A later Confirm gives it card payments and this pass
   // skips it — no double count. Mirrors the squareBalancesCompute backend.
   const swipeSinceIso = tuMs != null ? new Date(tuMs - 6 * 3600000).toISOString() : cutoffDate;
+  // SWIPE WINDOW CACHE (owner directive Oct 20 2026 — offline-first compute):
+  // this 20-page ledger scan ran on EVERY loadDeliveryCardCredits call (it
+  // was the ONE uncached ledger read left in the pipeline). It now rides the
+  // shared ledger windows cache (10-min TTL + WS invalidation) like every
+  // other ledger window, keyed by its own swipe_since horizon.
   let swipeRows = [];
   try {
-    for (let page = 0; page < 20; page++) {
-      const rows = await base44.entities.SquareLedgerEntry.filter(
-        { sale_class: 'cod_collection', occurred_at: { $gte: swipeSinceIso } },
-        'created_date', 500, page * 500
-      ).catch(() => []);
-      const list = rows || [];
-      swipeRows.push(...list);
-      if (list.length < 500) break;
+    const swipeCached = await freshLedgerWindows(cfg, userId);
+    if (swipeCached && swipeCached.swipe_since === swipeSinceIso && swipeCached.fetched?.swipe_sales) {
+      swipeRows = swipeCached.swipe_sales || [];
+    } else {
+      for (let page = 0; page < 20; page++) {
+        const rows = await base44.entities.SquareLedgerEntry.filter(
+          { sale_class: 'cod_collection', occurred_at: { $gte: swipeSinceIso } },
+          'created_date', 500, page * 500
+        ).catch(() => []);
+        const list = rows || [];
+        swipeRows.push(...list);
+        if (list.length < 500) break;
+      }
+      swipeRows = dedupeBySquareId(swipeRows);
+      writeLedgerCache({ trued_up_at: cfg?.trued_up_at || null, swipe_since: swipeSinceIso, swipe_sales: swipeRows }, userId);
     }
   } catch (_) { /* swiped-cash credit pass is best-effort on the fallback path */ }
   const swipeIdx = new Map();
@@ -503,6 +515,13 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
 // entry_kind 'refund', delivery_id-linked when the catalog link chain holds).
 export async function loadFailedRefundEntries(cfgArg, userId = null) {
   const since = windowSinceFor(cfgArg);
+  // REFUND WINDOW CACHE (owner directive Oct 20 2026 — offline-first compute):
+  // this 20-page refund scan ran uncached on every summary load; it now rides
+  // the shared ledger windows cache (10-min TTL + WS invalidation).
+  const cached = await freshLedgerWindows(cfgArg, userId);
+  if (cached && cached.refund_since === since && cached.fetched?.refund_rows) {
+    return cached.refund_rows || [];
+  }
   const out = [];
   let skip = 0;
   for (let page = 0; page < 20; page++) {
@@ -515,7 +534,9 @@ export async function loadFailedRefundEntries(cfgArg, userId = null) {
     if (list.length < 500) break;
     skip += 500;
   }
-  return dedupeBySquareId(out);
+  const deduped = dedupeBySquareId(out);
+  writeLedgerCache({ trued_up_at: cfgArg?.trued_up_at || null, refund_since: since, refund_rows: deduped }, userId);
+  return deduped;
 }
 
 // A failed COD is released (money back on the card) when a refund entry is
@@ -1856,14 +1877,34 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     return;
   }
   try {
-    const res = await base44.functions.invoke('squareBalancesCompute', { force: force !== false });
-    const fdata = deserializeSummary(res?.payload);
-    if (!fdata) throw new Error('compute returned no payload');
+    // OWNER DIRECTIVE (Oct 20 2026 — OFFLINE-FIRST COMPUTE): the designated
+    // host no longer invokes the heavy squareBalancesCompute backend function.
+    // That function re-scanned the database server-side on EVERY compute (5
+    // delivery scans + 4 ledger scans + stores/settings/badge logs = 20-40
+    // pool reads per run) and its 429-retry heal ladder kept the account
+    // throttled through the busiest hours, splashing rate limits onto every
+    // user's actions. The Editor's IDB mirrors are kept fresh all day (WS +
+    // refresh managers; ledger windows TTL + WS invalidation; AppSettings
+    // memory cache + WS), so the host now runs the FULL summary pipeline
+    // LOCALLY — loadSummary(true) — which costs ~0 API calls with warm
+    // caches and at most a few windowed ledger refreshes when the 10-minute
+    // TTL lapses. Same math as the page and the old server compute
+    // (identical computeByLocId formula), published to the shared snapshot
+    // exactly as before, so every device converges unchanged.
+    const { data: fdata, degraded } = await loadSummary(true, storeUserId);
+    if (!fdata) throw new Error('local compute returned no payload');
     if (seq !== storeSeq) return;
-    storeDegradedHeals = 0; // server compute healthy again — reset the heal backoff
-    clearPendingRetryTimers(); // owner Oct 19: success cancels every queued retry
-    storeSharedVersion = Number(res?.version) || Date.now();
-    fdata.autoRefundedFailed = res?.autoRefundedFailed || [];
+    if (degraded) {
+      // One or more ledger windows failed to refresh — keep serving the
+      // result but heal on the ladder (a degraded result must not count as
+      // "healthy" for the event gates).
+      storeDegradedHeals = Math.min(storeDegradedHeals + 1, 5);
+    } else {
+      storeDegradedHeals = 0; // compute healthy — reset the heal backoff
+      clearPendingRetryTimers(); // owner Oct 19: success cancels every queued retry
+    }
+    storeSharedVersion = Date.now();
+    fdata.autoRefundedFailed = fdata.autoRefundedFailed || [];
     storeApply(fdata);
     persistSnapshotModule(fdata);
     // REFUND-POSTED ALERT: owner devices notify owner + driver when a failed
