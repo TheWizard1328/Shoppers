@@ -30,7 +30,7 @@
  */
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from './geoUtils';
-import { generateRoutePolylines } from './routePolylineGenerator';
+import { generateRoutePolylines, decodeGooglePolyline } from './routePolylineGenerator';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
 import { getOrFetchRoutingKey } from './routingKeyStore';
 import { getOrFetchHereApiKey } from './hereApiKeyStore';
@@ -184,6 +184,32 @@ export async function regenerateCurrentLegPolyline({
   if (!seg?.encodedPolyline) {
     console.warn('[currentLegRegenerator] no polyline returned for the current leg — skipping write');
     return { success: false, reason: 'no_polyline_returned' };
+  }
+
+  // ── DEGENERATE-OUTPUT GUARD (owner report Oct 20 2026) ──────────────────────
+  // A deviation regen fired while the driver stood INSIDE the destination
+  // store (indoor GPS fix ~4.8km off). With the live-GPS via-point essentially
+  // ON TOP of the destination, the route call collapsed and returned a 2-point
+  // ~10m polyline AT the store — which then OVERWROTE the good leg, leaving the
+  // current stop with no visible polyline. Never write a degenerate leg:
+  // validate the decoded shape (starts near the origin, ends near the stop,
+  // meaningful length) and keep the EXISTING polyline on any failure.
+  try {
+    const decoded = decodeGooglePolyline(seg.encodedPolyline) || [];
+    const firstOk = decoded.length >= 2
+      && haversineKm(origin.lat, origin.lon, decoded[0][0], decoded[0][1]) <= 2;
+    const lastOk = decoded.length >= 2
+      && haversineKm(stopCoords.lat, stopCoords.lng, decoded[decoded.length - 1][0], decoded[decoded.length - 1][1]) <= 0.5;
+    const spanKm = decoded.length >= 2
+      ? haversineKm(decoded[0][0], decoded[0][1], decoded[decoded.length - 1][0], decoded[decoded.length - 1][1])
+      : 0;
+    if (!firstOk || !lastOk || spanKm < 0.05) {
+      console.warn(`[currentLegRegenerator] degenerate polyline rejected (firstNearOrigin=${firstOk} lastNearStop=${lastOk} spanKm=${spanKm.toFixed(3)}) — keeping existing leg`);
+      return { success: false, reason: 'degenerate_polyline' };
+    }
+  } catch (e) {
+    console.warn('[currentLegRegenerator] polyline validation failed:', e?.message || e, '— keeping existing leg');
+    return { success: false, reason: 'polyline_validation_error' };
   }
 
   // ── ETA: now + GPS→stop travel, clamped up to the stop's window start ───────

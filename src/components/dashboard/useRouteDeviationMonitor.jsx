@@ -30,6 +30,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { emitGatedEvent, isUIHidden } from '@/components/utils/uiGate';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
+import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
+import { haversineKm } from '@/components/utils/geoUtils';
 import { parseTimeToMinutes } from '@/components/utils/fuzzyMatching';
 import { locationTracker } from '@/components/utils/locationTracker';
 
@@ -330,6 +332,14 @@ export function useRouteDeviationMonitor({
       const driverId = s.currentUser?.id;
       if (!driverId) { _diag('gate:no_user'); return; }
 
+      // ── GPS-ACCURACY GATE (owner report Oct 20 2026) ─────────────────────────
+      // Indoor fixes (inside a store) can be kilometers off with accuracy
+      // numbers in the hundreds of meters — the Oct 20 false 'deviation'
+      // (4845m while picking up inside the store) was exactly this. A fix
+      // this fuzzy is unusable for deviation measurement: skip the check.
+      const gpsAcc = Number(gps?.accuracy);
+      if (Number.isFinite(gpsAcc) && gpsAcc > 100) { _diag('gate:poor_gps_accuracy', Math.round(gpsAcc) + 'm'); return; }
+
       // Today's route only — deviation regen on past/future dates makes no sense.
       const todayStr = localDateString();
       if (localDateString(s.selectedDate) !== todayStr) { _diag('gate:date', String(s.selectedDate)); return; }
@@ -351,6 +361,22 @@ export function useRouteDeviationMonitor({
       // Cycling markers have their own specialized regen paths (segment-only,
       // hand-picked origins) — never deviation-regen them.
       if (nextStop.delivery_notes === 'Cycling Route Start') { _diag('gate:cycling_marker'); return; }
+
+      // ── AT-LOCATION GATE (owner directive Oct 20 2026) ───────────────────────
+      // 'If a driver is at a location the route deviation monitor should be
+      // disabled.' Once the driver has ARRIVED (arrival_time stamped) or is
+      // within 150m of the next stop (same radius as the engine's adjacency
+      // checks), deviation detection is OFF entirely — indoor GPS jitter at
+      // the stop must never trigger a regen (the Oct 20 store-pickup case:
+      // a 4.8km indoor fix fired a regen that mangled the current leg).
+      const _patientMap = new Map((s.patients || []).filter(Boolean).map((p) => [p.id, p]));
+      const _storeMap = new Map((s.stores || []).filter(Boolean).map((st) => [st.id, st]));
+      const _stopCoords = getDeliveryCoords(nextStop, _patientMap, _storeMap);
+      if (nextStop.arrival_time) { _diag('gate:at_stop_arrived'); return; }
+      if (_stopCoords && haversineKm(Number(gps.latitude), Number(gps.longitude), _stopCoords.lat, _stopCoords.lng) <= 0.15) {
+        _diag('gate:at_stop_range', 'gps within 150m of next stop');
+        return;
+      }
 
       // ── Deviation measurement ──
       const distance = deviationFromDeliveryPolylineMeters(
