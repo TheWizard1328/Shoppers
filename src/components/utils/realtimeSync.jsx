@@ -253,21 +253,42 @@ async function flushBuffered(entityName) {
               }
             }
             // Scheduled self-heal: if every attempt failed (long 429 window),
-            // try once more after 90s so this device converges without a manual
-            // reload. Idempotent — the merge path is a no-op if state already matches.
+            // try again until it lands. Idempotent — the merge path is a no-op if
+            // state already matches, so repeating is safe.
+            // OWNER REPORT (Oct 20 2026, stale current-leg polyline on 3 devices):
+            // the initial 4 fetch attempts AND the single 90s self-heal all failed
+            // with rate limits, so the Editor, PWA and laptop kept serving the
+            // pre-completion route (missing blue current leg) until a manual reload.
+            // The heal is now a LADDER (90s → 5min → 15min → 30min → hourly, up to
+            // 24h): each rung is ONE bounded read that stops the moment a fetch
+            // succeeds, so a device stuck in a hot-pool window converges on its own
+            // instead of staying stale all day.
             if (!Array.isArray(_freshRoute) || _freshRoute.length === 0) {
-              console.warn(`[RealtimeSync] [${rsTime()}] route_commit fetch exhausted retries — scheduling 90s self-heal for driver ${_rcDriverId}`);
-              setTimeout(async () => {
-                try {
-                  const _heal = await base44.entities.Delivery.filter({ driver_id: _rcDriverId, delivery_date: _rcDate }).catch(() => null);
-                  if (Array.isArray(_heal) && _heal.length > 0) {
-                    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filterDeleted(_heal)).catch(() => {});
-                    const _healList = filterDeleted(_heal);
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveries: _healList, freshDeliveries: _healList, deliveryDate: _rcDate, triggeredBy: 'realtimeBufferedFullRefresh', source: 'routeCommitSelfHeal', fromRealtime: true, fullReplacement: false, skipMapPhaseOneRefresh: true } }));
-                    console.log(`📦 [RealtimeSync] route_commit self-heal applied ${_heal.length} deliveries for driver ${_rcDriverId}`);
-                  }
-                } catch (_) {}
-              }, 90000);
+              const _healDelaysMs = [90_000, 5 * 60_000, 15 * 60_000, 30 * 60_000];
+              const _runSelfHeal = async (rung) => {
+                if (rung > _healDelaysMs.length) {
+                  // hourly top-ups for the rest of the day — extremely cheap, and the
+                  // next route activity re-arms the fast path anyway.
+                  setTimeout(() => void _runSelfHeal(rung), 60 * 60_000);
+                  return;
+                }
+                const delay = rung === 0 ? _healDelaysMs[0] : _healDelaysMs[rung - 1];
+                setTimeout(async () => {
+                  try {
+                    const _heal = await base44.entities.Delivery.filter({ driver_id: _rcDriverId, delivery_date: _rcDate }).catch(() => null);
+                    if (Array.isArray(_heal) && _heal.length > 0) {
+                      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filterDeleted(_heal)).catch(() => {});
+                      const _healList = filterDeleted(_heal);
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveries: _healList, freshDeliveries: _healList, deliveryDate: _rcDate, triggeredBy: 'realtimeBufferedFullRefresh', source: 'routeCommitSelfHeal', fromRealtime: true, fullReplacement: false, skipMapPhaseOneRefresh: true } }));
+                      console.log(`📦 [RealtimeSync] route_commit self-heal rung ${rung} applied ${_heal.length} deliveries for driver ${_rcDriverId}`);
+                    } else {
+                      void _runSelfHeal(rung + 1);
+                    }
+                  } catch (_) { void _runSelfHeal(rung + 1); }
+                }, delay);
+              };
+              console.warn(`[RealtimeSync] [${rsTime()}] route_commit fetch exhausted retries — starting self-heal ladder (90s → 5m → 15m → 30m → hourly) for driver ${_rcDriverId}`);
+              void _runSelfHeal(0);
             }
           } catch (_rcErr) {
             console.warn(`[RealtimeSync] [${rsTime()}] route_commit fetch failed, falling back to buffered merge:`, _rcErr?.message || _rcErr);
