@@ -2082,7 +2082,11 @@ function Dashboard() {
     setMapViewTrigger((p) => p + 1);
     window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
     fabControlEvents.notifyDataReady();
-    fabControlEvents.notifyDoneButtonClicked(250);
+    // PHASE-STOMP FIX (owner report Oct 20 2026): do NOT notifyDoneButtonClicked
+    // here — its handler forces setFabPhase(1, true), stomping a just-restored
+    // phase 2/3 back to phase 1 (then its 250ms unlock left phase 1 UNLOCKED —
+    // exactly the 'phase 1 flashes half a second then unlocks' symptom). This
+    // function already manages its own lock/unlock timer below.
     const _exp = Date.now() + 250;
     mapLockExpiresAtRef.current = _exp;
     mapLockTimeoutRef.current = setTimeout(() => {
@@ -2292,7 +2296,13 @@ function Dashboard() {
       setMapViewPhase(_reactPhase); setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger); centerNextDeliveryCard(deliveriesWithStopOrder);
-      fabControlEvents.notifyDoneButtonClicked(250);
+      // PHASE-STOMP FIX (owner report Oct 20 2026): notifyDoneButtonClicked's handler
+      // forces setFabPhase(1, true). Called unconditionally it stomped the restored
+      // phase 2/3 to phase 1, and the _reactPhase>1 branch below then killed the 250ms
+      // unlock timer the handler had armed — the FAB ended up locked PERMANENTLY in
+      // phase 1 at the end of the driver change. Only send it for the phase-1 case,
+      // where setFabPhase(1, true) is a harmless no-op.
+      if (_reactPhase === 1) fabControlEvents.notifyDoneButtonClicked(250);
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       // Phase 2/3 stay LOCKED after the switch (boot-chain parity: shouldLock = phase > 1);
       // phase 1 keeps the brief lock-unlock so the user can pan the overview.
