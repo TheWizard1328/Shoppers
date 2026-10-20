@@ -103,8 +103,21 @@ class DriverLocationPoller {
    let usersData = (appUsers?.slice?.() || []).filter(u => u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined');
 
    if (usersData.length < (appUsers?.length || 0)) {
+     // SELF-HEAL (Oct 19 2026): junk AppUser rows (missing user_id/user_name)
+     // live in the device's local IDB and were only rejected — every poll
+     // re-read and re-warned about them forever (a store PC logged this every
+     // minute for hours). Purge them from the local DB once; the server copy
+     // is authoritative and only valid records get re-synced.
+     const junkIds = (appUsers || []).filter(u => !(u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined')).map(u => u?.id).filter(Boolean);
      const rejected = (appUsers?.length || 0) - usersData.length;
      console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+     if (junkIds.length && typeof window !== 'undefined' && !window.__junkAppUserPurge) {
+       window.__junkAppUserPurge = true;
+       import('../utils/offlineDatabase').then(({ offlineDB }) => {
+         junkIds.forEach((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => {}));
+         window.__junkAppUserPurge = false;
+       }).catch(() => { window.__junkAppUserPurge = false; });
+     }
    }
 
    // Last-write-wins: if duplicates by id exist with different timestamps, keep the freshest

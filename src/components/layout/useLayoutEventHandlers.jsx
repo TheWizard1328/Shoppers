@@ -703,9 +703,14 @@ export function useLayoutEventHandlers({
       // updates without waiting for its next DB poll tick.
       try {
         const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-        const { RxTempLogs } = await import('@/api/entities');
+        // FIX (Oct 19 2026): '@/api/entities' only exports Query and User —
+        // destructuring RxTempLogs from it always threw "Cannot read properties
+        // of undefined (reading 'filter')" so the resume temp-log resync NEVER
+        // ran (stale RxTemp badge after resume + an error log every time).
+        // Call the SDK entity directly.
+        const { base44 } = await import('@/api/base44Client');
         const { offlineDB } = await import('../utils/offlineDatabase');
-        const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
+        const serverTempLogs = await base44.entities.RxTempLogs.filter({ delivery_date: selectedDateStr });
         if (serverTempLogs && serverTempLogs.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, serverTempLogs);
           // Broadcast each record so LiveTempBadge's rxTempLogsUpdated listener fires
