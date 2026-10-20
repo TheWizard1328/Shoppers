@@ -265,12 +265,21 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, supported: false, reason: 'authorization_check_failed' });
     }
 
-    const apiKey = Deno.env.get('HERE_API_KEY');
+    // KEY RESOLUTION (Oct 20 2026): git-deployed functions get the app's
+    // HERE_API_KEY env var, but tool-deployed ones do NOT (verified with an
+    // env probe — the platform only attaches app secrets to git deploys).
+    // The client already resolves the route-optimization key before invoking
+    // (routingKeyStore) and passes it in the request body; prefer the env var
+    // when present, otherwise use the request-provided key. Any authenticated
+    // owner/admin can already obtain this key via getActiveHereApiKey, so
+    // passing it adds no new exposure; the function never logs or returns it.
+    const payload = await req.json().catch(() => ({}));
+    const apiKey = Deno.env.get('HERE_API_KEY')
+      || (typeof payload?.hereApiKey === 'string' && payload.hereApiKey.length > 10 ? payload.hereApiKey : '');
     if (!apiKey) {
       return Response.json({ success: true, supported: false, reason: 'here_api_key_missing' });
     }
 
-    const payload = await req.json().catch(() => ({}));
     const {
       driverId, driverName = null, deliveryDate, currentMinutes,
       origin, home = null, startOrder = 0,

@@ -222,19 +222,42 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     }));
   } catch (_) {}
 
-  // ── STEP 8: Write ALL changed records to server in parallel (batch silent mode) ──
-  // enterBatchSilentMode suppresses per-record notifyMutation + broadcastMutation,
-  // so each server write does NOT trigger a separate UI update or WS broadcast.
-  // The server's own WS broadcasts are suppressed by smartRefreshManager registration above.
+  // ── STEP 8: Write ALL changed records to the server in ONE silent bulk ──
+  // (owner report Oct 20 2026 — 'final wave is the stop order numbers'): the
+  // old path wrote one USER-SCOPED update per record — each broadcast a WS
+  // event to every subscribed device (echo suppressed only on THIS device),
+  // so remote dispatchers watched a wave of N stop_order updates land one
+  // after another. Single-broadcast pattern instead: ONE service-role silent
+  // bulk (zero WS events) + ONE user-scoped route_commit marker so remotes
+  // fetch the repaired route once. The per-record chunked write stays ONLY as
+  // the failure fallback.
   enterBatchSilentMode();
   try {
-    await Promise.allSettled(
-      changedRecords.map((rec) =>
-        base44.entities.Delivery.update(rec.id, { stop_order: rec.stop_order }).catch((err) => {
-          console.warn(`[StopOrderManager] Server write failed for ${rec.id}:`, err?.message || err);
-        })
-      )
-    );
+    let _bulkOk = false;
+    try {
+      await base44.functions.invoke('bulkUpdateDeliveries', {
+        updates: changedRecords.map((rec) => ({ id: rec.id, data: { stop_order: rec.stop_order } })),
+        silent: true,
+      });
+      _bulkOk = true;
+      try {
+        const { fireRouteCommitMarker } = await import('./routeCommitMarker');
+        const _firstActive = repairedOrder.find((d) => d?.id && !FINISHED_STATUSES.includes(d?.status));
+        if (_firstActive?.id) await fireRouteCommitMarker(_firstActive.id, changedRecords.length);
+      } catch (_) {}
+      console.log(`[StopOrderManager] Step 8: ${changedRecords.length} stop_order update(s) committed as ONE silent bulk + marker`);
+    } catch (bulkErr) {
+      console.warn('[StopOrderManager] Silent bulk failed, falling back to per-record writes:', bulkErr?.message || bulkErr);
+    }
+    if (!_bulkOk) {
+      await Promise.allSettled(
+        changedRecords.map((rec) =>
+          base44.entities.Delivery.update(rec.id, { stop_order: rec.stop_order }).catch((err) => {
+            console.warn(`[StopOrderManager] Server write failed for ${rec.id}:`, err?.message || err);
+          })
+        )
+      );
+    }
   } finally {
     exitBatchSilentMode();
   }

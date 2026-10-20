@@ -282,18 +282,55 @@ export const buildServerOptimizeRequest = ({
  * Any failure returns { supported: false, reason } — caller falls back to the
  * client engine.
  */
+// CIRCUIT BREAKER (owner report Oct 20 2026): the function was missing from
+// the platform's function registry, so EVERY optimization burned a failed
+// invoke + client fallback. After SERVER_BACKOFF_AFTER consecutive failed
+// attempts, stop trying for SERVER_BACKOFF_MS so normal flows stop paying the
+// wasted round-trip; the next attempt after the window re-probes, and any
+// success resets the breaker. The skip is visible in the coordinator's log as
+// 'server-side engine skipped (server_engine_backoff)'.
+let _consecutiveServerFailures = 0;
+let _serverBackoffUntil = 0;
+const SERVER_BACKOFF_AFTER = 3;
+const SERVER_BACKOFF_MS = 30 * 60 * 1000;
+
 export const runServerSideOptimization = async (buildArgs) => {
+  if (Date.now() < _serverBackoffUntil) {
+    try {
+      window.dispatchEvent(new CustomEvent('optimizationEngineFallback', {
+        detail: { reason: 'server_engine_backoff', source: buildArgs?.source || 'coordinator', at: Date.now() }
+      }));
+    } catch (_) {}
+    return { supported: false, reason: 'server_engine_backoff' };
+  }
   const { supported, reason, request } = buildServerOptimizeRequest(buildArgs);
   if (!supported) return { supported: false, reason };
+
+  // HERE key (Oct 20 2026): tool-deployed functions don't get the app's
+  // HERE_API_KEY env var, so the client passes its already-resolved
+  // route-optimization key in the request; the server prefers its own env var.
+  try {
+    const { getOrFetchRoutingKey } = await import('@/components/utils/routingKeyStore');
+    const key = await getOrFetchRoutingKey();
+    if (key) request.hereApiKey = key;
+  } catch (_) {}
 
   const { base44 } = await import('@/api/base44Client');
   const result = await base44.functions.invoke('rxServerRouteOptimizer', request);
   if (!result || result.supported === false) {
+    _consecutiveServerFailures++;
+    if (_consecutiveServerFailures >= SERVER_BACKOFF_AFTER) _serverBackoffUntil = Date.now() + SERVER_BACKOFF_MS;
     return { supported: false, reason: result?.reason || 'server_not_supported' };
   }
   if (result.success !== true || !Array.isArray(result.writeBatch)) {
-    return { supported: false, reason: 'server_bad_response' };
+    _consecutiveServerFailures++;
+    if (_consecutiveServerFailures >= SERVER_BACKOFF_AFTER) _serverBackoffUntil = Date.now() + SERVER_BACKOFF_MS;
+    // Pass the server's own failure detail through (e.g. 'server_error: ...')
+    // so the coordinator's log names the real cause instead of a generic label.
+    return { supported: false, reason: result?.reason || 'server_bad_response' };
   }
+  _consecutiveServerFailures = 0;
+  _serverBackoffUntil = 0;
   return {
     supported: true,
     success: true,

@@ -299,9 +299,19 @@ async function _performRouteOptimizationInner({
             console.log(`[RouteOptimization] ${source} — SERVER-SIDE engine SUCCESS: ${serverResult.optimizedCount} stops, writeBatch=${serverResult.writeBatch?.length}, fallbackOrder=${serverResult.usedFallbackOrdering}, fallbackPolyline=${serverResult.usedFallbackPolyline}`);
           } else {
             console.warn(`[RouteOptimization] ${source} — server-side engine not used (${serverResult?.reason || 'unknown'}) — falling back to client engine`);
+            try {
+              window.dispatchEvent(new CustomEvent('optimizationEngineFallback', {
+                detail: { reason: serverResult?.reason || 'unknown', source, driverId, at: Date.now() }
+              }));
+            } catch (_) {}
           }
         } catch (serverErr) {
           console.warn(`[RouteOptimization] ${source} — server-side engine FAILED (${serverErr?.message || serverErr}) — falling back to client engine`);
+          try {
+            window.dispatchEvent(new CustomEvent('optimizationEngineFallback', {
+              detail: { reason: `invoke_error: ${serverErr?.message || serverErr}`, source, driverId, at: Date.now() }
+            }));
+          } catch (_) {}
         }
       }
 

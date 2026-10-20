@@ -78,6 +78,34 @@ export default function RouteActionButtons({
   const [compareRows, setCompareRows] = useState([]);
   const [cyclingLocations, setCyclingLocations] = useState([]);
   const reoptimizeBtnRef = useRef(null);
+  // ── Server-engine fallback balloon (owner request Oct 20 2026) ──────────────
+  // When the armed server-side optimizer fails and the coordinator falls back
+  // to the client engine, a small balloon pops ABOVE this manual optimization
+  // FAB so the owner sees WHY the route was still optimized (and that the
+  // result came from the client engine). Auto-hides after 8s; tap to dismiss.
+  const [fallbackBalloon, setFallbackBalloon] = useState(null);
+  const fallbackBalloonTimerRef = useRef(null);
+  useEffect(() => {
+    const onFallback = (e) => {
+      const d = e?.detail || {};
+      const rawReason = String(d.reason || 'unknown');
+      let shortReason = rawReason;
+      if (rawReason === 'server_engine_backoff') shortReason = 'paused after repeated failures';
+      else if (rawReason === 'here_api_key_missing') shortReason = 'missing HERE key';
+      else if (rawReason.startsWith('invoke_error:')) shortReason = 'unreachable';
+      else if (rawReason === 'server_bad_response') shortReason = 'bad response';
+      else if (rawReason === 'not_authorized_for_server_optimization') shortReason = 'not authorized';
+      else if (rawReason.startsWith('server_error:')) shortReason = rawReason.replace('server_error: ', '').slice(0, 60);
+      setFallbackBalloon({ reason: shortReason, source: d.source || 'route', at: d.at || Date.now() });
+      if (fallbackBalloonTimerRef.current) clearTimeout(fallbackBalloonTimerRef.current);
+      fallbackBalloonTimerRef.current = setTimeout(() => setFallbackBalloon(null), 8000);
+    };
+    window.addEventListener('optimizationEngineFallback', onFallback);
+    return () => {
+      window.removeEventListener('optimizationEngineFallback', onFallback);
+      if (fallbackBalloonTimerRef.current) clearTimeout(fallbackBalloonTimerRef.current);
+    };
+  }, []);
 
   // Pre-fetch CyclingLocations once so getStopName can show real marker names
   useEffect(() => {
@@ -235,6 +263,30 @@ export default function RouteActionButtons({
         onClose={() => setCompareDialogOpen(false)}
         rows={compareRows}
       />
+      {fallbackBalloon && (
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+          animate={{ opacity: hideForExpandedCard ? 0 : 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 4, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+          onClick={() => setFallbackBalloon(null)}
+          className="z-[105] max-w-[240px] cursor-pointer rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 shadow-lg"
+          style={{
+            position: 'absolute',
+            bottom: `${
+              (deliveriesWithStopOrder.length > 0 && cardsReadyForFAB && !immersiveHidden
+                ? stopCardsBaseHeight
+                : 0) + 64
+            }px`,
+            right: '60px',
+            display: immersiveHidden ? 'none' : undefined,
+            pointerEvents: hideForExpandedCard ? 'none' : 'auto',
+          }}
+        >
+          <div className="text-[11px] font-semibold text-blue-800">Server optimizer unavailable</div>
+          <div className="text-[11px] text-blue-700">Fell back to client engine ({fallbackBalloon.reason})</div>
+        </motion.div>
+      )}
       <motion.div
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: hideForExpandedCard ? 0 : 1 }}
