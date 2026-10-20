@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,6 +35,7 @@ function getLatestTempReading(delivery) {
 
 // Shared live temp from the same source as LiveTempBadge (window events)
 function useLiveTempReading(driverId) {
+  if (TEMP_MONITORING_DISABLED) return null; // Oct 19 2026 kill switch — no live temp tracking
   const [liveReading, setLiveReading] = useState(null);
 
   useEffect(() => {
@@ -66,7 +68,7 @@ function useLiveTempReading(driverId) {
 // Fetches flat temperature readings for a driver+date from offline DB, kept live via WS events
 function useDriverTempReadings(driverId, deliveryDate) {
   const [readings, setReadings] = useState([]);
-
+  if (TEMP_MONITORING_DISABLED) return readings; // Oct 19 2026 kill switch — no temp log reads
   useEffect(() => {
     if (!driverId || !deliveryDate) return;
     let cancelled = false;
@@ -330,7 +332,7 @@ export default function StopCardHeader({
             size="card"
             className="mt-1"
             hidden={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))}
-            fridgeTemp={delivery?.fridge_item ? (() => {
+            fridgeTemp={!TEMP_MONITORING_DISABLED && delivery?.fridge_item ? (() => {
               const isFinished = FINISHED_STATUSES.includes(delivery?.status);
               // Average over the precise fridge-carry window (uses delivery's own date readings)
               if (tempReadings.length > 0) {
@@ -348,7 +350,16 @@ export default function StopCardHeader({
           />
 
           {/* Fridge temperature badge - uses same source as LiveTempBadge above stop cards */}
+          {/* TEMP MONITORING KILL SWITCH (Oct 19 2026): while disabled this badge is a
+              STATIC blue-green fridge-item indicator only — no live/stored temps. */}
           {delivery?.fridge_item && !isPickup && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))) && (() => {
+            if (TEMP_MONITORING_DISABLED) {
+              return (
+                <Badge className="mt-1 text-[11px] px-1.5 py-0 h-6 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center gap-0.5" title="Fridge item">
+                  <Thermometer className="w-2.5 h-3" />Fridge
+                </Badge>
+              );
+            }
             const deliveryTemp = getLatestTempReading(delivery);
             const today = new Date().toISOString().slice(0, 10);
             const isToday = delivery?.delivery_date === today;

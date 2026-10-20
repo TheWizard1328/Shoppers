@@ -9,6 +9,7 @@
  * Broadcasts changes to the app and notifies all listeners.
  */
 
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
@@ -1623,7 +1624,7 @@ export const connect = () => {
     }
     subscribeToEntity('InterStoreLocation');
     subscribeToEntity('TileCoverage');
-    subscribeToEntity('RxTempLogs');
+    if (!TEMP_MONITORING_DISABLED) subscribeToEntity('RxTempLogs'); // Oct 19 2026 kill switch — no temp-log WS reads/writes
     subscribeToEntity('StatHoliday');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI

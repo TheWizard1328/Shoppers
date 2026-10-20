@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 export async function loadDashboardOfflineDateData({
@@ -52,6 +53,7 @@ export function hasDeliveryDataForSelection({ deliveries, selectedDateStr, selec
 const _tempLogDatesVerifiedEmpty = new Set();
 
 export async function ensureTempLogsForDate({ selectedDateStr, currentUser }) {
+  if (TEMP_MONITORING_DISABLED) return; // Oct 19 2026 kill switch — no temp log reads at boot
   if (!selectedDateStr || !currentUser?.id) return;
   try {
     const all = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);

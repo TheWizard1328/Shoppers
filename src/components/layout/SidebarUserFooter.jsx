@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Button } from '@/components/ui/button';
@@ -514,8 +515,9 @@ export default function SidebarUserFooter({
                     <div className="flex items-center gap-1.5">
                       <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>{initial}</div>
                       <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
-                      {hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
-                      {allFridgeDone && fridgeStoreIds.map((storeId) => <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />)}
+                      {/* TEMP MONITORING KILL SWITCH (Oct 19 2026): sidebar temp badges hidden while disabled. */}
+                      {!TEMP_MONITORING_DISABLED && hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
+                      {!TEMP_MONITORING_DISABLED && allFridgeDone && fridgeStoreIds.map((storeId) => <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />)}
                       {isAssigned && deliveryCount > 0 && <span className="font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 text-[12px]">Stops: {deliveryCount}</span>}
                       {!isAssigned && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 flex-shrink-0">Scheduled</span>}
                     </div>

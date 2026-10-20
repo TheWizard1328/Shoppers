@@ -36,6 +36,7 @@ import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocal
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import CoolerTempReader from './CoolerTempReader';
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import StopCardReturnDialog from './StopCardReturnDialog';
 import InterStoreDropoffDialog from './InterStoreDropoffDialog';
 import MultiDeliveryArrivalDialog from './MultiDeliveryArrivalDialog';
@@ -872,6 +873,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // gesture-trust requirement is satisfied. The badge listener ignores the event
   // if it's already connected or no paired device is cached.
   const dispatchBleReconnect = useCallback(() => {
+    // TEMP MONITORING KILL SWITCH (Oct 19 2026): no Inkbird connect attempts.
+    if (TEMP_MONITORING_DISABLED) return;
     if (!delivery?.fridge_item) return;
     window.dispatchEvent(new CustomEvent('inkbirdReconnectRequest'));
   }, [delivery?.fridge_item]);
@@ -1121,7 +1124,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             allDeliveries={allDeliveries}
             onDeleteDelivery={onDelete} />
           {/* Cold-chain temp logger — fires after complete/fail for fridge items */}
-          {pendingCoolerLog && (
+          {pendingCoolerLog && !TEMP_MONITORING_DISABLED && (
             <CoolerTempReader
               delivery={delivery}
               currentUser={currentUser}

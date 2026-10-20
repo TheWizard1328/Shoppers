@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { useEffect } from 'react';
 import { format, invalidate, getData } from '../utils/dataManager';
 import { globalFilters } from '../utils/globalFilters';
@@ -701,6 +702,7 @@ export function useLayoutEventHandlers({
       // Android Chrome can suspend WebSocket/polling while backgrounded, so the
       // temp badge may be stale. Pull fresh records now and broadcast so LiveTempBadge
       // updates without waiting for its next DB poll tick.
+        if (TEMP_MONITORING_DISABLED) { return; } // Oct 19 2026 kill switch — no temp log reads on resume
       try {
         const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
         // FIX (Oct 19 2026): '@/api/entities' only exports Query and User —

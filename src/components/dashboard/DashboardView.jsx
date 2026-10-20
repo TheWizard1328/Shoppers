@@ -19,6 +19,7 @@ import FABControls from "@/components/dashboard/FABControls";
 import { useHeyDoc } from "@/components/voice/useHeyDoc";
 import HeyDocOverlay from "@/components/voice/HeyDocOverlay";
 import LiveTempBadge from "@/components/dashboard/LiveTempBadge";
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
 function DashboardView({
@@ -617,7 +618,9 @@ function DashboardView({
         />
       }
 
-      {(isDriver || isAdmin) && (
+      {/* TEMP MONITORING KILL SWITCH (Oct 19 2026): badge not rendered while
+          disabled — also removes the only Inkbird BLE auto-connect owner. */}
+      {(isDriver || isAdmin) && !TEMP_MONITORING_DISABLED && (
         <LiveTempBadge
           currentUser={currentUser}
           selectedDriverId={selectedDriverId}

@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { filterDeleted } from './deletedDeliveryRegistry';
 /**
  * Offline Sync Manager v3 - Timestamp-Based Sync with Date-Range Delivery Syncing
@@ -433,7 +434,8 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     } catch (_) {}
 
     // Step 5: Sync RxTempLogs — prune records deleted server-side
-    try {
+    // TEMP MONITORING KILL SWITCH (Oct 19 2026): skip all temp log reads/writes.
+    if (!TEMP_MONITORING_DISABLED) try {
       const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
       const serverIds = new Set((serverTempLogs || []).map(l => l?.id).filter(Boolean));
       const localTempLogs = (await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS))

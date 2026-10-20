@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
@@ -154,6 +155,7 @@ export default function useStopCardActions(params) {
   const triggerCoolerLogIfNeeded = useCallback((actionLabel) => {
     if (!delivery?.fridge_item) return;
     if (!isAppOwner(currentUser)) return;
+    if (TEMP_MONITORING_DISABLED) return; // Oct 19 2026 kill switch — no cooler temp capture
     setPendingCoolerLog({ deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, actionLabel });
   }, [delivery, currentUser]);
 

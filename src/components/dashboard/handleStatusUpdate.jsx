@@ -3,6 +3,7 @@
  * Called as: handleStatusUpdate(deliveryId, newStatus, extraData, skipAutoCenter)
  */
 import { base44 } from '@/api/base44Client';
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { format } from 'date-fns';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
@@ -349,7 +350,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       const hasFridgeLinkedDelivery = deliveriesWithStopOrder.some(
         (d) => d && d.puid === targetDelivery.puid && d.fridge_item === true && d.id !== deliveryId
       );
-      if (hasFridgeLinkedDelivery) {
+      if (hasFridgeLinkedDelivery && !TEMP_MONITORING_DISABLED) {
         window.dispatchEvent(new CustomEvent('showFridgeTempDialog'));
       }
     }

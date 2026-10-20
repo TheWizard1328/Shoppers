@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import { toValidRecordIds } from './recordIdUtils';
 import { offlineDB } from './offlineDatabase';
 import { queueEntityRequest } from './requestQueue';
@@ -193,7 +194,8 @@ export const createOfflineSyncPriorityHelpers = ({
       }
 
       // Sync RxTempLogs for all drivers — prune records deleted server-side
-      try {
+      // TEMP MONITORING KILL SWITCH (Oct 19 2026): skip all temp log reads/writes.
+      if (!TEMP_MONITORING_DISABLED) try {
         if (RxTempLogs) {
           const serverTempLogs = await queueEntityRequest(() => RxTempLogs.filter({ delivery_date: selectedDateStr }), 'RxTempLogs.filter:byDate');
           const serverIds = new Set((serverTempLogs || []).map(l => l?.id).filter(Boolean));

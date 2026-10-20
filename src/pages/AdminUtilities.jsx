@@ -1,3 +1,4 @@
+import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 // import { ActiveDeliveries } from '@/entities/ActiveDeliveries'; // This entity doesn't exist
@@ -1723,13 +1724,13 @@ export default function AdminUtilities() {
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full flex flex-col">
                    <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(8,minmax(max-content,1fr))' }}>
                        <TabsTrigger value="polylines" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Routes</TabsTrigger>
-                       <TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>
+                       {!TEMP_MONITORING_DISABLED && (<TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>)}
                        <TabsTrigger value="companies" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Companies</TabsTrigger>
                        <TabsTrigger value="cities" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Cities</TabsTrigger>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
                        <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger>
-                       <TabsTrigger value="ble-diagnostic" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ BLE Diag</TabsTrigger>
+                       {!TEMP_MONITORING_DISABLED && (<TabsTrigger value="ble-diagnostic" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ BLE Diag</TabsTrigger>)}
                        </TabsList></div>
 
                   <TabsContent value="deliveries" className="mt-4">
@@ -1884,9 +1885,9 @@ export default function AdminUtilities() {
                     </SimpleDataViewTab>
                   </TabsContent>
                   <TabsContent value="polylines" className="mt-4 flex flex-col overflow-hidden data-[state=inactive]:hidden" style={{ height: 'calc(100vh - 220px)' }}><PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} /></TabsContent>
-                  <TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
+                  {!TEMP_MONITORING_DISABLED && (<TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>)}
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
-                  <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
+                  {!TEMP_MONITORING_DISABLED && (<TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent>)}</Tabs>
               </div>
           </TabsContent>
 
