@@ -14,6 +14,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { isPolylineEligibleStop as sharedIsPolylineEligible } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
@@ -345,8 +346,11 @@ export async function generateRoutePolylines({
   const eligibleStops = stops.filter(s => {
     const status = String(s.delivery?.status || '');
     const isCyclingMarker = !!s.delivery?.is_cycling_marker;
+    // SHARED RULE (routeRules.js isPolylineEligibleStop): en_route/in_transit
+    // + cycling markers get polylines; pending stops never do. The
+    // cycling-segment-only mode keeps its local extra case (segment regens).
     const isCyclingSegmentStop = cyclingSegmentOnly && resolveMode(s.delivery) === 'cycling';
-    return status === 'en_route' || status === 'in_transit' || isCyclingMarker || isCyclingSegmentStop;
+    return sharedIsPolylineEligible({ status, isCyclingMarker, transportMode: null }) || isCyclingSegmentStop;
   });
 
   if (eligibleStops.length === 0) {

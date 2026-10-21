@@ -1,4 +1,17 @@
-import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
+// SINGLE RULE BASE (owner directive Oct 21 2026: 'one set of rules, two
+// engines') — sequencing/window/polyline/dwell rules live in
+// routeRules.js, shared verbatim with the SERVER engine
+// (rxServerRouteOptimizer/entry.ts). Never re-implement a rule here.
+import {
+  parseTimeToMinutes,
+  formatMinutesToTime,
+  windowBandSort as sharedWindowBandSort,
+  hasTimeWindows as sharedHasTimeWindows,
+  windowBandOfStop as sharedWindowBandOfStop,
+  inheritedPickupWindowStart as sharedInheritedPickupWindowStart,
+  enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
+  dwellMinutesForStop as sharedDwellMinutes,
+} from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
@@ -68,21 +81,7 @@ async function logHereApiCall({ apiType, purpose, source, driverId, userName, ca
 import { haversineKm } from './geoUtils';
 const calculateCrowFliesDistance = (lat1, lng1, lat2, lng2) => haversineKm(lat1, lng1, lat2, lng2);
 
-const parseTimeToMinutes = (timeStr) => {
-  if (!timeStr || typeof timeStr !== 'string') return Infinity;
-  const parts = timeStr.split(':');
-  if (parts.length < 2) return Infinity;
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  if (isNaN(h) || isNaN(m)) return Infinity;
-  return h * 60 + m;
-};
-
-const formatMinutesToTime = (minutes) => {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
+// parseTimeToMinutes / formatMinutesToTime now come from the shared rule base.
 
 const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
   if (!timeStr || typeof timeStr !== 'string') return fallback;
@@ -466,10 +465,12 @@ let _inheritedWindowCount = 0;
     if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
       const _ownStartMin = parseTimeToMinutes(windowStart);
       if (!Number.isFinite(_ownStartMin)) {
+        // SHARED RULE (routeRules.js inheritedPickupWindowStart): windowless
+        // patient delivery inherits pickup window start + 5.
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
-        const pickupStartMinutes = parseTimeToMinutes(pickupWindow?.start || pickupWindow?.end);
-        if (Number.isFinite(pickupStartMinutes)) {
-          windowStart = formatMinutesToTime(pickupStartMinutes + 5);
+        const _inherited = sharedInheritedPickupWindowStart(pickupWindow?.start || pickupWindow?.end);
+        if (_inherited) {
+          windowStart = _inherited;
           _inheritedWindowCount++;
         }
       }
@@ -925,21 +926,15 @@ let _inheritedWindowCount = 0;
         // whose 14:00 windows had passed, on every Start and manual
         // optimize. Future-window stops sort last, chronologically among
         // themselves; ties inside a band keep HERE's drive-time order.
-        const nowBand = Math.floor(currentMinutes / TIME_BAND_MINUTES);
-        const bandOf = (stop) => {
-          const m = parseTimeToMinutes(stop?.windowStart || stop?.delivery?.delivery_time_start || '');
-          if (!Number.isFinite(m) || m <= 0) return nowBand; // no window → servable now
-          if (routeIsToday && m <= currentMinutes) return nowBand; // window open → servable now
-          return Math.floor(m / TIME_BAND_MINUTES);
+        // SHARED RULE (routeRules.js windowBandSort): 2h band chronology —
+        // no window / window-open-today → now band; future window → its
+        // chronological band. Stable — HERE drive-time order within a band.
+        const _sharedBandOpts = {
+          routeIsToday, currentMinutes,
+          windowOf: (st) => st?.windowStart || st?.delivery?.delivery_time_start || '',
         };
-
-        // Stable sort: window band first (chronological), HERE order within a band.
-        const hereOrder = new Map(orderedStops.map((stop, i) => [stop, i]));
-        finalStops = [...orderedStops].sort((a, b) => {
-          const bandDiff = bandOf(a) - bandOf(b);
-          if (bandDiff !== 0) return bandDiff;
-          return (hereOrder.get(a) ?? 0) - (hereOrder.get(b) ?? 0);
-        });
+        const bandOf = (stop) => sharedWindowBandOfStop(stop, _sharedBandOpts);
+        finalStops = sharedWindowBandSort(orderedStops, _sharedBandOpts);
 
         const reordered = finalStops.some((stop, i) => finalStops[i] !== orderedStops[i]);
         console.log(`[clientRouteEngine] ${source} — window-band enforcement: ${reordered ? 'reordered HERE sequence' : 'HERE order already window-compliant'} (${finalStops.length} stops, ${new Set(finalStops.map(bandOf)).size} band(s))`);
@@ -1233,7 +1228,7 @@ let _inheritedWindowCount = 0;
       const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
       stageEtaMap.set(stop.delivery.id, formatMinutesToTime(cumulativeTime));
-      cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
+      cumulativeTime += sharedDwellMinutes({ extraTime: stop.delivery.extra_time, isPickup: stop.isPickup }); // SHARED RULE
     }
   } else {
     let cumulativeTime = currentMinutes;
@@ -1280,39 +1275,15 @@ let _inheritedWindowCount = 0;
 
   // ── Enforce ISP-before-ISD ordering ──────────────────────────────────────
   // The HERE optimizer treats ISP and ISD as independent stops and may sequence ISD before
-  // ISP. Since ISD.puid === ISP.stop_id (driver must pick up FROM source before dropping off
-  // AT destination), enforce this ordering constraint in the post-optimization pass.
-  // Strategy: for each ISD, find its linked ISP. If ISD appears before ISP, swap them.
-  {
-    // ISP/ISD ordering: ISD must come after its linked ISP.
-    // ISP delivery_id starts with "ISP-", ISD with "ISD-".
-    // ISD.puid === ISP.stop_id (driver must pick up before dropping off).
-    const ispByStopId = new Map(
-      activeStops.filter(s => String(s.delivery_id || '').startsWith('ISP')).map(s => [s.stop_id, s])
-    );
-    let swapped = false;
-    do {
-      swapped = false;
-      for (let i = 0; i < activeStops.length; i++) {
-        const stop = activeStops[i];
-        // ISD: delivery_id starts with "ISD-" and puid points to an ISP stop_id
-        if (String(stop.delivery_id || '').startsWith('ISD') && stop.puid) {
-          const linkedISP = ispByStopId.get(stop.puid);
-          if (!linkedISP) continue;
-          const ispIdx = activeStops.findIndex(s => s.id === linkedISP.id);
-          if (ispIdx > i) {
-            // ISD is before its linked ISP — swap them
-            activeStops = [...activeStops];
-            const tmp = activeStops[i];
-            activeStops[i] = activeStops[ispIdx];
-            activeStops[ispIdx] = tmp;
-            swapped = true;
-            break; // restart scan after a swap
-          }
-        }
-      }
-    } while (swapped);
-  }
+  // ISP-before-ISD ordering constraint (SHARED RULE: routeRules.js
+  // enforceIspBeforeIsd). ISD.puid === ISP.stop_id — the drop-off must never
+  // precede its source pickup.
+  activeStops = sharedEnforceIspBeforeIsd(activeStops, {
+    deliveryIdOf: (st) => st.delivery_id,
+    puidOf: (st) => st.puid,
+    stopIdOf: (st) => st.stop_id,
+  });
+
 
   // Use max completed stop_order + 1 (not just count) to avoid collisions when
   // completed stops have non-contiguous stop_order values (e.g. 2, 5, 7).

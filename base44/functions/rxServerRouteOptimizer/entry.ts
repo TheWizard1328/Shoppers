@@ -21,6 +21,21 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 // ─── Time helpers (ported from clientRouteEngine.js) ────────────────────────
+// SINGLE RULE BASE (owner directive Oct 21 2026: 'one set of rules, two
+// engines') — ALL sequencing/window/polyline-eligibility/dwell rules live in
+// routeRules.js, shared verbatim with the client engine. Never re-implement
+// a rule here.
+import {
+  inheritPickupWindows as sharedInheritPickupWindows,
+  windowBandSort as sharedWindowBandSort,
+  hasTimeWindows as sharedHasTimeWindows,
+  enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
+  isPolylineEligibleStop as sharedIsPolylineEligible,
+  dwellMinutesForStop as sharedDwellMinutes,
+  isSameAddressAnchor as sharedIsSameAddress,
+  SAME_ADDRESS_TRAVEL_MINUTES as SHARED_SAME_ADDRESS_MINUTES,
+} from './routeRules.js';
+
 const TIME_ZONE = 'America/Edmonton';
 const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
@@ -433,30 +448,8 @@ Deno.serve(async (req) => {
       }
 
       // ISP-before-ISD ordering constraint (driving pool only — keeps the
-      // cycling structure intact).
-      {
-        const ispByStopId = new Map(orderedDriving.filter((s) => String(s.deliveryId || '').startsWith('ISP')).map((s) => [s.stopId, s]));
-        let swapped = false;
-        do {
-          swapped = false;
-          for (let i = 0; i < orderedDriving.length; i++) {
-            const stop = orderedDriving[i];
-            if (String(stop.deliveryId || '').startsWith('ISD') && stop.puid) {
-              const linkedISP = ispByStopId.get(stop.puid);
-              if (!linkedISP) continue;
-              const ispIdx = orderedDriving.findIndex((s) => s.id === linkedISP.id);
-              if (ispIdx > i) {
-                orderedDriving = [...orderedDriving];
-                const tmp = orderedDriving[i];
-                orderedDriving[i] = orderedDriving[ispIdx];
-                orderedDriving[ispIdx] = tmp;
-                swapped = true;
-                break;
-              }
-            }
-          }
-        } while (swapped);
-      }
+      // cycling structure intact). SHARED RULE: routeRules.js.
+      orderedDriving = sharedEnforceIspBeforeIsd(orderedDriving, {});
 
       orderedStops = [
         ...(_startMarker ? [_startMarker] : []),
@@ -482,45 +475,19 @@ Deno.serve(async (req) => {
       }
 
       // ── 2. Window-band chronology (Sep 10 2026 semantics, 2-hour bands) ────
-      const hasTimeWindows = routeStops.some((s) => Number.isFinite(parseTimeToMinutes(s.windowStart)) && parseTimeToMinutes(s.windowStart) > 0);
-      if (hasTimeWindows && orderedStops.length > 1) {
-        const TIME_BAND_MINUTES = 120;
-        const nowBand = Math.floor(currentMinutes / TIME_BAND_MINUTES);
-        const bandOf = (stop) => {
-          const m = parseTimeToMinutes(stop.windowStart);
-          if (!Number.isFinite(m) || m <= 0) return nowBand; // no window → servable now
-          if (m <= currentMinutes) return nowBand; // window already open → servable now
-          return Math.floor(m / TIME_BAND_MINUTES); // future window → chronological band
-        };
-        const decorated = orderedStops.map((stop) => ({ stop, band: bandOf(stop) }));
-        decorated.sort((a, b) => a.band - b.band); // stable sort keeps HERE order in-band
-        orderedStops = decorated.map((d) => d.stop);
+      // SHARED RULE (routeRules.js windowBandSort): 2h band chronology.
+      // routeIsToday guard added for client parity (historical routes keep
+      // their window bands instead of clamping to the real clock).
+      if (sharedHasTimeWindows(routeStops, (st) => st.windowStart) && orderedStops.length > 1) {
+        orderedStops = sharedWindowBandSort(orderedStops, {
+          routeIsToday: _routeIsToday,
+          currentMinutes,
+          windowOf: (st) => st.windowStart,
+        });
       }
 
-      // ── 3. ISP-before-ISD ordering constraint ───────────────────────────────
-      {
-        const ispByStopId = new Map(orderedStops.filter((s) => String(s.deliveryId || '').startsWith('ISP')).map((s) => [s.stopId, s]));
-        let swapped = false;
-        do {
-          swapped = false;
-          for (let i = 0; i < orderedStops.length; i++) {
-            const stop = orderedStops[i];
-            if (String(stop.deliveryId || '').startsWith('ISD') && stop.puid) {
-              const linkedISP = ispByStopId.get(stop.puid);
-              if (!linkedISP) continue;
-              const ispIdx = orderedStops.findIndex((s) => s.id === linkedISP.id);
-              if (ispIdx > i) {
-                orderedStops = [...orderedStops];
-                const tmp = orderedStops[i];
-                orderedStops[i] = orderedStops[ispIdx];
-                orderedStops[ispIdx] = tmp;
-                swapped = true;
-                break;
-              }
-            }
-          }
-        } while (swapped);
-      }
+      // ── 3. ISP-before-ISD ordering constraint (SHARED RULE: routeRules.js) ─
+      orderedStops = sharedEnforceIspBeforeIsd(orderedStops, {});
     }
 
     // ── 3b. CLIENT-PARITY backstop (Oct 21 2026): windowless patient stops
@@ -528,20 +495,13 @@ Deno.serve(async (req) => {
     // buildServerWaypoints applies this client-side already; re-apply here so
     // the rule holds regardless of caller. Idempotent (skips stops with a
     // window). Fixes 'pending stops optimized ahead of their pickups'.
-    {
-      const _pwMap = new Map();
-      for (const st of orderedStops) {
-        if (st.isPickup) _pwMap.set(st.stopId, st.deliveryTimeStart || st.windowStart || null);
-      }
-      for (const st of orderedStops) {
-        if (!st.patientId || !st.puid || st.windowStart) continue;
-        const _ps = parseTimeToMinutes(_pwMap.get(st.puid));
-        if (Number.isFinite(_ps) && _ps > 0) {
-          const _tot = _ps + 5;
-          st.windowStart = `${String(Math.floor(_tot / 60)).padStart(2, '0')}:${String(_tot % 60).padStart(2, '0')}`;
-        }
-      }
-    }
+    // SHARED RULE (routeRules.js inheritPickupWindows): windowless patient
+    // stops inherit pickup window START + 5. buildServerWaypoints applies it
+    // client-side; re-applied here idempotently so the rule holds regardless
+    // of caller. Fixes 'pending stops optimized ahead of their pickups'.
+    sharedInheritPickupWindows(orderedStops, {
+      pickupWindowOf: (st) => st.deliveryTimeStart || st.windowStart || null,
+    });
 
     // ── 4. Polylines: mode-grouped multi-stop router calls ──────────────────
     // The leg INTO each stop uses that stop's transport mode (cycling engine
@@ -558,10 +518,7 @@ Deno.serve(async (req) => {
     // ACROSS them (previous eligible stop → next eligible stop), never
     // THROUGH them. The old chain drew legs through pending stops,
     // corrupting downstream leg geometry (owner report Oct 21 2026).
-    const isPolylineEligible = (st) =>
-      ['en_route', 'in_transit'].includes(String(st.status || '').toLowerCase())
-      || st.isCyclingMarker
-      || String(st.transportMode || '').toLowerCase() === 'cycling';
+    const isPolylineEligible = (st) => sharedIsPolylineEligible(st);
     const eligibleStops = orderedStops.filter(isPolylineEligible);
     const sectionByStopId = new Map();
     let usedFallbackPolyline = false;
@@ -586,14 +543,14 @@ Deno.serve(async (req) => {
     }
 
     // ── 5. ETA ladder (owner rules: window floors, dwell, same-address cap) ─
-    const SAME_ADDRESS_TRAVEL_MINUTES = 2;
+    const SAME_ADDRESS_TRAVEL_MINUTES = SHARED_SAME_ADDRESS_MINUTES;
     let cumulativeTime = currentMinutes;
     const stageEtaMap = new Map();
     for (let i = 0; i < orderedStops.length; i++) {
       const stop = orderedStops[i];
       const seg = sectionByStopId.get(stop.id) || null;
       const prev = i > 0 ? orderedStops[i - 1] : null;
-      const nearPreviousStop = prev && crowFliesKm(prev.lat, prev.lng, stop.lat, stop.lng) < 0.05;
+      const nearPreviousStop = prev && sharedIsSameAddress({ lat: prev.lat, lng: prev.lng }, { lat: stop.lat, lng: stop.lng });
       let travelMinutes;
       if (typeof seg?.estimated_duration_minutes === 'number' && seg.estimated_duration_minutes > 0) {
         travelMinutes = Math.ceil(seg.estimated_duration_minutes);
@@ -609,7 +566,7 @@ Deno.serve(async (req) => {
       const ws = parseTimeToMinutes(stop.windowStart || stop.deliveryTimeStart || stop.windowStart);
       if (Number.isFinite(ws) && ws > 0 && cumulativeTime < ws) cumulativeTime = ws;
       stageEtaMap.set(stop.id, formatMinutesToTime(cumulativeTime));
-      cumulativeTime += stop.extraTime || (stop.isPickup ? 15 : 5);
+      cumulativeTime += sharedDwellMinutes({ extraTime: stop.extraTime, isPickup: stop.isPickup });
     }
 
     // ── 6. stop_order + isNextDelivery + writeBatch ─────────────────────────
