@@ -321,6 +321,38 @@ Deno.serve(async (req) => {
 
     const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false } = options;
 
+    // ── FUTURE-ROUTE PARITY (owner report Oct 20 2026) ─────────────────────
+    // The CLIENT engine has a dedicated future-route fast path (_handleFutureRoute
+    // in clientRouteEngine.js): chronological delivery_time_start sort, pickup-window
+    // inheritance for windowless deliveries, PUID grouping, planned home-origin
+    // polylines — NO HERE sequencing. It also covers pre-9am TODAY routes that
+    // haven't started (owner rule Oct 1 2026: before 9am a today-route plans like
+    // a future route). This server pipeline (findsequence2 + 2h window bands +
+    // ETA ladder) is NOT that algorithm: on future routes the request's 08:00
+    // future anchor put windowless stops in the "now" band (band 4), sorting
+    // pending windowless stops BEFORE morning-window pickups — owner-rejected
+    // ordering ("totally failing to optimize... pending stop before all
+    // pickups"). Mirroring the client's own fast-path gate conditions, future
+    // routes (not yet started, no order-preservation, no cycling markers) fall
+    // back to the client engine, which owns the future-route planner. Active
+    // and historical routes keep the server pipeline.
+    const _edmontonToday = (() => {
+      try {
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
+      } catch (_) { return ''; }
+    })();
+    const _routeIsToday = deliveryDate === _edmontonToday;
+    const _isFutureRoute = _routeIsToday
+      ? currentMinutes < 9 * 60
+      : String(deliveryDate) > _edmontonToday;
+    const _hasCyclingMarkers = routeStops.some((s) => s.isCyclingMarker);
+    if (_isFutureRoute && !routeInProgress && !preserveExistingOrder && !_hasCyclingMarkers) {
+      console.log(`[rxServerRouteOptimizer] future-route parity: ${deliveryDate} (today=${_routeIsToday}) → falling back to client future fast-path`);
+      return Response.json({ success: true, supported: false, reason: 'future_route_client_fastpath' });
+    }
+
     // ── 1. HERE sequencing (ONE call for the whole pool; TWO in mixed mode) ─
     const includeTimeWindows = routeStops.some((s) => s.windowStart && parseTimeToMinutes(s.windowStart) > 0);
     let orderedStops = routeStops;

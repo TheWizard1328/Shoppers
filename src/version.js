@@ -19,7 +19,7 @@
 //   must be bumped by 1 on every push that updates the web app. Never reset.
 export const APP_VERSION_MAJOR = 1;
 export const APK_SUCCESS_BASELINE = 316;
-export const WEB_VERSION = 359;
+export const WEB_VERSION = 360;
 
 /** Successful build-apk.yml run count → APK release count under this scheme. */
 export const apkUpdatesFromSuccessCount = (successCount) => {

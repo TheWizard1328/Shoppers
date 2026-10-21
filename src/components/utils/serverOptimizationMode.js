@@ -214,6 +214,24 @@ export const buildServerOptimizeRequest = ({
   const isToday = deliveryDate === edmontonTodayStr();
   const currentMinutes = isToday ? edmontonNowMinutes() : 8 * 60; // future routes anchor at 08:00
   const routeInProgress = completed.length > 0;
+
+  // FUTURE-ROUTE PARITY (owner report Oct 20 2026): the client engine has a
+  // dedicated future-route fast path (_handleFutureRoute: chronological
+  // delivery_time_start sort, pickup-window inheritance, PUID grouping,
+  // planned home polylines, NO HERE sequencing — also covering pre-9am today
+  // routes that haven't started, owner rule Oct 1 2026). The server pipeline
+  // is NOT that algorithm and on future routes produced owner-rejected orders
+  // (windowless pending stops banded at the 08:00 anchor, sorting BEFORE
+  // morning-window pickups). Skip the server round-trip entirely for these
+  // shapes so the client fast-path owns future routes. Mirrors the identical
+  // server-side gate in entry.ts (defense in depth).
+  const _isFutureRoute = isToday
+    ? edmontonNowMinutes() < 9 * 60
+    : String(deliveryDate) > edmontonTodayStr();
+  const _hasCyclingMarkers = active.some((d) => d.is_cycling_marker);
+  if (_isFutureRoute && !routeInProgress && !preserveExistingOrder && !_hasCyclingMarkers) {
+    return { supported: false, reason: 'future_route_client_fastpath' };
+  }
   const startOrder = startingStopOrder != null ? startingStopOrder
     : completed.reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0);
 
