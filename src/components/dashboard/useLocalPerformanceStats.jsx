@@ -177,13 +177,20 @@ export function useLocalPerformanceStats({
         const activeDelivery = driverDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status));
 
         finishedDeliveries.forEach((delivery) => {
+          // OWNER RULE (Oct 21 2026): every finished stop's leg distance
+          // counts — stop one included. travel_dist is the polyline-stamped
+          // leg km (v372 single-writer rule). A 0/absent travel_dist is the
+          // OLD completion-zeroing bug's stamp (the pre-v372 code wrote
+          // travel_dist=0 to the first finished stop) — fall through to the
+          // leg estimate instead of counting the stop as 0 km.
+          const _estKm = typeof delivery?.estimated_distance_km === "number" ? delivery.estimated_distance_km : 0;
           const distToUse =
-            typeof delivery?.travel_dist === "number" ? delivery.travel_dist
-            : typeof delivery?.estimated_distance_km === "number" ? delivery.estimated_distance_km
+            (typeof delivery?.travel_dist === "number" && delivery.travel_dist > 0) ? delivery.travel_dist
+            : (_estKm > 0 ? _estKm
             : (() => {
                 const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
                 return typeof patient?.distance_from_store === "number" ? patient.distance_from_store : 0;
-              })();
+              })());
           totalKm += distToUse;
         });
 
