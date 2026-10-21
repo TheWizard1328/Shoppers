@@ -204,7 +204,6 @@ export function useLocalPerformanceStats({
         });
 
         const _healQueue = [];
-        const activeDelivery = driverDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status));
 
         finishedDeliveries.forEach((delivery) => {
           // OWNER RULE (Oct 21 2026): every finished stop's leg distance
@@ -247,13 +246,9 @@ export function useLocalPerformanceStats({
           commitDeliveryUpdatesSilently(batch).catch(() => {});
         }
 
-        if (activeDelivery) {
-          const activeLegKm =
-            typeof activeDelivery.estimated_distance_km === "number" ? activeDelivery.estimated_distance_km
-            : typeof activeDelivery.travel_dist === "number" ? activeDelivery.travel_dist
-            : 0;
-          totalKm += activeLegKm;
-        }
+        // OWNER RULE (Oct 21 2026): total distance = FINISHED stops only.
+        // The in-progress leg does NOT count — its km joins the total when
+        // the stop is completed (polyline leg, v372 single-writer rule).
 
         const finishedStopsWithTimes = driverDeliveries
           .filter((delivery) => delivery?.actual_delivery_time)
