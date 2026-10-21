@@ -1,0 +1,11 @@
+const { offlineDB, __CALLS } = await import('./odb.mjs');
+const { processPendingMutationsInternal } = await import('./proc.mjs');
+const { OFFLINE_SYNC_ENTITY_CLIENTS } = await import('./registry.mjs');
+OFFLINE_SYNC_ENTITY_CLIENTS.Delivery = { update: async () => { throw new Error('boom'); } };
+offlineDB.__seed([{ mutationId: 'm1', entity: 'Delivery', recordId: 'd1', operation: 'update', payload: { status: 'x' } }]);
+const clock = async () => { const rows = await offlineDB.getPendingMutations(); offlineDB.__seed(rows.map(r => ({ ...r, notBefore: 0 }))); };
+await processPendingMutationsInternal();
+await clock(); await processPendingMutationsInternal();
+await clock(); await processPendingMutationsInternal();
+const res = await processPendingMutationsInternal();
+console.log('RES:', JSON.stringify(res));

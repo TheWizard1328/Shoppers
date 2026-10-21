@@ -47,6 +47,15 @@ const lastRegenAtByDriver = new Map();
 // full 5 minutes while the driver kept driving off-path. Failed regens now get
 // a short 45s retry window; successful regens arm the full cooldown.
 const lastRegenFailedAtByDriver = new Map();
+// RETRY CAP (owner directive Oct 21 2026: retry loops bog devices down; max
+// 2-3 attempts then let user interactions re-trigger). The 45s failure retry
+// window now only applies to the FIRST TWO consecutive failures — after a
+// 3rd consecutive failure the FULL cooldown arms (default 5 min), so a
+// persistently failing regen API (HERE 403/429 quota window) can no longer
+// re-attempt every 45s for an entire drive. Any successful regen or any
+// optimization pass heals the leg independently.
+const regenConsecutiveFailuresByDriver = new Map();
+const MAX_REGEN_FAILURES = 3;
 const FAILED_REGEN_RETRY_MS = 45 * 1000;
 let regenInFlight = false;
 let regenInFlightAt = 0;
@@ -117,8 +126,14 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
     if (result?.success) {
       lastRegenAtByDriver.set(driverId, Date.now());
       lastRegenFailedAtByDriver.delete(driverId);
+      regenConsecutiveFailuresByDriver.delete(driverId);
     } else {
       lastRegenFailedAtByDriver.set(driverId, Date.now());
+      const _fails = (regenConsecutiveFailuresByDriver.get(driverId) || 0) + 1;
+      regenConsecutiveFailuresByDriver.set(driverId, _fails);
+      if (_fails >= MAX_REGEN_FAILURES) {
+        console.warn(`[RouteDeviation] ${_fails} consecutive regen failures for driver ${driverId} — arming full cooldown (short retry window disabled)`);
+      }
     }
     if (result?.success) {
       // Belt-and-suspenders local state sync (updateDelivery already pushed the
@@ -247,7 +262,7 @@ export async function checkCurrentLegDeviationOnDuty({
 
   const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
   const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
-  const _effectiveCooldownMs = _failedAt >= lastRegenAt ? FAILED_REGEN_RETRY_MS : cooldownMs;
+  const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES) ? FAILED_REGEN_RETRY_MS : cooldownMs;
   if (Date.now() - Math.max(lastRegenAt, _failedAt) < _effectiveCooldownMs) {
     return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: _failedAt >= lastRegenAt ? 'cooldown_after_failure' : 'cooldown' };
   }
@@ -388,7 +403,7 @@ export function useRouteDeviationMonitor({
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
       const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
-      const _effectiveCooldownMs = _failedAt >= lastRegenAt ? FAILED_REGEN_RETRY_MS : cooldownMs;
+      const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES) ? FAILED_REGEN_RETRY_MS : cooldownMs;
       if (now - Math.max(lastRegenAt, _failedAt) < _effectiveCooldownMs) { _diag(_failedAt >= lastRegenAt ? 'cooldown_after_failure' : 'cooldown', `dist=${Math.round(distance)}m`); return; }
       if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) { _diag('gate:regen_in_flight', `dist=${Math.round(distance)}m`); return; }
       if (regenInFlight) { _diag('watchdog:regen_lock_stuck', `dist=${Math.round(distance)}m — forcing regen`); }

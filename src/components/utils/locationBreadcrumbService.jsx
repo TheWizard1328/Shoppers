@@ -493,8 +493,30 @@ export const flushPendingBreadcrumbMasters = async () => {
 
   const releaseLock = await acquireBreadcrumbSyncLock();
   let flushed = 0;
+  // RETRY CAP (owner directive Oct 21 2026: max attempts on automatic
+  // retries). A record whose server write keeps failing (toxic payload,
+  // persistent 429) previously kept its _pending_server_sync flag and
+  // retried on EVERY flush cycle for up to 2 days. After MAX_FLUSH_ATTEMPTS
+  // the flag is cleared (IDB-only) — the record is dropped from the flush
+  // queue with a warn; a later successful collect re-flags fresh trails.
+  const MAX_FLUSH_ATTEMPTS = 3;
+  const _bumpFlushAttempts = async (record, markDirty) => {
+    try {
+      const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, record.id).catch(() => null);
+      if (!latest) return;
+      const attempts = (latest._flush_attempts || 0) + 1;
+      if (attempts >= MAX_FLUSH_ATTEMPTS) {
+        console.warn(`[Breadcrumbs] dropping flush queue entry for ${record.driver_id} ${record.delivery_date} stop ${record.stop_order} after ${attempts} failed attempts`);
+        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false, _flush_attempts: 0 }).catch(() => {});
+      } else {
+        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _flush_attempts: attempts }).catch(() => {});
+        if (markDirty) await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: true, _flush_attempts: attempts }).catch(() => {});
+      }
+    } catch (_) {}
+  };
   try {
     for (const record of pending) {
+      try {
       if (Number(record.stop_order) === -1) {
         await base44.functions.invoke('syncPendingBreadcrumbs', {
           driver_id: record.driver_id,
@@ -533,16 +555,22 @@ export const flushPendingBreadcrumbMasters = async () => {
             stop_order: record.stop_order,
           });
         } catch (_flushReadErr) {
-          continue; // keep the _pending_server_sync flag; retried next cycle
+          await _bumpFlushAttempts(record, true); // capped retries — retried next cycle until the cap
+          continue;
         }
         if (existing?.[0]?.id) await base44.entities.DeliveryBreadcrumbs.update(existing[0].id, payload);
         else await base44.entities.DeliveryBreadcrumbs.create(payload);
       }
       const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, record.id).catch(() => null);
       if (latest?.encoded_polyline === record.encoded_polyline) {
-        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
+        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false, _flush_attempts: 0 });
       }
       flushed++;
+      } catch (_flushRecordErr) {
+        // Per-record failure: count it (capped at MAX_FLUSH_ATTEMPTS) and
+        // continue with the rest instead of aborting the whole flush.
+        await _bumpFlushAttempts(record, true);
+      }
     }
   } finally {
     releaseLock();

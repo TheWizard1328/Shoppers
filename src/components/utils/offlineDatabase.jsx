@@ -1246,7 +1246,7 @@ const removePendingMutation = async (mutationId) => {
 /**
  * Update retry count for a pending mutation
  */
-const updateMutationRetry = async (mutationId, retryCount) => {
+const updateMutationRetry = async (mutationId, retryCount, notBefore) => {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
@@ -1258,6 +1258,7 @@ const updateMutationRetry = async (mutationId, retryCount) => {
         const mutation = getRequest.result;
         if (mutation) {
           mutation.retryCount = retryCount;
+          if (typeof notBefore === 'number') mutation.notBefore = notBefore;
           mutation.lastRetryAt = new Date().toISOString();
           const updateRequest = store.put(mutation);
           updateRequest.onsuccess = () => resolve();

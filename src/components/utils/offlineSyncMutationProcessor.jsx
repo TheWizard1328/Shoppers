@@ -13,6 +13,28 @@ const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
 let deferredReplayTimer = null;
+
+// ── RETRY CAP (owner directive Oct 21 2026: 'retries need max attempts, not
+// just time frames — retry loops are bogging down phones; most catch up via
+// user interactions anyway'). A failed mutation now gets AT MOST 3 attempts
+// with growing delays (30s -> 120s; 60s for rate-limits), then it is
+// ABANDONED (removed from the pending queue with a warn). Previously a
+// poisoned mutation retried on EVERY sync cycle forever, and the deferred
+// replay timer re-processed due mutations 100ms after each failure — a
+// tight retry loop hammering the shared API pool and the main thread.
+const MAX_MUTATION_RETRIES = 3;
+const _recordMutationFailure = async (mutation, isRateLimit = false) => {
+  const attempt = (mutation?.retryCount || 0) + 1;
+  if (attempt >= MAX_MUTATION_RETRIES) {
+    console.warn(`⚠️ [OfflineSync] abandoning mutation ${mutation?.entity}:${mutation?.recordId} after ${attempt} attempts — user actions will re-apply any still-needed change`);
+    await offlineDB.removePendingMutation(mutation.mutationId).catch(() => {});
+    return 'abandoned';
+  }
+  const delayMs = isRateLimit ? 60 * 1000 : (attempt === 1 ? 30 * 1000 : 120 * 1000);
+  await offlineDB.updateMutationRetry(mutation.mutationId, attempt, Date.now() + delayMs).catch(() => {});
+  return 'retry';
+};
+
 const scheduleDeferredReplay = (mutations = []) => {
   if (!mutations.length || typeof window === 'undefined') return;
   const now = Date.now();
@@ -52,7 +74,8 @@ export const processPendingMutationsInternal = async () => {
 
   let successCount = 0;
   let failCount = 0;
-  const failedMutationIds = [];
+  const failedMutationIds = []
+  const _rateLimitedDeleteIds = new Set();;
 
   if (deletes.length > 0) {
     const deletePromises = deletes.map(mutation => {
@@ -99,6 +122,7 @@ export const processPendingMutationsInternal = async () => {
       } else {
         failCount++;
         failedMutationIds.push(result.mutationId);
+        if (result.isRateLimit) _rateLimitedDeleteIds.add(result.mutationId);
       }
     }
 
@@ -109,7 +133,7 @@ export const processPendingMutationsInternal = async () => {
     for (const failedMutationId of failedMutationIds) {
       const mutation = deletes.find(m => m.mutationId === failedMutationId);
       if (mutation) {
-        await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
+        await _recordMutationFailure(mutation, _rateLimitedDeleteIds.has(failedMutationId));
       }
     }
   }
@@ -340,12 +364,11 @@ export const processPendingMutationsInternal = async () => {
         continue;
       }
 
-      await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
+      // Capped retry with delay (Oct 21): a rate-limit no longer BLOCKS the
+      // whole processor 30s per mutation — the mutation gets a 60s notBefore
+      // stamp and the loop moves on to the next one.
+      const _outcome = await _recordMutationFailure(mutation, error.response?.status === 429);
       failCount++;
-
-      if (error.response?.status === 429) {
-        await new Promise(r => setTimeout(r, 30000));
-      }
     }
   }
 
