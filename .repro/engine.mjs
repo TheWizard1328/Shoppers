@@ -79,6 +79,38 @@ function dwellMinutesForStop({ extraTime, isPickup }) {
   return isPickup ? PICKUP_DWELL_MINUTES : DELIVERY_DWELL_MINUTES;
 }
 
+// src/components/utils/legTravelMinutes.js
+var SAME_ADDRESS_TRAVEL_MINUTES = 2;
+var getLegTravelMinutes = ({
+  stop,
+  leg,
+  segmentPolyline,
+  fallbackMinutes = 5,
+  preferLeg = false,
+  winterPadFactor = null,
+  legMode = "driving",
+  nearPreviousStop = false
+}) => {
+  if (typeof segmentPolyline?.estimatedDurationMinutes === "number" && segmentPolyline.estimatedDurationMinutes > 0)
+    return Math.ceil(segmentPolyline.estimatedDurationMinutes);
+  if (nearPreviousStop) return SAME_ADDRESS_TRAVEL_MINUTES;
+  if (preferLeg) {
+    const _legSeconds = Number(leg?.duration || 0);
+    if (_legSeconds > 0) {
+      let _minutes = Math.ceil(_legSeconds / 60);
+      if (winterPadFactor && Number(winterPadFactor) > 0 && String(legMode).toLowerCase() !== "cycling") {
+        _minutes = Math.ceil(_minutes * Number(winterPadFactor));
+      }
+      return _minutes;
+    }
+  }
+  if (typeof stop?.delivery?.estimated_duration_minutes === "number" && stop.delivery.estimated_duration_minutes > 0)
+    return Math.ceil(stop.delivery.estimated_duration_minutes);
+  const travelSeconds = Number(leg?.duration || 0);
+  if (travelSeconds > 0) return Math.ceil(travelSeconds / 60);
+  return fallbackMinutes;
+};
+
 // .repro/at/api/base44Client.js
 var base44 = {
   entities: { AppUser: { filter: async () => [] } },
