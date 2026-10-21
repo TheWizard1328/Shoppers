@@ -523,6 +523,26 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── 3b. CLIENT-PARITY backstop (Oct 21 2026): windowless patient stops
+    // inherit their pickup's window START + 5 min (clientRouteEngine.js ~466).
+    // buildServerWaypoints applies this client-side already; re-apply here so
+    // the rule holds regardless of caller. Idempotent (skips stops with a
+    // window). Fixes 'pending stops optimized ahead of their pickups'.
+    {
+      const _pwMap = new Map();
+      for (const st of orderedStops) {
+        if (st.isPickup) _pwMap.set(st.stopId, st.deliveryTimeStart || st.windowStart || null);
+      }
+      for (const st of orderedStops) {
+        if (!st.patientId || !st.puid || st.windowStart) continue;
+        const _ps = parseTimeToMinutes(_pwMap.get(st.puid));
+        if (Number.isFinite(_ps) && _ps > 0) {
+          const _tot = _ps + 5;
+          st.windowStart = `${String(Math.floor(_tot / 60)).padStart(2, '0')}:${String(_tot % 60).padStart(2, '0')}`;
+        }
+      }
+    }
+
     // ── 4. Polylines: mode-grouped multi-stop router calls ──────────────────
     // The leg INTO each stop uses that stop's transport mode (cycling engine
     // rule: leg INTO the START marker is driving; legs into cycling stops and
@@ -532,29 +552,38 @@ Deno.serve(async (req) => {
     const legModeFor = (stop) => stop.isCyclingMarker
       ? (String(stop.deliveryNotes || '').toLowerCase().includes('start') ? 'car' : 'bicycle')
       : (String(stop.transportMode || '').toLowerCase() === 'cycling' ? 'bicycle' : 'car');
-    const polylineChain = [
-      { lat: origin.lat, lon: origin.lng },
-      ...orderedStops.map((s) => ({ lat: s.lat, lon: s.lng })),
-    ];
-    const sections = new Array(orderedStops.length).fill(null);
+    // CLIENT PARITY (routePolylineGenerator.js ~line 285): ONLY en_route /
+    // in_transit stops (+ cycling markers + cycling-mode stops) receive
+    // polylines. Pending stops are NOT part of the chain — legs bridge
+    // ACROSS them (previous eligible stop → next eligible stop), never
+    // THROUGH them. The old chain drew legs through pending stops,
+    // corrupting downstream leg geometry (owner report Oct 21 2026).
+    const isPolylineEligible = (st) =>
+      ['en_route', 'in_transit'].includes(String(st.status || '').toLowerCase())
+      || st.isCyclingMarker
+      || String(st.transportMode || '').toLowerCase() === 'cycling';
+    const eligibleStops = orderedStops.filter(isPolylineEligible);
+    const sectionByStopId = new Map();
     let usedFallbackPolyline = false;
     {
       let gi = 0;
-      while (gi < orderedStops.length) {
-        const mode = legModeFor(orderedStops[gi]);
+      while (gi < eligibleStops.length) {
+        const mode = legModeFor(eligibleStops[gi]);
         let gj = gi;
-        while (gj < orderedStops.length && legModeFor(orderedStops[gj]) === mode) gj++;
-        const pts = polylineChain.slice(gi, gj + 1);
+        while (gj < eligibleStops.length && legModeFor(eligibleStops[gj]) === mode) gj++;
+        const pts = [
+          ...(gi === 0 ? [{ lat: origin.lat, lon: origin.lng }] : []),
+          ...eligibleStops.slice(gi, gj).map((st) => ({ lat: st.lat, lon: st.lng })),
+        ];
         if (pts.length >= 2) {
           const r = await getMultiStopRouteSections(pts, apiKey, mode);
           usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
-          (r.sections || []).forEach((sec, k) => { sections[gi + k] = sec; });
+          (r.sections || []).forEach((sec, k) => { sectionByStopId.set(eligibleStops[gi + k].id, sec); });
           hereCalls++;
         }
         gi = gj;
       }
     }
-    // sections[i] = leg INTO orderedStops[i]
 
     // ── 5. ETA ladder (owner rules: window floors, dwell, same-address cap) ─
     const SAME_ADDRESS_TRAVEL_MINUTES = 2;
@@ -562,7 +591,7 @@ Deno.serve(async (req) => {
     const stageEtaMap = new Map();
     for (let i = 0; i < orderedStops.length; i++) {
       const stop = orderedStops[i];
-      const seg = sections[i] || null;
+      const seg = sectionByStopId.get(stop.id) || null;
       const prev = i > 0 ? orderedStops[i - 1] : null;
       const nearPreviousStop = prev && crowFliesKm(prev.lat, prev.lng, stop.lat, stop.lng) < 0.05;
       let travelMinutes;
@@ -609,7 +638,7 @@ Deno.serve(async (req) => {
     for (let i = 0; i < orderedStops.length; i++) {
       const stop = orderedStops[i];
       const newOrder = preserveExistingOrder ? (Number(stop.currentStopOrder) || (startOrder + i + 1)) : (startOrder + i + 1);
-      const seg = sections[i] || null;
+      const seg = sectionByStopId.get(stop.id) || null;
       const isNextStop = stop.id === nextStopId;
       // Cycling markers stay polyline-eligible even while pending (client
       // engine rule — markers are full route stops, never 'unaccepted').

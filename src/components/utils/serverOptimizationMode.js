@@ -269,6 +269,26 @@ export const buildServerOptimizeRequest = ({
   }
   if (stops.length === 0) return { supported: false, reason: 'no_mappable_stops' };
 
+  // CLIENT PARITY (clientRouteEngine.js ~line 466, live-path window
+  // resolution): a patient delivery with NO window of its own inherits its
+  // pickup's window START + 5 min. Without this, windowless pending stops
+  // stay 'servable now' (nowBand) and sort BEFORE morning-window pickups —
+  // the owner-rejected order (Oct 21 2026: 'pending stops being optimized
+  // ahead of their pickups'). Mirrored idempotently in entry.ts (defense in
+  // depth) — both sides run the SAME rule.
+  const _pickupWindowByStopId = new Map();
+  for (const s of stops) {
+    if (s.isPickup) _pickupWindowByStopId.set(s.stopId, { start: s.deliveryTimeStart || s.windowStart || null });
+  }
+  for (const s of stops) {
+    if (!s.patientId || !s.puid || s.windowStart) continue;
+    const _pw = _pickupWindowByStopId.get(s.puid);
+    const _pStart = parseTimeToMinutesLocal(_pw?.start);
+    if (_pStart != null && Number.isFinite(_pStart) && _pStart > 0) {
+      s.windowStart = `${String(Math.floor((_pStart + 5) / 60)).padStart(2, '0')}:${String((_pStart + 5) % 60).padStart(2, '0')}`;
+    }
+  }
+
   const explicitNext = active.find(d => d?.isNextDelivery === true) || null;
 
   return {
