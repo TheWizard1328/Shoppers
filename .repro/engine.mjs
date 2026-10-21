@@ -66,6 +66,38 @@ function enforceIspBeforeIsd(stops, adapters) {
   }
   return ordered;
 }
+function enforcePickupBeforePendingDeliveries(stops, adapters) {
+  const {
+    idOf = (s) => s.id,
+    patientOf = (s) => s.patientId,
+    puidOf = (s) => s.puid,
+    statusOf = (s) => s.status,
+    isPickupOf = (s) => s.isPickup,
+    pickupKeyOf = (s) => s.stopId
+  } = adapters || {};
+  let ordered = [...stops || []];
+  const pickupByKey = new Map(ordered.filter((s) => isPickupOf(s)).map((s) => [String(pickupKeyOf(s)), s]));
+  let swapped = true;
+  while (swapped) {
+    swapped = false;
+    for (let i = 0; i < ordered.length; i++) {
+      const stop = ordered[i];
+      const isPending = String(statusOf(stop) || "").toLowerCase() === "pending";
+      if (!isPending || !patientOf(stop) || !puidOf(stop)) continue;
+      const pickup = pickupByKey.get(String(puidOf(stop)));
+      if (!pickup) continue;
+      const pIdx = ordered.findIndex((s) => idOf(s) === idOf(pickup));
+      if (pIdx > i) {
+        const tmp = ordered[i];
+        ordered[i] = ordered[pIdx];
+        ordered[pIdx] = tmp;
+        swapped = true;
+        break;
+      }
+    }
+  }
+  return ordered;
+}
 function isPolylineEligibleStop({ status, isCyclingMarker, transportMode }) {
   const st = String(status || "").toLowerCase();
   if (st === "en_route" || st === "in_transit") return true;
@@ -1179,9 +1211,14 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   stopsToSequence.forEach((stop, index) => {
     const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
+      const _isTodayLive = deliveryDate === getEdmontonTodayDateString();
       const wsMin = parseTimeToMinutes(stop.windowStart);
-      const windowAlreadyOpen = Number.isFinite(wsMin) && wsMin > 0 && deliveryDate === getEdmontonTodayDateString() && wsMin <= currentMinutes;
-      const accessConstraint = buildAccessConstraint(deliveryDate, windowAlreadyOpen ? null : stop.windowStart, stop.windowEnd);
+      const dropFromSide = _isTodayLive;
+      const accessConstraint = buildAccessConstraint(
+        deliveryDate,
+        dropFromSide ? null : stop.windowStart,
+        stop.windowEnd
+      );
       if (accessConstraint) segments.push(accessConstraint);
     }
     segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
@@ -1824,6 +1861,14 @@ async function optimizeRouteClientSide({
     ...stop.delivery,
     delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
   }));
+  activeStops = enforcePickupBeforePendingDeliveries(activeStops, {
+    idOf: (st) => st.id,
+    patientOf: (st) => st.patient_id,
+    puidOf: (st) => st.puid,
+    statusOf: (st) => st.status,
+    isPickupOf: (st) => st.isPickup,
+    pickupKeyOf: (st) => st.stop_id
+  });
   activeStops = enforceIspBeforeIsd(activeStops, {
     deliveryIdOf: (st) => st.delivery_id,
     puidOf: (st) => st.puid,

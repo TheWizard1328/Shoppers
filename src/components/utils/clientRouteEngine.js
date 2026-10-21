@@ -10,6 +10,7 @@ import {
   windowBandOfStop as sharedWindowBandOfStop,
   inheritedPickupWindowStart as sharedInheritedPickupWindowStart,
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
+  enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   dwellMinutesForStop as sharedDwellMinutes,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
@@ -222,16 +223,25 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   stopsToSequence.forEach((stop, index) => {
     const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
-      // OWNER RULE (Oct 5 2026): once a window has ALREADY OPENED (at/before
-      // the current time, today's route), its start is not a constraint —
-      // "deliverable any time after now" adds no information. Drop the from
-      // side so the already-open stamp (Accept All's now+5) can't bias HERE's
-      // sequencing; distance decides among deliverable-now stops. Future
-      // window openings still pass a real from constraint.
+      // OWNER RULES (Oct 5 + Oct 21 2026): on TODAY's live route a start
+      // window is NOT a HERE sequencing constraint at all — not for
+      // already-open windows (Oct 5) and not for future openings either
+      // (Oct 21: "stops with delivery start times before the current time
+      // kept getting placed first instead of getting placed along the road
+      // — filter them in based on the current time"). From-side constraints
+      // made HERE front-load unconstrained (open-window) stops ahead of
+      // future-window stops regardless of geography. NOW: HERE sequences
+      // PURELY by the road; window chronology is enforced afterward by the
+      // shared 2h band sort and the ETA window floors. The window END (to
+      // side) stays a real constraint on every route.
+      const _isTodayLive = deliveryDate === getEdmontonTodayDateString();
       const wsMin = parseTimeToMinutes(stop.windowStart);
-      const windowAlreadyOpen = Number.isFinite(wsMin) && wsMin > 0
-        && deliveryDate === getEdmontonTodayDateString() && wsMin <= currentMinutes;
-      const accessConstraint = buildAccessConstraint(deliveryDate, windowAlreadyOpen ? null : stop.windowStart, stop.windowEnd);
+      const dropFromSide = _isTodayLive; // open OR future — no from constraint today
+      const accessConstraint = buildAccessConstraint(
+        deliveryDate,
+        dropFromSide ? null : stop.windowStart,
+        stop.windowEnd,
+      );
       if (accessConstraint) segments.push(accessConstraint);
     }
     segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
@@ -1277,6 +1287,18 @@ let _inheritedWindowCount = 0;
     ...stop.delivery,
     delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
   }));
+
+  // ── SHARED RULE: pending deliveries follow their pickup ───────────────────
+  // A pending stop can't precede its own source pickup on the live route
+  // (owner Oct 21 2026 'mixed up set of deliveries'). In-hand stops are free.
+  activeStops = sharedEnforcePickupBeforePending(activeStops, {
+    idOf: (st) => st.id,
+    patientOf: (st) => st.patient_id,
+    puidOf: (st) => st.puid,
+    statusOf: (st) => st.status,
+    isPickupOf: (st) => st.isPickup,
+    pickupKeyOf: (st) => st.stop_id,
+  });
 
   // ── Enforce ISP-before-ISD ordering ──────────────────────────────────────
   // The HERE optimizer treats ISP and ISD as independent stops and may sequence ISD before

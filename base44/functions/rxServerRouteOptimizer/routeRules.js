@@ -164,6 +164,45 @@ export function enforceIspBeforeIsd(stops, adapters) {
   return ordered;
 }
 
+// ── RULE: pending deliveries follow their pickup (LIVE route) ────────────────
+// A PENDING patient stop cannot be delivered before its source pickup is
+// visited (puid → pickup stop on the same route). In-hand stops (en_route /
+// in_transit) are NOT constrained (owner rule Oct 1 2026). Fixpoint swap,
+// mirrors enforceIspBeforeIsd. Adapters: idOf, patientOf, puidOf,
+// statusOf, isPickupOf, pickupKeyOf.
+export function enforcePickupBeforePendingDeliveries(stops, adapters) {
+  const {
+    idOf = (s) => s.id,
+    patientOf = (s) => s.patientId,
+    puidOf = (s) => s.puid,
+    statusOf = (s) => s.status,
+    isPickupOf = (s) => s.isPickup,
+    pickupKeyOf = (s) => s.stopId,
+  } = adapters || {};
+  let ordered = [...(stops || [])];
+  const pickupByKey = new Map(ordered.filter((s) => isPickupOf(s)).map((s) => [String(pickupKeyOf(s)), s]));
+  let swapped = true;
+  while (swapped) {
+    swapped = false;
+    for (let i = 0; i < ordered.length; i++) {
+      const stop = ordered[i];
+      const isPending = String(statusOf(stop) || '').toLowerCase() === 'pending';
+      if (!isPending || !patientOf(stop) || !puidOf(stop)) continue;
+      const pickup = pickupByKey.get(String(puidOf(stop)));
+      if (!pickup) continue;
+      const pIdx = ordered.findIndex((s) => idOf(s) === idOf(pickup));
+      if (pIdx > i) {
+        const tmp = ordered[i];
+        ordered[i] = ordered[pIdx];
+        ordered[pIdx] = tmp;
+        swapped = true;
+        break;
+      }
+    }
+  }
+  return ordered;
+}
+
 // ── RULE: polyline eligibility ───────────────────────────────────────────────
 // ONLY en_route + in_transit stops (plus cycling markers and cycling-mode
 // stops) receive polylines. A pending stop hasn't been picked up yet — no

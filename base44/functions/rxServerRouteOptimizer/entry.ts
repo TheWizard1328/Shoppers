@@ -30,6 +30,7 @@ import {
   windowBandSort as sharedWindowBandSort,
   hasTimeWindows as sharedHasTimeWindows,
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
+  enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   isPolylineEligibleStop as sharedIsPolylineEligible,
   dwellMinutesForStop as sharedDwellMinutes,
   isSameAddressAnchor as sharedIsSameAddress,
@@ -37,6 +38,14 @@ import {
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
+
+const edmontonTodayStr = () => {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+  } catch (_) { return ''; }
+};
 const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
 const parseTimeToMinutes = (timeStr) => {
@@ -198,10 +207,16 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
     const segments = [`${stop.stopId || stop.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
       const wsMin = parseTimeToMinutes(stop.windowStart);
-      // Owner rule Oct 5 2026: an already-open window adds no information —
-      // drop the from side. The client passes currentMinutes for TODAY only.
+      // OWNER RULES (Oct 5 + Oct 21 2026): on TODAY's live route a start
+      // window is NOT a HERE sequencing constraint — open windows (Oct 5)
+      // AND future openings (Oct 21: from-side constraints made HERE
+      // front-load open-window stops ahead of future-window stops instead
+      // of placing them along the road). HERE sequences purely by
+      // geography; the shared 2h band sort + ETA window floors enforce
+      // chronology afterward. Window END stays a real constraint.
       const windowAlreadyOpen = Number.isFinite(wsMin) && wsMin > 0 && wsMin <= currentMinutes;
-      const acc = buildAccessConstraint(deliveryDate, windowAlreadyOpen ? null : stop.windowStart, stop.windowEnd);
+      const dropFromSide = windowAlreadyOpen || (deliveryDate === edmontonTodayStr());
+      const acc = buildAccessConstraint(deliveryDate, dropFromSide ? null : stop.windowStart, stop.windowEnd);
       if (acc) segments.push(acc);
     }
     segments.push(`st:${Math.round((stop.extraTime || (stop.isPickup ? 15 : 5)) * 60)}`);
@@ -486,6 +501,8 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ── 2b. SHARED RULE: pending deliveries follow their pickup (Oct 21) ──
+      orderedStops = sharedEnforcePickupBeforePending(orderedStops, {});
       // ── 3. ISP-before-ISD ordering constraint (SHARED RULE: routeRules.js) ─
       orderedStops = sharedEnforceIspBeforeIsd(orderedStops, {});
     }
