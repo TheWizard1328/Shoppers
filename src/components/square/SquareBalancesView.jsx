@@ -2018,6 +2018,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     if (!Number.isFinite(n)) return '';
     return n.toFixed(2);
   };
+  // True-Up edited-field highlight (owner spec Oct 21 2026): green border +
+  // tint on any field carrying a NEW value (blank = keeps existing → no
+  // highlight). 0 is a legitimate edit.
+  const trueUpEdited = (v) => v !== '' && v !== undefined && v !== null && Number.isFinite(Number(v));
+  const trueUpEditedCls = (v) => trueUpEdited(v) ? ' border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-900/40' : '';
   const setTrueUpCentsField = (locId, field, raw) => {
     setTrueUpDraft((d) => ({ ...d, [locId]: { ...(d[locId] || {}), [field]: trueUpCentsValue(raw) } }));
   };
@@ -2519,19 +2524,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
                 <div className="grid grid-cols-3 gap-1.5 items-end">
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Card balance
-                    <Input type="text" inputMode="decimal" tabIndex={li + 1} className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.card_start)}
+                    <Input type="text" inputMode="decimal" tabIndex={li + 1} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.card)} placeholder={fmtMoney(loc.card_start)}
                 value={fmtTrueUpField(trueUpDraft[loc.location_id]?.card)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpCentsField(loc.location_id, 'card', e.target.value)} />
                   </label>
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan remaining
-                    <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 2 + li} className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(loc.loan_start)}
+                    <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 2 + li} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.loan)} placeholder={fmtMoney(loc.loan_start)}
                 value={fmtTrueUpField(trueUpDraft[loc.location_id]?.loan)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpCentsField(loc.location_id, 'loan', e.target.value)} />
                   </label>
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan rate %
-                    <Input type="text" inputMode="decimal" tabIndex={2 * (config.locations || []).length + 2 + li} className="mt-0.5 px-2 text-xs" placeholder={fmtTrueUpField(Number(loc.loan_rate ?? 0) * 100)}
+                    <Input type="text" inputMode="decimal" tabIndex={2 * (config.locations || []).length + 2 + li} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.loan_rate)} placeholder={fmtTrueUpField(Number(loc.loan_rate ?? 0) * 100)}
                 value={fmtTrueUpField(trueUpDraft[loc.location_id]?.loan_rate)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpCentsField(loc.location_id, 'loan_rate', e.target.value)} />
@@ -2543,7 +2548,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Folder (combined)</div>
               <div className="grid grid-cols-3 gap-1.5 items-end">
                 <label className="text-[10px] text-slate-500 dark:text-slate-400">Folder balance
-                  <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 1} className="mt-0.5 px-2 text-xs" placeholder={fmtMoney(config.folder_start || 0)}
+                  <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 1} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft.__folder)} placeholder={fmtMoney(config.folder_start || 0)}
                 value={fmtTrueUpField(trueUpDraft.__folder)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: trueUpCentsValue(e.target.value) }))} />
