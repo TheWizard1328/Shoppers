@@ -1431,8 +1431,18 @@ let _inheritedWindowCount = 0;
       ...(stop.id !== nextStopId ? { isNextDelivery: false } : {}),
       transport_mode: safeTransportMode,
       ...(statusToWrite ? { status: statusToWrite } : {}),
-      travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
-        ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) : null),
+      // OWNER RULE (Oct 21 2026): travel_dist is written ONLY by polyline/
+      // leg generation — the generated leg's road distance, for EVERY status
+      // (pending, in_transit, finished). Prefer the polyline segment's own
+      // distance (seg.estimatedDistanceKm — exactly what was painted), fall
+      // back to the Google Directions leg. If NEITHER exists (no leg was
+      // generated this run), OMIT the field entirely — never null out a
+      // previously stamped leg distance. The live GPS tracker is retired;
+      // nothing else may write this field (it used to flip between
+      // km-driven and km-remaining mid-route, making the mileage card go
+      // backwards).
+      ...(Number.isFinite(logicalDistanceKm) ? { travel_dist: Number(logicalDistanceKm.toFixed(3)) }
+        : Number(directionsLegs[i]?.distance) ? { travel_dist: Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) } : {}),
       ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
       ...(!isPending && logicalDurationMinutes == null && sameCoordsAdjacentIds.has(stop.id)
         ? { estimated_duration_minutes: SAME_ADDRESS_TRAVEL_MINUTES, estimated_distance_km: 0 } : {}),

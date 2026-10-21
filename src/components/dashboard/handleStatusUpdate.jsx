@@ -167,15 +167,6 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const completedStops = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status)).sort((a, b) => { if (!a.actual_delivery_time || !b.actual_delivery_time) return 0; return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time); });
 
-      if (completedStops.length === 0) { updateData.travel_dist = 0; } else {
-        const lastStop = completedStops[completedStops.length - 1];
-        let lastLat, lastLon, currentLat, currentLon;
-        if (lastStop.is_cycling_marker) { lastLat = lastStop.cycling_latitude; lastLon = lastStop.cycling_longitude; }
-        else if (lastStop.patient_id) { const lp = patients.find((p) => p && p.id === lastStop.patient_id); lastLat = lp?.latitude; lastLon = lp?.longitude; } else if (lastStop.store_id) { const ls = stores.find((s) => s && s.id === lastStop.store_id); lastLat = ls?.latitude; lastLon = ls?.longitude; }
-        if (targetDelivery.is_cycling_marker) { currentLat = targetDelivery.cycling_latitude; currentLon = targetDelivery.cycling_longitude; }
-        else if (targetDelivery.patient_id) { const cp = patients.find((p) => p && p.id === targetDelivery.patient_id); currentLat = cp?.latitude; currentLon = cp?.longitude; } else if (targetDelivery.store_id) { const cs = stores.find((s) => s && s.id === targetDelivery.store_id); currentLat = cs?.latitude; currentLon = cs?.longitude; }
-        if (lastLat && lastLon && currentLat && currentLon) { updateData.travel_dist = Math.round(calculateDistance(lastLat, lastLon, currentLat, currentLon) * 100) / 100; } else { updateData.travel_dist = 0; }
-      }
 
       const driverAppUser = (appUsers || []).find((user) => user?.user_id === driverId);
       pendingBreadcrumbDriverAppUserId = driverAppUser?.id || null;

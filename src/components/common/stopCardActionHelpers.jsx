@@ -527,21 +527,19 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
   if (scopedDeliveries.length === 0) return [];
 
-  const currentNextDelivery = scopedDeliveries.find((item) => item?.isNextDelivery);
-  const transferredDistance = currentNextDelivery && currentNextDelivery.id !== nextDeliveryId
-    ? Number(currentNextDelivery.travel_dist || 0)
-    : 0;
-
+  // OWNER RULE (Oct 21 2026): travel_dist belongs to its own leg and is
+  // written ONLY by polyline/leg generation. The old Start-time transfer
+  // (carry the previous next-stop's accumulated km to the new next stop and
+  // zero the old one) was part of the retired live-GPS tracking model and
+  // corrupted the leg distances the polyline writes own. Only the
+  // isNextDelivery flag flips here.
   const updatedDeliveries = scopedDeliveries.map((item) => ({
     ...item,
     isNextDelivery: !!nextDeliveryId && item.id === nextDeliveryId,
-    travel_dist: item.id === nextDeliveryId
-      ? transferredDistance
-      : (currentNextDelivery && item.id === currentNextDelivery.id && item.id !== nextDeliveryId ? 0 : item.travel_dist)
   }));
   const changedDeliveries = updatedDeliveries.filter((item, index) => {
     const original = scopedDeliveries[index] || {};
-    return item.isNextDelivery !== original.isNextDelivery || Number(item.travel_dist || 0) !== Number(original.travel_dist || 0);
+    return item.isNextDelivery !== original.isNextDelivery;
   });
 
   if (changedDeliveries.length === 0) return [];
