@@ -197,12 +197,27 @@ export const buildServerOptimizeRequest = ({
     ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
     : null;
 
-  // Origin: last finished stop coords → home → first active stop.
+  // SEQUENCING-ORIGIN PARITY (owner report Oct 21 2026: server and client
+  // produced completely different orders on the same route). The CLIENT
+  // engine anchors HERE sequencing at the LOCKED next stop (routeOriginStop
+  // — the stop the driver is currently driving to) and keeps that stop
+  // pinned first, excluded from resequencing. The server previously
+  // anchored at the LAST FINISHED stop — a different point on the map, so
+  // HERE sequenced from there and produced a different order. Now BOTH
+  // engines anchor identically: locked next stop → last finished → home →
+  // first active.
+  const explicitNext = active.find(d => d?.isNextDelivery === true) || null;
   let origin = null;
-  const latestFinished = getLatestFinishedDelivery(completed);
-  if (latestFinished) {
-    const c = getDeliveryCoords(latestFinished, patientMap, storeMap);
+  if (explicitNext) {
+    const c = getDeliveryCoords(explicitNext, patientMap, storeMap);
     if (c) origin = c;
+  }
+  if (!origin) {
+    const latestFinished = getLatestFinishedDelivery(completed);
+    if (latestFinished) {
+      const c = getDeliveryCoords(latestFinished, patientMap, storeMap);
+      if (c) origin = c;
+    }
   }
   if (!origin && home) origin = home;
   if (!origin) {
@@ -234,10 +249,18 @@ export const buildServerOptimizeRequest = ({
     return { supported: false, reason: 'future_route_client_fastpath' };
   }
   const startOrder = startingStopOrder != null ? startingStopOrder
-    : completed.reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0);
+    : Math.max(
+        completed.reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0),
+        explicitNext ? (Number(explicitNext?.stop_order) || 0) : 0
+      );
 
   const stops = [];
   for (const d of active) {
+    // The locked next stop stays PINNED first (client engine parity): it is
+    // the sequencing origin, never resequenced. Skipping it from the pool
+    // and reserving its stop_order in startOrder keeps the final numbering
+    // identical to the client engine's output.
+    if (explicitNext && d?.id === explicitNext.id) continue;
     const coords = getDeliveryCoords(d, patientMap, storeMap);
     if (!coords) continue; // unmappable stops stay untouched server-side
     const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
@@ -279,8 +302,6 @@ export const buildServerOptimizeRequest = ({
   sharedInheritPickupWindows(stops, {
     pickupWindowOf: (s) => s.deliveryTimeStart || s.windowStart || null,
   });
-
-  const explicitNext = active.find(d => d?.isNextDelivery === true) || null;
 
   return {
     supported: true,
