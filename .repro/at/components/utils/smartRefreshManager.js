@@ -1,0 +1,646 @@
+// lightweightRefreshManager.js - Lightweight refresh manager for WebSocket-driven data
+// CRITICAL: AppUser, Delivery, Patient rely on WebSocket subscriptions for real-time updates
+// This manager handles: initial loads, offline sync, cache reconciliation, and non-real-time entities
+
+import { base44 } from "@/api/base44Client";
+import { getAppSettingRows } from '@/components/utils/appSettingsCache';
+import { emitGatedEvent } from './uiGate';
+import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp } from "./dataDiffer";
+import { format } from "date-fns";
+import { queueEntityRequest, requestQueue } from "./requestQueue";
+import { touchUserCache } from "./auth";
+import { globalFilters } from "./globalFilters";
+
+class LightweightRefreshManager {
+  constructor() {
+    this._enabled = true;
+    this._initialized = false;
+    this._paused = false;
+    this._currentUser = null;
+
+    // Minimal intervals - only for non-WebSocket entities and offline sync
+    this.intervals = {
+      cities: 300000,        // 5min - Full Cities dataset
+      stores: 300000,        // 5min - Full Stores dataset
+      appUsers: 300000,      // 5min - AppUser backup sync (WebSocket handles real-time)
+      offlineSync: 120000,   // 2min - Offline DB reconciliation (IndexedDB only, no API call)
+      cacheRefresh: 300000   // 5min - Cache consistency check
+    };
+
+    this.lastRefreshTimes = {
+      cities: 0,
+      stores: 0,
+      appUsers: 0,
+      offlineSync: 0,
+      cacheRefresh: 0
+    };
+
+    // Rate limiting
+    this.lastApiCallTime = 0;
+    this.minTimeBetweenCalls = 2000; // 2s minimum between consecutive API calls
+    this.consecutiveErrors = 0;
+    this.maxConsecutiveErrors = 2;
+    this.errorCooldownUntil = 0;
+
+    // Pending mutations tracking
+    this.pendingLocalUpdates = new Map();
+    this.pendingPatientUpdates = new Map();
+    this.pendingAppUserUpdates = new Map();
+
+    // Deleted ID tracking
+    this.deletedDeliveryIds = new Set();
+    this.deletedPatientIds = new Set();
+
+    this.isRefreshing = false;
+    this._refreshStartedAt = null;
+    this.refreshCallbacks = new Set();
+  }
+
+  /**
+   * Initialize from settings
+   */
+  async initializeFromSettings() {
+    try {
+      const settings = await getAppSettingRows('refresh_intervals');
+      if (settings && settings.length > 0 && settings[0].setting_value) {
+        this._enabled = true; // always on — Smart Refresh toggle removed from admin settings
+      } else {
+        this._enabled = true;
+      }
+      this._initialized = true;
+      return this._enabled;
+    } catch (error) {
+      console.warn('⚠️ [LightweightRefresh] Error loading settings:', error);
+      this._enabled = true;
+      this._initialized = true;
+      return true;
+    }
+  }
+
+  /**
+   * Pause refresh during mutations
+   */
+  pause() {
+    console.log('⏸️ [LightweightRefresh] Paused for mutations');
+    this._paused = true;
+  }
+
+  /**
+   * Resume refresh after mutations
+   */
+  resume() {
+    console.log('▶️ [LightweightRefresh] Resumed after mutations');
+    this._paused = false;
+    this.isRefreshing = false;
+  }
+
+  /**
+   * Check if paused
+   */
+  isPaused() {
+    return this._paused;
+  }
+
+  /**
+   * Restart refresh timers
+   */
+  restart(specificEntityType = null) {
+    if (specificEntityType) {
+      console.log(`🔄 [LightweightRefresh] Restarting ${specificEntityType} refresh timer`);
+      this.lastRefreshTimes[specificEntityType] = 0;
+    } else {
+      console.log('🔄 [LightweightRefresh] Restarting all refresh timers');
+      this.lastRefreshTimes = {
+        cities: 0,
+        stores: 0,
+        appUsers: 0,
+        offlineSync: 0,
+        cacheRefresh: 0
+      };
+      this._paused = false;
+    }
+  }
+
+  /**
+   * Register pending local updates to protect from refresh overwrites
+   */
+  registerPendingUpdate(deliveryId, driverId = null, deliveryDate = null) {
+    const expiresAt = Date.now() + 30000;
+    this.pendingLocalUpdates.set(deliveryId, { expiresAt, driverId, deliveryDate });
+  }
+
+  /**
+   * Check if delivery has pending update
+   */
+  hasPendingUpdate(deliveryId) {
+    const entry = this.pendingLocalUpdates.get(deliveryId);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this.pendingLocalUpdates.delete(deliveryId);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Clear pending updates
+   */
+  clearPendingUpdates() {
+    this.pendingLocalUpdates.clear();
+  }
+
+  /**
+   * Register pending patient update
+   */
+  registerPendingPatientUpdate(patientId) {
+    const expiresAt = Date.now() + 60000;
+    this.pendingPatientUpdates.set(patientId, { expiresAt });
+  }
+
+  /**
+   * Check if patient has pending update
+   */
+  hasPendingPatientUpdate(patientId) {
+    const entry = this.pendingPatientUpdates.get(patientId);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this.pendingPatientUpdates.delete(patientId);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Register pending AppUser update
+   */
+  registerPendingAppUserUpdate(appUserId, field = 'driver_status') {
+    const expiresAt = Date.now() + 10000;
+    this.pendingAppUserUpdates.set(appUserId, { expiresAt, field });
+  }
+
+  /**
+   * Check if AppUser has pending update
+   */
+  hasPendingAppUserUpdate(appUserId) {
+    const entry = this.pendingAppUserUpdates.get(appUserId);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this.pendingAppUserUpdates.delete(appUserId);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Wait for rate limit
+   */
+  async waitForRateLimit() {
+    const now = Date.now();
+    if (now < this.errorCooldownUntil) {
+      const waitTime = this.errorCooldownUntil - now;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    const timeSinceLastCall = now - this.lastApiCallTime;
+    if (timeSinceLastCall < this.minTimeBetweenCalls) {
+      await new Promise(resolve => setTimeout(resolve, this.minTimeBetweenCalls - timeSinceLastCall));
+    }
+    this.lastApiCallTime = Date.now();
+  }
+
+  /**
+   * Record error for backoff
+   */
+  recordError() {
+    this.consecutiveErrors++;
+    if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+      this.errorCooldownUntil = Date.now() + 60000;
+      console.warn(`🛑 [LightweightRefresh] ${this.consecutiveErrors} errors - cooldown 60s`);
+      this.consecutiveErrors = 0;
+    }
+  }
+
+  /**
+   * Record successful call
+   */
+  recordSuccess() {
+    if (this.consecutiveErrors > 0) {
+      console.log(`✅ [LightweightRefresh] Success - resetting error counter`);
+      this.consecutiveErrors = 0;
+    }
+  }
+
+  /**
+   * Check if enough time has passed for refresh
+   */
+  shouldRefresh(type) {
+    const now = Date.now();
+    const lastRefresh = this.lastRefreshTimes[type] || 0;
+    const interval = this.intervals[type] || 300000;
+    return (now - lastRefresh) >= interval;
+  }
+
+  /**
+   * Mark refresh as completed
+   */
+  markRefreshed(type) {
+    this.lastRefreshTimes[type] = Date.now();
+  }
+
+  /**
+   * Subscribe to refresh events
+   */
+  subscribe(callback) {
+    this.refreshCallbacks.add(callback);
+    return () => this.refreshCallbacks.delete(callback);
+  }
+
+  /**
+   * Notify subscribers
+   */
+  notifySubscribers(updates) {
+    this.refreshCallbacks.forEach(callback => callback(updates));
+    if (typeof window !== 'undefined' && updates) {
+      window.dispatchEvent(new CustomEvent('lightweightRefreshComplete', {
+        detail: { updates }
+      }));
+    }
+  }
+
+  /**
+   * Set current user
+   */
+  setCurrentUser(user) {
+    this._currentUser = user;
+  }
+
+  /**
+   * Handle broadcast refresh - reset timer only, no polling
+   */
+  async handleBroadcastRefresh(entityName, operation, metadata = {}) {
+    console.log(`📡 [LightweightRefresh] Broadcast: ${entityName} ${operation}`);
+
+    // Track deletions
+    if (operation === 'delete' && metadata?.id) {
+      if (entityName === 'Delivery') {
+        this.deletedDeliveryIds.add(metadata.id);
+      } else if (entityName === 'Patient') {
+        this.deletedPatientIds.add(metadata.id);
+      }
+    }
+
+    // Reset timer for offline sync to reconcile quickly
+    this.lastRefreshTimes.offlineSync = 0;
+  }
+
+  /**
+   * Check if entity was deleted
+   */
+  isDeliveryDeleted(deliveryId) {
+    return this.deletedDeliveryIds.has(deliveryId);
+  }
+
+  /**
+   * Check if patient was deleted
+   */
+  isPatientDeleted(patientId) {
+    return this.deletedPatientIds.has(patientId);
+  }
+
+  /**
+   * LIGHTWEIGHT: Sync Cities + Stores every 5 minutes
+   * AppUser syncs every 15 seconds as backup for WebSocket
+   * These don't have real-time subscriptions, so periodic refresh is needed
+   */
+  async performLightweightRefresh(currentData) {
+    if (!this._enabled || this._paused || this.isRefreshing) {
+      return null;
+    }
+
+    try {
+      touchUserCache();
+    } catch (e) {
+      // Ignore
+    }
+
+    this.isRefreshing = true;
+    this._refreshStartedAt = Date.now();
+    const updates = {};
+
+    try {
+      // Refresh Cities every 5 minutes
+      if (this.shouldRefresh('cities') && currentData.cities) {
+        try {
+          console.log('🏙️ [LightweightRefresh] Syncing Cities (every 5min)');
+          await this.waitForRateLimit();
+          const allCities = await queueEntityRequest(
+            () => base44.entities.City.list(),
+            'City list'
+          );
+
+          this.recordSuccess();
+
+          if (allCities && allCities.length > 0) {
+            const diff = diffEntityArrays(currentData.cities, allCities);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              updates.cities = mergeEntityChanges(currentData.cities, diff);
+              console.log(`✅ [LightweightRefresh] Cities updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+            }
+          }
+          this.markRefreshed('cities');
+        } catch (e) {
+          this.recordError();
+          console.warn('⚠️ [LightweightRefresh] Cities refresh failed:', e.message);
+        }
+      }
+
+      // Refresh Stores every 5 minutes
+      if (this.shouldRefresh('stores') && currentData.stores) {
+        try {
+          console.log('🏪 [LightweightRefresh] Syncing Stores (every 5min)');
+          await this.waitForRateLimit();
+          const allStores = await queueEntityRequest(
+            () => base44.entities.Store.list(),
+            'Store list'
+          );
+
+          this.recordSuccess();
+
+          if (allStores && allStores.length > 0) {
+            const diff = diffEntityArrays(currentData.stores, allStores);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              updates.stores = mergeEntityChanges(currentData.stores, diff);
+              console.log(`✅ [LightweightRefresh] Stores updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+            }
+          }
+          this.markRefreshed('stores');
+        } catch (e) {
+          this.recordError();
+          console.warn('⚠️ [LightweightRefresh] Stores refresh failed:', e.message);
+        }
+      }
+
+      // CRITICAL: Refresh AppUsers every 60 seconds as backup for WebSocket
+      // This catches status changes that WebSocket might miss
+      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+        try {
+          console.log('👥 [LightweightRefresh] Syncing AppUsers (backup for WebSocket)');
+          await this.waitForRateLimit();
+          const allAppUsers = await queueEntityRequest(
+            () => base44.entities.AppUser.list(),
+            'AppUser list'
+          );
+
+          this.recordSuccess();
+
+          if (allAppUsers && allAppUsers.length > 0) {
+            // FRESHNESS GUARD: Before saving or dispatching, merge server records with what
+            // is already in the offline DB. The offline DB was written by the WebSocket path
+            // and may have a FRESHER location_updated_at than the server snapshot (which can
+            // lag by several seconds during high-frequency GPS writes). Never let a poll
+            // regress coords that were delivered more recently via WebSocket.
+            const { offlineDB } = await import('./offlineDatabase');
+            const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
+
+            const freshnessGuarded = allAppUsers.map(serverUser => {
+              const cached = cacheMap.get(serverUser.id);
+              if (!cached) return serverUser;
+              const serverLocTs = new Date(serverUser.location_updated_at || serverUser.updated_date || 0).getTime();
+              const cachedLocTs = new Date(cached.location_updated_at || cached.updated_date || 0).getTime();
+              // If cached location is newer than what the server returned, preserve
+              // the cached coords and timestamp to avoid position regression / bounce.
+              if (cachedLocTs > serverLocTs && cached.current_latitude && cached.current_longitude) {
+                return {
+                  ...serverUser,
+                  current_latitude: cached.current_latitude,
+                  current_longitude: cached.current_longitude,
+                  location_updated_at: cached.location_updated_at,
+                };
+              }
+              // Also preserve cached driver_status if the server snapshot is stale.
+              // The server may lag behind a recent status toggle (driver went on_duty
+              // but the list() snapshot was taken before the write propagated).
+              // If cached has an active status (on_duty/on_break) and server says off_duty,
+              // trust the cached value — it was set by a direct write from this or another device.
+              if (cached.driver_status &&
+                  serverUser.driver_status === 'off_duty' &&
+                  (cached.driver_status === 'on_duty' || cached.driver_status === 'on_break')) {
+                return {
+                  ...serverUser,
+                  driver_status: cached.driver_status,
+                };
+              }
+              return serverUser;
+            });
+
+            const diff = diffEntityArrays(currentData.appUsers, freshnessGuarded);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+              
+              if (this._paused) {
+                console.log('⏸️ [LightweightRefresh] Skipping AppUsers bulkSave — paused during action');
+                return;
+              }
+              // Save freshness-guarded records to offline DB
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
+              
+              // Broadcast the freshness-guarded updates
+              // UI GATE: deferred while backgrounded — markers re-render on resume.
+              emitGatedEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+              }), 'refreshDriverLocations');
+            } else {
+              if (this._paused) {
+                console.log('⏸️ [LightweightRefresh] Skipping AppUsers bulkSave (no-diff) — paused during action');
+                return;
+              }
+              // Even if no structural diff, ensure offline DB has latest server data
+              // (non-location fields like driver_status, preferred_travel_mode, etc.)
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
+            }
+          }
+          this.markRefreshed('appUsers');
+        } catch (e) {
+          this.recordError();
+          console.warn('⚠️ [LightweightRefresh] AppUsers refresh failed:', e.message);
+        }
+      }
+
+      // Offline sync reconciliation every 1 minute
+      if (this.shouldRefresh('offlineSync')) {
+        try {
+          console.log('💾 [LightweightRefresh] Offline sync reconciliation');
+          const { offlineDB } = await import('./offlineDatabase');
+          
+          // Verify offline DB consistency
+          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users`);
+          
+          this.markRefreshed('offlineSync');
+        } catch (e) {
+          console.warn('⚠️ [LightweightRefresh] Offline sync failed:', e.message);
+        }
+      }
+
+      return Object.keys(updates).length > 0 ? updates : null;
+
+    } catch (error) {
+      console.warn('⚠️ [LightweightRefresh] Error during refresh:', error.message);
+      return null;
+    } finally {
+      this.isRefreshing = false;
+      this._refreshStartedAt = null;
+    }
+  }
+
+  /**
+   * Clear pending updates for specific driver/date
+   */
+  clearPendingUpdatesForDriver(driverId, deliveryDate) {
+    const keysToDelete = [];
+    this.pendingLocalUpdates.forEach((value, key) => {
+      if (value.driverId === driverId && value.deliveryDate === deliveryDate) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach(key => this.pendingLocalUpdates.delete(key));
+    console.log(`🗑️ [SmartRefresh] Cleared ${keysToDelete.length} pending updates for driver ${driverId}`);
+  }
+
+  /**
+   * Reset timers (called after status updates to prevent duplicate location polls)
+   */
+  resetTimers() {
+    this.lastRefreshTimes.appUsers = Date.now();
+    console.log('⏱️ [SmartRefresh] Reset appUsers timer to prevent immediate duplicate poll');
+  }
+
+  /**
+   * Stamp AppUsers as refreshed — called after a full data load so the poll cooldown
+   * starts from now, preventing an immediate redundant poll right after a full sync.
+   */
+  stampAppUsersAsRefreshed(appUsers) {
+    this.lastRefreshTimes.appUsers = Date.now();
+  }
+
+  /**
+   * Refresh driver locations - simplified for Dashboard usage
+   */
+  async refreshDriverLocations(currentAppUsers, forceNotify = false, currentPageName = null, selectedDate = null, immediate = false) {
+    try {
+      // Skip if paused
+      if (this._paused && !immediate) {
+        console.log('⏸️ [SmartRefresh] Paused - skipping location refresh');
+        return { hasChanges: false, appUsers: currentAppUsers };
+      }
+
+      console.log('📍 [SmartRefresh] Refreshing driver locations...');
+      await this.waitForRateLimit();
+      
+      const freshAppUsers = await queueEntityRequest(() => base44.entities.AppUser.list(), 'SmartRefresh driver locations');
+      
+      this.recordSuccess();
+      
+      if (freshAppUsers && freshAppUsers.length > 0) {
+        // FRESHNESS GUARD: preserve cached coords if they are newer than the server snapshot
+        const { offlineDB } = await import('./offlineDatabase');
+        const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
+        const guardedUsers = freshAppUsers.map(serverUser => {
+          const cached = cacheMap.get(serverUser.id);
+          if (!cached) return serverUser;
+          const serverLocTs = new Date(serverUser.location_updated_at || serverUser.updated_date || 0).getTime();
+          const cachedLocTs = new Date(cached.location_updated_at || cached.updated_date || 0).getTime();
+          if (cachedLocTs > serverLocTs && cached.current_latitude && cached.current_longitude) {
+            return { ...serverUser, current_latitude: cached.current_latitude, current_longitude: cached.current_longitude, location_updated_at: cached.location_updated_at };
+          }
+          return serverUser;
+        });
+        if (this._paused) {
+          console.log('⏸️ [SmartRefresh] Skipping driver locations bulkSave — paused during action');
+          return { hasChanges: false, appUsers: currentAppUsers };
+        }
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, guardedUsers);
+        
+        console.log(`✅ [SmartRefresh] Refreshed ${guardedUsers.length} driver locations`);
+        
+        return { hasChanges: true, appUsers: guardedUsers };
+      }
+      
+      return { hasChanges: false, appUsers: currentAppUsers };
+    } catch (error) {
+      this.recordError();
+      console.warn('⚠️ [SmartRefresh] Location refresh failed:', error.message);
+      return { hasChanges: false, appUsers: currentAppUsers };
+    }
+  }
+
+  /**
+   * HEARTBEAT WATCHDOG — called every 60s by Dashboard's refresh interval.
+   *
+   * The interval at src/pages/Dashboard.jsx has guarded against this method with
+   * `smartRefreshManager?.checkHeartbeatAndSync` since it was written — but the
+   * method never existed, so the optional-chaining silently no-oped and a hung
+   * refresh cycle (black-holed fetch leaving `isRefreshing` true forever) froze
+   * the manager permanently: frozen green spinner, all lightweight cycles dead,
+   * until a manual page reload.
+   *
+   * Now: if a refresh cycle has been "in progress" for more than 2 minutes
+   * (normal cycles complete in a few seconds; the request queue times out
+   * individual requests at 30s), force-clear the flag and unstick the shared
+   * request queue so the next 60s tick starts fresh.
+   */
+  checkHeartbeatAndSync() {
+    if (!this.isRefreshing) return false;
+    const startedAt = this._refreshStartedAt;
+    if (!startedAt || Date.now() - startedAt < 120000) return false;
+
+    console.warn(`🧹 [SmartRefresh] Heartbeat watchdog: refresh stuck for ${Math.round((Date.now() - startedAt) / 1000)}s — force-clearing and unsticking request queue`);
+    this.isRefreshing = false;
+    this._refreshStartedAt = null;
+    this.recordError(); // counts toward the existing 60s error backoff
+    try {
+      requestQueue.forceUnstick();
+    } catch (e) {
+      console.warn('🧹 [SmartRefresh] forceUnstick failed:', e.message);
+    }
+    return true;
+  }
+
+  /**
+   * Perform smart refresh - main method called by Dashboard
+   */
+  async performSmartRefresh(currentData, filters, isEntityUpdating, showAllDrivers, currentPage, selectedDate) {
+    // CRITICAL: Guard against undefined parameters
+    if (!currentData || !filters || !currentPage) {
+      console.warn('⚠️ [SmartRefresh] Missing required parameters - skipping refresh');
+      return null;
+    }
+    
+    // CRITICAL: Skip if paused
+    if (this._paused) {
+      return null;
+    }
+    
+    // Delegate to performLightweightRefresh
+    return await this.performLightweightRefresh(currentData);
+  }
+
+  /**
+   * Get manager status
+   */
+  getStatus() {
+    return {
+      enabled: this._enabled,
+      isRefreshing: this.isRefreshing,
+      lastRefreshTimes: this.lastRefreshTimes,
+      pendingUpdatesCount: this.pendingLocalUpdates.size
+    };
+  }
+}
+
+export const smartRefreshManager = new LightweightRefreshManager();

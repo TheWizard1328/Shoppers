@@ -528,8 +528,13 @@ Deno.serve(async (req) => {
         const mode = legModeFor(eligibleStops[gi]);
         let gj = gi;
         while (gj < eligibleStops.length && legModeFor(eligibleStops[gj]) === mode) gj++;
+        // Anchor each mode run at the previous point in the chain (origin for
+        // the first run, the previous ELIGIBLE stop for later runs) so
+        // sections[k] is always the leg INTO eligibleStops[gi+k].
         const pts = [
-          ...(gi === 0 ? [{ lat: origin.lat, lon: origin.lng }] : []),
+          gi === 0
+            ? { lat: origin.lat, lon: origin.lng }
+            : { lat: eligibleStops[gi - 1].lat, lon: eligibleStops[gi - 1].lng },
           ...eligibleStops.slice(gi, gj).map((st) => ({ lat: st.lat, lon: st.lng })),
         ];
         if (pts.length >= 2) {

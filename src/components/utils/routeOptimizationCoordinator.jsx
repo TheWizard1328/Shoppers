@@ -341,7 +341,11 @@ async function _performRouteOptimizationInner({
         startingStopOrder,
         includePendingPolylines,
       }).catch((err) => {
-        console.error(`[RouteOptimization] ${source} — client engine error:`, err);
+        // Full message + stack head — remoteLogger JSON-stringifies Error
+        // objects to '{}' (message/stack are non-enumerable), hiding the real
+        // cause in RemoteLogEntry. Log the extracted text instead.
+        console.error(`[RouteOptimization] ${source} — client engine error:`, (err?.stack || `${err?.message || String(err)}@${(err?.stack || '').split('\n')[1] || ''}`));
+
         return null;
       });
       }
