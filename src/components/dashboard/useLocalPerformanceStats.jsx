@@ -1,7 +1,36 @@
 import { useEffect, useState } from "react";
 import { base44 } from '@/api/base44Client';
+import { decodeGooglePolyline } from '@/components/utils/routePolylineGenerator';
+import { haversineKm } from '@/components/utils/geoUtils';
+import { commitDeliveryUpdatesSilently } from '@/components/utils/routeCommitMarker';
 import { calculateDeliveryPay } from '@/components/utils/payCalculator';
 import { fetchDriverDailyActivityCached, invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
+
+// Polyline-derived leg km cache — key id:polylineSignature so a re-render
+// (or a value the server healed) never re-decodes the same leg twice.
+const _polylineKmCache = new Map();
+const _healedSig = new Set();
+
+// Road length of a stored leg polyline — the AUTHORITATIVE per-stop distance
+// under the v372 single-writer rule: travel_dist is supposed to be exactly
+// this value. Decoding + haversine per finished leg, memoized by signature.
+const _polylineLegKm = (delivery) => {
+  const poly = delivery?.encoded_polyline;
+  if (typeof poly !== "string" || poly.length <= 10) return 0;
+  const sig = `${delivery.id}:${poly.length}:${delivery.stop_order || 0}`;
+  if (_polylineKmCache.has(sig)) return _polylineKmCache.get(sig);
+  let km = 0;
+  try {
+    const pts = decodeGooglePolyline(poly);
+    for (let i = 1; i < pts.length; i++) {
+      km += haversineKm(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+    }
+  } catch (_) { km = 0; }
+  km = Number(km.toFixed(3));
+  if (_polylineKmCache.size > 500) _polylineKmCache.clear();
+  _polylineKmCache.set(sig, km);
+  return km;
+};
 
 // Last-seen driver_status per driver — duty toggles (on_duty/off_duty/on_break)
 // always accompany DriverDailyActivity segment changes, so a status flip is the
@@ -174,6 +203,7 @@ export function useLocalPerformanceStats({
           return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
         });
 
+        const _healQueue = [];
         const activeDelivery = driverDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status));
 
         finishedDeliveries.forEach((delivery) => {
@@ -184,15 +214,38 @@ export function useLocalPerformanceStats({
           // travel_dist=0 to the first finished stop) — fall through to the
           // leg estimate instead of counting the stop as 0 km.
           const _estKm = typeof delivery?.estimated_distance_km === "number" ? delivery.estimated_distance_km : 0;
+          // OWNER RULE (Oct 21 2026, retro correction): the stored leg
+          // polyline is the source of truth for a finished stop's km —
+          // today's route was completed under the old writers (stop one
+          // zeroed, others stamped with straight-line last-stop->this-stop
+          // haversines), so travel_dist UNDERCOUNTS (~61 vs ~100 km).
+          // Polyline km wins; stale/zero/absent travel_dist values are
+          // healed to it via one silent bulk commit (fire-and-forget).
+          const _plKm = _polylineLegKm(delivery);
           const distToUse =
-            (typeof delivery?.travel_dist === "number" && delivery.travel_dist > 0) ? delivery.travel_dist
+            (_plKm > 0) ? _plKm
+            : (typeof delivery?.travel_dist === "number" && delivery.travel_dist > 0) ? delivery.travel_dist
             : (_estKm > 0 ? _estKm
             : (() => {
                 const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
                 return typeof patient?.distance_from_store === "number" ? patient.distance_from_store : 0;
               })());
           totalKm += distToUse;
+          const _sig = `${delivery.id}:${(delivery.encoded_polyline || "").length}:${delivery.stop_order || 0}`;
+          if (_plKm > 0 && Math.abs(Number(delivery.travel_dist || 0) - _plKm) > 0.05 && !_healedSig.has(_sig)) {
+            _healedSig.add(_sig);
+            _healQueue.push({ id: delivery.id, data: { travel_dist: _plKm } });
+          }
         });
+
+        // RETRO CORRECTION (owner, Oct 21 2026): heal stale travel_dist stamps
+        // (old straight-line/zeroed writers) to the polyline-derived road km.
+        // One silent bulk commit — zero WS broadcasts, deduped by signature so
+        // a recompute never re-writes the same leg.
+        if (_healQueue.length > 0) {
+          const batch = _healQueue.splice(0, _healQueue.length);
+          commitDeliveryUpdatesSilently(batch).catch(() => {});
+        }
 
         if (activeDelivery) {
           const activeLegKm =
