@@ -143,6 +143,24 @@ export const unlockAll = () => {
  * Returns true if the given field for the given delivery is currently locked.
  * Expired locks are pruned automatically.
  */
+/**
+ * Returns the live lock entry { fields:Set, values:Object, expiresAt } for a
+ * delivery, or null. Used by commitDeliveryUpdatesSilently to drop stale
+ * batch entries that would overwrite the most recent action's optimistic
+ * values (e.g. a racing optimization committing pre-Start state over a
+ * just-started stop). Expired locks are pruned.
+ */
+export const getDeliveryFieldLock = (deliveryId) => {
+  if (!deliveryId) return null;
+  const entry = locks.get(deliveryId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    locks.delete(deliveryId);
+    return null;
+  }
+  return entry;
+};
+
 export const isFieldLocked = (deliveryId, field) => {
   if (!deliveryId || !field) return false;
   const entry = locks.get(deliveryId);

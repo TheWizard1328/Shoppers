@@ -178,6 +178,22 @@ async function _performRouteOptimizationInner({
     resolvedDeliveries = await base44.entities.Delivery.filter({
       driver_id: driverId, delivery_date: deliveryDate
     }).catch(() => []);
+    // FRESH-COMMIT GUARD (owner report Oct 21 2026: Start reverts seconds after
+    // it runs + wasted HERE/Google calls). A fetch-only run has no local
+    // snapshot; if another engine committed THIS route within the last 45s
+    // (route_commit_at marker), this run is redundant at best and a STALE-SNAPSHOT
+    // revert at worst (the fetch can predate the other device's commit). Skip:
+    // the route is already sequenced, ordered, and polyline-complete.
+    const _now = Date.now();
+    let _newestCommit = 0;
+    for (const d of (resolvedDeliveries || [])) {
+      const t = Date.parse(d?.route_commit_at || '');
+      if (Number.isFinite(t) && t > _newestCommit) _newestCommit = t;
+    }
+    if (_newestCommit > 0 && _now - _newestCommit < 45 * 1000) {
+      console.log(`[RouteOptimization] ${source} — route committed ${Math.round((_now - _newestCommit) / 1000)}s ago by another engine; skipping redundant (possibly stale) run`);
+      return { success: true, skipped: 'recent_route_commit', freshDeliveries: resolvedDeliveries };
+    }
   }
   if (!resolvedPatients) {
     const patientIds = [...new Set((resolvedDeliveries || []).filter(d => d.patient_id).map(d => d.patient_id))];
@@ -187,7 +203,11 @@ async function _performRouteOptimizationInner({
     const storeIds = [...new Set((resolvedDeliveries || []).map(d => d.store_id).filter(Boolean))];
     resolvedStores = storeIds.length ? await base44.entities.Store.filter({ id: { $in: storeIds } }).catch(() => []) : [];
   }
-  if (!resolvedAppUsers) {
+  // EMPTY-ARRAY GUARD (owner report Oct 21): a caller passing appUsers=[] is
+  // not "provided" — the driver's record is guaranteed missing and the engine
+  // falls into its capped 8s DB fallback (or, pool-hot, proceeds WITHOUT driver
+  // home/travel mode = wrong origin). [] must refetch like undefined.
+  if (!Array.isArray(resolvedAppUsers) || resolvedAppUsers.length === 0) {
     resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
   }
 

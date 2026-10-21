@@ -851,7 +851,7 @@ export function useStopCardStartActions({
           });
         } else {
           if (_isNaturalNextStart && !_fastPathLegsPresent) {
-            console.log(`[Start fast path] natural next stop, but ${_missingLegCount} active leg(s) missing polylines — running full optimization to regenerate them`);
+            console.log(`[Start fast path] natural next stop, ${_missingLegCount} active leg(s) missing polylines — order-preserving regen (Google only, no HERE sequencing)`);
           }
         // ── Background: optimization + polyline regen via unified coordinator ──
         // KITT bar activates IMMEDIATELY on Start button click
@@ -929,6 +929,13 @@ export function useStopCardStartActions({
               appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
+              // OWNER DIRECTIVE (Oct 21 2026 — API cost): a natural-next Start
+              // (the started stop is already first) cannot improve the order —
+              // the route was just sequenced by its accept optimization. Skip
+              // HERE findsequence2 entirely and only regenerate the legs
+              // (ONE Google Directions call) + ETA ladder. Out-of-order starts
+              // still get full HERE re-sequencing (the anchor moved).
+              preserveExistingOrder: _isNaturalNextStart,
               // Caller commits the writeBatch via ONE silent bulkUpdateDeliveries
               // (zero WS events) and fires ONE route_commit marker broadcast —
               // the Accept All pattern (owner rule, Oct 13 2026). The

@@ -15,6 +15,7 @@
  * re-create the per-stop WS broadcast storm this module exists to prevent.
  */
 import { base44 } from '@/api/base44Client';
+import { getDeliveryFieldLock } from './completionLockout';
 
 /**
  * Commit [{id, data}] delivery updates with ZERO WebSocket broadcasts.
@@ -50,10 +51,94 @@ const _dropTerminalStomps = async (updates) => {
   }
 };
 
+// ── START-STOMP GUARD (owner report Oct 21 2026: 'Start button — first press
+// does everything right then REVERTS it, second press works') ────────────────
+// A racing writer (accept/optimization triggered seconds after a Start) commits
+// a writeBatch computed from a PRE-Start snapshot: the started stop still shows
+// pending in that snapshot, so its entry writes status pending / isNextDelivery
+// false / nulls the leg polyline over the just-started IDB record — the visible
+// revert. This guard drops any entry that DOWNGRADES a recently-started record:
+// IDB en_route/in_transit + isNextDelivery true + updated within 120s. IDB is
+// local-first authority; a legit later action writes IDB BEFORE committing, so
+// its own entries never match this shape. Fails OPEN on IDB errors.
+const _STARTED_ACTIVE = ['en_route', 'in_transit'];
+const _START_PROTECT_MS = 120 * 1000;
+const _dropStartStomps = async (updates) => {
+  const suspects = updates.filter((u) => {
+    const d = u?.data || {};
+    const st = String(d.status || '');
+    // Terminal writes are NEVER stale stomps — a completion legitimately
+    // clears the next flag and overwrites the started state (its own flow
+    // already wrote the terminal status to IDB before committing anyway).
+    if (TERMINAL_STATUSES.includes(st)) return false;
+    return st === 'pending' || d.isNextDelivery === false
+      || (d.encoded_polyline === null && (d.status !== undefined || d.isNextDelivery !== undefined));
+  });
+  if (suspects.length === 0) return updates;
+  try {
+    const { offlineDB } = await import('./offlineDatabase');
+    const records = await offlineDB.getByIds(offlineDB.STORES.DELIVERIES, suspects.map((u) => u.id)).catch(() => null);
+    if (!Array.isArray(records)) return updates; // fail open
+    const byId = new Map(records.filter(Boolean).map((r) => [r.id, r]));
+    const now = Date.now();
+    const staleIds = new Set();
+    for (const u of suspects) {
+      const r = byId.get(u.id);
+      if (!r) continue;
+      const isStarted = _STARTED_ACTIVE.includes(String(r.status || ''))
+        && r.isNextDelivery === true;
+      const fresh = r.updated_date && (now - Date.parse(r.updated_date)) < _START_PROTECT_MS;
+      if (isStarted && fresh) staleIds.add(u.id);
+    }
+    if (staleIds.size === 0) return updates;
+    const kept = updates.filter((u) => !staleIds.has(u.id));
+    console.warn(`[RouteCommit] dropped ${staleIds.size} stale update(s) that would revert a just-started stop (pre-Start snapshot writer)`);
+    return kept;
+  } catch (_) {
+    return updates; // fail open
+  }
+};
+
+// ── LOCK-VALUE GUARD: the most recent action pins its optimistic values via
+// lockDeliveryFields (Start pins status/isNextDelivery/delivery_time_start on
+// the started stop for 60s). A racing batch entry writing a DIFFERENT value
+// for a pinned field is a stale writer — drop the whole entry (its stop_order/
+// ETA payload was computed from the same stale snapshot anyway). Terminal
+// status writes always pass (completions win over everything).
+const _dropLockedFieldStomps = (updates) => {
+  try {
+    const kept = [];
+    for (const u of updates) {
+      const lock = getDeliveryFieldLock(u?.id);
+      if (!lock || !lock.values) { kept.push(u); continue; }
+      // A TERMINAL status write is a completion — it legitimately clears the
+      // next flag and supersedes any Start-era pinned values. Always passes.
+      if (TERMINAL_STATUSES.includes(String(u.data?.status || ''))) { kept.push(u); continue; }
+      let conflict = null;
+      for (const [field, value] of Object.entries(u.data || {})) {
+        const pinned = lock.values[field];
+        if (pinned === undefined) continue;
+        if (field === 'status' && TERMINAL_STATUSES.includes(String(value))) continue;
+        if (value !== pinned) { conflict = field; break; }
+      }
+      if (conflict) {
+        console.warn(`[RouteCommit] dropped stale update for ${u.id} — locked field '${conflict}' would be overwritten (pinned=${JSON.stringify(lock.values[conflict])}, incoming=${JSON.stringify(u.data[conflict])})`);
+        continue;
+      }
+      kept.push(u);
+    }
+    return kept;
+  } catch (_) {
+    return updates; // fail open
+  }
+};
+
 export const commitDeliveryUpdatesSilently = async (updates = []) => {
   let valid = (updates || []).filter((u) => u?.id && u?.data && Object.keys(u.data).length > 0);
   if (valid.length === 0) return 0;
   valid = await _dropTerminalStomps(valid);
+  if (valid.length > 0) valid = await _dropStartStomps(valid);
+  if (valid.length > 0) valid = _dropLockedFieldStomps(valid);
   if (valid.length === 0) return 0;
   try {
     const r = await base44.functions.invoke('bulkUpdateDeliveries', { updates: valid, silent: true });
