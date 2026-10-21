@@ -1,5 +1,5 @@
 // Mock HERE/Google fetch, then call optimizeRouteClientSide with a 4-stop route.
-await import('./here-mock.mjs');
+await import('./here-mock2.mjs');
 const mod = await import('./engine.mjs');
 const stops = [];
 function mk(i, status, patientId, puid, stopId, win) {

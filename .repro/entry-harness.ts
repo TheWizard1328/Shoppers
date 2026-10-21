@@ -19,6 +19,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClientFromRequest } from './sdk-stub.js';
+import { resolveFeatureSecretName } from './apiKeyStub.js';
+import { encodeGooglePolyline as codecEncodeGooglePolyline, decodeGooglePolyline as codecDecodeGooglePolyline, calculateCrowFliesDistance as codecCrowFliesKm } from '../../base44/shared/polylineCodec.ts';
 
 // ─── Time helpers (ported from clientRouteEngine.js) ────────────────────────
 // SINGLE RULE BASE (owner directive Oct 21 2026: 'one set of rules, two
@@ -231,6 +233,111 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
   return route;
 }
 
+// ─── Google Directions multi-stop polyline (CLIENT PARITY, Oct 21 2026) ──────
+// The CLIENT's polyline generation (routePolylineGenerator.js → clientRouteGoogle.js
+// → backend getGoogleDirectionsPolyline) draws polylines from Google Directions.
+// The server previously called HERE Router v8 directly — a DIFFERENT provider
+// with a custom decoder, and in production every section fell back to straight
+// lines (owner report Oct 21: 'all I am getting are fallback straight lines').
+// PARITY RULE (owner directive: 'one set of rules, two engines'): the server now
+// uses the SAME Google Directions pipeline, section-for-section identical to
+// getGoogleDirectionsPolyline (25-point chunking, legs→steps decode→encode,
+// crow-flies fallback). HERE Router remains only as an emergency fallback when
+// no Google key resolves.
+async function getMultiStopRouteSectionsGoogle(points, transportMode, googleKey) {
+  const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
+  if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
+
+  const travelMode = transportMode === 'bicycle' || transportMode === 'cycling' ? 'bicycling'
+    : transportMode === 'pedestrian' ? 'walking' : 'driving';
+
+  const MAX_POINTS = 25;
+  const chunks = [];
+  if (validPoints.length <= MAX_POINTS) {
+    chunks.push(validPoints);
+  } else {
+    let idx = 0;
+    while (idx < validPoints.length - 1) {
+      const end = Math.min(idx + MAX_POINTS, validPoints.length);
+      chunks.push(validPoints.slice(idx, end));
+      if (end >= validPoints.length) break;
+      idx = end - 1; // overlap last point as next chunk origin
+    }
+  }
+
+  const allSections = [];
+  let anyFallback = false;
+  for (const chunk of chunks) {
+    if (chunk.length < 2) continue;
+    const params = new URLSearchParams();
+    params.set('origin', `${chunk[0].lat},${chunk[0].lon}`);
+    params.set('destination', `${chunk[chunk.length - 1].lat},${chunk[chunk.length - 1].lon}`);
+    params.set('key', googleKey);
+    params.set('mode', travelMode);
+    const wps = chunk.slice(1, -1).map((p) => `${p.lat},${p.lon}`);
+    if (wps.length) params.set('waypoints', wps.join('|'));
+
+    let routeData = null;
+    let httpOk = false;
+    try {
+      const resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`, {
+        signal: AbortSignal.timeout(20000),
+        headers: { accept: 'application/json' },
+      });
+      httpOk = resp.ok;
+      routeData = await resp.json().catch(() => null);
+    } catch (err) {
+      console.warn('[rxServerRouteOptimizer] Google Directions fetch threw', err?.message || err);
+    }
+
+    const legs = Array.isArray(routeData?.routes?.[0]?.legs) ? routeData.routes[0].legs : [];
+    if (!httpOk || legs.length === 0) {
+      for (let i = 0; i < chunk.length - 1; i++) {
+        const from = chunk[i], to = chunk[i + 1];
+        const d = codecCrowFliesKm(from.lat, from.lon, to.lat, to.lon);
+        allSections.push({
+          encoded_polyline: codecEncodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
+          estimated_distance_km: Number(d.toFixed(3)),
+          estimated_duration_minutes: Math.ceil((d / 40) * 60),
+          transport_mode: transportMode || 'car',
+        });
+        anyFallback = true;
+      }
+      continue;
+    }
+
+    for (const leg of legs) {
+      const coords = [];
+      for (const step of (leg.steps || [])) {
+        const st = codecDecodeGooglePolyline(step?.polyline?.points);
+        if (!st.length) continue;
+        if (coords.length && coords[coords.length - 1][0] === st[0][0] && coords[coords.length - 1][1] === st[0][1]) {
+          coords.push(...st.slice(1));
+        } else {
+          coords.push(...st);
+        }
+      }
+      allSections.push({
+        encoded_polyline: coords.length > 1 ? codecEncodeGooglePolyline(coords) : null,
+        estimated_distance_km: Number(leg?.distance?.value) ? Number((Number(leg.distance.value) / 1000).toFixed(3)) : null,
+        estimated_duration_minutes: Number(leg?.duration?.value) ? Math.ceil(Number(leg.duration.value) / 60) : null,
+        transport_mode: transportMode || 'car',
+      });
+    }
+  }
+  return { sections: allSections, usedFallbackPolyline: anyFallback };
+}
+
+// Google key resolution (mirrors getGoogleDirectionsPolyline): the
+// 'polylines' feature slot resolver first, direct env fallback second.
+async function resolveGoogleKey(base44) {
+  try {
+    const secretName = await resolveFeatureSecretName(base44, 'polylines');
+    if (secretName === 'GOOGLE_MAPS_API_KEY') return Deno.env.get('GOOGLE_MAPS_API_KEY') || null;
+  } catch (_) { /* config resolve failed — fall back below */ }
+  return Deno.env.get('GOOGLE_MAPS_API_KEY') || null;
+}
+
 // ─── HERE Router v8 multi-stop polyline (ported from getMultiStopRouteHere) ──
 async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
@@ -387,6 +494,9 @@ Deno.serve(async (req) => {
     const includeTimeWindows = routeStops.some((s) => s.windowStart && parseTimeToMinutes(s.windowStart) > 0);
     let orderedStops = routeStops;
     let usedFallbackOrdering = false;
+    let googleCalls = 0;
+    let googleKey = null;
+    try { googleKey = await resolveGoogleKey(base44); } catch (_) { googleKey = null; }
     let hereCalls = 0;
 
     // Resolve findsequence2 waypoints back to request stops (shared by the
@@ -555,10 +665,24 @@ Deno.serve(async (req) => {
           ...eligibleStops.slice(gi, gj).map((st) => ({ lat: st.lat, lon: st.lng })),
         ];
         if (pts.length >= 2) {
-          const r = await getMultiStopRouteSections(pts, apiKey, mode);
+          // CLIENT PARITY: Google Directions first (same source the client
+          // generator uses); HERE Router only when no Google key resolves.
+          let r = null;
+          if (googleKey) {
+            try {
+              r = await getMultiStopRouteSectionsGoogle(pts, mode, googleKey);
+              googleCalls++;
+            } catch (gErr) {
+              console.warn('[rxServerRouteOptimizer] Google polyline path failed, trying HERE Router fallback:', gErr?.message || gErr);
+              r = null;
+            }
+          }
+          if (!r) {
+            r = await getMultiStopRouteSections(pts, apiKey, mode);
+            hereCalls++;
+          }
           usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
           (r.sections || []).forEach((sec, k) => { sectionByStopId.set(eligibleStops[gi + k].id, sec); });
-          hereCalls++;
         }
         gi = gj;
       }
@@ -658,6 +782,7 @@ Deno.serve(async (req) => {
       usedFallbackPolyline,
       writeBatch,
       here_calls: hereCalls,
+      google_calls: googleCalls,
       mixed_mode: mixedMode,
       elapsed_ms: Date.now() - startedAt,
     });

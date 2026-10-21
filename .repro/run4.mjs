@@ -5,22 +5,8 @@ const route = JSON.parse(fs.readFileSync('/tmp/route.json','utf8'));
 const patsRaw = JSON.parse(fs.readFileSync('/tmp/patients.json','utf8'));
 const patMap = new Map(patsRaw.map(p=>[p.id,p]));
 // SAME NN mock as run3 — identical geography emulation
-globalThis.fetch = async (url) => {
-  if (String(url).includes('findsequence2')) {
-    const u = new URL(String(url));
-    const parse = (s) => { const [id, c] = s.split(';'); const [lat, lng] = c.split(',').map(Number); return { id, lat, lng }; };
-    const start = parse(u.searchParams.get('start'));
-    const dests = []; for (const [k, v] of u.searchParams) if (k.startsWith('destination')) dests.push(parse(v));
-    const out = []; let cur = start; const rem = [...dests];
-    while (rem.length) { let bi=0, bd=Infinity; rem.forEach((d,i)=>{const dd=(d.lat-cur.lat)**2+(d.lng-cur.lng)**2; if(dd<bd){bd=dd;bi=i;}}); const [n]=rem.splice(bi,1); out.push(n); cur=n; }
-    return { ok: true, json: async () => ({ results: [{ waypoints: [start, ...out] }] }) };
-  }
-  if (String(url).includes('router.hereapi.com')) {
-    return { ok: true, json: async () => ({ routes: [{ sections: [{ polyline: 'CgoCAOIDvwIA', summary: { duration: 240, length: 3000 } }] }] }) };
-  }
-  return { ok: true, json: async () => ({}) };
-};
-globalThis.Deno = { env: { get: () => null }, serve: (h) => { globalThis.__handler = h; } };
+await import('./here-mock2.mjs');
+globalThis.Deno = { env: { get: (k) => k === "GOOGLE_MAPS_API_KEY" ? "GTEST-KEY-1" : null }, serve: (h) => { globalThis.__handler = h; } };
 await import('./server.mjs');
 const handler = globalThis.__handler;
 // Build payload ~ buildServerWaypoints
