@@ -936,6 +936,10 @@ let _inheritedWindowCount = 0;
         const bandOf = (stop) => sharedWindowBandOfStop(stop, _sharedBandOpts);
         finalStops = sharedWindowBandSort(orderedStops, _sharedBandOpts);
 
+        // HERE's own sequence order — the leg rebuild below maps each stop back
+        // to its HERE position to decide which transitions keep their real legs.
+        const hereOrder = new Map(orderedStops.map((stop, i) => [stop, i]));
+
         const reordered = finalStops.some((stop, i) => finalStops[i] !== orderedStops[i]);
         console.log(`[clientRouteEngine] ${source} — window-band enforcement: ${reordered ? 'reordered HERE sequence' : 'HERE order already window-compliant'} (${finalStops.length} stops, ${new Set(finalStops.map(bandOf)).size} band(s))`);
 
