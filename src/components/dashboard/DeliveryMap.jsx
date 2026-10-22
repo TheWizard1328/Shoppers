@@ -239,6 +239,20 @@ function DeliveryMap({
   const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
   const safePatients = Array.isArray(patients) ? patients : [];
   const safeStores = Array.isArray(stores) ? stores : [];
+  // BOOT PERF (Oct 22 2026): the marker memo below resolved patient/store with
+  // Array.find per delivery (O(deliveries x patients)). Boot rebuilds markers
+  // several times while thousands of patients stream in, so those linear scans
+  // were a big slice of the ~10s map-fill lag. Index once per list change.
+  const patientById = useMemo(() => {
+    const m = new Map();
+    for (const p of safePatients) if (p?.id) m.set(p.id, p);
+    return m;
+  }, [safePatients]);
+  const storeById = useMemo(() => {
+    const m = new Map();
+    for (const st of safeStores) if (st?.id) m.set(st.id, st);
+    return m;
+  }, [safeStores]);
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [map, setMap] = useState(null);
   const [mapReady, setMapReady] = useState(false);
@@ -583,7 +597,7 @@ function DeliveryMap({
         return;
       }
 
-      const store = safeStores.find((item) => item?.id === delivery.store_id) || null;
+      const store = storeById.get(delivery.store_id) || null;
       const driver = driverLookupMap.get(delivery.driver_id) || (delivery.driver_name ? { id: delivery.driver_id, user_name: delivery.driver_name, full_name: delivery.driver_name } : null);
       const isOtherDriver = !!(selectedDriverId && selectedDriverId !== "all" && delivery.driver_id !== selectedDriverId);
       const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, "dispatcher");
@@ -591,7 +605,7 @@ function DeliveryMap({
       const useDispatcherPlaceholder = isCurrentUserDispatcher && !isStopInDispatcherStore;
 
       if (delivery.patient_id) {
-        const patient = safePatients.find((item) => item?.id === delivery.patient_id) || null;
+        const patient = patientById.get(delivery.patient_id) || null;
         if (!patient?.latitude || !patient?.longitude) return;
         deliveriesOut.push({
           ...delivery,
@@ -660,7 +674,7 @@ function DeliveryMap({
     });
 
     return { rawPickupMarkers: pickups, rawDeliveryMarkers: deliveriesOut, hasIncompleteStops: hasIncomplete };
-  }, [deliveriesToShow, safeStores, safePatients, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode]);
+  }, [deliveriesToShow, safeStores, safePatients, patientById, storeById, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode]);
 
   // Step 2: Apply zoom-dependent duplicate counts and grouping maps separately.
   // Zoom changes only recompute counts/groups — the stable marker objects from Step 1 are reused.

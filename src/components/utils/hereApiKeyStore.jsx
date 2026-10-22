@@ -84,7 +84,27 @@ export const initHereApiKey = async () => {
  * Get the cached HERE API key synchronously.
  * Returns null if not yet loaded.
  */
-export const getHereApiKey = () => _cachedApiKey;
+export const getHereApiKey = () => {
+  if (_cachedApiKey) return _cachedApiKey;
+  // BOOT PERF (Oct 22 2026, owner report: map tiles/markers/polylines render
+  // ~10s AFTER the rest of the dashboard): the key was only seeded once the
+  // bootstrap manifest returned, so the map's FIRST render (useState init
+  // reads this getter synchronously) saw null -> no tile layer, no HERE-gated
+  // children until an async dynamic import + manifest round trip finished.
+  // The last known key is persisted in localStorage by every successful
+  // seed/fetch; restore it synchronously so tiles start on the very first
+  // render. Server value still wins later (seed/fetch/appSettingsUpdated
+  // overwrite the cache + trigger a re-render only if the key changed).
+  try {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('rx_here_key_v1') : null;
+    if (saved) {
+      _cachedApiKey = saved;
+      if (typeof window !== 'undefined' && !window.__hereApiKey) window.__hereApiKey = saved;
+      return saved;
+    }
+  } catch (_) {}
+  return null;
+};
 
 /**
  * Get the HERE API key, fetching it if not already cached.
