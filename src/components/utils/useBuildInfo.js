@@ -200,12 +200,18 @@ export function useLatestApkBuildInfo() {
   // APK's WebView loads the live site, so it always runs the current web
   // bundle; the baked installed label is fallback-only.)
   const displayVersion = (() => {
-    let apkDigit = apkUpdatesFromSuccessCount(buildInfo?.successCount);
-    if (apkDigit === 0 && buildInfo?.releaseVersion) {
+    // APK digit (owner report Oct 22: sidebar jumped to v1.10.x though the
+    // latest real APK was v1.9.0): take it from the RELEASE ASSET NAME,
+    // the same Oct 19 rule versionLabel uses — the downloadable APK is the
+    // truth. The live success count is ALWAYS one ahead of the last baked
+    // asset, because a run only appears in the count AFTER it succeeds,
+    // while the APK it baked excluded itself. releaseVersion is the primary
+    // source; the live count is only the fetch-failure fallback.
+    if (buildInfo?.releaseVersion) {
       const mid = Number((buildInfo.releaseVersion.split('.') || [])[1]);
-      if (Number.isFinite(mid) && mid > 0) apkDigit = mid;
+      if (Number.isFinite(mid) && mid > 0) return formatAppVersion(mid);
     }
-    return formatAppVersion(apkDigit);
+    return formatAppVersion(apkUpdatesFromSuccessCount(buildInfo?.successCount));
   })();
 
   return { ...buildInfo, buildText, versionLabel, displayVersion, loaded: !!buildInfo };

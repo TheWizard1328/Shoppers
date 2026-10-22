@@ -1,4 +1,5 @@
 // Redeployed on 2026-05-21 - Via Superagent The Boss
+import { getEnvironmentLabel } from '@/components/utils/envUtils';
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 // import "./components/utils/globalErrorHandler";
@@ -267,7 +268,16 @@ export default function Layout({ children, currentPageName }) {
   // remains only as a network-failure fallback.
   const installedVersion = useInstalledAppVersion();
   const latestBuild = useLatestApkBuildInfo();
-  const sidebarVersion = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
+  // PREVIEW vs LIVE at a glance (owner Oct 22): preview and live can run the
+  // same buildId and therefore the same v-number — the only honest difference
+  // is WHERE it is served from. Preview deployments get a (Prev) suffix on the
+  // sidebar badge so he can instantly tell he is looking at the preview path,
+  // not the published live site.
+  const isPreviewEnv = getEnvironmentLabel() === '(Prev)';
+  const sidebarVersion = (() => {
+    const base = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
+    return isPreviewEnv ? `${base} (Prev)` : base;
+  })();
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
