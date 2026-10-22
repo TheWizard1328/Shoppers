@@ -48,6 +48,8 @@ const TURN_LEAD_LIMIT_DEG = 135;    // only near-hairpin corners cap the lead; n
 const RE_ANCHOR_MAX_M = 30;         // dot farther than this from a new fix → snap, don't arc
 const TRAIL_MIN_INTERVAL_MS = 2000; // trail mode: clamp heartbeat interval lower bound
 const TRAIL_MAX_INTERVAL_MS = 30000;// trail mode: clamp heartbeat interval upper bound
+const RAW_EASE_MS = 800;              // raw mode: quick glide to each fresh fix (owner Oct 22 —
+                                     // an ease spanning the whole fix interval trailed 5s behind)
 const TRAIL_JUMP_THRESHOLD_M = 1000;  // owner request Oct 13 2026: peer marker fix
                                       // farther than this from the dot's current
                                       // display position JUMPS instantly instead of
@@ -224,10 +226,14 @@ export function createLiveMarkerInterpolator(options = {}) {
 
       // ── RAW MODE ──────────────────────────────────────────────────────────
       // Own-dot truth mode (owner Oct 22): ease from the CURRENT displayed
-      // position straight to the real fix over the measured fix interval
-      // (clamped), then hold. No path projection, no lead math, no settle.
+      // position straight to the real fix over a SHORT fixed window, then
+      // hold. No path projection, no lead math, no settle. Owner follow-up
+      // same day: easing over the measured FIX INTERVAL left the dot trailing
+      // a full 5s behind the driver (it only ARRIVED at a fix when the next
+      // one landed, reading like a stale source). The ease is now a quick
+      // RAW_EASE_MS glide so the dot lands on the fresh fix almost
+      // immediately and parks there — truthful first, smoothness second.
       if (rawMode) {
-        const intervalMs = clamp(ts - prev[2], 600, MAX_INTERVAL_MS);
         const cur = this.getDisplayPosition(now);
         const curPt = cur ? [cur.latitude, cur.longitude] : fix;
         if (haversineM(curPt, fix) > TRAIL_JUMP_THRESHOLD_M) {
@@ -241,7 +247,7 @@ export function createLiveMarkerInterpolator(options = {}) {
             fixPos: fix,
             endPos: fix,
             start: now,
-            end: now + intervalMs,
+            end: now + RAW_EASE_MS,
           };
         }
         return;

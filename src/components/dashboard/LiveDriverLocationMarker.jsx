@@ -11,7 +11,9 @@
  * own-dot. It overshot when the driver suddenly slowed and lagged when they
  * suddenly sped up. The dot now shows the driver's ACTUAL GPS position only:
  * each real fix eases the dot from its current displayed position to the
- * fresh fix over the fix interval (a smooth slide), then it parks exactly
+ * fresh fix over a short ~0.8s glide (owner follow-up Oct 22: a glide spanning
+ * the full fix interval trailed 5s behind the driver; the quick glide lands
+ * on the fresh fix almost immediately), then it parks exactly
  * on the fix until the next one lands (see liveMarkerInterpolator.js RAW
  * mode). It can never run ahead of the driver and never disagrees by more
  * than one fix interval.
