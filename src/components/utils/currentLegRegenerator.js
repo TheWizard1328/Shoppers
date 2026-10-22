@@ -129,6 +129,10 @@ export async function regenerateCurrentLegPolyline({
   // ── Polyline origin: last finished stop → driver home (mirrors the engine) ──
   const latestFinished = getLatestFinishedDelivery(deliveries);
   const latestFinishedCoords = latestFinished ? getDeliveryCoords(latestFinished, patientMap, storeMap) : null;
+  // Oct 22 2026 fix: leg vias are only valid midway points when recorded AFTER
+  // this origin completed — older points from previous legs made the regenerated
+  // leg route backward through the driver's earlier path.
+  const originCompletedAt = latestFinished?.actual_delivery_time || null;
   let origin = null;
   let originSource = null;
   if (latestFinishedCoords) {
@@ -177,6 +181,7 @@ export async function regenerateCurrentLegPolyline({
     source: 'route_deviation_current_leg',
     fallbackTravelMode: 'driving',
     viaPointAfterOrigin: via,
+    originCompletedAt,
     logPurpose: DEVIATION_REGEN_LOG_PURPOSE,
   });
 

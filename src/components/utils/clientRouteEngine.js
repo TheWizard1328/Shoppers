@@ -1175,6 +1175,36 @@ let _inheritedWindowCount = 0;
           }
           console.log(`[clientRouteEngine] ${source} — deviation waypoints transferred: ${movers.length} stop(s) emptied, ${keptPts.length}/${movedPts.length} point(s) moved onto new next stop (merged w/ ${existingNextPts.length} existing)`);
         }
+
+        // ── STALE-POINT RE-GUARD (Oct 22 2026 fix) ──────────────────────────
+        // The transfer above only re-guards MOVED points. The new-next stop's
+        // OWN points are never re-checked when the ORIGIN advances — a point
+        // recorded on an older leg (when a previous stop was 'next', origin
+        // several stops back) keeps riding the record, and the next polyline
+        // regeneration routes the current leg BACKWARD through it (owner
+        // report: leg anchored at stop 21 still included coordinates near
+        // stop 20 from a 14:13 deviation, drawn as a 28km zigzag).
+        // A deviation point is only a valid midway point of the CURRENT leg
+        // (origin = most recent finished stop) when it was recorded AFTER the
+        // origin was completed. Applies with or without movers; cleans the
+        // record atomically with the commit via deviationTransferChanges.
+        if (newNextId) {
+          const originCompletedMs = latestFinishedDelivery?.actual_delivery_time
+            ? new Date(latestFinishedDelivery.actual_delivery_time).getTime() : null;
+          if (Number.isFinite(originCompletedMs)) {
+            const holder = holderStops.find((h) => h.rs.delivery.id === newNextId);
+            const cur = holder ? (Array.isArray(holder.rs.delivery.deviation_waypoints) ? holder.rs.delivery.deviation_waypoints : []) : [];
+            const keptOwn = cur.filter((pt) => {
+              const vt = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
+              return !Number.isFinite(vt) || vt >= originCompletedMs;
+            });
+            if (keptOwn.length !== cur.length && holder) {
+              holder.rs.delivery.deviation_waypoints = keptOwn;
+              deviationTransferChanges.set(newNextId, keptOwn);
+              console.log(`[clientRouteEngine] ${source} — stale deviation re-guard: dropped ${cur.length - keptOwn.length} pre-origin point(s) from next stop ${newNextId}`);
+            }
+          }
+        }
       }
     }
     } catch (_devTransferErr) {
@@ -1227,6 +1257,7 @@ let _inheritedWindowCount = 0;
       directionsLegs,
       routeStops,
       viaPointAfterOrigin,
+      originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
     });
   }
 

@@ -305,6 +305,16 @@ export async function generateRoutePolylines({
                               // right after the origin (first mode group only). Current-leg
                               // polyline bends through the driver's position; the first
                               // stop's ETA/distance metrics use the GPS→stop leg only.
+  originCompletedAt = null,   // OWNER BUG REPORT Oct 22 2026: the current leg's chain
+                              // includes the stop's deviation_waypoints — but that list
+                              // can carry points recorded on OLDER legs (transferred when
+                              // a previous stop was 'next'), so the regenerated leg routed
+                              // BACKWARD through the driver's earlier path (a 28km zigzag
+                              // origin -> stale 14:13 via -> fresh via -> stop). A deviation
+                              // via is only a valid midway point of the CURRENT leg when it
+                              // was recorded AFTER the origin stop was completed — pass the
+                              // origin stop's actual_delivery_time here; earlier points are
+                              // dropped from the chain.
   forceRegenerate = false,   // OWNER REQUEST (Oct 15 2026): the Quick Route Adjustments
                               // Regenerate button demands ALL remaining stops get fresh
                               // polylines even when no stop changed order. When true, the
@@ -487,8 +497,22 @@ export async function generateRoutePolylines({
     return raw
       .filter((p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
       .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
-      .map((p) => ({ lat: Number(p.lat), lon: Number(p.lng) }))
+      .map((p) => ({ lat: Number(p.lat), lon: Number(p.lng), timestamp: p.timestamp || null }))
       .slice(-DEVIATION_WAYPOINT_CAP);
+  };
+  // Oct 22 2026 fix: drop deviation points recorded BEFORE the current leg's
+  // origin was completed — they belong to older legs and route the leg backward.
+  const originCompletedMs = originCompletedAt ? new Date(originCompletedAt).getTime() : null;
+  const dropStaleVias = (vias) => {
+    if (!Number.isFinite(originCompletedMs)) return vias;
+    const kept = vias.filter((v) => {
+      const vt = v.timestamp ? new Date(v.timestamp).getTime() : NaN;
+      return !Number.isFinite(vt) || vt >= originCompletedMs;
+    });
+    if (kept.length !== vias.length) {
+      console.warn(`[routePolylineGenerator] ${source} — dropped ${vias.length - kept.length} stale deviation via(s) recorded before the leg origin completed (${originCompletedAt})`);
+    }
+    return kept;
   };
 
   const groupResults = await Promise.all(modeGroups.map(async (group, groupIdx) => {
@@ -504,8 +528,13 @@ export async function generateRoutePolylines({
     let liveViaIdx = -1;
     const stopIdxs = [];       // index of each stop's own coordinate in `points`
     const stopViaCounts = [];  // deviation via count on each stop's inbound chain
-    group.stops.forEach((stop) => {
-      const vias = getDeviationWaypoints(stop.delivery);
+    group.stops.forEach((stop, stopLocalIdx) => {
+      // Stale-via guard applies to the CURRENT leg only (group 0, first stop) —
+      // its origin is the last finished stop, whose completion time bounds the
+      // valid via window. Later legs' origins are previous stops; their vias
+      // were re-guarded by the engine's transfer cleanup before writeBatch.
+      let vias = getDeviationWaypoints(stop.delivery);
+      if (groupIdx === 0 && stopLocalIdx === 0) vias = dropStaleVias(vias);
       vias.forEach((v) => points.push(v));
       stopViaCounts.push(vias.length);
       if (useVia && liveViaIdx === -1) {
