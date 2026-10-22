@@ -4,19 +4,18 @@
  * The driver's OWN blue-dot marker on the PRIMARY device.
  *
  * With the Sep 18 2026 battery work, native GPS fixes arrive every ~5s
- * (minIntervalMs 5000 + 10m distance filter) instead of every 1s. A raw 5s
- * cadence would make the dot step, and interpolating BETWEEN fixes trails
- * the car by a full interval (Sep 21 2026 driver report). So the marker
- * renders PREDICTIVELY (see liveMarkerInterpolator.js):
+ * (minIntervalMs 5000 + 10m distance filter).
  *
- *   - LEAD: the dot starts at the latest fix and glides FORWARD along the
- *     current-leg road geometry (or the fix-pair bearing off-route) at the
- *     measured speed — it rides at the driver's TRUE current position with
- *     zero lag, rounding upcoming turns with the route. Each new fix
- *     re-anchors the glide smoothly; corrections ease in, never snap.
- *   - SETTLE: if the expected next fix never arrives (slowing / stopped at a
- *     light, where the 10m filter suppresses fixes), the dot eases back to
- *     the last real fix and parks on the driver.
+ * OWNER DIRECTIVE Oct 22 2026 — RAW GPS MODE: the predictive glide (LEAD
+ * along the road geometry / SETTLE back on missed fixes) is RETIRED for the
+ * own-dot. It overshot when the driver suddenly slowed and lagged when they
+ * suddenly sped up. The dot now shows the driver's ACTUAL GPS position only:
+ * each real fix eases the dot from its current displayed position to the
+ * fresh fix over the fix interval (a smooth slide), then it parks exactly
+ * on the fix until the next one lands (see liveMarkerInterpolator.js RAW
+ * mode). It can never run ahead of the driver and never disagrees by more
+ * than one fix interval.
+ *
  *   - FALLBACK: if live fixes stop for STALE_FIX_MS (tracker off), the marker
  *     reverts to declarative prop positions (server-synced coords) — exactly
  *     the pre-interpolation behavior for secondary devices / tracker-off.
@@ -24,8 +23,10 @@
  * While live fixes flow, React NEVER re-renders the marker position: the
  * position prop is frozen at the first live fix and a rAF loop drives
  * marker.setLatLng() directly, so 20fps animation costs zero Dashboard
- * re-renders. The driverPositionUpdated events only fire on the primary
- * device (locationTracker), so this never affects peer-driver markers.
+ * re-renders. GPS cadence and server uploads are untouched (5s fixes / 15s
+ * AppUser writes — no battery change). The driverPositionUpdated events only
+ * fire on the primary device (locationTracker); peer/shared markers keep
+ * their own trail-mode interpolation in DriverLocationMarkers.jsx.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -50,9 +51,11 @@ const LiveDriverLocationMarker = React.memo(function LiveDriverLocationMarker({
   const liveRef = useRef(false);
   const [isLive, setIsLive] = useState(false);
 
-  if (!interpRef.current) interpRef.current = createLiveMarkerInterpolator();
+  // RAW mode (owner Oct 22): no road-geometry following — the path feed is
+  // kept wired for a quick revert but raw mode ignores it.
+  if (!interpRef.current) interpRef.current = createLiveMarkerInterpolator({ mode: "raw" });
 
-  // Feed road geometry for polyline-follow interpolation.
+  // Feed road geometry for polyline-follow interpolation (raw mode ignores).
   useEffect(() => {
     interpRef.current.setPath(pathCoords || null);
   }, [pathCoords]);

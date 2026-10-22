@@ -124,6 +124,15 @@ function projectOnPath(path, point) {
 
 export function createLiveMarkerInterpolator(options = {}) {
   const trailMode = options.mode === "trail"; // peer/shared markers: glide fix→fix over the update interval
+  // RAW mode (owner directive Oct 22 2026): the driver's OWN primary-device
+  // blue dot shows the ACTUAL GPS position only — no lead prediction, no
+  // settle, no road-geometry following. Each new fix eases the dot from its
+  // current displayed position straight to the real fix over the measured
+  // fix interval, then it parks exactly on the fix until the next one lands.
+  // The prediction system (LEAD/SETTLE) overshot when the driver suddenly
+  // slowed and lagged when they sped up; raw mode can never disagree with
+  // the driver by more than one fix interval and never runs ahead of them.
+  const rawMode = options.mode === "raw";
   let path = null;          // current road geometry (or null)
   let fixes = [];           // [[lat, lng, tsMs], ...] capped at 3, newest last
   let prevProj = null;      // projection of the previous fix (off-route guard)
@@ -210,6 +219,31 @@ export function createLiveMarkerInterpolator(options = {}) {
       if (!prev) {
         anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now };
         prevProj = null;
+        return;
+      }
+
+      // ── RAW MODE ──────────────────────────────────────────────────────────
+      // Own-dot truth mode (owner Oct 22): ease from the CURRENT displayed
+      // position straight to the real fix over the measured fix interval
+      // (clamped), then hold. No path projection, no lead math, no settle.
+      if (rawMode) {
+        const intervalMs = clamp(ts - prev[2], 600, MAX_INTERVAL_MS);
+        const cur = this.getDisplayPosition(now);
+        const curPt = cur ? [cur.latitude, cur.longitude] : fix;
+        if (haversineM(curPt, fix) > TRAIL_JUMP_THRESHOLD_M) {
+          // GPS batch/resume teleport: snap instead of sliding across the city.
+          anim = { mode: "hold", endPos: fix, fixPos: fix, start: now, end: now };
+        } else {
+          anim = {
+            mode: "line",
+            from: curPt,
+            to: fix,
+            fixPos: fix,
+            endPos: fix,
+            start: now,
+            end: now + intervalMs,
+          };
+        }
         return;
       }
 
