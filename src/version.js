@@ -23,7 +23,7 @@
 //   up from there.
 export const APP_VERSION_MAJOR = 1;
 export const APK_SUCCESS_BASELINE = 316;
-export const WEB_VERSION = 11;
+export const WEB_VERSION = 1;
 
 /** Successful build-apk.yml run count → APK release count under this scheme. */
 export const apkUpdatesFromSuccessCount = (successCount) => {
