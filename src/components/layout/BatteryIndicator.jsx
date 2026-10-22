@@ -60,9 +60,22 @@ export default function BatteryIndicator({ vertical = false }) {
   // Don't render if battery level is not available
   if (batteryLevel === null) return null;
 
-  // Theme detection — light mode always uses black text; dark mode uses white text.
-  const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches ||
-                     document.documentElement.classList.contains('dark');
+  // Theme detection — follows the APP theme only (html dark/dark-theme classes,
+  // set for both explicit Dark and Auto+system-dark by useAutoThemeSync).
+  // FIX (Oct 21 2026): previously read the OS prefers-color-scheme FIRST, so a PC
+  // set to OS-dark rendered white battery text while the app itself was Light.
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains('dark-theme') ||
+    document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      const dark = root.classList.contains('dark-theme') || root.classList.contains('dark');
+      setIsDarkMode(prev => prev === dark ? prev : dark);
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
   const textColor = isDarkMode ? '#ffffff' : '#000000';
 
   // Determine fill color based on battery level and charging status.
