@@ -111,12 +111,29 @@ class DriverLocationPoller {
      const junkIds = (appUsers || []).filter(u => !(u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined')).map(u => u?.id).filter(Boolean);
      const rejected = (appUsers?.length || 0) - usersData.length;
      console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
-     if (junkIds.length && typeof window !== 'undefined' && !window.__junkAppUserPurge) {
-       window.__junkAppUserPurge = true;
-       import('../utils/offlineDatabase').then(({ offlineDB }) => {
-         junkIds.forEach((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => {}));
-         window.__junkAppUserPurge = false;
-       }).catch(() => { window.__junkAppUserPurge = false; });
+     // PERF (Oct 22 2026, owner report: 5s+ map gesture stalls): the local
+     // app_users IDB store carries THOUSANDS of junk rows (missing
+     // user_id/user_name). APP_USERS is a PHI store — every full-store read
+     // AES-decrypts the WHOLE pile, and every readwrite tx on the bloated
+     // store holds the IDB lock long enough to time out legit readers (the
+     // chronic 'getAll/count(app_users) blocked/timed out' warns on all owner
+     // devices). The old once-per-session purge let the backlog regrow; sweep
+     // a bounded chunk EVERY pass instead so the store drains and stays
+     // drained regardless of what keeps writing junk.
+     if (junkIds.length && typeof window !== 'undefined') {
+       if (!window.__junkAppUserPurgeSet) window.__junkAppUserPurgeSet = new Set();
+       const purgeSet = window.__junkAppUserPurgeSet;
+       const pending = junkIds.filter((id) => !purgeSet.has(id));
+       const JUNK_PURGE_CHUNK = 40;
+       if (pending.length && !window.__junkAppUserPurgeBusy) {
+         window.__junkAppUserPurgeBusy = true;
+         const batch = pending.slice(0, JUNK_PURGE_CHUNK);
+         batch.forEach((id) => purgeSet.add(id));
+         import('../utils/offlineDatabase').then(({ offlineDB }) => {
+           return Promise.all(batch.map((id) =>
+             offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => {})));
+         }).catch(() => {}).finally(() => { window.__junkAppUserPurgeBusy = false; });
+       }
      }
    }
 

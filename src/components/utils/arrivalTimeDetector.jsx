@@ -65,21 +65,36 @@ class ArrivalTimeDetector {
     try {
       const { offlineDB } = await import('./offlineDatabase');
 
-      // Load deliveries for this driver+date from offline DB
-      const allDeliveriesForDate = await offlineDB.getByIndex(
+      // PERF (Oct 22 2026, owner report: map pinch/pan stalling 5s+): this
+      // refresh runs every 10s while driving (per 2s GPS fix), and it used to
+      // materialize + AES-decrypt the ENTIRE PHI stores — all drivers'
+      // deliveries for the date, THOUSANDS of patient records, every store,
+      // every app user. That decrypt storm ate the main thread in bursts,
+      // starving Leaflet gestures (tiles/markers/polylines re-rendering
+      // seconds late). All lookups below are by id — targeted reads give the
+      // detector the SAME data while decrypting only the records it can use.
+      const driverDeliveries = await offlineDB.getByCompoundIndex(
         offlineDB.STORES.DELIVERIES,
-        'delivery_date',
-        deliveryDate
+        'date_driver',
+        [deliveryDate, driverId]
       );
-      this._cachedDeliveries = (allDeliveriesForDate || []).filter(d => d && d.driver_id === driverId);
+      this._cachedDeliveries = (driverDeliveries || []).filter(d => d && d.driver_id === driverId);
 
-      // Load all patients and stores from offline DB
-      this._cachedPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-      this._cachedStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+      // Targeted loads: only the patients/stores this driver's stops reference.
+      const _slice = this._cachedDeliveries;
+      const _patientIds = [...new Set(_slice.map(d => d?.patient_id).filter(Boolean))];
+      const _storeIds = [...new Set(_slice.map(d => d?.store_id).filter(Boolean))];
+      this._cachedPatients = await offlineDB.getByIds(offlineDB.STORES.PATIENTS, _patientIds);
+      this._cachedStores = await offlineDB.getByIds(offlineDB.STORES.STORES, _storeIds);
 
-      // Load AppUser for driver status check from offline DB
-      const allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      this._cachedAppUser = (allAppUsers || []).find(u => u && u.user_id === driverId) || null;
+      // Load AppUser for driver status check — single indexed record instead
+      // of decrypting the whole app_users store.
+      const driverAppUsers = await offlineDB.getByIndex(
+        offlineDB.STORES.APP_USERS,
+        'user_id',
+        driverId
+      );
+      this._cachedAppUser = (driverAppUsers || []).find(u => u && u.user_id === driverId) || null;
 
       this._lastCacheTime = now;
       this._lastDriverId = driverId;
