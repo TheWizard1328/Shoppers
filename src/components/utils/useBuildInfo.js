@@ -191,7 +191,24 @@ export function useLatestApkBuildInfo() {
         : ''
     : '';
 
-  return { ...buildInfo, buildText, versionLabel, loaded: !!buildInfo };
+  // SIDEBAR DISPLAY (owner fix, Oct 21 2026): the OLD versionLabel is baked
+  // into the latest APK release asset — it stays frozen at the last APK
+  // build's WEB digit (all devices read v1.x.360 while web pushes reached
+  // 375). displayVersion keeps the live APK digit but takes the WEB digit
+  // from THIS BUNDLE's WEB_VERSION, so every web deploy moves the sidebar
+  // on the next reload. Native installs still show their own installed
+  // label (Layout prefers installedVersion), which is honest — a native
+  // device runs old web code until a new APK is installed.
+  const displayVersion = (() => {
+    let apkDigit = apkUpdatesFromSuccessCount(buildInfo?.successCount);
+    if (apkDigit === 0 && buildInfo?.releaseVersion) {
+      const mid = Number((buildInfo.releaseVersion.split('.') || [])[1]);
+      if (Number.isFinite(mid) && mid > 0) apkDigit = mid;
+    }
+    return formatAppVersion(apkDigit);
+  })();
+
+  return { ...buildInfo, buildText, versionLabel, displayVersion, loaded: !!buildInfo };
 }
 
 /**

@@ -256,11 +256,15 @@ export default function Layout({ children, currentPageName }) {
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
-  // Build version: native apps show the INSTALLED version; web shows the
-  // latest available build from GitHub Actions (same source as Settings page).
+  // Build version: native apps show the INSTALLED version (honest — a native
+  // device runs old web code until a new APK is installed). WEB devices show
+  // displayVersion: live APK digit + THIS BUNDLE's WEB_VERSION, so the
+  // sidebar moves on every web deploy after reload (owner fix, Oct 21 2026 —
+  // it previously showed the APK release's baked label, frozen at v1.x.360
+  // while web pushes reached 375).
   const installedVersion = useInstalledAppVersion();
   const latestBuild = useLatestApkBuildInfo();
-  const sidebarVersion = installedVersion?.versionLabel || latestBuild.versionLabel || appVersion;
+  const sidebarVersion = installedVersion?.versionLabel || latestBuild.displayVersion || appVersion;
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
