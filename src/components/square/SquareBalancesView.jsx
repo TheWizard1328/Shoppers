@@ -221,27 +221,58 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           emeraldCls :
           r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
           const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
+          // OWNER LAYOUT (Oct 22 2026): each piece gets its own row —
+          // store badges / names / amounts to collect / Card Spend + status
+          // badges. Combined cards list every item line by line.
+          const rowItems = Array.isArray(r.combinedItems) && r.combinedItems.length > 1
+            ? r.combinedItems
+            : [{ storeAbbrev: r.storeAbbrev, storeColor: r.storeColor, patientName: r.patientName, amount: r.amount }];
+          const itemBadges = [];
+          rowItems.forEach((it) => {
+            const k = `${it.storeAbbrev}|${it.storeColor}`;
+            if (!itemBadges.find((b) => b.k === k)) itemBadges.push({ k, storeAbbrev: it.storeAbbrev, storeColor: it.storeColor });
+          });
+          const itemNames = rowItems.map((it) => it.patientName || 'COD');
+          const itemAmounts = rowItems.map((it) => it.amount);
+          const combinedList = rowItems.length > 1;
           return (
-            <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0 my-1">
-                    <span
-                      className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                      style={{ backgroundColor: r.storeColor || '#64748b' }}>
-                      {r.storeAbbrev || '—'}
-                    </span>
-                    <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{r.patientName || 'COD'}</p>
-                    {r.combinedCount > 1 &&
-                    <span
-                      title={`${r.combinedCount} CODs paid in ONE Square transaction — amounts and Square/Folder/Loan fees combined`}
-                      className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full border border-indigo-300 dark:border-indigo-700 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex-shrink-0">
-                      x{r.combinedCount} · 1 swipe
-                    </span>}
-                   </div>
+            <div key={r.key} className="flex flex-col gap-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+              {/* ROW 1 — store badge(s) + transaction chip (time right) */}
+              <div className="flex items-center justify-between gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                  {itemBadges.map((b) => (
+                  <span
+                    key={b.k}
+                    className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                    style={{ backgroundColor: b.storeColor || '#64748b' }}>
+                    {b.storeAbbrev || '—'}
+                  </span>))}
+                  {r.combinedCount > 1 &&
+                  <span
+                    title={`${r.combinedCount} CODs paid in ONE Square transaction — amounts and Square/Folder/Loan fees combined`}
+                    className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full border border-indigo-300 dark:border-indigo-700 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex-shrink-0">
+                    x{r.combinedCount} · 1 swipe
+                  </span>}
                 </div>
-                <div className="shrink-0 flex items-center gap-1.5">
-                    <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>
+                {r.sub && <span className="text-[13px] text-slate-500 dark:text-slate-400 tabular-nums flex-shrink-0">{r.sub}</span>}
+              </div>
+
+              {/* ROW 2 — names, one per line */}
+              <div className="flex flex-col gap-0.5 min-w-0">
+                {itemNames.map((nm, i) => (
+                <p key={i} className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate min-w-0">{nm || 'COD'}</p>))}
+              </div>
+
+              {/* ROW 3 — amounts to collect, one per line, right-aligned; bold total on combined cards */}
+              <div className="flex flex-col items-end gap-0.5">
+                {itemAmounts.map((amt, i) => (
+                <span key={i} className={`tabular-nums text-[13px] ${combinedList ? 'text-slate-600 dark:text-slate-300' : 'text-sm font-bold text-emerald-600 dark:text-emerald-400'}`}>{fmtMoney(amt)}</span>))}
+                {combinedList &&
+                <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(r.amount)}</span>}
+              </div>
+
+              {/* ROW 4 — Card Spend pill + fee breakdown + net + status badge */}
+              <div className="flex items-center justify-between gap-1.5 flex-wrap min-w-0">
                     {/* Card Spend pill (owner spec Oct 6 2026) — TOGGLE on
                     uncollected rows: Square's card-activity data proved too
                     unreliable to auto-detect, so every uncollected COD
@@ -285,22 +316,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]' :
                   'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]'}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>
-
                   }
-                  </div>
-              </div>
-                <div className="flex items-center justify-between text-lg gap-1.5">
-                    <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">{r.sub}</span>
-                    {/* Owner spec (Oct 8 2026): fees centered on row 2 —
-                  S = Square fee, F = folder%, L = loan%. Card rows only.
-                  OWNER-ONLY (owner rule Oct 9 2026): drivers see the settled
-                  net amount but NOT the S/F/L fee breakdown. */}
+                <div className="flex items-center gap-1.5 flex-wrap">
                     {showNetAmount && isOwner && r.feeParts &&
                 <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">
                         S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
                       </span>
                 }
-                    <div className="flex items-center gap-1.5">
                     {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>
                   }
@@ -340,9 +362,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
 
                   <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>
                   }
-                    </div>
-                  </div>
-              </div>);
+                </div>
+              </div>
+            </div>);
 
         })}
         </div>
@@ -1371,6 +1393,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               key: `tx-${sq}`,
               delivery_id: null, // combined card — per-delivery actions don't apply
               combinedCount: group.length,
+              combinedItems: group.map((r) => ({ storeAbbrev: r.storeAbbrev || null, storeColor: r.storeColor || null, patientName: r.patientName || null, amount: r.amount, sub: r.sub || null })),
               driver_id: group[0].driver_id || null,
               patientName: names.join(' + ') || 'COD',
               storeAbbrev: group[0].storeAbbrev || null,
