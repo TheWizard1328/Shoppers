@@ -3,11 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Truck, Clock, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { haversineMeters } from '@/components/utils/geoUtils';
-
-// Calculate distance between two coordinates in meters
-// Consolidated into geoUtils (Sep 6 2026) — METERS (previous semantics).
-const calculateDistance = (lat1, lon1, lat2, lon2) => haversineMeters(lat1, lon1, lat2, lon2);
+// Distance between two coordinates in METERS — shared canonical wrapper
+// (consolidated scan #3, Oct 21 2026; math lives in geoUtils since Sep 6).
+import { calculateDistanceMeters as calculateDistance } from '@/components/utils/geoUtils';
 
 export default function DispatcherPickupNotification({ 
   deliveries, 

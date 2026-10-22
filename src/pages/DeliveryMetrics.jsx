@@ -27,13 +27,11 @@ import { getDriverDisplayName, getDriverNameForComparison } from '../components/
 import { sortUsers } from '../components/utils/sorting';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { getReturnCountFromPatientId } from '../components/utils/returnDeliveryUtils';
-import { haversineKm } from '@/components/utils/geoUtils';
+import { calculateDistanceKmSafe } from '@/components/utils/geoUtils';
 
-// Consolidated into geoUtils (Sep 6 2026) — falsy coords -> 0 (previous semantics).
-const calculateDistance = (lat1, lng1, lat2, lng2) => {
-  if (!lat1 || !lng1 || !lat2 || !lng2) return 0;
-  return haversineKm(lat1, lng1, lat2, lng2);
-};
+// Consolidated (scan #3, Oct 21 2026) — shared math + local falsy->0 guard
+// (previous semantics: metric sums fall back to 0 on missing coords).
+const calculateDistance = (lat1, lng1, lat2, lng2) => calculateDistanceKmSafe(lat1, lng1, lat2, lng2) ?? 0;
 
 const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, color = "blue" }) => {
   const colorClasses = {

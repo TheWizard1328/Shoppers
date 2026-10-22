@@ -67,7 +67,7 @@ import { createInterStoreTransfer } from './interStoreTransferHandler';
 import { setInterStoreMode } from '../dashboard/interStoreToggleStore';
 import DeliveryFormView from './DeliveryFormView';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
-import { haversineKm } from '@/components/utils/geoUtils';
+import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400 dark:text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -87,10 +87,6 @@ const sortStores = (stores) => {
 };
 
 // Consolidated into geoUtils (Sep 6 2026) — undefined coords -> null (previous semantics).
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
-  return haversineKm(lat1, lon1, lat2, lon2);
-};
 
 export default function DeliveryForm({
   delivery,

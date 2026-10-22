@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
 import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
+import { applyStillOwedToNotes } from './stillOwedNote';
 
 /**
  * Mobile-friendly payroll card for displaying driver payroll
@@ -323,6 +324,11 @@ export default function PayrollMobileCard({
                     if (payrollRecordId && onPaidAmountSave) {
                       await onPaidAmountSave(data.driver.id, nextPaidAmount);
                       setPayrollRecord((prev) => prev ? { ...prev, paid_amount: nextPaidAmount } : prev);
+                      // Keep the local notes textarea in sync with the
+                      // "Still Owed" line the save just wrote server-side —
+                      // same util, same math, zero drift.
+                      const owedLocal = applyStillOwedToNotes(driverNotes, periodNet, nextPaidAmount);
+                      if (owedLocal.changed) setDriverNotes(owedLocal.notes);
                     }
                   }}
                   className="h-7 w-full min-w-0 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-1 text-right font-semibold text-slate-900 dark:text-slate-100"

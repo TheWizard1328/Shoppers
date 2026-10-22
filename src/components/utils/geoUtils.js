@@ -32,3 +32,25 @@ export const haversineKm = (lat1, lon1, lat2, lon2) => {
  */
 export const haversineMeters = (lat1, lon1, lat2, lon2) =>
   haversineKm(lat1, lon1, lat2, lon2) * 1000;
+
+// ─── Canonical distance wrappers (daily scan #3, Oct 21 2026) ───────────────
+// Ten+ files previously defined their own local `calculateDistance` /
+// `calculateDistanceKm` wrappers around haversineKm/haversineMeters. These are
+// the single shared names now — import and alias locally if a different local
+// name is needed. NEVER re-define haversine math locally.
+
+/** Raw km wrapper — NO input guards (NaN propagates, same as old raw copies). */
+export const calculateDistanceKm = (lat1, lon1, lat2, lon2) =>
+  haversineKm(lat1, lon1, lat2, lon2);
+
+/** Raw meters wrapper — NO input guards. */
+export const calculateDistanceMeters = (lat1, lon1, lat2, lon2) =>
+  haversineMeters(lat1, lon1, lat2, lon2);
+
+/** Guarded km wrapper — null when ANY coordinate is null/undefined/NaN
+ *  (the old handleBatchSaveDelivery / DeliveryForm semantics). */
+export const calculateDistanceKmSafe = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const km = haversineKm(lat1, lon1, lat2, lon2);
+  return Number.isFinite(km) ? km : null;
+};

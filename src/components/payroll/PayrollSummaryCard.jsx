@@ -27,6 +27,7 @@ import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
+import { applyStillOwedToNotes } from './stillOwedNote';
 import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate, recurringDeductionKey, applyRecurringOverrides } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
@@ -584,6 +585,24 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           newBonus + (
           existingRecord.app_fee_amount || 0)
         );
+      }
+
+      // ─── "Still Owed" note (owner feature, Oct 21 2026) ────────────────────
+      // Entering a Paid amount stamps/updates a "Still Owed: $X" line as the
+      // first line of the driver's payroll notes; paid == net removes it.
+      // Rides the SAME update call — one write, no extra API traffic.
+      if (updates.paid_amount !== undefined) {
+        const owedNet = recalculatedUpdates.net_pay != null
+          ? recalculatedUpdates.net_pay
+          : getPeriodNetAmount({
+              grandTotal: driverData?.grandTotal ?? existingRecord.gross_pay ?? 0,
+              taxAmount: driverData?.taxAmount ?? existingRecord.tax_amount ?? 0,
+              bonusPay: existingRecord.bonus_pay || 0,
+              deductions: existingRecord.deductions || driverData?.deductionsArray || [],
+              appFeeAmount: existingRecord.app_fee_amount || 0,
+            });
+        const owedResult = applyStillOwedToNotes(existingRecord.driver_notes, owedNet, updates.paid_amount);
+        if (owedResult.changed) recalculatedUpdates.driver_notes = owedResult.notes;
       }
 
       const finalUpdates = roundPayrollData(recalculatedUpdates);

@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from './geoUtils';
 import { getAppOwnerUserIds } from './appOwnerResolver';
+import { calculateDistanceKmSafe as calculateDistance } from './geoUtils';
 import { 
   NOTIFICATION_EVENTS, 
   shouldNotify, 
@@ -264,10 +265,6 @@ export function buildETAString(delivery) {
  * Calculate distance between two coordinates in km
  */
 // Consolidated into geoUtils (Sep 6 2026) — falsy coords -> null (previous semantics).
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  return haversineKm(lat1, lon1, lat2, lon2);
-}
 
 /**
  * Build distance badge from store

@@ -12,11 +12,11 @@
  */
 
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
-import { haversineKm } from './geoUtils';
+import { calculateDistanceKm } from './geoUtils';
 
 // Calculate distance between two points (Haversine formula)
-// Consolidated into geoUtils (Sep 6 2026) — km (previous semantics).
-const calculateDistance = (lat1, lon1, lat2, lon2) => haversineKm(lat1, lon1, lat2, lon2);
+// Consolidated (scan #3, Oct 21 2026) — shared canonical km wrapper.
+const calculateDistance = calculateDistanceKm;
 
 // Estimate travel time in minutes based on distance
 const estimateTravelTime = (distanceKm, timeOfDay) => {

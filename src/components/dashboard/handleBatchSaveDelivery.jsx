@@ -3,13 +3,7 @@ import { generateUniqueSID, addMinutesToTime } from "@/components/dashboard/Dash
 import { batchCreateDeliveriesLocal, updateDeliveryLocal, enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
-import { haversineKm } from '@/components/utils/geoUtils';
-
-// Consolidated into geoUtils (Sep 6 2026) — undefined coords -> null (previous semantics).
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
-  return haversineKm(lat1, lon1, lat2, lon2);
-};
+import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
 
 export const handleBatchSaveDelivery = async ({
   deliveryData,

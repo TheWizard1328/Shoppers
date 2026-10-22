@@ -13,9 +13,8 @@ const POLYLINE_CONFIG = {
   COORDINATE_PRECISION: 6 // Decimal places for coordinate comparison
 };
 
-// Consolidated into geoUtils — identical math (km), single source of truth.
-import { haversineKm } from './geoUtils';
-const calculateDistanceBetweenCoords = (lat1, lon1, lat2, lon2) => haversineKm(lat1, lon1, lat2, lon2);
+// Consolidated (scan #3, Oct 21 2026) — shared canonical km wrapper.
+import { calculateDistanceKm as calculateDistanceBetweenCoords } from './geoUtils';
 
 /**
  * Rounds coordinates to specified precision for comparison

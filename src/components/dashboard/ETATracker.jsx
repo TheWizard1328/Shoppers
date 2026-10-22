@@ -5,7 +5,7 @@ import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
 
 import { userHasRole } from '../utils/userRoles';
 import { getCurrentEtaForDelivery } from '../utils/etaTrendBus';
-import { haversineKm } from '@/components/utils/geoUtils';
+import { calculateDistanceKm } from '@/components/utils/geoUtils';
 
 /**
  * Background ETA tracking service
@@ -81,7 +81,8 @@ export default function ETATracker({
 
     // Helper: Calculate distance between two coordinates (Haversine formula)
     // Consolidated into geoUtils (Sep 6 2026) — km (previous semantics).
-    const calculateDistance = (lat1, lon1, lat2, lon2) => haversineKm(lat1, lon1, lat2, lon2);
+    // Consolidated (scan #3, Oct 21 2026) — shared canonical km wrapper.
+    const calculateDistance = calculateDistanceKm;
 
     const updateETAs = async (maxStops = 5) => {
       const now = Date.now();

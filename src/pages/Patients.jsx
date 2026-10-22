@@ -48,11 +48,8 @@ import { useAppData } from '../components/utils/AppDataContext';
 import { patientMatchesSearch } from '../components/utils/careProSearchHelper';
 
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
-import { haversineKm } from '@/components/utils/geoUtils';
-
 // Helper function to calculate distance between two coordinates (in kilometers)
 // Consolidated into geoUtils (Sep 6 2026) — km, no input guards (previous semantics).
-const calculateDistance = (lat1, lon1, lat2, lon2) => haversineKm(lat1, lon1, lat2, lon2);
 
 // Helper function to parse address and notes for unit number
 const parseAddressAndUnit = (address, notes) => {
@@ -360,6 +357,7 @@ const getPrimaryRole = (user) => {
 
 // Store Overview Component
 import StoreOverview from '../components/patients/StoreOverview';
+import { calculateDistanceKm as calculateDistance } from '@/components/utils/geoUtils';
 
 export default function Patients() {
   const location = useLocation();

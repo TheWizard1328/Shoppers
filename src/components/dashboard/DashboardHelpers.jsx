@@ -45,8 +45,9 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
 };
 
 // Helper function to calculate distance between two coordinates (Haversine formula)
-// Consolidated into geoUtils (Sep 6 2026) — km, no input guards (previous semantics).
-export const calculateDistance = (lat1, lon1, lat2, lon2) => haversineKm(lat1, lon1, lat2, lon2);
+// Consolidated into geoUtils (Sep 6 2026) — re-exported from the shared
+// canonical wrapper since the Oct 21 2026 scan (#3): km, no input guards.
+export { calculateDistanceKm as calculateDistance } from '../utils/geoUtils';
 
 // Helper function to generate unique SID (3-character alphanumeric)
 export const generateUniqueSID = (existingDeliveriesForDate) => {
