@@ -169,7 +169,25 @@ export default function GuideAssistant() {
   const [guideBottomPx, setGuideBottomPx] = useState('50%');
 
   useEffect(() => {
+    // PERF FIX (Oct 21 2026, owner: entire app glitchy; maps jittery when
+    // panning/zooming on Dashboard AND Route Viewer). The old 250ms poll called
+    // getBoundingClientRect on EVERY tick — a forced synchronous reflow of the
+    // whole page. While Leaflet is animating a pan/zoom the layout is constantly
+    // dirty, so each forced reflow recomputed the entire dashboard tree mid-frame
+    // → visible map stutter, app-wide (GuideAssistant is mounted in Layout, so
+    // it ran on every page). Three changes:
+    //   1. Measure on the idle queue (requestIdleCallback, 700ms deadline) so
+    //      the browser schedules it between animation frames, never inside one.
+    //   2. Skip entirely while the user is actively interacting with the map
+    //      (window._userMapControlUntil — the same gate DeliveryMap uses). The
+    //      FAB does not move during a map pan anyway; the first tick after the
+    //      interaction settles catches any real position change.
+    //   3. Poll every 500ms instead of 250ms (the tab visually tracks FAB phase
+    //      changes; 500ms is imperceptible for a side-tab position).
+    let idleId = null;
     const compute = () => {
+      idleId = null;
+      if ((window._userMapControlUntil || 0) > Date.now()) return;
       const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
       if (fabEl && fabEl.offsetParent !== null) {
         const rect = fabEl.getBoundingClientRect();
@@ -182,17 +200,28 @@ export default function GuideAssistant() {
       // Fallback: no FAB found (non-dashboard pages or FAB hidden)
       setGuideBottomPx('50%');
     };
+    const schedule = () => {
+      if (idleId !== null) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        idleId = window.requestIdleCallback(compute, { timeout: 700 });
+      } else {
+        compute();
+      }
+    };
 
-    compute();
+    schedule();
     // Poll for FAB position changes — the FAB moves dynamically with stop card state
-    const interval = setInterval(compute, 250);
-    window.addEventListener('resize', compute);
-    window.addEventListener('orientationchange', compute);
+    const interval = setInterval(schedule, 500);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('orientationchange', schedule);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('resize', compute);
-      window.removeEventListener('orientationchange', compute);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
     };
   }, []);
 
