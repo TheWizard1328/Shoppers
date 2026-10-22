@@ -32,7 +32,15 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 // page load; it's only Base44's own server-side redirect that was rejecting
 // it. The "native" flag is encoded in the PATH, not as a query param, so it
 // survives Base44's callback redirect intact. See OAuthCallback.jsx.
-const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/api/functions/oauthRedirect" : "/";
+// OWNER FIX Oct 22 2026: Base44's auth broker now REJECTS from_url values
+// pointing at backend function paths (/api/functions/* → 400 "Invalid
+// from_url", verified by direct API probing; bare page paths still pass).
+// The native OAuth bridge from_url moves back to the FRONTEND page
+// /native-oauth-callback (App.jsx route, OAuthCallback.jsx): the page
+// performs the final hop to rxdeliver://auth and already carries the
+// app-params-stripped-token fallback (reads base44_access_token from
+// localStorage when the URL was stripped before mount).
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");
