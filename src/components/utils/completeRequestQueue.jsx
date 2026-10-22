@@ -387,7 +387,14 @@ const flushCompletionJob = async (entry) => {
               const { commitDeliveryUpdatesSilently } = await import('./routeCommitMarker');
               const _committed = await commitDeliveryUpdatesSilently(_computeServerUpdates);
               if (_committed !== _computeServerUpdates.length) {
-                console.warn(`[CompleteQueue] silent compute commit: ${_committed}/${_computeServerUpdates.length} updates committed`);
+                // SUCCESS CHATTER FIX (Oct 22 2026, audit item 3): this was the
+                // only happy-path console.warn in the completion chain — every
+                // successful stop completion shipped one RemoteLogEntry write
+                // (console.warn lines are captured by remoteLogger). Downgraded
+                // to console.log, which production Terser strips: zero remote
+                // log writes on successful completions. The failure warn below
+                // still ships.
+                console.log(`[CompleteQueue] silent compute commit: ${_committed}/${_computeServerUpdates.length} updates committed`);
               }
             } catch (e) {
               console.warn('[CompleteQueue] silent compute commit failed:', e?.message || e);
