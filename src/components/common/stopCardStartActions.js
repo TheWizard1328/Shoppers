@@ -564,6 +564,21 @@ export function useStopCardStartActions({
         const isInterStoreStart = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
         const expectedStartStatus = (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit';
 
+        // OWNER GUARD (Oct 22 2026): Start = a FRESH leg. Deviation waypoints
+        // ride the next stop's record across legs (the engine transfers them
+        // when the next flag moves), so points recorded on OLDER legs can still
+        // be sitting on active stops when Start is tapped — and the upcoming
+        // optimization would draw the regenerated current leg backward through
+        // the driver's earlier path. Clear deviation_waypoints on EVERY
+        // non-terminal stop of this route right here (before the optimization
+        // tail reads the data). Completed stops keep their vias — their inbound
+        // legs are history.
+        const _clearStaleVias = (d) => {
+          if (!d || finishedStatuses.has(String(d?.status || ''))) return d;
+          if (!Array.isArray(d?.deviation_waypoints) || d.deviation_waypoints.length === 0) return d;
+          return { ...d, deviation_waypoints: [] };
+        };
+
         // Optimistic UI: only update isNextDelivery + status on the started stop.
         // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
         const startedRouteDeliveries = routeDeliveries.map((d) => {
@@ -571,12 +586,12 @@ export function useStopCardStartActions({
             // Stamp the start time to NOW: a stop carrying a later-today window
             // otherwise keeps that future window as its sequencing/ETA anchor and
             // gets sorted behind other stops even though the driver just started it.
-            return { ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime };
+            return _clearStaleVias({ ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime });
           }
           if (d?.isNextDelivery) {
-            return { ...d, isNextDelivery: false };
+            return _clearStaleVias({ ...d, isNextDelivery: false });
           }
-          return d;
+          return _clearStaleVias(d);
         }).filter(Boolean);
 
         const { offlineDB } = await import('../utils/offlineDatabase');
@@ -612,11 +627,17 @@ export function useStopCardStartActions({
           // locally before the server confirms. Stale echoes with the old isNextDelivery
           // flag on the previous stop would cause duplicate next badges until refresh.
           for (const item of startedChangedDeliveries) {
+            const _pre = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+            const _flagChanged = (_pre?.isNextDelivery || false) !== (item?.isNextDelivery || false);
             if (item?.isNextDelivery === true) {
               lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order', 'delivery_time_start'], 60000, {
                 status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime,
               });
-            } else if (item?.isNextDelivery === false) {
+            } else if (item?.isNextDelivery === false && _flagChanged) {
+              // Only lock the PREVIOUS flag holder. Via-cleared stops (Oct 22
+              // guard) enter startedChangedDeliveries without a flag change —
+              // locking their isNextDelivery would freeze a field that isn't
+              // part of this action.
               lockDeliveryFields(item.id, ['isNextDelivery'], 60000, {
                 isNextDelivery: false,
               });
@@ -647,6 +668,11 @@ export function useStopCardStartActions({
           }
           if (item.id === delivery.id && existing.delivery_time_start !== currentLocalTime) {
             updates.delivery_time_start = currentLocalTime;
+          }
+          // Oct 22 guard: via clears ride the same single silent commit.
+          if (Array.isArray(existing?.deviation_waypoints) && existing.deviation_waypoints.length > 0
+            && (!item.deviation_waypoints || item.deviation_waypoints.length === 0)) {
+            updates.deviation_waypoints = [];
           }
           if (Object.keys(updates).length === 0) continue;
           _startOptimisticUpdates.push({ id: item.id, data: updates });
