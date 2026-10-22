@@ -13,13 +13,17 @@
 //   runs 335-341 before this, and a raw run_number baseline would have
 //   wrongly jumped straight to 7).
 //
-// WEB_UPDATES (last digits) — number of web deploys since the scheme
-//   started. There is no server-side deploy counter (Base44 deploys via git
-//   webhook), so this constant is the source of truth. It starts at 334 and
-//   must be bumped by 1 on every push that updates the web app. Never reset.
+// WEB_UPDATES (last digits) — number of web deploys since the LAST APK
+//   update (owner rule, Oct 21 2026). There is no server-side deploy counter
+//   (Base44 deploys via git webhook), so this constant is the source of
+//   truth: bump by 1 on every push that updates the web app. The
+//   build-apk.yml workflow RESETS this to 0 after each successful APK build
+//   (the new APK is the fresh baseline; it also bakes web digit 0 into its
+//   label), so the counter rotates back to 0 on every APK update and counts
+//   up from there.
 export const APP_VERSION_MAJOR = 1;
 export const APK_SUCCESS_BASELINE = 316;
-export const WEB_VERSION = 376;
+export const WEB_VERSION = 377;
 
 /** Successful build-apk.yml run count → APK release count under this scheme. */
 export const apkUpdatesFromSuccessCount = (successCount) => {

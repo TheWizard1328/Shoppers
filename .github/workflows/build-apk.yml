@@ -57,27 +57,32 @@ jobs:
           cache: 'gradle'
 
       - name: Compute version label (owner scheme vMAJOR.APK_UPDATES.WEB_UPDATES)
-        # Version scheme (Oct 13 2026): vMAJOR.APK.WEB — MAJOR bumps only on
-        # owner request; APK updates = SUCCESSFUL build count - baseline
-        # (baseline 316 = successful runs when the scheme took effect, so the
-        # digit starts at 0; failed runs never increment it); WEB updates =
-        # deploy counter in src/version.js (starts at 334, bumped per web
-        # deploy). The raw run number is kept in the artifact filename tail
-        # so update detection stays monotonic.
+        # Version scheme (Oct 13 2026, RESET RULE added Oct 21 2026):
+        # vMAJOR.APK.WEB — MAJOR bumps only on owner request; APK updates =
+        # SUCCESSFUL build count - baseline (baseline 316 = successful runs
+        # when the scheme took effect, so the digit starts at 0; failed runs
+        # never increment it); WEB updates = deploy counter in src/version.js.
+        # RESET RULE (owner, Oct 21 2026): every APK update resets the web
+        # counter — this build IS the new baseline, so the APK label bakes
+        # web digit 0, and the post-release step resets the constant in the
+        # repo so the next web deploy counts from 1. The raw run number is
+        # kept in the artifact filename tail so update detection stays
+        # monotonic.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           MAJOR=$(grep -oP 'APP_VERSION_MAJOR = \K[0-9]+' src/version.js)
           BASELINE=$(grep -oP 'APK_SUCCESS_BASELINE = \K[0-9]+' src/version.js)
-          WEB=$(grep -oP 'WEB_VERSION = \K[0-9]+' src/version.js)
           # Count SUCCESSFUL builds only; this run is still in progress so it
           # is not counted — if this build succeeds it becomes the +1.
           SUCCESSES=$(gh api "repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1" --jq '.total_count')
           APK_UPDATES=$(( SUCCESSES - BASELINE ))
           if [ "$APK_UPDATES" -lt 0 ]; then APK_UPDATES=0; fi
-          echo "APK_VERSION_NAME=v${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
-          echo "APP_VERSION_NAME=${MAJOR}.${APK_UPDATES}.${WEB}" >> "$GITHUB_ENV"
-          echo "Version label: v${MAJOR}.${APK_UPDATES}.${WEB} (build run ${GITHUB_RUN_NUMBER})"
+          # RESET RULE: the APK bakes web digit 0 — each APK update starts a
+          # fresh web counter (repo constant is reset post-release).
+          echo "APK_VERSION_NAME=v${MAJOR}.${APK_UPDATES}.0" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=${MAJOR}.${APK_UPDATES}.0" >> "$GITHUB_ENV"
+          echo "Version label: v${MAJOR}.${APK_UPDATES}.0 (build run ${GITHUB_RUN_NUMBER})"
 
       - name: Build debug APK
         working-directory: capacitor/android
@@ -122,3 +127,25 @@ jobs:
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reset web deploy counter (owner rule, Oct 21 2026)
+        # Each successful APK update starts a fresh web counter. This step
+        # resets WEB_VERSION to 0 in src/version.js and pushes to main so the
+        # next web deploy counts from 1. The push does NOT match the workflow
+        # path triggers (src/version.js only), so it can't re-trigger builds.
+        # A failed build never reaches this step — only real APK updates
+        # reset the counter.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          CURRENT=$(grep -oP 'WEB_VERSION = \K[0-9]+' src/version.js || echo 0)
+          if [ "$CURRENT" = "0" ]; then
+            echo "Web counter already 0 — nothing to reset."
+            exit 0
+          fi
+          sed -i "s/export const WEB_VERSION = [0-9]\+/export const WEB_VERSION = 0/" src/version.js
+          git add src/version.js
+          git commit -m "chore(version): reset web counter to 0 after APK build run ${GITHUB_RUN_NUMBER} (owner rule Oct 21 2026)"
+          git pull --rebase origin main || true
+          git push origin HEAD:main
+          echo "Web counter reset to 0 (was ${CURRENT})."
