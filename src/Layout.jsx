@@ -256,15 +256,18 @@ export default function Layout({ children, currentPageName }) {
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
-  // Build version: native apps show the INSTALLED version (honest — a native
-  // device runs old web code until a new APK is installed). WEB devices show
-  // displayVersion: live APK digit + THIS BUNDLE's WEB_VERSION, so the
-  // sidebar moves on every web deploy after reload (owner fix, Oct 21 2026 —
-  // it previously showed the APK release's baked label, frozen at v1.x.360
-  // while web pushes reached 375).
+  // Build version (owner fix, Oct 22 2026): ALL devices show displayVersion —
+  // live APK digit + THIS BUNDLE's WEB_VERSION — so the sidebar moves on
+  // every web deploy after reload, native installs included. The native APK
+  // is a WebView that loads wizardworxx.com LIVE, so an installed label baked
+  // at build time ("v1.9.0" forever) does NOT describe the code the device is
+  // actually running. The Oct 21 installedLabel-first preference is why the
+  // owner's phone/tablet never moved past the APK's baked web digit while web
+  // pushes reached 1.9.3. installedVersion.versionLabel (baked, frozen)
+  // remains only as a network-failure fallback.
   const installedVersion = useInstalledAppVersion();
   const latestBuild = useLatestApkBuildInfo();
-  const sidebarVersion = installedVersion?.versionLabel || latestBuild.displayVersion || appVersion;
+  const sidebarVersion = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();

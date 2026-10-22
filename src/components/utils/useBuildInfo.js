@@ -196,9 +196,9 @@ export function useLatestApkBuildInfo() {
   // build's WEB digit (all devices read v1.x.360 while web pushes reached
   // 375). displayVersion keeps the live APK digit but takes the WEB digit
   // from THIS BUNDLE's WEB_VERSION, so every web deploy moves the sidebar
-  // on the next reload. Native installs still show their own installed
-  // label (Layout prefers installedVersion), which is honest — a native
-  // device runs old web code until a new APK is installed.
+  // on the next reload. (Oct 22: ALL devices use displayVersion — the native
+  // APK's WebView loads the live site, so it always runs the current web
+  // bundle; the baked installed label is fallback-only.)
   const displayVersion = (() => {
     let apkDigit = apkUpdatesFromSuccessCount(buildInfo?.successCount);
     if (apkDigit === 0 && buildInfo?.releaseVersion) {
