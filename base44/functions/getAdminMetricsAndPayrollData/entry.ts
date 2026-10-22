@@ -578,6 +578,28 @@ Deno.serve(async (req) => {
       return dedupeById(summaryRecords || []);
     };
 
+    // ── SLIM PAYROLL METRICS (perf audit item 6, Oct 22 2026) ────────────────────
+    // buildPayrollData returns the RAW source arrays (an entire month/year of
+    // deliveries, patients, appUsers, stores, cities, payrollRecords) alongside
+    // the aggregates. Those arrays were being written verbatim into
+    // AdminMetricsSummary.payroll_metrics — bloating the record to 10KB+ per
+    // city-month, and every upsert broadcast the whole thing over WS to every
+    // connected instance (the SDK oversize warnings from all devices). The
+    // read side NEVER consumes payroll_metrics raw arrays: the response's
+    // payrollData is built fresh from yearData, and composeMetricsFromSummaries
+    // only uses admin_metrics. Keep the aggregates (driverStats/storeStats/
+    // totals) — same shape the one-time patchAdminMetricsSummarySize trimmed
+    // legacy records down to.
+    const PAYROLL_RAW_ARRAY_KEYS = ['deliveries', 'patients', 'appUsers', 'drivers', 'stores', 'cities', 'payrollRecords'];
+    const buildSlimPayrollMetrics = (pm) => {
+      if (!pm || typeof pm !== 'object') return pm;
+      const slim = {};
+      for (const key of ['driverStats', 'storeStats', 'totals']) {
+        if (pm[key] !== undefined) slim[key] = pm[key];
+      }
+      return Object.keys(slim).length > 0 ? slim : pm;
+    };
+
     const upsertMonthlySummaryRecord = async ({ year, month, cityId, cityName, adminMetrics, payrollMetrics, deliveries }) => {
       const existingRecord = await fetchMonthlySummaryRecord(year, month, cityId);
       const { start, end } = getMonthDateRange(year, month);
@@ -591,7 +613,7 @@ Deno.serve(async (req) => {
         summary_version: SUMMARY_VERSION,
         delivery_counts: buildMonthlyDeliveryCounts(deliveries),
         admin_metrics: adminMetrics,
-        payroll_metrics: payrollMetrics,
+        payroll_metrics: buildSlimPayrollMetrics(payrollMetrics),
         last_source_delivery_updated_at: getNewestUpdatedAt(deliveries),
         calculated_at: new Date().toISOString()
       };

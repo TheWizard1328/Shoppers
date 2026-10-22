@@ -55,8 +55,20 @@ const scheduleDeferredReplay = (mutations = []) => {
 export const processPendingMutationsInternal = async () => {
   if (getSyncPaused()) return { success: true, skipped: true };
 
-  const allMutations = await offlineDB.getPendingMutations();
+  let allMutations = await offlineDB.getPendingMutations();
   const now = Date.now();
+
+  // STALE PURGE (audit item 5): piggybacks on the getAll we already paid for —
+  // zero extra reads. Drops mutations older than 48h in one bulk transaction
+  // so a storm-built backlog (1,000+ records) can't keep inflating every pass.
+  const purged = await offlineDB.purgeStalePendingMutations(allMutations).catch(() => 0);
+  if (purged > 0) {
+    allMutations = allMutations.filter((m) => {
+      const ts = Number(m?.timestamp) || Date.parse(m?.createdAt) || 0;
+      return !(ts > 0 && ts < now - 48 * 60 * 60 * 1000);
+    });
+  }
+
   const mutations = allMutations.filter((mutation) => !mutation?.notBefore || Number(mutation.notBefore) <= now);
   if (mutations.length === 0) {
     scheduleDeferredReplay(allMutations);

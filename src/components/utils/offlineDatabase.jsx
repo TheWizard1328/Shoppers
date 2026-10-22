@@ -1227,6 +1227,51 @@ const getPendingMutations = async () => {
 };
 
 /**
+ * STALE MUTATION PURGE (perf audit item 5, Oct 22 2026): the pending-mutation
+ * queue built up 1,000+ failed-write records during rate-limit storms; every
+ * sync pass walked all of them. Mutations that are older than 48h are stale
+ * by definition — the retry cap (Oct 21) abandons failing mutations after 3
+ * attempts anyway, so anything still sitting in the queue after two days was
+ * never even attempted (sync paused/offline for days). Re-applying a 2-day-old
+ * payload over fresher server data is worse than dropping it: user actions
+ * re-apply anything still needed. Purged in bulk — ONE readwrite transaction.
+ */
+const STALE_MUTATION_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+const purgeStalePendingMutations = async (mutations, maxAgeMs = STALE_MUTATION_MAX_AGE_MS) => {
+  const cutoff = Date.now() - maxAgeMs;
+  const stale = (mutations || []).filter((m) => {
+    const ts = Number(m?.timestamp) || Date.parse(m?.createdAt) || 0;
+    return ts > 0 && ts < cutoff;
+  });
+  if (stale.length === 0) return 0;
+  await removePendingMutations(stale.map((m) => m.mutationId)).catch(() => {});
+  console.warn(`⚠️ [OfflineSync] purged ${stale.length} stale mutation(s) older than ${Math.round(maxAgeMs / 3600000)}h from the retry queue`);
+  return stale.length;
+};
+
+/**
+ * Bulk-remove pending mutations in a SINGLE readwrite transaction — one
+ * transaction per queue pass instead of one per record (1,000+ serialized
+ * transactions per pass was the retry-pass overhead driver).
+ */
+const removePendingMutations = async (mutationIds) => {
+  const ids = (mutationIds || []).filter(Boolean);
+  if (ids.length === 0) return;
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
+    const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
+    await new Promise((resolve, reject) => {
+      ids.forEach((id) => store.delete(id));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error || new Error('bulk remove aborted'));
+    });
+  } catch (error) {}
+};
+
+/**
  * Remove a pending mutation after successful sync
  */
 const removePendingMutation = async (mutationId) => {
@@ -1773,6 +1818,8 @@ export const offlineDB = {
   addPendingMutation,
   getPendingMutations,
   removePendingMutation,
+  removePendingMutations,
+  purgeStalePendingMutations,
   updateMutationRetry,
   deleteRecord,
   deduplicateAppUsers,
