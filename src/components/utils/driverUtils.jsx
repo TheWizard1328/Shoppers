@@ -146,6 +146,16 @@ export const createMergedUser = (authUser, appUser) => {
   // DO NOT default, DO NOT override, DO NOT modify
   const preservedAppRoles = Array.isArray(appUser.app_roles) ? appUser.app_roles : [];
   
+  // IDENTITY GUARD (Oct 22 2026): the appUser MUST belong to the auth user.
+  // A mismatched row (stale IDB index, View-As leftover, cross-account data)
+  // silently swaps the person: Robert's effective user carried Erin's home
+  // coords, which became his route origin and home marker position. Reject
+  // the merge instead — callers fall back to the server fetch.
+  if (appUser.user_id && authUser.id && String(appUser.user_id) !== String(authUser.id)) {
+    console.error('[driverUtils] createMergedUser REJECTED: appUser.user_id (' + appUser.user_id + ') does not belong to authUser.id (' + authUser.id + ') — refusing to merge foreign AppUser data');
+    return null;
+  }
+  
   const mergedUser = {
     ...authUser,
     ...appUser,

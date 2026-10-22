@@ -192,7 +192,15 @@ export const buildServerOptimizeRequest = ({
   const active = driverDeliveries.filter(d => !FINISHED_STATUSES.includes(String(d.status || '').toLowerCase()));
   if (active.length === 0) return { supported: false, reason: 'no_active_stops' };
 
-  const driverAppUser = (appUsers || []).find(au => au?.user_id === driverId || au?.id === driverId) || {};
+  let driverAppUser = (appUsers || []).find(au => au?.user_id === driverId || au?.id === driverId) || {};
+  // IDENTITY GUARD (Oct 22 2026, parity with clientRouteEngine): reject a
+  // locally-found record whose user_id belongs to a different driver —
+  // stale/foreign data must never set another driver's home as this route's
+  // origin.
+  if (driverAppUser && driverAppUser.user_id && String(driverAppUser.user_id) !== String(driverId)) {
+    console.warn(`[serverOptimizationMode] AppUser match REJECTED (user_id=${driverAppUser.user_id} != driverId=${driverId}) — treating as not found`);
+    driverAppUser = {};
+  }
   const home = Number.isFinite(Number(driverAppUser.home_latitude)) && Number.isFinite(Number(driverAppUser.home_longitude))
     ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
     : null;

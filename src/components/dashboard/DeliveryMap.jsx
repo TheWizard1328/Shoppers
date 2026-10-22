@@ -468,6 +468,12 @@ function DeliveryMap({
       const {
         driver_status, location_tracking_enabled, location_updated_at,
         current_latitude, current_longitude, last_seen_at,
+        // HOME COORDS (Oct 22 2026): the AppUser record is the sole authority —
+        // the cached effective user can carry stale or foreign home coords
+        // (owner report: Robert's own-route view lost his home marker because
+        // the merge overwrote his record's home coords from the 30-min-TTL /
+        // persisted cache). Strip them like the transient fields above.
+        home_latitude, home_longitude,
         ...stableCurrentUser
       } = currentUser || {};
       const existingIndex = mergedUsers.findIndex((user) => user?.id === selectedDriverKey || user?.user_id === selectedDriverKey);
@@ -476,8 +482,15 @@ function DeliveryMap({
       } else {
         // Driver not in appUsers yet — push stable fields only. No driver_status
         // means offDutyDriverIds fails OPEN (leg renders), which is correct:
-        // a missing record must never guess the driver off duty.
-        mergedUsers.push(stableCurrentUser);
+        // a missing record must never guess the driver off duty. Home coords
+        // are re-added here: they were stripped from stableCurrentUser for the
+        // OVERWRITE branch (AppUser record stays the authority), but in this
+        // push branch there is no record to protect — fall back to the cached
+        // user's coords so the home marker still renders.
+        mergedUsers.push({ ...stableCurrentUser,
+          ...(currentUser?.home_latitude != null && currentUser?.home_longitude != null
+            ? { home_latitude: currentUser.home_latitude, home_longitude: currentUser.home_longitude }
+            : {}) });
       }
     }
     return mergedUsers;

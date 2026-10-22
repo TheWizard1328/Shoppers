@@ -346,6 +346,15 @@ export async function optimizeRouteClientSide({
 
   // Resolve driver AppUser — first from local array, then DB fallback
   let driverAppUser = (appUsers || []).find((au) => au?.user_id === driverId || au?.id === driverId) || null;
+  // IDENTITY GUARD (Oct 22 2026): reject a locally-found record that does not
+  // actually belong to this driver (stale IDB index / cross-account cache —
+  // owner report: Robert's route origin resolved to Erin's home coords).
+  // The find above matched on record id too; verify the user_id. A rejected
+  // match falls through to the DB fallback below.
+  if (driverAppUser && driverAppUser.user_id && String(driverAppUser.user_id) !== String(driverId)) {
+    console.warn(`[clientRouteEngine] ${source} — local AppUser match REJECTED (user_id=${driverAppUser.user_id} != driverId=${driverId}) — suspected stale/foreign data, using DB fallback`);
+    driverAppUser = null;
+  }
   if (!driverAppUser) {
     console.warn(`[clientRouteEngine] ${source} — driver AppUser NOT FOUND in appUsers (array size=${(appUsers || []).length}, driverId=${driverId}). Fetching from DB...`);
     // Owner report Oct 15: Accept All kept hitting the 90s optimizer timeout.

@@ -63,7 +63,23 @@ const removeStorageKey = (storage, key) => {
 
 const getPersistedEffectiveUser = () => {
   const cached = readStorageJson(sessionStorage, EFFECTIVE_USER_CACHE_KEY) || readStorageJson(localStorage, EFFECTIVE_USER_CACHE_KEY);
-  return cached?.user || null;
+  // IDENTITY GUARD (Oct 22 2026): a createMergedUser result ALWAYS has
+  // id === user_id (auth id). If the persisted snapshot has them DIFFERENT,
+  // it is foreign/poisoned data (e.g. another user's AppUser merged under
+  // this auth id after a View-As switch or a stale IDB row) — discard it
+  // rather than running the app as the wrong person. Owner report: Robert's
+  // effective-user cache carried Erin's home coords, pinning his route
+  // origin and home marker to Erin's home.
+  const u = cached?.user;
+  if (u && u.id && u.user_id && String(u.id) !== String(u.user_id)) {
+    console.warn('[auth.js] Persisted effective user failed identity check (id != user_id) — discarding poisoned cache');
+    try {
+      removeStorageKey(sessionStorage, EFFECTIVE_USER_CACHE_KEY);
+      removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
+    } catch {}
+    return null;
+  }
+  return u || null;
 };
 
 const persistEffectiveUser = (user) => {
@@ -138,7 +154,18 @@ const persistAuthUser = (authUser) => {
 const getOfflineAppUser = async (userId) => {
   if (!userId) return null;
   const appUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', userId);
-  return Array.isArray(appUsers) && appUsers.length > 0 ? appUsers[0] : null;
+  // IDENTITY GUARD (Oct 22 2026): a stale/rebuilt IDB user_id index can return
+  // rows that don't belong to this auth user (owner report: Robert resolved to
+  // Erin's AppUser — her home became his route origin). Only accept rows whose
+  // user_id actually matches; otherwise return null so the caller falls back
+  // to the server.
+  const matching = (Array.isArray(appUsers) ? appUsers : []).filter(
+    (au) => au && String(au.user_id) === String(userId)
+  );
+  if (Array.isArray(appUsers) && appUsers.length > 0 && matching.length === 0) {
+    console.warn(`[auth.js] getOfflineAppUser: IDB returned ${appUsers.length} rows for user_id=${userId} but NONE match — suspected stale index; falling back to server`);
+  }
+  return matching[0] || null;
 };
 
 const getAppUserByUserId = async (userId) => {
