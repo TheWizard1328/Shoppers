@@ -57,6 +57,20 @@ const lastRegenFailedAtByDriver = new Map();
 const regenConsecutiveFailuresByDriver = new Map();
 const MAX_REGEN_FAILURES = 3;
 const FAILED_REGEN_RETRY_MS = 45 * 1000;
+// ESCALATION COOLDOWN (owner report Oct 22 2026 — 'took seven whole blocks /
+// at least a kilometer before it finally detected the deviation'): with the
+// admin threshold at 50m and a 1-minute cooldown, an ACTIVELY DIVERGING driver
+// only got re-anchored once per cooldown expiry — at city speed that is a full
+// kilometer of drawn-line lag between redraws (API log confirmed: deviation
+// regens firing every ~60-70s for the whole drive). When the driver is more
+// than 2x the threshold off the CURRENT polyline they are diverging, not
+// jittering: the regen re-anchors on a short 15s cadence instead of waiting
+// out the full cooldown, so the drawn line (and the next stop's ETA) stays
+// within a couple hundred meters of the driver. Jitter/parking cases are
+// unaffected — after a regen the line bends through the driver, so distance
+// only grows again while actually moving away.
+const ESCALATION_DISTANCE_FACTOR = 2;
+const ESCALATION_SHORT_COOLDOWN_MS = 15 * 1000;
 let regenInFlight = false;
 let regenInFlightAt = 0;
 // ── REGEN WATCHDOG (owner report Oct 5 2026) ────────────────────────────────
@@ -276,7 +290,10 @@ export async function checkCurrentLegDeviationOnDuty({
 
   const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
   const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
-  const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES) ? FAILED_REGEN_RETRY_MS : cooldownMs;
+  const _escalated = distance > ESCALATION_DISTANCE_FACTOR * threshold;
+  const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES)
+    ? FAILED_REGEN_RETRY_MS
+    : (_escalated ? Math.min(cooldownMs, ESCALATION_SHORT_COOLDOWN_MS) : cooldownMs);
   if (Date.now() - Math.max(lastRegenAt, _failedAt) < _effectiveCooldownMs) {
     return { checked: true, deviated: true, regenerated: false, deviatedMeters: Math.round(distance), reason: _failedAt >= lastRegenAt ? 'cooldown_after_failure' : 'cooldown' };
   }
@@ -285,7 +302,7 @@ export async function checkCurrentLegDeviationOnDuty({
   }
   if (regenInFlight) console.warn('[RouteDeviation] on-duty check: regen lock stuck >45s — watchdog recovery');
 
-  console.log(`[RouteDeviation] on-duty check: driver ${Math.round(distance)}m off the current leg (threshold ${threshold}m) — regenerating CURRENT leg`);
+  console.log(`[RouteDeviation] on-duty check: driver ${Math.round(distance)}m off the current leg (threshold ${threshold}m${_escalated ? ', ESCALATED short-cooldown' : ''}) — regenerating CURRENT leg`);
   const regenResult = await _regenCurrentLeg({
     nextStop,
     gps: { latitude: Number(lat), longitude: Number(lng) },
@@ -417,7 +434,10 @@ export function useRouteDeviationMonitor({
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
       const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
-      const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES) ? FAILED_REGEN_RETRY_MS : cooldownMs;
+      const _escalated = distance > ESCALATION_DISTANCE_FACTOR * threshold;
+      const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES)
+        ? FAILED_REGEN_RETRY_MS
+        : (_escalated ? Math.min(cooldownMs, ESCALATION_SHORT_COOLDOWN_MS) : cooldownMs);
       if (now - Math.max(lastRegenAt, _failedAt) < _effectiveCooldownMs) { _diag(_failedAt >= lastRegenAt ? 'cooldown_after_failure' : 'cooldown', `dist=${Math.round(distance)}m`); return; }
       if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) { _diag('gate:regen_in_flight', `dist=${Math.round(distance)}m`); return; }
       if (regenInFlight) { _diag('watchdog:regen_lock_stuck', `dist=${Math.round(distance)}m — forcing regen`); }
