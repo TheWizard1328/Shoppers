@@ -232,6 +232,12 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                       {r.storeAbbrev || '—'}
                     </span>
                     <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{r.patientName || 'COD'}</p>
+                    {r.combinedCount > 1 &&
+                    <span
+                      title={`${r.combinedCount} CODs paid in ONE Square transaction — amounts and Square/Folder/Loan fees combined`}
+                      className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full border border-indigo-300 dark:border-indigo-700 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex-shrink-0">
+                      x{r.combinedCount} · 1 swipe
+                    </span>}
                    </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
@@ -1280,6 +1286,113 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             };
           }() : null
         });
+      }
+
+      // ─── COMBINED TRANSACTION DETECTION (owner feature, Oct 22 2026) ─────────
+      // Multiple COD items paid in ONE Square transaction appear as separate
+      // delivery rows. Group the Collected-today rows by their shared
+      // transaction (SquareLedgerEntry square_id): 2+ rows on the same swipe
+      // merge into ONE combined card — summed amounts and the transaction's
+      // TRUE Square/Folder/Loan fees (per-entry split cents sum exactly to the
+      // swipe's fees; estimates never double-charge the flat fee).
+      // SAFEGUARDS: rows only merge when they share the SAME driver_id (owner
+      // rule Oct 9 2026: drivers only see their own rows — a swipe covering
+      // another driver's COD never merges across the scope); a ledger read
+      // failure leaves rows separate (no data loss, just no combining).
+      try {
+        const since2d = new Date(Date.now() - 2 * 86400000).toISOString();
+        const ledgerRaw = [];
+        for (let page = 0; page < 20; page++) {
+          const rows = await base44.entities.SquareLedgerEntry.filter(
+            { sale_class: 'cod_collection', occurred_at: { $gte: since2d } },
+            'occurred_at', 500, page * 500
+          ).catch(() => null);
+          if (rows === null) break; // read failed — skip combining entirely
+          const list = rows || [];
+          ledgerRaw.push(...list);
+          if (list.length < 500) break;
+        }
+        const entryByDelivery = new Map(); // delivery_id -> first matching entry
+        const entriesBySquare = new Map(); // square_id -> [entries]
+        const seenEntryId = new Set();
+        for (const e of ledgerRaw) {
+          if (!e?.id || seenEntryId.has(e.id)) continue;
+          seenEntryId.add(e.id);
+          if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+          if (!e?.square_id || !e?.delivery_id) continue;
+          if (edmontonBusinessDayKey(new Date(e.occurred_at)) !== today) continue;
+          const sq = String(e.square_id);
+          if (!entriesBySquare.has(sq)) entriesBySquare.set(sq, []);
+          entriesBySquare.get(sq).push(e);
+          if (!entryByDelivery.has(String(e.delivery_id))) entryByDelivery.set(String(e.delivery_id), e);
+        }
+        const sumCents = (arr, f) => arr.reduce((s, e) => s + (Number.isFinite(e?.[f]) ? Math.round(Number(e[f])) : 0), 0);
+        for (const [locId, rows] of byLoc) {
+          const groupsBySquare = new Map();
+          const ungrouped = [];
+          for (const r of rows) {
+            const e = r.delivery_id ? entryByDelivery.get(String(r.delivery_id)) : null;
+            if (e) {
+              const sq = String(e.square_id);
+              if (!groupsBySquare.has(sq)) groupsBySquare.set(sq, []);
+              groupsBySquare.get(sq).push(r);
+            } else {
+              ungrouped.push(r);
+            }
+          }
+          const mergedRows = [...ungrouped];
+          for (const [sq, group] of groupsBySquare) {
+            // Same-driver check (driver scoping rule) — merge only identical
+            // driver scopes (null merges with null).
+            const scopeIds = [...new Set(group.map((r) => String(r.driver_id || 'null')))];
+            if (scopeIds.length > 1) { mergedRows.push(...group); continue; }
+            if (group.length <= 1) { mergedRows.push(...group); continue; }
+            // Per-item ledger entries for THIS group's deliveries only —
+            // sibling items collected on another day keep their own share.
+            const groupDelIds = new Set(group.map((r) => String(r.delivery_id)));
+            const groupEntries = (entriesBySquare.get(sq) || []).filter((e) => groupDelIds.has(String(e.delivery_id)));
+            const grossC = Math.round(group.reduce((s, r) => s + r.amount, 0) * 100);
+            const label = group.find((r) => r.collectedLabel === 'Debit')?.collectedLabel || group[0].collectedLabel || 'Debit';
+            const feeC = sumCents(groupEntries, 'fee_cents');
+            const folderC = sumCents(groupEntries, 'folder_cents');
+            const loanC = sumCents(groupEntries, 'loan_cents');
+            const settledC = sumCents(groupEntries, 'settled_cents');
+            const hasLedgerCents = groupEntries.length > 0 && (feeC > 0 || folderC > 0 || loanC > 0 || settledC > 0);
+            const names = [...new Set(group.map((r) => r.patientName).filter(Boolean))];
+            mergedRows.push({
+              key: `tx-${sq}`,
+              delivery_id: null, // combined card — per-delivery actions don't apply
+              combinedCount: group.length,
+              driver_id: group[0].driver_id || null,
+              patientName: names.join(' + ') || 'COD',
+              storeAbbrev: group[0].storeAbbrev || null,
+              storeColor: group[0].storeColor || null,
+              amount: grossC / 100,
+              sub: group.map((r) => r.sub).filter(Boolean).sort()[0] || group[0].sub || '',
+              collected: true,
+              hasCardSpend: true,
+              manualCardSpend: group.some((r) => r.manualCardSpend),
+              collectedLabel: label,
+              netAmount: hasLedgerCents && settledC > 0
+                ? settledC / 100
+                : group.reduce((s, r) => s + (Number(r.netAmount) || 0), 0),
+              feeParts: hasLedgerCents
+                ? { fee: feeC / 100, folder: folderC / 100, loan: loanC / 100 }
+                : (group[0].feeParts
+                  ? { // no ledger cents — sum the stored per-item splits
+                      fee: group.reduce((s, r) => s + (r.feeParts?.fee || 0), 0),
+                      folder: group.reduce((s, r) => s + (r.feeParts?.folder || 0), 0),
+                      loan: group.reduce((s, r) => s + (r.feeParts?.loan || 0), 0) }
+                  : { // last resort: estimate fees ONCE on the combined total
+                      fee: estimateCardFeeCents(grossC, label) / 100,
+                      folder: folderCentsFor(grossC, folderRateNow) / 100,
+                      loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100 })
+            });
+          }
+          byLoc.set(locId, mergedRows);
+        }
+      } catch (e) {
+        console.warn('[SquareBalances] combined-transaction grouping skipped:', e?.message || e);
       }
 
       const out = {};
