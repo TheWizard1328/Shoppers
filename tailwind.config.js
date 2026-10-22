@@ -42,7 +42,19 @@ module.exports = {
     // 'dark' class is present on <html> in EVERY case that should render
     // dark (explicit dark AND auto+system-dark) — that's the one signal
     // needed; no custom multi-selector required.
-    darkMode: 'class',
+    // FIX (Oct 21 2026, v6): 'class' compiles to '.dark\:x:is(.dark *)' — it fires
+    // when ANY ancestor carries class="dark", not just <html>. A long-running
+    // Base44 EDITOR session injected a stray .dark element into the preview DOM
+    // (THE-DESKTOP(Editor) showed dark Tailwind-only boxes with the app on Light;
+    // the PWA/laptop same version were fine; only closing the editor cleared it;
+    // hard refresh did not — runtime-injected, not cached). App CSS vars are
+    // already immune (they gate on html.dark/html.auto-theme ROOT classes), which
+    // is exactly why only the few Tailwind dark:-utility boxes flipped. Pinning
+    // the variant to the ROOT html element — 'html.dark &' compiles to
+    // 'html.dark .dark\:x' — keeps every existing theme path (explicit Dark and
+    // Auto+system-dark both add html.dark via useAutoThemeSync) and makes foreign
+    // nested .dark elements powerless inside the app.
+    darkMode: ['selector', 'html.dark &'],
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
