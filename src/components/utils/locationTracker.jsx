@@ -245,6 +245,49 @@ class LocationTracker {
   }
 
   /**
+   * SINGLE-FLIGHT FRESH-FIX COORDINATOR (perf audit item 4, Oct 22 2026).
+   * During GPS drops the watchPosition stream stops delivering and FOUR
+   * independent timers (5s breadcrumb interval, 10s watchdog, 15s heartbeat,
+   * 60s at-stop interval) each fired their OWN hardware fix request with
+   * maximumAge:0 — bursts of overlapping antenna requests that all timed out
+   * together, stacking error handlers and burning battery/CPU on weak-signal
+   * devices. All fresh-antenna requests (maximumAge===0, requestPermissions
+   * false) now share ONE in-flight request; a fix that succeeded less than
+   * 2.5s ago is handed back without touching the antenna at all. Cached
+   * native-source requests (maximumAge>0) and boot-time permission requests
+   * pass through untouched.
+   * @returns the RAW provider position (has .coords) — same shape call sites expect.
+   */
+  async _requestSharedFix({ enableHighAccuracy = true, timeout = 4000, maximumAge = 0, requestPermissions = false } = {}) {
+    if (maximumAge !== 0 || requestPermissions) {
+      return this.locationProvider.getCurrentPosition({ enableHighAccuracy, timeout, maximumAge, requestPermissions });
+    }
+    if (!this._sharedFixState) this._sharedFixState = { inflight: null, lastResult: null, lastAt: 0 };
+    const now = Date.now();
+    if (this._sharedFixState.lastResult && now - this._sharedFixState.lastAt < 2500) {
+      return this._sharedFixState.lastResult;
+    }
+    if (this._sharedFixState.inflight) return this._sharedFixState.inflight;
+    const req = this.locationProvider.getCurrentPosition({ enableHighAccuracy, timeout, maximumAge: 0, requestPermissions: false })
+      .then((pos) => {
+        if (pos?.coords) {
+          this._sharedFixState.lastResult = pos;
+          this._sharedFixState.lastAt = Date.now();
+        }
+        this._sharedFixState.inflight = null;
+        return pos;
+      })
+      .catch((err) => {
+        this._sharedFixState.inflight = null;
+        this._sharedFixState.lastResult = null; // never hand out a stale fix after a confirmed drop
+        throw err;
+      });
+    this._sharedFixState.inflight = req;
+    return req;
+  }
+
+
+  /**
    * Acquire a fresh GPS fix from the hardware antenna, with a generous timeout
    * and a cached fallback. This is for callers that need a reasonably fresh
    * position (on-duty toggle, patient GPS pin) but should still return
@@ -276,7 +319,7 @@ class LocationTracker {
 
     // Try a fresh fix from the provider (same provider the tracker uses).
     try {
-      const pos = await this.locationProvider.getCurrentPosition({
+      const pos = await this._requestSharedFix({
         enableHighAccuracy,
         timeout,
         maximumAge,
@@ -319,7 +362,7 @@ class LocationTracker {
     this._atStopBreadcrumbInterval = setInterval(async () => {
       if (!this.isTracking || !this._isBreadcrumbStatusActive() || !this.isBreadcrumbSlowed) return;
       try {
-        const freshPos = await this.locationProvider.getCurrentPosition({
+        const freshPos = await this._requestSharedFix({
           enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
         });
         this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
@@ -349,7 +392,7 @@ class LocationTracker {
     this.breadcrumbInterval = setInterval(async () => {
       if (!this.isTracking || !this._isBreadcrumbStatusActive() || this.isBreadcrumbSlowed) return;
       try {
-        const freshPos = await this.locationProvider.getCurrentPosition({
+        const freshPos = await this._requestSharedFix({
           enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
         });
         this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
@@ -368,7 +411,7 @@ class LocationTracker {
       const timeSinceLastCrumb = now - (this.lastBreadcrumbTickAt || this.lastBreadcrumbSavedAt || 0);
       if (timeSinceLastCrumb > 7000) {
         try {
-          const freshPos = await this.locationProvider.getCurrentPosition({ enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false });
+          const freshPos = await this._requestSharedFix({ enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false });
           this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
           this.lastBreadcrumbSavedAt = 0;
           await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now, freshPos.coords.accuracy);
@@ -1242,7 +1285,7 @@ class LocationTracker {
             // When native background watcher is active, getCurrentPosition returns
             // the last known position from the native service (no new GPS fix needed).
             // When web-only, it requests a fresh GPS fix from the antenna.
-            const freshPos = await this.locationProvider.getCurrentPosition({
+            const freshPos = await this._requestSharedFix({
               enableHighAccuracy: true,
               timeout: 8000,
               maximumAge: useNativeBackgroundWatcher ? 15000 : 0,
@@ -1286,7 +1329,7 @@ class LocationTracker {
         this.breadcrumbInterval = setInterval(async () => {
           if (!this.isTracking || !this._isBreadcrumbStatusActive()) return;
           try {
-            const freshPos = await this.locationProvider.getCurrentPosition({
+            const freshPos = await this._requestSharedFix({
               enableHighAccuracy: true,
               timeout: 4000,
               maximumAge: 0, // Always fresh from antenna
@@ -1330,7 +1373,7 @@ class LocationTracker {
           if (timeSinceLastCrumb > 7000) {
             console.warn(`🍞 [Breadcrumb Watchdog] Gap detected — ${Math.round(timeSinceLastCrumb / 1000)}s since last breadcrumb. Forcing fresh GPS fix.`);
             try {
-              const freshPos = await this.locationProvider.getCurrentPosition({
+              const freshPos = await this._requestSharedFix({
                 enableHighAccuracy: true,
                 timeout: 4000,
                 maximumAge: 0,
@@ -1720,7 +1763,7 @@ class LocationTracker {
     if (!this.isTracking || !this.currentUser || !this.appUserId) return false;
 
     try {
-      const position = await this.locationProvider.getCurrentPosition({
+      const position = await this._requestSharedFix({
         enableHighAccuracy: true,
         timeout: 5000,
         maximumAge: 0,
@@ -1775,7 +1818,7 @@ class LocationTracker {
     // This ensures both the blue dot and the breadcrumb polyline jump to the real current
     // position instead of the stale pre-background position.
     try {
-      const position = await this.locationProvider.getCurrentPosition({
+      const position = await this._requestSharedFix({
         enableHighAccuracy: true,
         timeout: 8000,
         maximumAge: 0,
@@ -1861,7 +1904,7 @@ class LocationTracker {
     this.breadcrumbInterval = setInterval(async () => {
       if (!this.isTracking || !this._isBreadcrumbStatusActive()) return;
       try {
-        const freshPos = await this.locationProvider.getCurrentPosition({
+        const freshPos = await this._requestSharedFix({
           enableHighAccuracy: true,
           timeout: 4000,
           maximumAge: 0,
@@ -1888,7 +1931,7 @@ class LocationTracker {
       this.heartbeatInterval = setInterval(async () => {
         if (!this.isTracking) return;
         try {
-          const freshPos = await this.locationProvider.getCurrentPosition({
+          const freshPos = await this._requestSharedFix({
             enableHighAccuracy: true,
             timeout: 8000,
             maximumAge: 0,
