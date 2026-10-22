@@ -105,28 +105,17 @@ export default function BatteryIndicator({ vertical = false }) {
       <div
         className="flex flex-col items-center gap-1"
         title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
-        <style>{`
-          @keyframes marquee-fill {
-            0% { height: 0%; }
-            100% { height: ${batteryLevel}%; }
-          }
-          @keyframes pulse-gently {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-          }
-          .charging-marquee {
-            animation: marquee-fill 4s ease-in-out infinite;
-          }
-          .battery-pulse {
-            animation: pulse-gently 4s ease-in-out infinite;
-          }
-        `}</style>
+        {/* OWNER FIX (Oct 22 2026): charging marquee/pulse animations REMOVED.
+            They animated height/width at 60fps nonstop while plugged in,
+            forcing continuous style/layout/paint work on the dashboard. The
+            fill is now static and simply updates (300ms transition) whenever
+            the Battery API fires levelchange. */}
 
         {/* Battery bar (vertical) */}
         <div className="relative w-6 h-8 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
           {/* Fill */}
           <div
-            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg} ${isCharging && batteryLevel < 100 ? 'charging-marquee' : ''} ${isCharging && batteryLevel === 100 ? 'battery-pulse' : ''}`}
+            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg}`}
             style={{ height: `${batteryLevel}%` }}>
           </div>
           {/* Percentage text - always centered */}
@@ -142,28 +131,13 @@ export default function BatteryIndicator({ vertical = false }) {
   return (
     <div className="flex items-center ml-2"
       title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
-      <style>{`
-        @keyframes marquee-fill-h {
-          0% { width: 0%; }
-          100% { width: ${batteryLevel}%; }
-        }
-        @keyframes pulse-gently {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
-        .charging-marquee-h {
-          animation: marquee-fill-h 4s ease-in-out infinite;
-        }
-        .battery-pulse {
-          animation: pulse-gently 4s ease-in-out infinite;
-        }
-      `}</style>
+      {/* Charging animations removed (Oct 22 2026) — see vertical branch note. */}
 
       {/* Battery bar (horizontal) */}
       <div className="relative w-16 h-5 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
         {/* Fill */}
         <div
-          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg} ${isCharging && batteryLevel < 100 ? 'charging-marquee-h' : ''} ${isCharging && batteryLevel === 100 ? 'battery-pulse' : ''}`}
+          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg}`}
           style={{ width: `${batteryLevel}%` }}>
         </div>
         {/* Percentage text - always centered */}
