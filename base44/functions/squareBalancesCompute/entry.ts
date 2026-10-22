@@ -260,11 +260,36 @@ async function computeSummary(b44, userId) {
       // card estimate missed the whole day's settlements. Number.isFinite
       // alone does NOT coerce: null/undefined correctly fail the check.
       const storedC = Number.isFinite(p?.fee_c) && Number.isFinite(p?.folder_c) && Number.isFinite(p?.loan_c);
-      const feeC = storedC ? Math.round(Number(p.fee_c)) : estimateCardFeeCents(grossC, type);
-      const loanC = storedC ? Math.round(Number(p.loan_c)) : Math.round(grossC * loanRate);
-      const folderC = storedC ? Math.round(Number(p.folder_c)) : folderCentsFor(grossC, folderRate);
+      // COMBINED-SWIPE LEDGER OVERRIDE (owner Oct 22 2026): a card payment
+      // WITHOUT stored split cents that was actually part of a multi-COD
+      // swipe must NOT use per-item fee estimates — each item estimating the
+      // swipe's fee charges the flat $0.07 portion once PER ITEM and the
+      // settlement lands off. squareLedgerSync writes one split entry per COD
+      // with the REAL proportional fee/loan/folder/settled cents of the ONE
+      // transaction; when the delivery's linked ledger entry carries real
+      // cents, those win over estimates. Single-payment swipes are unaffected
+      // (their entry cents equal the estimate modulo rounding).
+      let feeC = estimateCardFeeCents(grossC, type);
+      let loanC = Math.round(grossC * loanRate);
+      let folderC = folderCentsFor(grossC, folderRate);
+      let settledC = Number.isFinite(p?.settled_c) ? Math.round(Number(p.settled_c)) : -1;
+      if (storedC) {
+        feeC = Math.round(Number(p.fee_c));
+        loanC = Math.round(Number(p.loan_c));
+        folderC = Math.round(Number(p.folder_c));
+      } else {
+        const rows = swipeIdx.get(String(d.id)) || [];
+        const match = rows.find((r: any) => Math.round(Number(r?.amount_cents || 0)) === grossC) || (rows.length === 1 ? rows[0] : null);
+        if (match && Number.isFinite(match?.fee_cents)) {
+          feeC = Math.round(Number(match.fee_cents));
+          loanC = Number.isFinite(match.loan_cents) ? Math.round(Number(match.loan_cents)) : loanC;
+          folderC = Number.isFinite(match.folder_cents) ? Math.round(Number(match.folder_cents)) : folderC;
+          if (!Number.isFinite(p?.settled_c) && Number.isFinite(match.settled_cents)) settledC = Math.round(Number(match.settled_cents));
+        }
+      }
+      if (settledC < 0) settledC = grossC - feeC - loanC - folderC;
       agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
-      agg.credits += Number.isFinite(p?.settled_c) ? Math.round(Number(p.settled_c)) : grossC - feeC - loanC - folderC;
+      agg.credits += settledC;
       agg.count += 1;
     }
     const doneAt = String(d.actual_delivery_time || '');
