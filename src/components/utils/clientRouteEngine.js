@@ -345,6 +345,7 @@ export async function optimizeRouteClientSide({
   const storeMap = new Map((stores || []).map(s => [s.id, s]));
 
   // Resolve driver AppUser — first from local array, then DB fallback
+  let _appUserSrc = 'local_array';
   let driverAppUser = (appUsers || []).find((au) => au?.user_id === driverId || au?.id === driverId) || null;
   // IDENTITY GUARD (Oct 22 2026): reject a locally-found record that does not
   // actually belong to this driver (stale IDB index / cross-account cache —
@@ -374,6 +375,7 @@ export async function optimizeRouteClientSide({
       ]);
       if (Array.isArray(dbResults) && dbResults.length > 0) {
         driverAppUser = dbResults[0];
+        _appUserSrc = 'db_fallback';
         console.log(`[clientRouteEngine] ${source} — driver AppUser found via DB fallback: user_id=${driverAppUser.user_id}, gps=${driverAppUser.current_latitude ?? 'null'},${driverAppUser.current_longitude ?? 'null'}, home=${driverAppUser.home_latitude ?? 'null'},${driverAppUser.home_longitude ?? 'null'}`);
       } else {
         console.warn(`[clientRouteEngine] ${source} — driver AppUser NOT in DB either. Proceeding with defaults — will use stop coords as origin fallback.`);
@@ -633,6 +635,13 @@ let _inheritedWindowCount = 0;
     return { success: false, error: 'No polyline origin available — set a home location or complete a stop first' };
   }
   console.log(`[clientRouteEngine] ${source} — currentPosition=(${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}) source=${locationSource}`);
+  // ORIGIN DIAGNOSTIC (Oct 22 2026): ship remotely whenever the route/polyline
+  // origin is the driver HOME — owner report showed legs anchored at a stale
+  // home (Erin's coords). This warn + appUsersSource pinpoints the bad value
+  // and its source on the very next optimization that uses it.
+  if (locationSource === 'home') {
+    console.warn(`[clientRouteEngine] ${source} — ORIGIN=HOME (${currentPosition.lat},${currentPosition.lng}) appUsersSource=${_appUserSrc}`);
+  }
 
   const resolvedHomePosition = _driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null
     ? { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) }
