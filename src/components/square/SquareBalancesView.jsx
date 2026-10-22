@@ -1313,15 +1313,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (list.length < 500) break;
         }
         const entryByDelivery = new Map(); // delivery_id -> first matching entry
-        const entriesBySquare = new Map(); // square_id -> [entries]
+        const entriesBySquare = new Map(); // TRANSACTION key -> [entries]
         const seenEntryId = new Set();
+        // TRANSACTION KEY (owner report Oct 22, Londonderry Angie+Marjorie):
+        // squareLedgerSync's MULTI-COD SPLIT writes one entry per COD item with
+        // a SUFFIXED square_id — `${payment.id}:${delivery_id}` (its upsert is
+        // keyed on square_id, so identical ids would overwrite each other).
+        // Grouping by the EXACT square_id therefore never matched the split
+        // siblings. The transaction id is the prefix BEFORE the last colon
+        // (plain single-COD entries have no suffix and pass through unchanged).
+        const txKeyOf = (raw) => String(raw).replace(/:[^:]*$/, '');
         for (const e of ledgerRaw) {
           if (!e?.id || seenEntryId.has(e.id)) continue;
           seenEntryId.add(e.id);
           if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
           if (!e?.square_id || !e?.delivery_id) continue;
           if (edmontonBusinessDayKey(new Date(e.occurred_at)) !== today) continue;
-          const sq = String(e.square_id);
+          const sq = txKeyOf(e.square_id);
           if (!entriesBySquare.has(sq)) entriesBySquare.set(sq, []);
           entriesBySquare.get(sq).push(e);
           if (!entryByDelivery.has(String(e.delivery_id))) entryByDelivery.set(String(e.delivery_id), e);
@@ -1333,7 +1341,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           for (const r of rows) {
             const e = r.delivery_id ? entryByDelivery.get(String(r.delivery_id)) : null;
             if (e) {
-              const sq = String(e.square_id);
+              const sq = txKeyOf(e.square_id);
               if (!groupsBySquare.has(sq)) groupsBySquare.set(sq, []);
               groupsBySquare.get(sq).push(r);
             } else {
