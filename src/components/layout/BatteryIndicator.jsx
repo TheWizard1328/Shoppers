@@ -58,8 +58,6 @@ export default function BatteryIndicator({ vertical = false }) {
   }, [currentUser?.id]);
 
   // Don't render if battery level is not available
-  if (batteryLevel === null) return null;
-
   // Theme detection — follows the APP theme only (html dark/dark-theme classes,
   // set for both explicit Dark and Auto+system-dark by useAutoThemeSync).
   // FIX (Oct 21 2026): previously read the OS prefers-color-scheme FIRST, so a PC
@@ -76,6 +74,9 @@ export default function BatteryIndicator({ vertical = false }) {
     observer.observe(root, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
+
+  if (batteryLevel === null) return null;
+
   const textColor = isDarkMode ? '#ffffff' : '#000000';
 
   // Determine fill color based on battery level and charging status.
