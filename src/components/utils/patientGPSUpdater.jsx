@@ -7,6 +7,8 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { updatePatientLocal } from "@/components/utils/offlineMutations";
+import { updateStoreLocal, updateInterStoreLocationLocal } from "@/components/utils/offlineMutations";
+import { indexInterStoreLocation } from "@/components/utils/interStoreDisplayName";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 
 // Simple in-module throttle to prevent rapid repeated GPS updates
@@ -210,6 +212,120 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
     toast.error("Failed to Update GPS", { description: error.message || "Could not update location" });
     _gpsUpdateInFlight = false;
     return { success: false, message: error.message || "Failed to update GPS" };
+  }
+};
+
+// ── STORE PICKUP / INTERSTORE GPS UPDATES (owner feature Oct 22 2026) ────────
+// Extends the delivery Update-GPS feature to store pickups and InterStore
+// stops with the SAME rules: source selection (map crosshair vs fresh device
+// GPS, preferCrosshair on completed stops / desktop devices, crosshair wins
+// when the device fix disagrees >100m with the stored coords), the shared
+// 4s throttle, and toast feedback. Targets differ by stop type:
+//   - store pickup  → the Store record's latitude/longitude (Layout refreshes
+//     the stores list off the 'Store' update mutation, so all cards/markers
+//     re-render with the new coords).
+//   - InterStore    → the InterStoreLocation record's store_latitude/store_longitude
+//     (the ISP/ISD coordinate source for navigation + route optimization), plus
+//     an immediate re-index of the shared location cache and an
+//     'interStoreGpsUpdated' window event (useInterStoreLocation updates
+//     mounted cards live).
+const resolveUpdateCoords = async ({ mapCrosshairCoords, preferCrosshair, currentCoords }) => {
+  const hasCrosshairCoords = Number.isFinite(mapCrosshairCoords?.latitude) && Number.isFinite(mapCrosshairCoords?.longitude);
+  const fresh = preferCrosshair && hasCrosshairCoords ? null : await getFreshDeviceLocation();
+  let nextLatitude = fresh?.latitude;
+  let nextLongitude = fresh?.longitude;
+  let updateSource = 'device';
+  if (hasCrosshairCoords && preferCrosshair) {
+    nextLatitude = mapCrosshairCoords.latitude;
+    nextLongitude = mapCrosshairCoords.longitude;
+    updateSource = 'crosshair';
+  } else if (
+    hasCrosshairCoords &&
+    fresh &&
+    Number.isFinite(currentCoords?.latitude) &&
+    Number.isFinite(currentCoords?.longitude) &&
+    haversineKm(fresh.latitude, fresh.longitude, currentCoords.latitude, currentCoords.longitude) > 0.1
+  ) {
+    nextLatitude = mapCrosshairCoords.latitude;
+    nextLongitude = mapCrosshairCoords.longitude;
+    updateSource = 'crosshair';
+  }
+  if (!Number.isFinite(nextLatitude) || !Number.isFinite(nextLongitude)) {
+    throw new Error('No valid coordinates available for GPS update');
+  }
+  return { nextLatitude, nextLongitude, updateSource };
+};
+
+const _gpsThrottleGate = () => {
+  const now = Date.now();
+  if (_gpsUpdateInFlight || now - _gpsUpdateLastAt < 4000) {
+    toast("Please wait... GPS update in progress");
+    return false;
+  }
+  _gpsUpdateInFlight = true;
+  _gpsUpdateLastAt = now;
+  return true;
+};
+
+const _gpsErrorHandler = (error) => {
+  if (error?.response?.status === 429 || (error?.message && /429|rate limit/i.test(error.message))) {
+    try { window._setRateLimitError?.(true); } catch {}
+  }
+  toast.error("Failed to Update GPS", { description: error.message || "Could not update location" });
+  _gpsUpdateInFlight = false;
+  return { success: false, message: error.message || "Failed to update GPS" };
+};
+
+export const updateStoreGPS = async ({ storeId, mapCrosshairCoords = null, preferCrosshair = false, currentStoreCoords = null }) => {
+  if (!_gpsThrottleGate()) return { success: false, message: "GPS update already in progress" };
+  try {
+    if (!storeId) throw new Error("Store not resolved — cannot update GPS");
+    const { nextLatitude, nextLongitude, updateSource } = await resolveUpdateCoords({
+      mapCrosshairCoords, preferCrosshair, currentCoords: currentStoreCoords,
+    });
+    await updateStoreLocal(storeId, { latitude: nextLatitude, longitude: nextLongitude });
+    try {
+      window.dispatchEvent(new CustomEvent('storeGpsUpdated', {
+        detail: { storeId, latitude: nextLatitude, longitude: nextLongitude, source: updateSource },
+      }));
+    } catch {}
+    toast.success("Store GPS Updated", {
+      description: `Store location saved from ${updateSource === 'crosshair' ? 'map crosshair' : 'device GPS'}.`,
+    });
+    _gpsUpdateInFlight = false;
+    return { success: true, message: "GPS updated", latitude: nextLatitude, longitude: nextLongitude, source: updateSource };
+  } catch (error) {
+    return _gpsErrorHandler(error);
+  }
+};
+
+export const updateInterStoreGPS = async ({ interStoreLocation, mapCrosshairCoords = null, preferCrosshair = false, currentCoords = null }) => {
+  if (!_gpsThrottleGate()) return { success: false, message: "GPS update already in progress" };
+  try {
+    const recordId = interStoreLocation?.id;
+    if (!recordId) throw new Error("InterStore location not resolved — cannot update GPS");
+    const { nextLatitude, nextLongitude, updateSource } = await resolveUpdateCoords({
+      mapCrosshairCoords, preferCrosshair, currentCoords,
+    });
+    await updateInterStoreLocationLocal(recordId, { store_latitude: nextLatitude, store_longitude: nextLongitude });
+    // Re-index the shared in-memory location cache so navigation, route
+    // optimization and markers resolve the NEW coords immediately (no wait
+    // for the next full location fetch).
+    try {
+      indexInterStoreLocation({ ...interStoreLocation, store_latitude: nextLatitude, store_longitude: nextLongitude });
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent('interStoreGpsUpdated', {
+        detail: { id: recordId, latitude: nextLatitude, longitude: nextLongitude, source: updateSource },
+      }));
+    } catch {}
+    toast.success("InterStore GPS Updated", {
+      description: `Location saved from ${updateSource === 'crosshair' ? 'map crosshair' : 'device GPS'}.`,
+    });
+    _gpsUpdateInFlight = false;
+    return { success: true, message: "GPS updated", latitude: nextLatitude, longitude: nextLongitude, source: updateSource };
+  } catch (error) {
+    return _gpsErrorHandler(error);
   }
 };
 

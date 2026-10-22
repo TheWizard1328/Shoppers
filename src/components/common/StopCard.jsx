@@ -45,7 +45,7 @@ import StopCardFooter from './StopCardFooter';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { useInterStoreLocation, parseInterStoreDeliveryId } from '../utils/interStoreDisplayName';
 import { getDeliveryTypeFlags, resolveStopLocation } from '../utils/deliveryTypeUtils';
-import { updatePatientGPS } from "../utils/patientGPSUpdater";
+import { updatePatientGPS, updateStoreGPS, updateInterStoreGPS } from "../utils/patientGPSUpdater";
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 // pendingBreadcrumbsManager removed — breadcrumbs now managed via locationBreadcrumbService / offlineDB directly
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
@@ -926,14 +926,47 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   if (!delivery) return null;
 
+  // OWNER FEATURE (Oct 22 2026): Update GPS now covers store pickups and
+  // InterStore stops with the SAME rules as deliveries (source selection:
+  // crosshair for completed stops / desktop devices, otherwise fresh device
+  // GPS). Targets differ by stop type: regular delivery → the patient record
+  // (unchanged), store pickup → the Store record, InterStore (ISP/ISD) → the
+  // InterStoreLocation record.
   const handleUpdateGPS = async (e) => {
     e?.stopPropagation?.();
+    const preferCrosshair = delivery?.status === 'completed' || (!isMobileDevice() && !isPrimaryDevice);
+    if (isISPorISD) {
+      if (!interStoreLocation?.id) {
+        toast.error("Update GPS unavailable", { description: "InterStore location not resolved yet" });
+        return;
+      }
+      await updateInterStoreGPS({
+        interStoreLocation,
+        mapCrosshairCoords: window.__mapCrosshairCoords || null,
+        preferCrosshair,
+        currentCoords: { latitude: Number(interStoreLocation?.store_latitude), longitude: Number(interStoreLocation?.store_longitude) },
+      });
+      return;
+    }
+    if (isPickup) {
+      if (!store?.id) {
+        toast.error("Update GPS unavailable", { description: "Store not resolved" });
+        return;
+      }
+      await updateStoreGPS({
+        storeId: store.id,
+        mapCrosshairCoords: window.__mapCrosshairCoords || null,
+        preferCrosshair,
+        currentStoreCoords: { latitude: Number(store?.latitude), longitude: Number(store?.longitude) },
+      });
+      return;
+    }
     await updatePatientGPS({
       patientId: patient.id,
       storeId: delivery.store_id,
       stores,
       mapCrosshairCoords: window.__mapCrosshairCoords || null,
-      preferCrosshair: delivery?.status === 'completed' || !isMobileDevice() && !isPrimaryDevice,
+      preferCrosshair,
       currentPatientCoords: { latitude: patient?.latitude, longitude: patient?.longitude }
     });
   };

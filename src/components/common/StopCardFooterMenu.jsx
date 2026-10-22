@@ -74,7 +74,13 @@ export default function StopCardFooterMenu(props) {
   const isDriverOnly = !!(userHasRole?.(currentUser, 'driver') && !userHasRole?.(currentUser, 'admin') && !isAppOwner?.(currentUser));
   const canShowEditPatient = !!(!isDispatcherOnly && !isDriverOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery) && !isInterStore);
 
-  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickupForMenu && !isInterStore && (isNextDelivery || isFinishedDelivery || delivery?.status === 'in_transit'));
+  // OWNER FEATURE (Oct 22 2026): Update GPS now also covers store pickups and
+  // InterStore stops — same eligibility rules as deliveries (active/finished
+  // stop, driver or owner, can manage) minus the patient requirement, which
+  // only applies to regular deliveries. Pickup cards update the Store record's
+  // coords; InterStore cards update the InterStoreLocation record.
+  const hasGpsTarget = !!(isPickupForMenu || isInterStore ? true : patient);
+  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && hasGpsTarget && (isNextDelivery || isFinishedDelivery || delivery?.status === 'in_transit'));
 
   const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
 

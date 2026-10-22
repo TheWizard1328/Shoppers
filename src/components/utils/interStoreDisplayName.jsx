@@ -263,5 +263,22 @@ export function useInterStoreLocation(delivery_id) {
     return () => { cancelled = true; };
   }, [delivery_id]);
 
+  // OWNER FEATURE (Oct 22 2026): live GPS updates for InterStore stops — when
+  // the driver updates the location's coords (StopCard Update GPS),
+  // patientGPSUpdater dispatches 'interStoreGpsUpdated' with the record id;
+  // mounted cards adopt the fresh coords immediately (navigation + markers)
+  // without waiting for a remount.
+  useEffect(() => {
+    const onGpsUpdated = (e) => {
+      const detail = e?.detail || {};
+      if (!detail.id) return;
+      setLocation((prev) => (prev?.id === detail.id
+        ? { ...prev, store_latitude: detail.latitude, store_longitude: detail.longitude }
+        : prev));
+    };
+    window.addEventListener('interStoreGpsUpdated', onGpsUpdated);
+    return () => window.removeEventListener('interStoreGpsUpdated', onGpsUpdated);
+  }, []);
+
   return location;
 }

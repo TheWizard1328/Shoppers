@@ -4,6 +4,7 @@ import { AppUser } from '@/entities/AppUser';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { Company } from '@/entities/Company';
+import { InterStoreLocation } from '@/entities/InterStoreLocation';
 
 export const OFFLINE_ENTITY_STORE_KEYS = {
   Patient: 'PATIENTS',
@@ -12,6 +13,7 @@ export const OFFLINE_ENTITY_STORE_KEYS = {
   City: 'CITIES',
   Store: 'STORES',
   Company: 'COMPANIES',
+  InterStoreLocation: 'INTER_STORE_LOCATIONS',
   DemoPatient: 'PATIENTS',
   DemoRoute: 'DELIVERIES',
   DemoAppUser: 'APP_USERS',
@@ -25,7 +27,8 @@ export const OFFLINE_SYNC_ENTITY_CLIENTS = {
   AppUser,
   City,
   Store,
-  Company
+  Company,
+  InterStoreLocation
 };
 
 export const OFFLINE_MUTATION_ENTITY_NAMES = ['Patient', 'Delivery', 'AppUser', 'City', 'Store', 'Company'];

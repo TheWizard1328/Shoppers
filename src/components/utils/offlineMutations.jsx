@@ -981,6 +981,9 @@ export const deleteCityLocal = (cityId) => deleteGenericEntityLocal({ entityName
 
 export const createStoreLocal = (storeData) => createGenericEntityLocal({ entityName: 'Store', entityData: storeData, mutationsPaused, notifyMutation });
 export const updateStoreLocal = (storeId, updates) => updateGenericEntityLocal({ entityName: 'Store', recordId: storeId, updates, mutationsPaused, notifyMutation });
+// OWNER FEATURE (Oct 22 2026): Update GPS for InterStore stops — same durable local-first
+// path as stores/patients (IDB write + mutation + server update with pending-mutation fallback).
+export const updateInterStoreLocationLocal = (recordId, updates) => updateGenericEntityLocal({ entityName: 'InterStoreLocation', recordId, updates, mutationsPaused, notifyMutation });
 export const deleteStoreLocal = (storeId) => deleteGenericEntityLocal({ entityName: 'Store', recordId: storeId, mutationsPaused, notifyMutation });
 
 export const createCompanyLocal = (companyData) => createGenericEntityLocal({ entityName: 'Company', entityData: companyData, mutationsPaused, notifyMutation });
