@@ -215,15 +215,39 @@ export default function DashboardDialogs({
                   ? originalNextDelivery.id !== newFirstActiveId
                   : !!newFirstActiveId;
 
-                await Promise.all(
-                  fullOrderedIds.map((id, index) => {
-                    const update = { stop_order: index + 1 };
-                    if (needsNextDeliveryReset) {
-                      update.isNextDelivery = (id === newFirstActiveId);
-                    }
-                    return base44.entities.Delivery.update(id, update);
-                  })
-                );
+                // ── Stop-order pre-write: no-op gate + silent bulk (Oct 22 2026) ──
+                // Owner report: "polylines not regenerating after the reoptimize
+                // button, even without reordering." Root cause: this block fired
+                // ONE user-scoped Delivery.update per stop — with no reorder every
+                // write was an identical-value no-op, and a single 429 rejected
+                // the Promise.all, which the catch turned into a SILENT abort
+                // BEFORE the coordinator ran. Polylines never regenerated, and a
+                // manual reorder hit the same abort (Sharuk's stale blue leg).
+                // Fix: (1) skip stops whose values don't change, (2) commit the
+                // rest in ONE silent bulk (built-in chunked retry), (3) a write
+                // failure is non-fatal — the coordinator's writeBatch re-writes
+                // stop_order atomically with the regenerated polylines anyway.
+                const byIdForWrite = new Map(allRouteDeliveries.map(d => [d.id, d]));
+                const stopOrderUpdates = [];
+                fullOrderedIds.forEach((id, index) => {
+                  const d = byIdForWrite.get(id);
+                  const data = {};
+                  if (!d || Number(d.stop_order) !== index + 1) data.stop_order = index + 1;
+                  if (needsNextDeliveryReset && (!!d?.isNextDelivery !== (id === newFirstActiveId))) {
+                    data.isNextDelivery = (id === newFirstActiveId);
+                  }
+                  if (Object.keys(data).length > 0) stopOrderUpdates.push({ id, data });
+                });
+                if (stopOrderUpdates.length > 0) {
+                  try {
+                    const { commitDeliveryUpdatesSilently } = await import('@/components/utils/routeCommitMarker');
+                    await commitDeliveryUpdatesSilently(stopOrderUpdates);
+                  } catch (wErr) {
+                    console.warn('[QuickReorder] stop-order pre-commit failed (non-fatal, coordinator will re-write):', wErr?.message || wErr);
+                  }
+                } else {
+                  console.log('[QuickReorder] no stop-order/flag changes — pre-write skipped (was ' + fullOrderedIds.length + ' no-op per-stop updates)');
+                }
 
                 const optimisticDeliveries = allRouteDeliveries.map(d => {
                   const newOrder = fullOrderedIds.indexOf(d.id);
