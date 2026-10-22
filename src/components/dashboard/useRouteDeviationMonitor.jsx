@@ -35,7 +35,7 @@ import { haversineKm } from '@/components/utils/geoUtils';
 import { parseTimeToMinutes } from '@/components/utils/fuzzyMatching';
 import { locationTracker } from '@/components/utils/locationTracker';
 
-const CHECK_THROTTLE_MS = 10_000;          // min time between deviation CHECKS
+const CHECK_THROTTLE_MS = 6_000;          // min time between deviation CHECKS
 const GPS_FRESHNESS_MS = 2 * 60 * 1000;    // ignore stale GPS (tracker cached ≤15s, this is generous)
 const IN_FLIGHT_STATUSES = ['en_route', 'in_transit'];
 

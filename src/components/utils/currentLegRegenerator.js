@@ -36,6 +36,8 @@ import { getOrFetchRoutingKey } from './routingKeyStore';
 import { getOrFetchHereApiKey } from './hereApiKeyStore';
 import { getOrFetchPolylineConfig } from './polylineKeyStore';
 import { updateDelivery } from './entityMutations';
+import { findDeviationExitPoint } from './routeDeviationDetector';
+import { getRecentTrailPoints } from './locationBreadcrumbService';
 
 const TIME_ZONE = 'America/Edmonton';
 export const DEVIATION_REGEN_LOG_PURPOSE = 'Route Deviation (Google Directions) — Current Route Leg';
@@ -49,15 +51,26 @@ export const DEVIATION_REGEN_LOG_PURPOSE = 'Route Deviation (Google Directions) 
 const DEVIATION_WAYPOINT_CAP = 3;      // keep the 3 most recent points per leg
 const DEVIATION_DEDUPE_KM = 0.1;       // skip points within 100m of an existing one
 
-function buildUpdatedDeviationWaypoints(existingWaypoints, gps) {
+function buildUpdatedDeviationWaypoints(existingWaypoints, gps, exitPoint = null) {
   const existing = (Array.isArray(existingWaypoints) ? existingWaypoints : [])
     .filter((p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
-  // Dedupe: jitter near an already-recorded point is not a new deviation.
-  const isNearExisting = existing.some((p) => haversineKm(Number(p.lat), Number(p.lng), gpsPointLat(gps), gpsPointLon(gps)) <= DEVIATION_DEDUPE_KM);
-  if (isNearExisting) {
-    return existing.length > 0 ? existing.slice(-DEVIATION_WAYPOINT_CAP) : [];
+  // DEVIATION EXIT ANCHOR (owner Oct 22 2026): the regen fires once the driver
+  // is already threshold (200m) + check-interval past the actual turn-off, so
+  // anchoring on the live GPS alone left the redrawn leg leaving the old route
+  // 'two blocks' late. When the breadcrumb trail gives us the true exit (last
+  // point still on the old polyline), record BOTH — exit first (chronological),
+  // then the live position. The generator chains them: origin → exit → GPS →
+  // stop, so the new leg leaves the old route exactly where the driver did.
+  const additions = [];
+  if (exitPoint && Number.isFinite(Number(exitPoint.lat)) && Number.isFinite(Number(exitPoint.lng))) {
+    additions.push({ lat: Number(exitPoint.lat), lng: Number(exitPoint.lng), timestamp: exitPoint.timestamp || new Date().toISOString() });
   }
-  const next = [...existing, { lat: gpsPointLat(gps), lng: gpsPointLon(gps), timestamp: new Date().toISOString() }];
+  additions.push({ lat: gpsPointLat(gps), lng: gpsPointLon(gps), timestamp: new Date().toISOString() });
+  const next = [...existing];
+  for (const add of additions) {
+    const near = next.some((p) => haversineKm(Number(p.lat), Number(p.lng), Number(add.lat), Number(add.lng)) <= DEVIATION_DEDUPE_KM);
+    if (!near) next.push(add);
+  }
   return next.slice(-DEVIATION_WAYPOINT_CAP);
 }
 
@@ -151,6 +164,24 @@ export async function regenerateCurrentLegPolyline({
   const gpsPoint = { lat: Number(gps.latitude), lon: Number(gps.longitude) };
   const via = haversineKm(origin.lat, origin.lon, gpsPoint.lat, gpsPoint.lon) > 0.1 ? gpsPoint : null;
 
+  // ── DEVIATION EXIT-POINT (owner Oct 22 2026: 'polyline in the wrong spot,
+  // two blocks off of where I actually deviated') ──────────────────────────────
+  // Detection is inherently late (threshold + check cadence), so the live GPS
+  // is PAST the turn-off. Walk the breadcrumb master trail back to the most
+  // recent point still on the OLD polyline — the true exit — and record it as
+  // the first deviation waypoint (see buildUpdatedDeviationWaypoints). Falls
+  // back to live-GPS-only anchoring when the trail is unavailable this session.
+  let deviationExitPoint = null;
+  try {
+    const trailKey = driverAppUser?.id || driverId;
+    const trailDate = nextStop.delivery_date || null;
+    if (trailKey && trailDate) {
+      const trail = getRecentTrailPoints(trailKey, trailDate, 40);
+      const afterMs = originCompletedAt ? new Date(originCompletedAt).getTime() : null;
+      deviationExitPoint = findDeviationExitPoint(trail, nextStop.encoded_polyline, { afterMs });
+    }
+  } catch (_) { /* trail unavailable — fall back to live-GPS anchoring */ }
+
   // ── Resolve API keys + polyline provider (same resolution as the coordinator) ──
   let hereApiKey = null;
   try { hereApiKey = await getOrFetchRoutingKey(); } catch (_) {}
@@ -240,7 +271,7 @@ export async function regenerateCurrentLegPolyline({
     transport_mode: safeTransportMode,
     // Record this deviation point on the stop so later regens (manual re-opt,
     // admin regenerate) keep the leg snapped to the driven path (Sep 17 2026).
-    deviation_waypoints: buildUpdatedDeviationWaypoints(nextStop.deviation_waypoints, gps),
+    deviation_waypoints: buildUpdatedDeviationWaypoints(nextStop.deviation_waypoints, gps, deviationExitPoint),
     delivery_time_eta: newEta,
     ...(Number.isFinite(seg.estimatedDistanceKm) ? { estimated_distance_km: seg.estimatedDistanceKm } : {}),
     ...(Number.isFinite(seg.estimatedDurationMinutes) ? { estimated_duration_minutes: seg.estimatedDurationMinutes } : {}),

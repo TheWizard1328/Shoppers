@@ -146,3 +146,50 @@ export function deviationFromDeliveryPolylineMeters(gpsLat, gpsLon, encodedPolyl
   const points = decodeGooglePolyline(encodedPolyline);
   return distanceToPolylineMeters(gpsLat, gpsLon, points);
 }
+
+/**
+ * DEVIATION EXIT-POINT FINDER (owner report Oct 22 2026): the deviation
+ * regen fired late (200m threshold + up-to-15s check cadence), so the redrawn
+ * leg anchored at the LIVE GPS — already 'two blocks' past where the driver
+ * actually left the prescribed route. Walk the recent breadcrumb trail
+ * BACKWARD from the newest point and return the most recent point that was
+ * still ON the old leg polyline (<= onRouteMeters). That is the true exit —
+ * recording it as the deviation waypoint makes the regenerated leg leave the
+ * old route exactly where the driver turned off, then bend through their
+ * live position.
+ *
+ * @param {{lat:number,lng:number,ts:number}[]} trailPoints recent breadcrumb points (oldest→newest)
+ * @param {string} encodedPolyline the OLD leg polyline (pre-regen)
+ * @param {{onRouteMeters?:number, maxAgeMs?:number, afterMs?:number}} [opts]
+ * @returns {{lat:number,lng:number,timestamp:string}|null}
+ */
+export function findDeviationExitPoint(trailPoints, encodedPolyline, opts = {}) {
+  if (!Array.isArray(trailPoints) || trailPoints.length < 2) return null;
+  if (!encodedPolyline || typeof encodedPolyline !== 'string') return null;
+  const decoded = decodeGooglePolyline(encodedPolyline);
+  if (!Array.isArray(decoded) || decoded.length === 0) return null;
+
+  const onRouteMeters = Number.isFinite(Number(opts.onRouteMeters)) && opts.onRouteMeters > 0
+    ? Number(opts.onRouteMeters) : 80;
+  const maxAgeMs = Number.isFinite(Number(opts.maxAgeMs)) && opts.maxAgeMs > 0
+    ? Number(opts.maxAgeMs) : 15 * 60 * 1000;
+  const now = Date.now();
+
+  // newest → oldest. Timestamps are epoch ms (0 tolerated — treated as
+  // ineligible only when a time bound exists; without one they still count
+  // for geometry since the trail is chronological).
+  for (let i = trailPoints.length - 1; i >= 0; i--) {
+    const p = trailPoints[i];
+    const lat = Number(p?.lat); const lng = Number(p?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const ts = Number(p?.ts) || 0;
+    if (ts && now - ts > maxAgeMs) return null; // ran out of the recent window — give up
+    // Points recorded before the current leg's origin completed belong to a
+    // PREVIOUS leg; a hit there would anchor the exit on the wrong polyline.
+    if (ts && Number.isFinite(Number(opts.afterMs)) && ts < Number(opts.afterMs)) return null;
+    if (distanceToPolylineMeters(lat, lng, decoded) <= onRouteMeters) {
+      return { lat, lng, timestamp: ts ? new Date(ts).toISOString() : new Date().toISOString() };
+    }
+  }
+  return null;
+}

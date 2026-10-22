@@ -205,6 +205,25 @@ export function clearAllBreadcrumbCaches() {
  * trail hasn't been loaded yet). Used by the chain-commit walk in locationTracker
  * to compute distances from the last stored point without re-reading IDB.
  */
+/**
+ * DEVIATION EXIT-POINT SUPPORT (owner report Oct 22 2026): when a route
+ * deviation regen fires, the recorded waypoint was the LIVE GPS — by then the
+ * driver is already threshold (default 200m) + check-interval past the point
+ * where they actually left the route, so the redrawn leg departed the old
+ * line 'two blocks' late. The master trail holds the actual driven points;
+ * the deviation regenerator reads the most recent ones to walk back to the
+ * true exit. Read-only, in-memory cache only (no IDB); returns [] when the
+ * trail is not loaded this session — callers then fall back to live-GPS
+ * anchoring (previous behavior).
+ */
+export function getRecentTrailPoints(driverId, deliveryDate, limit = 40) {
+  const cacheKey = getCacheKey(driverId, deliveryDate);
+  const trail = _masterTrailCache.get(cacheKey);
+  if (!Array.isArray(trail) || trail.length === 0) return [];
+  const n = Math.max(1, Number(limit) || 40);
+  return trail.slice(-n).map((p) => ({ lat: Number(p[0]), lng: Number(p[1]), ts: Number(p[2]) || 0 }));
+}
+
 export function getLastCommittedCrumb(driverId, deliveryDate) {
   const cacheKey = getCacheKey(driverId, deliveryDate);
   const trail = _masterTrailCache.get(cacheKey);
