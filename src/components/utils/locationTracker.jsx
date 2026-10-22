@@ -1216,19 +1216,24 @@ class LocationTracker {
               // GPS duty cycle ~80% and POSTs 5x; the server only writes every 15s
               // anyway (nativeLocationUpdate throttle + the 15s JS upload gate).
               //
+              // OWNER DIRECTIVE Oct 22 2026: raw-GPS blue dot (interpolation
+              // retired) trails the driver by up to one fix interval; at 5s fixes
+              // that read as 'several seconds behind' on the road. Fixes are now
+              // 2s (owner's number — matches the breadcrumb cadence). Modest
+              // battery cost accepted: GPS duty ~2.5x vs 5s, but server writes
+              // stay 15s-throttled and the 10m distanceFilter below still kills
+              // stationary cost entirely.
+              //
               // 10m distanceFilter: while parked (stores, lights, home) the plugin
               // delivers NO fixes at all — stationary time stops costing battery.
-              // At city speed 10m elapses in <1s, so the 5s interval dominates
+              // At city speed 10m elapses in <1s, so the 2s interval dominates
               // while moving.
               //
-              // Marker smoothness is preserved WITHOUT the 1s fixes: the driver's
-              // own blue dot uses polyline-follow interpolation between fixes
-              // (LiveDriverLocationMarker + liveMarkerInterpolator) — it glides
-              // along the current-leg road geometry at ~20fps, so it LOOKS like
-              // 1s fixes while the hardware wakes at 5s. Display-only; geofences,
-              // ETAs, breadcrumbs, and DB all consume the real 5s fixes.
+              // The driver's own blue dot now shows the RAW fix (quick ~0.8s glide
+              // per fix — LiveDriverLocationMarker raw mode), so display freshness
+              // == hardware freshness: ~2s worst case, ~1s average.
               distanceFilter: 10,
-              minIntervalMs: 5000,
+              minIntervalMs: 2000,
               backgroundTitle: 'RxDeliver location tracking',
               backgroundMessage: 'Tracking delivery location in the background.'
             };

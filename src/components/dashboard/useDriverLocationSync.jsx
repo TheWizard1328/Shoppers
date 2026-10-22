@@ -10,7 +10,18 @@ import { isUIHidden, deferOrRunUI } from "@/components/utils/uiGate";
 //  - Stationary/creeping: updates at most every 4s (the "dot is alive" floor;
 //    a stationary dot looks identical at any cadence).
 const DRIVER_LOC_MIN_MOVE_M = 5;    // metres of movement that forces a push
-const DRIVER_LOC_MAX_IDLE_MS = 4000; // liveness floor between pushes
+const DRIVER_LOC_MAX_IDLE_MS = 12000; // liveness floor between pushes (Oct 22: 4s→12s —
+                                      // the blue dot is event-driven now; state pushes only
+                                      // refresh the FALLBACK prop, so per-tick Dashboard
+                                      // re-renders were pure gesture-jitter cost)
+const STATE_PUSH_MIN_SPACING_MS = 8000; // Oct 22: min spacing between movement pushes — 2s GPS
+                                      // fixes with the old 5m gate re-rendered Dashboard every
+                                      // fix, stalling manual pan/zoom gestures ~1s on phones
+// Oct 22 jitter fix: phase 2/3 follow re-fits only when the driver actually moved
+// this far since the last fit. Below it the re-fit is a no-op pan that restarts a
+// 0.5s setView animation every tick — constant Leaflet animation churn that made
+// manual gestures feel rubber-bandy/delayed, and kept refitting while parked.
+const FOLLOW_REFIT_MIN_MOVE_M = 15;
 
 /**
  * useDriverLocationSync
@@ -79,6 +90,10 @@ export default function useDriverLocationSync({
   const appUsersRef                = useRef(appUsers);
   const calculateDistanceRef       = useRef(calculateDistance);
   const selectedDriverIdRef        = useRef(selectedDriverId);
+  // Oct 22 jitter fix: last position+phase the phase 2/3 follow actually
+  // re-fitted to. Fixes closer than FOLLOW_REFIT_MIN_MOVE_M (or same phase
+  // unchanged) skip the re-fit — no 0.5s setView animation restart per tick.
+  const lastFollowFitPosRef        = useRef(null);
 
   // isPrimaryDevice resolves asynchronously — keep it in a ref so callbacks
   // always see the current value without needing to re-register listeners.
@@ -147,6 +162,14 @@ export default function useDriverLocationSync({
         const msSincePush = now - lastPushed.pushedAt;
         if (msSincePush < 1000) {
           // Dedupe sub-second GPS jitter bursts (multiple hardware locks/sec).
+          syncLocationRef.current = syncLocation;
+          return;
+        }
+        if (msSincePush < STATE_PUSH_MIN_SPACING_MS) {
+          // Oct 22: while the blue dot runs on live events, a state push only
+          // refreshes the FALLBACK prop — pushing on every 2s fix re-rendered
+          // the whole Dashboard ~2x/sec and stalled gestures. Hold state; the
+          // ref above stays per-fix fresh for all logic.
           syncLocationRef.current = syncLocation;
           return;
         }
@@ -263,6 +286,27 @@ export default function useDriverLocationSync({
       // fight with the user's pan/zoom gestures, causing jitter and false pinch detection.
       if ((window._isUserTouchingMap || false) === true) return;
       if ((window._userMapControlUntil || 0) > now) return;
+
+      // ── FOLLOW RE-FIT MOVEMENT GATE (Oct 22 jitter fix) ────────────────────
+      // The re-fit restarts a 0.5s setView animation and a Dashboard re-render.
+      // When the driver barely moved since the last fit (crawling in traffic,
+      // stopped at a light) that is pure animation churn that fights manual
+      // pan/zoom gestures and re-renders the map for no visible change. Only
+      // refit on real movement — or immediately when the PHASE changed (the
+      // fit target set is different in phase 3 than 2).
+      const lastFit = lastFollowFitPosRef.current;
+      if (lastFit && lastFit.phase === phase) {
+        const fitDistM = calculateDistanceRef.current?.(
+          lastFit.latitude, lastFit.longitude,
+          newLocation.latitude, newLocation.longitude
+        );
+        if (fitDistM != null && fitDistM < FOLLOW_REFIT_MIN_MOVE_M) return;
+      }
+      lastFollowFitPosRef.current = {
+        latitude:  newLocation.latitude,
+        longitude: newLocation.longitude,
+        phase,
+      };
 
       // Phase 2: also keep the next-stop card scrolled into view.
       if (phase === 2) {
