@@ -1,5 +1,6 @@
 // Redeployed on 2026-03-28
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
@@ -120,8 +121,19 @@ function getWaypointForDelivery(delivery, patientMap, storeMap) {
   return null;
 }
 
-async function getHereRoute(origin, stops) {
-  const apiKey = Deno.env.get('HERE_API_KEY');
+async function getHereRoute(base44, origin, stops) {
+  // FIX (Oct 21 2026, owner 403 toast on My-Phone): this function read the
+  // STATIC HERE_API_KEY secret directly — bypassing the per-feature key
+  // rotation system (AppSettings per_feature_api_keys) that every other
+  // routing call uses. When the primary key goes stale/quota-capped the
+  // optimizer/polylines keep working off their slot, but this function
+  // hard-fails 403 on every GPS-triggered ETA refresh. Resolve the
+  // route_optimization slot first, the polylines slot second, raw env key
+  // as final fallback.
+  let apiKey = null;
+  try { apiKey = await resolveFeatureApiKey(base44, 'route_optimization'); } catch (_) {}
+  if (!apiKey) { try { apiKey = await resolveFeatureApiKey(base44, 'polylines'); } catch (_) {} }
+  if (!apiKey) apiKey = Deno.env.get('HERE_API_KEY');
   if (!apiKey) {
     throw new Error('HERE_API_KEY is not configured');
   }
@@ -231,7 +243,7 @@ async function processDriver(base44, appUser, deliveryDate, forceEtaRefresh = fa
     return { skipped: true, reason: 'no_next_delivery', driver_id: appUser.user_id };
   }
 
-  const sections = await getHereRoute({ latitude: currentLat, longitude: currentLon }, routeStops);
+  const sections = await getHereRoute(base44, { latitude: currentLat, longitude: currentLon }, routeStops);
   if (!sections?.length) {
     return { skipped: true, reason: 'no_route_sections', driver_id: appUser.user_id };
   }
