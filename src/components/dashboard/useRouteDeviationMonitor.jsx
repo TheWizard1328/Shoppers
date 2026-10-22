@@ -218,6 +218,20 @@ async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stor
     return { regenerated: result?.success === true, updatedDelivery: result?.updatedDelivery || null };
   } catch (err) {
     console.warn('[RouteDeviation] regen failed:', err?.message || err);
+    // COOLDOWN BYPASS FIX (Oct 22 2026, owner-approved perf fix 2): this catch
+    // previously stamped NOTHING — an exception (dynamic-import failure, HERE/
+    // Google throw on weak coverage — the COMMON case for drivers with bad
+    // signal) left no failure stamp, so the very next GPS tick (10s throttle)
+    // passed the cooldown gate and launched a full regen attempt again.
+    // Live logs showed regens 15s-1min apart all drive on weak-signal devices.
+    // Stamping here makes exceptions follow the SAME 45s retry window + 3-strike
+    // full-cooldown as ordinary result-failures (v371 caps).
+    lastRegenFailedAtByDriver.set(driverId, Date.now());
+    const _fails = (regenConsecutiveFailuresByDriver.get(driverId) || 0) + 1;
+    regenConsecutiveFailuresByDriver.set(driverId, _fails);
+    if (_fails >= MAX_REGEN_FAILURES) {
+      console.warn(`[RouteDeviation] ${_fails} consecutive regen failures (exception path) for driver ${driverId} — arming full cooldown (short retry window disabled)`);
+    }
     return { regenerated: false, error: err?.message || String(err) };
   } finally {
     regenInFlight = false;

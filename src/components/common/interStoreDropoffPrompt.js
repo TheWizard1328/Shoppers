@@ -48,9 +48,18 @@ export function promptInterStoreDropoff({
   }
 
   return new Promise((resolve) => {
+    // LEAK FIX (Oct 22 2026, owner-approved perf fix 1): cleanup used to run
+    // ONLY from the two dialog events. If the prompt was dismissed without
+    // dispatching either (backdrop, navigation, unmount, crash), the two window
+    // listeners stayed attached forever and the awaiting completion promise hung.
+    // Repeated ISP pickup completions stacked listeners that all fired later.
+    // The safety timeout tears the listeners down and unblocks the flow.
+    const SAFETY_MS = 120 * 1000;
+    let safetyTimer = null;
     const cleanup = () => {
       window.removeEventListener('interStoreDropoffConfirmed', onConfirm);
       window.removeEventListener('interStoreDropoffSkipped', onSkip);
+      if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null; }
     };
     const onConfirm = (event) => {
       cleanup();
@@ -62,5 +71,10 @@ export function promptInterStoreDropoff({
     };
     window.addEventListener('interStoreDropoffConfirmed', onConfirm);
     window.addEventListener('interStoreDropoffSkipped', onSkip);
+    safetyTimer = setTimeout(() => {
+      console.warn('[InterStoreDropoff] prompt never answered within 120s — releasing listeners (treated as skipped)');
+      cleanup();
+      resolve({ confirmed: false });
+    }, SAFETY_MS);
   });
 }

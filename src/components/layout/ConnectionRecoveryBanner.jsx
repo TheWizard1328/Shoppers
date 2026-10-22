@@ -30,7 +30,13 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
 
   const isDriver = Array.isArray(currentUser?.app_roles) && currentUser.app_roles.includes('driver');
 
-  useEffect(() => connectionMonitor.subscribe((nextHealth) => {
+  // LEAK FIX (Oct 22 2026, owner-approved perf fix 1): this effect previously
+  // subscribed WITHOUT returning the unsubscribe — every re-render of Layout
+  // (which re-renders on each deliveries/patients/appUsers state change) added
+  // another permanent listener to connectionMonitor; over a shift the listener
+  // set grew into the hundreds and every network state change ran all of them.
+  useEffect(() => {
+  const _unsub = connectionMonitor.subscribe((nextHealth) => {
     setHealth(nextHealth);
     const nextState = connectionState(nextHealth);
     const now = Date.now();
@@ -60,7 +66,9 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
       );
     }
     connectionRef.current = { state: nextState, since: now };
-  }), []);
+  });
+  return () => { _unsub(); };
+  }, []);
 
   useEffect(() => {
     const clearAcquisitionTimer = () => {

@@ -187,8 +187,22 @@ export function useStopCardCompletionActions({
       const cyclingDialogRan = !!(isDriverAction && isCyclingMode);
       if (cyclingDialogRan) {
         await new Promise(resolve => {
-          const onDone = () => { window.removeEventListener('cyclingModeDialogDone', onDone); resolve(); };
+          // LEAK FIX (Oct 22 2026, owner-approved perf fix 1): the waiter only
+          // unregistered from the dialog-done event. If the cycling dialog never
+          // opened (unmounted hook, guard) the listener stayed on window forever
+          // and Accept All hung. 120s safety releases both.
+          let safety = null;
+          const onDone = () => {
+            window.removeEventListener('cyclingModeDialogDone', onDone);
+            if (safety) clearTimeout(safety);
+            resolve();
+          };
           window.addEventListener('cyclingModeDialogDone', onDone);
+          safety = setTimeout(() => {
+            console.warn('[CyclingMode] dialog never signalled done within 120s — releasing waiter');
+            window.removeEventListener('cyclingModeDialogDone', onDone);
+            resolve();
+          }, 120 * 1000);
           window.dispatchEvent(new CustomEvent('openCyclingModeDialog', {
             detail: { deliveryDate: delivery.delivery_date, fromAcceptAll: true }
           }));
