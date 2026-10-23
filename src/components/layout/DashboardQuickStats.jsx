@@ -17,6 +17,42 @@ import { userHasRole } from '../utils/userRoles';
 import { isReturnAddress } from '../utils/returnDeliveryUtils';
 import OfflineSyncIndicator from './OfflineSyncIndicator';
 
+// ── IDB-first cached slice helpers (owner directive Oct 22 2026) ────────────
+// The app no longer keeps the whole store in memory. Month-wide stats read
+// JUST the month slice from IDB (index-scoped date-range read, ~2k records)
+// with a 60s TTL cache so refresh-event storms don't re-decrypt it.
+let _monthSliceCache = null; // { monthStr, rows, at }
+const getMonthDeliverySliceForStats = async (monthStr) => {
+  const now = Date.now();
+  if (_monthSliceCache && _monthSliceCache.monthStr === monthStr && (now - _monthSliceCache.at) < 60000) {
+    return _monthSliceCache.rows;
+  }
+  const [y, m] = String(monthStr || '').split('-');
+  const monthStart = `${monthStr}-01`;
+  const monthEnd = `${monthStr}-${new Date(Number(y || 2026), Number(m || 1), 0).getDate()}`;
+  const rows = await offlineDB.getDeliveriesByDateRange(monthStart, monthEnd).catch(() => []);
+  _monthSliceCache = { monthStr, rows: rows || [], at: now };
+  return rows || [];
+};
+
+// Return-address patient keys: one IDB patient scan per 10 min (cached) —
+// return detection needs the whole patient DB, which is no longer in memory.
+let _returnKeysCache = null; // { keys, at }
+const getReturnPatientKeysForStats = async () => {
+  const now = Date.now();
+  if (_returnKeysCache && (now - _returnKeysCache.at) < 600000) return _returnKeysCache.keys;
+  const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+  const keys = new Set();
+  (allPatients || []).forEach((p) => {
+    if (p && isReturnAddress(p.address)) {
+      if (p.id) keys.add(p.id);
+      if (p.patient_id) keys.add(p.patient_id);
+    }
+  });
+  _returnKeysCache = { keys, at: now };
+  return keys;
+};
+
 export default function DashboardQuickStats({ currentUser, storeIds = [], isMobile, screenWidth, showOfflineSync = false }) {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
   const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => {
@@ -81,10 +117,10 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         // PERF: in-memory arrays from AppDataContext (fresh via the same
         // WS/sync events that dispatch refreshDeliveryStats). IDB full scan
         // is only a fallback while memory hasn't been seeded yet.
-        let allDeliveries = memDataRef.current.deliveries || null;
-        if (!allDeliveries || allDeliveries.length === 0) {
-          allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        }
+        // IDB-FIRST (Oct 22 2026): read JUST the month slice from IDB (60s
+        // TTL cache). The in-memory ctx now holds only the selected date, so
+        // month-wide stats must come from the offline DB, scoped by date range.
+        const allDeliveries = await getMonthDeliverySliceForStats(monthStr);
         if (!isMountedRef.current) return;
 
         if (!allDeliveries || allDeliveries.length === 0) {
@@ -93,24 +129,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
           return;
         }
 
-        let allPatients = memDataRef.current.patients || null;
-        if (!allPatients || allPatients.length === 0) {
-          allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-        }
-
+        const returnPatientKeys = await getReturnPatientKeysForStats();
         if (!isMountedRef.current) return;
-
-        // PERF: Precompute a Set of "return" patient keys once (O(n)) instead of
-        // calling getReturnCountFromPatientId's array.find() per-delivery, which
-        // was an O(deliveries * patients) nested scan — the main hotspot causing
-        // multi-hundred-ms main-thread blocks on stores with large patient lists.
-        const returnPatientKeys = new Set();
-        (allPatients || []).forEach((p) => {
-          if (p && isReturnAddress(p.address)) {
-            if (p.id) returnPatientKeys.add(p.id);
-            if (p.patient_id) returnPatientKeys.add(p.patient_id);
-          }
-        });
         const isReturnDelivery = (d) => d?.patient_id && returnPatientKeys.has(d.patient_id);
 
         // Determine store filter for dispatcher

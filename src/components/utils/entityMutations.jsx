@@ -106,7 +106,6 @@ const emitImmediateRealtimeCreate = async (entity, record) => {
   }
 };
 
-let lastGlobalDeliverySnapshotAt = 0;
 
 const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
   try {
@@ -127,12 +126,10 @@ const refreshOfflineEntitySnapshots = async (entityName, record = null) => {
         const dateRows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
         await offlineDB.updateCacheSnapshot('Delivery', dateRows || [], { scopeKey: `date:${deliveryDate}`, syncType: 'mutation' });
       }
-      const nowMs = Date.now();
-      if (nowMs - lastGlobalDeliverySnapshotAt > 60000 || !deliveryDate) {
-        lastGlobalDeliverySnapshotAt = nowMs;
-        const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        await offlineDB.updateCacheSnapshot('Delivery', allDeliveries || [], { scopeKey: 'global', syncType: 'mutation' });
-      }
+      // IDB-FIRST (Oct 22 2026): the once-per-60s GLOBAL snapshot re-read and
+      // re-hashed the ENTIRE delivery store (20k+ records decrypted) after
+      // mutations. Nothing validates a Delivery 'global' scope (all consumers
+      // use date:<date> scopes) — removed entirely.
     }
   } catch (error) {
     console.warn('[EntityMutations] Failed to refresh offline cache snapshot:', error.message);

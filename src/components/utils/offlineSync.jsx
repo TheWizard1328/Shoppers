@@ -850,7 +850,7 @@ export const forceSyncAll = async () => {
     }
     invalidateEntityCache('Patient');
 
-    const cleanPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    const cleanPatients = { length: await offlineDB.countStore(offlineDB.STORES.PATIENTS) }; // IDB-FIRST: count only
     console.log(`✅ [ForceSyncAll] Synced ${totalSyncedPatients} patients; offline DB now has ${cleanPatients.length} total`);
     
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 45, count: cleanPatients.length });
@@ -1258,7 +1258,7 @@ export const restartDeliveryPatientSync = async () => {
     }
     invalidateEntityCache('Patient');
 
-    const cleanPatients = (await offlineDB.getAll(offlineDB.STORES.PATIENTS)).filter(p => p && p.id && !p.id.startsWith('temp_'));
+    const cleanPatients = { length: await offlineDB.countStore(offlineDB.STORES.PATIENTS) }; // IDB-FIRST: count only
     console.log(`✅ [OfflineSync] Synced ${totalRestartPatients} patients; offline DB has ${cleanPatients.length} total`);
     
     notifySyncStatus({ status: 'syncing', entity: `Patients (total: ${cleanPatients.length})`, progress: 75 });
@@ -1312,8 +1312,11 @@ export const restartDeliveryPatientSync = async () => {
     const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     
     // CRITICAL: Get actual offline DB counts (merged data, not just synced)
-    const offlinePatientsForStatus = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    const offlineDeliveriesForStatus = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    // IDB-FIRST (Oct 22 2026): metadata-only counts — no full-store decrypt.
+    const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
+      offlineDB.countStore(offlineDB.STORES.PATIENTS),
+      offlineDB.countStore(offlineDB.STORES.DELIVERIES),
+    ]);
     
     await Promise.all([
       offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),

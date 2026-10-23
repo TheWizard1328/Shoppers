@@ -23,6 +23,7 @@ import { subscribeToUserSettingsUpdates } from '../utils/userSettingsManager';
 import { indexInterStoreLocation, resetInterStoreLocationsCache } from '../utils/interStoreDisplayName';
 import { heartbeatService } from '../utils/heartbeatService';
 import { runPatientDbPrioritySync } from '../utils/patientDbPrioritySync';
+import { loadBootDeliverySlice, loadBootPatientSlice } from '../utils/idbFirstLoaders';
 
 /**
  * useLayoutInit
@@ -106,8 +107,13 @@ export function useLayoutInit({
             () => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }),
             'critical', 'getBootstrapManifest'
           ).catch((e) => ({ _error: e })),
-          offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
+          // IDB-FIRST BOOT (owner directive Oct 22 2026): NEVER preload the whole
+          // offline store at boot again — 20k+ delivery records + 4k+ patients were
+          // read AND decrypted here every boot, blowing the 10s bootstrap timeout
+          // and leaving the map on a 10-minute catch-up. Load ONLY today's date
+          // slice (all drivers; UI filters by city/driver at render). Patients for
+          // that date are hydrated right after, from the deliveries' references.
+          loadBootDeliverySlice(todayStr).catch(() => []),
           offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
           offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
           offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => []),
@@ -117,19 +123,32 @@ export function useLayoutInit({
           offlineDB.getAll(offlineDB.STORES.INTER_STORE_LOCATIONS).catch(() => []),
         ]);
 
-        let offlineManifestResult, offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities,
+        let offlineManifestResult, offlineDels, offlinePats = [], offlineAppUsers, offlineStores, offlineCities,
             sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations;
         try {
           [
             offlineManifestResult,
-            offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities,
+            offlineDels, offlineAppUsers, offlineStores, offlineCities,
             sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations,
           ] = await _withTimeout(_bootstrapPromise, 10000, 'bootstrap Promise.all');
         } catch (bootTimeoutErr) {
           console.error('❌ [Init] Bootstrap Promise.all timed out — continuing with empty IDB data:', bootTimeoutErr.message);
           offlineManifestResult = { _error: bootTimeoutErr };
-          offlineDels = []; offlinePats = []; offlineAppUsers = []; offlineStores = [];
+          offlineDels = []; offlineAppUsers = []; offlineStores = [];
           offlineCities = []; sqConfigs = []; sqCatalog = []; sqTx = []; offlineInterStoreLocations = [];
+        }
+
+        // IDB-FIRST PATIENT SLICE: only the patients referenced by today's
+        // delivery slice (~60 records), read from IDB; server fallback pulls
+        // just the missing referenced ids. Bounded so a slow read can never
+        // stall the boot gate.
+        if (Array.isArray(offlineDels) && offlineDels.length > 0) {
+          try {
+            offlinePats = await _withTimeout(loadBootPatientSlice(offlineDels), 8000, 'boot patient slice');
+          } catch (patErr) {
+            console.warn('⚠️ [Init] Boot patient slice failed:', patErr?.message || patErr);
+            offlinePats = [];
+          }
         }
 
         // Handle manifest response (slim — device check + API key only)

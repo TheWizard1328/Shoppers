@@ -17,8 +17,12 @@ export async function loadDashboardOfflineDateData({
   const mountAppUsers = ((await offlineDB.getAll(offlineDB.STORES.APP_USERS)) || []).filter((u) => u?.user_id && u.user_id !== 'undefined');
 
   if (updateDeliveriesLocally) {
-    const otherDateDeliveries = (deliveries || []).filter((d) => d && d.delivery_date !== selectedDateStr);
-    updateDeliveriesLocally([...otherDateDeliveries, ...(mountDeliveries || [])], true);
+    // OWNER DIRECTIVE (Oct 22 2026): switching dates REPLACES the in-memory
+    // set with just the selected date's slice — the previous date's data is
+    // cleared, never carried (the old carry-over accumulated every visited
+    // date in React memory). Unsynced local records are still preserved by
+    // updateDeliveriesLocally's full-replacement guard.
+    updateDeliveriesLocally([...(mountDeliveries || [])], true);
   }
 
   const appUsersToProcess = mountAppUsers.length > 0 ? mountAppUsers : appUsers;
@@ -31,8 +35,9 @@ export async function loadDashboardOfflineDateData({
 }
 
 export function mergeDeliveriesForDate({ deliveries, selectedDateStr, freshDeliveries }) {
-  const otherDateDeliveries = (deliveries || []).filter((d) => d && d.delivery_date !== selectedDateStr);
-  return [...otherDateDeliveries, ...(freshDeliveries || [])];
+  // OWNER DIRECTIVE (Oct 22 2026): date-scoped memory — only the selected
+  // date's slice is kept; other dates are dropped, not carried.
+  return [...(freshDeliveries || [])];
 }
 
 export function hasDeliveryDataForSelection({ deliveries, selectedDateStr, selectedDriverId }) {

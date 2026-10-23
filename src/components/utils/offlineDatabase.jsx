@@ -1088,6 +1088,43 @@ const needsInitialSync = async (entityName) => {
  * card jank, indicator showing 0 for 10-20s, Oct 6 2026). IDB count() is
  * metadata-only and runs in milliseconds.
  */
+/**
+ * Count deliveries by date bucket (past / today / future) WITHOUT decrypting
+ * anything — walks the delivery_date index with a key-only cursor and counts.
+ * IDB-first refactor (Oct 22 2026): replaces the old getAll(STORES.DELIVERIES)
+ * full-store decrypt that the sync indicator ran on every sync cycle.
+ */
+const countDeliveryDateBuckets = async (todayStr) => {
+  const buckets = { past: 0, today: 0, future: 0 };
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.DELIVERIES], 'readonly');
+    const index = transaction.objectStore(STORES.DELIVERIES).index('delivery_date');
+    await new Promise((resolve, reject) => {
+      const request = index.openKeyCursor();
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          const d = String(cursor.key || '');
+          if (d && d !== 'undefined' && d !== 'null') {
+            if (!todayStr || d < todayStr) buckets.past++;
+            else if (d === todayStr) buckets.today++;
+            else buckets.future++;
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+    return buckets;
+  } catch (error) {
+    console.warn('[OfflineDB] countDeliveryDateBuckets failed:', error.message);
+    return buckets;
+  }
+};
+
 const countStore = async (storeName) => {
   try {
     const db = await openDatabase();
@@ -1822,6 +1859,7 @@ export const offlineDB = {
   purgeStalePendingMutations,
   updateMutationRetry,
   deleteRecord,
+  countDeliveryDateBuckets,
   deduplicateAppUsers,
   deduplicateDeliveries,
   deleteDeliveriesByDate,

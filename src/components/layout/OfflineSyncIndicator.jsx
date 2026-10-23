@@ -47,16 +47,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
 
   // ── Cheap IDB reads — only on sync start / complete, never on a timer ──
   const getDeliveryCountsFromDB = async () => {
+    // IDB-FIRST (Oct 22 2026): key-cursor index count — zero decryption.
+    // The old getAll decrypted the entire delivery store on every sync
+    // start/complete just to count date buckets.
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    let past = 0, today = 0, future = 0;
-    (all || []).forEach(d => {
-      if (!d?.delivery_date) return;
-      if (d.delivery_date < todayStr) past++;
-      else if (d.delivery_date === todayStr) today++;
-      else future++;
-    });
-    return { past, today, future };
+    return offlineDB.countDeliveryDateBuckets(todayStr);
   };
 
   const refreshDeliveryCounts = async (isPostSync = false) => {

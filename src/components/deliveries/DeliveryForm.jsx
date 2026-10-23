@@ -18,6 +18,7 @@ import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSl
 import { generateStopId } from '../utils/idGenerator';
 import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
+import { hydratePatientsFromIdbIfNeeded } from '../utils/idbFirstLoaders';
 
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { getPreferredTravelMode } from '../dashboard/travelModeHelpers';
@@ -167,6 +168,16 @@ export default function DeliveryForm({
 
   // Auto-select "in_transit" status when switching to InterStore mode on a new form,
   // OR when editing an existing interstore that has 'en_route' in the DB (a legacy
+  // IDB-FIRST (owner directive Oct 22 2026): boot seeds only the patients
+  // referenced by the selected date's deliveries. The patient search needs the
+  // full DB — hydrate it from IDB on demand the first time a form opens this
+  // session (one read, off the boot path; server not involved).
+  const { patients: ctxPatientsForHydration, applyPatientChangesLocally } = useAppData();
+  useEffect(() => {
+    hydratePatientsFromIdbIfNeeded({ patients: ctxPatientsForHydration, applyPatientChanges: applyPatientChangesLocally }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // artifact from the time interstore deliveries incorrectly defaulted to en_route).
   // The interstore status dropdown only has in_transit / completed, so en_route
   // renders as a blank selection — normalise it to in_transit on form open.
