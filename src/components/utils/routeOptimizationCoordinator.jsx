@@ -144,6 +144,32 @@ async function _performRouteOptimizationInner({
     return { success: false, error: 'HERE API key not available' };
   }
 
+  // ── CAPPED backend reads (owner freeze report Oct 23 2026) ─────────────────
+  // Fetch-only runs (e.g. post_delivery_sync after a delivery-form save) re-read
+  // route data from the backend with RAW entity queries that have NO timeout. A
+  // hot account pool (429 storms) or weak network stalls these awaits for
+  // minutes while the spinner hangs — and the 45s server-invoke race cap never
+  // even runs because the flow is stuck BEFORE the gate. Cap every one of these
+  // reads and fall back to LOCAL IDB data so the optimizer still proceeds and
+  // the spinner always clears.
+  const _ROUTE_FETCH_PRIMARY_CAP_MS = 20000;   // route data: local-IDB fallback window
+  const _ROUTE_FETCH_FINAL_CAP_MS = 25000;     // route data: last-chance window (no local data)
+  const _ROUTE_FETCH_MINOR_CAP_MS = 15000;     // patients/stores/appUsers/gap-fill
+
+  const _routeFetchWithCap = (promise, capMs, label) => {
+    const _sentinel = Symbol('route_fetch_timeout');
+    const _capPromise = new Promise((res) => setTimeout(() => res(_sentinel), capMs));
+    return Promise.race([Promise.resolve(promise).catch(() => []), _capPromise])
+      .then((r) => ({ ok: r !== _sentinel, value: r }));
+  };
+
+  const _routeLocalDeliveries = async (drvId, date) => {
+    try {
+      const local = await offlineDB.getByCompoundIndex('deliveries', 'date_driver', [date, drvId]);
+      return Array.isArray(local) ? local : [];
+    } catch (_) { return []; }
+  };
+
   // ── Resolve polylines-slot provider + key (HERE or Google) ────────────────
   // For HERE polylines, polylineApiKey stays null and the engine reuses hereApiKey.
   let polylineProvider = 'here';
@@ -175,9 +201,29 @@ async function _performRouteOptimizationInner({
 
   if (!resolvedDeliveries) {
     console.warn(`[RouteOptimization] ${source} — no local deliveries provided, fetching from backend (may race)`);
-    resolvedDeliveries = await base44.entities.Delivery.filter({
+    const _deliveryFetch = base44.entities.Delivery.filter({
       driver_id: driverId, delivery_date: deliveryDate
     }).catch(() => []);
+    let _race = await _routeFetchWithCap(_deliveryFetch, _ROUTE_FETCH_PRIMARY_CAP_MS, 'delivery route data');
+    if (_race.ok) {
+      resolvedDeliveries = Array.isArray(_race.value) ? _race.value : [];
+    } else {
+      // Stalled >20s (hot pool / weak network — the Oct 23 freeze): use LOCAL
+      // IDB data so the optimizer runs and the spinner clears instead of hanging.
+      const _local = await _routeLocalDeliveries(driverId, deliveryDate);
+      if (_local.length > 0) {
+        console.warn(`[RouteOptimization] ${source} — backend route-data fetch stalled >${_ROUTE_FETCH_PRIMARY_CAP_MS / 1000}s; using LOCAL IDB data (${_local.length} stops)`);
+        resolvedDeliveries = _local;
+      } else {
+        _race = await _routeFetchWithCap(_deliveryFetch, _ROUTE_FETCH_FINAL_CAP_MS, 'delivery route data (final)');
+        if (_race.ok) {
+          resolvedDeliveries = Array.isArray(_race.value) ? _race.value : [];
+        } else {
+          console.warn(`[RouteOptimization] ${source} — route-data fetch stalled ${(_ROUTE_FETCH_PRIMARY_CAP_MS + _ROUTE_FETCH_FINAL_CAP_MS) / 1000}s total with no local data; aborting run`);
+          return { success: false, error: 'route data fetch timed out' };
+        }
+      }
+    }
     // FRESH-COMMIT GUARD (owner report Oct 21 2026: Start reverts seconds after
     // it runs + wasted HERE/Google calls). A fetch-only run has no local
     // snapshot; if another engine committed THIS route within the last 45s
@@ -197,18 +243,40 @@ async function _performRouteOptimizationInner({
   }
   if (!resolvedPatients) {
     const patientIds = [...new Set((resolvedDeliveries || []).filter(d => d.patient_id).map(d => d.patient_id))];
-    resolvedPatients = patientIds.length ? await base44.entities.Patient.filter({ id: { $in: toValidRecordIds(patientIds) } }).catch(() => []) : [];
+    if (patientIds.length) {
+      const _pRace = await _routeFetchWithCap(base44.entities.Patient.filter({ id: { $in: toValidRecordIds(patientIds) } }), _ROUTE_FETCH_MINOR_CAP_MS, 'patients');
+      if (_pRace.ok) {
+        resolvedPatients = Array.isArray(_pRace.value) ? _pRace.value : [];
+      } else {
+        try { resolvedPatients = await offlineDB.getByIds('patients', toValidRecordIds(patientIds)); } catch (_) { resolvedPatients = []; }
+        console.warn(`[RouteOptimization] ${source} — patient fetch stalled; local IDB fallback (${resolvedPatients.length})`);
+      }
+    } else resolvedPatients = [];
   }
   if (!resolvedStores) {
     const storeIds = [...new Set((resolvedDeliveries || []).map(d => d.store_id).filter(Boolean))];
-    resolvedStores = storeIds.length ? await base44.entities.Store.filter({ id: { $in: storeIds } }).catch(() => []) : [];
+    if (storeIds.length) {
+      const _sRace = await _routeFetchWithCap(base44.entities.Store.filter({ id: { $in: storeIds } }), _ROUTE_FETCH_MINOR_CAP_MS, 'stores');
+      if (_sRace.ok) {
+        resolvedStores = Array.isArray(_sRace.value) ? _sRace.value : [];
+      } else {
+        try { resolvedStores = await offlineDB.getByIds('stores', storeIds); } catch (_) { resolvedStores = []; }
+        console.warn(`[RouteOptimization] ${source} — store fetch stalled; local IDB fallback (${resolvedStores.length})`);
+      }
+    } else resolvedStores = [];
   }
   // EMPTY-ARRAY GUARD (owner report Oct 21): a caller passing appUsers=[] is
   // not "provided" — the driver's record is guaranteed missing and the engine
   // falls into its capped 8s DB fallback (or, pool-hot, proceeds WITHOUT driver
   // home/travel mode = wrong origin). [] must refetch like undefined.
   if (!Array.isArray(resolvedAppUsers) || resolvedAppUsers.length === 0) {
-    resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
+    const _aRace = await _routeFetchWithCap(base44.entities.AppUser.filter({ user_id: driverId }), _ROUTE_FETCH_MINOR_CAP_MS, 'app user');
+    if (_aRace.ok) {
+      resolvedAppUsers = Array.isArray(_aRace.value) ? _aRace.value : [];
+    } else {
+      try { resolvedAppUsers = await offlineDB.getByIndex('app_users', 'user_id', driverId); } catch (_) { resolvedAppUsers = []; }
+      console.warn(`[RouteOptimization] ${source} — app-user fetch stalled; local IDB fallback (${resolvedAppUsers.length})`);
+    }
   }
 
   // ── GAP-FILL stores/patients ──────────────────────────────────────────────
@@ -227,7 +295,8 @@ async function _performRouteOptimizationInner({
     )];
     if (missingStoreIds.length > 0) {
       try {
-        const fetchedStores = await base44.entities.Store.filter({ id: { $in: missingStoreIds } }).catch(() => []);
+        const _gRace = await _routeFetchWithCap(base44.entities.Store.filter({ id: { $in: missingStoreIds } }), _ROUTE_FETCH_MINOR_CAP_MS, 'store gap-fill');
+        const fetchedStores = _gRace.ok ? (_gRace.value || []) : [];
         if (Array.isArray(fetchedStores) && fetchedStores.length > 0) {
           resolvedStores = [...(resolvedStores || []), ...fetchedStores];
           console.log(`[RouteOptimization] ${source} — gap-filled ${fetchedStores.length} missing store(s) for coord resolution`);
