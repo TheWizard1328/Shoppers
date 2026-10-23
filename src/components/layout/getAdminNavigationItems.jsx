@@ -1,5 +1,5 @@
 import { createPageUrl } from '@/utils';
-import { Building, Building2, BarChart3, Truck, Users2, FileText, CreditCard, MapPinned, ReceiptText, CalendarDays, Barcode } from 'lucide-react';
+import { Building, Building2, BarChart3, Truck, Users2, FileText, CreditCard, MapPinned, ReceiptText, CalendarDays } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
 
 export default function getAdminNavigationItems({
@@ -38,12 +38,6 @@ export default function getAdminNavigationItems({
 
   if (currentUser && (isAppOwner(currentUser) || isAdmin)) {
     items.push(
-      {
-        title: 'Login Sticker Sheets',
-        pageName: 'LoginStickerSheets',
-        url: createPageUrl('LoginStickerSheets'),
-        icon: Barcode
-      },
       {
         title: 'Stat Holidays',
         pageName: 'StatHolidays',
