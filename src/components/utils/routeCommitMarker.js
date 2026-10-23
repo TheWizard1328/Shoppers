@@ -188,6 +188,34 @@ export const fireRouteCommitMarker = async (deliveryId, committedCount = 0, chan
     await base44.entities.Delivery.update(deliveryId, markerData);
     console.log(`[RouteCommit] marker broadcast (${committedCount} records committed silently)`);
   } catch (mErr) {
-    console.warn('[RouteCommit] marker write failed:', mErr?.message || mErr);
+    const msg = String(mErr?.message || mErr || '');
+    if (/not\s*found|404/i.test(msg)) {
+      // GHOST DELIVERY (owner report Oct 22 2026): this device still holds a
+      // delivery the server already deleted (the delete WS broadcast was
+      // missed — WS offline/TransportError at delete time — and delta sync
+      // has no tombstones, so the remnant survives forever in IDB). Evidence:
+      // "[RouteCommit] marker write failed: Entity Delivery with ID ... not
+      // found" on the owner's phone while it kept the ghost as the
+      // next-flagged stop. Self-heal: purge the remnant from IDB so it can
+      // never poison route/marker/arrival flows again, then tell the UI to
+      // re-read local data.
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        const [ghost] = await (offlineDB.getByIds(offlineDB.STORES.DELIVERIES, [deliveryId]).catch(() => []));
+        await (offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, deliveryId).catch(() => {}));
+        console.warn(`[RouteCommit] GHOST-PURGE: server reports delivery ${deliveryId} not found — purged stale local remnant` +
+          (ghost ? ` (was driver=${ghost.driver_name} status=${ghost.status} isNext=${!!ghost.isNextDelivery})` : '') +
+          `. If it held isNextDelivery, the next Complete/Accept re-syncs flags.`);
+        try {
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { driverId: ghost?.driver_id || null, deliveryDate: ghost?.delivery_date || null, triggeredBy: 'ghost_purge', purgedId: deliveryId }
+          }));
+        } catch (_) {}
+      } catch (purgeErr) {
+        console.warn('[RouteCommit] marker write failed AND ghost purge failed:', msg, purgeErr?.message || purgeErr);
+      }
+    } else {
+      console.warn('[RouteCommit] marker write failed:', mErr?.message || mErr);
+    }
   }
 };
