@@ -93,8 +93,8 @@ export default function LoginStickerSheets() {
   const [usernames, setUsernames] = useState({});
   const [showPasswords, setShowPasswords] = useState({});
   const [selected, setSelected] = useState({});
-  const [rows, setRows] = useState(6);
-  const [cols, setCols] = useState(5);
+  const [rows, setRows] = useState(5);
+  const [cols, setCols] = useState(4);
   const [showPrintOverlay, setShowPrintOverlay] = useState(false);
 
   useEffect(() => {
@@ -195,13 +195,13 @@ export default function LoginStickerSheets() {
         <div className="flex items-center gap-2">
           <Label className="text-xs text-slate-500">Rows per sheet</Label>
           <select value={rows} onChange={(e) => setRows(Number(e.target.value))} className="border rounded-lg px-2 py-1.5 bg-background">
-            {[5, 6, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+            {[4, 5, 6, 10].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
         <div className="flex items-center gap-2">
           <Label className="text-xs text-slate-500">Columns per sheet</Label>
           <select value={cols} onChange={(e) => setCols(Number(e.target.value))} className="border rounded-lg px-2 py-1.5 bg-background">
-            {[4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
+            {[3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
         <span className="text-xs text-slate-400">Each login prints twice, side by side.</span>
