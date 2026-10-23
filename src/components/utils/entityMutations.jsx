@@ -563,7 +563,16 @@ export const createDelivery = async (deliveryData, options = {}) => {
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       await refreshOfflineEntitySnapshots('Delivery', backendDelivery);
-      if (!options?.deferPolylineRefresh && backendDelivery?.driver_id && backendDelivery?.delivery_date) {
+      // OWNER SPEC (Oct 23 2026): creating a PENDING/staged stop must NEVER trigger
+      // route optimization or polyline generation — pending stops are not part of the
+      // active route until the driver accepts them (owner report: a dispatcher added 2
+      // pending stops and the in-transit driver's current leg got its road polyline
+      // replaced by a straight line after the store PC's HERE call failed mid-regen).
+      // Only stops created DIRECTLY as active (en_route pickup, in_transit InterStore,
+      // manually in-transit delivery) may optimize immediately.
+      const isActiveStopStatus = (status) => ['in_transit', 'en_route'].includes(String(status || '').toLowerCase());
+      if (!options?.deferPolylineRefresh && backendDelivery?.driver_id && backendDelivery?.delivery_date
+          && isActiveStopStatus(backendDelivery.status)) {
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
         await performRouteOptimization({
           driverId: backendDelivery.driver_id,
@@ -942,7 +951,17 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       console.log(`💾 [EntityMutations] Updated IndexedDB with ${backendDeliveries.length} real deliveries`);
       
       await refreshOfflineEntitySnapshots('Delivery', backendDeliveries[0]);
-      const firstRouteDelivery = backendDeliveries.find((delivery) => delivery?.driver_id && delivery?.delivery_date);
+      // OWNER SPEC (Oct 23 2026): a batch of PENDING/staged creations must NEVER
+      // trigger route optimization or polyline generation — pending stops are not part
+      // of the active route until the driver accepts them (owner report: dispatcher
+      // added 2 pending stops and the in-transit driver's current leg got its road
+      // polyline replaced by a straight line after the store PC's HERE call failed).
+      // Optimize ONLY when at least one created stop is directly active
+      // (en_route pickup, in_transit InterStore, manually in-transit delivery).
+      const _isActiveStopStatus = (status) => ['in_transit', 'en_route'].includes(String(status || '').toLowerCase());
+      const firstRouteDelivery = backendDeliveries.find((delivery) =>
+        delivery?.driver_id && delivery?.delivery_date && _isActiveStopStatus(delivery.status)
+      );
       if (firstRouteDelivery) {
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
         await performRouteOptimization({
