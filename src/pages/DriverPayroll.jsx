@@ -1321,6 +1321,44 @@ export default function DriverPayroll() {
     }
   }, [fetchPayroll, refreshPayrollRecords, selectedCityId, selectedYear, payPeriod]);
 
+  // ON-DEMAND PERIOD SYNC (owner report Oct 23 2026: selecting an older
+  // payroll cycle showed empty data). Page load gathers only the CURRENT
+  // cycle's months; older cycles relied entirely on the offline full-year
+  // cache / history host, so any device whose PAYROLL_PAGE_CACHE was thin
+  // rendered every older cycle empty ("up to 1 past cycle"). Now the selected
+  // period fetches ITS OWN missing months (paged, merged, persisted back to
+  // the offline cache — which self-heals the device). Fetched periods are
+  // remembered per year+city+period so legitimately-empty cycles (a week with
+  // zero stops) don't loop.
+  const onDemandFetchedRef = useRef(new Set());
+  useEffect(() => {
+    if (!hasInitialized || !isPayrollPageActive || !selectedCityId) return;
+    if (!currentPeriod || !payrollData) return;
+    const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
+    const periodMonths = [...new Set([
+      currentPeriod.start.getMonth() + 1,
+      currentPeriod.end.getMonth() + 1
+    ])].filter((m) => m >= 1 && m <= 12);
+    const loadedMonths = new Set(
+      deliveries.map((d) => Number(String(d?.delivery_date || '').slice(5, 7))).filter((m) => m >= 1 && m <= 12)
+    );
+    const missing = periodMonths.filter((m) => !loadedMonths.has(m));
+    if (missing.length === 0) return;
+    const demandKey = `${selectedYear}-${selectedCityId}-${toLocalYMD(currentPeriod.start)}-${toLocalYMD(currentPeriod.end)}`;
+    if (onDemandFetchedRef.current.has(demandKey)) return; // empty cycle — never re-fetch it
+    // If the initial-load fetch is still in flight, wait — fetchPayroll would
+    // just return its promise without fetching our months, and marking the
+    // key now would prevent the retry. The effect refires when it completes.
+    if (fetchPayrollInFlightRef.current) return;
+    onDemandFetchedRef.current.add(demandKey);
+    console.log(`📥 [DriverPayroll] On-demand period sync: missing month(s) [${missing.join(',')}] for ${demandKey}`);
+    fetchPayroll(false, true, { refreshMonths: missing }).catch((e) => {
+      console.warn('⚠️ [DriverPayroll] On-demand period sync failed:', e?.message || e);
+    });
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear,
+      currentPeriod?.start?.getTime?.() ?? null, currentPeriod?.end?.getTime?.() ?? null,
+      payrollData?.deliveries, fetchPayroll]);
+
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
     if (selectedPeriodIndex > 0) {
