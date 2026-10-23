@@ -57,40 +57,38 @@ function extractTimeFromDateTime(value) {
   return match ? match[1] : null;
 }
 
-function buildEtaBaseDate({ deliveryDate, finishedDeliveries, patientMap, storeMap }) {
+// ETA BASE + FORMAT FIX (owner report Oct 23 2026 — system-wide ETAs 6 hours
+// early): the OLD code built Edmonton wall components into
+// `new Date(y, m, d, h, min)` and read the result back through Intl with
+// timeZone 'America/Edmonton'. On the server (UTC-local) the constructor
+// creates a UTC instant from what were already Edmonton WALL values, and the
+// Edmonton formatter then subtracts 6 hours — EVERY eta this function wrote
+// was 6h early (owner's route: etas 05:06/07:27/08:11/08:43 against real
+// times 11:06/13:27/14:13/14:43). All inputs here are already Edmonton wall
+// values and the output is a wall 'HH:mm' — a Date/Intl round-trip can only
+// corrupt them. Pure minutes math from here on.
+const formatMinutesToWallTime = (minutes) => {
+  const h = Math.floor((minutes % 1440) / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+function buildEtaBaseMinutes({ deliveryDate, finishedDeliveries }) {
   const now = getEdmontonNowParts();
-  const [nowYear, nowMonth, nowDay] = now.date.split('-').map(Number);
-  const [nowHours, nowMinutes] = now.time.split(':').map(Number);
-  const nowDate = new Date(nowYear, (nowMonth || 1) - 1, nowDay || 1, nowHours || 0, nowMinutes || 0, 0, 0);
+  const nowMinutes = etaToMinutes(now.time) ?? 0;
   const routeIsPastDate = deliveryDate < now.date;
-  const routeIsLateToday = deliveryDate === now.date && (etaToMinutes(now.time) ?? 0) >= (21 * 60);
-  const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
-
-  if (!shouldUseFinishedStopTime) {
-    return nowDate;
+  const routeIsLateToday = deliveryDate === now.date && nowMinutes >= (21 * 60);
+  if (!(routeIsPastDate || routeIsLateToday)) {
+    return nowMinutes;
   }
-
+  // Latest finished stop — naive wall strings sort correctly as ISO text.
+  // NO Date parsing (server-local Date math is exactly what broke this).
   const latestFinished = [...(finishedDeliveries || [])]
     .filter((delivery) => delivery?.actual_delivery_time)
-    .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0];
-
-  if (!latestFinished) {
-    return nowDate;
-  }
-
+    .sort((a, b) => String(b.actual_delivery_time).localeCompare(String(a.actual_delivery_time)))[0];
+  if (!latestFinished) return nowMinutes;
   const baseTime = extractTimeFromDateTime(latestFinished.actual_delivery_time) || now.time;
-  const [hours, minutes] = baseTime.split(':').map(Number);
-  const [year, month, day] = String(deliveryDate).split('-').map(Number);
-  return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
-}
-
-function formatEta(date) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: APP_TIMEZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date);
+  return etaToMinutes(baseTime) ?? nowMinutes;
 }
 
 function etaToMinutes(value) {
@@ -250,11 +248,9 @@ async function processDriver(base44, appUser, deliveryDate, forceEtaRefresh = fa
 
   const etaUpdates = [];
   let cumulativeSeconds = 0;
-  const baseNow = buildEtaBaseDate({
+  const baseMinutes = buildEtaBaseMinutes({
     deliveryDate,
     finishedDeliveries,
-    patientMap,
-    storeMap,
   });
 
   for (let i = 0; i < deliveriesToProject.length; i += 1) {
@@ -262,7 +258,7 @@ async function processDriver(base44, appUser, deliveryDate, forceEtaRefresh = fa
     const travelSeconds = Number(sections[i]?.summary?.duration || 0);
     const extraSeconds = Math.max(0, Number(delivery.extra_time || 0) * 60);
     cumulativeSeconds += travelSeconds + extraSeconds;
-    const etaValue = formatEta(new Date(baseNow.getTime() + cumulativeSeconds * 1000));
+    const etaValue = formatMinutesToWallTime(baseMinutes + Math.round(cumulativeSeconds / 60));
     etaUpdates.push({ delivery, etaValue });
   }
 
