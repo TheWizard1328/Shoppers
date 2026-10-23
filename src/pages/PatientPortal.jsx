@@ -231,7 +231,11 @@ function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTa
     const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
     if (routePoints.length > 1) positions.push(...routePoints);
     programmaticRef.current = true;
-    map.fitBounds(L.latLngBounds(positions), { padding: [60, 60], animate: true });
+    // maxZoom cap (owner feedback Oct 23 2026): framing the full route on
+    // every driver tick zoomed out way too far. Cap the fit so it never zooms
+    // out past street level — short routes still zoom in naturally, long
+    // routes keep a readable view (the outer legs crop off-screen).
+    map.fitBounds(L.latLngBounds(positions), { padding: [60, 60], animate: true, maxZoom: 13 });
     const clearProgrammatic = () => { programmaticRef.current = false; };
     map.once('moveend', clearProgrammatic);
     map.once('zoomend', clearProgrammatic);
