@@ -163,25 +163,36 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
 
 // Fits the map to patient + store on load (once both are available).
 // If the driver is live, fits driver + patient instead.
-function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver }) {
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords }) {
   const map = useMap();
   const fittedRef = useRef(false);
+  const fittedWithRouteRef = useRef(false);
 
   useEffect(() => {
-    // Already fitted — don't re-run
-    if (fittedRef.current) return;
-
     // Must have patient location
     if (!patientLatLng) return;
 
+    // Full-route fit (owner spec Oct 23 2026): the visible route path (all
+    // legs between the driver and the patient) participates in the bounds so
+    // the patient sees the whole route prior to arrival, not just endpoints.
+    const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
+    const hasRoute = routePoints.length > 1;
+
     if (showDriver && driverLatLng) {
-      // Driver is live: fit driver + patient
+      // Already fitted this view — refit only once, when the route path first
+      // becomes available (it loads after the driver ping in some cases).
+      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current)) return;
       fittedRef.current = true;
-      map.fitBounds(L.latLngBounds([driverLatLng, patientLatLng]), { padding: [70, 70], animate: true });
+      if (hasRoute) fittedWithRouteRef.current = true;
+      const points = [driverLatLng, patientLatLng, ...routePoints];
+      map.fitBounds(L.latLngBounds(points), { padding: [70, 70], animate: true });
     } else if (storeLatLng) {
       // Normal case: fit store + patient (wait until store is loaded)
+      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current)) return;
       fittedRef.current = true;
-      map.fitBounds(L.latLngBounds([storeLatLng, patientLatLng]), { padding: [70, 70], animate: true });
+      if (hasRoute) fittedWithRouteRef.current = true;
+      const points = [storeLatLng, patientLatLng, ...routePoints];
+      map.fitBounds(L.latLngBounds(points), { padding: [70, 70], animate: true });
     }
     // If neither condition met yet, effect will re-run when deps change
   }, [
@@ -189,6 +200,7 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver 
     storeLatLng ? storeLatLng.join(',') : null,
     driverLatLng ? driverLatLng.join(',') : null,
     showDriver,
+    Array.isArray(routeCoords) ? routeCoords.length : 0,
   ]);
 
   return null;
@@ -201,18 +213,23 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver 
 // auto-fit from pausing itself (fitBounds fires the same zoomstart/drag-adjacent
 // events a user gesture does — without the flag the tracker would disable
 // itself on every driver tick, which is exactly why tracking never stuck).
-function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTap, onUserInteract }) {
+function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords }) {
   const map = useMap();
   const programmaticRef = useRef(false);
 
   // Auto-fit (Phase 2): whenever the driver moves (or tracking resumes after a
-  // pause), pan AND zoom to frame driver + patient.
+  // pause), pan AND zoom to frame driver + patient — PLUS the full visible
+  // route path so every intermediate stop between the driver and the patient
+  // stays in view (owner spec Oct 23 2026; stops aren't shown as markers, but
+  // their legs define the bounds).
   useEffect(() => {
     if (!trackingMode || !driverLocation || !patientLatLng) return;
     const positions = [
       [driverLocation.lat, driverLocation.lng],
       patientLatLng,
     ];
+    const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
+    if (routePoints.length > 1) positions.push(...routePoints);
     programmaticRef.current = true;
     map.fitBounds(L.latLngBounds(positions), { padding: [60, 60], animate: true });
     const clearProgrammatic = () => { programmaticRef.current = false; };
@@ -226,7 +243,9 @@ function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTa
       map.off('zoomend', clearProgrammatic);
       programmaticRef.current = false;
     };
-  }, [driverLocation?.lat, driverLocation?.lng, trackingMode]);
+    // routeCoords identity changes only when the visible legs change (new stop
+    // accepted, completion, regen) — refit then so the frame tracks the route.
+  }, [driverLocation?.lat, driverLocation?.lng, trackingMode, routeCoords]);
 
   // Double-tap resumes tracking immediately; USER zoom/drag starts the 10s
   // pause. Programmatic fits are flagged and ignored.
@@ -651,6 +670,22 @@ export default function PatientPortal({ embedded = false } = {}) {
     };
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
+  // Visible route path (owner spec Oct 23 2026): every leg the patient can
+  // see on the map, flattened into one point list for bounds fitting — the
+  // intermediate stops aren't rendered as markers, but their leg geometry keeps
+  // them inside the pan/zoom frame. NOTE: the live-tracking gate is applied at
+  // the prop site (showLiveTracking is defined below this memo — referencing it
+  // here would be a TDZ error), so the fit never zooms out to include invisible
+  // geometry.
+  const ROUTE_COORDS_EMPTY = [];
+  const visibleRouteCoords = useMemo(() => {
+    return [
+      ...staticPolylineCoords,
+      ...firstLegCoords,
+      ...currentLegCoords,
+    ];
+  }, [staticPolylineCoords, firstLegCoords, currentLegCoords]);
+
   const storeLatLng = activeStore?.latitude && activeStore?.longitude
     ? [activeStore.latitude, activeStore.longitude]
     : null;
@@ -772,6 +807,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                 storeLatLng={storeLatLng}
                 driverLatLng={driverLocation ? [driverLocation.lat, driverLocation.lng] : null}
                 showDriver={showLiveTracking && !!driverLocation}
+                routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
               />
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
@@ -779,6 +815,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                 trackingMode={trackingMode}
                 onDoubleTap={handleDoubleTap}
                 onUserInteract={handleUserInteract}
+                routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
               />
 
               {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
