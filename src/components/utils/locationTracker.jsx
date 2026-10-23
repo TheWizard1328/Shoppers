@@ -72,6 +72,16 @@ class LocationTracker {
         this._heartbeatTickInFlight = false;
         this._breadcrumbWriteInFlight = false;
 
+        // ── Stop-settle snap (owner report Oct 22 evening) ──────────────────
+        // The 5m distanceFilter delivers ZERO fixes while parked, so when the
+        // driver stops at a light the blue dot stays at the last pre-stop fix —
+        // several car lengths short of the real stopped position. State for a
+        // budgeted one-shot "settle" fix that snaps the dot onto the true spot.
+        this._stopSettleTimer = null;
+        this._stopSettleCount = 0;   // max consecutive settles (~quiet after ~1 min parked)
+        this._lastFixAt = 0;
+        this._lastFixPos = null;
+
         // Event-driven updates tracking
         this._pendingEventUpdate = false;
         this._eventUpdateTime = 0;
@@ -934,6 +944,28 @@ class LocationTracker {
     }
   }
 
+  _armStopSettle() {
+    if (this._stopSettleTimer) clearTimeout(this._stopSettleTimer);
+    const armedAt = this._lastFixAt;
+    this._stopSettleTimer = setTimeout(async () => {
+      this._stopSettleTimer = null;
+      if (!this.isTracking) return;
+      if (typeof document !== 'undefined' && document.hidden) return; // dot invisible; native service still uploads
+      if (this._lastFixAt !== armedAt) return; // a newer fix landed — not stopped
+      if (this._stopSettleCount >= 4) return;  // parked for a while — stop spending battery
+      try {
+        // Shared single-flight fresh antenna request. The 5s wait guarantees
+        // the 2.5s shared-fix cache has expired, so this IS a fresh fix (it
+        // may also join an in-flight request from another caller — fine).
+        const pos = await this._requestSharedFix({ enableHighAccuracy: true, timeout: 6000, maximumAge: 0, requestPermissions: false });
+        if (pos?.coords) {
+          this._stopSettleCount += 1;
+          await this.handleLocationSuccess(pos); // normal path: marker ease, gated breadcrumb + 15s-gated upload
+        }
+      } catch (_) { /* antenna cold — the next fix re-arms and retries */ }
+    }, 5000);
+  }
+
   async handleLocationSuccess(position) {
     const { latitude, longitude, accuracy } = position.coords;
     const timestamp = position.timestamp || Date.now();
@@ -968,6 +1000,23 @@ class LocationTracker {
     }
 
     if (!this.isTracking) return;
+
+    // ── STOP-SETTLE SNAP ──────────────────────────────────────────────────────
+    // On every delivered fix: (a) real movement (>8m from the previous fix)
+    // restores the settle budget — the driver is driving; (b) arm a one-shot
+    // settle. If NO newer fix lands within 5s, the driver has stopped (5m
+    // distanceFilter suppresses stationary fixes) — grab ONE fresh antenna fix
+    // and feed it through the normal path so the dot eases onto the REAL
+    // parked spot instead of trailing several car lengths behind it.
+    {
+      const prevFix = this._lastFixPos;
+      this._lastFixAt = Date.now();
+      this._lastFixPos = { latitude, longitude };
+      if (prevFix && this.calculateDistance(prevFix.latitude, prevFix.longitude, latitude, longitude) > 8) {
+        this._stopSettleCount = 0;
+      }
+      this._armStopSettle();
+    }
 
     // ── BREADCRUMB COLLECTION FROM watchPosition (PRIMARY SOURCE) ──────────────
     // Collect a breadcrumb on EVERY GPS hardware lock, not just the 5s setInterval.
@@ -1455,6 +1504,8 @@ class LocationTracker {
 
   stopTracking() {
     this._gpsExpected = false;
+    if (this._stopSettleTimer) { clearTimeout(this._stopSettleTimer); this._stopSettleTimer = null; }
+    this._stopSettleCount = 0;
     this._emitGpsHealth('disabled');
     // Stop native off-duty Foreground Service watcher if active
     if (this._nativeOffDutyWatcher && this.nativeWatchId != null) {
