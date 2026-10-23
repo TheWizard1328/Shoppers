@@ -297,6 +297,36 @@ export default function DashboardBulkEditControls({
         optimizeRoutesForMovePairs({ pairs: movePairs, source: 'bulk_edit_move' }).catch(() => {});
       }
 
+      // STEP 8b (owner request, Oct 23 2026): a delivery_time_start/end edit
+      // changes window banding for the whole route — the bulk panel must run
+      // the SAME route optimizer the single-delivery edit form runs after
+      // saving. Runs once per affected route (driver + effective date), after
+      // all writes above completed; the panel closes right after via
+      // clearSelection and the optimizer's KITT bar tracks progress. Skipped
+      // when EVERY edited stop is pending (pending-only time-window edits are
+      // schedule notes, same skip rule as handleSaveDelivery).
+      const _twChanged =
+        sharedUpdates.delivery_time_start !== undefined ||
+        sharedUpdates.delivery_time_end !== undefined;
+      if (_twChanged) {
+        const _seenRoutes = new Set(movePairs.map((mp) => `${mp.driverId}|${mp.deliveryDate}`));
+        const _twPairs = [];
+        for (const { delivery } of perDeliveryPayloads) {
+          if (!delivery) continue;
+          if (String(delivery?.status || '') === 'pending') continue;
+          const _drv = sharedUpdates.driver_id !== undefined ? sharedUpdates.driver_id : delivery.driver_id;
+          const _date = sharedUpdates.delivery_date || delivery.delivery_date;
+          if (!_drv || !_date) continue;
+          const _key = `${_drv}|${_date}`;
+          if (_seenRoutes.has(_key)) continue;
+          _seenRoutes.add(_key);
+          _twPairs.push({ driverId: _drv, deliveryDate: _date });
+        }
+        if (_twPairs.length > 0) {
+          optimizeRoutesForMovePairs({ pairs: _twPairs, source: 'bulk_edit_time_window' }).catch(() => {});
+        }
+      }
+
       clearSelection();
       onBulkApplyComplete?.();
     } finally {
