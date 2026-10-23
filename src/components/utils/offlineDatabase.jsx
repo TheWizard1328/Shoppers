@@ -1125,6 +1125,44 @@ const countDeliveryDateBuckets = async (todayStr) => {
   }
 };
 
+/**
+ * Calendar day flags (owner report Oct 23 2026: dashboard calendar red/green
+ * dots only worked for the selected date after the v1.9.26 lazy-load boot —
+ * in-memory deliveries now hold only the selected date's slice). Single pass
+ * over the delivery_date index limited to the visible month's key range, so
+ * only that month's records are decrypted — NOT a whole-store getAll. Returns
+ * { 'YYYY-MM-DD': { hasAny, hasCompleted, hasFailed } }.
+ */
+const getDeliveryCalendarFlags = async (fromStr, toStr, driverId = null) => {
+  const flags = {};
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.DELIVERIES], 'readonly');
+    const index = transaction.objectStore(STORES.DELIVERIES).index('delivery_date');
+    const range = IDBKeyRange.bound(fromStr, toStr);
+    await withTimeout(new Promise((resolve, reject) => {
+      const request = index.openCursor(range);
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (!cursor) { resolve(); return; }
+        const d = cursor.value;
+        const ds = String(cursor.key || '');
+        if (ds && d && d.driver_id && (!driverId || d.driver_id === driverId)) {
+          const f = flags[ds] || (flags[ds] = { hasAny: false, hasCompleted: false, hasFailed: false });
+          f.hasAny = true;
+          if (d.status === 'completed') f.hasCompleted = true;
+          if (d.status === 'failed') f.hasFailed = true;
+        }
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+    }), IDB_OPERATION_TIMEOUT_MS * 4, 'IDB getDeliveryCalendarFlags');
+  } catch (error) {
+    console.warn('[OfflineDB] getDeliveryCalendarFlags failed:', error.message);
+  }
+  return flags;
+};
+
 const countStore = async (storeName) => {
   try {
     const db = await openDatabase();
@@ -1860,6 +1898,7 @@ export const offlineDB = {
   updateMutationRetry,
   deleteRecord,
   countDeliveryDateBuckets,
+  getDeliveryCalendarFlags,
   deduplicateAppUsers,
   deduplicateDeliveries,
   deleteDeliveriesByDate,

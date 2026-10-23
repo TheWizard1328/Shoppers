@@ -70,6 +70,13 @@ export default function StatsPanel({
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
+  // CALENDAR DOTS (owner report Oct 23 2026): after the v1.9.26 IDB-first lazy
+  // boot, in-memory deliveries only hold the SELECTED date's slice, so the
+  // calendar's per-date complete/fail dots vanished for every other day. Load
+  // per-date flags straight from the offline DB for the visible month (single
+  // index-cursor pass over just that month's records) whenever the popover
+  // opens, the visible month changes, or the driver filter changes.
+  const [calendarFlags, setCalendarFlags] = useState({});
   const [bookedOffOverrides, setBookedOffOverrides] = useState([]);
 
   // InterStore markers toggle (dispatchers only). Pure dispatcher accounts
@@ -79,6 +86,27 @@ export default function StatsPanel({
   // Both halves begin neutral; the active half is colored, clicking it again turns off.
   const isPureDispatcher = isDispatcher && !isAdmin;
   const [interStoreMode, setInterStoreModeLocal] = useState(getInterStoreMode());
+  useEffect(() => {
+    if (!isCalendarOpen || !calendarMonth) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const y = calendarMonth.getFullYear(), m = calendarMonth.getMonth();
+        const p = (n) => String(n).padStart(2, '0');
+        const fromStr = `${y}-${p(m + 1)}-01`;
+        const toStr = `${y}-${p(m + 1)}-${new Date(y, m + 1, 0).getDate()}`;
+        const driverFilter = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
+        const flags = await offlineDB.getDeliveryCalendarFlags(fromStr, toStr, driverFilter);
+        if (alive) setCalendarFlags(flags || {});
+      } catch {
+        if (alive) setCalendarFlags({});
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCalendarOpen, calendarMonth ? `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}` : '', selectedDriverId]);
+
   useEffect(() => {
     const unsubscribe = subscribeInterStore(setInterStoreModeLocal);
     return unsubscribe;
@@ -489,6 +517,12 @@ export default function StatsPanel({
                         dateInfo[ds].hasAny = true;
                         if (d.status === 'failed') dateInfo[ds].hasFailed = true;
                         if (d.status === 'completed') dateInfo[ds].hasCompleted = true;
+                      });
+                      // Merge IDB-loaded flags for all OTHER dates of the visible
+                      // month (v1.9.26 lazy boot keeps only the selected date in
+                      // memory). In-memory (selected date) wins — it is freshest.
+                      Object.keys(calendarFlags).forEach((ds) => {
+                        if (!dateInfo[ds]) dateInfo[ds] = { ...calendarFlags[ds] };
                       });
                       const DayContent = ({ date }) => {
                         const dateStr = format(date, 'yyyy-MM-dd');
