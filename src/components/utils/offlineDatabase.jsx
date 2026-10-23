@@ -1133,8 +1133,9 @@ const countDeliveryDateBuckets = async (todayStr) => {
  * only that month's records are decrypted — NOT a whole-store getAll. Returns
  * { 'YYYY-MM-DD': { hasAny, hasCompleted, hasFailed } }.
  */
-const getDeliveryCalendarFlags = async (fromStr, toStr, driverId = null) => {
+const getDeliveryCalendarFlags = async (fromStr, toStr, driverId = null, storeIds = null) => {
   const flags = {};
+  const storeSet = Array.isArray(storeIds) && storeIds.length > 0 ? new Set(storeIds) : null;
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORES.DELIVERIES], 'readonly');
@@ -1147,7 +1148,9 @@ const getDeliveryCalendarFlags = async (fromStr, toStr, driverId = null) => {
         if (!cursor) { resolve(); return; }
         const d = cursor.value;
         const ds = String(cursor.key || '');
-        if (ds && d && d.driver_id && (!driverId || d.driver_id === driverId)) {
+        if (ds && d && d.driver_id
+            && (!driverId || d.driver_id === driverId)
+            && (!storeSet || storeSet.has(d.store_id))) {
           const f = flags[ds] || (flags[ds] = { hasAny: false, hasCompleted: false, hasFailed: false });
           f.hasAny = true;
           if (d.status === 'completed') f.hasCompleted = true;

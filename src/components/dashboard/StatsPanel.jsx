@@ -96,8 +96,12 @@ export default function StatsPanel({
         const p = (n) => String(n).padStart(2, '0');
         const fromStr = `${y}-${p(m + 1)}-01`;
         const toStr = `${y}-${p(m + 1)}-${new Date(y, m + 1, 0).getDate()}`;
-        const driverFilter = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
-        const flags = await offlineDB.getDeliveryCalendarFlags(fromStr, toStr, driverFilter);
+        // DISPATCHER SCOPING (owner directive Oct 23 2026): a dispatcher's
+        // calendar dots reflect THEIR OWN STORES' deliveries (any driver),
+        // NOT the store-assigned/selected driver's deliveries across other stores.
+        const driverFilter = !isDispatcher && selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
+        const storeFilter = isDispatcher ? (currentUser?.store_ids || []) : null;
+        const flags = await offlineDB.getDeliveryCalendarFlags(fromStr, toStr, driverFilter, storeFilter);
         if (alive) setCalendarFlags(flags || {});
       } catch {
         if (alive) setCalendarFlags({});
@@ -105,7 +109,8 @@ export default function StatsPanel({
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCalendarOpen, calendarMonth ? `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}` : '', selectedDriverId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCalendarOpen, calendarMonth ? `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}` : '', selectedDriverId, isDispatcher, (currentUser?.store_ids || []).join(',')]);
 
   useEffect(() => {
     const unsubscribe = subscribeInterStore(setInterStoreModeLocal);
@@ -509,9 +514,12 @@ export default function StatsPanel({
                       const todayStr = format(new Date(), 'yyyy-MM-dd');
                       // Build per-date info: has any delivery, has failed delivery, has active delivery
                       const dateInfo = {};
+                      const dispatcherCalStoreIds = isDispatcher ? new Set(currentUser?.store_ids || []) : null;
                       (deliveries || []).forEach((d) => {
                         if (!d?.delivery_date || !d.driver_id) return;
-                        if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
+                        // DISPATCHER SCOPING (owner directive Oct 23 2026): own stores' deliveries, not the assigned driver's.
+                        if (dispatcherCalStoreIds) { if (!dispatcherCalStoreIds.has(d.store_id)) return; }
+                        else if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
                         const ds = d.delivery_date;
                         if (!dateInfo[ds]) dateInfo[ds] = { hasAny: false, hasFailed: false, hasCompleted: false };
                         dateInfo[ds].hasAny = true;
