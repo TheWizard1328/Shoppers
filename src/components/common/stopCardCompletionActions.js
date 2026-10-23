@@ -135,6 +135,26 @@ export function useStopCardCompletionActions({
     })();
   };
 
+  // OWNER SPEC (Oct 23 2026): the Assign All path must reactivate inactive
+  // patients whose stops are being transitioned. Flip status 'inactive' -> 'active'
+  // ONLY if the patient is STILL inactive at write time — fresh IDB re-read right
+  // before the write, so a newer status set on another device is never stomped.
+  const reactivateInactivePatientsForTransitions = useCallback(async (transitionedDeliveries) => {
+    const patientIds = [...new Set((transitionedDeliveries || []).map((d) => d?.patient_id).filter(Boolean))];
+    for (const patientId of patientIds) {
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId).catch(() => null);
+        if (!existingPatient || existingPatient.status !== 'inactive') continue;
+        const { updatePatientLocal } = await import('../utils/offlineMutations');
+        await updatePatientLocal(patientId, { status: 'active' });
+        console.warn(`[AssignAll] reactivated inactive patient: ${existingPatient.full_name || patientId}`);
+      } catch (err) {
+        console.warn('[AssignAll] patient reactivation failed (non-fatal):', err?.message || err);
+      }
+    }
+  }, []);
+
   const executeAcceptAllStops = useCallback(async () => {
     setIsAcceptingAll(true);
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -158,6 +178,11 @@ export function useStopCardCompletionActions({
         toast.error('No pending stops for this store.');
         return;
       }
+
+      // OWNER SPEC (Oct 23 2026): fire-and-forget — patients whose stops are
+      // being transitioned by Assign All come off 'inactive' (guarded re-read
+      // inside; never blocks the accept path).
+      reactivateInactivePatientsForTransitions(scopedPendingDeliveries);
 
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
 
@@ -663,7 +688,7 @@ export function useStopCardCompletionActions({
         } catch (e) { console.warn('[AcceptAll] auto pull-to-sync trigger failed:', e?.message); }
       }, 1000);
     }
-  }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
+  }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole, reactivateInactivePatientsForTransitions]);
 
   const handleAcceptAllStops = useCallback(async () => {
     const lockResult = await runWithDeliveryActionLock('accept_all_delivery', async () => {
