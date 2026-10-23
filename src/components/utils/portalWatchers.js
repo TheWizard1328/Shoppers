@@ -20,7 +20,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { patientPortalWatchers } from '@/functions/patientPortalWatchers';
 
-const POLL_INTERVAL_MS = 60 * 1000;
+const POLL_INTERVAL_MS = 30 * 1000;
 
 // patient_id -> watcher object
 const _watchers = new Map();
