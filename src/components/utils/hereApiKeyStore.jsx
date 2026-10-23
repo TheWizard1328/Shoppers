@@ -11,6 +11,8 @@ const SECRET_NAME_MAP = {
 };
 
 let _cachedApiKey = null;
+let _serverVerified = false; // true once the key came from bootstrap/server THIS session
+let _revalidatePromise = null;
 let _isLoading = false;
 let _loadPromise = null;
 
@@ -21,6 +23,7 @@ let _loadPromise = null;
 export const seedHereApiKey = (key) => {
   if (key && typeof key === 'string') {
     _cachedApiKey = key;
+    _serverVerified = true;
     _loadPromise = Promise.resolve(key);
     // Persist (owner directive Oct 15 2026): a fresh boot while the backend is
     // degraded (DB timeouts) can't fetch the key from the server — HERE calls
@@ -46,7 +49,10 @@ export const initHereApiKey = async () => {
       _cachedApiKey = _saved;
       _loadPromise = Promise.resolve(_saved);
       if (typeof window !== 'undefined') window.__hereApiKey = _saved;
-      console.log('✅ [HereApiKeyStore] HERE API key restored from localStorage (no network call)');
+      console.log('✅ [HereApiKeyStore] HERE API key restored from localStorage (provisional — revalidating)');
+      // Provisional only: confirm with the server in the background so a rotated
+      // key can't strand the map on dead tiles (see revalidateFromServer).
+      revalidateFromServer();
       return _saved;
     }
   } catch (_) {}
@@ -61,6 +67,7 @@ export const initHereApiKey = async () => {
       const key = response?.data?.apiKey || response?.apiKey || null;
       if (key) {
         _cachedApiKey = key;
+        _serverVerified = true;
         try { localStorage.setItem('rx_here_key_v1', key); } catch (_) {}
         // Also expose via window so any late seedHereApiKey callers can pick it up
         if (typeof window !== 'undefined') window.__hereApiKey = key;
@@ -110,8 +117,48 @@ export const getHereApiKey = () => {
  * Get the HERE API key, fetching it if not already cached.
  * Will auto-seed from window.__hereApiKey if available (set during bootstrap).
  */
+// STALE-KEY GUARD (owner report Oct 22 evening: APK preview map stuck blank
+// while everything else loaded). The Oct 22 boot change restores the last key
+// from localStorage SYNCHRONOUSLY so tiles start on first render — but if that
+// saved key was rotated/rejected, the cached value short-circuited every later
+// fetch (`if (_cachedApiKey) return`), so the CORRECT key was never fetched and
+// every tile request 401/403'd forever. Now a localStorage-restored key is
+// treated as provisional: the first getOrFetchHereApiKey() per session
+// revalidates against the server and swaps the key in if it differs.
+const revalidateFromServer = () => {
+  if (_revalidatePromise) return _revalidatePromise;
+  _revalidatePromise = (async () => {
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      const response = await base44.functions.invoke('getActiveHereApiKey', {});
+      const key = response?.data?.apiKey || response?.apiKey || null;
+      if (key) {
+        _serverVerified = true;
+        if (key !== _cachedApiKey) {
+          console.warn('🔑 [HereApiKeyStore] Saved HERE key was stale — replaced with server key');
+          _cachedApiKey = key;
+          _loadPromise = Promise.resolve(key);
+          try { localStorage.setItem('rx_here_key_v1', key); } catch (_) {}
+          if (typeof window !== 'undefined') window.__hereApiKey = key;
+        }
+        return key;
+      }
+    } catch (error) {
+      console.warn('⚠️ [HereApiKeyStore] Key revalidation failed:', error?.message);
+    }
+    // Allow ONE later retry (e.g. next map mount) instead of locking out forever.
+    _revalidatePromise = null;
+    return _cachedApiKey;
+  })();
+  return _revalidatePromise;
+};
+
 export const getOrFetchHereApiKey = async () => {
-  if (_cachedApiKey) return _cachedApiKey;
+  if (_cachedApiKey) {
+    if (_serverVerified) return _cachedApiKey;
+    // Provisional (localStorage) key: confirm with the server, return whichever wins.
+    return revalidateFromServer();
+  }
   // Check if the bootstrap manifest already set the key via window global
   const manifestKey = typeof window !== 'undefined' ? window.__hereApiKey : null;
   if (manifestKey) {
@@ -126,6 +173,8 @@ export const getOrFetchHereApiKey = async () => {
  */
 export const clearHereApiKeyCache = () => {
   _cachedApiKey = null;
+  _serverVerified = false;
+  _revalidatePromise = null;
   _loadPromise = null;
   _isLoading = false;
 };
