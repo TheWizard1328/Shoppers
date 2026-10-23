@@ -128,10 +128,15 @@ class DriverLocationPoller {
        if (pending.length && !window.__junkAppUserPurgeBusy) {
          window.__junkAppUserPurgeBusy = true;
          const batch = pending.slice(0, JUNK_PURGE_CHUNK);
-         batch.forEach((id) => purgeSet.add(id));
+         // Oct 22 2026: only mark an ID as purged AFTER its delete succeeds.
+         // The old code added all IDs to the set up front, so a delete that
+         // failed (IDB busy/locked — the chronic stall state) was never retried
+         // and the SAME junk row was re-read and re-warned every pass forever.
          import('../utils/offlineDatabase').then(({ offlineDB }) => {
            return Promise.all(batch.map((id) =>
-             offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => {})));
+             offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id)
+                           .then(() => { purgeSet.add(id); })
+                           .catch(() => { purgeSet.delete(id); })));
          }).catch(() => {}).finally(() => { window.__junkAppUserPurgeBusy = false; });
        }
      }

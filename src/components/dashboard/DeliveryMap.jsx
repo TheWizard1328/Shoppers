@@ -292,6 +292,40 @@ function DeliveryMap({
   // Seed immediately from the singleton — prevents blank map on first render
   const [hereApiKey, setHereApiKey] = useState(() => getHereApiKey() || null);
   const [tileLayerInstanceKey, setTileLayerInstanceKey] = useState(0);
+  // ── MAP BOOT WATCHDOG (Oct 22 2026) ──────────────────────────────────────────
+  // Owner report: APK dashboard loads fine but the map stays blank with a
+  // spinner — no tiles, no markers, no polylines. That combination means one of
+  // three boot gates never opened: Leaflet whenReady (map init), the HERE key,
+  // or the map container collapsed to 0 size. This watchdog fires once 12s
+  // after mount and reports exactly which gate stalled. console.log is
+  // stripped by Terser in production builds, so the healthy line is local-only;
+  // the STALL line is a console.warn so remoteLogger ships it to RemoteLogEntry
+  // (one line per stalled boot — no storm when healthy).
+  const mapBootWatchRef = useRef({ map: null, mapReady: false, key: null, deliveries: 0 });
+  mapBootWatchRef.current.map = map || null;
+  mapBootWatchRef.current.mapReady = mapReady || false;
+  mapBootWatchRef.current.key = hereApiKey || null;
+  mapBootWatchRef.current.deliveries = safeDeliveries?.length || 0;
+  useEffect(() => {
+    const mountedAt = Date.now();
+    const tm = setTimeout(() => {
+      try {
+        const st = mapBootWatchRef.current;
+        const el = document.querySelector('.leaflet-container');
+        const sizeStr = el ? `${el.clientWidth}x${el.clientHeight}` : 'none';
+        const line =
+          `[MapBoot] whenReady=${st.map ? 'fired' : 'NOT-FIRED'} key=${st.key ? 'present' : 'MISSING'} ` +
+          `mapReady=${st.mapReady ? 'yes' : 'no'} container=${sizeStr} deliveries=${st.deliveries} ` +
+          `t=${Math.round((Date.now() - mountedAt) / 1000)}s`;
+        if (st.map && st.key && st.mapReady && el && el.clientHeight > 0) {
+          console.log(`[MapBoot] OK ${line}`);
+        } else {
+          console.warn(`[MapBoot] STALL ${line}`);
+        }
+      } catch { /* watchdog must never throw */ }
+    }, 12000);
+    return () => clearTimeout(tm);
+  }, []);
   const prevTileConfigRef = useRef({ style: null, base: null, overlay: null });
   // Track last non-zero stopCardsHeight so the crosshair position doesn't shift when
   // immersive mode zeros it out (areStopCardsVisible → false → stopCardsHeight prop → 0)
