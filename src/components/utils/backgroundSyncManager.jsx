@@ -473,7 +473,8 @@ class BackgroundSyncManager {
       { name: 'futureDeliveries', priority: this.config.priorities.deliveries + 0.5, fn: () => this.syncFutureDeliveries() },
       { name: 'patients', priority: this.config.priorities.patients, fn: () => this.syncPatients() },
       { name: 'appUsers', priority: this.config.priorities.appUsers, fn: () => this.syncAppUsers() },
-      { name: 'cities', priority: this.config.priorities.cities, fn: () => this.syncCities() }
+      { name: 'cities', priority: this.config.priorities.cities, fn: () => this.syncCities() },
+      { name: 'stores', priority: this.config.priorities.cities + 0.5, fn: () => this.syncStoresHourly() }
     ];
 
     // Sort by priority (lower number = higher priority)
@@ -730,6 +731,46 @@ class BackgroundSyncManager {
 
     console.log('⏭️ [BackgroundSync] AppUser API sync disabled to avoid 429s');
     return;
+  }
+
+  /**
+   * Hourly Store re-sync (owner report Oct 23 2026: Westpark dispatcher sidebar
+   * showed the PRE-Sep-22 weekday driver because the PC had been running for
+   * days, missed the Store WS event for the Sep 22 driver change, and NOTHING
+   * re-fetches stores during a running session — boot bootstrap sync (4h-gated)
+   * and WS push were the only paths. 14 records, so re-fetch at most once per
+   * hour per device, apply to IDB + dispatch pullToSyncDataReady so running
+   * Layouts merge the fresh records and the sidebar recomputes scheduled
+   * drivers. Runs for dispatchers/admins only (drivers don't need store roster
+   * fields for the sidebar).
+   */
+  async syncStoresHourly() {
+    try {
+      const isDispatcherish = Array.isArray(this.currentUser?.app_roles) &&
+        (this.currentUser.app_roles.includes('dispatcher') || this.currentUser.app_roles.includes('admin'));
+      if (!isDispatcherish) return;
+      const last = this.lastSyncTimes.stores ? new Date(this.lastSyncTimes.stores).getTime() : 0;
+      if (Date.now() - last < 3600000) return; // 1h gate
+      if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
+
+      const stores = await queueEntityRequest(
+        () => base44.entities.Store.list(),
+        'Store.list(background-hourly)'
+      );
+      this.currentCycleAPICalls++;
+      if (stores && stores.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+        this.lastSyncTimes.stores = new Date().toISOString();
+        // Apply to any RUNNING Layout session immediately — same merge event the
+        // Store WS subscription uses, so no new state management is needed.
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('pullToSyncDataReady', { detail: { stores } }));
+        }
+        this.notifySubscribers({ type: 'stores_synced', count: stores.length });
+      }
+    } catch (e) {
+      console.warn('⚠️ [BackgroundSync] Store hourly sync failed:', e?.message || e);
+    }
   }
 
   /**

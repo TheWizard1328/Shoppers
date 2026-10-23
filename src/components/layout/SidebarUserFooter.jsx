@@ -412,18 +412,35 @@ export default function SidebarUserFooter({
     return unsubscribe;
   }, []);
 
+  // Overrides + stat holidays for the SCHEDULED-DRIVER section (owner report
+  // Oct 23 2026: sidebar could show a stale/incorrect scheduled driver):
+  //  - fetch for the SELECTED date (was: fetched once per mount for the real
+  //    calendar day, so browsing another date showed no overrides at all);
+  //  - refetch when the selected date changes (globalFilters subscription
+  //    above keeps selectedDateStr current);
+  //  - subscribe to DriverScheduleOverride WS events so live schedule edits
+  //    from the DriverScheduleCalendar reflect in the sidebar immediately.
   useEffect(() => {
     if (!currentUser?.app_roles?.includes('dispatcher')) return;
-    const _now = new Date();
-    const _p = (n) => String(n).padStart(2, '0');
-    const todayStr = `${_now.getFullYear()}-${_p(_now.getMonth() + 1)}-${_p(_now.getDate())}`;
-    base44.entities.DriverScheduleOverride.filter({ date: todayStr }).
-    then(setTodayOverrides).
-    catch(() => setTodayOverrides([]));
+    const dateStr = selectedDateStr || (() => {
+      const d = new Date();
+      const _p = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${_p(d.getMonth() + 1)}-${_p(d.getDate())}`;
+    })();
+    let alive = true;
+    base44.entities.DriverScheduleOverride.filter({ date: dateStr }).
+    then((rows) => { if (alive) setTodayOverrides(rows || []); }).
+    catch(() => {});
+    const unsub = base44.entities.DriverScheduleOverride.subscribe(() => {
+      base44.entities.DriverScheduleOverride.filter({ date: dateStr }).
+      then((rows) => { if (alive) setTodayOverrides(rows || []); }).
+      catch(() => {});
+    });
     // Stat holidays are cached module-side; load once so the scheduled-driver
     // list can suppress normal slot drivers on holidays (stat_holiday_driver_id).
     loadStatHolidays().then(setStatHolidays).catch(() => {});
-  }, [currentUser]);
+    return () => { alive = false; try { unsub && unsub(); } catch {} };
+  }, [currentUser, selectedDateStr]);
 
   if (!currentUser) {
     return (
