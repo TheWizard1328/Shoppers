@@ -39,9 +39,9 @@ export default function getAdminNavigationItems({
   if (currentUser && (isAppOwner(currentUser) || isAdmin)) {
     items.push(
       {
-        title: 'Login Barcodes',
-        pageName: 'LoginBarcodes',
-        url: createPageUrl('LoginBarcodes'),
+        title: 'Login Sticker Sheets',
+        pageName: 'LoginStickerSheets',
+        url: createPageUrl('LoginStickerSheets'),
         icon: Barcode
       },
       {

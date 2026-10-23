@@ -12,7 +12,7 @@ import __Layout from './Layout.jsx';
 const AdminMetrics = lazy(() => import('./pages/AdminMetrics'));
 const AdminUtilities = lazy(() => import('./pages/AdminUtilities'));
 const AppUsers = lazy(() => import('./pages/AppUsers'));
-const LoginBarcodes = lazy(() => import('./pages/LoginBarcodes'));
+const LoginStickerSheets = lazy(() => import('./pages/LoginStickerSheets'));
 const Cities = lazy(() => import('./pages/Cities'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Deliveries = lazy(() => import('./pages/Deliveries'));
@@ -36,7 +36,7 @@ export const PAGES = {
     "AdminMetrics": AdminMetrics,
     "AdminUtilities": AdminUtilities,
     "AppUsers": AppUsers,
-    "LoginBarcodes": LoginBarcodes,
+    "LoginStickerSheets": LoginStickerSheets,
     "Cities": Cities,
     "Dashboard": Dashboard,
     "Deliveries": Deliveries,
