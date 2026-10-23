@@ -305,11 +305,16 @@ function DeliveryMarkers({
     const stopOrder = delivery.stop_order || delivery.number || 500;
 
     // Z-index tiers (higher = on top):
-    // isNextDelivery: 12000 tier — always on top of all other markers
-    // Incomplete (pending/active): 10000 tier — lowest stop_order on top (subtract stop_order)
+    // Pending: 12600 tier — ALWAYS on top of active/finished markers (owner spec Oct 23
+    //   2026: pending markers are the small circles; when a co-located active pin renders
+    //   above them they vanish completely, while a small pending circle on top leaves the
+    //   bigger active pin visible around it — so pending wins the stack).
+    // isNextDelivery: 12000 tier — on top of all other active markers
+    // Active (in_transit/en_route): 10000 tier — lowest stop_order on top (subtract stop_order)
     // Finished: 5000 tier — lowest stop_order on top (subtract stop_order), always under incomplete
     const isNextDeliveryMarker = delivery.isNextDelivery === true || delivery.isNextInLine === true;
-    if (isNextDeliveryMarker) dynamicZIndex = 12000;
+    if (isPending) dynamicZIndex = 12600 - stopOrder;
+    else if (isNextDeliveryMarker) dynamicZIndex = 12000;
     else if (!isFinished) dynamicZIndex = 10000 - stopOrder;
     else dynamicZIndex = 5000 - stopOrder;
 
@@ -320,8 +325,10 @@ function DeliveryMarkers({
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
       markerPosition = calculateFannedPositionWrapperWrapper(markerLatitude, markerLongitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
-      // Within a fanned cluster: same tier logic — incomplete on top, finished underneath, lowest stop_order on top within each tier
-      if (isNextDeliveryMarker) dynamicZIndex = 12000;
+      // Within a fanned cluster: same tier logic — pending highest, then next-delivery,
+      // then active, then finished; lowest stop_order on top within each tier
+      if (isPending) dynamicZIndex = 11400 - stopOrder;
+      else if (isNextDeliveryMarker) dynamicZIndex = 12000;
       else if (!isFinished) dynamicZIndex = 11000 - stopOrder;
       else dynamicZIndex = 6000 - stopOrder;
     }
