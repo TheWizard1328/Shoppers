@@ -77,7 +77,14 @@ export const applyFullDataToState = ({
   }
   
   const mergedUsersMap = new Map();
-  if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
+  if (currentUser) {
+    // DISPLAY NAME FIX (Oct 22 2026): merge the current user's AppUser record
+    // into their users-list entry so the list shows the AppUser name ('Beverly')
+    // instead of the platform login name ('beverly.shoppers') after the Base44
+    // auth-service change. Falls back to the raw currentUser when no record.
+    const selfAppUser = (appUsers || []).find((au) => au?.user_id === currentUser.id);
+    mergedUsersMap.set(currentUser.id, createMergedUser(currentUser, selfAppUser) || currentUser);
+  }
   (appUsers || []).forEach((appUser) => {
     if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
     const pseudoUser = createMergedUser(null, appUser);

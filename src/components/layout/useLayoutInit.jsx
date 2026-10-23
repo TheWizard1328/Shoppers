@@ -286,6 +286,35 @@ export function useLayoutInit({
         }
         setCurrentUser(fetchedUser);setHasAccess(true);
 
+        // DISPLAY NAME FIX (Oct 22 2026): after Base44's auth-service change the
+        // platform accounts return the raw login name (e.g. 'beverly.shoppers') as
+        // full_name, so dispatcher profiles fell back to platform usernames. The
+        // AppUser record is the canonical display name ('Beverly') — patch it in
+        // IDB-first (fast, offline-safe), API filter only as fallback. Never blocks
+        // the loading gate; skips silently when no AppUser record is found.
+        (async () => {
+          try {
+            let appUser = null;
+            try {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const cached = await offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []);
+              appUser = (cached || []).find((au) => au?.user_id === fetchedUser.id) || null;
+            } catch {}
+            if (!appUser?.user_name) {
+              const recs = await _withTimeout(
+                base44.entities.AppUser.filter({ user_id: fetchedUser.id }),
+                10000, 'display-name AppUser.filter'
+              ).catch(() => []);
+              appUser = recs?.[0] || null;
+            }
+            if (appUser?.user_name && appUser.user_name !== fetchedUser.user_name) {
+              setCurrentUser((prev) => (prev?.id === fetchedUser.id
+                ? { ...prev, user_name: appUser.user_name, full_name: appUser.user_name }
+                : prev));
+            }
+          } catch { /* non-critical — profile falls back to platform name */ }
+        })();
+
         // Apply cached branding IMMEDIATELY from localStorage (survives Android recreate)
         const _cached = getCachedBranding();
         if (_cached?.logo_url) {
