@@ -7,7 +7,7 @@ import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
 import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
-import { flushPendingInterStoreOptimizationsDeferred } from '../utils/deliveryFormActionHelpers';
+import { runDoneOptimizationLastStep } from '../utils/deliveryFormActionHelpers';
 import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { getAutoCyclingTargets } from '../utils/autoCyclingMode';
@@ -41,7 +41,8 @@ export async function handleBatchSave({
   isNewRouteWithZeroStops,
   currentUser,
   patients,
-  appUsers
+  appUsers,
+  addedPickupRoutes = []
 }) {
   if (batchSaveLockRef.current || isSaving) return;
   batchSaveLockRef.current = true;
@@ -50,10 +51,12 @@ export async function handleBatchSave({
   if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
     hasLoadedPending.current = false;
     unblockPredictions();
-    // InterStore (ISP/ISD) stops created this session were persisted directly (never
-    // staged); flush their deferred optimization through the same regular Done path
-    // (requestDeferredOptimization → debouncer) so they get the KITT bar / overlay UI.
-    flushPendingInterStoreOptimizationsDeferred();
+    // UNIVERSAL DONE LAST STEP (owner spec Oct 23 2026): Done ALWAYS ends with the
+    // route optimizer + polyline generator for every affected route — InterStore
+    // (ISP/ISD) queue AND store pickups added this session. Cancel-parity: managers
+    // resume first, then optimization runs (the old fire-and-forget flush while the
+    // form was closing never visibly optimized — owner report Oct 23 2026).
+    runDoneOptimizationLastStep({ addedPickupRoutes }).catch(() => {});
     import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
     return;
   }
@@ -72,7 +75,12 @@ export async function handleBatchSave({
     handleClearForm,
     onCancel,
     formData
-  })) return;
+  })) {
+    // UNIVERSAL DONE LAST STEP: store pickups / InterStore stops added this
+    // session still need their optimization even on a delete-only Done.
+    runDoneOptimizationLastStep({ addedPickupRoutes }).catch(() => {});
+    return;
+  }
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
    const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
@@ -136,6 +144,9 @@ export async function handleBatchSave({
     hasLoadedPending.current = false;
     unblockPredictions();
     setIsLoadingPredictions(true);
+    // UNIVERSAL DONE LAST STEP: even with an empty effective batch, InterStore
+    // stops and store pickups added this session still need their optimization.
+    runDoneOptimizationLastStep({ addedPickupRoutes }).catch(() => {});
     import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(()=>{handleClearForm();onCancel();});
     return;
   }
@@ -649,12 +660,11 @@ export async function handleBatchSave({
           }
         }
 
-        // InterStore (ISP/ISD) stops created this session were persisted directly
-        // (never staged) by createInterStoreTransfer, so the staged-route
-        // requestDeferredOptimization call above does not cover them. Flush their
-        // deferred optimization through the SAME regular Done path so they receive
-        // the identical debounce, KITT bar / orange overlay, and HERE routing.
-        flushPendingInterStoreOptimizationsDeferred();
+        // UNIVERSAL DONE LAST STEP (owner spec Oct 23 2026): after all writes,
+        // TR recalc, and the staged in_transit optimization above, finish with the
+        // InterStore (ISP/ISD) deferred queue flush AND store pickups added this
+        // session (direct-persisted en_route stops that were never staged).
+        runDoneOptimizationLastStep({ addedPickupRoutes }).catch(() => {});
 
         // Stats refresh already fired by handleBatchSaveDelivery (line 572) — removed duplicate.
       } catch (bgError) {

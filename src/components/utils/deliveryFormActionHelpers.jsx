@@ -181,6 +181,53 @@ export const flushPendingInterStoreOptimizationsDeferred = async () => {
   }
 };
 
+/**
+ * UNIVERSAL DONE LAST STEP (owner spec, Oct 23 2026):
+ * Whenever the Add-to-Route form's Done button is clicked, the route optimizer
+ * and polyline generator must run as the LAST step for EVERY affected route:
+ *  - patient deliveries manually set in_transit (scheduled by handleBatchSave's
+ *    existing routeStructureChanged -> requestDeferredOptimization call),
+ *  - store pickups added this session (addedPickupRoutes — direct-persisted
+ *    en_route stops that never enter the staged list),
+ *  - InterStore (ISP/ISD) stops added this session (deferred queue).
+ * CANCEL-PARITY: managers are resumed FIRST — the Cancel button proved this
+ * sequence runs the optimizer reliably, while the old Done path fired it
+ * while the form's manager pauses were still active and the form was closing
+ * (owner report: Done closed with no optimization, Cancel optimized).
+ */
+export const runDoneOptimizationLastStep = async ({ addedPickupRoutes = [] } = {}) => {
+  const routes = (addedPickupRoutes || []).filter((r) => r?.driverId && r?.deliveryDate);
+  const queueLen = (typeof window !== 'undefined' && Array.isArray(window.__pendingInterStoreOptimizations))
+    ? window.__pendingInterStoreOptimizations.length
+    : 0;
+  if (routes.length === 0 && queueLen === 0) return; // nothing to do — no wasted resume/imports
+  console.warn(`[DoneLastStep] universal Done optimization: ${routes.length} pickup route(s), ${queueLen} InterStore route(s)`);
+
+  try {
+    await resumeDeliveryFormManagers();
+  } catch (err) {
+    console.warn('[DoneLastStep] manager resume failed (non-fatal):', err?.message || err);
+  }
+
+  if (routes.length > 0) {
+    try {
+      const { requestDeferredOptimization } = await import('@/components/utils/optimizationDebouncer');
+      for (const route of routes) {
+        requestDeferredOptimization(route.driverId, route.deliveryDate, true);
+      }
+    } catch (err) {
+      console.warn('[DoneLastStep] pickup-route optimization scheduling failed:', err?.message || err);
+    }
+  }
+
+  try {
+    await flushPendingInterStoreOptimizationsDeferred();
+    console.warn('[DoneLastStep] complete');
+  } catch (err) {
+    console.warn('[DoneLastStep] InterStore flush failed:', err?.message || err);
+  }
+};
+
 export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser, skipStatsRefresh = false }) => {
   if (!driverId || !deliveryDate || travelModeOnly) return;
 

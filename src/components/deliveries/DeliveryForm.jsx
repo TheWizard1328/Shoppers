@@ -1041,21 +1041,17 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
-    if (addedPickupRoutesRef.current.length > 0 && stagedDeliveries.length === 0 && !hasPendingDeletes) {
-      const uniqueRoutes = Array.from(new Map(addedPickupRoutesRef.current.map((r) => [`${r.driverId}__${r.deliveryDate}`, r])).values());
-      addedPickupRoutesRef.current = [];
-      addedPickupRecordsRef.current = [];
-      flushPendingInterStoreOptimizations();
-      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel?.(); });
-      // Use the SAME deferred-optimization path as deliveries (handleBatchSave →
-      // requestDeferredOptimization) so pickups get the identical debounce, KITT
-      // bar / orange overlay UI, and HERE routing behaviour as delivery Done.
-      const { requestDeferredOptimization } = await import('../utils/optimizationDebouncer');
-      for (const { driverId, deliveryDate } of uniqueRoutes) {
-        requestDeferredOptimization(driverId, deliveryDate, true);
-      }
-      return;
-    }
+    // OWNER SPEC (Oct 23 2026): Done ALWAYS ends with the route optimizer +
+    // polyline generator for every affected route. Store pickups added this
+    // session were persisted directly (never staged), so collect their routes
+    // here and pass them into the batch save — its universal last step
+    // (runDoneOptimizationLastStep) schedules optimization for them alongside
+    // the manually-in-transit staged route and the InterStore deferred queue,
+    // on EVERY Done path (staged-empty, mixed, delete-only, and main).
+    const addedPickupRoutes = Array.from(
+      new Map(addedPickupRoutesRef.current.map((r) => [`${r.driverId}__${r.deliveryDate}`, r])).values()
+    );
+    addedPickupRoutesRef.current = [];
     const shouldCreateImmediateStagedDelivery = shouldUseImmediateAddToRouteStage({ openMode, delivery, stagedDeliveries, formData });
     const stagedDeliveriesForSave = shouldCreateImmediateStagedDelivery ? [buildImmediateAddToRouteStage({ formData, selectedPatient, stores, allDeliveries })] : stagedDeliveries;
     if (shouldCreateImmediateStagedDelivery) { setStagedDeliveries(stagedDeliveriesForSave); setHasChanges(true); }
@@ -1066,7 +1062,7 @@ export default function DeliveryForm({
       ? [...(allDeliveries || []), ...alreadyCreatedPickups]
       : allDeliveries;
     addedPickupRecordsRef.current = [];
-    return runHandleBatchSave({ batchSaveLockRef, isSaving: isSavingRef.current, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers });
+    return runHandleBatchSave({ batchSaveLockRef, isSaving: isSavingRef.current, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers, addedPickupRoutes });
   }, [stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
 
   // Keep ref in sync so auto-commit can call the latest version after staged state updates
