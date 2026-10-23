@@ -111,6 +111,10 @@ class LocationTracker {
         // reduce breadcrumb frequency to 60s instead of 5s.
         this.isBreadcrumbSlowed = false;
         this._atStopBreadcrumbInterval = null;
+        // Zone suppression state (owner spec Oct 22 evening): the stop whose
+        // 100m zone silences all breadcrumb fix grabs until it's finished.
+        this._breadcrumbSuppressedStopId = null;
+        this._breadcrumbSuppressedTarget = null;
 
         // ── Conditional chain-commit buffer (250m) ──────────────────────────────
         // Holds the ~1s watchPosition fixes between 5s commit ticks. When the
@@ -353,44 +357,68 @@ class LocationTracker {
    * Slow down breadcrumb collection to 60s when driver is at a delivery stop.
    * Called by arrivalTimeDetector after confirming arrival at isNextDelivery stop.
    */
-  slowBreadcrumbsForStop() {
-    if (this.isBreadcrumbSlowed) return; // already slowed
+  slowBreadcrumbsForStop(stopId = null, stopLat = null, stopLon = null) {
+    // OWNER SPEC Oct 22 2026: ZERO breadcrumb GPS fix grabs while parked at
+    // a stop. The old behavior kept a 60s at-stop interval trickling crumbs
+    // all visit; now the final crumb is the stop-settle fix (see
+    // _armStopSettle / _collectFinalBreadcrumbAtStop) and everything else
+    // tears down. Resumes when the stop is finished
+    // (breadcrumbResumeAfterAction) or when a fix lands >100m from the
+    // suppressed target (driver left the zone without completing).
     this.isBreadcrumbSlowed = true;
+    this._breadcrumbSuppressedStopId = stopId || null;
+    this._breadcrumbSuppressedTarget = (Number.isFinite(Number(stopLat)) && Number.isFinite(Number(stopLon)))
+      ? { lat: stopLat, lng: stopLon }
+      : null;
+    this._breadcrumbFixBuffer = []; // held intermediates are redundant — the final crumb anchors the stop
 
-    // Clear the normal 5s interval and watchdog
-    if (this.breadcrumbInterval) {
-      clearInterval(this.breadcrumbInterval);
-      this.breadcrumbInterval = null;
-    }
-    if (this.breadcrumbWatchdog) {
-      clearInterval(this.breadcrumbWatchdog);
-      this.breadcrumbWatchdog = null;
-    }
-
-    // Start a 60s at-stop interval — just keeps the timeline from having a huge gap
-    if (this._atStopBreadcrumbInterval) clearInterval(this._atStopBreadcrumbInterval);
-    this._atStopBreadcrumbInterval = setInterval(async () => {
-      if (!this.isTracking || !this._isBreadcrumbStatusActive() || !this.isBreadcrumbSlowed) return;
-      try {
-        const freshPos = await this._requestSharedFix({
-          enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
-        });
-        this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
-        this.lastBreadcrumbSavedAt = 0; // bypass gate for this forced tick
-        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now(), freshPos.coords.accuracy);
-      } catch (e) {
-        console.warn('🍞 [At-stop breadcrumb] GPS fix failed:', e?.message);
-      }
-    }, 60000);
+    if (this.breadcrumbInterval) { clearInterval(this.breadcrumbInterval); this.breadcrumbInterval = null; }
+    if (this.breadcrumbWatchdog) { clearInterval(this.breadcrumbWatchdog); this.breadcrumbWatchdog = null; }
+    if (this._atStopBreadcrumbInterval) { clearInterval(this._atStopBreadcrumbInterval); this._atStopBreadcrumbInterval = null; }
   }
 
   /**
+   * Final-crumb commit for the stop-settle fix (owner spec Oct 22): force-commits
+   * the parked position directly — bypasses the 5s gate and the 250m chain-commit
+   * selection (a parked fix <250m from the last approach crumb must still land).
+   * The service's own stationary dedup still applies: a final fix within meters
+   * of the last crumb is redundant and skipped harmlessly.
+   */
+  async _collectFinalBreadcrumbAtStop(latitude, longitude, accuracy) {
+    if (shouldDropByAccuracy(accuracy)) return; // garbage fix shouldn't pin the stop
+    if (Math.abs(latitude) < 0.0001 && Math.abs(longitude) < 0.0001) return;
+    try {
+      const { collectBreadcrumbForTracker } = await import('./locationBreadcrumbService');
+      const ts = Date.now();
+      const result = await collectBreadcrumbForTracker({
+        driverStatus: this.driverStatus,
+        appUserId: this.appUserId,
+        currentUser: this.currentUser,
+        currentDeliveryDate: this.currentDeliveryDate,
+        latitude,
+        longitude,
+        timestamp: ts,
+        outage: false,
+      });
+      if (result && !result.deduped) {
+        this._lastCommittedCrumb = { lat: latitude, lng: longitude };
+        this.lastBreadcrumbPosition = { latitude, longitude, timestamp: ts };
+        this.lastBreadcrumbSavedAt = ts;
+      }
+    } catch (e) {
+      console.warn('🍞 [FinalCrumb] failed:', e?.message);
+    }
+  }
+
+    /**
    * Resume normal 5s breadcrumb collection after a stop is completed/failed/cancelled.
    * Called from the breadcrumbResumeAfterAction listener.
    */
   resumeNormalBreadcrumbs() {
     if (!this.isBreadcrumbSlowed) return; // already normal
     this.isBreadcrumbSlowed = false;
+    this._breadcrumbSuppressedStopId = null;
+    this._breadcrumbSuppressedTarget = null;
 
     if (this._atStopBreadcrumbInterval) {
       clearInterval(this._atStopBreadcrumbInterval);
@@ -960,6 +988,25 @@ class LocationTracker {
         const pos = await this._requestSharedFix({ enableHighAccuracy: true, timeout: 6000, maximumAge: 0, requestPermissions: false });
         if (pos?.coords) {
           this._stopSettleCount += 1;
+          // Breadcrumb stop-settle (owner spec Oct 22 evening): the same 5s
+          // settle that snaps the blue dot doubles as the FINAL breadcrumb —
+          // if the driver sat still within 100m of the current stop, commit
+          // this fix as the approach's last crumb, then go fully silent
+          // (zero breadcrumb fix grabs) until the stop is finished or the
+          // driver leaves the zone.
+          if (!this.isBreadcrumbSlowed && this._isBreadcrumbStatusActive() && this.appUserId && this.currentUser?.id) {
+            try {
+              const { arrivalTimeDetector } = await import('./arrivalTimeDetector');
+              const target = await arrivalTimeDetector.getActiveStopTarget(
+                pos.coords.latitude, pos.coords.longitude,
+                this.currentUser.id, this.currentDeliveryDate
+              );
+              if (target?.within) {
+                await this._collectFinalBreadcrumbAtStop(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+                this.slowBreadcrumbsForStop(target.id, target.lat, target.lng);
+              }
+            } catch (_) { /* zone lookup unavailable — plain dot settle only */ }
+          }
           await this.handleLocationSuccess(pos); // normal path: marker ease, gated breadcrumb + 15s-gated upload
         }
       } catch (_) { /* antenna cold — the next fix re-arms and retries */ }
@@ -1026,6 +1073,17 @@ class LocationTracker {
     // tick is safe — extra calls within the 5s window are simply skipped.
     // This is the fix for "entire leg missing" — the setInterval was being throttled
     // or killed by Android Chrome during backgrounding, but watchPosition survives.
+    // Zone-exit resume (owner spec Oct 22): crumbs are suppressed while
+    // parked within 100m of the current stop. If a fix now lands OUTSIDE that
+    // zone (driver left without completing), normal collection resumes.
+    if (this.isBreadcrumbSlowed && this._breadcrumbSuppressedTarget &&
+        this._isBreadcrumbStatusActive() && this.appUserId && this.currentUser?.id) {
+      const t = this._breadcrumbSuppressedTarget;
+      if (this.calculateDistance(latitude, longitude, t.lat, t.lng) > 100) {
+        this.resumeNormalBreadcrumbs();
+      }
+    }
+
     if (this._isBreadcrumbStatusActive() && this.appUserId && this.currentUser?.id) {
       this.collectBreadcrumb(latitude, longitude, Date.now(), accuracy).catch((e) => {
         console.warn('🍞 [LocationTracker] watchPosition breadcrumb failed:', e?.message);
@@ -1506,6 +1564,9 @@ class LocationTracker {
     this._gpsExpected = false;
     if (this._stopSettleTimer) { clearTimeout(this._stopSettleTimer); this._stopSettleTimer = null; }
     this._stopSettleCount = 0;
+    this.isBreadcrumbSlowed = false;
+    this._breadcrumbSuppressedStopId = null;
+    this._breadcrumbSuppressedTarget = null;
     this._emitGpsHealth('disabled');
     // Stop native off-duty Foreground Service watcher if active
     if (this._nativeOffDutyWatcher && this.nativeWatchId != null) {

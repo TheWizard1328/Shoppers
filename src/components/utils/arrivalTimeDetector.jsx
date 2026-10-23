@@ -363,9 +363,10 @@ class ArrivalTimeDetector {
                   // Invalidate cache so next tick sees updated arrival_time
                   this._lastCacheTime = 0;
 
-                  // Slow breadcrumbs to 60s — driver is at the stop
+                  // Suppress breadcrumbs at this stop (owner spec Oct 22 — zero
+                  // fix grabs while parked; the stop-settle fix was the final crumb).
                   // Lazy import breaks the locationTracker ↔ arrivalTimeDetector cycle.
-                  try { const { locationTracker } = await import('./locationTracker'); locationTracker.slowBreadcrumbsForStop(); } catch (_) {}
+                  try { const { locationTracker } = await import('./locationTracker'); locationTracker.slowBreadcrumbsForStop(nextDelivery.id, targetLat, targetLon); } catch (_) {}
 
                   this.stationaryStartTime = Date.now();
                   console.log(`💾 [ARRIVAL] Saved arrival_time for ${nextDelivery.id}${coLocatedStops.length > 0 ? ` + ${coLocatedStops.length} co-located stops` : ''}`);
@@ -400,6 +401,49 @@ class ArrivalTimeDetector {
    * Skips pickups with no patient_id (those use the stationary-30s flow which
    * handles the "multiple pickups at same store" disambiguation logic).
    */
+  /**
+   * OWNER SPEC Oct 22 2026 (breadcrumb stop-settle): resolve the CURRENT
+   * stop (isNextDelivery === true, en_route/in_transit) and report whether
+   * the given coordinates are within the 100m geofence of it. Used by the
+   * LocationTracker's stop-settle to decide whether a parked fix is the
+   * FINAL breadcrumb of the approach. Returns { id, lat, lng, distance,
+   * within } or null. No arrival_time filter — suppression spans the whole
+   * visit even after arrival is recorded.
+   */
+  async getActiveStopTarget(latitude, longitude, driverId, deliveryDate) {
+    if (!latitude || !longitude || !driverId || !deliveryDate) return null;
+    try {
+      await this._refreshCacheIfNeeded(driverId, deliveryDate);
+      const deliveries = this._cachedDeliveries || [];
+      const patients = this._cachedPatients || [];
+      const stores = this._cachedStores || [];
+      const nextStop = deliveries.find(d =>
+        d &&
+        d.isNextDelivery === true &&
+        ['en_route', 'in_transit'].includes(String(d.status))
+      );
+      if (!nextStop) return null;
+      let targetLat, targetLon;
+      if (nextStop.is_cycling_marker) {
+        targetLat = nextStop.cycling_latitude;
+        targetLon = nextStop.cycling_longitude;
+      } else if (nextStop.patient_id) {
+        const patient = patients.find(p => p?.id === nextStop.patient_id);
+        targetLat = patient?.latitude;
+        targetLon = patient?.longitude;
+      } else if (nextStop.store_id) {
+        const store = stores.find(s => s?.id === nextStop.store_id);
+        targetLat = store?.latitude;
+        targetLon = store?.longitude;
+      }
+      if (!targetLat || !targetLon) return null;
+      const distance = this.calculateDistance(latitude, longitude, targetLat, targetLon);
+      return { id: nextStop.id, lat: targetLat, lng: targetLon, distance, within: distance <= this.geofenceRadius };
+    } catch (_) {
+      return null;
+    }
+  }
+
   async checkImmediateArrival(latitude, longitude, driverId, deliveryDate) {
     if (!latitude || !longitude || !driverId || !deliveryDate) return;
 
@@ -495,9 +539,9 @@ class ArrivalTimeDetector {
         // Also invalidate the cache so next processLocationUpdate sees the new arrival_time
         this._lastCacheTime = 0;
 
-        // Slow breadcrumbs to 60s — driver is at the stop
-        // Lazy import breaks the locationTracker ↔ arrivalTimeDetector cycle.
-        try { const { locationTracker } = await import('./locationTracker'); locationTracker.slowBreadcrumbsForStop(); } catch (_) {}
+        // Suppress breadcrumbs at this stop (owner spec Oct 22 — zero fix grabs
+        // while parked; the stop-settle fix was the final crumb).
+        try { const { locationTracker } = await import('./locationTracker'); locationTracker.slowBreadcrumbsForStop(nextStop.id, targetLat, targetLon); } catch (_) {}
 
         console.log(`💾 [ARRIVAL immediate] Saved arrival_time for ${nextStop.id}${coLocatedImmediate.length > 0 ? ` + ${coLocatedImmediate.length} co-located stops` : ''}`);
       } catch (error) {
