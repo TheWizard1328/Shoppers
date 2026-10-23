@@ -719,10 +719,38 @@ function DeliveryMap({
   const bucketedZoom = bucketZoom(currentZoom);
   const { pickupMarkers, groupedPickupMarkers, deliveryMarkers, groupedDeliveryMarkers } = useMemo(() => {
     const allMarkers = [...rawPickupMarkers, ...rawDeliveryMarkers];
+    const clusterKeyByMarker = new Map();
     const counts = new Map();
+
+    // OWNER SPEC (Oct 23 2026): a pending marker sitting at the EXACT same
+    // coordinates as an active/finished/pickup marker must cluster with it at
+    // EVERY zoom level. The old blanket pending cap (precision 4) split them
+    // at FULL_DETAIL (active markers use precision 6): the pending pin hid
+    // behind the in-transit pin with NO badge and NO fan access at high zoom.
+    // Fix: pending markers join their exact-precision key when a non-pending
+    // marker already holds it; otherwise they keep the coarser pending cap so
+    // same-building pending markers stay clustered at high zoom (unchanged).
+    const isCyclingMarker = (m) => m.is_cycling_marker || m.markerType === 'cycling';
+    const isPendingMarker = (m) => m.status === 'pending' && !isCyclingMarker(m);
+    const bandKey = (m) => getLocationKey(m.latitude, m.longitude, bucketedZoom, null);
+    const pendingCappedKey = (m) => getLocationKey(m.latitude, m.longitude, bucketedZoom, LOCATION_KEY_CAP_FOR_PENDING);
+
+    // Pass 1: non-pending markers (pickups, active, finished, cycling) at band precision.
     allMarkers.forEach((marker) => {
-      const cap = getLocationKeyCapForStatus(marker.status);
-      const key = getLocationKey(marker.latitude, marker.longitude, bucketedZoom, cap);
+      if (!marker || isPendingMarker(marker)) return;
+      const key = bandKey(marker);
+      clusterKeyByMarker.set(marker, key);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    // Pass 2: pending markers — exact key if a non-pending marker is already
+    // there (identical coordinates), otherwise the coarser pending cap.
+    allMarkers.forEach((marker) => {
+      if (!marker || !isPendingMarker(marker)) return;
+      const exactKey = bandKey(marker);
+      const cappedKey = pendingCappedKey(marker);
+      const key = exactKey !== cappedKey && counts.has(exactKey) ? exactKey : cappedKey;
+      clusterKeyByMarker.set(marker, key);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
@@ -730,8 +758,7 @@ function DeliveryMap({
     const groupedDeliveriesMap = new Map();
 
     const pickupMarkersWithCounts = rawPickupMarkers.map((marker) => {
-      const cap = getLocationKeyCapForStatus(marker.status);
-      const key = getLocationKey(marker.latitude, marker.longitude, bucketedZoom, cap);
+      const key = clusterKeyByMarker.get(marker) || bandKey(marker);
       if (!groupedPickupsMap.has(key)) groupedPickupsMap.set(key, []);
       const withCount = { ...marker, duplicateCount: counts.get(key) || 1, locationKey: key };
       groupedPickupsMap.get(key).push(withCount);
@@ -739,11 +766,7 @@ function DeliveryMap({
     });
 
     const deliveryMarkersWithCounts = rawDeliveryMarkers.map((marker) => {
-      // Cycling markers use their own grouping logic and must NOT join the
-      // pending-cap precision cluster (they share exact lat/lng by design).
-      const isCycling = marker.is_cycling_marker || marker.markerType === 'cycling';
-      const cap = isCycling ? null : getLocationKeyCapForStatus(marker.status);
-      const key = getLocationKey(marker.latitude, marker.longitude, bucketedZoom, cap);
+      const key = clusterKeyByMarker.get(marker) || bandKey(marker);
       if (!groupedDeliveriesMap.has(key)) groupedDeliveriesMap.set(key, []);
       const withCount = { ...marker, duplicateCount: counts.get(key) || 1, locationKey: key };
       groupedDeliveriesMap.get(key).push(withCount);
