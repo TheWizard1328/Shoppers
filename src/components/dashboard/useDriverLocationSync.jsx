@@ -17,11 +17,13 @@ const DRIVER_LOC_MAX_IDLE_MS = 12000; // liveness floor between pushes (Oct 22: 
 const STATE_PUSH_MIN_SPACING_MS = 8000; // Oct 22: min spacing between movement pushes — 2s GPS
                                       // fixes with the old 5m gate re-rendered Dashboard every
                                       // fix, stalling manual pan/zoom gestures ~1s on phones
-// Oct 22 jitter fix: phase 2/3 follow re-fits only when the driver actually moved
-// this far since the last fit. Below it the re-fit is a no-op pan that restarts a
-// 0.5s setView animation every tick — constant Leaflet animation churn that made
-// manual gestures feel rubber-bandy/delayed, and kept refitting while parked.
-const FOLLOW_REFIT_MIN_MOVE_M = 15;
+// REMOVED Oct 22 evening (owner directive): the 15m movement gate throttled the
+// phase 2/3 follow re-fit so the map only re-centered after the driver covered
+// 15m — at city speeds that meant the live marker updated 5-15 times between
+// pans (owner's video). Owner: the map should smoothly follow EVERY live marker
+// update in phases 2/3. Fixes only arrive when the driver moves >= 5m
+// (tracker distanceFilter), so stationary GPS jitter can't churn the fit, and
+// the 4s manual-touch lock still wins over the follow. Gate deleted.
 
 /**
  * useDriverLocationSync
@@ -90,9 +92,8 @@ export default function useDriverLocationSync({
   const appUsersRef                = useRef(appUsers);
   const calculateDistanceRef       = useRef(calculateDistance);
   const selectedDriverIdRef        = useRef(selectedDriverId);
-  // Oct 22 jitter fix: last position+phase the phase 2/3 follow actually
-  // re-fitted to. Fixes closer than FOLLOW_REFIT_MIN_MOVE_M (or same phase
-  // unchanged) skip the re-fit — no 0.5s setView animation restart per tick.
+  // Kept for reference/history: last position+phase the follow re-fit used
+  // before the movement gate was removed (owner directive Oct 22 evening).
   const lastFollowFitPosRef        = useRef(null);
 
   // isPrimaryDevice resolves asynchronously — keep it in a ref so callbacks
@@ -287,26 +288,14 @@ export default function useDriverLocationSync({
       if ((window._isUserTouchingMap || false) === true) return;
       if ((window._userMapControlUntil || 0) > now) return;
 
-      // ── FOLLOW RE-FIT MOVEMENT GATE (Oct 22 jitter fix) ────────────────────
-      // The re-fit restarts a 0.5s setView animation and a Dashboard re-render.
-      // When the driver barely moved since the last fit (crawling in traffic,
-      // stopped at a light) that is pure animation churn that fights manual
-      // pan/zoom gestures and re-renders the map for no visible change. Only
-      // refit on real movement — or immediately when the PHASE changed (the
-      // fit target set is different in phase 3 than 2).
-      const lastFit = lastFollowFitPosRef.current;
-      if (lastFit && lastFit.phase === phase) {
-        const fitDistM = calculateDistanceRef.current?.(
-          lastFit.latitude, lastFit.longitude,
-          newLocation.latitude, newLocation.longitude
-        );
-        if (fitDistM != null && fitDistM < FOLLOW_REFIT_MIN_MOVE_M) return;
-      }
-      lastFollowFitPosRef.current = {
-        latitude:  newLocation.latitude,
-        longitude: newLocation.longitude,
-        phase,
-      };
+      // ── FOLLOW RE-FIT (owner directive Oct 22 evening) ─────────────────────
+      // Fire the map trigger on EVERY live marker update in phases 2/3 — the
+      // map must smoothly track the dot. The old 15m movement gate held the
+      // fit back while the dot glided 5-15 updates ahead of the view (owner
+      // video). No movement gate: the tracker's 5m distanceFilter already
+      // suppresses stationary jitter, the 0.5s pan animation is shorter than
+      // the 1s fix cadence so animations don't queue, and the touch locks
+      // above keep manual gestures in control.
 
       // Phase 2: also keep the next-stop card scrolled into view.
       if (phase === 2) {
