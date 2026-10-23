@@ -40,6 +40,8 @@ import { TEMP_MONITORING_DISABLED } from '@/components/utils/tempFeatureFlag';
 import StopCardReturnDialog from './StopCardReturnDialog';
 import InterStoreDropoffDialog from './InterStoreDropoffDialog';
 import MultiDeliveryArrivalDialog from './MultiDeliveryArrivalDialog';
+import AccessCodeDialog from './AccessCodeDialog';
+import { parseAllAccessCodes } from '../utils/accessCodeParser';
 import StopCardPOD from './StopCardPOD';
 import StopCardFooter from './StopCardFooter';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
@@ -120,6 +122,12 @@ let _squareAppIdFetching = false;
 // Cluster deduplication — tracks which cluster keys already have the dialog open
 // so only the first arriving StopCard in the cluster shows it (not every card).
 const _openClusterKeys = new Set();
+// Access-code dialog cooldown: last-shown timestamp per driver:date:patient key.
+// Prevents double-pops from the arrival_time stamp arriving seconds after the
+// 100m proximity pop (same physical visit), while still letting a genuine
+// RE-arrival (driver restarted the stop and came back later) show the code again.
+const _accessCodeShownAt = new Map();
+const ACCESS_CODE_REPOP_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 function getClusterKey(driverId, deliveryDate, sortedDeliveryIds) {
   return `${driverId}:${deliveryDate}:${sortedDeliveryIds.join(',')}`;
@@ -169,6 +177,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const [showInterStoreDialog, setShowInterStoreDialog] = useState(false);
   const [interStoreMatch, setInterStoreMatch] = useState(null);
   const [showMultiArrivalDialog, setShowMultiArrivalDialog] = useState(false);
+  const [showAccessCodeDialog, setShowAccessCodeDialog] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const [activeDeliveryAction, setActiveDeliveryAction] = useState(() => getActiveDeliveryAction());
@@ -744,6 +753,35 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (isSelectedRef.current) onClickRef.current && onClickRef.current(deliveryRef.current);
   }, [isWithinActiveStopRange, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice, clusterHasNextDelivery]);
 
+  // ── ACCESS CODE POP-UP (owner spec Oct 23 2026) ────────────────────────────
+  // Parse ONLY the patient's notes (never driver notes / unit numbers / buzzer —
+  // buzzers already render on cards) for door/lock/elevator/gate codes and pop
+  // the AccessCodeDialog the moment the driver is physically within 100m of the
+  // stop. Fires once per visit (10-min cooldown per patient), on the driver's
+  // primary device only.
+  const accessCodes = useMemo(() => {
+    if (!patient?.notes || !delivery?.patient_id) return [];
+    return parseAllAccessCodes(patient.notes)
+      .map((c) => ({ ...c, patientName: patient.full_name, address: patient.address }));
+  }, [patient?.id, patient?.notes, patient?.full_name, patient?.address, delivery?.patient_id]);
+
+  const accessCodeKey = delivery?.patient_id ? `${delivery.driver_id}:${delivery.delivery_date}:${delivery.patient_id}` : null;
+
+  useEffect(() => {
+    const isActiveUser = delivery?.driver_id === currentUser?.id;
+    if (!accessCodes.length || !isActiveUser || !isPrimaryDevice) return;
+    // Same live-proximity gate as the multi-arrival dialog (never re-pops from a
+    // stale arrival_time after app restart — driver must be within 100m NOW).
+    if (!isActivePatientStop || !isWithinActiveStopRange || !accessCodeKey) return;
+    const lastShown = _accessCodeShownAt.get(accessCodeKey) || 0;
+    if (Date.now() - lastShown < ACCESS_CODE_REPOP_COOLDOWN_MS) return;
+    _accessCodeShownAt.set(accessCodeKey, Date.now());
+    setShowAccessCodeDialog(true);
+    console.log(`🔐 [AccessCode] arrival pop-up for ${accessCodes[0].patientName || 'patient'} (${accessCodes.length} code(s))`);
+  }, [accessCodes, isActivePatientStop, isWithinActiveStopRange, delivery?.driver_id, currentUser?.id, isPrimaryDevice, accessCodeKey]);
+
+
+
   // Derived: driver has physically arrived at this pickup stop AND there are pending deliveries to accept.
   // Triggers on arrival_time (30s stationary) OR immediately when within 100m (same
   // proximity threshold as the Navigate→GPS button swap).
@@ -1206,6 +1244,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             deliveryName={displayName}
             isPickup={isPickup}
             statusType={pendingFailureStatus} />
+
+          <AccessCodeDialog
+            open={showAccessCodeDialog}
+            onClose={() => setShowAccessCodeDialog(false)}
+            codes={accessCodes} />
 
           <MultiDeliveryArrivalDialog
             open={showMultiArrivalDialog}
