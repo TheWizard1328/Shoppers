@@ -374,7 +374,39 @@ export const runServerSideOptimization = async (buildArgs) => {
   } catch (_) {}
 
   const { base44 } = await import('@/api/base44Client');
-  const rawResult = await base44.functions.invoke('rxServerRouteOptimizer', request);
+  // OWNER REPORT (Oct 23 2026): edit-form deferred optimization hangs forever.
+  // functions.invoke has NO client-side timeout — when the server function
+  // stalls (e.g. an unbounded HERE fetch hanging), the coordinator awaits it
+  // indefinitely: KITT bar forever, no audit entry, and NO fallback because
+  // the fallback paths only trigger on a THROW. Cap the wait: on timeout,
+  // count into the circuit breaker and return not-supported so the
+  // coordinator falls back to the CLIENT engine. Abandoning the late result
+  // is safe: the server function performs ZERO route-data writes (returns a
+  // writeBatch that only THIS client commits — never received, never applied).
+  const SERVER_INVOKE_TIMEOUT_MS = 45000; // > server's own 25s HERE caps
+  const invokePromise = Promise.resolve().then(() => base44.functions.invoke('rxServerRouteOptimizer', request));
+  invokePromise.catch(() => {}); // suppress the late rejection when the race already timed out
+  let rawResult;
+  try {
+    rawResult = await Promise.race([
+      invokePromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('server_invoke_timeout')), SERVER_INVOKE_TIMEOUT_MS))
+    ]);
+  } catch (timeoutErr) {
+    const _isTimeout = /timeout/i.test(String(timeoutErr?.message || timeoutErr));
+    if (_isTimeout) {
+      _consecutiveServerFailures++;
+      if (_consecutiveServerFailures >= SERVER_BACKOFF_AFTER) _serverBackoffUntil = Date.now() + SERVER_BACKOFF_MS;
+      try {
+        window.dispatchEvent(new CustomEvent('optimizationEngineFallback', {
+          detail: { reason: 'server_invoke_timeout', source: buildArgs?.source || 'coordinator', at: Date.now() }
+        }));
+      } catch (_) {}
+      console.warn(`[serverOptimizationMode] server optimizer invoke timed out after ${SERVER_INVOKE_TIMEOUT_MS}ms — falling back to client engine`);
+      return { supported: false, reason: 'server_invoke_timeout' };
+    }
+    throw timeoutErr; // real invoke error — coordinator's catch handles it
+  }
   // SDK WRAPPER FIX (owner report Oct 20 2026: 'bad response' balloon while the
   // server function actually SUCCEEDS — verified live via a direct probe): the
   // client SDK returns the function's JSON body nested under `.data`. The old

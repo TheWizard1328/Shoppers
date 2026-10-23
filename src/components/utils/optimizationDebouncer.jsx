@@ -68,26 +68,32 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
     window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { driverId, deliveryDate, source: 'edit_form_deferred', showUI: true } }));
 
     // Use the unified coordinator — same FAB path (optimizeRemainingStops → regenerateType1Polyline)
-    await performRouteOptimization({
-      driverId,
-      deliveryDate,
-      source: 'edit_form_deferred',
-      bypassDriverStatus: true,
-    });
-
-    // Done — hide KITT bar
-    window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
-
-    // Broadcast UI refresh
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-      detail: {
+    // try/finally: even if the coordinator ever rejects (it catches its own
+    // errors, but a hang or a sync throw must never leave the KITT bar stuck).
+    try {
+      await performRouteOptimization({
         driverId,
         deliveryDate,
-        triggeredBy: 'optimizationDebouncer',
-        fullReplacement: false,
-      }
-    }));
-    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        source: 'edit_form_deferred',
+        bypassDriverStatus: true,
+      });
+    } catch (optErr) {
+      console.warn('[optimizationDebouncer] deferred optimization failed:', optErr?.message || optErr);
+    } finally {
+      // Done — hide KITT bar (ALWAYS, success or fail)
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+
+      // Broadcast UI refresh
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId,
+          deliveryDate,
+          triggeredBy: 'optimizationDebouncer',
+          fullReplacement: false,
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    }
   }, DEBOUNCE_MS);
 
   pending.set(key, { timerId, needsOptimization: finalNeedsOptimization });

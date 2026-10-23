@@ -225,7 +225,13 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
     params.set(`destination${index + 1}`, segments.join(';'));
   });
 
-  const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`);
+  // OWNER REPORT (Oct 23 2026): deferred edit-form optimization hangs forever.
+  // Deno fetch has NO default timeout — a stalled HERE connection left the whole
+  // function hanging, so the client's functions.invoke never resolved (KITT bar
+  // forever, no audit entry, no client fallback). Client engine parity: 25s cap.
+  const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
+    signal: AbortSignal.timeout(25000)
+  });
   if (!response.ok) throw new Error(`HERE findsequence2 failed with ${response.status}`);
   const data = await response.json().catch(() => null);
   const route = data?.results?.[0];
@@ -351,7 +357,9 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
   params.set('return', 'polyline,summary');
   validPoints.slice(1, -1).forEach((p) => params.append('via', `${p.lat},${p.lon}`));
 
-  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`);
+  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+    signal: AbortSignal.timeout(25000)
+  });
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
 
