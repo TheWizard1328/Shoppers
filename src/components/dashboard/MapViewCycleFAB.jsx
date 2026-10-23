@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
+import { usePortalWatchCount } from '@/components/utils/portalWatchers';
 
 export default function MapViewCycleFAB({
   currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false, bottomNavHeight = 0, hideForExpandedCard = false }) {
@@ -14,6 +15,15 @@ export default function MapViewCycleFAB({
   const lastFlashAtRef = useRef(0);
   const lastFlashKeyRef = useRef('');
   const lastClickAtRef = useRef(0);
+
+  // ── Patient-portal watcher indicator (owner spec Oct 23 2026) ──────────────
+  // When any patient whose delivery is in the currently visible list is watching
+  // the portal right now, the FAB wears a soft blue halo hugging its edges and
+  // carries the watching count in its corner (same badge style as the phase
+  // number). The FAB is the one element present in every map phase, including
+  // immersive mode where stop cards and the stats panel are hidden.
+  const watchingCount = usePortalWatchCount(filteredDeliveries);
+
 
   const flashUpdate = useCallback((reason = 'generic', details = {}) => {
     if (currentPhase !== 1) return;
@@ -253,10 +263,23 @@ export default function MapViewCycleFAB({
                     ? 'bg-blue-600 hover:bg-blue-700'
                     : (isLocked ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 hover:bg-gray-500')
           }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: fabOpacity, cursor: isEnabled ? 'pointer' : 'not-allowed' }}>
+          {/* Patient-portal watching halo (hugs the FAB edges; only when someone is watching) */}
+          {watchingCount > 0 && (
+            <span className="pointer-events-none absolute -inset-[3px] rounded-xl ring-2 ring-blue-400 bg-blue-500/20 animate-pulse" aria-hidden="true" />
+          )}
           {/* Mode number in top-left corner */}
           <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
             {currentPhase}
           </span>
+          {/* Watching-patient count in the top-right corner (blue, mirrors the phase badge) */}
+          {watchingCount > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center"
+              title={`${watchingCount} patient${watchingCount === 1 ? ' is' : 's are'} watching the portal right now`}
+            >
+              {watchingCount}
+            </span>
+          )}
           {getIcon()}
         </Button>
       </motion.div>

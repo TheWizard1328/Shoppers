@@ -49,6 +49,7 @@ import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboar
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { remoteLogger } from '@/components/utils/remoteLogger';
+import { startPortalWatcherPolling } from '../components/utils/portalWatchers';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
 import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';import { useDispatcherAutoPhaseController } from '@/components/dashboard/useDispatcherAutoPhaseController';
 
@@ -343,6 +344,14 @@ function Dashboard() {
     };
   }, [isDriver, currentUser?.id]);
   useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; window.__fabIsLocked = isMapViewLocked; }, [isMapViewLocked]);
+
+  // ── Patient-portal watcher polling (owner spec Oct 23 2026) ─────────────────
+  // One lightweight function call per minute per dashboard device; consumers
+  // (FAB badge, stop-card eye, map rings) intersect the watcher list with the
+  // deliveries they can already see (role scoping + "delivery that date" gate).
+  useEffect(() => {
+    startPortalWatcherPolling(format(selectedDate, 'yyyy-MM-dd'));
+  }, [selectedDate]);
 
   const activeDriverIdsOnDate = useMemo(() => {
     const _ds = format(selectedDate, 'yyyy-MM-dd');

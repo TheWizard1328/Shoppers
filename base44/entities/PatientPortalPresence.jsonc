@@ -1,0 +1,42 @@
+{
+  "properties": {
+    "patient_id": {
+      "type": "string",
+      "description": "Patient record id (from the patient portal session)"
+    },
+    "patient_name": {
+      "type": "string",
+      "description": "Patient full name at ping time"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "Driver of the patient's active delivery for the date"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Driver display name at ping time"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store of the patient's delivery for the date"
+    },
+    "store_name": {
+      "type": "string",
+      "description": "Store display name at ping time"
+    },
+    "delivery_date": {
+      "format": "date",
+      "type": "string",
+      "description": "Delivery date the patient is watching"
+    },
+    "last_ping_at": {
+      "type": "string",
+      "description": "ISO timestamp of the most recent portal ping (30s cadence while the portal tab is visible)"
+    }
+  },
+  "required": [
+    "patient_id",
+    "delivery_date",
+    "last_ping_at"
+  ]
+}

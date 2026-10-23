@@ -10,6 +10,7 @@ import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import { format } from 'date-fns';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
+import { patientPortalPing } from '@/functions/patientPortalPing';
 
 // Fix default Leaflet icon paths
 delete L.Icon.Default.prototype._getIconUrl;
@@ -246,6 +247,29 @@ function decodePolyline(encoded) {
 
 export default function PatientPortal({ embedded = false } = {}) {
   const patient = PatientSessionManager.getPatient();
+
+  // ── Presence heartbeat (owner spec Oct 23 2026) ──────────────────────────
+  // While this portal tab is VISIBLE, ping presence every 30s so dashboards
+  // can show drivers/dispatchers that this patient is watching the route.
+  // Pauses when the tab is hidden (no phantom watchers), immediate ping on
+  // return. The server only records a row when the patient has a delivery
+  // for the date (owner gate rule).
+  useEffect(() => {
+    if (!patient?.id) return;
+    let ping = () => {
+      if (document.visibilityState !== 'visible') return;
+      const dateStr = format(new Date(), 'yyyy-MM-dd');
+      patientPortalPing({ patient_id: patient.id, delivery_date: dateStr }).catch(() => {});
+    };
+    ping();
+    const timer = setInterval(ping, 30000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') ping(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [patient?.id]);
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [deliveries, setDeliveries]         = useState([]);
   const [pickupStops, setPickupStops]       = useState([]);

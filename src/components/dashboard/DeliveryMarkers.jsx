@@ -7,6 +7,7 @@ import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
+import { portalWatchersStore, usePortalWatcherVersion } from '../utils/portalWatchers';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -35,6 +36,12 @@ function DeliveryMarkers({
   safeUsers,
   stores,
 }) {
+
+  // Patient-portal watcher indicator: re-render markers when the watcher list
+  // changes (once a minute at most) so rings appear/disappear live.
+  usePortalWatcherVersion();
+  const _watchRingRadiusBase = 156543.03392 / Math.pow(2, currentZoom);
+
   const [gpsOverrides, setGpsOverrides] = React.useState({});
 
   React.useEffect(() => {
@@ -360,7 +367,16 @@ function DeliveryMarkers({
     // Use a slightly generous pixel size (26px) to cover the widest marker variant.
     const metersPerPixel = 156543.03392 / Math.pow(2, currentZoom);
     const haloRadius = Math.max(4, (26 / 2 + 6) * metersPerPixel);
+    // Patient watching the portal right now — soft blue ring around their stop
+    // marker (owner spec Oct 23 2026). Non-fanned only (fanned positions are
+    // offset; the FAB badge + card eye carry the signal there).
+    const isPatientWatching = !delivery.is_cycling_marker && delivery.patient_id
+      ? portalWatchersStore.isWatching(delivery.patient_id)
+      : false;
+    const watchRingRadius = Math.max(5, (30 / 2 + 10) * _watchRingRadiusBase);
+
     return [
+      isPatientWatching && !isFanned && <Circle key={`delivery-watch-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={watchRingRadius} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.12, weight: 2, opacity: 0.85, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && delivery.store_id && (() => {
         const deliveryStore = stores.find(s => s?.id === delivery.store_id);

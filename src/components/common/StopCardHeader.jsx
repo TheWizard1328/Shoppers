@@ -9,7 +9,8 @@ import { userHasRole } from "../utils/userRoles";
 import { useAppData } from "../utils/AppDataContext";
 import { format } from "date-fns";
 import { getCurrentEtaForDelivery, getEtaTrendForDelivery, primeEtaTrendBus } from "../utils/etaTrendBus";
-import { Thermometer } from "lucide-react";
+import { Thermometer, Eye } from "lucide-react";
+import { useIsPatientWatching } from "../utils/portalWatchers";
 import { computeFridgeAvgTemp } from "../utils/fridgeTempAverage";
 import { offlineDB } from "../utils/offlineDatabase";
 // Fridge safe zone — defaults match AppSettings; overridden on first render
@@ -181,6 +182,12 @@ export default function StopCardHeader({
 }) {
   const { appUsers: contextAppUsers } = useAppData();
   const resolvedAppUsers = appUsers?.length ? appUsers : (contextAppUsers || []);
+
+  // Patient-portal watcher indicator (owner spec Oct 23 2026): blue eye when
+  // this patient is watching the portal right now (delivery-that-date gate is
+  // inherent — the card only exists for a visible delivery).
+  const isPatientWatching = useIsPatientWatching(patient?.id);
+
 
   const liveTemp = useLiveTempReading(delivery?.driver_id);
   const tempReadings = useDriverTempReadings(delivery?.driver_id, delivery?.delivery_date);
@@ -385,9 +392,18 @@ export default function StopCardHeader({
 
       {/* Center section */}
       <div className="flex-1 min-w-0">
-        <h3 className="pt-0 text-xl font-semibold text-center truncate text-body">
-          {finalDisplayName}
-        </h3>
+        <div className="flex items-center justify-center gap-1">
+          <h3 className="pt-0 text-xl font-semibold text-center truncate text-body">
+            {finalDisplayName}
+          </h3>
+          {isPatientWatching && (
+            <Eye
+              className="h-4 w-4 text-blue-500 shrink-0 animate-pulse"
+              aria-label="Patient is watching the portal"
+              title="Patient is watching the portal right now"
+            />
+          )}
+        </div>
         <div className="flex flex-col items-center min-h-[43px]">
           <div className="text-lg flex items-center justify-center gap-2" style={{ color: timeColor }}>
             {timeDisplay}
