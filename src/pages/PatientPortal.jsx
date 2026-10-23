@@ -194,32 +194,52 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver 
   return null;
 }
 
-// Tracks driver+patient, handles double-tap to reset tracking
+// Tracks driver+patient — ALWAYS-ON "map cycle FAB Phase 2" behavior (owner
+// spec Oct 23 2026): the map continuously pans AND zooms so the driver and the
+// patient are both kept in view. A user zoom/drag pauses the auto-fit for
+// PAUSE_MS, then it reactivates on its own. A programmatic flag keeps the
+// auto-fit from pausing itself (fitBounds fires the same zoomstart/drag-adjacent
+// events a user gesture does — without the flag the tracker would disable
+// itself on every driver tick, which is exactly why tracking never stuck).
 function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTap, onUserInteract }) {
   const map = useMap();
+  const programmaticRef = useRef(false);
 
-  // Auto-pan when driver moves and tracking is active
+  // Auto-fit (Phase 2): whenever the driver moves (or tracking resumes after a
+  // pause), pan AND zoom to frame driver + patient.
   useEffect(() => {
     if (!trackingMode || !driverLocation || !patientLatLng) return;
     const positions = [
       [driverLocation.lat, driverLocation.lng],
       patientLatLng,
     ];
+    programmaticRef.current = true;
     map.fitBounds(L.latLngBounds(positions), { padding: [60, 60], animate: true });
+    const clearProgrammatic = () => { programmaticRef.current = false; };
+    map.once('moveend', clearProgrammatic);
+    map.once('zoomend', clearProgrammatic);
+    // Bounds unchanged (no move/zoom events fire) — clear via short safety timer.
+    const safetyTimer = setTimeout(clearProgrammatic, 800);
+    return () => {
+      clearTimeout(safetyTimer);
+      map.off('moveend', clearProgrammatic);
+      map.off('zoomend', clearProgrammatic);
+      programmaticRef.current = false;
+    };
   }, [driverLocation?.lat, driverLocation?.lng, trackingMode]);
 
-  // Listen for double-tap to re-enable tracking mode
+  // Double-tap resumes tracking immediately; USER zoom/drag starts the 10s
+  // pause. Programmatic fits are flagged and ignored.
   useEffect(() => {
     const handleDblClick = () => onDoubleTap();
     map.on('dblclick', handleDblClick);
-    // Any user drag/zoom disables tracking
-    const handleInteract = () => onUserInteract();
-    map.on('dragstart', handleInteract);
-    map.on('zoomstart', handleInteract);
+    const handleUserGesture = () => { if (!programmaticRef.current) onUserInteract(); };
+    map.on('dragstart', handleUserGesture);
+    map.on('zoomstart', handleUserGesture);
     return () => {
       map.off('dblclick', handleDblClick);
-      map.off('dragstart', handleInteract);
-      map.off('zoomstart', handleInteract);
+      map.off('dragstart', handleUserGesture);
+      map.off('zoomstart', handleUserGesture);
     };
   }, [map, onDoubleTap, onUserInteract]);
 
@@ -280,8 +300,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   const [liveConnected, setLiveConnected]   = useState(false);
   const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
   const [routeDeliveries, setRouteDeliveries] = useState([]);
-  // trackingMode: when true the map auto-pans to keep driver+patient in view
-  const [trackingMode, setTrackingMode] = useState(false);
+  // trackingMode: Phase 2 auto-fit (driver+patient always in view) — ON by
+  // default and self-reactivating: a user zoom/drag pauses it for 10s, then it
+  // resumes automatically (owner spec Oct 23 2026).
+  const [trackingMode, setTrackingMode] = useState(true);
+  const trackingResumeTimerRef = useRef(null);
   const [driverStatus, setDriverStatus] = useState(null);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
@@ -640,8 +663,23 @@ export default function PatientPortal({ embedded = false } = {}) {
     ? [patient.latitude, patient.longitude]
     : null;
 
-  const handleDoubleTap = useCallback(() => setTrackingMode(true), []);
-  const handleUserInteract = useCallback(() => setTrackingMode(false), []);
+  // Double-tap: resume tracking immediately (cancels any pending 10s timer).
+  const handleDoubleTap = useCallback(() => {
+    if (trackingResumeTimerRef.current) {
+      clearTimeout(trackingResumeTimerRef.current);
+      trackingResumeTimerRef.current = null;
+    }
+    setTrackingMode(true);
+  }, []);
+  // User zoomed/dragged: pause auto-fit, reactivate 10s later on its own.
+  const handleUserInteract = useCallback(() => {
+    setTrackingMode(false);
+    if (trackingResumeTimerRef.current) clearTimeout(trackingResumeTimerRef.current);
+    trackingResumeTimerRef.current = setTimeout(() => {
+      trackingResumeTimerRef.current = null;
+      setTrackingMode(true);
+    }, 10000);
+  }, []);
 
   // Live tracking is only visible after 9:30 AM and when driver is on_duty
   const isAfter930am = (() => {
@@ -713,7 +751,7 @@ export default function PatientPortal({ embedded = false } = {}) {
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
-                {trackingMode ? '📍 Tracking driver' : 'Double-tap map to track driver'}
+                {trackingMode ? '📍 Tracking driver' : '⏳ Tracking resumes shortly'}
               </div>
             </div>
           )}
