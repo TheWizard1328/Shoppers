@@ -585,9 +585,19 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
 
 
 
+  // repositionInputs=false (owner report Oct 22 evening — extra gap under
+  // Cancel/Apply): vaul's input-reposition effect writes INLINE height +
+  // bottom styles on the drawer from window.visualViewport. In the Capacitor
+  // WebView those viewport changes fire outside real keyboard events
+  // (immersive-mode toggles, native nav show/hide), which desyncs vaul's
+  // keyboardIsOpen toggle and leaves a STALE tall inline height on the
+  // drawer — the form doesn't fill it, so dead dark space appears under the
+  // footer buttons. Capacitor resizes the WebView for the keyboard itself
+  // (adjustResize), so vaul's repositioning isn't needed; disabling it also
+  // stops vaul clobbering our custom `bottom` lift above the native nav.
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
         <DrawerOverlay className="z-[11000] bg-black/70" />
         <DrawerContent
           // The base DrawerContent primitive (src/components/ui/drawer.jsx) bakes
