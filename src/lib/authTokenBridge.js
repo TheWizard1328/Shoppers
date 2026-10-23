@@ -196,6 +196,33 @@ export async function restoreTokenFromBridge() {
 }
 
 /**
+ * LOGOUT (owner report Oct 23 2026: dispatcher logout bounced straight back
+ * into the app). The boot-restore below resurrects the session after logout:
+ * the SDK's logout clears localStorage and the server logout clears cookies,
+ * but the bearer token itself stays server-valid until expiry — and this
+ * bridge's IDB copy survives both. On the reload the restore path rewrote
+ * the token and auth.me() succeeded, skipping the login page. clearTokenBridge
+ * deletes the bridge record (and stops the mirror interval) BEFORE the logout
+ * redirect fires. Must complete before navigation — the caller awaits it.
+ */
+export async function clearTokenBridge(timeoutMs = 3000) {
+  if (typeof window === 'undefined' || !window.indexedDB) return;
+  if (intervalHandle) { clearInterval(intervalHandle); intervalHandle = null; }
+  try {
+    const db = await openBridgeDb(timeoutMs);
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).delete(RECORD_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) {
+    console.warn('[authTokenBridge] Failed to clear token bridge:', e?.message || e);
+  }
+}
+
+/**
  * Start mirroring the current access token into IndexedDB immediately and on
  * a recurring interval (tokens can rotate/refresh while the app is open).
  */

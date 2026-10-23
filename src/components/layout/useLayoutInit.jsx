@@ -281,6 +281,9 @@ export function useLayoutInit({
           destroyKey();
           sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your dispatcher account is currently inactive. Please contact an administrator.');
+          // LOGOUT FIX (Oct 23 2026): clear the IDB auth-token bridge too — its
+          // boot-restore was resurrecting the session right after a forced logout.
+          try { const { clearTokenBridge } = await import('@/lib/authTokenBridge'); await clearTokenBridge(); } catch (e) {}
           if (isCapacitorNativeApp()) { try { localStorage.removeItem('base44_access_token'); localStorage.removeItem('token'); sessionStorage.removeItem('rxdeliver_env_redirect_done'); } catch (e) {} } else { try { await base44.auth.logout(); } catch (e) {} }
           window.location.href = '/';return;
         }

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
-import { restoreTokenFromBridge, shipBootDiags, recordBootDiag } from '@/lib/authTokenBridge';
+import { restoreTokenFromBridge, shipBootDiags, recordBootDiag, clearTokenBridge } from '@/lib/authTokenBridge';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
@@ -22,7 +22,7 @@ const _withTimeout = (promise, ms, label) =>
 
 const AuthContext = createContext();
 
-const getAppReturnUrl = () => `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
+const getAppReturnUrl = () =>  `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
 
 // Deep link target for OAuth callback in native apps.
 // We use the custom scheme rxdeliver://auth because wizardworxx.com's
@@ -277,7 +277,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = (shouldRedirect = true) => {
+  const logout = async (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
     
@@ -285,7 +285,17 @@ export const AuthProvider = ({ children }) => {
     import('@/components/utils/locationBreadcrumbService').then(({ clearAllBreadcrumbCaches }) => clearAllBreadcrumbCaches()).catch(() => {});
     // Destroy the encryption key — IDB data becomes unreadable
     destroyKey();
-    
+
+    // LOGOUT FIX (owner report Oct 23 2026: dispatcher logout briefly showed
+    // the login page then bounced straight back into the app): the auth token
+    // bridge mirrors the access token into IndexedDB (push service worker)
+    // and boot RESTORES it whenever localStorage is empty. The SDK logout
+    // clears localStorage and the server logout clears cookies — but the
+    // bearer token stays server-valid and the bridge copy survived both, so
+    // the post-logout reload silently re-authenticated. Clear the bridge
+    // BEFORE the redirect fires so there is nothing to restore.
+    try { await clearTokenBridge(); } catch { /* non-fatal — worst case restore hits a dead token */ }
+
     if (isCapacitorNativeApp()) {
       // In the native app, OAuth happens in the system browser which owns
       // the session cookie. The WebView has no HTTP-only cookie to clear,
