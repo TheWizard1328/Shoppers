@@ -40,7 +40,6 @@ function DeliveryMarkers({
   // Patient-portal watcher indicator: re-render markers when the watcher list
   // changes (once a minute at most) so rings appear/disappear live.
   usePortalWatcherVersion();
-  const _watchRingRadiusBase = 156543.03392 / Math.pow(2, currentZoom);
 
   const [gpsOverrides, setGpsOverrides] = React.useState({});
 
@@ -341,9 +340,18 @@ function DeliveryMarkers({
     }
 
     const markerStoreColor = delivery.store ? getStoreColor(delivery.store) : null;
+    // Patient watching the portal right now — the marker itself wears a tight
+    // pulsating blue halo hugging its edges (owner spec Oct 23 2026, same
+    // visual as the map cycle FAB's watching halo; replaced the old oversized
+    // Leaflet circle). Non-fanned only (fanned positions are offset; the FAB
+    // badge + card eye carry the signal there).
+    const isPatientWatching = !delivery.is_cycling_marker && delivery.patient_id
+      ? portalWatchersStore.isWatching(delivery.patient_id)
+      : false;
+    const showWatchHalo = isPatientWatching && !isFanned;
     const icon = delivery.useSimpleCircle || delivery.isOtherDriver
-      ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor, delivery.isDriverOnDuty)
-      : createDeliveryIcon(delivery.status, delivery.pinColor, isFanned, delivery.status === 'pending' ? null : delivery.number, delivery.isFirstTime, delivery.duplicateCount, currentZoom, delivery.isNextInLine, isHighlighted, hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver, delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, delivery.fridge_item === true, delivery.isDriverOnDuty);
+      ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor, delivery.isDriverOnDuty, showWatchHalo)
+      : createDeliveryIcon(delivery.status, delivery.pinColor, isFanned, delivery.status === 'pending' ? null : delivery.number, delivery.isFirstTime, delivery.duplicateCount, currentZoom, delivery.isNextInLine, isHighlighted, hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver, delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, delivery.fridge_item === true, delivery.isDriverOnDuty, showWatchHalo);
 
     const handlers = delivery.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isDeliveryFaded) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); handleMarkerClickForFanning(delivery, 'delivery'); },
@@ -367,16 +375,7 @@ function DeliveryMarkers({
     // Use a slightly generous pixel size (26px) to cover the widest marker variant.
     const metersPerPixel = 156543.03392 / Math.pow(2, currentZoom);
     const haloRadius = Math.max(4, (26 / 2 + 6) * metersPerPixel);
-    // Patient watching the portal right now — soft blue ring around their stop
-    // marker (owner spec Oct 23 2026). Non-fanned only (fanned positions are
-    // offset; the FAB badge + card eye carry the signal there).
-    const isPatientWatching = !delivery.is_cycling_marker && delivery.patient_id
-      ? portalWatchersStore.isWatching(delivery.patient_id)
-      : false;
-    const watchRingRadius = Math.max(5, (30 / 2 + 10) * _watchRingRadiusBase);
-
     return [
-      isPatientWatching && !isFanned && <Circle key={`delivery-watch-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={watchRingRadius} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.12, weight: 2, opacity: 0.85, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && delivery.store_id && (() => {
         const deliveryStore = stores.find(s => s?.id === delivery.store_id);

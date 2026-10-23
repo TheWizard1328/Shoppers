@@ -55,10 +55,10 @@ const getInnerSymbolColor = (status, isPickup = false) => {
   }
 };
 
-export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null, isDriverOnDuty = true) => {
+export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null, isDriverOnDuty = true, isPatientWatching = false) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}_${isDriverOnDuty}`;
+  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}_${isDriverOnDuty}_${isPatientWatching}`;
 
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
@@ -139,6 +139,20 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
         isolation: isolate;
         ${pulseAnim}
       ">
+        ${isPatientWatching ? `
+        <!-- Patient-portal watching halo (owner Oct 23 2026): tight ring
+             hugging the marker edge — same visual as the map cycle FAB's
+             watching halo (ring-blue-400 + bg-blue-500/20, pulsing). The
+             marker body is opaque, so only the hugging ring shows. -->
+        <span class="patient-watch-halo" style="
+          position: absolute;
+          inset: -4px;
+          border-radius: 50%;
+          box-shadow: 0 0 0 2px #60A5FA;
+          background: rgba(59, 130, 246, 0.2);
+          pointer-events: none;
+          z-index: -1;
+        "></span>` : ''}
         <span style="pointer-events: none;">${number || ''}</span>
         <!-- Tap pad (Oct 15 2026): extends the touch target ~8px beyond the
              badge — mobile taps land a few px off-center, below the visual. -->
@@ -289,10 +303,10 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   return icon;
 };
 
-export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true) => {
+export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true, isPatientWatching = false) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}`;
+  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}_${isPatientWatching}`;
   if (deliveryIconCache.has(deliveryCacheKey)) return deliveryIconCache.get(deliveryCacheKey);
 
   const isFinished = FINISHED_STATUSES.includes(status);
@@ -366,6 +380,14 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
           ` : `
             <circle cx="12" cy="12" r="8" fill="${statusColor}" stroke="${storeColor}" stroke-width="1.2" />
           `}
+
+          ${isPatientWatching ? `
+          <!-- Patient-portal watching halo (owner Oct 23 2026): tight ring
+               hugging the pin head — same visual as the map cycle FAB's
+               watching halo (ring-blue-400 + bg-blue-500/20, pulsing). -->
+          <g class="patient-watch-halo">
+            <circle cx="12" cy="12" r="11" fill="rgba(59, 130, 246, 0.2)" stroke="#60A5FA" stroke-width="1.6"/>
+          </g>` : ''}
 
           ${showNumber ? `
             <text x="12" y="15.5" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="${numberColor}" text-anchor="middle">${number}</text>
