@@ -231,8 +231,8 @@ export default function MultiDeliveryArrivalDialog({
                     )}
                     <Badge
                       className={`text-sm px-2 py-0.5 rounded-full capitalize ${
-                        delivery.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        delivery.status === 'in_transit' || delivery.status === 'en_route' ? 'bg-amber-100 text-amber-800' :
+                        delivery.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' :
+                        delivery.status === 'in_transit' || delivery.status === 'en_route' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' :
                         'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                       }`}
                     >
@@ -317,7 +317,7 @@ export default function MultiDeliveryArrivalDialog({
                         type="button"
                         disabled={!!loadingId}
                         onClick={() => handleFailClick(delivery)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 transition-colors"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60 disabled:opacity-50 transition-colors"
                       >
                         <XCircle className="w-3.5 h-3.5" />
                         Fail
