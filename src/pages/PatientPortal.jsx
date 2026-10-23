@@ -185,14 +185,14 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
       fittedRef.current = true;
       if (hasRoute) fittedWithRouteRef.current = true;
       const points = [driverLatLng, patientLatLng, ...routePoints];
-      map.fitBounds(L.latLngBounds(points), { padding: [36, 36], animate: true, minZoom: 13, maxZoom: 17 });
+      map.fitBounds(L.latLngBounds(points), { padding: [50, 50], animate: true, minZoom: 13, maxZoom: 17, zoomSnap: 0.25 });
     } else if (storeLatLng) {
       // Normal case: fit store + patient (wait until store is loaded)
       if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current)) return;
       fittedRef.current = true;
       if (hasRoute) fittedWithRouteRef.current = true;
       const points = [storeLatLng, patientLatLng, ...routePoints];
-      map.fitBounds(L.latLngBounds(points), { padding: [36, 36], animate: true, minZoom: 13, maxZoom: 17 });
+      map.fitBounds(L.latLngBounds(points), { padding: [50, 50], animate: true, minZoom: 13, maxZoom: 17, zoomSnap: 0.25 });
     }
     // If neither condition met yet, effect will re-run when deps change
   }, [
@@ -236,7 +236,7 @@ function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTa
     // crop off-screen instead of shrinking everything); maxZoom stops a
     // degenerate tight fit from pinching all the way in. Small buffer — the
     // markers should sit close to the map edges, not centered with big gaps.
-    map.fitBounds(L.latLngBounds(positions), { padding: [36, 36], animate: true, minZoom: 13, maxZoom: 17 });
+    map.fitBounds(L.latLngBounds(positions), { padding: [50, 50], animate: true, minZoom: 13, maxZoom: 17, zoomSnap: 0.25 });
     const clearProgrammatic = () => { programmaticRef.current = false; };
     map.once('moveend', clearProgrammatic);
     map.once('zoomend', clearProgrammatic);
