@@ -182,12 +182,28 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
   // All patients from offline DB — used for matching (broader than the date-filtered in-memory set)
   const [allOfflinePatients, setAllOfflinePatients] = useState([]);
 
-  // Load full patient list from offline DB on open
+  // Load full patient list on open: IDB rows first (instant), then the
+  // authoritative full SERVER list merged on top. The IDB-first boot no longer
+  // bulk-seeds the PATIENTS store on every device, so IDB alone can miss
+  // same-address neighbours (owner report Oct 23 2026: SAME ADDRESS showed 0
+  // for every pending log). The fetched rows are upserted back into IDB so the
+  // local store heals over time.
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     offlineDB.getAll(offlineDB.STORES.PATIENTS).then((rows) => {
-      setAllOfflinePatients((rows || []).filter(Boolean));
+      if (!cancelled) setAllOfflinePatients((rows || []).filter(Boolean));
     });
+    base44.entities.Patient.list().then((serverPatients) => {
+      if (cancelled || !Array.isArray(serverPatients) || serverPatients.length === 0) return;
+      setAllOfflinePatients((prev) => {
+        const map = new Map(prev.map((p) => [p.id, p]));
+        serverPatients.forEach((p) => { if (p?.id) map.set(p.id, p); });
+        return Array.from(map.values());
+      });
+      offlineDB.bulkSave(offlineDB.STORES.PATIENTS, serverPatients).catch(() => {});
+    }).catch((err) => console.warn('[GPS Dialog] full patient fetch failed; matching on IDB only:', err?.message || err));
+    return () => { cancelled = true; };
   }, [open]);
 
   const { data: logs = [], isLoading, isFetching, refetch } = useQuery({
