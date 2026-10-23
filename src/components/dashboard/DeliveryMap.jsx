@@ -29,6 +29,7 @@ import { decodeGooglePolyline } from "../utils/dynamicPolylineManager";
 import HereTileUsageTracker from "./HereTileUsageTracker";
 import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
+import ClusterBadgeMarkers from "./ClusterBadgeMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
 import InterStoreMarkers from "./InterStoreMarkers";
@@ -780,6 +781,43 @@ function DeliveryMap({
       groupedDeliveryMarkers: groupedDeliveriesMap,
     };
   }, [rawPickupMarkers, rawDeliveryMarkers, bucketedZoom]);
+
+  // ONE count badge per co-located group (owner spec Oct 23 2026), centered
+  // on the group's centroid — pickups + deliveries combined (a location can
+  // hold both). Stays at the center point when the cluster fans out, so it
+  // must live OUTSIDE the fanned marker positions. Count = the same number
+  // the old per-marker badges showed (group size at the shared cluster key).
+  const clusterBadges = useMemo(() => {
+    const badges = [];
+    const keys = new Set([...groupedPickupMarkers.keys(), ...groupedDeliveryMarkers.keys()]);
+    for (const key of keys) {
+      const all = [
+        ...(groupedPickupMarkers.get(key) || []),
+        ...(groupedDeliveryMarkers.get(key) || []),
+      ];
+      if (all.length < 2) continue;
+      let lat = 0;
+      let lng = 0;
+      let valid = 0;
+      for (const m of all) {
+        const mLat = Number(m?.latitude);
+        const mLng = Number(m?.longitude);
+        if (Number.isFinite(mLat) && Number.isFinite(mLng)) {
+          lat += mLat;
+          lng += mLng;
+          valid++;
+        }
+      }
+      if (valid === 0) continue;
+      badges.push({
+        key,
+        lat: lat / valid,
+        lng: lng / valid,
+        count: all.length,
+      });
+    }
+    return badges;
+  }, [groupedPickupMarkers, groupedDeliveryMarkers]);
 
   const driverLocationMarkers = useMemo(() => {
     const today = getEdmDate();
@@ -2123,6 +2161,10 @@ function DeliveryMap({
 
         {mapReady && (
           <DeliveryMarkers deliveryMarkers={deliveryMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} groupedPickupMarkers={groupedPickupMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} setFannedLocationKey={setFannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClickWithImmersive} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} stores={stores} />
+        )}
+
+        {mapReady && (
+          <ClusterBadgeMarkers badges={clusterBadges} />
         )}
 
         {mapReady && showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} />}
