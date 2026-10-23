@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,12 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
 
 export default function Login() {
+  const passwordInputRef = useRef(null);
+
+  // Scanner-friendly login (owner request Oct 23): keyboard-wedge barcode
+  // scanners send Enter after each scan. When the email field receives Enter
+  // while the password is still empty, jump to the password field instead of
+  // submitting — scan username barcode, scan password barcode, logs in.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -173,6 +179,12 @@ export default function Login() {
               autoFocus
               placeholder="you@example.com"
               value={email}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !password) {
+                  e.preventDefault();
+                  passwordInputRef.current?.focus();
+                }
+              }}
               onChange={(e) => setEmail(e.target.value)}
               className="pl-10 h-12"
               required
@@ -189,6 +201,7 @@ export default function Login() {
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
+              ref={passwordInputRef}
               id="password"
               type="password"
               autoComplete="current-password"
