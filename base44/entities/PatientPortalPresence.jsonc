@@ -1,42 +1,45 @@
 {
+  "name": "PatientPortalPresence",
+  "type": "object",
   "properties": {
     "patient_id": {
       "type": "string",
-      "description": "Patient record id (from the patient portal session)"
+      "description": "Reference to the patient whose portal session this presence record tracks"
     },
     "patient_name": {
       "type": "string",
-      "description": "Patient full name at ping time"
+      "description": "Denormalized display name of the patient (for quick display without a join)"
     },
     "driver_id": {
       "type": "string",
-      "description": "Driver of the patient's active delivery for the date"
+      "description": "ID of the driver assigned to the delivery being watched / driven to"
     },
     "driver_name": {
       "type": "string",
-      "description": "Driver display name at ping time"
+      "description": "Denormalized display name of the assigned driver"
     },
     "store_id": {
       "type": "string",
-      "description": "Store of the patient's delivery for the date"
+      "description": "ID of the store associated with the watched delivery"
     },
     "store_name": {
       "type": "string",
-      "description": "Store display name at ping time"
+      "description": "Denormalized display name of the associated store"
     },
     "delivery_date": {
-      "format": "date",
       "type": "string",
-      "description": "Delivery date the patient is watching"
+      "format": "date",
+      "description": "The delivery date this presence record is scoped to (YYYY-MM-DD)"
     },
     "last_ping_at": {
       "type": "string",
-      "description": "ISO timestamp of the most recent portal ping (30s cadence while the portal tab is visible)"
+      "description": "ISO timestamp of the most recent presence ping from the patient portal watcher"
     }
   },
   "required": [
     "patient_id",
     "delivery_date",
     "last_ping_at"
-  ]
+  ],
+  "rls": {}
 }
