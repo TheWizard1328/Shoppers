@@ -1216,13 +1216,15 @@ class LocationTracker {
               // GPS duty cycle ~80% and POSTs 5x; the server only writes every 15s
               // anyway (nativeLocationUpdate throttle + the 15s JS upload gate).
               //
-              // OWNER DIRECTIVE Oct 22 2026: raw-GPS blue dot (interpolation
-              // retired) trails the driver by up to one fix interval; at 5s fixes
-              // that read as 'several seconds behind' on the road. Fixes are now
-              // 2s (owner's number — matches the breadcrumb cadence). Modest
-              // battery cost accepted: GPS duty ~2.5x vs 5s, but server writes
-              // stay 15s-throttled and the 10m distanceFilter below still kills
-              // stationary cost entirely.
+              // OWNER DIRECTIVE Oct 22 2026 (evening follow-up): raw-GPS blue dot
+              // (interpolation retired) trails the driver by up to one fix
+              // interval. Owner: GPS antenna fixes faster than 1/s, so the dot
+              // should move at 1s cadence — minIntervalMs 2000 -> 1000 and
+              // distanceFilter 10m -> 5m (at 10m, sub-36km/h driving starved the
+              // 1s stream; 5m keeps 1s fixes down to ~18km/h). Server writes stay
+              // 15s-throttled (server-side gate in nativeLocationUpdate); parked
+              // cars still deliver ZERO fixes (distanceFilter). Battery cost of
+              // the 1s duty cycle accepted by owner for display freshness.
               //
               // 10m distanceFilter: while parked (stores, lights, home) the plugin
               // delivers NO fixes at all — stationary time stops costing battery.
@@ -1232,8 +1234,8 @@ class LocationTracker {
               // The driver's own blue dot now shows the RAW fix (quick ~0.8s glide
               // per fix — LiveDriverLocationMarker raw mode), so display freshness
               // == hardware freshness: ~2s worst case, ~1s average.
-              distanceFilter: 10,
-              minIntervalMs: 2000,
+              distanceFilter: 5,
+              minIntervalMs: 1000,
               backgroundTitle: 'RxDeliver location tracking',
               backgroundMessage: 'Tracking delivery location in the background.'
             };
