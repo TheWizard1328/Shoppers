@@ -120,11 +120,14 @@ export default function DeliveryFormStaged({
           const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
           const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
           const fadedBgColor = hexToRgba(storeColor, 0.1);
+          // OWNER SPEC (Oct 23 2026): inactive patients get a red border on staged/pending cards
+          const stagedPatient = staged.patient_id ? (patients || []).find((p) => p && p.id === staged.patient_id) : null;
+          const isInactivePatient = stagedPatient?.status === 'inactive';
 
           return (
             <div
               key={staged._tempId}
-              className={`flex p-2 rounded border-2 border-emerald-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
+              className={`flex p-2 rounded border-2 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : isInactivePatient ? 'border-red-500' : 'border-emerald-300'} hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800`}
               style={{
                 backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
               }}
@@ -235,11 +238,14 @@ export default function DeliveryFormStaged({
           const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
           const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
           const fadedBgColor = hexToRgba(storeColor, 0.1);
+          // OWNER SPEC (Oct 23 2026): inactive patients get a red border on staged/pending cards
+          const stagedPatient = staged.patient_id ? (patients || []).find((p) => p && p.id === staged.patient_id) : null;
+          const isInactivePatient = stagedPatient?.status === 'inactive';
 
           return (
             <div
               key={staged._tempId}
-              className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
+              className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : isInactivePatient ? 'border-red-500 border-2' : 'border-surface'} hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800`}
               style={{
                 backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
               }}

@@ -301,8 +301,10 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
           if (!projectedDelivery) return null;
           const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
           const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id || p?.patient_id === projectedDelivery.patient_id);
+          // OWNER SPEC (Oct 23 2026): inactive patients get a red border on their pickup-list item
+          const projPatientInactive = projPatient?.status === 'inactive';
           return (
-            <div key={deliveryId} className="flex items-center justify-between gap-1 border px-2.5 py-1.0 rounded-md cursor-pointer transition-colors bg-surface border-surface" onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}} onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}} onClick={(e) => {e.stopPropagation();if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);}}>
+            <div key={deliveryId} className={`flex items-center justify-between gap-1 border px-2.5 py-1.0 rounded-md cursor-pointer transition-colors bg-surface ${projPatientInactive ? 'border-red-500 border-2' : 'border-surface'}`} onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}} onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}} onClick={(e) => {e.stopPropagation();if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);}}>
               <span className="text-base font-medium truncate flex-1 text-body">
                 {projPatient?.full_name || projectedDelivery.patient_name || 'Unknown Patient'}
               </span>
