@@ -163,6 +163,22 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
 
 // Fits the map to patient + store on load (once both are available).
 // If the driver is live, fits driver + patient instead.
+// Shared portal fit (owner spec Oct 23 2026): 50px padding on all four sides,
+// zoom FLOORED at 13 so the view never zooms out past street level (long routes
+// crop their far legs instead of shrinking everything) and capped at 17.
+// Leaflet's fitBounds IGNORES its minZoom option (and zoomSnap is a no-op
+// there), so the zoom is computed manually and applied with flyTo.
+const PORTAL_FIT_MIN_ZOOM = 13;
+const PORTAL_FIT_MAX_ZOOM = 17;
+function portalFit(map, points) {
+  const bounds = L.latLngBounds(points);
+  const fitZoom = map.getBoundsZoom(bounds, false, L.point(50, 50));
+  const targetZoom = Number.isFinite(fitZoom)
+    ? Math.min(PORTAL_FIT_MAX_ZOOM, Math.max(PORTAL_FIT_MIN_ZOOM, fitZoom))
+    : PORTAL_FIT_MAX_ZOOM;
+  map.flyTo(bounds.getCenter(), targetZoom, { duration: 0.75 });
+}
+
 function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords }) {
   const map = useMap();
   const fittedRef = useRef(false);
@@ -185,14 +201,14 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
       fittedRef.current = true;
       if (hasRoute) fittedWithRouteRef.current = true;
       const points = [driverLatLng, patientLatLng, ...routePoints];
-      map.fitBounds(L.latLngBounds(points), { padding: [50, 50], animate: true, minZoom: 13, maxZoom: 17, zoomSnap: 0.25 });
+      portalFit(map, points);
     } else if (storeLatLng) {
       // Normal case: fit store + patient (wait until store is loaded)
       if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current)) return;
       fittedRef.current = true;
       if (hasRoute) fittedWithRouteRef.current = true;
       const points = [storeLatLng, patientLatLng, ...routePoints];
-      map.fitBounds(L.latLngBounds(points), { padding: [50, 50], animate: true, minZoom: 13, maxZoom: 17, zoomSnap: 0.25 });
+      portalFit(map, points);
     }
     // If neither condition met yet, effect will re-run when deps change
   }, [
@@ -236,12 +252,13 @@ function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTa
     // crop off-screen instead of shrinking everything); maxZoom stops a
     // degenerate tight fit from pinching all the way in. Small buffer — the
     // markers should sit close to the map edges, not centered with big gaps.
-    map.fitBounds(L.latLngBounds(positions), { padding: [50, 50], animate: true, minZoom: 13, maxZoom: 17, zoomSnap: 0.25 });
+    portalFit(map, positions);
     const clearProgrammatic = () => { programmaticRef.current = false; };
     map.once('moveend', clearProgrammatic);
     map.once('zoomend', clearProgrammatic);
-    // Bounds unchanged (no move/zoom events fire) — clear via short safety timer.
-    const safetyTimer = setTimeout(clearProgrammatic, 800);
+    // Bounds unchanged (no move/zoom events fire) — clear via short safety
+    // timer (flyTo animation is 0.75s, so clear comfortably after it).
+    const safetyTimer = setTimeout(clearProgrammatic, 1500);
     return () => {
       clearTimeout(safetyTimer);
       map.off('moveend', clearProgrammatic);
@@ -684,11 +701,19 @@ export default function PatientPortal({ embedded = false } = {}) {
   // geometry.
   const ROUTE_COORDS_EMPTY = [];
   const visibleRouteCoords = useMemo(() => {
-    return [
-      ...staticPolylineCoords,
-      ...firstLegCoords,
-      ...currentLegCoords,
-    ];
+    // OWNER FIX (Oct 23 2026 — buffer STILL too large): fitting to every
+    // polyline VERTEX framed the entire road network the route travels —
+    // roads bow far outside the driver↔patient marker box, which read as a
+    // giant built-in padding no padding/zoom setting could fix. Frame only
+    // the leg ENDPOINTS (the stop locations each leg connects): every
+    // intermediate stop still stays inside the fit, but the view no longer
+    // zooms out to the outermost bend of the road. The full geometry stays
+    // painted via the Polyline components.
+    const ends = [];
+    for (const leg of [staticPolylineCoords, firstLegCoords, currentLegCoords]) {
+      if (Array.isArray(leg) && leg.length > 0) ends.push(leg[0], leg[leg.length - 1]);
+    }
+    return ends;
   }, [staticPolylineCoords, firstLegCoords, currentLegCoords]);
 
   const storeLatLng = activeStore?.latitude && activeStore?.longitude

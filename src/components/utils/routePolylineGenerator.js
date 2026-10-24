@@ -610,6 +610,28 @@ export async function generateRoutePolylines({
         metricDistance = _sameLeg.distanceKm;
       }
 
+      // OWNER FIX (Oct 23 2026 — Quick Route Adjustments polyline deletion):
+      // a full regeneration must leave EVERY remaining stop with a painted
+      // leg. When the provider's response is partial (one leg's section
+      // missing/zero — rate-limit blip, route-calc failure on that pair) the
+      // slice above yields encoded=null; the writeBatch then skips the field,
+      // the stale leg is dropped downstream, and the stop shows NO line
+      // ("deleting polylines"). Synthesize a straight-line leg from the
+      // chain's inbound anchor to the stop instead — the next healthy
+      // optimization replaces it with the true road shape.
+      if (encoded == null) {
+        const _chainAnchor = points[Math.max(0, stopIdx - 1 - viaCount)];
+        const _aLat = Number(_chainAnchor?.lat), _aLon = Number(_chainAnchor?.lon);
+        const _bLat = Number(stop.lat), _bLon = Number(stop.lng);
+        if ([_aLat, _aLon, _bLat, _bLon].every(Number.isFinite)) {
+          const _km = haversineKm(_aLat, _aLon, _bLat, _bLon);
+          encoded = encodeGooglePolyline([[_aLat, _aLon], [_bLat, _bLon]]);
+          if (metricDuration == null) metricDuration = Math.max(1, Math.ceil((_km / 40) * 60));
+          if (metricDistance == null) metricDistance = Number(_km.toFixed(3));
+          console.warn(`[routePolylineGenerator] ${source} — leg INTO stop ${stop.delivery?.tracking_number || stop.delivery?.id} had no route section (partial provider response) — synthesized straight-line leg (${_km.toFixed(2)}km) instead of deleting the polyline`);
+        }
+      }
+
       const _winterDurationMinutes = _winterPad(metricDuration, group.mode);
       polylineByDeliveryId.set(stop.delivery.id, {
         encodedPolyline: encoded,

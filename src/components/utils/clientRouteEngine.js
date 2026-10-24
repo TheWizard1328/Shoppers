@@ -1556,7 +1556,10 @@ let _inheritedWindowCount = 0;
       stop_order: writeEntry?.data?.stop_order ?? (startOrder + index + 1),
       isNextDelivery: stop.id === nextStopId,
       transport_mode: stop.transport_mode || 'driving',
-      encoded_polyline: segmentPolylineByDeliveryId.get(stop.id)?.encodedPolyline || null,
+      // Owner fix Oct 23 2026: a leg that failed regeneration keeps its
+      // EXISTING stored polyline in the response (never report null for an
+      // active stop — downstream consumers read null as 'deleted').
+      encoded_polyline: segmentPolylineByDeliveryId.get(stop.id)?.encodedPolyline || stop.encoded_polyline || null,
       estimated_distance_km: writeEntry?.data?.estimated_distance_km ?? null,
       estimated_duration_minutes: writeEntry?.data?.estimated_duration_minutes ?? null,
       travel_dist: legIndex >= 0 && Number(directionsLegs[legIndex]?.distance)
