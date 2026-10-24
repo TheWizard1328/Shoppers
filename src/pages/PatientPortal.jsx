@@ -112,12 +112,18 @@ const cyclingDriverIcon = L.divIcon({
 // The declarative position is seeded ONCE; every 15s AppUser fix is handed to
 // the interpolator and the rAF loop moves the marker imperatively via
 // setLatLng so Leaflet never tears down/rebuilds its DOM on each update.
-function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
+function AnimatedDriverMarker({ driverLocation, legCoords, icon, children, onPaint }) {
   const markerRef = useRef(null);
   const interpRef = useRef(null);
   const initialPosRef = useRef(null);
   const rafRef = useRef(0);
   const lastPaintRef = useRef(0);
+  // OWNER SPEC (Oct 23 2026): the map's auto-fit rides the MARKER's own
+  // movement — the rAF glide emits the painted position (the exact motion the
+  // patient sees) so the refit is linked to the dot, not to a timer/poll.
+  const onPaintRef = useRef(onPaint);
+  onPaintRef.current = onPaint;
+  const lastPaintEmitRef = useRef(0);
 
   if (!interpRef.current) interpRef.current = createLiveMarkerInterpolator({ mode: 'trail' });
 
@@ -148,7 +154,13 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
       const marker = markerRef.current;
       if (!marker?.setLatLng) return;
       const p = interpRef.current.getDisplayPosition(now);
-      if (p) marker.setLatLng([p.latitude, p.longitude]);
+      if (p) {
+        marker.setLatLng([p.latitude, p.longitude]);
+        if (onPaintRef.current && now - lastPaintEmitRef.current >= 500) {
+          lastPaintEmitRef.current = now;
+          onPaintRef.current(p.latitude, p.longitude);
+        }
+      }
     };
     rafRef.current = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(rafRef.current);
@@ -175,7 +187,13 @@ const PORTAL_PAD_BOTTOM_RIGHT = L.point(50, 50);
 // tracking driver badge overlay (50 + 25 = 75px effective top padding).
 const PORTAL_PAD_TOP_LEFT = L.point(50, 75);
 function portalFit(map, points) {
-  const bounds = L.latLngBounds(points);
+  // Guard: a single NaN/undefined coordinate makes latLngBounds invalid and
+  // getBoundsZoom throw — which would silently kill the auto-fit forever.
+  const pts = (points || [])
+    .filter((pt) => Array.isArray(pt) && Number.isFinite(Number(pt[0])) && Number.isFinite(Number(pt[1])))
+    .map(([a, b]) => [Number(a), Number(b)]);
+  if (pts.length === 0) return;
+  const bounds = L.latLngBounds(pts);
   const fitZoom = map.getBoundsZoom(bounds, false, PORTAL_PAD_TOP_LEFT.add(PORTAL_PAD_BOTTOM_RIGHT));
   // OWNER FIX (Oct 23 2026): the 13-floor was over-zooming — on long
   // driver↔patient spans the true fit is ~10-12, and forcing 13 zoomed IN
@@ -245,7 +263,7 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
 // auto-fit from pausing itself (fitBounds fires the same zoomstart/drag-adjacent
 // events a user gesture does — without the flag the tracker would disable
 // itself on every driver tick, which is exactly why tracking never stuck).
-function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords }) {
+function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords }) {
   const map = useMap();
   const programmaticRef = useRef(false);
 
@@ -254,10 +272,15 @@ function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTa
   // route path so every intermediate stop between the driver and the patient
   // stays in view (owner spec Oct 23 2026; stops aren't shown as markers, but
   // their legs define the bounds).
+  // OWNER SPEC (Oct 23 2026): auto pan/zoom is LINKED TO THE MARKER's
+  // movement — every painted position the rAF glide emits (≥40m since the
+  // last fit, gated in the page) re-fits the frame. No timers, no polling.
+  // The 10s manual-interaction pause (trackingMode) still applies.
+  const anchor = driverPaintPos || (driverLocation ? [Number(driverLocation.lat), Number(driverLocation.lng)] : null);
   useEffect(() => {
-    if (!trackingMode || !driverLocation || !patientLatLng) return;
+    if (!trackingMode || !anchor || !patientLatLng) return;
     const positions = [
-      [driverLocation.lat, driverLocation.lng],
+      anchor,
       patientLatLng,
     ];
     const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
@@ -283,7 +306,7 @@ function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTa
     };
     // routeCoords identity changes only when the visible legs change (new stop
     // accepted, completion, regen) — refit then so the frame tracks the route.
-  }, [driverLocation?.lat, driverLocation?.lng, trackingMode, routeCoords]);
+  }, [anchor?.[0], anchor?.[1], trackingMode, routeCoords]);
 
   // Double-tap resumes tracking immediately; USER zoom/drag starts the 10s
   // pause. Programmatic fits are flagged and ignored.
@@ -410,6 +433,26 @@ export default function PatientPortal({ embedded = false } = {}) {
   // resumes automatically (owner spec Oct 23 2026).
   const [trackingMode, setTrackingMode] = useState(true);
   const trackingResumeTimerRef = useRef(null);
+
+  // Latest PAINTED position of the animated driver dot (emitted ~2x/sec by
+  // the marker's rAF glide). Gated to ≥40m of movement so the page only
+  // re-renders — and the auto-fit only fires — when the dot has actually
+  // moved far enough to justify a reframe.
+  const [driverPaintPos, setDriverPaintPos] = useState(null);
+  const driverPaintPosRef = useRef(null);
+  const handleDriverPaint = useCallback((lat, lng) => {
+    const prev = driverPaintPosRef.current;
+    if (prev) {
+      const rad = Math.PI / 180;
+      const dLat = (lat - prev[0]) * rad;
+      const dLng = (lng - prev[1]) * rad;
+      const x = dLng * Math.cos(((prev[0] + lat) / 2) * rad);
+      const moved = Math.sqrt(dLat * dLat + x * x) * 6371000;
+      if (moved < 40) return;
+    }
+    driverPaintPosRef.current = [lat, lng];
+    setDriverPaintPos([lat, lng]);
+  }, []);
   const [driverStatus, setDriverStatus] = useState(null);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
@@ -665,38 +708,7 @@ export default function PatientPortal({ embedded = false } = {}) {
     return () => { try { unsub?.(); } catch (_) {} };
   }, [patient?.id]);
 
-  // ── Driver location POLL fallback (owner Oct 23 2026): the AppUser WS feed
-  // can go silent on patient devices (PWA backgrounded, dropped socket) —
-  // the driver marker AND the auto-fit then freeze even though the driver
-  // keeps moving. Poll the driver's AppUser record every 30s and apply fresh
-  // coordinates so the marker and the refit keep tracking.
-  useEffect(() => {
-    if (!patient?.id) return;
-    const timer = setInterval(async () => {
-      try {
-        const today = todayDeliveryRef.current;
-        const isActive = today && ['in_transit', 'en_route'].includes(today.status);
-        if (!isActive || !today.driver_id) return;
-        const rows = await base44.entities.AppUser.filter({ user_id: today.driver_id });
-        const driver = (rows || []).find((r) => r?.user_id === today.driver_id);
-        if (!driver?.current_latitude || !driver?.current_longitude) return;
-        setDriverLocation((prev) => {
-          const lat = Number(driver.current_latitude);
-          const lng = Number(driver.current_longitude);
-          if (prev && prev.lat === lat && prev.lng === lng) return prev; // no movement — no churn
-          return {
-            lat,
-            lng,
-            name: driver.user_name || prev?.name,
-            cycling: driver.preferred_travel_mode != null
-              ? driver.preferred_travel_mode === 'cycling'
-              : (prev?.cycling ?? false),
-          };
-        });
-      } catch { /* silent — WS feed keeps primary responsibility */ }
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [patient?.id]);
+
 
   // ── Clear driver location + tracking when delivery is no longer active ───────
   useEffect(() => {
@@ -950,6 +962,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               />
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
+                driverPaintPos={driverPaintPos}
                 patientLatLng={patientLatLng}
                 trackingMode={trackingMode}
                 onDoubleTap={handleDoubleTap}
@@ -999,7 +1012,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                   between 15s location updates (same trail interpolation as the shared
                   driver dots on dispatcher maps) instead of teleporting. */}
               {showLiveTracking && driverLocation && (
-                <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon}>
+                <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon} onPaint={handleDriverPaint}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
                 </AnimatedDriverMarker>
               )}
