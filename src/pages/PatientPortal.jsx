@@ -826,6 +826,14 @@ export default function PatientPortal({ embedded = false } = {}) {
               zoom={13}
               style={{ height: '100%', width: '100%' }}
               zoomControl={false}
+              // OWNER FIX (Oct 23 2026): Leaflet's default zoomSnap=1 rounds
+              // EVERY zoom change to whole numbers — the auto-fit computed the
+              // exact fractional zoom for a 50px buffer, then setView snapped
+              // it to the nearest integer: one way the markers bounced off
+              // screen, the other way a huge gap appeared at top/bottom. Free
+              // zoom: the fit parks at its exact computed level and manual
+              // pinch/scroll no longer jumps whole levels either.
+              zoomSnap={0}
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
