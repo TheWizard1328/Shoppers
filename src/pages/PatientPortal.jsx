@@ -168,13 +168,18 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
 // crop their far legs instead of shrinking everything) and capped at 17.
 // Leaflet's fitBounds IGNORES its minZoom option (and zoomSnap is a no-op
 // there), so the zoom is computed manually and applied with flyTo.
-const PORTAL_FIT_MIN_ZOOM = 13;
 const PORTAL_FIT_MAX_ZOOM = 17;
 function portalFit(map, points) {
   const bounds = L.latLngBounds(points);
   const fitZoom = map.getBoundsZoom(bounds, false, L.point(50, 50));
+  // OWNER FIX (Oct 23 2026): the 13-floor was over-zooming — on long
+  // driver↔patient spans the true fit is ~10-12, and forcing 13 zoomed IN
+  // past the fit, pushing both markers off screen. Now the auto-fit uses
+  // the exact computed zoom (only capped at 17 so a degenerate tiny box
+  // can't pinch all the way in). Leaflet's fitBounds always ignored the
+  // minZoom option anyway, so this matches the pre-Oct-23 behavior.
   const targetZoom = Number.isFinite(fitZoom)
-    ? Math.min(PORTAL_FIT_MAX_ZOOM, Math.max(PORTAL_FIT_MIN_ZOOM, fitZoom))
+    ? Math.min(PORTAL_FIT_MAX_ZOOM, fitZoom)
     : PORTAL_FIT_MAX_ZOOM;
   map.flyTo(bounds.getCenter(), targetZoom, { duration: 0.75 });
 }
