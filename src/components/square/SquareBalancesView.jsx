@@ -1367,10 +1367,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             // their own deliveries, so mixed groups can't form for them anyway.
             // OWNER REPORT (Oct 24 2026, Beverly Dickie + Burton Demeriez —
             // one swipe, two drivers, two dates): for unscoped viewers
-            // (owner/dispatcher, scopeId null) a mixed-driver group is the
-            // REAL transaction and MUST merge into one combined card.
+            // (owner/dispatcher, driverScopeId null) a mixed-driver group is
+            // the REAL transaction and MUST merge into one combined card.
+            // HOTFIX (01:26 MDT): v1.9.70 referenced a scopeId variable that
+            // does NOT exist in this closure — the ReferenceError was caught
+            // by the surrounding try and DISABLED combining entirely (12
+            // 'scopeId is not defined' warns). Component-level driverScopeId
+            // is the correct viewer-scoping source.
             const scopeIds = [...new Set(group.map((r) => String(r.driver_id || 'null')))];
-            if (scopeId && scopeIds.length > 1) { mergedRows.push(...group); continue; }
+            if (driverScopeId && scopeIds.length > 1) { mergedRows.push(...group); continue; }
             if (group.length <= 1) { mergedRows.push(...group); continue; }
             // Per-item ledger entries for THIS group's deliveries only —
             // sibling items collected on another day keep their own share.
