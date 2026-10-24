@@ -1211,39 +1211,43 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return null;
       };
       const yesterdayEdm = edmontonBusinessDayKey(new Date(Date.now() - 24 * 3600000));
-      const todayRows = await readDeliveries({ delivery_date: { $in: [today, yesterdayEdm] } }, 'today');
-      const spentRows = await readDeliveries({ cod_card_spend_at: { $gte: `${yesterdayEdm}T00:00:00Z` } }, 'spend-today');
       const seenDelIds = new Set();
       const deliveryList = [];
-      if (todayRows !== null && spentRows !== null) {
-        for (const d of [...(todayRows || []), ...(spentRows || [])]) {
+      const collect = (rows) => {
+        for (const d of rows || []) {
           if (!d?.id || seenDelIds.has(d.id)) continue;
           seenDelIds.add(d.id);
           deliveryList.push(d);
         }
+      };
+      // IDB-FIRST (owner directive Oct 24 2026 02:02 MDT: this Editor is the
+      // ONLY device that initiates Square sync/balance compute, and its IDB
+      // is kept current by the same WS delivery broadcasts — so the date-based
+      // set comes from the LOCAL mirror at zero API cost. Server fallback only
+      // when IDB itself is unavailable.
+      let idbAll = null;
+      try { idbAll = (await getAllDeliveriesIdb()) || null; } catch { idbAll = null; }
+      if (idbAll) {
+        collect(idbAll.filter((d) => [today, yesterdayEdm].includes(String(d?.delivery_date || ''))));
       } else {
-        // IDB FALLBACK (owner request Oct 24 2026 01:59 MDT: "read from the
-        // IDBs instead — same data as the online entities"): when the server
-        // reads fail on a hot/rate-limited pool, paint Collected-today from
-        // the local delivery mirror instead of keeping stale rows — the page
-        // keeps working even while entities are 429ing. The row loop's own
-        // spentToday/doneAt checks re-filter everything below.
-        try {
-          const idbRows = (await getAllDeliveriesIdb()) || [];
-          const spendFloor = `${yesterdayEdm}T00:00:00Z`;
-          for (const d of idbRows) {
-            if (!d?.id || seenDelIds.has(d.id)) continue;
-            const dd = String(d?.delivery_date || '');
-            const sp = String(d?.cod_card_spend_at || '');
-            if ([today, yesterdayEdm].includes(dd) || (sp && sp >= spendFloor)) {
-              seenDelIds.add(d.id);
-              deliveryList.push(d);
-            }
-          }
-          console.log(`[SquareBalances] collected-today IDB fallback: ${deliveryList.length} rows (server read rate-limited)`);
-        } catch {
-          return; // IDB unavailable too — keep previous rows
-        }
+        const todayRows = await readDeliveries({ delivery_date: { $in: [today, yesterdayEdm] } }, 'today');
+        if (todayRows === null) return; // keep previous rows
+        collect(todayRows);
+      }
+      // SPEND-STAMPED SET — SERVER-FIRST (owner report Oct 24 2026: backend
+      // sync writes cod_card_spend_at / confirm stamps silently with NO WS
+      // broadcast, so the server list is ahead of the local mirror right
+      // after a sync): one narrow read with the 2.5s retry; IDB fallback when
+      // the pool rate-limits it.
+      const spentRows = await readDeliveries({ cod_card_spend_at: { $gte: `${yesterdayEdm}T00:00:00Z` } }, 'spend-today');
+      if (spentRows !== null) {
+        collect(spentRows);
+      } else if (idbAll) {
+        const spendFloor = `${yesterdayEdm}T00:00:00Z`;
+        collect(idbAll.filter((d) => { const sp = String(d?.cod_card_spend_at || ''); return sp && sp >= spendFloor; }));
+        console.log('[SquareBalances] collected-today spend set from IDB (server read rate-limited)');
+      } else {
+        return; // both sources failed — keep previous rows
       }
 
       for (const d of deliveryList) {
