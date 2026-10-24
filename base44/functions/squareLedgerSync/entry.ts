@@ -1484,6 +1484,8 @@ Deno.serve(async (req) => {
     // window entries.
     let backfillLinks = 0;
     let backfillRepairs = 0;
+    const backfillMatches: string[] = []; // "cents:deliveryTail:saleTail" — verification trail for the marker
+    let fingerprintExcluded = 0;
     let backfillTypeSyncs = 0;
     let backfillFeeChecks = 0;
     let backfillFeeMismatches = 0;
@@ -1577,6 +1579,22 @@ Deno.serve(async (req) => {
       // Unlinked completed CARD sales pool: current-window entries PLUS existing
       // ledger rows (window-independent repair). Declines are anchor evidence.
       type SaleCandidate = { key: string; existingId: string | null; cents: number; at: number; brand: string | null; method: string | null; fee: number; locId: string | null; cardFingerprint: string | null; orderId: string | null };
+      // STORE-CARD FINGERPRINT FIX (owner report Oct 23 2026): the >=5-swipes
+      // heuristic counted EVERY unlinked card sale toward the fingerprint —
+      // including COD collection swipes. When the catalog link chain broke
+      // (item deleted on completion), repeat patients' cards accumulated >=5
+      // unlinked COD swipes, got classified as "store cards", and were then
+      // EXCLUDED from COD matching forever — their settled credits never
+      // linked (Oct 23: 5 of 12 card collections stranded; owner true-up
+      // required). A card sale whose cents match a completed COD candidate
+      // amount is a patient collection, not business spend: exclude it from
+      // the count so only genuinely unmatched business-card spend builds
+      // store fingerprints.
+      const codCandidateCents = new Set<string>();
+      for (const d of codDeliveries) {
+        if (d.cents > 0) codCandidateCents.add(String(d.cents));
+        if (d.cents2 > 0) codCandidateCents.add(String(d.cents2));
+      }
       const salePool: SaleCandidate[] = [];
       const declineAnchors: { cents: number; at: number; locId: string | null }[] = [];
       for (const e of allEntries) {
@@ -1589,7 +1607,9 @@ Deno.serve(async (req) => {
         if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
         if (e?.card_fingerprint) {
           const fk = `${e.location_id}:${e.card_fingerprint}`;
-          storeFingerprintCounts[fk] = (storeFingerprintCounts[fk] || 0) + 1;
+          // COD-amount swipes are patient collections, not business spend —
+          // they must not build store-card fingerprints (see fix note above).
+          if (!codCandidateCents.has(String(cents))) storeFingerprintCounts[fk] = (storeFingerprintCounts[fk] || 0) + 1;
         }
         salePool.push({
           key: String(e.square_id), existingId: existingIdBySquareId.get(String(e.square_id)) || null,
@@ -1610,7 +1630,9 @@ Deno.serve(async (req) => {
         if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
         if (e?.card_fingerprint) {
           const fk = `${e.location_id}:${e.card_fingerprint}`;
-          storeFingerprintCounts[fk] = (storeFingerprintCounts[fk] || 0) + 1;
+          // COD-amount swipes are patient collections, not business spend —
+          // they must not build store-card fingerprints (see fix note above).
+          if (!codCandidateCents.has(String(cents))) storeFingerprintCounts[fk] = (storeFingerprintCounts[fk] || 0) + 1;
         }
         salePool.push({
           key: String(e.square_id), existingId: e?.id || null,
@@ -1626,6 +1648,11 @@ Deno.serve(async (req) => {
       const storeCardFingerprints = new Set<string>();
       for (const [fk, n] of Object.entries(storeFingerprintCounts)) {
         if (Number(n) >= 5) storeCardFingerprints.add(fk.split(':')[1]);
+      }
+      // Diagnostic: pool members currently excluded from matching by the
+      // store-card fingerprint rule (marker verification).
+      for (const x of salePool) {
+        if (x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint)) fingerprintExcluded += 1;
       }
 
       const usedSaleKeys = new Set<string>();
@@ -1685,13 +1712,20 @@ Deno.serve(async (req) => {
         for (const m of match) {
           usedSaleKeys.add(m.key);
           const stamp = { sale_class: 'cod_collection', delivery_id: d.id, patient_id: patientId, cod_item_name: itemName };
-          if (m.existingId && !entries.has(m.key)) {
+          // PERSISTENCE HARDENING (owner report Oct 23 2026): a matched sale
+          // whose row already exists in the DB gets the stamp written
+          // DIRECTLY as well as in-memory — the repair must land even when
+          // the entry isn't rebuilt this run (window edge) or the upsert
+          // merge path skips it.
+          const rec = entries.get(m.key);
+          if (rec) Object.assign(rec, stamp);
+          if (m.existingId) {
             await base44.asServiceRole.entities.SquareLedgerEntry.update(m.existingId, stamp).then(() => { backfillRepairs += 1; }).catch(() => {});
+            await sleep(30);
           } else {
-            const rec = entries.get(m.key);
-            if (rec) Object.assign(rec, stamp);
             backfillLinks += 1;
           }
+          backfillMatches.push(`${d.cents}:${String(d.id).slice(-6)}:${String(m.key).slice(-8)}`);
           const expected = expectedFeeCents(m.brand, m.method, m.cents);
           if (expected != null) { backfillFeeChecks += 1; if (Math.abs(expected - m.fee) > 2) backfillFeeMismatches += 1; }
         }
@@ -1877,12 +1911,15 @@ Deno.serve(async (req) => {
             matchedDeliveryIds.add(String(l.delivery_id));
             const stamp = { sale_class: 'cod_collection', delivery_id: l.delivery_id, patient_id: l.patient_id || null, cod_item_name: l.item_name || catalogLinkOf(String(l.delivery_id)) || null };
             const rec = entries.get(c.key);
-            if (rec) { Object.assign(rec, stamp); backfillLinks += 1; }
-            else if (c.existingId) {
+            if (rec) Object.assign(rec, stamp);
+            if (c.existingId) {
               await base44.asServiceRole.entities.SquareLedgerEntry.update(c.existingId, stamp)
                 .then(() => { backfillRepairs += 1; }).catch(() => {});
               await sleep(40);
+            } else {
+              backfillLinks += 1;
             }
+            backfillMatches.push(`${c.cents}:${String(l.delivery_id).slice(-6)}:${String(c.key).slice(-8)}`);
             const codType = String(c.brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
             if (await confirmCodDeliveryWithCard(base44, String(l.delivery_id), codType, c.cents)) backfillTypeSyncs += 1;
             continue;
@@ -2168,6 +2205,8 @@ Deno.serve(async (req) => {
           multiSplitRings, multiSplitChildren,
           supersededRowsDeleted, stampedConfirmations,
           backfillLinks, backfillRepairs, backfillTypeSyncs,
+          fingerprintExcluded,
+          backfillMatches: backfillMatches.slice(0, 20),
         };
         const stampRows: any[] = (await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_ledger_sync' }).catch(() => [])) as any[];
         if (stampRows?.[0]?.id) {
@@ -2202,6 +2241,8 @@ Deno.serve(async (req) => {
       backfillLinks,
       backfillRepairs,
       backfillTypeSyncs,
+      fingerprintExcluded,
+      backfillMatches: backfillMatches.slice(0, 20),
       backfillFeeChecks,
       backfillFeeMismatches,
       codOutstanding,
