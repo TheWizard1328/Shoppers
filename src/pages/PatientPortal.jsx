@@ -810,20 +810,33 @@ export default function PatientPortal({ embedded = false } = {}) {
   // geometry.
   const ROUTE_COORDS_EMPTY = [];
   const visibleRouteCoords = useMemo(() => {
-    // OWNER FIX (Oct 23 2026 — buffer STILL too large): fitting to every
-    // polyline VERTEX framed the entire road network the route travels —
-    // roads bow far outside the driver↔patient marker box, which read as a
-    // giant built-in padding no padding/zoom setting could fix. Frame only
-    // the leg ENDPOINTS (the stop locations each leg connects): every
-    // intermediate stop still stays inside the fit, but the view no longer
-    // zooms out to the outermost bend of the road. The full geometry stays
-    // painted via the Polyline components.
-    const ends = [];
-    for (const leg of [staticPolylineCoords, firstLegCoords, currentLegCoords]) {
-      if (Array.isArray(leg) && leg.length > 0) ends.push(leg[0], leg[leg.length - 1]);
+    // OWNER FIX (Oct 23 2026 — v1.9.65): the fit was still anchored to leg
+    // ORIGIN endpoints (each leg starts at the previous stop / the store) —
+    // i.e. coordinates of stops the driver has ALREADY FINISHED, sitting
+    // behind the driver. Those dead anchors kept the frame wide and static
+    // instead of following the marker. Per owner spec the fit points are
+    // ONLY: the driver's position, the patient's position, and the
+    // coordinates of the INCOMPLETE intermediate stops between them.
+    // Route geometry stays painted via the Polyline components.
+    const patientStopOrder = Number(todayDelivery?.stop_order);
+    if (!todayDelivery || routeDeliveries.length === 0) return [];
+    const DONE = ['completed', 'failed', 'cancelled'];
+    const pts = [];
+    for (const d of routeDeliveries) {
+      if (DONE.includes(d.status)) continue;           // finished stop — never a fit point
+      if (Number(d.stop_order) >= patientStopOrder) continue; // patient & later stops excluded
+      if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))) {
+        pts.push([Number(d.lat), Number(d.lng)]);
+      } else if (d.encoded_polyline) {
+        const leg = decodePolyline(d.encoded_polyline); // polyline ends at the stop
+        if (leg.length > 0) pts.push(leg[leg.length - 1]);
+      }
     }
-    return ends;
-  }, [staticPolylineCoords, firstLegCoords, currentLegCoords]);
+    return pts;
+    // NOTE: staticPolylineCoords/firstLegCoords/currentLegCoords deliberately
+    // NOT in the deps — the leg arrays are for PAINTING; the fit rides the
+    // stop coordinates, which change with routeDeliveries.
+  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
   const storeLatLng = activeStore?.latitude && activeStore?.longitude
     ? [activeStore.latitude, activeStore.longitude]
