@@ -367,20 +367,23 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
              ring was drawn INSIDE the SVG at r=11 — ~1.4px after scaling, in the
              pin's shoulder gap — visible in a pixel test but invisible in
              practice (owner report: FAB halo works, marker halo doesn't).
-             Same treatment as the simple-circle variant: a DOM ring hugging the
-             pin head at -3px (FAB parity: ring-blue-400 2px + bg-blue-500/20,
-             pulsing via .patient-watch-halo). First child + no z-index so the
-             opaque pin paints over the translucent center; the ring outside the
-             silhouette stays fully visible. -->
+             Same treatment as the simple-circle variant: a DOM ring outlining
+             the ENTIRE pin (head + tail) as an ellipse around the full marker
+             box — owner Oct 24 2026: head-only ring was too easy to miss,
+             especially under the active-stop scale pulse. Thicker 2.5px
+             ring-blue-400 + soft glow + light blue tint, pulsing via
+             .patient-watch-halo. First child + no z-index so the opaque pin
+             paints over the translucent center; the ring outside the silhouette
+             stays fully visible. -->
         <span class="patient-watch-halo" style="
           position: absolute;
-          top: -3px;
-          left: -3px;
-          width: ${size + 6}px;
-          height: ${size + 6}px;
+          top: -4px;
+          left: -4px;
+          width: ${size + 8}px;
+          height: ${size * 1.4 + 8}px;
           border-radius: 50%;
-          box-shadow: 0 0 0 2px #60A5FA;
-          background: rgba(59, 130, 246, 0.2);
+          box-shadow: 0 0 0 2.5px #60A5FA, 0 0 10px rgba(96, 165, 250, 0.65);
+          background: rgba(59, 130, 246, 0.15);
           pointer-events: none;
         "></span>` : ''}
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; display: block; overflow: visible; position: absolute; top: 0; left: 0;">
