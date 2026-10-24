@@ -169,9 +169,13 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children }) {
 // Leaflet's fitBounds IGNORES its minZoom option (and zoomSnap is a no-op
 // there), so the zoom is computed manually and applied with flyTo.
 const PORTAL_FIT_MAX_ZOOM = 17;
+const PORTAL_PAD_BOTTOM_RIGHT = L.point(50, 50);
+// OWNER TWEAK (Oct 23 2026): 25px extra top padding so the fit clears the
+// tracking driver badge overlay (50 + 25 = 75px effective top padding).
+const PORTAL_PAD_TOP_LEFT = L.point(50, 75);
 function portalFit(map, points) {
   const bounds = L.latLngBounds(points);
-  const fitZoom = map.getBoundsZoom(bounds, false, L.point(50, 50));
+  const fitZoom = map.getBoundsZoom(bounds, false, PORTAL_PAD_TOP_LEFT.add(PORTAL_PAD_BOTTOM_RIGHT));
   // OWNER FIX (Oct 23 2026): the 13-floor was over-zooming — on long
   // driver↔patient spans the true fit is ~10-12, and forcing 13 zoomed IN
   // past the fit, pushing both markers off screen. Now the auto-fit uses
@@ -181,7 +185,13 @@ function portalFit(map, points) {
   const targetZoom = Number.isFinite(fitZoom)
     ? Math.min(PORTAL_FIT_MAX_ZOOM, fitZoom)
     : PORTAL_FIT_MAX_ZOOM;
-  map.flyTo(bounds.getCenter(), targetZoom, { duration: 0.75 });
+  // Asymmetric padding shifts the center the same way Leaflet's
+  // _getBoundsCenterZoom does: paddingOffset = (bottomRight - topLeft) / 2.
+  const paddingOffset = PORTAL_PAD_BOTTOM_RIGHT.subtract(PORTAL_PAD_TOP_LEFT).divideBy(2);
+  const swPoint = map.project(bounds.getSouthWest(), targetZoom);
+  const nePoint = map.project(bounds.getNorthEast(), targetZoom);
+  const center = map.unproject(swPoint.add(nePoint).divideBy(2).add(paddingOffset), targetZoom);
+  map.flyTo(center, targetZoom, { duration: 0.75 });
 }
 
 function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords }) {
