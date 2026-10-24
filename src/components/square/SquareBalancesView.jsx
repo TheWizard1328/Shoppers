@@ -1362,10 +1362,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           }
           const mergedRows = [...ungrouped];
           for (const [sq, group] of groupsBySquare) {
-            // Same-driver check (driver scoping rule) — merge only identical
-            // driver scopes (null merges with null).
+            // Same-driver check (driver scoping rule) — enforced ONLY for
+            // driver viewers (scopeId set): their rows are already filtered to
+            // their own deliveries, so mixed groups can't form for them anyway.
+            // OWNER REPORT (Oct 24 2026, Beverly Dickie + Burton Demeriez —
+            // one swipe, two drivers, two dates): for unscoped viewers
+            // (owner/dispatcher, scopeId null) a mixed-driver group is the
+            // REAL transaction and MUST merge into one combined card.
             const scopeIds = [...new Set(group.map((r) => String(r.driver_id || 'null')))];
-            if (scopeIds.length > 1) { mergedRows.push(...group); continue; }
+            if (scopeId && scopeIds.length > 1) { mergedRows.push(...group); continue; }
             if (group.length <= 1) { mergedRows.push(...group); continue; }
             // Per-item ledger entries for THIS group's deliveries only —
             // sibling items collected on another day keep their own share.
