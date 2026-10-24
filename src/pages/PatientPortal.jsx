@@ -10,6 +10,7 @@ import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import { format } from 'date-fns';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
+import { getHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { patientPortalPing } from '@/functions/patientPortalPing';
 
 // Fix default Leaflet icon paths
@@ -352,6 +353,49 @@ export default function PatientPortal({ embedded = false } = {}) {
   const [stores, setStores]                 = useState([]);
   const [todayDelivery, setTodayDelivery]   = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
+
+  // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
+  // Same detection the dashboard map uses: the 'dark-theme' root class, or
+  // 'auto-theme' + system prefers-dark. A MutationObserver flips tiles live
+  // when the theme changes.
+  const [isDarkTheme, setIsDarkTheme] = useState(() =>
+    typeof document !== 'undefined' && (
+      document.documentElement.classList.contains('dark-theme') ||
+      (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    )
+  );
+  const [hereApiKey, setHereApiKey] = useState(() => getHereApiKey() || null);
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const dark = document.documentElement.classList.contains('dark-theme') ||
+        (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      setIsDarkTheme(prev => (prev === dark ? prev : dark));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { getOrFetchHereApiKey } = await import('@/components/utils/hereApiKeyStore');
+        const key = await getOrFetchHereApiKey();
+        if (mounted && key) setHereApiKey(prev => (prev === key ? prev : key));
+      } catch { /* OSM/Carto fallback stays active */ }
+    })();
+    return () => { mounted = false; };
+  }, []);
+  const tileUrl = useMemo(() => {
+    if (hereApiKey) {
+      // Same HERE v3 tiles the dashboard uses (512px, zoomOffset -1 at render).
+      return isDarkTheme
+        ? `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${hereApiKey}`
+        : `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${hereApiKey}`;
+    }
+    return isDarkTheme
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  }, [hereApiKey, isDarkTheme]);
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
   const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
@@ -616,6 +660,39 @@ export default function PatientPortal({ embedded = false } = {}) {
     return () => { try { unsub?.(); } catch (_) {} };
   }, [patient?.id]);
 
+  // ── Driver location POLL fallback (owner Oct 23 2026): the AppUser WS feed
+  // can go silent on patient devices (PWA backgrounded, dropped socket) —
+  // the driver marker AND the auto-fit then freeze even though the driver
+  // keeps moving. Poll the driver's AppUser record every 30s and apply fresh
+  // coordinates so the marker and the refit keep tracking.
+  useEffect(() => {
+    if (!patient?.id) return;
+    const timer = setInterval(async () => {
+      try {
+        const today = todayDeliveryRef.current;
+        const isActive = today && ['in_transit', 'en_route'].includes(today.status);
+        if (!isActive || !today.driver_id) return;
+        const rows = await base44.entities.AppUser.filter({ user_id: today.driver_id });
+        const driver = (rows || []).find((r) => r?.user_id === today.driver_id);
+        if (!driver?.current_latitude || !driver?.current_longitude) return;
+        setDriverLocation((prev) => {
+          const lat = Number(driver.current_latitude);
+          const lng = Number(driver.current_longitude);
+          if (prev && prev.lat === lat && prev.lng === lng) return prev; // no movement — no churn
+          return {
+            lat,
+            lng,
+            name: driver.user_name || prev?.name,
+            cycling: driver.preferred_travel_mode != null
+              ? driver.preferred_travel_mode === 'cycling'
+              : (prev?.cycling ?? false),
+          };
+        });
+      } catch { /* silent — WS feed keeps primary responsibility */ }
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [patient?.id]);
+
   // ── Clear driver location + tracking when delivery is no longer active ───────
   useEffect(() => {
     const isActive = todayDelivery && ['in_transit', 'en_route'].includes(todayDelivery.status);
@@ -851,8 +928,12 @@ export default function PatientPortal({ embedded = false } = {}) {
               zoomSnap={0}
             >
               <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                key={tileUrl}
+                url={tileUrl}
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.here.com/">HERE</a>'
+                tileSize={hereApiKey ? 512 : 256}
+                zoomOffset={hereApiKey ? -1 : 0}
+                maxNativeZoom={17}
               />
 
               <MapBoundsFitter
