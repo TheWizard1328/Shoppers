@@ -1213,13 +1213,37 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const yesterdayEdm = edmontonBusinessDayKey(new Date(Date.now() - 24 * 3600000));
       const todayRows = await readDeliveries({ delivery_date: { $in: [today, yesterdayEdm] } }, 'today');
       const spentRows = await readDeliveries({ cod_card_spend_at: { $gte: `${yesterdayEdm}T00:00:00Z` } }, 'spend-today');
-      if (todayRows === null || spentRows === null) return; // any failure — keep previous rows
       const seenDelIds = new Set();
       const deliveryList = [];
-      for (const d of [...(todayRows || []), ...(spentRows || [])]) {
-        if (!d?.id || seenDelIds.has(d.id)) continue;
-        seenDelIds.add(d.id);
-        deliveryList.push(d);
+      if (todayRows !== null && spentRows !== null) {
+        for (const d of [...(todayRows || []), ...(spentRows || [])]) {
+          if (!d?.id || seenDelIds.has(d.id)) continue;
+          seenDelIds.add(d.id);
+          deliveryList.push(d);
+        }
+      } else {
+        // IDB FALLBACK (owner request Oct 24 2026 01:59 MDT: "read from the
+        // IDBs instead — same data as the online entities"): when the server
+        // reads fail on a hot/rate-limited pool, paint Collected-today from
+        // the local delivery mirror instead of keeping stale rows — the page
+        // keeps working even while entities are 429ing. The row loop's own
+        // spentToday/doneAt checks re-filter everything below.
+        try {
+          const idbRows = (await getAllDeliveriesIdb()) || [];
+          const spendFloor = `${yesterdayEdm}T00:00:00Z`;
+          for (const d of idbRows) {
+            if (!d?.id || seenDelIds.has(d.id)) continue;
+            const dd = String(d?.delivery_date || '');
+            const sp = String(d?.cod_card_spend_at || '');
+            if ([today, yesterdayEdm].includes(dd) || (sp && sp >= spendFloor)) {
+              seenDelIds.add(d.id);
+              deliveryList.push(d);
+            }
+          }
+          console.log(`[SquareBalances] collected-today IDB fallback: ${deliveryList.length} rows (server read rate-limited)`);
+        } catch {
+          return; // IDB unavailable too — keep previous rows
+        }
       }
 
       for (const d of deliveryList) {
