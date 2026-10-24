@@ -100,9 +100,16 @@ const getLocationKey = (lat, lng, zoom, capPrecision = null) => {
   if (capPrecision != null && precision > capPrecision) precision = capPrecision;
   return `${Number(lat).toFixed(precision)},${Number(lng).toFixed(precision)}`;
 };
-// Helper: pending markers cap at precision 4 so they stay clustered at high zoom,
-// matching the active/finished visual rule (which naturally overlaps due to size).
-const LOCATION_KEY_CAP_FOR_PENDING = 4;
+// Helper: pending markers cap at precision 3 (~110m) so they stay clustered
+// through ALL zoom levels. Precision 4 (owner report Oct 23 2026) was finer
+// than the zoom 11-12 band: two pendings 11-110m apart (same building, not
+// exact same coords) merged below 12 but SPLIT into separate keys at zoom
+// 12+ — the stacked pins lost their count badge exactly at zoom 12, while
+// active/finished markers (identical coords) never split. Cap 3 keeps the
+// pending group key shared at every zoom, so badge + stacking + tap-fanning
+// behave like active/finished clusters. Below zoom 12 the natural band
+// precision is already <= 3, so nothing changes there.
+const LOCATION_KEY_CAP_FOR_PENDING = 3;
 const getLocationKeyCapForStatus = (status) => (status === 'pending' ? LOCATION_KEY_CAP_FOR_PENDING : null);
 
 const dedupeById = (items) => {
