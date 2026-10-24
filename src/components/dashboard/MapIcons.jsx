@@ -362,6 +362,27 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
         overflow: visible;
         ${deliveryPulseAnim}
       ">
+        ${isPatientWatching ? `
+        <!-- Patient-portal watching halo (owner Oct 24 2026 fix): the ORIGINAL
+             ring was drawn INSIDE the SVG at r=11 — ~1.4px after scaling, in the
+             pin's shoulder gap — visible in a pixel test but invisible in
+             practice (owner report: FAB halo works, marker halo doesn't).
+             Same treatment as the simple-circle variant: a DOM ring hugging the
+             pin head at -3px (FAB parity: ring-blue-400 2px + bg-blue-500/20,
+             pulsing via .patient-watch-halo). First child + no z-index so the
+             opaque pin paints over the translucent center; the ring outside the
+             silhouette stays fully visible. -->
+        <span class="patient-watch-halo" style="
+          position: absolute;
+          top: -3px;
+          left: -3px;
+          width: ${size + 6}px;
+          height: ${size + 6}px;
+          border-radius: 50%;
+          box-shadow: 0 0 0 2px #60A5FA;
+          background: rgba(59, 130, 246, 0.2);
+          pointer-events: none;
+        "></span>` : ''}
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; display: block; overflow: visible; position: absolute; top: 0; left: 0;">
           <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z"
                 fill="${storeColor}"
@@ -381,13 +402,6 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
             <circle cx="12" cy="12" r="8" fill="${statusColor}" stroke="${storeColor}" stroke-width="1.2" />
           `}
 
-          ${isPatientWatching ? `
-          <!-- Patient-portal watching halo (owner Oct 23 2026): tight ring
-               hugging the pin head — same visual as the map cycle FAB's
-               watching halo (ring-blue-400 + bg-blue-500/20, pulsing). -->
-          <g class="patient-watch-halo">
-            <circle cx="12" cy="12" r="11" fill="rgba(59, 130, 246, 0.2)" stroke="#60A5FA" stroke-width="1.6"/>
-          </g>` : ''}
 
           ${showNumber ? `
             <text x="12" y="15.5" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="${numberColor}" text-anchor="middle">${number}</text>
