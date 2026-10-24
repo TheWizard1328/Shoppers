@@ -1189,21 +1189,37 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return byLoc.get(locId);
       };
 
-      // Deliveries finished TODAY (any created date) with a COD. A 30-day
-      // created-window comfortably covers completions of long-pending stops.
-      const deliveryList = [];
-      const since30 = new Date(Math.floor(Date.now() / 86400000) * 86400000 - 30 * 86400000).toISOString();
-      for (let page = 0; page < 20; page++) {
-        const rows = await base44.entities.Delivery.filter({ created_date: { $gte: since30 } }, '-created_date', 500, page * 500).catch(() => null);
-        // Same failed-read guard: an empty page vs a FAILED page are different
-        // things — a failure must never wipe the lists.
-        if (rows === null) {
-          console.warn('[SquareBalances] collected-today delivery read failed — keeping previous rows');
-          return;
+      // Deliveries relevant to TODAY's collections ONLY (owner report Oct 24
+      // 2026, 01:42 MDT: the old 30-day created-window paged scan burned 4-8+
+      // requests per compute on the account pool, so every refresh tripped the
+      // 140 req/min rate limit and the Refresh button could NEVER land fresh
+      // data — it looked dead. Two narrow reads replace the scan: (1)
+      // today's + yesterday's deliveries by date (yesterday covers
+      // post-midnight completions of the previous route), (2) any past-dated
+      // delivery whose COD was swiped/collected today (cod_card_spend_at —
+      // the Oct 19 rule for late/off-day card collections like Beverly+
+      // Burton). One 2.5s retry rides transient 429s; ANY final failure keeps
+      // the previous rows (a failure must never wipe or partially overwrite
+      // the lists).
+      const readDeliveries = async (query, tag) => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const rows = await base44.entities.Delivery.filter(query, '-created_date', 500).catch(() => null);
+          if (rows !== null) return rows;
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 2500));
         }
-        const list = rows || [];
-        deliveryList.push(...list);
-        if (list.length < 500) break;
+        console.warn(`[SquareBalances] collected-today delivery read failed (${tag}) — keeping previous rows`);
+        return null;
+      };
+      const yesterdayEdm = edmontonBusinessDayKey(new Date(Date.now() - 24 * 3600000));
+      const todayRows = await readDeliveries({ delivery_date: { $in: [today, yesterdayEdm] } }, 'today');
+      const spentRows = await readDeliveries({ cod_card_spend_at: { $gte: `${yesterdayEdm}T00:00:00Z` } }, 'spend-today');
+      if (todayRows === null || spentRows === null) return; // any failure — keep previous rows
+      const seenDelIds = new Set();
+      const deliveryList = [];
+      for (const d of [...(todayRows || []), ...(spentRows || [])]) {
+        if (!d?.id || seenDelIds.has(d.id)) continue;
+        seenDelIds.add(d.id);
+        deliveryList.push(d);
       }
 
       for (const d of deliveryList) {
