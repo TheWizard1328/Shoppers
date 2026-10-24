@@ -1330,16 +1330,33 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       try {
         const since2d = new Date(Date.now() - 2 * 86400000).toISOString();
         const ledgerRaw = [];
+        // BOUNDED RETRY (owner report Oct 24 2026, 01:53 MDT: the grouped card
+        // 'still not showing' after every fix — this read 429'd ONCE on the
+        // flapping pool, silently broke out of the loop, and combining was
+        // skipped with NO warn — the page looked healthy with separate cards.
+        // Same 2.5s single retry as the collected-today delivery read; a final
+        // failure now LOGS instead of vanishing.
+        let ledgerReadFailed = false;
         for (let page = 0; page < 20; page++) {
-          const rows = await base44.entities.SquareLedgerEntry.filter(
-            { sale_class: 'cod_collection', occurred_at: { $gte: since2d } },
-            'occurred_at', 500, page * 500
-          ).catch(() => null);
-          if (rows === null) break; // read failed — skip combining entirely
+          let rows = null;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            rows = await base44.entities.SquareLedgerEntry.filter(
+              { sale_class: 'cod_collection', occurred_at: { $gte: since2d } },
+              'occurred_at', 500, page * 500
+            ).catch(() => null);
+            if (rows !== null) break;
+            if (attempt === 0) await new Promise((r) => setTimeout(r, 2500));
+          }
+          if (rows === null) {
+            console.warn('[SquareBalances] combining ledger read failed — skipped combining this pass');
+            ledgerReadFailed = true;
+            break;
+          }
           const list = rows || [];
           ledgerRaw.push(...list);
           if (list.length < 500) break;
         }
+        if (ledgerReadFailed) { /* rows stay separate this pass; next pass retries */ }
         const entryByDelivery = new Map(); // delivery_id -> first matching entry
         const entriesBySquare = new Map(); // TRANSACTION key -> [entries]
         const seenEntryId = new Set();
