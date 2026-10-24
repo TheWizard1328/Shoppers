@@ -27,6 +27,28 @@ export default function PaymentDiscrepanciesList({
 }) {
   if (!discrepancies || discrepancies.length === 0) return null;
 
+  // MOST RECENT FIRST (owner request Oct 24 2026): the loader sorts by
+  // -changed_at, but a detection batch stamps every row identically so the
+  // order collapsed to insertion order (oldest delivery first). Rows now sort
+  // by the affected delivery's own moment — actual_delivery_time (naive
+  // Edmonton) on its delivery_date, falling back to changed_at for legacy
+  // rows — newest first.
+  const deliveryMomentOf = (r) => {
+    try {
+      const d = String(r.delivery_date || '').slice(0, 10);
+      if (d) {
+        if (r.actual_delivery_time) {
+          const t = parseAnyTimestamp(String(r.actual_delivery_time));
+          if (t && !Number.isNaN(t.getTime())) return t.getTime();
+        }
+        return Date.parse(`${d}T00:00:00Z`);
+      }
+    } catch (_) { /* fall through */ }
+    const c = Date.parse(String(r.changed_at || ''));
+    return Number.isNaN(c) ? 0 : c;
+  };
+  const sorted = [...discrepancies].sort((a, b) => deliveryMomentOf(b) - deliveryMomentOf(a));
+
   return (
     <div className="mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
       <div className="flex items-center justify-between gap-2">
@@ -42,7 +64,7 @@ export default function PaymentDiscrepanciesList({
         </button>
       </div>
       <div className="mt-2 space-y-1.5">
-        {discrepancies.map((r) => {
+        {sorted.map((r) => {
           // 1) Date & time — original delivery date + actual delivery time.
           const dtDate = r.delivery_date ? String(r.delivery_date).slice(0, 10) : null;
           // TZ FIX (owner report Oct 10 00:10: Patricia Dalpe showed 11:13,
