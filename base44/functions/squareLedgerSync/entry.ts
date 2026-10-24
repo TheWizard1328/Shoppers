@@ -1685,7 +1685,16 @@ Deno.serve(async (req) => {
         const anchorAt = d.completedAt > 0 ? d.completedAt : dayStartMs + 18 * 3600000;
         const pool = salePool.filter((x) => {
           if (x.locId !== d.locId || usedSaleKeys.has(x.key)) return false;
-          if (x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint)) return false;
+          // FINGERPRINT GATE (tightened Oct 24 2026): a flagged fingerprint only
+          // blocks matching for NON-COD-amount sales. A sale whose cents equal
+          // a candidate delivery's card/COD amount is a patient collection —
+          // even when that card ALSO accumulated >=5 unlinked non-COD swipes
+          // in history (the count-side exclusion keeps COD swipes out of the
+          // threshold, but a busy business card's OWN history can still flag a
+          // patient card's fingerprint; the amount gate makes the match
+          // amount-driven, and the exact amount+location+day-window match
+          // keeps false links virtually impossible).
+          if (x.cardFingerprint && storeCardFingerprints.has(x.cardFingerprint) && !codCandidateCents.has(String(x.cents))) return false;
           const inRing = d.completedAt > 0 && x.at >= d.completedAt - WINDOW_BEFORE_MS && x.at <= d.completedAt + WINDOW_AFTER_MS;
           const inDay = x.at >= dayStartMs && x.at <= dayEndMs;
           return inRing || inDay;
