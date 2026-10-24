@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
-import { edmontonBusinessDayKey, edmontonWallString } from "@/components/utils/albertaTime";
+import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot } from "./squareBalancesSharedSnapshot";
@@ -1259,9 +1259,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // converted to Debit/Credit today (cod_card_spend_at is stamped at
         // that moment). The collection moment shown is the card-spend stamp
         // when it falls today, otherwise the completion time.
+        // TIMEZONE FIX (owner report Oct 24 2026 02:11 MDT, Burton Demeriez
+        // missing while Beverly Dickie showed): the old check sliced the
+        // spend stamp's RAW UTC DATE and compared it to the Edmonton
+        // business-day key — a 00:09 AM swipe carries a UTC date one day
+        // ahead, so inside the overnight business-day window (before 05:00
+        // Edmonton, still 'yesterday's' day) the row was dropped. Both the
+        // spend stamp AND the naive completion time now resolve through
+        // edmontonBusinessDayKey(parseAnyTimestamp(...)) so they land on the
+        // same business day the rest of the card uses.
         const spendAt = String(d.cod_card_spend_at || '');
-        const spentToday = spendAt.slice(0, 10) === today;
-        if (!spentToday && (!doneAt || doneAt.slice(0, 10) !== today)) continue;
+        const spendDay = spendAt ? edmontonBusinessDayKey(parseAnyTimestamp(spendAt)) : null;
+        const doneDay = doneAt ? edmontonBusinessDayKey(parseAnyTimestamp(doneAt)) : null;
+        const spentToday = spendDay === today;
+        if (!spentToday && doneDay !== today) continue;
         const collectionMoment = spentToday ? spendAt : doneAt;
         const required = centsOf(d?.cod_total_amount_required);
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
