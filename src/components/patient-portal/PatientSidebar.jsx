@@ -61,7 +61,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
               Delivery History
             </p>
             {sorted.length > 0 && (
-              <span className="ml-auto text-xs bg-slate-200 text-slate-600 dark:text-slate-400 rounded-full px-2 py-0.5 font-medium">
+              <span className="ml-auto text-xs bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200 rounded-full px-2 py-0.5 font-medium">
                 {sorted.length}
               </span>
             )}

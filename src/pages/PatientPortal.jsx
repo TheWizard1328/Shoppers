@@ -396,6 +396,11 @@ export default function PatientPortal({ embedded = false } = {}) {
       ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   }, [hereApiKey, isDarkTheme]);
+  // OWNER FIX (Oct 23 2026): the regular route line colors (green-600 /
+  // blue-600) sink into the dark night tiles — brighten both lines for dark
+  // mode (green-400 / blue-400) so the route stays readable.
+  const routeLegColor = isDarkTheme ? '#4ade80' : '#16a34a';
+  const currentLegColor = isDarkTheme ? '#60a5fa' : '#2563EB';
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
   const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
@@ -956,7 +961,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               {staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
-                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.8 }}
+                  pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }}
                 />
               )}
 
@@ -964,7 +969,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               {showLiveTracking && firstLegCoords.length > 1 && (
                 <Polyline
                   positions={firstLegCoords}
-                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.8 }}
+                  pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }}
                 />
               )}
 
@@ -972,7 +977,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               {showLiveTracking && currentLegCoords.length > 1 && (
                 <Polyline
                   positions={currentLegCoords}
-                  pathOptions={{ color: '#2563EB', weight: 5, opacity: 0.9 }}
+                  pathOptions={{ color: currentLegColor, weight: 5, opacity: 0.95 }}
                 />
               )}
 
