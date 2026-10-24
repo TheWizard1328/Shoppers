@@ -1080,14 +1080,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
       if (deliveryIdsForCashCheck.length) {
         const cashCollectedDeliveryIds = new Set();
+        const resolvedIds = new Set();
+        const isCashCompleted = (d) => String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash');
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
           for (const d of rows || []) {
-            if (String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash')) {
-              cashCollectedDeliveryIds.add(d.id);
-            }
+            resolvedIds.add(String(d.id));
+            if (isCashCompleted(d)) cashCollectedDeliveryIds.add(String(d.id));
           }
+        }
+        // LOCAL-IDB FALLBACK (owner report Oct 24 2026: Bonnie Doon's
+        // cash-collected rows kept showing the amber 'Pending' pill): when
+        // the server read fails or comes back short on a hot/rate-limited
+        // pool, finish the check from the local delivery mirror so the
+        // emerald 'Cash' tag never depends on a fragile API call.
+        const unresolvedIds = deliveryIdsForCashCheck.filter((id) => !resolvedIds.has(String(id)));
+        if (unresolvedIds.length) {
+          try {
+            const idbRows = (await getAllDeliveriesIdb()) || [];
+            const byId = new Map(idbRows.map((d) => [String(d?.id), d]));
+            for (const id of unresolvedIds) {
+              const d = byId.get(String(id));
+              if (d && isCashCompleted(d)) cashCollectedDeliveryIds.add(String(id));
+            }
+          } catch { /* IDB read failed — rows stay untagged until the next pass */ }
         }
         // OWNER SPEC (Oct 8 2026, REVISED same day): cash-completed rows
         // STAY in Uncollected / Past uncollected with the emerald 'Cash'
