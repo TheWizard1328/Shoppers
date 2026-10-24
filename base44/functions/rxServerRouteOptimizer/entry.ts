@@ -777,6 +777,38 @@ Deno.serve(async (req) => {
       writeBatch.push({ id: stop.id, data: updateData });
     }
 
+    // ── API-usage badge parity (owner report Oct 24 2026) ──────────────────
+    // With serverSideOptimization armed, drag-reorders and manual reopts run
+    // HERE/Google ON THE SERVER — the admin Google API usage badge showed ZERO
+    // hits while polylines were in fact regenerating, making a working flow
+    // look dead. Log the server-side calls to GoogleAPILog (same shape the
+    // client generator logs) so the badge reflects server work. Best-effort:
+    // never blocks the response.
+    try {
+      if (googleCalls > 0) {
+        await base44.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Directions',
+          purpose: `Server-side route optimization (Google Directions) — ${orderedStops.length} stop(s)`,
+          function_name: 'rxServerRouteOptimizer',
+          user_id: driverId || null,
+          user_name: driverName || null,
+          metadata: { provider: 'GOOGLE', source: 'server_optimizer', call_count: googleCalls },
+        });
+      }
+      if (hereCalls > 0) {
+        await base44.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Route Optimization (HERE)',
+          purpose: `Server-side route optimization — findsequence2/router — ${orderedStops.length} stop(s)`,
+          function_name: 'rxServerRouteOptimizer',
+          user_id: driverId || null,
+          user_name: driverName || null,
+          metadata: { provider: 'HERE', source: 'server_optimizer', call_count: hereCalls },
+        });
+      }
+    } catch (_) { /* badge logging must never break the optimization */ }
+
     return Response.json({
       success: true,
       supported: true,
