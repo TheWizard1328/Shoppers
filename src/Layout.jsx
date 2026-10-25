@@ -19,7 +19,6 @@ import {
   DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from
 "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { formatAppVersion } from '@/version';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -89,6 +88,7 @@ import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandle
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
+import { formatAppVersion, apkUpdatesFromSuccessCount } from './version';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
 import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
@@ -257,15 +257,18 @@ export default function Layout({ children, currentPageName }) {
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
-  // Build version (owner fix, Oct 22 2026): ALL devices show displayVersion —
-  // live APK digit + THIS BUNDLE's WEB_VERSION — so the sidebar moves on
-  // every web deploy after reload, native installs included. The native APK
-  // is a WebView that loads wizardworxx.com LIVE, so an installed label baked
-  // at build time ("v1.9.0" forever) does NOT describe the code the device is
-  // actually running. The Oct 21 installedLabel-first preference is why the
-  // owner's phone/tablet never moved past the APK's baked web digit while web
-  // pushes reached 1.9.3. installedVersion.versionLabel (baked, frozen)
-  // remains only as a network-failure fallback.
+  // Build version (owner fix Oct 25 2026, supersedes the Oct 22 all-displayVersion
+  // rule): the sidebar must describe what THIS DEVICE is actually running.
+  // OWNER REPORT: his phone showed v1.14.2 — mixing the LATEST published APK's
+  // digit (14, still uninstalled on GitHub) with the live web digit (2) — while
+  // his installed shell was 1.13.x. NATIVE installs now show THEIR OWN installed
+  // APK digit + THIS BUNDLE's WEB_VERSION (the WebView runs the live site, so
+  // the web digit moves on every deploy — the Oct 21 problem stays fixed, the
+  // Oct 22 baked-label problem stays fixed, and no pre-install APK digit leaks
+  // onto installed devices). WEB/PWA keeps the Oct 22 label (latest APK digit +
+  // this bundle's web digit — there is no installed shell to describe, and the
+  // label doubles as the "what's available" beacon for dispatchers)."
+  // installedVersion.versionLabel remains the network-failure fallback.
   const installedVersion = useInstalledAppVersion();
   const latestBuild = useLatestApkBuildInfo();
   // PREVIEW vs LIVE at a glance (owner Oct 22): preview and live can run the
@@ -275,7 +278,22 @@ export default function Layout({ children, currentPageName }) {
   // not the published live site.
   const isPreviewEnv = getEnvironmentLabel() === '(Prev)';
   const sidebarVersion = (() => {
-    const base = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
+    // NATIVE: installed APK digit + THIS bundle's WEB digit (honest label:
+    // "APK 13 shell running web bundle 2" = v1.13.2). WEB/PWA: latest APK
+    // digit + this bundle's web digit (Oct 22 behavior, kept).
+    let base = null;
+    if (installedVersion && (installedVersion.versionLabel || installedVersion.buildNumber)) {
+      const midMatch = installedVersion.versionLabel
+        ? /v?(\d+)\.(\d+)\.(\d+)/.exec(installedVersion.versionLabel)
+        : null;
+      const installedMid = midMatch
+        ? Number(midMatch[2])
+        : apkUpdatesFromSuccessCount(installedVersion.buildNumber);
+      if (Number.isFinite(installedMid) && installedMid > 0) {
+        base = formatAppVersion(installedMid); // v1.<installedMid>.<WEB_VERSION>
+      }
+    }
+    if (!base) base = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
     return isPreviewEnv ? `${base} (Prev)` : base;
   })();
 
