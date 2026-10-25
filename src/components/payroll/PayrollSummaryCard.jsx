@@ -1015,6 +1015,83 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     return monthlyAppFeeBaseTotal * appFeePercent / 100;
   }, [currentPeriod, monthlyAppFeeBaseTotal]);
 
+  // ── Owner Oct 24 2026: persist the live month-end App Fee to draft records ──
+  // The sidebar badge (usePayrollBadge) sums the RECORD's gross + bonus + app
+  // fee, but month-end app fees were display-side only (driverEdits auto-fill)
+  // until the owner saved the fee dialog — Robert's Oct badge read $1400.15
+  // while the card displayed +$417.60 app fee. This effect writes the
+  // auto-filled fee into the draft Payroll record (server + IDB mirror + WS
+  // broadcast) so every consumer — the badge included — sees the same number
+  // the card displays. Guardrails: only draft records that still have a zero
+  // saved fee; the owner's dialog edits / finalize / paid records are never
+  // touched, and a record that already carries an amount is skipped (so the
+  // effect settles after one write per driver per period).
+  useEffect(() => {
+    if (!isPeriodEndOfMonth || !monthlyAppFeeBaseTotal || monthlyAppFeeBaseTotal <= 0) return;
+    if (!payrollData?.length || !periodStartStr || !periodEndStr) return;
+    let cancelled = false;
+    (async () => {
+      // Percentage precedence — identical to the display mapping effect above:
+      // current record first, then carried forward from the driver's most
+      // recent prior record with a saved percentage; when NO driver has any
+      // saved percentage, the AppOwner driver takes 100% of the pool.
+      const pctByDriver = {};
+      let anySaved = false;
+      payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
+        const k = data.driver.id;
+        let pct = Number(getDriverPayrollRecord(k)?.app_fee_percentage) || 0;
+        if (pct <= 0) {
+          const hist = (allPayrollRecords || []).
+            filter((r) => r?.driver_id === k && (Number(r?.app_fee_percentage) || 0) > 0).
+            sort((a, b) => String(b?.pay_period_start || '').localeCompare(String(a?.pay_period_start || '')));
+          pct = Number(hist[0]?.app_fee_percentage) || 0;
+        }
+        if (pct > 0) anySaved = true;
+        pctByDriver[k] = pct;
+      });
+      if (!anySaved) {
+        if (isAppOwner(currentUser) && pctByDriver[currentUser?.id] !== undefined) {
+          pctByDriver[currentUser.id] = 100;
+        } else {
+          return;
+        }
+      }
+      const updatedRecords = [];
+      for (const data of payrollData) {
+        if (!data?.totalDeliveries || data.totalDeliveries <= 0) continue;
+        const k = data.driver.id;
+        const pct = pctByDriver[k] || 0;
+        if (pct <= 0) continue;
+        const amount = Math.round(monthlyAppFeeBaseTotal * pct / 100 * 100) / 100;
+        if (amount <= 0) continue;
+        const rec = getDriverPayrollRecord(k);
+        if (!rec || (Number(rec.app_fee_amount) || 0) > 0 || (rec.status && rec.status !== 'draft')) continue;
+        try {
+          const updated = await base44.entities.Payroll.update(rec.id, {
+            app_fee_percentage: pct, app_fee_amount: amount
+          });
+          updatedRecords.push(updated || { ...rec, app_fee_percentage: pct, app_fee_amount: amount });
+        } catch (e) { /* skip on failure — retried on next page load */ }
+      }
+      if (cancelled || !updatedRecords.length) return;
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.PAYROLL, updatedRecords);
+      } catch (e) { /* IDB mirror is best-effort */ }
+      // Merge into local state so the card/dialog reflect persistence at once
+      const merged = [...payrollRecords];
+      updatedRecords.forEach((u) => {
+        const i = merged.findIndex((r) => r.id === u.id);
+        if (i >= 0) merged[i] = u; else merged.push(u);
+      });
+      setPayrollRecords(merged);
+      if (onPayrollRecordsChange) onPayrollRecordsChange(merged);
+      // Wake the sidebar badge: its IDB-first read must re-read the new amount
+      window.dispatchEvent(new CustomEvent('payrollRecordsUpdated'));
+    })();
+    return () => { cancelled = true; };
+  }, [payrollData, payrollRecords, monthlyAppFeeBaseTotal, isPeriodEndOfMonth, allPayrollRecords, currentUser, periodStartStr, periodEndStr]);
+
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
