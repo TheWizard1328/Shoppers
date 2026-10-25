@@ -1714,6 +1714,28 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   //       origin), never by time. The same rule the live-route path applies
   //       (servable-now stops take the "now" band, which sorts FIRST, ties
   //       broken by the distance optimizer).
+  // ── OWNER FIX (Oct 24 2026): respect Start clicks on future routes ─────────
+  // Owner report (Sharuk/Beverly): clicking Start on a pickup for a FUTURE date
+  // was overruled — this fast path sorted ALL blocks chronologically by window
+  // start and handed isNextDelivery to the first windowed stop, so an 11:00
+  // started pickup kept losing stop 1 (and its next flag) to a 10:00 stop on
+  // every Start tap (retro/future-route setup). The Start click optimistically
+  // flags the clicked stop isNextDelivery=true; that STARTED stop (en_route/
+  // in_transit) now PINS FIRST as its whole block, and the chronological sort
+  // applies only to the REMAINING blocks. Fallback: no flagged in-flight stop
+  // but some other in-flight stop exists → pin the earliest by stop_order.
+  const _inFlightStop = (d) => _IN_HAND_STATUSES.includes(String(d?.status || '').toLowerCase());
+  const _flaggedStarted = optimizableDeliveries.find(d => d?.isNextDelivery === true && _inFlightStop(d)) || null;
+  const _pinnedStop = _flaggedStarted || (optimizableDeliveries.some(_inFlightStop)
+    ? optimizableDeliveries.filter(_inFlightStop).sort((a, b) => (Number(a?.stop_order) || 9999) - (Number(b?.stop_order) || 9999))[0]
+    : null);
+  const _pinnedItems = _pinnedStop
+    ? (blocks.find(b => b.items.some(it => it.delivery.id === _pinnedStop.id))?.items || null)
+    : null;
+  if (_pinnedItems) {
+    console.log(`[clientRouteEngine] ${source} — FUTURE route with a STARTED stop (${_pinnedStop.delivery_id || _pinnedStop.id}, status=${_pinnedStop.status}, flagged=${_flaggedStarted ? 'yes' : 'no'}): pinning its block FIRST; remaining blocks sort by window/distance`);
+  }
+
   const _BLANK_ANCHOR = parseTimeToMinutes('99:99'); // sentinel — anything >= is a blank anchor
   const routeIsTodayPreStart = deliveryDate === getEdmontonTodayDateString();
   if (routeIsTodayPreStart) {
@@ -1757,6 +1779,9 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     }
     console.log(`[clientRouteEngine] ${source} — FUTURE/pre-start route: ${blankBlocks.length} blank-start block(s) sequenced by DISTANCE from origin (${driverHomeLocation ? 'driver_home' : firstWindowedCoords ? 'first_windowed_stop' : 'first_blank_unit'}), leading the route; ${windowedBlocks.length} windowed block(s) follow chronologically${routeIsTodayPreStart ? ' (past windows clamped to now)' : ''}`);
     orderedStops = [...blankSeq.flatMap(b => b.items), ...windowedBlocks.flatMap(b => b.items)];
+  }
+  if (_pinnedItems && _pinnedItems.length > 0) {
+    orderedStops = [..._pinnedItems, ...orderedStops.filter(it => !_pinnedItems.includes(it))];
   }
 
   const firstStop = orderedStops[0];

@@ -141,6 +141,14 @@ async function _performRouteOptimizationInner({
   }
   if (!hereApiKey) {
     console.error(`[RouteOptimization] ${source} — BAILING: no HERE API key available for route optimization`);
+    // SPINNER LEAK FIX (owner report Oct 24 2026 "optimizer hung"): every early
+    // return after the KITT-bar `optimizationRunning:true` dispatch MUST clear
+    // it — the KITT bar ONLY listens to optimizationRunning (not
+    // routeOptimizationComplete), so a bare return leaves the bar up forever.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, optimizedCount: null, error: 'no_here_key' } }));
+    }
     return { success: false, error: 'HERE API key not available' };
   }
 
@@ -220,6 +228,10 @@ async function _performRouteOptimizationInner({
           resolvedDeliveries = Array.isArray(_race.value) ? _race.value : [];
         } else {
           console.warn(`[RouteOptimization] ${source} — route-data fetch stalled ${(_ROUTE_FETCH_PRIMARY_CAP_MS + _ROUTE_FETCH_FINAL_CAP_MS) / 1000}s total with no local data; aborting run`);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, optimizedCount: null, error: 'route_data_fetch_timeout' } }));
+          }
           return { success: false, error: 'route data fetch timed out' };
         }
       }
@@ -238,6 +250,13 @@ async function _performRouteOptimizationInner({
     }
     if (_newestCommit > 0 && _now - _newestCommit < 45 * 1000) {
       console.log(`[RouteOptimization] ${source} — route committed ${Math.round((_now - _newestCommit) / 1000)}s ago by another engine; skipping redundant (possibly stale) run`);
+      // SPINNER LEAK FIX (owner report Oct 24 2026 "optimizer hung"): this skip
+      // is the most common early return — back-to-back form saves within 45s of
+      // a commit. Each skipped run previously left the KITT bar up forever.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+        window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, skipped: true, reason: 'recent_route_commit' } }));
+      }
       return { success: true, skipped: 'recent_route_commit', freshDeliveries: resolvedDeliveries };
     }
   }
