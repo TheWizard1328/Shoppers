@@ -652,7 +652,7 @@ public class MainActivity extends BridgeActivity {
         if ("preview".equals(env)) {
             serverUrl = "https://preview--rx-deliver-2408a9d6.base44.app/";
         } else {
-            serverUrl = "https://wizardworxx.com";
+            serverUrl = "https://rxdeliver.wizardworxx.com";
         }
 
         this.config = CapConfig.loadDefault(this);

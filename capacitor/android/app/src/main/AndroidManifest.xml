@@ -23,7 +23,7 @@
             </intent-filter>
 
             <!-- Verified Android App Link for OAuth callback (primary path).
-                 Requires https://wizardworxx.com/.well-known/assetlinks.json to be
+                 Requires https://rxdeliver.wizardworxx.com/.well-known/assetlinks.json to be
                  reachable and match this app's signing certificate. When verified,
                  Android opens THIS APP directly (no browser, no chooser dialog)
                  the moment the OAuth provider redirects back here — this is what
@@ -34,7 +34,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="wizardworxx.com"
+                    android:host="rxdeliver.wizardworxx.com"
                     android:pathPrefix="/oauth-callback" />
             </intent-filter>
 

@@ -10,7 +10,7 @@ const UserContext = createContext({
 
 // Native APK dynamic environment routing — must match MainActivity.java's
 // serverUrl values exactly (minus the trailing slash on preview).
-const LIVE_HOST = 'wizardworxx.com';
+const LIVE_HOST = 'rxdeliver.wizardworxx.com';
 const PREVIEW_HOST = 'preview--rx-deliver-2408a9d6.base44.app';
 
 export const UserProvider = ({ children, initialUser = null }) => {

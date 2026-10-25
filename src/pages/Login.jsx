@@ -13,7 +13,7 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 // When running inside the native APK, OAuth must redirect back to the app.
 //
 // We tried two approaches that both failed at the platform level:
-// 1. A verified Android App Link (https://wizardworxx.com/oauth-callback) —
+// 1. A verified Android App Link (https://rxdeliver.wizardworxx.com/oauth-callback) —
 //    can't work because wizardworxx.com is Base44-hosted and its
 //    assetlinks.json lists Base44's own web-app package, not ours.
 // 2. Passing the custom scheme (rxdeliver://auth) directly as from_url to

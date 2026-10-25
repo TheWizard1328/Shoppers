@@ -3,7 +3,7 @@
 	"appName": "RxDeliver",
 	"webDir": "dist",
 	"server": {
-		"url": "https://wizardworxx.com",
+		"url": "https://rxdeliver.wizardworxx.com",
 		"cleartext": false,
 		"allowNavigation": [
 			"*.github.com",

@@ -9,7 +9,7 @@ import { userHasRole } from '@/components/utils/userRoles';
 import { toast } from 'sonner';
 import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 
-const PRODUCTION_DOMAIN = 'https://wizardworxx.com';
+const PRODUCTION_DOMAIN = 'https://rxdeliver.wizardworxx.com';
 
 // Sentinel "role" value for the Download Native App flow — not an actual user role,
 // just a special entry in the same dropdown per the requested UX.
