@@ -24,6 +24,22 @@ export async function fetchDriverDailyActivityCached(driverId, activityDate) {
   if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.record;
   if (inflight.has(key)) return inflight.get(key);
   const req = (async () => {
+    // IDB-FIRST (owner directive Oct 25 2026): boot must not burn entity_list
+    // reads on the stats cards. Serve the IDB mirror instantly; the memory
+    // TTL then revalidates against the server and the WS-driven invalidation
+    // calls keep it fresh. Server fetches write through to IDB so every boot
+    // after the first renders offline.
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_DAILY_ACTIVITY);
+      const idbRecord = (rows || []).find(
+        (r) => r?.driver_id === driverId && r?.activity_date === activityDate
+      ) || null;
+      if (idbRecord) {
+        cache.set(key, { record: idbRecord, fetchedAt: Date.now() });
+        return idbRecord;
+      }
+    } catch (_) { /* IDB degraded — fall through to the server path */ }
     try {
       const { base44 } = await import('@/api/base44Client');
       const recs = await base44.entities.DriverDailyActivity.filter({
@@ -32,6 +48,13 @@ export async function fetchDriverDailyActivityCached(driverId, activityDate) {
       });
       const record = recs?.[0] || null;
       cache.set(key, { record, fetchedAt: Date.now() });
+      // Write-through: the next boot renders this record straight from IDB
+      if (record?.id) {
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, record).catch(() => {});
+        } catch (_) {}
+      }
       return record;
     } catch (err) {
       cache.delete(key); // never cache failures

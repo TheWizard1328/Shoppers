@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 25; // v25: Added crypto_meta store (idbCrypto key-material backup)
+const DB_VERSION = 26; // v26: Added driver_schedule_overrides store (offline-first boot reads)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -39,6 +39,7 @@ const STORES = {
   SQUARE_BALANCES_SUMMARY: 'square_balances_summary', // v22: offline-first snapshot of the Square Balances summary (badge + page)
   APP_SETTINGS: 'app_settings', // v23: offline-first AppSettings rows keyed by setting_key
   CRYPTO_META: 'crypto_meta', // v25: idbCrypto key-material backup (survives localStorage eviction)
+  DRIVER_SCHEDULE_OVERRIDES: 'driver_schedule_overrides', // v26: offline-first DriverScheduleOverride mirror (boot must not burn entity_list reads)
   PAYROLL_PAGE_CACHE: 'payroll_page_cache' // v24: offline-first DriverPayroll full-year payload snapshot per year+city
 };
 
@@ -477,6 +478,17 @@ const openDatabase = async () => {
       // This store must NEVER be encrypted (it is read before the key exists).
       if (!db.objectStoreNames.contains(STORES.CRYPTO_META)) {
         db.createObjectStore(STORES.CRYPTO_META, { keyPath: 'id' });
+      }
+
+      // v26: driver_schedule_overrides — DriverScheduleOverride records mirrored
+      // offline-first (owner directive Oct 25 2026: editor-preview boots + device
+      // boots rate-limited because the dashboard mount read schedule overrides
+      // straight from the server). Dashboard renders instantly from this store;
+      // a throttled background refresh keeps it current and the entity WS
+      // subscription mirrors live changes back into it.
+      if (!db.objectStoreNames.contains(STORES.DRIVER_SCHEDULE_OVERRIDES)) {
+        const soStore = db.createObjectStore(STORES.DRIVER_SCHEDULE_OVERRIDES, { keyPath: 'id' });
+        soStore.createIndex('driver_id', 'driver_id', { unique: false });
       }
 
       // v19: stat_holidays — statutory holidays for offline date lookups

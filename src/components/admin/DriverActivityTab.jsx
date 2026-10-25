@@ -479,14 +479,51 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
 
   const loadRecords = async () => {
     setLoading(true);
+    // IDB-FIRST (owner directive Oct 25 2026): this admin view read BOTH
+    // entities straight from the server on every open — part of the boot
+    // 429 storm during the domain migration. Render the IDB mirrors
+    // instantly, then ONE background server refresh updates state and
+    // writes through to IDB.
+    let data = null, dels = null;
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const [idbActivity, idbDeliveries] = await Promise.all([
+        offlineDB.getAll(offlineDB.STORES.DRIVER_DAILY_ACTIVITY).catch(() => []),
+        offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []),
+      ]);
+      data = (idbActivity || []).filter((r) => r?.activity_date === selectedDate);
+      dels = (idbDeliveries || []).filter((r) => r?.delivery_date === selectedDate);
+      if (data.length || dels.length) {
+        setDeliveries(dels);
+        applyFilteredRecords(data, dels);
+      }
+    } catch (_) { /* IDB degraded — fall straight to the server path */ }
     try {
       const filter = { activity_date: selectedDate };
-      const [data, dels] = await Promise.all([
+      const [sData, sDels] = await Promise.all([
       base44.entities.DriverDailyActivity.filter(filter),
       base44.entities.Delivery.filter({ delivery_date: selectedDate })]
       );
+      data = sData; dels = sDels;
+      // Write-through so the next open renders offline
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        if (data?.length) offlineDB.bulkSave(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, data).catch(() => {});
+        if (dels?.length) offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dels).catch(() => {});
+      } catch (_) {}
       setDeliveries(dels || []);
+      applyFilteredRecords(data, dels);
+    } catch (e) {
+      console.error('[DriverActivityTab] load failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Shared city-filter + sort + state application for the IDB and server paths
+  const applyFilteredRecords = (data, dels) => {
+    try {
+      setDeliveries(dels || []);
       // Filter by city if selected — driver's city_ids in appUsers
       let filtered = data || [];
       if (selectedCityId && selectedCityId !== 'all') {
@@ -526,9 +563,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
 
       setRecords(filtered);
     } catch (e) {
-      console.error('[DriverActivityTab] load failed:', e);
-    } finally {
-      setLoading(false);
+      console.error('[DriverActivityTab] apply failed:', e);
     }
   };
 
@@ -538,8 +573,16 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
   useEffect(() => {
     const unsubscribe = base44.entities.DriverDailyActivity.subscribe((event) => {
       // Only reload if the changed record matches the currently viewed date
-      const changedDate = event?.data?.activity_date;
+      const rec = event?.data;
+      const changedDate = rec?.activity_date;
       if (!changedDate || changedDate === selectedDate) {
+        // Mirror the WS event record into IDB (best effort) so the offline
+        // first path stays current on every device
+        if (event?.type !== 'delete' && rec?.id) {
+          import('../utils/offlineDatabase').then(({ offlineDB }) =>
+            offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, rec).catch(() => {})
+          ).catch(() => {});
+        }
         loadRecords();
       }
     });

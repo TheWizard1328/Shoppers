@@ -17,6 +17,7 @@ import { base44 } from "@/api/base44Client";
 import { format, addDays } from 'date-fns';
 import { globalFilters } from "@/components/utils/globalFilters";
 import { offlineDB } from "@/components/utils/offlineDatabase";
+import { fetchBookedOffOverridesCached, onBookedOffOverridesRefreshed, mirrorScheduleOverrideEvent, mirrorScheduleOverrideDelete } from '@/components/utils/scheduleOverrideCache';
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -119,15 +120,23 @@ export default function StatsPanel({
 
   useEffect(() => {
     if (!currentUser) return;
-    base44.entities.DriverScheduleOverride.filter({ driver_id: '__booked_off__' }).
-    then(setBookedOffOverrides).
-    catch(() => {});
+    // IDB-FIRST (owner directive Oct 25 2026): boot must not burn entity_list
+    // reads on the dashboard mount — render the IDB mirror instantly, ONE
+    // throttled background server refresh pushes fresh rows via listener.
+    fetchBookedOffOverridesCached().then((rows) => {
+      if (Array.isArray(rows) && rows.length) setBookedOffOverrides(rows);
+    }).catch(() => {});
+    const unsubRefresh = onBookedOffOverridesRefreshed((rows) => {
+      if (Array.isArray(rows)) setBookedOffOverrides(rows);
+    });
     const unsubscribe = base44.entities.DriverScheduleOverride.subscribe((event) => {
       if (event.type === 'delete') {
+        mirrorScheduleOverrideDelete(event.id);
         setBookedOffOverrides((prev) => prev.filter((o) => o.id !== event.id));
       } else {
         const o = event.data;
         if (!o) return;
+        if (o.driver_id === '__booked_off__') mirrorScheduleOverrideEvent(o);
         setBookedOffOverrides((prev) => {
           if (o.driver_id === '__booked_off__') {
             const idx = prev.findIndex((x) => x.id === o.id);
@@ -138,7 +147,7 @@ export default function StatsPanel({
         });
       }
     });
-    return unsubscribe;
+    return () => { try { unsubscribe?.(); } catch (_) {} try { unsubRefresh?.(); } catch (_) {} };
   }, [currentUser?.id]);
 
   const bookedOffCount = useMemo(() => {
