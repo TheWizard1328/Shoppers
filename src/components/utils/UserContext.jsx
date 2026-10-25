@@ -42,7 +42,10 @@ export const UserProvider = ({ children, initialUser = null }) => {
   }, [initialUser]);
 
   // Store environment preference for native APK routing
-  // Owner/admin → preview, everyone else → live
+  // AppOwner ONLY → preview; everyone else (incl. regular admins) → live
+  // OWNER DIRECTIVE (Oct 25 2026): only Robert (AppOwner) routes to the
+  // preview domain on the native APK — regular admins work live production
+  // data, so they stay on the LIVE domain like every other user.
   useEffect(() => {
     if (!currentUser) return;
     const setEnvPreferenceAndRedirect = async () => {
@@ -52,9 +55,10 @@ export const UserProvider = ({ children, initialUser = null }) => {
         if (!isNative) return;
 
         const { Preferences } = await import('@capacitor/preferences');
-        const isAdmin = currentUser?.role === 'admin';
-        const env = isAdmin ? 'preview' : 'live';
-        const targetHost = isAdmin ? PREVIEW_HOST : LIVE_HOST;
+        const _email = String(currentUser?.email || '').toLowerCase();
+        const _isAppOwner = _email === 'tauberr1328@gmail.com' || _email === 'the.wizard@live.ca';
+        const env = _isAppOwner ? 'preview' : 'live';
+        const targetHost = _isAppOwner ? PREVIEW_HOST : LIVE_HOST;
 
         await Preferences.set({ key: 'rxdeliver_env', value: env });
         console.log(`📱 [Capacitor] Stored env preference: ${env}`);
