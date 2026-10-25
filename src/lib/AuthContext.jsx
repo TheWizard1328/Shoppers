@@ -81,9 +81,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   const handleDeepLink = (url) => {
-    if (!url || deepLinkHandledRef.current) return;
+    if (!url) return;
     const isAuthDeepLink = url.startsWith('rxdeliver://');
-    if (!isAuthDeepLink) return;
+    // APP-LINK CAPTURE (owner report Oct 25 2026): rxdeliver.wizardworxx.com's
+    // assetlinks.json verifies this APK, so Android captures the broker's
+    // https://.../oauth-callback redirect and hands it to the APK instead of
+    // Chrome — the access_token rides IN THE CAPTURED URL. Previously only the
+    // rxdeliver:// custom scheme was processed, so a captured https login
+    // token was dropped and the driver bounced back to /login forever
+    // (drivers on the new APK could not log in at all). Accept the https
+    // callback URLs of BOTH hosts (old wizardworxx.com APKs still live during
+    // the migration) and both callback paths.
+    const _isHttpsAuthCallback = /^https:\/\/(www\.|rxdeliver\.)?wizardworxx\.com\/(native-)?oauth-callback/.test(url);
+    if (!isAuthDeepLink && !_isHttpsAuthCallback) return;
+    if (deepLinkHandledRef.current) return;
 
     deepLinkHandledRef.current = true;
     console.log('[Auth] Received deep link callback:', url);
