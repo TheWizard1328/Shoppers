@@ -288,7 +288,26 @@ function Dashboard() {
   const [previousMapState, setPreviousMapState] = useState(null);
   const hasSetInitialDriverDashboard = useRef(false);
   const hasAutoSelectedRef = useRef(false);
-  const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
+  // FILTERS-READY HANG FIX (owner report Oct 25 2026): this readiness check
+  // used to be a one-shot useMemo with empty deps — if the city/date/driver
+  // filters weren't set at the instant the Dashboard mounted (slow boot,
+  // settings timeout), it memoized false FOREVER and the driver sat on
+  // "Initializing filters..." with no recovery. Now: re-check on a short
+  // poll until the filters are actually ready (they are module state set
+  // during the boot flow), then flip the flag — all the effects depending
+  // on isFiltersReady re-run exactly once when it turns true.
+  const [filtersReadyTick, setFiltersReadyTick] = useState(0);
+  useEffect(() => {
+    if (globalFilters.isReadyForDataFetch()) return undefined;
+    const _t = setInterval(() => {
+      if (globalFilters.isReadyForDataFetch()) {
+        clearInterval(_t);
+        setFiltersReadyTick((x) => x + 1);
+      }
+    }, 250);
+    return () => clearInterval(_t);
+  }, []);
+  const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), [filtersReadyTick]);
   const isAllDriversMode = selectedDriverId === 'all';
   // forceRender removed — updateDeliveriesLocally already triggers context re-renders;
   //   the counter increments were redundant full-tree re-renders on top of that.

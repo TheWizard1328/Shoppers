@@ -224,7 +224,18 @@ export function useLayoutInit({
           if (s.fab_map_cycle_phase && setInitialFabPhase) setInitialFabPhase(Number(s.fab_map_cycle_phase) || 1);
           initializeGlobalFilters(fetchedUser, s);
           setUserSettingsLoaded(true);
-        } catch {setUserSettingsLoaded(true);}
+        } catch (_settingsErr) {
+          // FILTERS-READY HANG (owner report Oct 25 2026 — Sharuk stuck on
+          // "Initializing filters..."): when loadUserSettings timed out or
+          // threw, this catch marked settings loaded but NEVER initialized
+          // the global filters — date/driver stayed unset, the Dashboard's
+          // one-shot readiness check failed forever, and drivers (who never
+          // see a city/date picker) could only recover by force-closing the
+          // app. Initialize with role-based defaults even on failure; the
+          // city is set later in the boot flow regardless.
+          try { initializeGlobalFilters(fetchedUser, {}); } catch (_) {}
+          setUserSettingsLoaded(true);
+        }
 
         // MANIFEST KEY CACHE (Oct 5 2026): the slim manifest carries the HERE /
         // polyline / routing keys + app version. On a degraded connection the
