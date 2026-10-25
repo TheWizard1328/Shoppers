@@ -89,6 +89,13 @@ export default function RouteActionButtons({
     const onFallback = (e) => {
       const d = e?.detail || {};
       const rawReason = String(d.reason || 'unknown');
+      // INTENTIONAL SKIP (owner report Oct 24 2026): future-date routes are
+      // CLIENT-OWNED BY DESIGN — the server engine deliberately doesn't
+      // implement the future fast path (chronological window sort + planned
+      // home polylines; Oct 20 parity gate). This handoff is not a failure,
+      // so no "unavailable" balloon for it. Real failures (invoke_error,
+      // server_invoke_timeout, server_engine_backoff, bad response…) still show.
+      if (rawReason === 'future_route_client_fastpath') return;
       let shortReason = rawReason;
       if (rawReason === 'server_engine_backoff') shortReason = 'paused after repeated failures';
       else if (rawReason === 'here_api_key_missing') shortReason = 'missing HERE key';
