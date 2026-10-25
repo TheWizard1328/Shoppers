@@ -22,12 +22,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Verified Android App Link for OAuth callback (primary path).
-                 Requires https://rxdeliver.wizardworxx.com/.well-known/assetlinks.json to be
-                 reachable and match this app's signing certificate. When verified,
-                 Android opens THIS APP directly (no browser, no chooser dialog)
-                 the moment the OAuth provider redirects back here — this is what
-                 fixes "stays in the browser after login" on native builds. -->
+            <!-- Verified Android App Link for the NATIVE-ONLY OAuth callback path.
+                 OWNER BUG (Oct 25 2026): this filter matched /oauth-callback — the
+                 path the WEB/PWA Google login lands on — so on any phone with the
+                 APK installed, Android's verified App Link capture hijacked the
+                 BROWSER login (assetlinks.json on the domain lists
+                 com.rxdeliver.driver with the matching signing cert): Chrome
+                 redirected to the APK, the browser origin never received the
+                 token, and the web app re-booted in a loop. The native login sends
+                 from_url=/native-oauth-callback (Login.jsx OAUTH_REDIRECT), so the
+                 filter now captures ONLY that path — APK logins still open the app
+                 directly (no browser, no chooser, fixing "stays in the browser
+                 after login"), and web logins stay in the browser where the token
+                 completes the session. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -35,7 +42,7 @@
                 <data
                     android:scheme="https"
                     android:host="rxdeliver.wizardworxx.com"
-                    android:pathPrefix="/oauth-callback" />
+                    android:pathPrefix="/native-oauth-callback" />
             </intent-filter>
 
             <!-- Custom-scheme deep link fallback: rxdeliver://auth?access_token=...
