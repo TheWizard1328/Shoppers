@@ -1,6 +1,7 @@
 import ConnectionRecoveryBanner from './ConnectionRecoveryBanner';
 import MobileOverlayBackHandler from './MobileOverlayBackHandler';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
+import DomainMigrationNotice from '../common/DomainMigrationNotice';
 import PushNotificationPrompt from '../common/PushNotificationPrompt';
 import DriverAvailabilityPrompt from './DriverAvailabilityPrompt';
 import AppIssueSupport from './AppIssueSupport';
@@ -48,6 +49,9 @@ export default function GlobalOverlays({
     <>
       <ConnectionRecoveryBanner currentUser={currentUser} />
       <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => {if (sidebarOpen) setSidebarOpen(false);if (showMessaging) {setShowMessaging(false);setInitialConversation(null);}if (showInviteQRModal) setShowInviteQRModal(false);if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));}} />
+
+      {/* wizardworxx.com migration notice (owner Oct 25 2026) */}
+      <DomainMigrationNotice />
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
