@@ -632,23 +632,33 @@ export async function handleBatchSave({
           }));
         }
 
+        // RESILIENT TAIL (owner report Oct 25 2026 19:48 run): this block previously
+        // ran UNGUARDED — an exception ANYWHERE above (a throwing deliveriesUpdated
+        // listener, a failed API call) aborted the whole background block and the
+        // route-optimization scheduling at the bottom NEVER ran, leaving brand-new
+        // future routes with no polylines while the error shipped to RemoteLogEntry
+        // as '{}'. Each section now isolates its own failures.
         if (refreshDriverId && refreshDeliveryDate) {
-          await base44.functions.invoke('recalculateTrackingNumbers', {
-            driverId: refreshDriverId,
-            deliveryDate: refreshDeliveryDate
-          }).catch(() => null);
-
-          // Pull the backend-renumbered TR#s into the UI. recalculateTrackingNumbers
-          // writes correct sequential TR#s to the DB, but without this refresh the UI
-          // keeps showing the pre-recalc values from the earlier runCreateBatchRefresh.
           try {
-            const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-            invalidate('Delivery');
-            invalidateDeliveriesForDate(refreshDeliveryDate);
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { deliveryDate: refreshDeliveryDate, driverId: refreshDriverId, triggeredBy: 'trRecalc', immediate: true }
-            }));
-          } catch { /* non-fatal */ }
+            await base44.functions.invoke('recalculateTrackingNumbers', {
+              driverId: refreshDriverId,
+              deliveryDate: refreshDeliveryDate
+            }).catch(() => null);
+
+            // Pull the backend-renumbered TR#s into the UI. recalculateTrackingNumbers
+            // writes correct sequential TR#s to the DB, but without this refresh the UI
+            // keeps showing the pre-recalc values from the earlier runCreateBatchRefresh.
+            try {
+              const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+              invalidate('Delivery');
+              invalidateDeliveriesForDate(refreshDeliveryDate);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { deliveryDate: refreshDeliveryDate, driverId: refreshDriverId, triggeredBy: 'trRecalc', immediate: true }
+              }));
+            } catch { /* non-fatal */ }
+          } catch (trErr) {
+            console.warn('[AddToRoute] TR recalc section failed (non-fatal):', trErr?.message || trErr);
+          }
 
           // CRITICAL: Only queue optimization for structural route changes.
           // Pure staged→pending transitions (deliveriesToUpdate > 0, newDeliveries === 0)
@@ -678,15 +688,21 @@ export async function handleBatchSave({
           return { driverId: ensuredDriverId, deliveryDate: ensuredDeliveryDate };
         });
         if (ensuredPickupRoutes.length > 0) {
-          console.log('[AddToRoute] New-route optimization trigger:', ensuredPickupRoutes);
+          console.warn(`[AddToRoute] New-route optimization trigger: ${ensuredPickupRoutes.map((r) => `${r.driverId.slice(-6)}@${r.deliveryDate}`).join(', ')}`);
         }
-        runDoneOptimizationLastStep({
-          addedPickupRoutes: [...(addedPickupRoutes || []), ...ensuredPickupRoutes]
-        }).catch(() => {});
+        try {
+          runDoneOptimizationLastStep({
+            addedPickupRoutes: [...(addedPickupRoutes || []), ...ensuredPickupRoutes]
+          }).catch(() => {});
+        } catch (optErr) {
+          console.warn('[AddToRoute] Done-last-step optimization scheduling failed:', optErr?.message || optErr);
+        }
 
         // Stats refresh already fired by handleBatchSaveDelivery (line 572) — removed duplicate.
       } catch (bgError) {
-        console.error('⚠️ [AddToRoute] Background operations failed:', bgError);
+        // remoteLogger JSON-stringifies Error objects to '{}' (message/stack are
+        // non-enumerable) — log the extracted text so RemoteLogEntry shows the cause.
+        console.error(`⚠️ [AddToRoute] Background operations failed: ${bgError?.stack || `${bgError?.message || bgError}@${(bgError?.stack || '').split('\n')[1] || ''}`}`);
       }
     });
   } catch (err) {

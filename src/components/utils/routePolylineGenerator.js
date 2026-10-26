@@ -315,6 +315,10 @@ export async function generateRoutePolylines({
                               // was recorded AFTER the origin stop was completed — pass the
                               // origin stop's actual_delivery_time here; earlier points are
                               // dropped from the chain.
+  includePending = false,    // FUTURE-ROUTE PLANNING (owner report Oct 25 2026): planned
+                              // legs for PENDING stops too. Only the future-route path
+                              // (pre-start planning, home origin) passes true — live
+                              // routes keep the rule: pending stops get NO polylines.
   forceRegenerate = false,   // OWNER REQUEST (Oct 15 2026): the Quick Route Adjustments
                               // Regenerate button demands ALL remaining stops get fresh
                               // polylines even when no stop changed order. When true, the
@@ -352,7 +356,11 @@ export async function generateRoutePolylines({
   };
 
   // Eligible stops: en_route + in_transit, plus cycling markers (even if pending),
-  // plus cycling-segment cycling stops. Pending non-marker stops get NO polylines.
+  // plus cycling-segment cycling stops. Pending non-marker stops get NO polylines —
+  // UNLESS includePending (future-route planning): the whole point of a future
+  // route's planned polylines is showing the not-yet-started route, whose stops
+  // are PENDING by definition. Without this the FAB's includePendingPolylines flag
+  // (coordinator → engine) was dead and future routes NEVER drew legs.
   const eligibleStops = stops.filter(s => {
     const status = String(s.delivery?.status || '');
     const isCyclingMarker = !!s.delivery?.is_cycling_marker;
@@ -360,7 +368,10 @@ export async function generateRoutePolylines({
     // + cycling markers get polylines; pending stops never do. The
     // cycling-segment-only mode keeps its local extra case (segment regens).
     const isCyclingSegmentStop = cyclingSegmentOnly && resolveMode(s.delivery) === 'cycling';
-    return sharedIsPolylineEligible({ status, isCyclingMarker, transportMode: null }) || isCyclingSegmentStop;
+    const isPending = status === 'pending';
+    return sharedIsPolylineEligible({ status, isCyclingMarker, transportMode: null })
+      || isCyclingSegmentStop
+      || (includePending && isPending);
   });
 
   if (eligibleStops.length === 0) {
