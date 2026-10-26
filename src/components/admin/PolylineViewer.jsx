@@ -294,6 +294,57 @@ const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove, onBrushRemove, i
 const MapSegment = ({ children }) => <>{children}</>;
 
 // ── Small green stop dot icon ────────────────────────────────────────────────
+// ── Route Gap Analysis — inline distance badges on each dashed blue gap line ──
+// Small blue pill at the midpoint of every detected gap showing the straight-line
+// distance between its two endpoints (backend already sends distance_m per gap).
+// Rendered ONLY when the map is zoomed in past GAP_BADGE_MIN_ZOOM so a zoomed-out
+// view with many gaps stays uncluttered. Must live inside <MapContainer> (useMap).
+const GAP_BADGE_MIN_ZOOM = 16;
+
+const formatGapDist = (m) => {
+  if (!Number.isFinite(Number(m))) return '?';
+  const v = Number(m);
+  return v >= 1000 ? `${(v / 1000).toFixed(1)} km` : `${Math.round(v)} m`;
+};
+
+const GapDistanceBadges = React.memo(({ snapAnalysis }) => {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useEffect(() => {
+    const update = () => setZoom(map.getZoom());
+    map.on('zoomend', update);
+    return () => { map.off('zoomend', update); };
+  }, [map]);
+
+  if (zoom < GAP_BADGE_MIN_ZOOM || !snapAnalysis) return null;
+
+  const badges = [];
+  (snapAnalysis.zone_details || []).forEach((z, zi) =>
+    (z.gap_segments || []).forEach((g, gi) => {
+      if (!Array.isArray(g?.from) || !Array.isArray(g?.to)) return;
+      const mid = [(g.from[0] + g.to[0]) / 2, (g.from[1] + g.to[1]) / 2];
+      const label = formatGapDist(g.distance_m);
+      const w = Math.max(30, label.length * 7 + 14);
+      badges.push(
+        <Marker
+          key={`gap-badge-${zi}-${gi}`}
+          position={mid}
+          interactive={false}
+          keyboard={false}
+          icon={L.divIcon({
+            className: 'gap-distance-badge',
+            html: `<div style="background:#1d4ed8;color:#fff;font:600 11px/18px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 7px;border-radius:9999px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.45);border:1.5px solid #fff">${label}</div>`,
+            iconSize: [w, 18],
+            iconAnchor: [w / 2, 9],
+          })}
+        />
+      );
+    })
+  );
+  return badges;
+});
+GapDistanceBadges.displayName = 'GapDistanceBadges';
+
 const makeStopDotIcon = (label) => L.divIcon({
   className: '',
   html: `<div style="width:18px;height:18px;border-radius:9999px;background:#16a34a;border:2px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700">${label ?? ''}</div>`,
@@ -2245,6 +2296,10 @@ export default function PolylineViewer({ users = [] }) {
                         />
                       ))
                     )}
+
+                    {/* Gap distance badges — inline midpoint pills per blue gap
+                        line, only once the user is zoomed in (see component). */}
+                    <GapDistanceBadges snapAnalysis={snapAnalysis} />
 
                     <MapClickHandler
                       isActive={isCleaningMode && !isBrushPickMode}
