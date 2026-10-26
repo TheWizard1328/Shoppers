@@ -778,11 +778,40 @@ Deno.serve(async (req) => {
             const metricsStart = liveOnLeg ? Math.max(1, stopIdx - 1) : Math.max(0, stopIdx - 1 - viaCount);
             const renderSecs = secs.slice(renderStart, stopIdx).filter(Boolean);
             const metricSecs = secs.slice(metricsStart, stopIdx).filter(Boolean);
-            const merged = _decodeChain(renderSecs.map((x) => x.encoded_polyline).filter(Boolean));
-            const metricDuration = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_duration_minutes) || 0), 0);
-            const metricDistance = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_distance_km) || 0), 0);
+            let merged = _decodeChain(renderSecs.map((x) => x.encoded_polyline).filter(Boolean));
+            let metricDuration = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_duration_minutes) || 0), 0);
+            let metricDistance = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_distance_km) || 0), 0);
+            let encoded = merged.length > 1 ? encodeGooglePolyline(merged) : (renderSecs[renderSecs.length - 1]?.encoded_polyline || null);
+
+            // DUPLICATE-COORDINATE LEG (owner report Oct 26 2026: two stops at
+            // the same location reordered in the adjust panel — the now-SECOND
+            // stop kept the long polyline from when it was the FIRST stop at
+            // that address). Client parity (routePolylineGenerator sameAnchorLeg,
+            // Oct 15 2026): a stop whose inbound anchor sits at (nearly) the
+            // same point gets a synthesized degenerate leg — 2-point polyline,
+            // 2-minute travel, ~0 km — so the write NEVER omits the field and
+            // the stale previous-route leg can't survive the re-optimization.
+            const _anchorPt = pts[stopIdx - 1] || null;
+            const _stopPt = { lat: Number(st.lat), lon: Number(st.lng) };
+            if (_anchorPt) {
+              const _km = codecCrowFliesKm(_anchorPt.lat, _anchorPt.lon, _stopPt.lat, _stopPt.lon);
+              if (Number.isFinite(_km) && _km < 0.05) {
+                encoded = encodeGooglePolyline([[Number(_anchorPt.lat), Number(_anchorPt.lon)], [_stopPt.lat, _stopPt.lon]]);
+                metricDuration = 2;
+                metricDistance = Number(_km.toFixed(3));
+              } else if (encoded == null) {
+                // MISSING-SECTION FALLBACK (client Oct 23 2026 parity): a
+                // partial provider response must leave every stop with a
+                // painted leg — straight line from the inbound anchor. The
+                // next healthy optimization replaces it with the road shape.
+                encoded = encodeGooglePolyline([[Number(_anchorPt.lat), Number(_anchorPt.lon)], [_stopPt.lat, _stopPt.lon]]);
+                if (metricDuration <= 0) metricDuration = Math.max(1, Math.ceil((_km / 40) * 60));
+                if (metricDistance <= 0 && Number.isFinite(_km)) metricDistance = Number(_km.toFixed(3));
+              }
+            }
+
             sectionByStopId.set(st.id, {
-              encoded_polyline: merged.length > 1 ? encodeGooglePolyline(merged) : (renderSecs[renderSecs.length - 1]?.encoded_polyline || null),
+              encoded_polyline: encoded,
               estimated_duration_minutes: metricDuration > 0 ? Math.ceil(metricDuration) : null,
               estimated_distance_km: metricDistance > 0 ? Number(metricDistance.toFixed(3)) : null,
               transport_mode: mode,
