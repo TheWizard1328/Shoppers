@@ -387,19 +387,12 @@ async function _performRouteOptimizationInner({
       // failure, or toggle-off falls through to the client engine below.
       const { getActiveOptimizationEngine, runServerSideOptimization } = await import('./serverOptimizationMode');
       const _activeEngine = await getActiveOptimizationEngine();
-      // OWNER SPEC (Oct 26 2026, quick-reorder report): manual reorders and
-      // force-regenerate runs (Quick Route Adjustments Reoptimize, Reset
-      // Polylines) must repolyline ALL active stops in the caller's order —
-      // chain = most recent completed stop -> driver live GPS (via) -> new
-      // manual order. The server engine locks the isNextDelivery stop as the
-      // route origin and generates NO inbound leg for it, leaving the dragged
-      // stop's stale polyline (owner report: dragged stop kept its old leg
-      // from_order while every other stop regenerated). The client engine
-      // implements the full spec (polylineOrigin = last finished stop,
-      // viaPointAfterOrigin = live GPS, forceRegenerate = every leg) — so
-      // preserveExistingOrder / forceRegenerate shapes NEVER go to the server.
+      // OWNER DIRECTIVE (Oct 26 2026): quick-reorder shapes run on the CHOSEN
+      // engine — the server optimizer now implements the full manual-reorder
+      // spec (chain = last completed stop -> driver live GPS via -> new order,
+      // every active stop's leg regenerated incl. the dragged stop, ETA
+      // ladder, isNextDelivery stamp) so the client engine stays deletable.
       if (_activeEngine === 'server'
-        && !preserveExistingOrder && !forceRegenerate
         && !cyclingSegmentOnly && !drivingSegmentOnly && !skipPolyline
         && !(excludeStopIds || []).length && !orderedDeliveryIds) {
         try {
@@ -411,6 +404,7 @@ async function _performRouteOptimizationInner({
             driverId,
             deliveryDate,
             preserveExistingOrder,
+            forceRegenerate,
             clearNextDeliveryLock,
             startingStopOrder,
           });

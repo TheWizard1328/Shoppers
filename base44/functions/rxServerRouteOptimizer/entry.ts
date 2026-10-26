@@ -464,7 +464,15 @@ Deno.serve(async (req) => {
     }
     const mixedMode = !!_endMarker;
 
-    const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false } = options;
+    const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false, forceRegenerate = false, viaPoint = null } = options;
+    // OWNER SPEC (Oct 26 2026, quick-reorder report): manual reorders /
+    // force-regenerate runs repolyline ALL active stops in the caller's
+    // order, chained from the last completed stop through the driver's LIVE
+    // GPS (passed by the client builder as viaPoint, gated onDuty/inFlight/
+    // >0.1km — same gates as the client's viaPointAfterOrigin) into the new
+    // order. The rendered first leg includes the origin→GPS pre-leg (client
+    // renderStart=0 parity); its ETA/distance metrics use ONLY the GPS→stop
+    // section (client metricsStart parity).
 
     // ── FUTURE-ROUTE PARITY (owner report Oct 20 2026) ─────────────────────
     // The CLIENT engine has a dedicated future-route fast path (_handleFutureRoute
@@ -538,7 +546,19 @@ Deno.serve(async (req) => {
       return nn;
     };
 
-    if (mixedMode) {
+    if (preserveExistingOrder) {
+      // MANUAL REORDER (owner spec Oct 26 2026): keep the CALLER's order.
+      // Chain = currentStopOrder sort; NO HERE sequencing, NO window-band
+      // resort (client engine parity: preserveExistingOrder builds
+      // routeStops straight from the caller's stop_order). The shared
+      // pickup-before-pending + ISP-before-ISD constraints still apply as
+      // safety, exactly like the client's activeStops pipeline.
+      orderedStops = routeStops.slice().sort((a, b) =>
+        (Number(a.currentStopOrder) || 99999) - (Number(b.currentStopOrder) || 99999));
+      orderedStops = sharedEnforcePickupBeforePending(orderedStops, {});
+      orderedStops = sharedEnforceIspBeforeIsd(orderedStops, {});
+      console.log(`[rxServerRouteOptimizer] manual reorder: preserving caller order for ${orderedStops.length} stop(s)`);
+    } else if (mixedMode) {
       // ── Mixed-mode two-leg sequencing (client engine parity) ─────────────
       // Leg 1 (bicycle): origin → cycling stops → END marker anchor.
       // Leg 2 (car): END marker → driving stops → home anchor.
@@ -666,10 +686,16 @@ Deno.serve(async (req) => {
         // Anchor each mode run at the previous point in the chain (origin for
         // the first run, the previous ELIGIBLE stop for later runs) so
         // sections[k] is always the leg INTO eligibleStops[gi+k].
+        // LIVE-GPS VIA (quick-reorder chain, Oct 26 2026): insert the
+        // driver's position between the origin and the first eligible stop —
+        // the first leg then renders origin→GPS→stop like the client.
+        const _viaOk = gi === 0 && viaPoint
+          && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng));
         const pts = [
           gi === 0
             ? { lat: origin.lat, lon: origin.lng }
             : { lat: eligibleStops[gi - 1].lat, lon: eligibleStops[gi - 1].lng },
+          ...(_viaOk ? [{ lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) }] : []),
           ...eligibleStops.slice(gi, gj).map((st) => ({ lat: st.lat, lon: st.lng })),
         ];
         if (pts.length >= 2) {
@@ -690,7 +716,32 @@ Deno.serve(async (req) => {
             hereCalls++;
           }
           usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
-          (r.sections || []).forEach((sec, k) => { sectionByStopId.set(eligibleStops[gi + k].id, sec); });
+          if (_viaOk) {
+            // sections[0] = origin→GPS pre-leg; sections[k+1] = leg into stop k.
+            // Render: merge pre-leg + leg (client renderStart=0). Metrics: the
+            // FINAL section only — the ETA/distance cover what's still ahead.
+            const _secs = r.sections || [];
+            const _pre = _secs[0] || null;
+            _secs.slice(1).forEach((sec, k) => {
+              const _tgt = eligibleStops[gi + k];
+              if (!_tgt) return;
+              if (k === 0 && _pre?.encoded_polyline && sec?.encoded_polyline) {
+                try {
+                  const _merged = encodeGooglePolyline([
+                    ...decodeGooglePolyline(_pre.encoded_polyline),
+                    ...decodeGooglePolyline(sec.encoded_polyline).slice(1),
+                  ]);
+                  sectionByStopId.set(_tgt.id, { ...sec, encoded_polyline: _merged });
+                } catch (_mErr) {
+                  sectionByStopId.set(_tgt.id, sec);
+                }
+              } else {
+                sectionByStopId.set(_tgt.id, sec);
+              }
+            });
+          } else {
+            (r.sections || []).forEach((sec, k) => { sectionByStopId.set(eligibleStops[gi + k].id, sec); });
+          }
         }
         gi = gj;
       }

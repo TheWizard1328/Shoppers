@@ -177,10 +177,20 @@ const edmontonTodayStr = () => {
   }
 };
 
+const crowFliesKmLocal = (lat1, lng1, lat2, lng2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
 export const buildServerOptimizeRequest = ({
   deliveries, patients = [], stores = [], appUsers = [],
   driverId, deliveryDate, preserveExistingOrder = false,
   clearNextDeliveryLock = false, startingStopOrder = null,
+  forceRegenerate = false,
 }) => {
   const patientMap = new Map((patients || []).map(p => [p.id, p]));
   const storeMap = new Map((stores || []).map(s => [s.id, s]));
@@ -215,8 +225,23 @@ export const buildServerOptimizeRequest = ({
   // engines anchor identically: locked next stop → last finished → home →
   // first active.
   const explicitNext = active.find(d => d?.isNextDelivery === true) || null;
+  // OWNER SPEC (Oct 26 2026): manual reorders / force-regenerate runs
+  // repolyline ALL active stops in the caller's order, chained from the
+  // most recent completed stop through the driver's live GPS — the dragged
+  // stop is NOT a sequencing origin here (it was moved INTO the chain and
+  // must get its own regenerated leg like every other stop). The pre-write
+  // in the panel handler has already set isNextDelivery on it; we pass that
+  // id so the server stamps the same flag.
+  const quickReorder = preserveExistingOrder || forceRegenerate;
   let origin = null;
-  if (explicitNext) {
+  if (quickReorder) {
+    const latestFinished = getLatestFinishedDelivery(completed);
+    if (latestFinished) {
+      const c = getDeliveryCoords(latestFinished, patientMap, storeMap);
+      if (c) origin = c;
+    }
+  }
+  if (!origin && !quickReorder && explicitNext) {
     const c = getDeliveryCoords(explicitNext, patientMap, storeMap);
     if (c) origin = c;
   }
@@ -234,6 +259,23 @@ export const buildServerOptimizeRequest = ({
     if (c) origin = c;
   }
   if (!origin) return { supported: false, reason: 'no_origin' };
+
+  // ── Live-GPS via (quick-reorder only, client viaPointAfterOrigin parity)
+  // Gates mirror clientRouteEngine: driver on duty + an in-flight stop exists
+  // + fresh finite GPS + GPS sits >0.1km from the polyline origin (driver has
+  // left the anchor). Passed to the server; the polyline chain then runs
+  // origin → GPS → new manual order.
+  let viaPoint = null;
+  if (quickReorder) {
+    const _onDuty = ['on_duty', 'online'].includes(String(driverAppUser?.driver_status || '').toLowerCase());
+    const _gpsLat = Number(driverAppUser?.current_latitude);
+    const _gpsLng = Number(driverAppUser?.current_longitude);
+    const _hasInFlight = active.some(d => ['en_route', 'in_transit'].includes(String(d.status || '').toLowerCase()));
+    if (_onDuty && _hasInFlight && Number.isFinite(_gpsLat) && Number.isFinite(_gpsLng) && origin
+      && crowFliesKmLocal(origin.lat, origin.lng, _gpsLat, _gpsLng) > 0.1) {
+      viaPoint = { lat: _gpsLat, lng: _gpsLng };
+    }
+  }
 
   const isToday = deliveryDate === edmontonTodayStr();
   const currentMinutes = isToday ? edmontonNowMinutes() : 8 * 60; // future routes anchor at 08:00
@@ -257,10 +299,12 @@ export const buildServerOptimizeRequest = ({
     return { supported: false, reason: 'future_route_client_fastpath' };
   }
   const startOrder = startingStopOrder != null ? startingStopOrder
-    : Math.max(
-        completed.reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0),
-        explicitNext ? (Number(explicitNext?.stop_order) || 0) : 0
-      );
+    : quickReorder
+      ? completed.reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0)
+      : Math.max(
+          completed.reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0),
+          explicitNext ? (Number(explicitNext?.stop_order) || 0) : 0
+        );
 
   const stops = [];
   for (const d of active) {
@@ -268,7 +312,7 @@ export const buildServerOptimizeRequest = ({
     // the sequencing origin, never resequenced. Skipping it from the pool
     // and reserving its stop_order in startOrder keeps the final numbering
     // identical to the client engine's output.
-    if (explicitNext && d?.id === explicitNext.id) continue;
+    if (!quickReorder && explicitNext && d?.id === explicitNext.id) continue;
     const coords = getDeliveryCoords(d, patientMap, storeMap);
     if (!coords) continue; // unmappable stops stay untouched server-side
     const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
@@ -324,9 +368,11 @@ export const buildServerOptimizeRequest = ({
       stops,
       options: {
         preserveExistingOrder,
+        forceRegenerate,
         explicitNextDeliveryId: explicitNext?.id || null,
         clearNextDeliveryLock,
         routeInProgress,
+        ...(quickReorder ? { viaPoint: viaPoint } : {}),
       },
     },
   };
