@@ -9,11 +9,14 @@ const unwrap = (r) => {
 // Extract a serving host from a log record: prefer explicit metadata.host
 // (added Oct 25 2026), fall back to any https://<host>/ URL embedded in the
 // message text (error stack traces carry the exact serving origin).
+// Only serving origins of THIS app count; URLs embedded in message bodies
+// (file CDN 'base44.app', doc links like reactjs.org) are false positives.
+const ORIGIN_RX = /^(rxdeliver\.wizardworxx\.com|wizardworxx\.com|www\.wizardworxx\.com|(preview(-sandbox)?--)?rx-deliver-2408a9d6\.base44\.app)$/i;
 const hostOf = (r) => {
   const h = r?.metadata?.host || (r?.metadata && typeof r.metadata === 'object' ? r.metadata.host : null);
-  if (h) return String(h);
+  if (h) return ORIGIN_RX.test(String(h)) ? String(h) : null;
   const m = String(r?.message || '').match(/https:\/\/([a-z0-9.-]+)\//i);
-  return m ? m[1] : null;
+  return (m && ORIGIN_RX.test(m[1])) ? m[1] : null;
 };
 
 Deno.serve(async (req) => {
