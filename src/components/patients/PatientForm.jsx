@@ -39,7 +39,25 @@ const capitalizeName = (name) => {
   if (!name) return '';
   return name.
   split(' ').
-  map((word) => word.charAt(0).toUpperCase() + word.slice(1)).
+  map((word) => {
+    if (!word) return word;
+    // CAPS-LOCK FIX (owner request Oct 26 2026): dispatchers often type patient
+    // names with caps lock on. A FULLY-uppercase word is caps-lock noise, not
+    // intentional (mixed-case names like McDonald are untouched) — normalize it
+    // to Title Case, honoring hyphen/apostrophe segments (SMITH-JONES →
+    // Smith-Jones, O'BRIEN → O'Brien). Words that aren't all caps keep the old
+    // behavior: only the first letter is forced uppercase.
+    // Extended Latin uppercase range so accented French names (ÉTIENNE) count too.
+    const UPPER_RX = /[A-Z\u00C0-\u00DE]/;
+    const SEG_RX = /^[A-Z\u00C0-\u00DE]+$/;
+    const isAllCaps = word.length >= 2 && word === word.toUpperCase() && UPPER_RX.test(word);
+    if (isAllCaps) {
+      return word.split(/([-'.])/g).map((seg) =>
+        SEG_RX.test(seg) ? seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase() : seg
+      ).join('');
+    }
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).
   join(' ');
 };
 
