@@ -388,12 +388,26 @@ Deno.serve(async (req) => {
     const rawCoords = decodePolyline(master.encoded_polyline);
     const rawTs: number[] = (master.timestamps as string).split(',').map(Number);
 
+    // KEEP every coordinate even when its timestamp is missing/unparseable.
+    // Manual polyline edits (points added in the cleaning mode, moved crumbs)
+    // carry no hardware ts, and edits desync the stored timestamps array from
+    // the coordinate array. The old filter DROPPED ts-less points, which hid
+    // the exact large gaps the analyzer exists to find (owner report Oct 25:
+    // Sharuk stops 10→13) and would have DELETED manually added points on a
+    // full snap save. Backfill from the nearest valid timestamp instead — gap
+    // detection itself uses coordinates only. (consolidateBreadcrumbSegment
+    // already keeps ts-less points with ts=0; this aligns the two functions.)
+    const tsResolved: number[] = rawCoords.map((_, i) => parseTimestampMs(rawTs[i]) || 0);
+    for (let i = 0; i < tsResolved.length; i++) {
+      if (tsResolved[i] > 0) continue;
+      if (i > 0 && tsResolved[i - 1] > 0) { tsResolved[i] = tsResolved[i - 1]; }
+    }
+    for (let i = tsResolved.length - 1; i >= 0; i--) {
+      if (tsResolved[i] > 0) continue;
+      if (i < tsResolved.length - 1 && tsResolved[i + 1] > 0) { tsResolved[i] = tsResolved[i + 1]; }
+    }
     const masterPoints: [number, number, number][] = rawCoords
-      .map((coord, i): [number, number, number] | null => {
-        const ts = parseTimestampMs(rawTs[i]);
-        return ts ? [coord[0], coord[1], ts] : null;
-      })
-      .filter((p): p is [number, number, number] => p !== null);
+      .map((coord, i): [number, number, number] => [coord[0], coord[1], tsResolved[i] || 1]);
 
     if (masterPoints.length < 2) {
       return Response.json({ success: false, error: 'Master timeline has fewer than 2 valid points' });

@@ -432,6 +432,11 @@ export default function PolylineViewer({ users = [] }) {
   const pendingCleanRef = useRef(null); // { item, cleanedPoints }
   const cleanedPointsRef = useRef([]);
   useEffect(() => { cleanedPointsRef.current = cleanedPoints; }, [cleanedPoints]);
+  // Parallel timestamps for the editable point list (ms epoch per point, 0 = none).
+  // The master/slice records store `timestamps` SEPARATELY from encoded_polyline;
+  // every add/remove/move edit must apply to BOTH arrays or they desync — and the
+  // gap analyzer drops ts-less points, so a desync silently hides gaps (Oct 25).
+  const cleanedTsRef = useRef([]);
 
   const listRef = useRef(null);
 
@@ -940,12 +945,16 @@ export default function PolylineViewer({ users = [] }) {
       setIsCleaningMode(false);
       setIsBrushPickMode(false);
       setCleanedPoints([]);
+      cleanedTsRef.current = [];
       setUndoStack([]);
     } else {
       const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
       const pts = decodePolylineForItem(item, isBreadcrumb);
       setCleanedPoints(pts);
       cleanedPointsRef.current = pts;
+      // Load + align the record's own timestamps to the decoded points
+      const rawTsArr = String(item.timestamps ?? '').split(',').map(t => Number(t) || 0);
+      cleanedTsRef.current = pts.map((_, i) => (i < rawTsArr.length ? rawTsArr[i] : 0));
       setUndoStack([]);
       setIsCleaningMode(true);
       setFocusedItem(item);
@@ -954,13 +963,15 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   const handleRemovePoint = useCallback((idx) => {
-    setUndoStack(prev => [...prev.slice(-4), cleanedPointsRef.current]);
+    setUndoStack(prev => [...prev.slice(-4), { pts: cleanedPointsRef.current, ts: cleanedTsRef.current }]);
     setCleanedPoints(prev => prev.filter((_, i) => i !== idx));
+    cleanedTsRef.current = cleanedTsRef.current.filter((_, i) => i !== idx);
   }, []);
 
   const handleMovePoint = useCallback((idx, newLat, newLng) => {
-    setUndoStack(prev => [...prev.slice(-4), cleanedPointsRef.current]);
+    setUndoStack(prev => [...prev.slice(-4), { pts: cleanedPointsRef.current, ts: cleanedTsRef.current }]);
     setCleanedPoints(prev => prev.map((pt, i) => i === idx ? [newLat, newLng] : pt));
+    // timestamp survives a move — nothing to change in cleanedTsRef
   }, []);
 
   // ── Brush removal: find the consecutive run near the clicked/tapped point ──
@@ -989,18 +1000,25 @@ export default function PolylineViewer({ users = [] }) {
 
     const removed = end - start + 1;
     const surviving = [...pts.slice(0, start), ...pts.slice(end + 1)];
-    setUndoStack(prev => [...prev.slice(-4), pts]);
+    setUndoStack(prev => [...prev.slice(-4), { pts, ts: cleanedTsRef.current }]);
     setCleanedPoints(surviving);
+    cleanedTsRef.current = [
+      ...cleanedTsRef.current.slice(0, start),
+      ...cleanedTsRef.current.slice(end + 1),
+    ];
     toast.success(`Removed ${removed} consecutive point${removed !== 1 ? 's' : ''}.`);
   }, []);
 
   const handleAddPoint = (lat, lng) => {
     // ── Normal mode: insert a new point along the closest segment ──
-    setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
+    setUndoStack(prev => [...prev.slice(-4), { pts: cleanedPointsRef.current, ts: cleanedTsRef.current }]);
     if (cleanedPoints.length === 0) {
       setCleanedPoints([[lat, lng]]);
+      cleanedTsRef.current = [0];
     } else if (cleanedPoints.length === 1) {
       setCleanedPoints(prev => [...prev, [lat, lng]]);
+      const tsArr = cleanedTsRef.current;
+      cleanedTsRef.current = [...tsArr, tsArr[0] || 0];
     } else {
       const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
       setCleanedPoints(prev => {
@@ -1008,13 +1026,27 @@ export default function PolylineViewer({ users = [] }) {
         next.splice(insertAfter + 1, 0, [lat, lng]);
         return next;
       });
+      // Interpolate the new point's timestamp from its future neighbors — a
+      // manual add has no hardware fix time, but the record needs a positive,
+      // aligned slot so gap analysis (and slicing) still see the point.
+      const tsArr = [...cleanedTsRef.current];
+      const prevTs = tsArr[insertAfter] || 0;
+      const nextTs = tsArr[insertAfter + 1] || 0;
+      tsArr.splice(insertAfter + 1, 0, prevTs > 0 && nextTs > 0
+        ? Math.round((prevTs + nextTs) / 2)
+        : (prevTs || nextTs));
+      cleanedTsRef.current = tsArr;
     }
   };
 
   const handleUndo = () => {
     if (undoStack.length === 0) return;
-    const prev = undoStack[undoStack.length - 1];
+    const entry = undoStack[undoStack.length - 1];
+    const prev = Array.isArray(entry) ? entry : entry.pts;
+    const prevTs = Array.isArray(entry) ? [] : (entry.ts || []);
     setCleanedPoints(prev);
+    cleanedPointsRef.current = prev;
+    cleanedTsRef.current = prevTs;
     setUndoStack(s => s.slice(0, -1));
   };
 
@@ -1027,9 +1059,15 @@ export default function PolylineViewer({ users = [] }) {
     // ── Route overview breadcrumb (stop_order === -1): save only the breadcrumb record ──
     if (item.stop_order === -1) {
       try {
+        // Only touch `timestamps` when this save came from the cleaning mode
+        // (cleanedPoints) — otherwise the record's stored timestamps are kept.
+        const tsToSave = isCleaningMode && focusedItem?.id === item.id
+          ? (cleanedTsRef.current.length === points.length ? cleanedTsRef.current.join(',') : item.timestamps)
+          : item.timestamps;
         await base44.entities.DeliveryBreadcrumbs.update(item.id, {
           encoded_polyline: polyToSave,
           point_count: points.length,
+          timestamps: tsToSave,
           saved_to_route: true,
         });
         // Update offline DB
@@ -1037,10 +1075,10 @@ export default function PolylineViewer({ users = [] }) {
         if (offlineDB) {
           const existing = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id).catch(() => null);
           if (existing) {
-            await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true }).catch(() => {});
+            await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, timestamps: isCleaningMode && focusedItem?.id === item.id && cleanedTsRef.current.length === points.length ? cleanedTsRef.current.join(',') : existing.timestamps, saved_to_route: true }).catch(() => {});
           }
         }
-        const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
+        const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, timestamps: isCleaningMode && focusedItem?.id === item.id && cleanedTsRef.current.length === points.length ? cleanedTsRef.current.join(',') : item.timestamps, saved_to_route: true };
         setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
         setFocusedItem(updatedItem);
         pendingCleanRef.current = null;
@@ -1064,8 +1102,11 @@ export default function PolylineViewer({ users = [] }) {
       // breadcrumb record too — previously only the Delivery record + offline
       // DB were updated, so the breadcrumb's point_count stayed stale (e.g. 5
       // while the polyline actually decoded to 273).
+      const tsToSaveSlice = isCleaningMode && focusedItem?.id === item.id
+        ? (cleanedTsRef.current.length === points.length ? cleanedTsRef.current.join(',') : item.timestamps)
+        : item.timestamps;
       const onlineBcUpdate = base44.entities.DeliveryBreadcrumbs
-        .update(item.id, { encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true })
+        .update(item.id, { encoded_polyline: polyToSave, point_count: points.length, timestamps: tsToSaveSlice, saved_to_route: true })
         .catch(e => console.warn('[PolylineViewer] breadcrumb point_count persist failed', e?.message));
       const [res] = await Promise.all([
         saveCrumbPolylineToDelivery({
@@ -1078,7 +1119,7 @@ export default function PolylineViewer({ users = [] }) {
         offlineDB
           ? offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id)
               .then(existing => existing
-                ? offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true })
+                ? offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, timestamps: tsToSaveSlice, saved_to_route: true })
                 : Promise.resolve()
               ).catch(() => {})
           : Promise.resolve(),
