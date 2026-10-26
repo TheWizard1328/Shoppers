@@ -887,18 +887,18 @@ export default function GoogleAPILogViewer() {
                     // per-user row always sums to that user's Total — no category is
                     // silently dropped from the grid.
                     const gridStyle = { display: 'grid', gridTemplateColumns: `auto ${CAT_SERIES.map(() => `${colW}px`).join(' ')} ${colW}px`, gap: '3px 6px', alignItems: 'center' };
-                    const hdrCell = (txt, color) => (
-                      <span style={{ fontSize: 10, color: color || '#94a3b8', fontWeight: 700, textAlign: 'center', display: 'block' }}>{txt}</span>
+                    const hdrCell = (txt, color, k) => (
+                      <span key={k} style={{ fontSize: 10, color: color || '#94a3b8', fontWeight: 700, textAlign: 'center', display: 'block' }}>{txt}</span>
                     );
-                    const valCell = (val, color) => (
-                      <span style={{ fontSize: 11, fontWeight: 600, color, textAlign: 'center', display: 'block' }}>{val}</span>
+                    const valCell = (val, color, k) => (
+                      <span key={k} style={{ fontSize: 11, fontWeight: 600, color, textAlign: 'center', display: 'block' }}>{val}</span>
                     );
                     const renderBlock = (names) => (
                       <div style={gridStyle}>
                         {/* header */}
                         <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>User</span>
-                        {CAT_SERIES.map(({ cat, label }) => hdrCell(label, CAT_COLORS[cat]))}
-                        {hdrCell('Total','#475569')}
+                        {CAT_SERIES.map(({ cat, label }) => hdrCell(label, CAT_COLORS[cat], `h-${cat}`))}
+                        {hdrCell('Total','#475569','h-total')}
                         {/* rows */}
                         {names.map((name) => {
                           const color = userColors[legendDriverNames.indexOf(name) % userColors.length];
@@ -906,7 +906,7 @@ export default function GoogleAPILogViewer() {
                           return (
                             <React.Fragment key={name}>
                               <span style={{ color, fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap' }}>{shortUserName(name)}</span>
-                              {CAT_SERIES.map(({ cat }) => valCell(dataPoint[`${name}__${cat}`] || 0, CAT_COLORS[cat]))}
+                              {CAT_SERIES.map(({ cat }) => valCell(dataPoint[`${name}__${cat}`] || 0, CAT_COLORS[cat], `${name}-${cat}`))}
                               <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', textAlign: 'center', display: 'block' }}>{total}</span>
                             </React.Fragment>
                           );
