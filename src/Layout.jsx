@@ -1310,6 +1310,10 @@ export default function Layout({ children, currentPageName }) {
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));} else if (userHasRole(currentUser, 'driver')) {const sIds = currentUser.store_ids || (currentUser.store_id ? [currentUser.store_id] : []);if (sIds.length > 0) {const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
+  // Yearly routes badge source (owner spec Oct 26 2026) — server-cached year stats.
+  // MUST be declared before totalRoutesCount useMemo (which reads yearRoutesByDriver).
+  const { routesByDriver: yearRoutesByDriver, totalRoutes: yearTotalRoutes, selectedDriverId: badgeSelectedDriverId } = useDriverRouteTotals(currentUser);
+
   const totalRoutesCount = useMemo(() => {
       // YEARLY ROUTES BADGE (owner spec Oct 26 2026): the Layout `deliveries` array
       // only holds the selected-date slice since the IDB-first boot work, so the old
@@ -1451,8 +1455,6 @@ export default function Layout({ children, currentPageName }) {
     setDrivers(activeDrivers);
   }, [appUsers, currentUser]);
   const currentPayrollNetPay = usePayrollBadge(currentUser, appUsers, dataLoaded);
-  // Yearly routes badge source (owner spec Oct 26 2026) — server-cached year stats.
-  const { routesByDriver: yearRoutesByDriver, totalRoutes: yearTotalRoutes, selectedDriverId: badgeSelectedDriverId } = useDriverRouteTotals(currentUser);
   // Oct 15 owner spec: payroll HISTORY accuracy is owned by the idle host
   // (THE-DESKTOP(Editor), PWA fallback) which verifies hourly and broadcasts
   // changed cycles; every other device applies the marker to its offline DB.
