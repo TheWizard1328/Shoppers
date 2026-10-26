@@ -83,6 +83,7 @@ import { initPushNotifications } from '@/components/utils/pushNotifications';
 import { isNativePushAvailable, checkNativePushPermission } from '@/components/utils/nativePushNotifications';
 import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
 import { usePayrollBadge } from './components/layout/usePayrollBadge';
+import { useDriverRouteTotals } from './components/layout/useDriverRouteTotals';
 import { usePayrollHistorySync } from './components/utils/payrollHistorySync';
 import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandlers';
 import { useLayoutInit } from './components/layout/useLayoutInit';
@@ -1309,7 +1310,23 @@ export default function Layout({ children, currentPageName }) {
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));} else if (userHasRole(currentUser, 'driver')) {const sIds = currentUser.store_ids || (currentUser.store_id ? [currentUser.store_id] : []);if (sIds.length > 0) {const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
-  const totalRoutesCount = useMemo(() => {if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
+  const totalRoutesCount = useMemo(() => {
+      // YEARLY ROUTES BADGE (owner spec Oct 26 2026): the Layout `deliveries` array
+      // only holds the selected-date slice since the IDB-first boot work, so the old
+      // local compute degraded the badge to a single-day count. The yearly aggregate
+      // now comes from the server-cached getDriverOverviewStats (routesWorked per
+      // driver) — no full-IDB read. The legacy local computation below is only a
+      // boot-time fallback until the first stats fetch lands.
+      if (yearRoutesByDriver) {
+        if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+          return yearRoutesByDriver[currentUser.id] || 0;
+        }
+        if (badgeSelectedDriverId && badgeSelectedDriverId !== 'all') {
+          return yearRoutesByDriver[badgeSelectedDriverId] || 0;
+        }
+        return yearTotalRoutes;
+      }
+      if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
       const selectedDateStr = globalFilters.getSelectedDate();
       if (!selectedDateStr) return 0;
 
@@ -1368,7 +1385,7 @@ export default function Layout({ children, currentPageName }) {
       });
 
       return totalRoutes;
-    }, [deliveries, currentUser]);
+    }, [deliveries, currentUser, yearRoutesByDriver, yearTotalRoutes, badgeSelectedDriverId]);
 
   const getPatientStoreData = useCallback(() => {
     if (!stores.length || !patients.length) return [];
@@ -1434,6 +1451,8 @@ export default function Layout({ children, currentPageName }) {
     setDrivers(activeDrivers);
   }, [appUsers, currentUser]);
   const currentPayrollNetPay = usePayrollBadge(currentUser, appUsers, dataLoaded);
+  // Yearly routes badge source (owner spec Oct 26 2026) — server-cached year stats.
+  const { routesByDriver: yearRoutesByDriver, totalRoutes: yearTotalRoutes, selectedDriverId: badgeSelectedDriverId } = useDriverRouteTotals(currentUser);
   // Oct 15 owner spec: payroll HISTORY accuracy is owned by the idle host
   // (THE-DESKTOP(Editor), PWA fallback) which verifies hourly and broadcasts
   // changed cycles; every other device applies the marker to its offline DB.

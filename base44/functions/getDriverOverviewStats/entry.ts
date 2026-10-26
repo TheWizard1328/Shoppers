@@ -32,14 +32,23 @@ Deno.serve(async (req) => {
         const maxCacheAge = isCurrentYear ? 3600000 : 86400000; // 1hr current, 24hr historical
         
         if (cacheAge < maxCacheAge) {
-          console.log(`✅ [getDriverOverviewStats] Using cached stats (age: ${Math.round(cacheAge / 60000)}min)`);
-          return Response.json({
-            year: cache.year,
-            driverStats: cache.driver_stats,
-            totalDrivers: cache.driver_stats.length,
-            totalDeliveries: cache.driver_stats.reduce((sum, d) => sum + d.totalStops, 0),
-            fromCache: true
-          });
+          // Cached stats written before Oct 26 2026 lack routesWorked (sidebar badge
+          // source) — treat them as stale so the next response includes route totals.
+          const cachedHasRoutes = Array.isArray(cache.driver_stats)
+            && cache.driver_stats.length > 0
+            && typeof cache.driver_stats[0].routesWorked === 'number';
+          if (cachedHasRoutes) {
+            console.log(`✅ [getDriverOverviewStats] Using cached stats (age: ${Math.round(cacheAge / 60000)}min)`);
+            return Response.json({
+              year: cache.year,
+              driverStats: cache.driver_stats,
+              totalDrivers: cache.driver_stats.length,
+              totalDeliveries: cache.driver_stats.reduce((sum, d) => sum + d.totalStops, 0),
+              totalRoutes: cache.driver_stats.reduce((sum, d) => sum + (d.routesWorked || 0), 0),
+              fromCache: true
+            });
+          }
+          console.log('♻️ [getDriverOverviewStats] Cached stats predate routesWorked — recomputing');
         }
       }
     } else {
@@ -120,6 +129,12 @@ Deno.serve(async (req) => {
 
     // Group deliveries by driver_id
     const driverStatsMap = new Map();
+    // SIDEBAR ROUTES BADGE (owner spec Oct 26 2026): a "route" = one driver working one
+    // date. Unique (driver_id, delivery_date) pairs per driver = routesWorked; the sum
+    // across drivers = totalRoutes. The sidebar previously derived this from the full
+    // local IDB (which now only holds the selected date slice), so it comes from these
+    // cached year stats instead — no client-side full-IDB read.
+    const driverDateSets = new Map();
 
     (deliveries || []).forEach(delivery => {
       if (!delivery || !delivery.driver_id) return;
@@ -151,6 +166,13 @@ Deno.serve(async (req) => {
 
       const stats = driverStatsMap.get(driverId);
       stats.totalStops++;
+
+      // Routes badge: unique dates this driver worked (year-scoped deliveries only)
+      if (delivery.delivery_date) {
+        let dateSet = driverDateSets.get(driverId);
+        if (!dateSet) { dateSet = new Set(); driverDateSets.set(driverId, dateSet); }
+        dateSet.add(delivery.delivery_date);
+      }
 
       // Count pickups (completed store pickups)
       const isPickup = !delivery.patient_id || delivery.patient_id === '';
@@ -196,8 +218,10 @@ Deno.serve(async (req) => {
     // Convert map to array and add completion rate
     const driverStats = Array.from(driverStatsMap.values()).map(stats => ({
       ...stats,
+      routesWorked: (driverDateSets.get(stats.driverId) || new Set()).size,
       completionRate: stats.totalStops > 0 ? Math.round((stats.completed / stats.totalStops) * 100) : 0
     }));
+    const totalRoutes = driverStats.reduce((sum, ds) => sum + (ds.routesWorked || 0), 0);
 
     console.log(`📊 [getDriverOverviewStats] Returning stats for ${driverStats.length} drivers`);
 
@@ -238,6 +262,7 @@ Deno.serve(async (req) => {
       driverStats: driverStats,
       totalDrivers: driverStats.length,
       totalDeliveries: deliveries?.length || 0,
+      totalRoutes,
       fromCache: false
     });
 

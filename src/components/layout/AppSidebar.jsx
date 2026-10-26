@@ -498,7 +498,7 @@ export default function AppSidebar({
             <span className="font-semibold">Driver Payroll</span>
             {currentPayrollNetPay !== null && currentPayrollNetPay !== undefined &&
               <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px] text-label" style={{ background: 'var(--bg-slate-200)' }}>
-                ${currentPayrollNetPay.toFixed(2)}
+                {currentPayrollNetPay < 0 ? `-$${Math.abs(currentPayrollNetPay).toFixed(2)}` : `$${currentPayrollNetPay.toFixed(2)}`}
               </Badge>
               }
             </Link>

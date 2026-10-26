@@ -38,7 +38,10 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
             p.pay_period_start <= selectedDate && p.pay_period_end >= selectedDate
           );
           if (match) {
-            setCurrentPayrollGrossPay((match.gross_pay || 0) + (match.app_fee_amount || 0) + (match.bonus_pay || 0) || null);
+            // OWNER SPEC (Oct 26 2026): a matched pay period with $0 (or negative)
+            // must STILL show — the old `|| null` zero-eater hid the badge for $0.
+            const total = (Number(match.gross_pay) || 0) + (Number(match.app_fee_amount) || 0) + (Number(match.bonus_pay) || 0);
+            setCurrentPayrollGrossPay(total);
             return;
           }
         }
@@ -51,7 +54,9 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
         const c = (ps || []).find(p =>
           p.pay_period_start <= selectedDate && p.pay_period_end >= selectedDate
         );
-        setCurrentPayrollGrossPay(c ? ((c.gross_pay || 0) + (c.app_fee_amount || 0) + (c.bonus_pay || 0) || null) : null);
+        setCurrentPayrollGrossPay(c
+          ? (Number(c.gross_pay) || 0) + (Number(c.app_fee_amount) || 0) + (Number(c.bonus_pay) || 0)
+          : null);
       } catch {
         setCurrentPayrollGrossPay(null);
       }
