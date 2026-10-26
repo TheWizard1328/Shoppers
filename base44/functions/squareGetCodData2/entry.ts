@@ -1208,7 +1208,11 @@ mark('after_collected_purge');
     if (isBackfillRun) return false;
     if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
     if (d?.cod_confirmed_collected) return false; // confirmed collected at the register — never re-create
-    if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
+    // OWNER DIRECTIVE (Oct 26 2026): assigned pending stops with CODs get catalog
+    // items from assignment (was: only in_transit+). Staged and unassigned pending
+    // still never do.
+    if (['failed', 'cancelled', 'staged'].includes(d?.status)) return false;
+    if (d?.status === 'pending' && !d?.driver_id) return false;
     if (d?.delivery_date && d.delivery_date > formatLocalDate(new Date())) return false;
 
     const store = (safeStores || []).find((s) => s?.id === d?.store_id);
