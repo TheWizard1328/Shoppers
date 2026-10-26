@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { user_id, title, body, url, tag, requireInteraction, force, actions, data } = await req.json();
+    const { user_id, title, body, url, tag, requireInteraction, force, actions, data, channel } = await req.json();
     if (!user_id || !title || !body) return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
 
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
     const notifData = { title, body, url: url || '/', tag: tag || 'rxdeliver', timestamp: Date.now(), requireInteraction: !!requireInteraction };
     if (actions) notifData.actions = actions;
     if (data) notifData.data = data;
+    if (channel) notifData.channel = channel;
 
     // Pre-fetch FCM access token ONCE if we have any FCM subscriptions
     const hasFcmSub = subscriptions.some((s: any) => s.endpoint?.startsWith('fcm://'));
@@ -219,6 +220,7 @@ Deno.serve(async (req) => {
             Object.entries({
               url: url || '/',
               ...(data || {}),
+              ...(channel ? { channel } : {}),
               timestamp: String(Date.now()),
               ...(isInteractive ? { title, body, actions: JSON.stringify(actions), __interactive: 'true' } : {}),
             }).map(([k, v]) => [k, String(v)])
@@ -254,11 +256,14 @@ Deno.serve(async (req) => {
           // key at all so Android never auto-displays anything — the JS
           // listener (nativePushNotifications.js) is the ONLY place that
           // creates a visible card, with real title/body, every time.
-          if (!isInteractive) {
+          const isInteractiveFcm = isInteractive && !channel;
+          if (!isInteractiveFcm) {
             fcmMessage.notification = { title, body };
             fcmMessage.android.notification = {
               tag: tag || 'rxdeliver',
-              channel_id: 'default',
+              // CHANNEL ROUTING (owner request Oct 26 2026): event-specific
+              // channels get their own Android sound/vibration settings.
+              channel_id: channel || 'default',
               icon: 'ic_stat_notify',
               color: '#22c55e',
             };

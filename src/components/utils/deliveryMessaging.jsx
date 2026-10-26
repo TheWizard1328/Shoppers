@@ -48,7 +48,7 @@ export async function sendDeliveryMessage({
 /**
  * Fire-and-forget push notification alongside in-app messages
  */
-export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride, actions, url, tag, requireInteraction, message_id, delivery_ids, reply_to, reply_to_name }) {
+export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride, actions, url, tag, requireInteraction, message_id, delivery_ids, reply_to, reply_to_name, channel }) {
   if (!receiverId || !content) return { sent: 0, reason: 'missing_receiver_or_content' };
   const title = titleOverride || (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
@@ -63,6 +63,9 @@ export async function sendPushForNotification({ receiverId, senderName, content,
     if (actions) payload.actions = actions;
     if (tag) payload.tag = tag;
     if (requireInteraction) payload.requireInteraction = true;
+    // Native Android channel (owner request Oct 26 2026): routes the push to an
+    // event-specific notification channel so it can carry its own sound.
+    if (channel) payload.channel = channel;
     // Embed action metadata into data so the SW click handler can use it
     if (message_id || delivery_ids || reply_to) {
       payload.data = {};

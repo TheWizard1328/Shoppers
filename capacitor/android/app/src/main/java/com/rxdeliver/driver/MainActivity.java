@@ -89,6 +89,11 @@ public class MainActivity extends BridgeActivity {
     //      high-priority heads-up banner when the screen is on.
     public static final String PROXIMITY_LAUNCH_EXTRA = "rx_proximity_launch";
     private static final String PROXIMITY_CHANNEL_ID = "proximity_foreground";
+    // OWNER REQUEST (Oct 26 2026): per-event notification channels so Android
+    // settings can assign each event type its own sound/vibration. The FCM
+    // android.notification.channel_id in sendPushNotification targets these.
+    private static final String SQUARE_TOPUP_CHANNEL_ID = "square_topup";
+    private static final String STOPS_ASSIGNED_CHANNEL_ID = "stops_assigned";
     private static final int PROXIMITY_NOTIFICATION_ID = 4711;
     private boolean activityResumed = false;
 
@@ -644,6 +649,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Event-type notification channels (custom sounds via Android settings)
+        ensureEventChannels();
         // Read the stored environment preference BEFORE the bridge loads
         SharedPreferences prefs = getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
         String env = prefs.getString("rxdeliver_env", "live");
@@ -898,6 +905,40 @@ public class MainActivity extends BridgeActivity {
             | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         intent.putExtra(PROXIMITY_LAUNCH_EXTRA, true);
         return intent;
+    }
+
+    private void ensureEventChannels() {
+        if (Build.VERSION.SDK_INT < 26) return;
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm == null) return;
+
+        if (nm.getNotificationChannel(SQUARE_TOPUP_CHANNEL_ID) == null) {
+            NotificationChannel topup = new NotificationChannel(
+                SQUARE_TOPUP_CHANNEL_ID,
+                "Square Top-Ups",
+                NotificationManager.IMPORTANCE_HIGH
+            );
+            topup.setDescription("Square card top-up requests from dispatchers");
+            topup.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            // Distinct pattern so the card is recognizable even before the
+            // user customizes the sound in Android settings.
+            topup.setVibrationPattern(new long[]{0, 300, 150, 300});
+            topup.enableVibration(true);
+            nm.createNotificationChannel(topup);
+        }
+
+        if (nm.getNotificationChannel(STOPS_ASSIGNED_CHANNEL_ID) == null) {
+            NotificationChannel stops = new NotificationChannel(
+                STOPS_ASSIGNED_CHANNEL_ID,
+                "Stops Assigned",
+                NotificationManager.IMPORTANCE_HIGH
+            );
+            stops.setDescription("Stops created and assigned to you by a dispatcher");
+            stops.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            stops.setVibrationPattern(new long[]{0, 200, 100, 200});
+            stops.enableVibration(true);
+            nm.createNotificationChannel(stops);
+        }
     }
 
     private void ensureProximityChannel() {

@@ -255,6 +255,9 @@ export async function notifyDispatcherAssignedStops({
       actions: ruleActions,
       delivery_ids: deliveryIds.length > 0 ? deliveryIds : undefined,
       requireInteraction: true,
+      // APK devices display this push on the native "Stops Assigned" channel
+      // (own sound/vibration in Android settings). Web push keeps its buttons.
+      channel: 'stops_assigned',
     });
   };
 

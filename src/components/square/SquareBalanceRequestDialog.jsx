@@ -91,6 +91,9 @@ export default function SquareBalanceRequestDialog({
           titleOverride: 'Square Card Top-Up Request',
           url: '/squarebalances',
           message_id: created?.id,
+          // APK devices display this push on the native "Square Top-Ups"
+          // channel — the owner sets its sound in Android settings.
+          channel: 'square_topup',
         }).catch(() => null);
         sentCount++;
       }
