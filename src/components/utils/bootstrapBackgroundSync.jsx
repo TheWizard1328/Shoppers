@@ -11,6 +11,7 @@
  */
 
 import { offlineDB } from './offlineDatabase';
+import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
 import { indexInterStoreLocation } from './interStoreDisplayName';
@@ -123,10 +124,14 @@ export const runBootstrapBackgroundSync = async (callbacks = {}) => {
       console.log(`✅ [BootstrapSync] InterStoreLocations synced: ${interStoreLocations.length}`);
     }
 
-    // Prune offline breadcrumbs older than 14 days on each bootstrap sync pass.
+    // Prune offline breadcrumbs on each bootstrap sync pass.
     // Pure-local hygiene — bounded once-per-4h by the staleness gate above.
+    // OWNER DIRECTIVE (Oct 26 2026): mobile phones keep only ONE WEEK of
+    // breadcrumb history (small-storage driver phones); PC-class devices —
+    // where the historical/breadcrumb analysis actually happens — keep the
+    // full 14-day window.
     try {
-      await offlineDB.pruneOldBreadcrumbs(14);
+      await offlineDB.pruneOldBreadcrumbs(isMobileDevice() ? 7 : 14);
     } catch (_) { /* non-fatal */ }
 
     markSynced();
