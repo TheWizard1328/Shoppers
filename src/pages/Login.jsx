@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, CheckCircle, HeartPulse, AlertTriangle } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, CheckCircle, HeartPulse, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { initEncryption } from "@/components/utils/idbCrypto";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -59,6 +59,7 @@ export default function Login() {
   const emailCapsPendingRef = useRef(0);
   const passwordCapsPendingRef = useRef(0);
   const [capsLockOn, setCapsLockOn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const invertLetters = (str) =>
     str.replace(/[a-zA-Z]/g, (c) => (c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()));
@@ -255,11 +256,21 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
+              type={showPassword ? "text" : "password"}
               onKeyDown={makeCapsSafeKeyHandler(passwordCapsPendingRef)}
               onChange={makeCapsSafeChangeHandler(passwordCapsPendingRef, setPassword)}
-              className="pl-10 h-12"
+              className="pl-10 pr-11 h-12"
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+            </button>
           </div>
         </div>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
