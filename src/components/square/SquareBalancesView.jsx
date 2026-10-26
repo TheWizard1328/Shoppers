@@ -465,6 +465,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // collection or removal stays missing both times; a blip self-heals
   // within one cycle).
   const catalogMissStreakRef = useRef(new Map());
+  // CARD-PAID FILTER (owner report Oct 26 2026: flipping Valerie Collins'
+  // $15.11 Bonnie Doon COD from Cash to Debit moved the delivery into
+  // Collected today but left its still-active Square register item merged
+  // into Uncollected past with a 'Pending' badge). A delivery whose own
+  // cod_payments carry a Debit/Credit entry is COLLECTED ON THE CARD — its
+  // register item must not render as uncollected, no matter how long the
+  // Square-side reconcile takes to retire it. Refreshed by the background
+  // delivery pass in computeCatalogUncollected; consumed at list-build time
+  // so a re-added active item can't flicker back in on later passes.
+  const cardPaidDeliveryIdsRef = useRef(new Set());
   const catalogUncollectedByLocRef = useRef({});
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
@@ -996,6 +1006,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const date = parsedDate || String(it.delivery_date || '').slice(0, 10) || null;
         const abbrev = sInfo?.abbreviation || parsed?.abbrev || null;
         const sInfoByAbbrev = abbrev ? storeByAbbrev.get(String(abbrev).toUpperCase()) : null;
+        if (it.delivery_id && cardPaidDeliveryIdsRef.current.has(String(it.delivery_id))) continue;
         byLoc.get(it.location_id).push({
           key: `cat-${it.id || it.square_catalog_object_id}`,
           delivery_id: it.delivery_id || null,
@@ -1081,14 +1092,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const deliveryIdsForCashCheck = Array.from(new Set((itemsRaw || []).map((it) => it?.delivery_id).filter(Boolean)));
       if (deliveryIdsForCashCheck.length) {
         const cashCollectedDeliveryIds = new Set();
+        const cardPaidDeliveryIds = new Set();
         const resolvedIds = new Set();
         const isCashCompleted = (d) => String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash');
+        // ANY Debit/Credit payment on the delivery = collected on the card
+        // (covers completed flips AND the pending-item-in-a-combined-swipe
+        // path in cashToCard, which creates card payments on uncollected
+        // pending CODs).
+        const isCardPaid = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
           for (const d of rows || []) {
             resolvedIds.add(String(d.id));
             if (isCashCompleted(d)) cashCollectedDeliveryIds.add(String(d.id));
+            if (isCardPaid(d)) cardPaidDeliveryIds.add(String(d.id));
           }
         }
         // LOCAL-IDB FALLBACK (owner report Oct 24 2026: Bonnie Doon's
@@ -1104,8 +1122,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             for (const id of unresolvedIds) {
               const d = byId.get(String(id));
               if (d && isCashCompleted(d)) cashCollectedDeliveryIds.add(String(id));
+              if (d && isCardPaid(d)) cardPaidDeliveryIds.add(String(id));
             }
           } catch { /* IDB read failed — rows stay untagged until the next pass */ }
+        }
+        // Refresh the build-time filter (full recompute each pass — a badge
+        // flipped BACK to Cash re-shows the register row on the next pass).
+        cardPaidDeliveryIdsRef.current = cardPaidDeliveryIds;
+        if (cardPaidDeliveryIds.size > 0 && isLatest()) {
+          setCatalogUncollectedByLoc((prev) => {
+            if (!prev) return prev;
+            const next = {};
+            for (const [locId, rows] of Object.entries(prev)) {
+              next[locId] = rows.filter((r) => !(r.delivery_id && cardPaidDeliveryIds.has(String(r.delivery_id))));
+            }
+            catalogUncollectedByLocRef.current = next;
+            return next;
+          });
         }
         // OWNER SPEC (Oct 8 2026, REVISED same day): cash-completed rows
         // STAY in Uncollected / Past uncollected with the emerald 'Cash'
