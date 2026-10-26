@@ -53,7 +53,7 @@ export default function AppIssueSupport({ currentUser }) {
       user_id: userId,
       user_name: userName,
       device_identifier: getDeviceIdentifier(),
-      metadata: { source: 'app_issue_monitor' },
+      metadata: { source: 'app_issue_monitor', host: (typeof window !== 'undefined' && window.location?.hostname) ? window.location.hostname : null },
     }).catch(() => {});
   }, [userId, userName]);
 

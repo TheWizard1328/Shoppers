@@ -345,6 +345,9 @@ const enqueue = async (level, args, extra = {}) => {
       device_name: currentDevice?.device_name || null,
       device_os: currentDevice?.device_info?.os || os || null,
       device_type: currentDevice?.device_info?.device_type || deviceType || null,
+      // DOMAIN MIGRATION (owner request Oct 25 2026): record which URL this
+      // bundle was served from so device→domain mapping is verifiable server-side.
+      host: (typeof window !== 'undefined' && window.location?.hostname) ? window.location.hostname : null,
       ...(extra.metadata || {})
     }
   });
