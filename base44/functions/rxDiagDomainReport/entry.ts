@@ -6,9 +6,6 @@ const unwrap = (r) => {
   return r;
 };
 
-// Extract a serving host from a log record: prefer explicit metadata.host
-// (added Oct 25 2026), fall back to any https://<host>/ URL embedded in the
-// message text (error stack traces carry the exact serving origin).
 // Only serving origins of THIS app count; URLs embedded in message bodies
 // (file CDN 'base44.app', doc links like reactjs.org) are false positives.
 const ORIGIN_RX = /^(rxdeliver\.wizardworxx\.com|wizardworxx\.com|www\.wizardworxx\.com|(preview(-sandbox)?--)?rx-deliver-2408a9d6\.base44\.app)$/i;
@@ -18,39 +15,56 @@ const hostOf = (r) => {
   const m = String(r?.message || '').match(/https:\/\/([a-z0-9.-]+)\//i);
   return (m && ORIGIN_RX.test(m[1])) ? m[1] : null;
 };
+const deviceOf = (r) => {
+  const d = r?.metadata?.device_name || (r?.metadata && typeof r.metadata === 'object' ? r.metadata.device_name : null);
+  return d ? String(d) : null;
+};
+
+// PATH CLASSIFICATION for the wizardworxx migration:
+//  NEW = rxdeliver.wizardworxx.com (also wizardworxx.com root will join later)
+//  OLD = rx-deliver-2408a9d6.base44.app (original base44 domain)
+//  PREVIEW = preview(--sandbox) hosts (owner-only by design)
+const classify = (host) => {
+  const h = String(host || '').toLowerCase();
+  if (h.includes('preview')) return 'PREVIEW';
+  if (h === 'rxdeliver.wizardworxx.com' || h === 'www.wizardworxx.com' || h === 'wizardworxx.com') return 'NEW';
+  return 'OLD';
+};
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const url = new URL(req.url);
+    const hours = Math.min(Number(url.searchParams.get('hours') || 48), 168);
+    const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
     const res = await base44.entities.RemoteLogEntry.list('-created_date', 3000);
     const rows = (Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []))
       .map(unwrap).filter(Boolean)
       .filter(r => String(r.created_date || '') >= since);
 
-    const byUser = {};
+    // Per user+device latest host (metadata.host needs the Oct 25 2026 build+)
+    const byDevice = {};
     for (const r of rows) {
-      const who = r.user_name || '?';
       const host = hostOf(r);
       if (!host) continue;
+      const who = r.user_name || '?';
+      const dev = deviceOf(r) || '(unknown device)';
+      const key = `${who} | ${dev}`;
       const t = String(r.created_date || '');
-      const cur = byUser[who];
-      if (!cur || t > cur.latest) {
-        byUser[who] = { host, latest: t, hits: (cur?.hits || 0) + 1 };
-      } else {
-        cur.hits += 1;
-        if (!cur.allHosts) cur.allHosts = {};
-        cur.allHosts[host] = (cur.allHosts[host] || 0) + 1;
-      }
-      const u = byUser[who];
-      if (!u.allHosts) u.allHosts = {};
-      u.allHosts[host] = (u.allHosts[host] || 0) + 1;
+      const cur = byDevice[key] || { user: who, device: dev, latestHost: host, latest: t, hosts: {} };
+      if (t > cur.latest) { cur.latestHost = host; cur.latest = t; }
+      cur.hosts[host] = (cur.hosts[host] || 0) + 1;
+      byDevice[key] = cur;
     }
-    // compact view
-    const report = Object.fromEntries(Object.entries(byUser)
-      .map(([who, v]) => [who, { latestHost: v.host, latest: v.latest, hosts: v.allHosts }]));
 
-    return new Response(JSON.stringify({ since, scanned: rows.length, withHost: Object.keys(byUser).length, report }, null, 1), {
+    const devices = Object.values(byDevice)
+      .map(({ user, device, latestHost, latest, hosts }) => ({
+        user, device, latestHost, path: classify(latestHost), latest,
+        allHosts: Object.keys(hosts)
+      }))
+      .sort((a, b) => a.user.localeCompare(b.user) || a.device.localeCompare(b.device));
+
+    return new Response(JSON.stringify({ since, scanned: rows.length, devices }, null, 1), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (e) {
