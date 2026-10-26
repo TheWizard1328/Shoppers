@@ -664,7 +664,25 @@ export async function handleBatchSave({
         // TR recalc, and the staged in_transit optimization above, finish with the
         // InterStore (ISP/ISD) deferred queue flush AND store pickups added this
         // session (direct-persisted en_route stops that were never staged).
-        runDoneOptimizationLastStep({ addedPickupRoutes }).catch(() => {});
+        // NEW-ROUTE TRIGGER (owner report Oct 25 2026): ensured DEFAULT pickups
+        // (ensureDefaultPickupsForDriver — runs when the driver had ZERO stops
+        // for the date) must reach the optimizer too. They never enter
+        // addedPickupRoutes (manual pickups only), and the staged patient stops
+        // set no in_transit transition, so a brand-new future route finished
+        // Done with NO optimization queued at all — no stop_order, no ETAs, and
+        // no planned polylines until someone clicked the optimize FAB by hand.
+        // Fire the same deferred path for the ensured-pickup routes so the
+        // whole new route (pickup + pending stops) is planned immediately.
+        const ensuredPickupRoutes = Array.from(defaultPickupDriverDateKeys).map((driverDateKey) => {
+          const [ensuredDriverId, ensuredDeliveryDate] = driverDateKey.split('__');
+          return { driverId: ensuredDriverId, deliveryDate: ensuredDeliveryDate };
+        });
+        if (ensuredPickupRoutes.length > 0) {
+          console.log('[AddToRoute] New-route optimization trigger:', ensuredPickupRoutes);
+        }
+        runDoneOptimizationLastStep({
+          addedPickupRoutes: [...(addedPickupRoutes || []), ...ensuredPickupRoutes]
+        }).catch(() => {});
 
         // Stats refresh already fired by handleBatchSaveDelivery (line 572) — removed duplicate.
       } catch (bgError) {
