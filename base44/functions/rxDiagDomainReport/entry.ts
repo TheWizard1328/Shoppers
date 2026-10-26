@@ -34,8 +34,10 @@ const classify = (host) => {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    let bodyArgs = {};
+    try { bodyArgs = (await req.json()) || {}; } catch (_) { /* GET or empty body */ }
     const url = new URL(req.url);
-    const hours = Math.min(Number(url.searchParams.get('hours') || 48), 168);
+    const hours = Math.min(Number(bodyArgs.hours || url.searchParams.get('hours') || 48), 168);
     const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
     const res = await base44.entities.RemoteLogEntry.list('-created_date', 3000);
     const rows = (Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []))
@@ -58,11 +60,8 @@ Deno.serve(async (req) => {
     }
 
     const devices = Object.values(byDevice)
-      .map(({ user, device, latestHost, latest, hosts }) => ({
-        user, device, latestHost, path: classify(latestHost), latest,
-        allHosts: Object.keys(hosts)
-      }))
-      .sort((a, b) => a.user.localeCompare(b.user) || a.device.localeCompare(b.device));
+      .map(({ user, device, latestHost, latest, hosts }) => `${user} | ${device} | ${classify(latestHost)} | ${latestHost} | ${latest}`)
+      .sort();
 
     return new Response(JSON.stringify({ since, scanned: rows.length, devices }, null, 1), {
       headers: { 'Content-Type': 'application/json' }
