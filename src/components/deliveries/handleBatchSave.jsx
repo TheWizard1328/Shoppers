@@ -215,6 +215,12 @@ export async function handleBatchSave({
       puid: delivery?.puid || null,
       tracking_number: delivery?.tracking_number || null
     })));
+    // FUNCTION-SCOPE (owner test Oct 25 20:15 — ReferenceError crash): this set was
+    // declared INSIDE the `if (deliveriesReadyForDB.length > 0)` block below, but the
+    // background block's new-route optimization trigger (end of this function) reads it
+    // from OUTSIDE that if — ReferenceError killed the whole bg block and the optimizer
+    // never ran. Declared here so every stage shares one binding.
+    const defaultPickupDriverDateKeys = new Set();
     if (deliveriesReadyForDB.length > 0) {
       const pickupRecordsFromStage = deliveriesReadyForDB
         .filter((delivery) => !delivery?.patient_id)
@@ -250,7 +256,6 @@ export async function handleBatchSave({
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
       const groupedEnsureKeys = new Map();
-      const defaultPickupDriverDateKeys = new Set();
       const existingStopCountByDriverDate = new Map();
 
       patientDeliveriesNeedingPickupEnsure.forEach((delivery) => {

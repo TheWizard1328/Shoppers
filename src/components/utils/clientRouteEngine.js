@@ -1839,14 +1839,9 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng)),
     originPoint: driverHomeLocation,
     cyclingSegmentOnly: false,
-    // FUTURE-ROUTE PLANNING (owner report Oct 25 2026): the coordinator's
-    // includePendingPolylines flag was threaded here but never passed on — the
-    // generator's shared eligibility rule drops PENDING stops, and a brand-new
-    // future route is ALL pending stops (patient deliveries) + the en_route
-    // default pickup. Result: the FAB, the deferred Done optimization, and the
-    // new-route trigger all "succeeded" with zero legs. The future path exists
-    // ONLY for pre-start planning, so its pending stops always get planned legs.
-    includePending: true,
+    // OWNER RULE (Oct 25 2026): pending stops NEVER get polylines — even on
+    // future routes. At route creation the legs that generate here belong to
+    // the en_route default pickups and any manually-set in_transit stops.
     hereApiKey,
     polylineProvider,
     polylineApiKey,
