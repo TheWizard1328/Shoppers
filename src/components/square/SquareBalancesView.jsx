@@ -10,8 +10,9 @@ import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
-import { fetchLatestSharedSnapshot } from "./squareBalancesSharedSnapshot";
+import { fetchLatestSharedSnapshot, subscribeSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
+import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from "@/components/utils/deviceManager";
 import PaymentDiscrepanciesList from "./PaymentDiscrepanciesList";
 
 /**
@@ -1506,16 +1507,79 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   }, []);
 
+  // OWNER REPORT (Oct 25 2026, 23:47): phone page values went stale — the
+  // sidebar/bottom-nav live-updated but the PAGE kept old numbers and even the
+  // Refresh button repainted the same stale values; only a full app restart
+  // fixed it. Root cause: on NON-Editor devices the page's local chain
+  // (loadConfig + loadSales) recomputes from this device's own in-memory/IDB
+  // ledger mirrors, which lag behind the Editor's authoritative compute that
+  // the shared snapshot already carries. Fix: after the local chain (which
+  // still fills Collected-today and other locally-derived bits), non-host
+  // devices repaint from the latest SHARED SNAPSHOT so the Editor's numbers
+  // win. The Editor host keeps its local result (it IS the source of the
+  // snapshot — painting its own last publish could be staler than its fresh
+  // local chain).
+  const isEditorHostRef = useRef(null);
+  const resolveIsEditorHost = useCallback(async () => {
+    if (isEditorHostRef.current !== null) return isEditorHostRef.current;
+    try {
+      const rec = await getCurrentDevice(currentUser?.id);
+      isEditorHostRef.current = rec?.device_name === EDITOR_HOST_DEVICE_NAME;
+    } catch { isEditorHostRef.current = false; }
+    return isEditorHostRef.current;
+  }, [currentUser?.id]);
+
+  const paintLatestSharedSnapshot = useCallback(async () => {
+    try {
+      const rec = await fetchLatestSharedSnapshot().catch(() => null);
+      if (rec?.payload) {
+        const data = deserializeSummary(rec.payload);
+        if (!data) return false;
+        if (data.config) setConfig(data.config);
+        if (data.configRecordId) setConfigRecordId(data.configRecordId);
+        setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
+        setPayouts(data.payouts || []);
+        if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
+        return true;
+      }
+    } catch { /* snapshot is best-effort */ }
+    return false;
+  }, []);
+
   const refresh = useCallback(async (opts = {}) => {
     setIsLoading(true);
     try {
       let cfg = config;
       if (opts.reloadConfig || !cfg) cfg = await loadConfig();
       await loadSales(cfg);
+      // Non-host devices: the Editor's published numbers are authoritative —
+      // repaint LAST so stale local mirrors can't keep the old values on screen.
+      if (!(await resolveIsEditorHost())) {
+        await paintLatestSharedSnapshot();
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [config, loadConfig, loadSales]);
+  }, [config, loadConfig, loadSales, resolveIsEditorHost, paintLatestSharedSnapshot]);
+
+  // LIVE PAGE UPDATES (non-host devices): while this page is open, repaint
+  // whenever the Editor publishes a fresh shared snapshot — same WS feed the
+  // sidebar/bottom-nav already listen on, so the page finally tracks the
+  // desktop in real time instead of waiting for a restart.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let unsub = null;
+    let pending = null;
+    let cancelled = false;
+    (async () => {
+      if (await resolveIsEditorHost()) return; // host computes locally — no self-echo repaint
+      unsub = subscribeSharedSnapshot(() => {
+        clearTimeout(pending);
+        pending = setTimeout(() => { if (!cancelled) void paintLatestSharedSnapshot(); }, 2000);
+      });
+    })();
+    return () => { cancelled = true; clearTimeout(pending); unsub?.(); };
+  }, [currentUser?.id, resolveIsEditorHost, paintLatestSharedSnapshot]);
 
   // Fresh numbers every visit: load config, pull new Square sales since the
   // true-up, then read the ledger. The 9pm briefing also freshens the ledger,
