@@ -1053,8 +1053,8 @@ let _inheritedWindowCount = 0;
     console.log(`[clientRouteEngine] ${source} — cycling marker positional check complete (total routeStops=${routeStops.length})`);
   }
 
-  // ── Unit-number micro-sort ─────────────────────────────────────────────────
-  _unitNumberMicroSort(routeStops, patientMap);
+  // ── Unit-number micro-sort (clustered stops sort by unit) ─────────────────
+  _unitNumberMicroSort(routeStops, patientMap, storeMap);
 
   // Dispatch phase event: polyline generation starting
   if (typeof window !== 'undefined') {
@@ -1806,6 +1806,11 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);
   }
 
+  // ── Unit-number micro-sort (owner spec Oct 26 2026): clustered future stops
+  // (same address/GPS) sort by unit number. PUID-partitioned so the pickup
+  // chain order is never broken — units only sort WITHIN each chain.
+  try { _unitNumberMicroSort(orderedStops, patientMap, storeMap); } catch (e) { console.warn('[clientRouteEngine] unit micro-sort skipped:', e?.message || e); }
+
   // For future routes: first non-ISP/ISD stop gets isNextDelivery=true.
   // ISP/ISD stops must never steal isNextDelivery from regular delivery stops.
   const _futureFirstNonISPId = orderedStops.find(({ delivery: d }) => !isInterStoreDelivery(d.delivery_id))?.delivery.id || orderedStops[0]?.delivery.id || null;
@@ -1874,36 +1879,88 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
 
 // ─── Unit-number micro-sort ──────────────────────────────────────────────────
 
-function _unitNumberMicroSort(routeStops, patientMap) {
-  const GPS_PRECISION = 4;
+// ── Unit-number micro-sort (owner spec Oct 26 2026) ───────────────────────────
+// After optimization, CLUSTERED stops (same building: identical rounded GPS OR
+// same normalized street address) are secondarily sorted by UNIT number so the
+// driver walks the building in unit order. Extends the original micro-sort:
+//   • pending + en_route patient stops included (was in_transit-only — assigned
+//     pending clusters stayed out of unit order until the route started);
+//   • address-based clustering in addition to GPS-identical (units in one
+//     building often carry slightly different GPS coordinates);
+//   • PUID-partitioned: within a cluster, units sort WITHIN each pickup chain
+//     (same puid) only — chain order across different pickups is preserved, so
+//     a delivery can never move ahead of its own pickup.
+function _unitNumberMicroSort(stops, patientMap, storeMap) {
+  const GPS_PRECISION = 4; // ~11m — same-building coordinate snap
   const roundGps = (v) => Number(Number(v).toFixed(GPS_PRECISION));
+
+  // Street-address key: unit/apt/suite/room/floor tokens stripped (the unit
+  // number is the varying part), punctuation dropped, whitespace collapsed.
+  const UNIT_TOKEN_RX = /\b(?:UNIT|APT|APARTMENT|SUITE|STE|RM|ROOM|FL|FLOOR|BLDG|BUILDING|BAY|SPC|SPACE|#)\b\.?/gi;
+  const addrKeyCache = new Map();
+  const addressKeyOf = (d) => {
+    const k = d?.id || d?.patient_id;
+    if (k != null && addrKeyCache.has(k)) return addrKeyCache.get(k);
+    const addr = String(d?.patient_address || patientMap.get(d?.patient_id)?.address || '').trim();
+    const key = addr
+      ? addr.toUpperCase().replace(UNIT_TOKEN_RX, ' ').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+      : '';
+    if (k != null) addrKeyCache.set(k, key);
+    return key;
+  };
+  const unitOf = (d) => String(d?.unit_number || patientMap.get(d?.patient_id)?.unit_number || '').trim();
+  const eligible = (s) => {
+    const d = s?.delivery;
+    return !!d?.patient_id
+      && ['pending', 'in_transit', 'en_route'].includes(String(d.status || ''))
+      && String(d.delivery_id || '').toUpperCase().startsWith('DID'); // patient stops only — pickups/markers/InterStore excluded
+  };
+
   const processed = new Set();
-
-  for (let i = 0; i < routeStops.length; i++) {
-    if (processed.has(i)) continue;
-    const stop = routeStops[i];
-    const d = stop.delivery;
-    if (d.status !== 'in_transit' || !d.patient_id || !String(d.delivery_id || '').toUpperCase().startsWith('DID')) continue;
-
-    const lat = roundGps(stop.lat);
-    const lng = roundGps(stop.lng);
+  for (let i = 0; i < stops.length; i++) {
+    if (processed.has(i) || !eligible(stops[i])) continue;
+    const ca = getDeliveryCoords(stops[i].delivery, patientMap, storeMap);
+    const aLat = ca ? roundGps(ca.lat) : null;
+    const aLng = ca ? roundGps(ca.lng) : null;
+    const aAddr = addressKeyOf(stops[i].delivery);
     const groupIndices = [i];
-    for (let j = i + 1; j < routeStops.length; j++) {
-      const s = routeStops[j];
-      if (s.delivery.status !== 'in_transit' || !s.delivery.patient_id || !String(s.delivery.delivery_id || '').toUpperCase().startsWith('DID')) continue;
-      if (roundGps(s.lat) === lat && roundGps(s.lng) === lng) groupIndices.push(j);
+    for (let j = i + 1; j < stops.length; j++) {
+      if (processed.has(j) || !eligible(stops[j])) continue;
+      const cb = getDeliveryCoords(stops[j].delivery, patientMap, storeMap);
+      const sameGps = aLat != null && !!cb && roundGps(cb.lat) === aLat && roundGps(cb.lng) === aLng;
+      const sameAddr = !!aAddr && addressKeyOf(stops[j].delivery) === aAddr;
+      if (sameGps || sameAddr) groupIndices.push(j);
     }
     if (groupIndices.length < 2) { processed.add(i); continue; }
 
-    const group = groupIndices.map(idx => routeStops[idx]);
-    group.sort((a, b) => {
-      const ua = String(a.delivery.unit_number || patientMap.get(a.delivery.patient_id)?.unit_number || '').trim();
-      const ub = String(b.delivery.unit_number || patientMap.get(b.delivery.patient_id)?.unit_number || '').trim();
-      const na = parseInt(ua, 10);
-      const nb = parseInt(ub, 10);
+    // PUID partition: unit-sort each pickup chain's members; chains keep
+    // their first-appearance order at the cluster's positions.
+    const byPuid = new Map();
+    for (const idx of groupIndices) {
+      const pk = String(stops[idx].delivery.puid || 'none');
+      if (!byPuid.has(pk)) byPuid.set(pk, []);
+      byPuid.get(pk).push(stops[idx]);
+    }
+    const partitions = [...byPuid.values()];
+    partitions.forEach(part => part.sort((x, y) => {
+      const na = parseInt(unitOf(x.delivery), 10);
+      const nb = parseInt(unitOf(y.delivery), 10);
       if (!isNaN(na) && !isNaN(nb)) return na - nb;
-      return ua.localeCompare(ub);
-    });
-    groupIndices.forEach((idx, pos) => { routeStops[idx] = group[pos]; processed.add(idx); });
+      if (!isNaN(na)) return -1; // numbered units before unnumbered
+      if (!isNaN(nb)) return 1;
+      return unitOf(x.delivery).localeCompare(unitOf(y.delivery));
+    }));
+    // Interleave: fill cluster positions chain by chain, unit-sorted inside each.
+    const flat = [];
+    const iters = partitions.map(part => part[Symbol.iterator]());
+    let more = true;
+    while (more) {
+      more = false;
+      for (const it of iters) {
+        const next = it.next();
+        if (!next.done) { flat.push(next.value); more = true; }
+      }
+    }
+    groupIndices.forEach((idx, pos) => { stops[idx] = flat[pos]; processed.add(idx); });
   }
 }
