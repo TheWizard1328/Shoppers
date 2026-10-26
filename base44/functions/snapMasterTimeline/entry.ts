@@ -22,7 +22,7 @@ import { dedupMasterBreadcrumbs } from '../../shared/masterBreadcrumbDedup.ts';
 //   default            → Snap + save + optionally re-consolidate
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GAP_THRESHOLD_M = 250;   // metres — gaps above this need fixing
+const GAP_THRESHOLD_M = 300;   // metres — gaps above this need fixing. At 60 km/h a driver covers approx 83 m per 2s tick; GPS outages drop intermediate points longer than that, so 300 m avoids flagging normal 60 km/h motion while still catching real gaps.
 const MIN_DENSE_POINTS = 3;    // fewer dense points between gaps → merge into one zone
 
 // ── Geometry ─────────────────────────────────────────────────────────────────
