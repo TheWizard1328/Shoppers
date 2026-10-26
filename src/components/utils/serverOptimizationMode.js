@@ -177,6 +177,27 @@ const edmontonTodayStr = () => {
   }
 };
 
+// Per-stop deviation vias (client routePolylineGenerator parity): valid GPS
+// points recorded while the driver strayed off the planned leg, newest last,
+// capped at 3. STALE GUARD (client dropStaleVias): points recorded BEFORE
+// the current leg's origin completed belong to older legs — routing through
+// them bends the leg backward.
+const DEVIATION_WAYPOINT_CAP = 3;
+const _stopDeviationVias = (delivery, latestFinished) => {
+  const raw = Array.isArray(delivery?.deviation_waypoints) ? delivery.deviation_waypoints : [];
+  const originMs = latestFinished?.actual_delivery_time ? new Date(latestFinished.actual_delivery_time).getTime() : null;
+  return raw
+    .filter((pt) => pt && Number.isFinite(Number(pt.lat)) && Number.isFinite(Number(pt.lng)))
+    .filter((pt) => {
+      if (!Number.isFinite(originMs)) return true;
+      const t = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
+      return !Number.isFinite(t) || t >= originMs;
+    })
+    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+    .slice(-DEVIATION_WAYPOINT_CAP)
+    .map((pt) => ({ lat: Number(pt.lat), lng: Number(pt.lng) }));
+};
+
 const crowFliesKmLocal = (lat1, lng1, lat2, lng2) => {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -260,19 +281,34 @@ export const buildServerOptimizeRequest = ({
   }
   if (!origin) return { supported: false, reason: 'no_origin' };
 
-  // ── Live-GPS via (quick-reorder only, client viaPointAfterOrigin parity)
+  // ── POLYLINE ORIGIN (client polylineOrigin parity): the leg chain anchors
+  // at the last completed stop -> home -> first active — NOT the sequencing
+  // origin. Passed for every run; entry.ts falls back to `origin` if absent.
+  const latestFinishedForOrigin = getLatestFinishedDelivery(completed);
+  const polylineOrigin = (() => {
+    if (latestFinishedForOrigin) {
+      const c = getDeliveryCoords(latestFinishedForOrigin, patientMap, storeMap);
+      if (c) return c;
+    }
+    if (home) return home;
+    const fa = active.slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))[0];
+    const c = fa ? getDeliveryCoords(fa, patientMap, storeMap) : null;
+    return c || null;
+  })();
+
+  // ── Live-GPS via (client viaPointAfterOrigin parity)
   // Gates mirror clientRouteEngine: driver on duty + an in-flight stop exists
   // + fresh finite GPS + GPS sits >0.1km from the polyline origin (driver has
   // left the anchor). Passed to the server; the polyline chain then runs
   // origin → GPS → new manual order.
   let viaPoint = null;
-  if (quickReorder) {
+  {
     const _onDuty = ['on_duty', 'online'].includes(String(driverAppUser?.driver_status || '').toLowerCase());
     const _gpsLat = Number(driverAppUser?.current_latitude);
     const _gpsLng = Number(driverAppUser?.current_longitude);
     const _hasInFlight = active.some(d => ['en_route', 'in_transit'].includes(String(d.status || '').toLowerCase()));
-    if (_onDuty && _hasInFlight && Number.isFinite(_gpsLat) && Number.isFinite(_gpsLng) && origin
-      && crowFliesKmLocal(origin.lat, origin.lng, _gpsLat, _gpsLng) > 0.1) {
+    if (_onDuty && _hasInFlight && Number.isFinite(_gpsLat) && Number.isFinite(_gpsLng) && polylineOrigin
+      && crowFliesKmLocal(polylineOrigin.lat, polylineOrigin.lng, _gpsLat, _gpsLng) > 0.1) {
       viaPoint = { lat: _gpsLat, lng: _gpsLng };
     }
   }
@@ -312,7 +348,13 @@ export const buildServerOptimizeRequest = ({
     // the sequencing origin, never resequenced. Skipping it from the pool
     // and reserving its stop_order in startOrder keeps the final numbering
     // identical to the client engine's output.
-    if (!quickReorder && explicitNext && d?.id === explicitNext.id) continue;
+    // OWNER FIX (Oct 26 2026): the locked next stop now SHIPS to the server
+    // (it needs its inbound leg regenerated like every other stop — owner
+    // report: current leg was only GPS->next, missing prev-stop->GPS, and no
+    // deviation markers). entry.ts pins it first for sequencing. CYCLING
+    // routes keep the old exclusion (entry's mixed-mode branch has no pin
+    // step — the locked stop would get resequenced by the bicycle/car legs).
+    if (explicitNext && d?.id === explicitNext.id && d?.is_cycling_marker !== true && active.some((x) => x?.is_cycling_marker)) continue;
     const coords = getDeliveryCoords(d, patientMap, storeMap);
     if (!coords) continue; // unmappable stops stay untouched server-side
     const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
@@ -341,6 +383,7 @@ export const buildServerOptimizeRequest = ({
       currentStopOrder: Number(d.stop_order) || null,
       estimatedDurationMinutes: Number(d.estimated_duration_minutes) || null,
       patientId: d.patient_id || null,
+      deviationWaypoints: _stopDeviationVias(d, latestFinishedForOrigin),
     });
   }
   if (stops.length === 0) return { supported: false, reason: 'no_mappable_stops' };
@@ -363,16 +406,17 @@ export const buildServerOptimizeRequest = ({
       deliveryDate,
       currentMinutes,
       origin: { lat: origin.lat, lng: origin.lng },
+      ...(polylineOrigin ? { polylineOrigin: { lat: polylineOrigin.lat, lng: polylineOrigin.lng } } : {}),
       home,
       startOrder,
       stops,
       options: {
+        ...(viaPoint ? { viaPoint } : {}),
         preserveExistingOrder,
         forceRegenerate,
         explicitNextDeliveryId: explicitNext?.id || null,
         clearNextDeliveryLock,
         routeInProgress,
-        ...(quickReorder ? { viaPoint: viaPoint } : {}),
       },
     },
   };

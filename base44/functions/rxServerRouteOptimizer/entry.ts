@@ -464,7 +464,16 @@ Deno.serve(async (req) => {
     }
     const mixedMode = !!_endMarker;
 
-    const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false, forceRegenerate = false, viaPoint = null } = options;
+    const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false, forceRegenerate = false, viaPoint = null, polylineOrigin = null } = options;
+    // CLIENT PARITY (owner reports Oct 26 2026): the SEQUENCING anchor
+    // (origin — locked next stop, Oct 21 calibration) and the POLYLINE
+    // anchor are DIFFERENT points on the client: polylineOrigin =
+    // last completed stop -> home -> first active (clientRouteEngine
+    // polylineOrigin), with the driver's live GPS inserted as a via and
+    // per-stop deviation_waypoints as vias on each stop's inbound chain.
+    // The current leg renders origin -> GPS -> next stop (client
+    // renderStart=0) with ETA/distance metrics from the GPS->stop section
+    // only (client metricsStart).
     // OWNER SPEC (Oct 26 2026, quick-reorder report): manual reorders /
     // force-regenerate runs repolyline ALL active stops in the caller's
     // order, chained from the last completed stop through the driver's LIVE
@@ -612,11 +621,23 @@ Deno.serve(async (req) => {
       ];
       console.log(`[rxServerRouteOptimizer] mixed mode: ${cyclingPool.length} cycling + ${drivingPool.length} driving + ${_cyclingMarkers.length} marker(s)`);
     } else {
+      // PIN THE LOCKED NEXT STOP (client engine parity: routeOriginStop is
+      // excluded from stopsToSequence and stitched FIRST). The builder now
+      // ships ALL active stops (locked stop included) so the polyline chain
+      // can generate the leg INTO it; sequencing must never reorder it.
+      const _lockedStop = explicitNextDeliveryId && !clearNextDeliveryLock
+        ? routeStops.find((st) => String(st.id) === String(explicitNextDeliveryId)) || null
+        : null;
+      const _seqPool = _lockedStop ? routeStops.filter((st) => st.id !== _lockedStop.id) : routeStops;
       try {
-        const seqResult = await callHereSequence({
-          origin, stops: routeStops, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows,
-        });
-        orderedStops = resolveSequence(seqResult, routeStops);
+        if (_seqPool.length === 0) {
+          orderedStops = _lockedStop ? [_lockedStop] : [];
+        } else {
+          const seqResult = await callHereSequence({
+            origin, stops: _seqPool, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+          });
+          orderedStops = _lockedStop ? [_lockedStop, ...resolveSequence(seqResult, _seqPool)] : resolveSequence(seqResult, _seqPool);
+        }
         hereCalls++;
       } catch (seqErr) {
         // Degraded: nearest-neighbor crow-flies ordering (client would retry on
@@ -624,7 +645,9 @@ Deno.serve(async (req) => {
         // produce a deterministic order + polylines so the route stays usable).
         usedFallbackOrdering = true;
         console.warn(`[rxServerRouteOptimizer] findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
-        orderedStops = nearestNeighborOrder(routeStops, origin);
+        const _nnPool = _lockedStop ? routeStops.filter((st) => st.id !== _lockedStop.id) : routeStops;
+        const _nnOrdered = nearestNeighborOrder(_nnPool, origin);
+        orderedStops = _lockedStop ? [_lockedStop, ..._nnOrdered] : _nnOrdered;
       }
 
       // ── 2. Window-band chronology (Sep 10 2026 semantics, 2-hour bands) ────
@@ -632,11 +655,14 @@ Deno.serve(async (req) => {
       // routeIsToday guard added for client parity (historical routes keep
       // their window bands instead of clamping to the real clock).
       if (sharedHasTimeWindows(routeStops, (st) => st.windowStart) && orderedStops.length > 1) {
-        orderedStops = sharedWindowBandSort(orderedStops, {
+        const _bandLocked = _lockedStop && orderedStops[0]?.id === _lockedStop.id ? orderedStops[0] : null;
+        const _bandPool = _bandLocked ? orderedStops.slice(1) : orderedStops;
+        const _bandSorted = sharedWindowBandSort(_bandPool, {
           routeIsToday: _routeIsToday,
           currentMinutes,
           windowOf: (st) => st.windowStart,
         });
+        orderedStops = _bandLocked ? [_bandLocked, ..._bandSorted] : _bandSorted;
       }
 
       // ── 2b. SHARED RULE: pending deliveries follow their pickup (Oct 21) ──
@@ -678,26 +704,50 @@ Deno.serve(async (req) => {
     const sectionByStopId = new Map();
     let usedFallbackPolyline = false;
     {
+      // POLYLINE CHAIN (client-parity rewrite, Oct 26 2026): anchor the FIRST
+      // mode run at polylineOrigin (last completed stop -> home -> first
+      // active — NOT the sequencing origin), insert per-stop deviation vias
+      // and the driver's live GPS on the current leg, then split each stop's
+      // inbound sections into RENDER (whole chain merged, client renderStart)
+      // and METRICS (GPS->stop only on the live-GPS leg — client metricsStart;
+      // whole chain otherwise).
+      const _polyOrigin = (polylineOrigin && Number.isFinite(Number(polylineOrigin.lat)) && Number.isFinite(Number(polylineOrigin.lng)))
+        ? { lat: Number(polylineOrigin.lat), lon: Number(polylineOrigin.lng) }
+        : { lat: origin.lat, lon: origin.lng };
+      const _liveVia = viaPoint && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng))
+        ? { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) } : null;
+      const _decodeChain = (encList) => {
+        let all = [];
+        for (const e of encList) {
+          const c = decodeGooglePolyline(e);
+          if (!c.length) continue;
+          all = all.length ? [...all, ...c.slice(1)] : c;
+        }
+        return all;
+      };
       let gi = 0;
       while (gi < eligibleStops.length) {
         const mode = legModeFor(eligibleStops[gi]);
         let gj = gi;
         while (gj < eligibleStops.length && legModeFor(eligibleStops[gj]) === mode) gj++;
-        // Anchor each mode run at the previous point in the chain (origin for
-        // the first run, the previous ELIGIBLE stop for later runs) so
-        // sections[k] is always the leg INTO eligibleStops[gi+k].
-        // LIVE-GPS VIA (quick-reorder chain, Oct 26 2026): insert the
-        // driver's position between the origin and the first eligible stop —
-        // the first leg then renders origin→GPS→stop like the client.
-        const _viaOk = gi === 0 && viaPoint
-          && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng));
-        const pts = [
-          gi === 0
-            ? { lat: origin.lat, lon: origin.lng }
-            : { lat: eligibleStops[gi - 1].lat, lon: eligibleStops[gi - 1].lng },
-          ...(_viaOk ? [{ lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) }] : []),
-          ...eligibleStops.slice(gi, gj).map((st) => ({ lat: st.lat, lon: st.lng })),
-        ];
+        const anchor = gi === 0
+          ? _polyOrigin
+          : { lat: eligibleStops[gi - 1].lat, lon: eligibleStops[gi - 1].lng };
+        const pts = [{ lat: anchor.lat, lon: anchor.lon }];
+        const stopIdxs = [];
+        const viaCounts = [];
+        let liveOnFirst = false;
+        eligibleStops.slice(gi, gj).forEach((st, li) => {
+          const dev = Array.isArray(st.deviationWaypoints) ? st.deviationWaypoints : [];
+          dev.forEach((v) => pts.push({ lat: Number(v.lat), lon: Number(v.lng) }));
+          viaCounts.push(dev.length);
+          if (li === 0 && gi === 0 && _liveVia) {
+            pts.push({ lat: _liveVia.lat, lon: _liveVia.lon });
+            liveOnFirst = true;
+          }
+          stopIdxs.push(pts.length);
+          pts.push({ lat: st.lat, lon: st.lng });
+        });
         if (pts.length >= 2) {
           // CLIENT PARITY: Google Directions first (same source the client
           // generator uses); HERE Router only when no Google key resolves.
@@ -716,32 +766,28 @@ Deno.serve(async (req) => {
             hereCalls++;
           }
           usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
-          if (_viaOk) {
-            // sections[0] = origin→GPS pre-leg; sections[k+1] = leg into stop k.
-            // Render: merge pre-leg + leg (client renderStart=0). Metrics: the
-            // FINAL section only — the ETA/distance cover what's still ahead.
-            const _secs = r.sections || [];
-            const _pre = _secs[0] || null;
-            _secs.slice(1).forEach((sec, k) => {
-              const _tgt = eligibleStops[gi + k];
-              if (!_tgt) return;
-              if (k === 0 && _pre?.encoded_polyline && sec?.encoded_polyline) {
-                try {
-                  const _merged = encodeGooglePolyline([
-                    ...decodeGooglePolyline(_pre.encoded_polyline),
-                    ...decodeGooglePolyline(sec.encoded_polyline).slice(1),
-                  ]);
-                  sectionByStopId.set(_tgt.id, { ...sec, encoded_polyline: _merged });
-                } catch (_mErr) {
-                  sectionByStopId.set(_tgt.id, sec);
-                }
-              } else {
-                sectionByStopId.set(_tgt.id, sec);
-              }
+          const secs = (r.sections || []);
+          eligibleStops.slice(gi, gj).forEach((st, li) => {
+            const stopIdx = stopIdxs[li];
+            const viaCount = viaCounts[li] || 0;
+            const liveOnLeg = liveOnFirst && li === 0;
+            // renderStart=0 with the live GPS on the leg (include the driven
+            // origin->GPS pre-leg, client renderStart=0); else the chain from
+            // its first via section.
+            const renderStart = liveOnLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount);
+            const metricsStart = liveOnLeg ? Math.max(1, stopIdx - 1) : Math.max(0, stopIdx - 1 - viaCount);
+            const renderSecs = secs.slice(renderStart, stopIdx).filter(Boolean);
+            const metricSecs = secs.slice(metricsStart, stopIdx).filter(Boolean);
+            const merged = _decodeChain(renderSecs.map((x) => x.encoded_polyline).filter(Boolean));
+            const metricDuration = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_duration_minutes) || 0), 0);
+            const metricDistance = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_distance_km) || 0), 0);
+            sectionByStopId.set(st.id, {
+              encoded_polyline: merged.length > 1 ? encodeGooglePolyline(merged) : (renderSecs[renderSecs.length - 1]?.encoded_polyline || null),
+              estimated_duration_minutes: metricDuration > 0 ? Math.ceil(metricDuration) : null,
+              estimated_distance_km: metricDistance > 0 ? Number(metricDistance.toFixed(3)) : null,
+              transport_mode: mode,
             });
-          } else {
-            (r.sections || []).forEach((sec, k) => { sectionByStopId.set(eligibleStops[gi + k].id, sec); });
-          }
+          });
         }
         gi = gj;
       }
