@@ -24,6 +24,19 @@ import { connectionMonitor } from './connectionMonitor';
 import { markNativeHidden } from './uiGate';
 import * as driverIdleAlerts from './driverIdleAlerts';
 
+// ── STALE FIX GATE (owner report Oct 25 2026 — Sharuk's app restarts) ────────
+// After an app restart, Android's location stack can hand watchPosition its
+// CACHED lastKnownLocation: a fix captured at an EARLIER point in the day by
+// any provider. The tracker used to stamp it with Date.now() and append it to
+// the master breadcrumb trail — producing the "master jumps from the restart
+// point back along an earlier path, then forward to the driver's real
+// location" artifact right at each restart. Fixes older than this threshold
+// (by their OWN hardware timestamp, not the JS clock) are real GPS data but
+// NOT the driver's current position: no breadcrumb, no DB upload, no
+// lastPosition, no marker move. Fail-open for timestamps that aren't
+// plausible epoch-ms (provider didn't send one).
+const STALE_FIX_MAX_AGE_MS = 30 * 1000;
+
 class LocationTracker {
     constructor() {
         this.watchId = null;
@@ -251,6 +264,19 @@ class LocationTracker {
    * fix yet (e.g. dispatcher/admin with no active tracking).
    * @returns {{latitude:number, longitude:number, accuracy:number}|null}
    */
+  /**
+   * STALE FIX GATE (see STALE_FIX_MAX_AGE_MS above).
+   * @returns true when the fix's own timestamp is older than the threshold —
+   *          an OS-cached location from an earlier moment, not the driver's
+   *          current position. False when the timestamp is missing/not
+   *          plausible epoch-ms (trusted, fail-open).
+   */
+  _isStaleFix(position) {
+    const ts = Number(position?.timestamp);
+    if (!Number.isFinite(ts) || ts < 1e12) return false; // epoch-ms plausibility (now ~1.77e12)
+    return Date.now() - ts > STALE_FIX_MAX_AGE_MS;
+  }
+
   getCachedPosition() {
     if (this.lastPosition && Number.isFinite(this.lastPosition.latitude) && Number.isFinite(this.lastPosition.longitude)) {
       return { ...this.lastPosition };
@@ -1017,6 +1043,20 @@ class LocationTracker {
     const { latitude, longitude, accuracy } = position.coords;
     const timestamp = position.timestamp || Date.now();
 
+    // ── STALE FIX GATE ─────────────────────────────────────────────────────
+    // A fix older than STALE_FIX_MAX_AGE_MS is an OS-cached location from an
+    // earlier point in the day (restart artifact) — dropping it here keeps it
+    // out of the breadcrumb master trail, the AppUser location DB record and
+    // the local blue dot. GPS health stays 'searching' until a real fix.
+    if (this._isStaleFix(position)) {
+      const ageS = Math.round((Date.now() - Number(position.timestamp)) / 1000);
+      if (!this._staleFixWarnAt || Date.now() - this._staleFixWarnAt > 60000) {
+        this._staleFixWarnAt = Date.now();
+        console.warn(`🍞 [LocationTracker] Stale GPS fix dropped (${ageS}s old) — OS-cached location from an earlier point, not the driver's current position`);
+      }
+      return;
+    }
+
     // CRITICAL: Always update lastPosition so the heartbeat interval has a fresh fix.
     this.lastPosition = { latitude, longitude, accuracy };
     this._emitGpsHealth(Number.isFinite(Number(accuracy)) && Number(accuracy) > 100 ? 'weak' : 'good', {
@@ -1284,14 +1324,22 @@ class LocationTracker {
               this.isTracking = true;
 
 
-              await this.updateLocationInDatabase(
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy,
-                true,
-                false,
-                true
-              );
+              // STALE FIX GATE: the first callback after an app restart is the
+              // prime suspect for an OS-cached lastKnownLocation from an earlier
+              // point in the day — never write it to the location DB. The watch
+              // continues; the first REAL fix writes the true position.
+              if (this._isStaleFix(position)) {
+                console.warn(`🍞 [LocationTracker] First GPS fix after start was stale (${Math.round((Date.now() - Number(position.timestamp)) / 1000)}s old) — location DB write skipped`);
+              } else {
+                await this.updateLocationInDatabase(
+                  position.coords.latitude,
+                  position.coords.longitude,
+                  position.coords.accuracy,
+                  true,
+                  false,
+                  true
+                );
+              }
 
               resolve();
               return;
