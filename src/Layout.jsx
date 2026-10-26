@@ -1318,8 +1318,14 @@ export default function Layout({ children, currentPageName }) {
       // driver) — no full-IDB read. The legacy local computation below is only a
       // boot-time fallback until the first stats fetch lands.
       if (yearRoutesByDriver) {
+        // OWNER SPEC (Oct 26 2026, v2): drivers count their own days-with-stops;
+        // DISPATCHERS always show the all-driver date total for their stores
+        // (regardless of driver selection); admins follow the selected driver.
         if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
           return yearRoutesByDriver[currentUser.id] || 0;
+        }
+        if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+          return yearTotalRoutes;
         }
         if (badgeSelectedDriverId && badgeSelectedDriverId !== 'all') {
           return yearRoutesByDriver[badgeSelectedDriverId] || 0;
