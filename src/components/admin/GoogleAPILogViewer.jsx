@@ -900,16 +900,18 @@ export default function GoogleAPILogViewer() {
                         {CAT_SERIES.map(({ cat, label }) => hdrCell(label, CAT_COLORS[cat], `h-${cat}`))}
                         {hdrCell('Total','#475569','h-total')}
                         {/* rows */}
-                        {names.map((name) => {
+                        {names.flatMap((name) => {
                           const color = userColors[legendDriverNames.indexOf(name) % userColors.length];
                           const total = dataPoint[name] || 0;
-                          return (
-                            <React.Fragment key={name}>
-                              <span style={{ color, fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap' }}>{shortUserName(name)}</span>
-                              {CAT_SERIES.map(({ cat }) => valCell(dataPoint[`${name}__${cat}`] || 0, CAT_COLORS[cat], `${name}-${cat}`))}
-                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', textAlign: 'center', display: 'block' }}>{total}</span>
-                            </React.Fragment>
-                          );
+                          // Flat cells, no React.Fragment wrapper: the builder-bridge dev
+                          // tooling injects `data-source-location` onto elements, and
+                          // Fragment rejects any prop besides key/children (owner report
+                          // Oct 25 20:40). Flat spans keep the CSS grid row intact.
+                          return [
+                            <span key={`${name}-user`} style={{ color, fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap' }}>{shortUserName(name)}</span>,
+                            ...CAT_SERIES.map(({ cat }) => valCell(dataPoint[`${name}__${cat}`] || 0, CAT_COLORS[cat], `${name}-${cat}`)),
+                            <span key={`${name}-total`} style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', textAlign: 'center', display: 'block' }}>{total}</span>
+                          ];
                         })}
                       </div>
                     );
