@@ -126,12 +126,11 @@ export const runBootstrapBackgroundSync = async (callbacks = {}) => {
 
     // Prune offline breadcrumbs on each bootstrap sync pass.
     // Pure-local hygiene — bounded once-per-4h by the staleness gate above.
-    // OWNER DIRECTIVE (Oct 26 2026): mobile phones keep only ONE WEEK of
-    // breadcrumb history (small-storage driver phones); PC-class devices —
-    // where the historical/breadcrumb analysis actually happens — keep the
-    // full 14-day window.
+    // OWNER SPEC (Oct 26 2026, v2): mobile phones keep ONE WEEK of breadcrumbs;
+    // PC-class devices (where historical analysis happens) keep 30 days;
+    // MASTER day-trails (the heavy records) are pruned after 7 days on EVERY device.
     try {
-      await offlineDB.pruneOldBreadcrumbs(isMobileDevice() ? 7 : 14);
+      await offlineDB.pruneOldBreadcrumbs(isMobileDevice() ? 7 : 30, 7);
     } catch (_) { /* non-fatal */ }
 
     markSynced();

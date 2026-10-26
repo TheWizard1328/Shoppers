@@ -1825,13 +1825,19 @@ const pruneOldDeliveries = async () => {
 };
 
 /**
- * Prune offline DeliveryBreadcrumbs older than the retention window (default 14 days).
+ * Prune offline DeliveryBreadcrumbs by retention window.
+ * OWNER SPEC (Oct 26 2026, v2):
+ *   • MASTER trails (stop_order -1, the 10-50KB full-day records) — pruned
+ *     after `masterRetentionDays` (default 7) on EVERY device: they exist to
+ *     re-slice/re-render the recent week, never for long-term history.
+ *   • Per-stop slices — pruned after `retentionDays` (call site: 7 on mobile
+ *     phones, 30 on PC-class devices).
  * Mirrors pruneOldDeliveries: enumerate → collect expired ids → per-record delete.
  * The offline DB only holds THIS device's own breadcrumbs, so this is pure local
  * hygiene — it keeps the master 'TODAY' record's ancestors from accumulating
  * across route dates. Today's records (delivery_date >= cutoff) are always kept.
  */
-const pruneOldBreadcrumbs = async (retentionDays = 14) => {
+const pruneOldBreadcrumbs = async (retentionDays = 14, masterRetentionDays = 7) => {
   try {
     const allBreadcrumbs = await getAll(STORES.DELIVERY_BREADCRUMBS);
 
@@ -1847,13 +1853,27 @@ const pruneOldBreadcrumbs = async (retentionDays = 14) => {
       year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(d);
     const get = (t) => parts.find((p) => p.type === t)?.value;
-    const cutoffDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    const cutoffStr = (days) => {
+      const d2 = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const parts2 = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Edmonton',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(d2);
+      const g = (t) => parts2.find((p) => p.type === t)?.value;
+      return `${g('year')}-${g('month')}-${g('day')}`;
+    };
+    const sliceCutoff = cutoffStr(retentionDays);
+    const masterCutoff = cutoffStr(masterRetentionDays);
 
     const expiredIds = [];
     for (const crumb of allBreadcrumbs) {
       if (!crumb?.id) continue;
       if (!crumb.delivery_date) continue; // keep records without a date (safety)
-      if (crumb.delivery_date < cutoffDateStr) expiredIds.push(crumb.id);
+      // MASTER trails (stop_order -1) use the short master cutoff on EVERY device —
+      // the 10-50KB day-trajectory records are the bulk of breadcrumb storage.
+      const isMaster = Number(crumb.stop_order) === -1;
+      const cutoff = isMaster ? masterCutoff : sliceCutoff;
+      if (crumb.delivery_date < cutoff) expiredIds.push(crumb.id);
     }
 
     if (expiredIds.length === 0) {
@@ -1866,7 +1886,7 @@ const pruneOldBreadcrumbs = async (retentionDays = 14) => {
       await Promise.all(batch.map((id) => deleteRecord(STORES.DELIVERY_BREADCRUMBS, id).catch(() => {})));
     }
 
-    console.log(`[OfflineDB] Pruned ${expiredIds.length} breadcrumbs older than ${retentionDays} days (per-record delete)`);
+    console.log(`[OfflineDB] Pruned ${expiredIds.length} breadcrumbs (slices > ${retentionDays}d, masters > ${masterRetentionDays}d)`);
     return { success: true, removed: expiredIds.length };
   } catch (error) {
     return { success: false, error: error.message };
