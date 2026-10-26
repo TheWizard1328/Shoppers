@@ -19,7 +19,7 @@
 //   dry_run       — default true: report only, no writes
 // Response: { success, driver_id, delivery_date, anomalies: [...],
 //            points_before, points_after, removed, repaired }
-import { createClientFromRequest } from "@base44/sdk";
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const JUMP_OUT_M = 500;      // A→B hop that qualifies as a teleport out
 const RETURN_RADIUS_M = 300;  // a "return" point must land this close to A
@@ -94,8 +94,11 @@ function encodePolyline(points) {
   return s;
 }
 
-export default async function main(req, base44) {
-  try {
+Deno.serve(async (req) => {
+try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     const body = await req.json().catch(() => ({}));
     const { driver_name, delivery_date, dry_run = true } = body;
     let { driver_id } = body;
@@ -199,4 +202,4 @@ export default async function main(req, base44) {
   } catch (e) {
     return Response.json({ success: false, error: e?.message || String(e) }, { status: 500 });
   }
-}
+});
