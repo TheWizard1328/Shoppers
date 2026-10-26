@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, CheckCircle, HeartPulse } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, CheckCircle, HeartPulse, AlertTriangle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { initEncryption } from "@/components/utils/idbCrypto";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -45,6 +45,44 @@ const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
 export default function Login() {
   const passwordInputRef = useRef(null);
 
+  // ── CAPS-LOCK-SAFE SCANNER INPUT (owner report Oct 26 2026) ─────────────
+  // The dispatcher login stickers are Code 128 (full ASCII: true mixed case,
+  // e.g. ShopCW2024). Keyboard-wedge scanners type each barcode character as a
+  // KEYSTROKE — and when the PC's Caps Lock is ON, the OS inverts every
+  // letter (barcode 'h' -> 'H', barcode 'S' -> 's'), so scanned logins fail.
+  // The barcode itself is fine: we undo the OS inversion in software by
+  // flipping the case of any letter typed into these fields while Caps Lock
+  // is active. Digits and symbols are unaffected by Caps Lock, and manual
+  // typing with Caps Lock on is already indeterminate case (the password
+  // field shows dots), so this is safe for both input paths. No sticker
+  // reprints needed.
+  const emailCapsPendingRef = useRef(0);
+  const passwordCapsPendingRef = useRef(0);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+
+  const invertLetters = (str) =>
+    str.replace(/[a-zA-Z]/g, (c) => (c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()));
+
+  const makeCapsSafeKeyHandler = (pendingRef, extra) => (e) => {
+    if (e.getModifierState) {
+      const caps = e.getModifierState('CapsLock');
+      setCapsLockOn((prev) => (prev === caps ? prev : caps));
+      // Only single printable characters count as one inserted letter.
+      if (caps && e.key && e.key.length === 1) pendingRef.current += 1;
+    }
+    if (extra) extra(e);
+  };
+
+  const makeCapsSafeChangeHandler = (pendingRef, setValue) => (e) => {
+    let v = e.target.value;
+    if (pendingRef.current > 0 && v.length > 0) {
+      const n = Math.min(pendingRef.current, v.length);
+      v = v.slice(0, v.length - n) + invertLetters(v.slice(v.length - n));
+      pendingRef.current = 0;
+    }
+    setValue(v);
+  };
+
   // Scanner-friendly login (owner request Oct 23): keyboard-wedge barcode
   // scanners send Enter after each scan. When the email field receives Enter
   // while the password is still empty, jump to the password field instead of
@@ -60,7 +98,10 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await base44.auth.loginViaEmailPassword(email, password);
+      // Emails are case-insensitive / all-lowercase by convention — normalize
+      // so a scanner or typist can never fail login on email case.
+      const normalizedEmail = (email || '').trim().toLowerCase();
+      await base44.auth.loginViaEmailPassword(normalizedEmail, password);
       // Initialize IDB encryption with the new auth token
       const token = localStorage.getItem('base44_access_token');
       if (token) {
@@ -167,6 +208,13 @@ export default function Login() {
         </div>
       )}
 
+      {capsLockOn && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span>Caps Lock is ON — scanned barcodes are still read correctly.</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
@@ -179,13 +227,13 @@ export default function Login() {
               autoFocus
               placeholder="you@example.com"
               value={email}
-              onKeyDown={(e) => {
+              onKeyDown={makeCapsSafeKeyHandler(emailCapsPendingRef, (e) => {
                 if (e.key === "Enter" && !password) {
                   e.preventDefault();
                   passwordInputRef.current?.focus();
                 }
-              }}
-              onChange={(e) => setEmail(e.target.value)}
+              })}
+              onChange={makeCapsSafeChangeHandler(emailCapsPendingRef, setEmail)}
               className="pl-10 h-12"
               required
             />
@@ -207,7 +255,8 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={makeCapsSafeKeyHandler(passwordCapsPendingRef)}
+              onChange={makeCapsSafeChangeHandler(passwordCapsPendingRef, setPassword)}
               className="pl-10 h-12"
               required
             />
