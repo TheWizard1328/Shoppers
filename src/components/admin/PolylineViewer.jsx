@@ -162,11 +162,16 @@ const buildHereLightTileUrl = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x
 const buildHereDarkTileUrl  = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${k}`;
 
 // ── Marker icons ────────────────────────────────────────────────────────────
-const createNumberedIcon = (color, label) => L.divIcon({
-  className: '',
-  html: `<div style="width:28px;height:28px;border-radius:9999px;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700">${label}</div>`,
-  iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
-});
+const createNumberedIcon = (color, label) => {
+  const txt = String(label ?? '');
+  const long = txt.length > 2; // e.g. master-trail final point counts (1000+)
+  const w = Math.max(28, txt.length * 8);
+  return L.divIcon({
+    className: '',
+    html: `<div style="min-width:${w}px;height:28px;padding:0 5px;border-radius:9999px;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;color:white;font-size:${long ? 9 : 11}px;font-weight:700;box-sizing:border-box">${txt}</div>`,
+    iconSize: [w, 28], iconAnchor: [w / 2, 14], popupAnchor: [0, -14]
+  });
+};
 const getMarkerIcon = (color, label) => createNumberedIcon(color, label ?? '');
 
 // ── Map auto-fit ────────────────────────────────────────────────────────────
@@ -2162,8 +2167,13 @@ export default function PolylineViewer({ users = [] }) {
                       const last  = displayCoords[displayCoords.length - 1];
                       const destStop   = seg.item.stop_order ?? null;
                       const originStop = destStop != null ? destStop - 1 : null;
-                      const startLabel = originStop != null ? originStop : '▶';
-                      const endLabel   = destStop != null ? destStop : '■';
+                      // Master breadcrumb trail (stop_order = -1): show POINT indices
+                      // instead of stop numbers — start = 0, end = the final point
+                      // count of the displayed path (owner, Oct 25 2026; was -2/-1).
+                      const isMasterTrail = Number(seg.item.stop_order) === -1;
+                      const finalPointCount = displayCoords.length;
+                      const startLabel = isMasterTrail ? '0' : (originStop != null ? originStop : '▶');
+                      const endLabel   = isMasterTrail ? finalPointCount : (destStop != null ? destStop : '■');
 
                       // Combined-mode layering (owner fix, Sep 29 2026): in Combined
                       // breadcrumb + polyline view, EVERY segment renders its own
@@ -2217,7 +2227,9 @@ export default function PolylineViewer({ users = [] }) {
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb Start' : 'Route Start'}</strong><br />
                                 Driver: {getDriverName(seg.item.driver_id)}<br />
-                                <span>Origin Stop: #{originStop}<br />Dest Stop: #{destStop}<br /></span>
+                                {isMasterTrail
+                                  ? <span>Master Trail Point: 0 of {finalPointCount}<br /></span>
+                                  : <span>Origin Stop: #{originStop}<br />Dest Stop: #{destStop}<br /></span>}
                                 {seg.isBreadcrumb && <span>Points: {isActiveCleaning ? cleanedPoints.length : seg.item.point_count}<br /></span>}
                                 {first[0].toFixed(6)}, {first[1].toFixed(6)}<br />
                                 {isActiveCleaning && <em style={{color:'#16a34a'}}>Drag to move origin</em>}
@@ -2243,7 +2255,9 @@ export default function PolylineViewer({ users = [] }) {
                             >
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb End' : 'Route End'}</strong><br />
-                                {seg.isBreadcrumb && <span>Stop: #{destStop}<br /></span>}
+                                {seg.isBreadcrumb && (isMasterTrail
+                                  ? <span>Master Trail Point: {finalPointCount} (final)<br /></span>
+                                  : <span>Stop: #{destStop}<br /></span>)}
                                 {last[0].toFixed(6)}, {last[1].toFixed(6)}<br />
                                 {isActiveCleaning && <em style={{color:'#16a34a'}}>Drag to move destination</em>}
                                 {isActiveCleaning && displayCoords.length > 2 && <span><br /><em style={{color:'#ef4444'}}>Click to remove</em></span>}
