@@ -51,12 +51,7 @@ const CASH_TYPES = ['cash'];
 // Behaves like a direct payment for the catalog: any existing item is deleted and
 // NEVER re-created, but it is not a collection (no confirmed-collected stamping).
 const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card', 'archived'];
-// OWNER DIRECTIVE (Oct 26 2026): assigned PENDING stops count as active — a
-// COD's catalog item + bookkeeping must exist from the moment the delivery is
-// ASSIGNED, not just from in-transit (the sync previously registered CODs only
-// at in_transit/failed/completed). Unassigned pending (no driver_id) behaves
-// like staged: no item.
-const ACTIVE_STATUSES = ['pending', 'in_transit', 'en_route', 'arrived'];
+const ACTIVE_STATUSES = ['in_transit', 'en_route', 'arrived'];
 const REMOVE_STATUSES = ['failed', 'cancelled', 'returned'];
 
 const hasCashPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => CASH_TYPES.includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0);
@@ -84,9 +79,7 @@ const desiredState = (d) => {
     if (hasDirectPayment(d)) return 'remove';
     return 'want'; // no payment info yet — never delete cash-ambiguous items
   }
-  // PENDING with no assigned driver = still in staging — item must not exist.
-  if (status === 'pending' && !d?.driver_id) return cod > 0 ? 'remove' : 'ignore';
-  if (status === 'staged') return cod > 0 ? 'remove' : 'ignore';
+  if (status === 'pending' || status === 'staged') return cod > 0 ? 'remove' : 'ignore';
   return 'ignore';
 };
 

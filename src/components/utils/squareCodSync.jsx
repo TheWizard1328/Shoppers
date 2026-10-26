@@ -13,9 +13,7 @@
 //   completed + cash → item stays until squareReconcile matches the driver's deposit
 //   completed + debit/credit/cheque → item must not exist (collected directly)
 //   failed/cancelled/returned → item must not exist
-//   staged / unassigned pending → item must not exist
-//   ASSIGNED pending (owner directive Oct 26 2026) → item MUST exist — the COD
-//   registers from assignment, not just from in-transit
+//   pending/staged → item must not exist
 //
 // All calls are fire-and-forget: never block UI flows on Square. Idempotent — safe to
 // call repeatedly; safe to lose a call (the scheduled sweep self-heals within minutes).

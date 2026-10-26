@@ -2150,9 +2150,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
 
     items = items.filter((item) => {
       const linkedDelivery = deliveryById.get(item.delivery_id);
-      // Staged / unassigned pending deliveries never have catalog items (owner
-      // directive Oct 26 2026: ASSIGNED pending stops DO — don't hide those).
-      if (linkedDelivery && (linkedDelivery.status === 'staged' || (linkedDelivery.status === 'pending' && !linkedDelivery.driver_id))) return false;
+      if (linkedDelivery?.status === 'pending') return false;
       // Durable collected stamp: purge-on-collection deleted the settled tx
       // rows, so transactions can't prove collection for these — the Delivery
       // flag is the authority. Without this, collected CODs with leftover
@@ -2262,12 +2260,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       const skipDateWindow = !!(opts && opts.skipDateWindow);
       if (!delivery) return false;
       // RULE: Failed deliveries are exempt from the Square COD Deliveries tab list,
-      // Reconcile flow, and Square Catalog update path. Cancelled and staged are
-      // also excluded. ASSIGNED pending stops COUNT (owner directive Oct 26 2026:
-      // a COD registers from assignment, not just from in-transit); unassigned
-      // pending behaves like staged.
-      if (['failed', 'cancelled', 'staged'].includes(delivery.status)) return false;
-      if (delivery.status === 'pending' && !delivery.driver_id) return false;
+      // Reconcile flow, and Square Catalog update path. Cancelled and pending are
+      // also excluded — they never reached active delivery status.
+      if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
       // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       // Only show deliveries for stores that have a Square location config
