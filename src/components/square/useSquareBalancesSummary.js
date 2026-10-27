@@ -90,12 +90,74 @@ async function readIdbRows(storeName, cacheKey, ttlMs) {
 // IDB rows BY ID — the server version always wins. All devices therefore
 // compute from the identical data set, no matter how stale their mirror is.
 const SERVER_OVERLAY_DAYS = 45;
-const serverOverlay = { at: 0, rows: null, inflight: null };
+// DELTA OVERLAY (owner directive Oct 27 2026 — "why is the square compute
+// hitting so many reads"): the overlay used to re-pull the ENTIRE 45-day
+// delivery window (up to 20 pages x 500 rows) on every compute pass, because
+// its cache lives only 60s and the compute runs every 90s while CODs are
+// flowing — that was the bulk of the 140/min read pile-up. After the first
+// full pull, only rows whose updated_date moved since the last successful
+// fetch are pulled (every server write moves updated_date) and merged into
+// the accumulated overlay by id. The stamp uses SERVER-generated updated_date
+// values (clock-skew safe, same pattern as the boot priority sync). Missing /
+// stale stamp, delta failure, or a >20-page delta falls back to one full pull.
+const OVERLAY_STAMP_KEY = 'Delivery:square-overlay-delta';
+const OVERLAY_STAMP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const serverOverlay = { at: 0, rows: null, inflight: null, stamp: null, stampRead: false };
+
+async function readOverlayStamp() {
+  if (serverOverlay.stampRead) return serverOverlay.stamp;
+  serverOverlay.stampRead = true;
+  try {
+    const rec = await offlineDB.getSyncStatus(OVERLAY_STAMP_KEY);
+    serverOverlay.stamp = rec?.lastSync || null;
+  } catch { serverOverlay.stamp = null; }
+  return serverOverlay.stamp;
+}
+async function writeOverlayStamp(stampIso) {
+  if (!stampIso) return;
+  serverOverlay.stamp = stampIso;
+  try { await offlineDB.updateSyncStatus(OVERLAY_STAMP_KEY, { lastSync: stampIso, status: 'synced' }); } catch {}
+}
+const maxUpdatedDate = (rows) => (rows || []).reduce(
+  (m, d) => (String(d?.updated_date || '') > String(m || '') ? d.updated_date : m), null
+);
+
 async function loadServerDeliveryOverlay() {
   if (serverOverlay.rows && Date.now() - serverOverlay.at < IDB_DELIVERIES_TTL) return serverOverlay.rows;
   if (serverOverlay.inflight) return serverOverlay.inflight;
   serverOverlay.inflight = (async () => {
     const since = new Date(Date.now() - SERVER_OVERLAY_DAYS * 86400000).toISOString().slice(0, 10);
+    // ── DELTA PASS: only rows changed since the stamp ────────────────────
+    const stamp = await readOverlayStamp();
+    let stampOk = false;
+    try { stampOk = !!stamp && (Date.now() - new Date(stamp).getTime()) < OVERLAY_STAMP_MAX_AGE_MS; } catch { stampOk = false; }
+    if (stampOk) {
+      try {
+        const delta = [];
+        let hitCap = false;
+        let skip = 0;
+        for (let page = 0; page < 20; page++) {
+          const list = await base44.entities.Delivery.filter(
+            { updated_date: { $gte: stamp } }, '-updated_date', 500, skip
+          );
+          const rows = list || [];
+          delta.push(...rows);
+          if (rows.length < 500) break;
+          if (page === 19) hitCap = true;
+          skip += 500;
+        }
+        if (!hitCap) {
+          const byId = new Map((serverOverlay.rows || []).map((d) => [String(d?.id), d]));
+          for (const d of delta) if (d?.id) byId.set(String(d.id), d);
+          const merged = [...byId.values()];
+          serverOverlay.rows = merged; serverOverlay.at = Date.now();
+          await writeOverlayStamp(maxUpdatedDate(delta) || stamp); // 0 changes → keep stamp
+          return merged;
+        }
+        // cap hit → too much churn since the stamp: fall through to full pull
+      } catch { /* delta failed → full pull */ }
+    }
+    // ── FULL PULL (first run, stale stamp, delta failure) ─────────────────
     const out = [];
     let skip = 0;
     for (let page = 0; page < 20; page++) {
@@ -107,10 +169,13 @@ async function loadServerDeliveryOverlay() {
       skip += 500;
     }
     serverOverlay.rows = out; serverOverlay.at = Date.now();
+    await writeOverlayStamp(maxUpdatedDate(out));
     return out;
   })().finally(() => { serverOverlay.inflight = null; });
   return serverOverlay.inflight;
 }
+// The stamp is KEPT on invalidation: unchanged rows are fresh by definition,
+// IDB covers everything else, and the next fetch delta-fetches cheaply.
 export function invalidateServerOverlay() { serverOverlay.at = 0; serverOverlay.rows = null; }
 
 export async function getAllDeliveriesIdb() {
