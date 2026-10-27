@@ -1453,21 +1453,36 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (!entryByDelivery.has(String(e.delivery_id))) entryByDelivery.set(String(e.delivery_id), e);
         }
         const sumCents = (arr, f) => arr.reduce((s, e) => s + (Number.isFinite(e?.[f]) ? Math.round(Number(e[f])) : 0), 0);
-        for (const [locId, rows] of byLoc) {
-          const groupsBySquare = new Map();
-          const ungrouped = [];
-          for (const r of rows) {
-            const e = r.delivery_id ? entryByDelivery.get(String(r.delivery_id)) : null;
-            if (e) {
-              const sq = txKeyOf(e.square_id);
-              if (!groupsBySquare.has(sq)) groupsBySquare.set(sq, []);
-              groupsBySquare.get(sq).push(r);
-            } else {
-              ungrouped.push(r);
-            }
+        // GLOBAL TX GROUPING (owner report Oct 26 2026, Somia Siffledeen KW +
+        // James Grant BD — ONE swipe on the BD card): the merge used to run
+        // INSIDE each store-location bucket, but rows bucket by their
+        // DELIVERY's store — a swipe covering CODs from two stores puts each
+        // row in a different bucket and the combined card can never form.
+        // Group by transaction ACROSS buckets; a multi-row group's combined
+        // card lands in the bucket of the swipe's OWN ledger location (the
+        // card the money actually went through), falling back to the first
+        // row's bucket.
+        const allRows = [];
+        for (const [locId, rows] of byLoc) for (const r of rows) allRows.push({ ...r, __locId: locId });
+        const groupsBySquare = new Map();
+        const ungrouped = [];
+        for (const r of allRows) {
+          const e = r.delivery_id ? entryByDelivery.get(String(r.delivery_id)) : null;
+          if (e) {
+            const sq = txKeyOf(e.square_id);
+            if (!groupsBySquare.has(sq)) groupsBySquare.set(sq, []);
+            groupsBySquare.get(sq).push(r);
+          } else {
+            ungrouped.push(r);
           }
-          const mergedRows = [...ungrouped];
-          for (const [sq, group] of groupsBySquare) {
+        }
+        for (const locId of byLoc.keys()) byLoc.set(locId, []);
+        for (const r of ungrouped) { const { __locId, ...rest } = r; byLoc.get(__locId)?.push(rest); }
+        for (const [sq, group] of groupsBySquare) {
+          const locId = (() => {
+            const swLoc = String(entryByDelivery.get(String(group.find((r) => r.delivery_id)?.delivery_id))?.location_id || '');
+            return byLoc.has(swLoc) ? swLoc : group[0].__locId;
+          })();
             // Same-driver check (driver scoping rule) — enforced ONLY for
             // driver viewers (scopeId set): their rows are already filtered to
             // their own deliveries, so mixed groups can't form for them anyway.
@@ -1481,8 +1496,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             // 'scopeId is not defined' warns). Component-level driverScopeId
             // is the correct viewer-scoping source.
             const scopeIds = [...new Set(group.map((r) => String(r.driver_id || 'null')))];
-            if (driverScopeId && scopeIds.length > 1) { mergedRows.push(...group); continue; }
-            if (group.length <= 1) { mergedRows.push(...group); continue; }
+            if (driverScopeId && scopeIds.length > 1) { for (const r of group) { const { __locId, ...rest } = r; byLoc.get(__locId)?.push(rest); } continue; }
+            if (group.length <= 1) { const { __locId, ...rest } = group[0]; byLoc.get(__locId)?.push(rest); continue; }
             // Per-item ledger entries for THIS group's deliveries only —
             // sibling items collected on another day keep their own share.
             const groupDelIds = new Set(group.map((r) => String(r.delivery_id)));
@@ -1495,7 +1510,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             const settledC = sumCents(groupEntries, 'settled_cents');
             const hasLedgerCents = groupEntries.length > 0 && (feeC > 0 || folderC > 0 || loanC > 0 || settledC > 0);
             const names = [...new Set(group.map((r) => r.patientName).filter(Boolean))];
-            mergedRows.push({
+            const mergedRow = {
               key: `tx-${sq}`,
               delivery_id: null, // combined card — per-delivery actions don't apply
               combinedCount: group.length,
@@ -1524,9 +1539,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       fee: estimateCardFeeCents(grossC, label) / 100,
                       folder: folderCentsFor(grossC, folderRateNow) / 100,
                       loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100 })
-            });
-          }
-          byLoc.set(locId, mergedRows);
+            };
+          byLoc.get(locId)?.push(mergedRow);
         }
       } catch (e) {
         console.warn('[SquareBalances] combined-transaction grouping skipped:', e?.message || e);
