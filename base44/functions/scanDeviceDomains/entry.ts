@@ -81,5 +81,12 @@ Deno.serve(async (req) => {
   const summary = { old_domain: 0, preview: 0, new_domain: 0, no_host_data: 0, other: 0 };
   for (const x of out) { const r = rank(x); if (r === 0) summary.old_domain++; else if (r === 1) summary.preview++; else if (r === 2) summary.new_domain++; else if (r === 3) summary.no_host_data++; else summary.other++; }
 
-  return new Response(JSON.stringify({ scanned_entries: scanned, pages: pages + 1, summary, devices: out }), { headers: { 'Content-Type': 'application/json' } });
+  // Compact one-line rows so the full roster fits in one response
+  const shortHost = (h) => !h ? 'none' : (h === 'wizardworxx.com' || h === 'www.wizardworxx.com') ? 'OLD' : h.includes('preview') ? 'preview' : h === 'rxdeliver.wizardworxx.com' ? 'new' : h;
+  const fmt = (t) => { try { const d = new Date(t); return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; } catch { return '?'; } };
+  const compact = out.map((x) => {
+    const hostsShort = Object.entries(x.hosts || {}).map(([h, c]) => `${shortHost(h)}:${c}`).join(',') || 'none';
+    return { dev: x.device_name || '?', user: x.user || '?', typ: (x.device_type || '?').slice(0,1), st: x.status || '?', host: shortHost(x.latest_host), seen: fmt(x.latest_log_at), active: fmt(x.last_active_at), hist: hostsShort };
+  });
+  return new Response(JSON.stringify({ scanned_entries: scanned, pages: pages + 1, summary, devices: compact }), { headers: { 'Content-Type': 'application/json' } });
 });
