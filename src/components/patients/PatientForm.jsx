@@ -368,6 +368,40 @@ export default function PatientForm({
     };
   }, [setIsFormOverlayOpen]);
 
+  // ── DB-FIRST ADDRESS SEARCH (owner spec Oct 27 2026) ───────────────────────
+  // Ladder: patients of the SELECTED store → all patients → Google (the
+  // autocomplete component falls through to Google when this returns []).
+  // Matches use the patient's STORED GPS coordinates; the stored distance is
+  // carried so a same-store selection reuses it verbatim (a different store
+  // recalculates via Google Distance Matrix in handleAddressSelect).
+  const _addrOf = (pt) => String(pt?.street_address || pt?.address || pt?.full_address || '').trim();
+  const searchLocalPatientAddresses = useCallback(async (searchText) => {
+    const q = String(searchText || '').trim().toLowerCase();
+    if (q.length < 3) return [];
+    const _match = (pt) => {
+      const a = _addrOf(pt).toLowerCase();
+      return a && a.includes(q);
+    };
+    const norm = (pt) => ({
+      __source: 'patient',
+      patient_id: pt.id || null,
+      patient_name: pt.full_name || pt.patient_name || pt.name || null,
+      store_id: pt.store_id || null,
+      same_store: !!(formData.store_id && pt.store_id === formData.store_id),
+      description: _addrOf(pt),
+      street_address: _addrOf(pt),
+      full_address: String(pt.full_address || _addrOf(pt)).trim(),
+      latitude: pt.latitude ?? pt.lat ?? null,
+      longitude: pt.longitude ?? pt.lng ?? null,
+      distance: Number.isFinite(Number(pt.distance_from_store)) ? Number(pt.distance_from_store) : null,
+      unit: pt.unit_number || pt.unit || null
+    });
+    const sameStore = (allPatients || []).filter((pt) => pt && pt.store_id && pt.store_id === formData.store_id && _match(pt));
+    if (sameStore.length > 0) return sameStore.slice(0, 6).map(norm);
+    const allStores = (allPatients || []).filter((pt) => pt && _match(pt));
+    return allStores.slice(0, 6).map(norm);
+  }, [allPatients, formData.store_id]);
+
   const handleAddressSelect = async (addressData) => {
     setIsAddressLookupActive(false);
     const street = addressData.street_number && addressData.route ?
@@ -392,8 +426,17 @@ export default function PatientForm({
       distance_from_store: null
     }));
 
+    // OWNER ADDITION (Oct 27 2026): same-store patient match → the stored
+    // distance is authoritative; skip the Google Distance Matrix recalc.
+    // A different store (or a Google result) recalculates as before.
+    const _localMatch = addressData?.__localPatient || null;
+    if (_localMatch?.sameStore && Number.isFinite(Number(_localMatch.storedDistanceKm))) {
+      setFormData((prev) => ({ ...prev, distance_from_store: Number(_localMatch.storedDistanceKm) }));
+      console.log(`📍 [PatientForm] Same-store patient match — reusing stored distance: ${_localMatch.storedDistanceKm} km (Google Distance Matrix skipped)`);
+    }
+
     // Fetch actual driving distance via Google Distance Matrix (non-blocking)
-    if (roundedLatitude && roundedLongitude && cityCenter?.latitude && cityCenter?.longitude) {
+    if (!_localMatch?.sameStore && roundedLatitude && roundedLongitude && cityCenter?.latitude && cityCenter?.longitude) {
       base44.functions.invoke('getGoogleDrivingDistance', {
         originLat: cityCenter.latitude,
         originLng: cityCenter.longitude,
@@ -1177,7 +1220,8 @@ export default function PatientForm({
                       cityCenter={cityCenter}
                       placeholder="Start typing address..."
                       className="h-10 md:h-9 text-sm"
-                      disabled={isAddressLocked} />
+                      disabled={isAddressLocked}
+                      localSearch={searchLocalPatientAddresses} />
                   </div>
                   <div className="col-span-4">
                     <Input

@@ -19,6 +19,7 @@ import { calculateDistance, calculateDistanceInMeters } from './locationTrackerM
 import { syncUpdatedAppUser } from './locationTrackerBroadcast';
 import { remoteLogger } from './remoteLogger';
 import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches, getLastCommittedCrumb } from './locationBreadcrumbService';
+import { offlineDB } from './offlineDatabase';
 import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
 import { connectionMonitor } from './connectionMonitor';
 import { markNativeHidden } from './uiGate';
@@ -1200,6 +1201,37 @@ class LocationTracker {
     // boot immediate-arrival check (driver may be starting duty already parked
     // at their next stop, or the app was reloaded mid-route).
     this._bootArrivalChecked = false;
+
+    // ── BOOT ARRIVAL FAST PATH (owner report Oct 27 2026) ────────────────────
+    // A restart AT the stop previously armed the Complete/Update-GPS buttons
+    // only after the first LOCAL GPS fix landed (cold fix latency, sometimes
+    // tens of seconds). The driver's LAST UPLOADED position (this same device,
+    // 15s upload cadence while driving) is on the AppUser record — if it is
+    // fresh and inside the stop's geofence, stamp the arrival IMMEDIATELY at
+    // tracking start instead of waiting for the first fix. The first-fix
+    // check below stays as backup; checkImmediateArrival is idempotent.
+    try {
+      const _auRows = await offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []);
+      const _self = (Array.isArray(_auRows) ? _auRows : []).find(
+        (au) => au && (au.user_id === user.id || au.id === user.id)
+      ) || null;
+      const _lastLat = Number(_self?.current_latitude);
+      const _lastLng = Number(_self?.current_longitude);
+      const _gpsAt = _self?.location_updated_at ? Date.parse(String(_self.location_updated_at)) : NaN;
+      const _gpsFresh = Number.isFinite(_gpsAt) && Date.now() - _gpsAt < 15 * 60 * 1000;
+      if (Number.isFinite(_lastLat) && Number.isFinite(_lastLng) && _gpsFresh) {
+        const _todayEdmontonBoot = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+        arrivalTimeDetector
+          .checkImmediateArrival(_lastLat, _lastLng, user.id, _todayEdmontonBoot)
+          .then(() => { this._bootArrivalChecked = true; })
+          .catch((bErr) => console.warn('⚠️ [LocationTracker] Boot last-known-position arrival check failed:', bErr?.message));
+        console.log('[LocationTracker] boot arrival fast path: checking last uploaded GPS position for immediate arrival stamp');
+      } else if (!_gpsFresh) {
+        console.log('[LocationTracker] boot arrival fast path: last uploaded GPS is stale/off — waiting for first live fix');
+      }
+    } catch (bootErr) {
+      console.warn('[LocationTracker] boot arrival fast path failed:', bootErr?.message);
+    }
 
     // Set delivery date for arrival tracking
     if (deliveryDate) {

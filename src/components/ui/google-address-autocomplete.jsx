@@ -57,7 +57,15 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   cityCenter,
   placeholder = "Search address...",
   className = "",
-  disabled = false
+  disabled = false,
+  // OWNER SPEC (Oct 27 2026): DB-FIRST ADDRESS SEARCH. Optional async fn
+  // (searchText) => localItems[]. When provided, the component asks the app's
+  // own patient database FIRST (same-store matches, then all patients);
+  // Google Places only runs when the database returns nothing. Local items
+  // carry __source:'patient' and are selected WITHOUT a googlePlaceDetails
+  // call — their stored GPS coordinates (and, for the same store, the stored
+  // distance) are reused directly.
+  localSearch = null
 }, ref) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -79,8 +87,28 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
 
     try {
       requestCount.current++;
-      console.log(`📍 [GoogleAddressAutocomplete] Request #${requestCount.current} for: "${searchText}"`);
       setIsLoading(true);
+
+      // ── DB-FIRST (owner spec Oct 27 2026) ─────────────────────────────────
+      // Our own patient database answers before Google costs a call. The
+      // caller's localSearch implements the ladder: same-store patients →
+      // all patients → (empty) Google.
+      if (localSearch) {
+        try {
+          const localItems = await localSearch(searchText);
+          if (Array.isArray(localItems) && localItems.length > 0) {
+            console.log(`[GoogleAddressAutocomplete] ${localItems.length} DB match(es) for "${searchText}" — Google search skipped`);
+            setSuggestions(localItems);
+            setSelectedIndex(0);
+            setOpen(true);
+            return;
+          }
+          console.log(`[GoogleAddressAutocomplete] no DB matches for "${searchText}" — falling through to Google`);
+        } catch (localErr) {
+          console.warn('[GoogleAddressAutocomplete] local patient search failed — falling through to Google:', localErr?.message || localErr);
+        }
+      }
+      console.log(`📍 [GoogleAddressAutocomplete] Request #${requestCount.current} for: "${searchText}"`);
       
       // CRITICAL: Log everything
       console.log('');
@@ -153,7 +181,36 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // CRITICAL: Close dropdown immediately
       setOpen(false);
       setSuggestions([]);
-      
+
+      // ── LOCAL PATIENT MATCH (owner spec Oct 27 2026): no Google details
+      // round-trip — the patient's stored GPS coordinates are authoritative;
+      // for the same store the stored distance rides along (the form skips the
+      // Google Distance Matrix recalc); a different store recalculates.
+      if (prediction?.__source === 'patient') {
+        const streetFromLocal = String(prediction.street_address || prediction.description || '').trim();
+        const addressData = {
+          full_address: prediction.full_address || streetFromLocal,
+          street_address: streetFromLocal,
+          latitude: prediction.latitude ?? null,
+          longitude: prediction.longitude ?? null,
+          lat: prediction.latitude ?? null,
+          lng: prediction.longitude ?? null,
+          place_id: null,
+          distance: Number.isFinite(Number(prediction.distance)) ? Number(prediction.distance) : null,
+          unit: prediction.unit || null,
+          __localPatient: {
+            patientId: prediction.patient_id || null,
+            patientName: prediction.patient_name || null,
+            storeId: prediction.store_id || null,
+            sameStore: prediction.same_store === true,
+            storedDistanceKm: Number.isFinite(Number(prediction.distance)) ? Number(prediction.distance) : null
+          }
+        };
+        if (onAddressSelect) await onAddressSelect(addressData);
+        onChange(unabbreviateAddress(streetFromLocal));
+        setTimeout(() => { justSelected.current = false; }, 400);
+        return;
+      }
 
       console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
       
@@ -386,8 +443,15 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
             >
               <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-soft" />
               <div className="flex-1 flex items-center justify-between gap-2">
-                <span>{prediction.description}</span>
-                {prediction.distance !== null && (
+                <span>
+                  {prediction.description}
+                  {prediction.__source === 'patient' && (
+                    <span className="ml-1.5 text-[10px] font-semibold px-1 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 align-middle">
+                      {prediction.same_store ? 'saved · this store' : 'saved'}
+                    </span>
+                  )}
+                </span>
+                {prediction.distance !== null && prediction.distance !== undefined && (
                   <span className="text-xs text-soft">
                     {prediction.distance.toFixed(1)} km
                   </span>
