@@ -579,6 +579,27 @@ export function useStopCardStartActions({
           return { ...d, deviation_waypoints: [] };
         };
 
+        // OWNER DIRECTIVE (Oct 27 2026): DEVIATION TRANSFER ON START.
+        // The stop that USED to be the next delivery carries the driven path
+        // (deviation_waypoints recorded while the driver was heading to it).
+        // Transfer those points to the started stop, clear them from the old
+        // holder, and append the driver's CURRENT location to the started
+        // stop's list — the regenerated current leg then chains
+        // last-finished → driven path → live GPS → started stop (the same
+        // via chain routePolylineGenerator builds for the current leg).
+        const _prevNextStop = routeDeliveries.find((d) => d?.isNextDelivery && d?.id !== delivery.id) || null;
+        const _prevNextVias = Array.isArray(_prevNextStop?.deviation_waypoints)
+          ? _prevNextStop.deviation_waypoints.filter((v) => v && Number.isFinite(Number(v.lat)) && Number.isFinite(Number(v.lng)))
+          : [];
+        const _startGpsUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id || au?.id === delivery.driver_id) || null;
+        const _startGpsLat = Number(_startGpsUser?.current_latitude);
+        const _startGpsLng = Number(_startGpsUser?.current_longitude);
+        const _startHasGps = Number.isFinite(_startGpsLat) && Number.isFinite(_startGpsLng);
+        const _startDeviationVias = [
+          ..._prevNextVias,
+          ...(_startHasGps ? [{ lat: _startGpsLat, lng: _startGpsLng, timestamp: new Date().toISOString() }] : [])
+        ].slice(-6);
+
         // Optimistic UI: only update isNextDelivery + status on the started stop.
         // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
         const startedRouteDeliveries = routeDeliveries.map((d) => {
@@ -586,7 +607,11 @@ export function useStopCardStartActions({
             // Stamp the start time to NOW: a stop carrying a later-today window
             // otherwise keeps that future window as its sequencing/ETA anchor and
             // gets sorted behind other stops even though the driver just started it.
-            return _clearStaleVias({ ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime });
+            // Clear the started stop's OWN stale vias first, then stamp the
+            // merged chain (old next's points + live GPS) — _clearStaleVias
+            // would otherwise wipe the merged vias we just set.
+            const _startedBase = _clearStaleVias({ ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime });
+            return { ..._startedBase, ...(_startDeviationVias.length > 0 ? { deviation_waypoints: _startDeviationVias } : {}) };
           }
           if (d?.isNextDelivery) {
             return _clearStaleVias({ ...d, isNextDelivery: false });
@@ -669,10 +694,12 @@ export function useStopCardStartActions({
           if (item.id === delivery.id && existing.delivery_time_start !== currentLocalTime) {
             updates.delivery_time_start = currentLocalTime;
           }
-          // Oct 22 guard: via clears ride the same single silent commit.
-          if (Array.isArray(existing?.deviation_waypoints) && existing.deviation_waypoints.length > 0
-            && (!item.deviation_waypoints || item.deviation_waypoints.length === 0)) {
-            updates.deviation_waypoints = [];
+          // Oct 22 guard + Oct 27 deviation transfer: any deviation_waypoints
+          // change (old-holder clear, started stop's transferred vias + GPS)
+          // rides the same single silent commit.
+          if (JSON.stringify(Array.isArray(existing?.deviation_waypoints) ? existing.deviation_waypoints : [])
+            !== JSON.stringify(Array.isArray(item.deviation_waypoints) ? item.deviation_waypoints : [])) {
+            updates.deviation_waypoints = Array.isArray(item.deviation_waypoints) ? item.deviation_waypoints : [];
           }
           if (Object.keys(updates).length === 0) continue;
           _startOptimisticUpdates.push({ id: item.id, data: updates });
@@ -821,64 +848,12 @@ export function useStopCardStartActions({
         ).length;
         const _fastPathLegsPresent = _missingLegCount === 0;
 
-        if (_isNaturalNextStart && _fastPathLegsPresent) {
-          console.log('[Start fast path] natural next stop — skipping HERE/Google optimization');
-          window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          Promise.resolve().then(async () => {
-            try {
-              // Local ETA cascade — pure arithmetic (mirrors the terminal ETA
-              // cascade in executeTerminalAction step 6). No HERE/Google calls.
-              const remainingStops = routeDeliveries
-                .filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
-                .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
-              if (remainingStops.length > 0) {
-                const _fastNow = new Date();
-                const _fastTime = `${String(_fastNow.getHours()).padStart(2, '0')}:${String(_fastNow.getMinutes()).padStart(2, '0')}`;
-                const [_fh, _fm] = _fastTime.split(':').map(Number);
-                let etaMinutes = _fh * 60 + _fm + 5 + (delivery.estimated_duration_minutes || 5);
-                const etaUpdates = remainingStops.map((stop) => {
-                  const newEtaHours = Math.floor((etaMinutes % 1440) / 60);
-                  const newEtaMins = etaMinutes % 60;
-                  const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
-                  etaMinutes += (stop.estimated_duration_minutes || 5) + 2;
-                  return { deliveryId: stop.id, newEta };
-                });
-                window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
-                // SINGLE SILENT COMMIT (owner rule, Oct 13 2026 — Accept All
-                // pattern): the old path did updateDeliveryLocal + a user-scoped
-                // Delivery.update + broadcastMutation PER STOP — up to three
-                // writes per stop and one WS broadcast per stop, storming every
-                // observer device. Now: one IDB bulkSave, one silent server
-                // commit (zero WS events), then ONE route_commit marker write —
-                // the only broadcast remote devices receive.
-                const { offlineDB: _fastDB } = await import('../utils/offlineDatabase');
-                const _etaRecords = remainingStops.map((stop, i) => ({ ...stop, delivery_time_eta: etaUpdates[i].newEta }));
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, _etaRecords).catch(() => {});
-                for (const u of etaUpdates) {
-                  if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
-                  window.__localDeliveryWrites.set(u.deliveryId, Date.now() + 90 * 1000);
-                }
-                updateDeliveriesLocally?.(_etaRecords, false);
-                const _etaCommitted = await commitDeliveryUpdatesSilently(etaUpdates.map((u) => ({ id: u.deliveryId, data: { delivery_time_eta: u.newEta } })));
-                const _optCommittedFast = await _startOptimisticCommit;
-                await fireRouteCommitMarker(delivery.id, _etaCommitted + _optCommittedFast);
-              }
-            } catch (fastErr) {
-              console.warn('⚠️ [Start fast path] local ETA cascade failed:', fastErr?.message || fastErr);
-            } finally {
-              // Resume ALL managers — they were kept paused from the blocking path
-              // (same contract as the full-optimization background tail).
-              resumeOfflineSync('delivery_actions');
-              try { smartRefreshManager.restart(); } catch (_) {}
-              try { backgroundSyncManager.resume(); } catch (_) {}
-              try { resumeRealtimeSync(); } catch (_) {}
-              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', skippedNaturalNext: true, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-            }
-          });
-        } else {
-          if (_isNaturalNextStart && !_fastPathLegsPresent) {
-            console.log(`[Start fast path] natural next stop, ${_missingLegCount} active leg(s) missing polylines — order-preserving regen (Google only, no HERE sequencing)`);
-          }
+          // OWNER DIRECTIVE (Oct 27 2026): Start ALWAYS regenerates every
+          // active leg — no more fast-path skip. Natural-next keeps
+          // preserveExistingOrder (no HERE re-sequencing) but the engine gets
+          // forceRegenerate so all legs are rebuilt from the most recently
+          // finished stop (incl. the live-GPS via + deviation chain).
+          console.log(`[Start] full polyline regeneration (owner Oct 27) — natural next: ${_isNaturalNextStart}, legs previously missing: ${_missingLegCount}`);
         // ── Background: optimization + polyline regen via unified coordinator ──
         // KITT bar activates IMMEDIATELY on Start button click
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -962,6 +937,11 @@ export function useStopCardStartActions({
               // (ONE Google Directions call) + ETA ladder. Out-of-order starts
               // still get full HERE re-sequencing (the anchor moved).
               preserveExistingOrder: _isNaturalNextStart,
+              // OWNER DIRECTIVE (Oct 27 2026): Start ALWAYS regenerates every
+              // active leg — origin = most recently finished stop, live-GPS
+              // via + the transferred deviation chain. The order-unchanged
+              // skip must never keep stale pre-Start legs.
+              forceRegenerate: true,
               // Caller commits the writeBatch via ONE silent bulkUpdateDeliveries
               // (zero WS events) and fires ONE route_commit marker broadcast —
               // the Accept All pattern (owner rule, Oct 13 2026). The
@@ -1060,7 +1040,6 @@ export function useStopCardStartActions({
             resumeRealtimeSync();
           }
         });
-        }
 
       } catch (error) {
         toast.error(`Failed to start: ${error.message}`);
