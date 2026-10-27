@@ -39,6 +39,18 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
     }));
   };
 
+  // DIALOG-SEQUENCING (owner Oct 26 2026): the chooser must announce itself so
+  // DomainMigrationNotice holds off while it's up — the two modals opened
+  // together on first login and the Radix modal's body pointer-events lock
+  // killed the migration notice's Acknowledge button while the device list
+  // behind it still worked.
+  const notifyDialogOpened = () => {
+    try { window.dispatchEvent(new CustomEvent('deviceDialogOpened')); } catch (_) {}
+  };
+  const notifyRegistrationDone = () => {
+    try { window.dispatchEvent(new CustomEvent('deviceRegistrationCompleted', { detail: { skipped: true } })); } catch (_) {}
+  };
+
   useEffect(() => {
     if (!currentUser) return;
     let cancelled = false;
@@ -50,7 +62,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
     // chooser dialog visible after 10s so the user is never trapped behind an
     // invisible modal (which previously let the 60s boot-reload loop).
     const safetyNet = setTimeout(() => {
-      if (!cancelled) { setShowDialog(true); setIsLoading(false); }
+      if (!cancelled) { setShowDialog(true); setIsLoading(false); notifyDialogOpened(); }
     }, 10000);
 
     const finish = (devices) => {
@@ -74,6 +86,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
       }
       setShowDialog(true);
       setIsLoading(false);
+      notifyDialogOpened();
     };
 
     const checkDevice = async () => {
@@ -112,6 +125,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
             clearTimeout(safetyNet);
             setIsLoading(false);
             if (onDeviceRegistered) onDeviceRegistered(matches[0]);
+            notifyRegistrationDone();
             return; // Already linked – no dialog needed
           }
           if (fetchFailed && registeredFlag) {
@@ -119,6 +133,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
             clearTimeout(safetyNet);
             setIsLoading(false);
             if (onDeviceRegistered) onDeviceRegistered({ user_id: currentUser.id, device_identifier: storedDeviceId, status: 'active' });
+            notifyRegistrationDone();
             return; // transient network failure — do NOT prompt the chooser
           }
         }

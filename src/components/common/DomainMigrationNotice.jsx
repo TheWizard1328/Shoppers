@@ -47,6 +47,23 @@ export default function DomainMigrationNotice() {
   const [showOldNotice, setShowOldNotice] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [installDone, setInstallDone] = useState(false);
+  // DIALOG-SEQUENCING (owner Oct 26 2026): on first login this notice and the
+  // device-registration chooser both open — the Radix modal's body
+  // pointer-events lock froze this notice's buttons while the device list
+  // behind it stayed clickable. While the chooser is up we now render nothing;
+  // it reappears once registration completes (or instantly, when the user is
+  // already linked and no chooser ever opens).
+  const [deviceDialogUp, setDeviceDialogUp] = useState(false);
+  useEffect(() => {
+    const onOpened = () => setDeviceDialogUp(true);
+    const onDone = () => setDeviceDialogUp(false);
+    window.addEventListener('deviceDialogOpened', onOpened);
+    window.addEventListener('deviceRegistrationCompleted', onDone);
+    return () => {
+      window.removeEventListener('deviceDialogOpened', onOpened);
+      window.removeEventListener('deviceRegistrationCompleted', onDone);
+    };
+  }, []);
 
   const platform = useMemo(() => {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -72,6 +89,7 @@ export default function DomainMigrationNotice() {
   }, [hostname]);
 
   useEffect(() => {
+    if (deviceDialogUp) return; // hold: device chooser owns the screen right now
     if (mode === 'old') {
       // every NEW session shows the notice once more (sessionStorage, not
       // localStorage — the notice must persist until the migration completes)
@@ -91,7 +109,7 @@ export default function DomainMigrationNotice() {
         } catch (_) {}
       }
     }
-  }, [mode]);
+  }, [mode, deviceDialogUp]);
 
   const dismissOldNotice = () => {
     setShowOldNotice(false);
@@ -110,6 +128,7 @@ export default function DomainMigrationNotice() {
   const dismissInstallPrompt = () => setShowInstallPrompt(false);
 
   if (typeof document === 'undefined') return null;
+  if (deviceDialogUp) return null; // device chooser first — notice follows
 
   // ── 1) OLD-DOMAIN notice ────────────────────────────────────────────────────
   const oldNotice = (
