@@ -838,7 +838,10 @@ Deno.serve(async (req) => {
             // the stale previous-route leg can't survive the re-optimization.
             const _anchorPt = pts[stopIdx - 1] || null;
             const _stopPt = { lat: Number(st.lat), lon: Number(st.lng) };
-            if (_anchorPt) {
+            // OWNER FIX (Oct 27 2026): never collapse the CURRENT LEG (live-GPS
+            // leg) to a 2-point stub when the driver has arrived — the full
+            // lastFinished/home -> driven path -> GPS -> stop chain must stay.
+            if (_anchorPt && !liveOnLeg) {
               const _km = codecCrowFliesKm(_anchorPt.lat, _anchorPt.lon, _stopPt.lat, _stopPt.lon);
               if (Number.isFinite(_km) && _km < 0.05) {
                 encoded = encodeGooglePolyline([[Number(_anchorPt.lat), Number(_anchorPt.lon)], [_stopPt.lat, _stopPt.lon]]);

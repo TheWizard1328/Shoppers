@@ -655,7 +655,13 @@ export async function generateRoutePolylines({
       // degenerate leg when this stop sits at (nearly) the same point as its
       // inbound anchor — HERE's zero/missing section would otherwise leave the
       // STALE previous-route polyline attached to this stop.
-      const _sameLeg = sameAnchorLeg(points[stopIdx - 1], points[stopIdx]);
+      // OWNER FIX (Oct 27 2026): NEVER on the CURRENT LEG. When the driver has
+      // ARRIVED (live GPS within 50m of the stop), the inbound anchor IS the
+      // GPS via — the synthesis replaced the whole home→driven-path→GPS→stop
+      // chain with a 2-point GPS→stop stub, which every reoptimization then
+      // "deleted" the current leg visually (owner report: reopts kept wiping
+      // the home→stop#1 line). The current leg keeps its full rendered chain.
+      const _sameLeg = liveViaOnThisLeg ? null : sameAnchorLeg(points[stopIdx - 1], points[stopIdx]);
       if (_sameLeg) {
         encoded = _sameLeg.encoded;
         metricDuration = _sameLeg.durationMinutes;
