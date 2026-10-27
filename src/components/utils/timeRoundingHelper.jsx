@@ -267,7 +267,11 @@ export const calculateRetroactiveStopTiming = async ({
   // baseTime = when driver arrives at the stop (end of travel)
   // actual_delivery_time = arrival + random 1-5 min (time spent at the door)
   const randomDwellMinutes = Math.floor(Math.random() * 5) + 1;
-  const actualDeliveryTime = new Date(baseTime.getTime() + randomDwellMinutes * 60000);
+  // BUG FIX (owner report Oct 26 2026, 23:18 log: '[Retro] calculator threw —
+  // pure fallback applied: Assignment to constant variable'): this was a
+  // `const` while the Oct 14 post-dwell rounding block below reassigns it —
+  // EVERY first/last retro completion threw here and fell to the fallback.
+  let actualDeliveryTime = new Date(baseTime.getTime() + randomDwellMinutes * 60000);
 
   // OWNER DIRECTIVE (Oct 14 2026): same finishing rounding as regular time.
   // generateCompletionTimestamp applies the 5-min first/last rounding to the

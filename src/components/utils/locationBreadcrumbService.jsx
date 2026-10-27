@@ -480,7 +480,17 @@ export const seedHomeAnchorOnDuty = async ({
 
 
 /** Flush every dirty local master trail after connectivity returns. */
+// RATE-LIMIT CYCLE COOLDOWN (owner report Oct 26 2026, 23:15 balloon:
+// DeliveryBreadcrumbs GET 429s while retro-completing a route): the flush
+// ran up to 30 records x 3 retry attempts straight into a hot pool. On the
+// FIRST 429 the whole cycle now aborts and a 60s cooldown blocks new cycles
+// (the pool needs time to drain; the records keep their flags and retry
+// after the cooldown).
+let _flushRateLimitCooldownUntil = 0;
+const _isRateLimitErr = (err) => /rate limit/i.test(String(err?.message || err?.reason?.message || err || ''));
+
 export const flushPendingBreadcrumbMasters = async () => {
+  if (Date.now() < _flushRateLimitCooldownUntil) return { flushed: 0, rateLimited: true };
   const { offlineDB } = await import('./offlineDatabase');
   const records = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS).catch(() => []);
   // OWNER DIRECTIVE (Oct 15 2026): the flush exists to catch the LIVE master
@@ -575,6 +585,10 @@ export const flushPendingBreadcrumbMasters = async () => {
           });
         } catch (_flushReadErr) {
           await _bumpFlushAttempts(record, true); // capped retries — retried next cycle until the cap
+          if (_isRateLimitErr(_flushReadErr)) {
+            _flushRateLimitCooldownUntil = Date.now() + 60000;
+            break; // pool is hot — stop the whole cycle instead of burning the queue
+          }
           continue;
         }
         if (existing?.[0]?.id) await base44.entities.DeliveryBreadcrumbs.update(existing[0].id, payload);
@@ -587,8 +601,15 @@ export const flushPendingBreadcrumbMasters = async () => {
       flushed++;
       } catch (_flushRecordErr) {
         // Per-record failure: count it (capped at MAX_FLUSH_ATTEMPTS) and
-        // continue with the rest instead of aborting the whole flush.
+        // continue with the rest instead of aborting the whole flush —
+        // except on RATE LIMITS, which abort the cycle (the queue would
+        // otherwise burn 30 records x 3 attempts into an already-hot pool,
+        // the 23:15 completion-burst flood).
         await _bumpFlushAttempts(record, true);
+        if (_isRateLimitErr(_flushRecordErr)) {
+          _flushRateLimitCooldownUntil = Date.now() + 60000;
+          break;
+        }
       }
     }
   } finally {
