@@ -114,7 +114,34 @@ function localDateString(d) {
 // Single code path for BOTH callers: the GPS-tick monitor (below) and the
 // on-duty deviation check (exported below). Owns the in-flight lock + the
 // per-driver cooldown stamp so the two can never double-regen.
+// ── OPTIMIZATION GATE (owner report Oct 27 2026) ────────────────────────────
+// A manual/server re-optimization regenerates the whole route (including the
+// current leg with the live-GPS via + deviation chain) in ONE silent commit +
+// ONE marker broadcast. Deviation regens firing DURING that window erased and
+// rewrote the current leg mid-flight — the "vanish, reappear, vanish" flicker
+// on the initiating device and extra per-write WS broadcasts on remotes.
+// Skip deviation regens while an optimization for this driver is in flight;
+// entries expire after 3 min as a missed-complete watchdog.
+const _optInFlightByDriver = new Map();
+const _OPT_GATE_MS = 3 * 60 * 1000;
+if (typeof window !== 'undefined' && !window.__routeDeviationOptGateArmed) {
+  window.__routeDeviationOptGateArmed = true;
+  window.addEventListener('routeOptimizationStarted', (e) => {
+    _optInFlightByDriver.set(String(e?.detail?.driverId || 'unknown'), Date.now());
+  });
+  const _clear = (e) => { _optInFlightByDriver.delete(String(e?.detail?.driverId || 'unknown')); };
+  window.addEventListener('routeOptimizationComplete', _clear);
+}
+const _optInFlightFor = (driverId) => {
+  const t = _optInFlightByDriver.get(String(driverId));
+  return !!t && Date.now() - t < _OPT_GATE_MS;
+};
+
 async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally, todayStr }) {
+  if (_optInFlightFor(driverId)) {
+    console.log('[RouteDeviation] regen skipped — route optimization in flight (the optimizer redraws the current leg in its single commit; owner Oct 27)');
+    return { regenerated: false, reason: 'optimization_in_flight' };
+  }
   if (regenInFlight && Date.now() - regenInFlightAt < REGEN_WATCHDOG_MS) return { regenerated: false, reason: 'in_flight' };
   if (regenInFlight) console.warn('[RouteDeviation] regen lock was stuck >45s (hung import/fetch) — watchdog recovery, regenerating anyway');
   regenInFlight = true;
