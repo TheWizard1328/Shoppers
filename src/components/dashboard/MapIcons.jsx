@@ -303,10 +303,10 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   return icon;
 };
 
-export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true, isPatientWatching = false) => {
+export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true, isPatientWatching = false, isInterStore = false) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}_${isPatientWatching}`;
+  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}_${isPatientWatching}_${isInterStore}`;
   if (deliveryIconCache.has(deliveryCacheKey)) return deliveryIconCache.get(deliveryCacheKey);
 
   const isFinished = FINISHED_STATUSES.includes(status);
@@ -314,11 +314,17 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   const isPending = status === 'pending';
   const isInTransit = status === 'in_transit' || status === 'en_route';
 
-  // Returns: orange only when completed; yellow when isNextInLine (not finished); teal for fridge in-transit; white when in_transit
+  // Returns: orange only when completed; yellow when isNextInLine (not finished); teal for fridge in-transit;
+  // purple for InterStore (ISP/ISD) in-transit (owner directive Oct 26 2026 — every other hue is reserved:
+  // teal=fridge, yellow=next delivery, red=failed, orange=returns, green=complete, white=regular in-transit,
+  // gray=pending, blue=store/simple variants). InterStore wins over the accidental teal it inherited since
+  // Oct 5 (argument misalignment put isDriverOnDuty in the isFridgeItem slot).
   const baseStatusColor = (isReturn && status === 'completed')
     ? '#F97316'
     : (shouldShowNextYellow ? '#E1E100' : getInnerSymbolColor(status, false));
-  const statusColor = (isFridgeItem && isInTransit && !shouldShowNextYellow) ? '#A5F3FC' : baseStatusColor;
+  const statusColor = (isInterStore && isInTransit && !shouldShowNextYellow) ? '#A78BFA'
+    : (isFridgeItem && isInTransit && !shouldShowNextYellow) ? '#A5F3FC'
+    : baseStatusColor;
   const hasYellowHalo = isFirstTime && zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
   const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;
