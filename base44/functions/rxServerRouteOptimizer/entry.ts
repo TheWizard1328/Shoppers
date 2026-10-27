@@ -732,11 +732,12 @@ Deno.serve(async (req) => {
           _suppressLiveVia = true;
         }
       }
-      if (!_polyOrigin && _liveViaValid) {
-        console.warn('[rxServerRouteOptimizer] no lastFinished/home polyline origin — anchoring current leg at the live-GPS via (owner Oct 27)');
-        _polyOrigin = { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) };
-        _suppressLiveVia = true;
-      }
+      // OWNER DIRECTIVE (Oct 27 2026): the driver's LIVE GPS is NEVER a
+      // polyline origin — anchoring there drew a parking-lot->stop stub and
+      // deleted the home->stop leg when the home failed to resolve. A missing
+      // anchor now falls to the degenerate first-stop anchor (no inbound leg
+      // is drawn at all) while the client builder's DB fallback ensures home
+      // resolves in the first place.
       if (!_polyOrigin && eligibleStops.length > 0) {
         console.warn('[rxServerRouteOptimizer] no polyline origin and no live via — degenerate first-leg anchor at the first stop (no loop, owner Oct 27)');
         _polyOrigin = { lat: Number(eligibleStops[0].lat), lon: Number(eligibleStops[0].lng) };

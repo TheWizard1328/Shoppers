@@ -232,6 +232,28 @@ export const buildServerOptimizeRequest = ({
     console.warn(`[serverOptimizationMode] AppUser match REJECTED (user_id=${driverAppUser.user_id} != driverId=${driverId}) — treating as not found`);
     driverAppUser = {};
   }
+  // OWNER REPORT (Oct 27 2026): the server builder had NO DB fallback — a
+  // stale/empty appUsers array left home=null, polylineOrigin=null, and the
+  // server anchored the current leg at the driver's LIVE GPS (parking-lot
+  // stub instead of the home->stop leg). Mirror the client engine's capped
+  // DB fallback so the HOME always resolves.
+  const _homeMissing = !driverAppUser
+    || !(Number.isFinite(Number(driverAppUser.home_latitude)) && Number.isFinite(Number(driverAppUser.home_longitude)));
+  if (_homeMissing) {
+    try {
+      const dbRows = await Promise.race([
+        base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []),
+        new Promise((res) => setTimeout(() => res([]), 8000)),
+      ]);
+      const fresh = Array.isArray(dbRows) && dbRows.length > 0 ? dbRows[0] : null;
+      if (fresh && Number.isFinite(Number(fresh.home_latitude)) && Number.isFinite(Number(fresh.home_longitude))) {
+        driverAppUser = { ...driverAppUser, ...fresh };
+        console.warn(`[serverOptimizationMode] AppUser home resolved via DB fallback (home=${fresh.home_latitude},${fresh.home_longitude}) — local appUsers array was stale/incomplete (owner Oct 27)`);
+      } else if (driverAppUser && !driverAppUser.user_id) {
+        driverAppUser = fresh || driverAppUser;
+      }
+    } catch (_) { /* keep local value */ }
+  }
   const home = Number.isFinite(Number(driverAppUser.home_latitude)) && Number.isFinite(Number(driverAppUser.home_longitude))
     ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
     : null;
