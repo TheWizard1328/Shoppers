@@ -378,6 +378,41 @@ async function computeSummary(b44, userId) {
     }
     return false;
   };
+  // EARLIEST-DATE RULE (owner spec Oct 27 2026): a FAILED COD with an ACTIVE
+  // retry and NO refund in between accounts ONCE on the failed (earliest)
+  // date — keep the failed original, hide the ACTIVE retry (mirror of the
+  // client computeCodOutstandingDetailed).
+  const activeRetryIdx = new Map();
+  for (const x of allDeliveries) {
+    if (!x?.patient_id || !x?.id || !x?.created_date) continue;
+    const amt = Math.round(centsOf(x?.cod_total_amount_required));
+    if (!(amt > 0)) continue;
+    if (!['pending', 'in_transit', 'en_route'].includes(String(x?.status || ''))) continue;
+    const k = String(x.patient_id);
+    if (!activeRetryIdx.has(k)) activeRetryIdx.set(k, []);
+    activeRetryIdx.get(k).push({ amt, createdT: new Date(x.created_date).getTime(), id: String(x.id) });
+  }
+  const failedKeepIds = new Set();
+  const retryCoveredIds = new Set();
+  const coversByFailed = new Map();
+  for (const d of allDeliveries.filter((x) => x?.status === 'failed')) {
+    const required = Number(d?.cod_total_amount_required || 0);
+    if (required <= 0 || !isCountedDate(d) || d?.cod_confirmed_collected || !d?.id) continue;
+    const amtC = Math.round(centsOf(required));
+    const item0 = { delivery_id: d.id, amount: amtC / 100, date: String(d.delivery_date || '').slice(0, 10), store_id: d.store_id };
+    const refunded = !!manualRefundMarks[String(d.id)] || isFailedCodRefunded(item0, (sid) => storeToLoc.get(String(sid || '')));
+    if (refunded) continue;
+    const createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
+    const covers = [];
+    for (const e of activeRetryIdx.get(String(d?.patient_id || '')) || []) {
+      if (e.amt === amtC && e.createdT > createdT) covers.push(e.id);
+    }
+    if (covers.length) {
+      failedKeepIds.add(String(d.id));
+      coversByFailed.set(String(d.id), covers);
+      covers.forEach((cid) => retryCoveredIds.add(cid));
+    }
+  }
   const autoRefundedFailed = [];
   for (const status of ['pending', 'in_transit', 'en_route', 'failed']) {
     const rows = allDeliveries.filter((d) => d?.status === status);
@@ -390,8 +425,10 @@ async function computeSummary(b44, userId) {
       const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
       const outstanding = Math.max(0, centsOf(required) - nonCash);
       if (outstanding <= 0) continue;
-      if (status === 'failed' && (d?.cod_retried_at || isLegacyRetried(d, Math.round(centsOf(required))))) continue;
+      if (status !== 'failed' && retryCoveredIds.has(String(d.id))) continue;
+      if (status === 'failed' && !failedKeepIds.has(String(d.id)) && (d?.cod_retried_at || isLegacyRetried(d, Math.round(centsOf(required))))) continue;
       const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id) };
+      if (status === 'failed' && failedKeepIds.has(String(d.id))) item.covers_retry_ids = coversByFailed.get(String(d.id)) || [];
       if (status === 'failed') {
         if (manualRefundMarks[String(d.id)]) continue;
         if (isFailedCodRefunded(item, (sid) => storeToLoc.get(String(sid || '')))) {

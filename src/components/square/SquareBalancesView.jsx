@@ -2665,6 +2665,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // Every row defaults to the Card Spend pill (owner rule) —
                   // tapping toggles it to "Not Tapped".
                   const outItems = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).items || [];
+                  // EARLIEST-DATE RULE (Oct 27 2026): kept failed items carry
+                  // covers_retry_ids — the ACTIVE retry deliveries whose
+                  // charge they already represent. Those retries' catalog
+                  // rows must be suppressed too or the pair double-shows.
+                  const coveredRetryIds = new Set();
+                  for (const it of outItems) (it?.covers_retry_ids || []).forEach((cid) => coveredRetryIds.add(String(cid)));
                   const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
                   const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
                   // Delivery-derived active CODs (pendingPickup flag for
@@ -2712,7 +2718,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // no delivery link always show.
                   const srcDeliveryIds = new Set(deliveryRows.map((it) => String(it.delivery_id)).filter((it) => it !== 'null' && it !== 'undefined'));
                   const catRows = (catalogUncollectedByLoc?.[loc.location_id] || []).
-                  filter((it) => !it.delivery_id || !srcDeliveryIds.has(String(it.delivery_id))).
+                  filter((it) => !it.delivery_id || (!srcDeliveryIds.has(String(it.delivery_id)) && !coveredRetryIds.has(String(it.delivery_id)))).
                   map((it) => ({
                     key: it.key || `cat-${it.delivery_id || it.patientName}`,
                     delivery_id: it.delivery_id || null,

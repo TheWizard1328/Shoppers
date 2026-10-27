@@ -38,19 +38,57 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   const isDispatcherNav = userHasRole(currentUser, 'dispatcher');
   const isAdminNav = userHasRole(currentUser, 'admin');
   const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
+  // DRIVER NAV BADGE STORE SCOPE (owner report Oct 27 2026: every driver's
+  // badge showed $0.00): driver AppUser records carry EMPTY store_ids, so the
+  // old store_ids-only scope summed zero cards. Same fallback as the
+  // balances page + sidebar: today's route stores from the IDB delivery
+  // mirror (zero API calls). Retry ladder covers the boot window when IDB
+  // has not hydrated yet.
+  const driverScopeNeeded = !isAdminNav && (isDriverNav || isDispatcherNav);
+  const [driverNavStoreIds, setDriverNavStoreIds] = React.useState(null);
+  React.useEffect(() => {
+    if (!currentUser || !driverScopeNeeded) { setDriverNavStoreIds(null); return; }
+    let alive = true;
+    let attempts = 0;
+    const resolve = async () => {
+      attempts += 1;
+      try {
+        const assigned = (currentUser?.store_ids || []).map(String).filter(Boolean);
+        if (assigned.length || !isDriverNav) { if (alive) setDriverNavStoreIds(assigned); return; }
+        const { getAllDeliveriesIdb } = await import('@/components/square/useSquareBalancesSummary');
+        const { edmontonWallString } = await import('@/components/utils/albertaTime');
+        const today = edmontonWallString(new Date()).slice(0, 10);
+        const rows = (await getAllDeliveriesIdb()) || [];
+        const routeIds = [...new Set((rows)
+          .filter((d) => String(d?.driver_id || '') === String(currentUser.id) && String(d?.delivery_date || '') === today && d?.status !== 'cancelled' && d?.store_id)
+          .map((d) => String(d.store_id)))];
+        if (alive) setDriverNavStoreIds(routeIds);
+        // Boot-lag retry: only when the IDB mirror itself was empty (not yet
+        // hydrated) — a hydrated mirror with no route today is a real empty.
+        if (!routeIds.length && !rows.length && attempts < 6) {
+          setTimeout(() => { if (alive) resolve(); }, 60000);
+        }
+      } catch {
+        if (alive && attempts < 6) setTimeout(() => { if (alive) resolve(); }, 60000);
+      }
+    };
+    resolve();
+    return () => { alive = false; };
+  }, [currentUser?.id, driverScopeNeeded, isDriverNav]);
   const sqNavAmount = React.useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let total = 0;
     if (isAdminNav || (!isDriverNav && !isDispatcherNav)) {
       for (const row of sqByLocId.values()) total += Number(row?.cardEstimate || 0);
     } else {
-      const storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
+      const storeIds = driverNavStoreIds ?? ((currentUser?.store_ids || []).map(String).filter(Boolean));
       const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc?.get(String(sid))).filter(Boolean))];
+      if (locIds.length === 0) return null; // no resolved cards — show the label, not a false $0.00
       for (const lid of locIds) { const row = sqByLocId.get(lid); if (row) total += Number(row.cardEstimate || 0); }
     }
     if (!Number.isFinite(total)) return null;
     return total >= 1000 ? `$${(total / 1000).toFixed(1)}k` : `$${total.toFixed(2)}`;
-  }, [sqReady, sqByLocId, sqStoreToLoc, isAdminNav, isDriverNav, isDispatcherNav, currentUser]);
+  }, [sqReady, sqByLocId, sqStoreToLoc, isAdminNav, isDriverNav, isDispatcherNav, currentUser, driverNavStoreIds]);
 
   if (!currentUser) return null;
 
