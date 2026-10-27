@@ -416,3 +416,12 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
 .bg-surface { background: var(--bg-white); }
 .bg-surface-2 { background: var(--bg-slate-50); }
 .border-surface { border-color: var(--border-slate-200); }
+
+/* ── Patient portal fallback map (OSM) dark theme ───────────────────────────
+   CARTO's key-free dark basemap started watermarking ("API key required",
+   Oct 2026), so the portal falls back to plain OSM tiles and derives its dark
+   theme with this filter: invert flips light→dark, hue-rotate(180deg) puts
+   hue back to natural colors, brightness/contrast/saturate tune the result. */
+.portal-osm-dark .leaflet-tile {
+  filter: brightness(0.9) invert(1) hue-rotate(185deg) saturate(0.35) contrast(0.85);
+}

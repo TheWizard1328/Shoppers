@@ -415,9 +415,11 @@ export default function PatientPortal({ embedded = false } = {}) {
         ? `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${hereApiKey}`
         : `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${hereApiKey}`;
     }
-    return isDarkTheme
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    // CARTO basemaps now watermark "API KEY REQUIRED" (policy change Oct 2026,
+    // seen live on a patient's phone Oct 26) — replaced with plain OSM for BOTH
+    // themes. Dark mode is handled by the .portal-osm-dark CSS filter (below),
+    // so no key and no third-party account is needed.
+    return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   }, [hereApiKey, isDarkTheme]);
   // OWNER FIX (Oct 23 2026): the regular route line colors (green-600 /
   // blue-600) sink into the dark night tiles — brighten both lines for dark
@@ -960,6 +962,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               <TileLayer
                 key={tileUrl}
                 url={tileUrl}
+                className={hereApiKey ? '' : (isDarkTheme ? 'portal-osm-dark' : '')}
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.here.com/">HERE</a>'
                 tileSize={hereApiKey ? 512 : 256}
                 zoomOffset={hereApiKey ? -1 : 0}
