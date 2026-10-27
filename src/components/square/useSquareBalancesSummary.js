@@ -1111,35 +1111,36 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   // (self-healing, no writes): a FAILED COD is hidden when a NEWER delivery
   // exists for the SAME patient with the SAME COD amount that is active or
   // completed — the retry signature. Index built once (patient → entries).
-  const retryCarriedByPatient = new Map();
-  for (const x of allDeliveries || []) {
-    if (!x?.patient_id || !x?.created_date) continue;
-    const amt = Math.round(centsOf(x?.cod_total_amount_required)); // cents
-    if (!(amt > 0)) continue;
-    if (!['pending', 'in_transit', 'en_route', 'completed'].includes(String(x?.status || ''))) continue;
-    const k = String(x.patient_id);
-    if (!retryCarriedByPatient.has(k)) retryCarriedByPatient.set(k, []);
-    retryCarriedByPatient.get(k).push({ amt, createdT: new Date(x.created_date).getTime() });
-  }
-  const isLegacyRetried = (d, amtCents) => {
-    const createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
-    for (const e of retryCarriedByPatient.get(String(d?.patient_id || '')) || []) {
-      if (e.amt === amtCents && e.createdT > createdT) return true;
-    }
-    return false;
-  };
-  // ACTIVE retry index (pending/in_transit/en_route only) — pairs for the
-  // EARLIEST-DATE rule below.
-  const activeRetryIdx = new Map();
+  // RETRY INDEXES (owner spec Oct 27 2026 evening): a FAILED COD SHOWS on
+  // the store card UNLESS a successfully COMPLETED delivery exists later
+  // (same day or another date) for the same patient + amount — that
+  // completed retry collected the money, so the failed original must stop
+  // showing/deducting. The cod_retried_at stamp and active-retry signatures
+  // alone NO LONGER hide a failed row.
+  // retryIdx (pending/in_transit/en_route/FAILED) pairs for the
+  // EARLIEST-DATE rule below — failed retries are covered too, so
+  // failed->failed chains collapse to the OLDEST failed row (charged once).
+  const retryIdx = new Map();
+  const completedRetryIdx = new Map();
   for (const x of allDeliveries || []) {
     if (!x?.patient_id || !x?.id || !x?.created_date) continue;
     const amt = Math.round(centsOf(x?.cod_total_amount_required));
     if (!(amt > 0)) continue;
-    if (!['pending', 'in_transit', 'en_route'].includes(String(x?.status || ''))) continue;
+    const st = String(x?.status || '');
+    const target = ['pending', 'in_transit', 'en_route', 'failed'].includes(st) ? retryIdx
+      : (st === 'completed' ? completedRetryIdx : null);
+    if (!target) continue;
     const k = String(x.patient_id);
-    if (!activeRetryIdx.has(k)) activeRetryIdx.set(k, []);
-    activeRetryIdx.get(k).push({ amt, createdT: new Date(x.created_date).getTime(), id: String(x.id) });
+    if (!target.has(k)) target.set(k, []);
+    target.get(k).push({ amt, createdT: new Date(x.created_date).getTime(), id: String(x.id) });
   }
+  const hasCompletedRetry = (d, amtCents) => {
+    const createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
+    for (const e of completedRetryIdx.get(String(d?.patient_id || '')) || []) {
+      if (e.amt === amtCents && e.createdT > createdT) return true;
+    }
+    return false;
+  };
   // EARLIEST-DATE RULE (owner spec Oct 27 2026, Carmen St-Pierre $64.38):
   // a FAILED COD with an ACTIVE retry and NO refund in between was charged
   // ONCE — on the failed (earliest) day. The charge must account exactly
@@ -1151,7 +1152,11 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   const failedKeepIds = new Set();
   const retryCoveredIds = new Set();
   const coversByFailed = new Map();
-  for (const d of (deliveriesWithStatus(allDeliveries, 'failed') || [])) {
+  const failedHiddenByCompleted = new Set(); // completed same-amount retry collected it
+  // Oldest-first so failed->failed chains collapse to the EARLIEST row.
+  const failedRowsAsc = [...(deliveriesWithStatus(allDeliveries, 'failed') || [])]
+    .sort((a, b) => (new Date(a?.created_date || 0).getTime() - new Date(b?.created_date || 0).getTime()));
+  for (const d of failedRowsAsc) {
     const required = Number(d?.cod_total_amount_required || 0);
     if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected || !d?.id) continue;
     const amtC = Math.round(centsOf(required));
@@ -1159,9 +1164,14 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const refunded = !!manualRefundMarks[String(d.id)]
       || isFailedCodRefunded(item0, refundRows, (sid) => storeToLoc.get(String(sid || '')));
     if (refunded) continue; // refund between failed and retry — retry counts on its own date
+    if (retryCoveredIds.has(String(d.id))) continue; // covered by an OLDER kept failed — chain collapses
+    // OWNER SPEC (Oct 27 2026 evening): hide the failed original ONLY when a
+    // successfully COMPLETED delivery exists later (same day or another date)
+    // for the same amount — it collected the money.
+    if (hasCompletedRetry(d, amtC)) { failedHiddenByCompleted.add(String(d.id)); continue; }
     const createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
     const covers = [];
-    for (const e of activeRetryIdx.get(String(d?.patient_id || '')) || []) {
+    for (const e of retryIdx.get(String(d?.patient_id || '')) || []) {
       if (e.amt === amtC && e.createdT > createdT) covers.push(e.id);
     }
     if (covers.length) {
@@ -1185,7 +1195,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // EARLIEST-DATE RULE (Oct 27 2026): an ACTIVE retry whose charge is
       // already shown via its KEPT failed original (no refund in between)
       // is HIDDEN — the pair accounts once, on the failed (earliest) date.
-      if (status !== 'failed' && retryCoveredIds.has(String(d.id))) continue;
+      if (retryCoveredIds.has(String(d.id))) continue; // covered by an older kept failed (active OR failed retry)
       // FAILED + RETRIED (owner rule, Oct 8 2026): the retry delivery now
       // carries this COD — the original must NOT show at all and must stop
       // deducting, or the amount is taken off the card TWICE (original +
@@ -1194,7 +1204,11 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // EXCEPTION (Oct 27 2026 earliest-date rule): failed originals with an
       // ACTIVE retry and NO refund are KEPT (they carry the charge on the
       // earliest date; the retry is hidden instead).
-      if (status === 'failed' && !failedKeepIds.has(String(d.id)) && (d?.cod_retried_at || isLegacyRetried(d, Math.round(centsOf(required))))) continue;
+      // FAILED + COMPLETED retry (owner spec Oct 27 2026 evening): a
+      // successfully completed delivery later for the same amount collected
+      // the money — the failed original must NOT show or deduct. A stamp or
+      // an active/pending retry alone no longer hides a failed row.
+      if (status === 'failed' && failedHiddenByCompleted.has(String(d.id))) continue;
       // driver_id rides along so the Square Balances page can scope the
       // visible rows per driver (owner rule Oct 9 2026: a driver only sees
       // the delivery items assigned to them).
