@@ -767,7 +767,23 @@ Deno.serve(async (req) => {
         const viaCounts = [];
         let liveOnFirst = false;
         eligibleStops.slice(gi, gj).forEach((st, li) => {
-          const dev = Array.isArray(st.deviationWaypoints) ? st.deviationWaypoints : [];
+          let dev = Array.isArray(st.deviationWaypoints) ? st.deviationWaypoints : [];
+          // OWNER REPORT (Oct 27 2026): stale pre-leg deviation points outside
+          // any sane detour drew a round-trip loop on a short current leg
+          // (client-parity detour budget: max(3x direct, direct + 5km)).
+          if (gi === 0 && li === 0 && dev.length > 0) {
+            const _budgetKm = Math.max(
+              codecCrowFliesKm(anchor.lat, anchor.lon, st.lat, st.lng) * 3,
+              codecCrowFliesKm(anchor.lat, anchor.lon, st.lat, st.lng) + 5
+            );
+            const _kept = dev.filter((v) =>
+              (codecCrowFliesKm(anchor.lat, anchor.lon, Number(v.lat), Number(v.lng))
+                + codecCrowFliesKm(Number(v.lat), Number(v.lng), st.lat, st.lng)) <= _budgetKm);
+            if (_kept.length !== dev.length) {
+              console.warn(`[rxServerRouteOptimizer] dropped ${dev.length - _kept.length} stale deviation via(s) outside the ${_budgetKm.toFixed(1)}km detour budget (owner Oct 27)`);
+            }
+            dev = _kept;
+          }
           dev.forEach((v) => pts.push({ lat: Number(v.lat), lon: Number(v.lng) }));
           viaCounts.push(dev.length);
           if (li === 0 && gi === 0 && _liveVia && !_suppressLiveVia) {

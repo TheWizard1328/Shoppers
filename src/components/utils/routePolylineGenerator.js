@@ -563,7 +563,30 @@ export async function generateRoutePolylines({
       // valid via window. Later legs' origins are previous stops; their vias
       // were re-guarded by the engine's transfer cleanup before writeBatch.
       let vias = getDeviationWaypoints(stop.delivery);
-      if (groupIdx === 0 && stopLocalIdx === 0) vias = dropStaleVias(vias);
+      if (groupIdx === 0 && stopLocalIdx === 0) {
+        vias = dropStaleVias(vias);
+        // OWNER REPORT (Oct 27 2026, 1.3km home->first-stop leg drew a 24km
+        // loop): stale pre-leg deviation points (recorded before this leg
+        // began — transferred from the previous next stop, or left over from
+        // earlier driving) sit FAR outside any sane detour. DETOUR BUDGET: a
+        // via is kept only when routing through it stays within
+        // max(3x direct distance, direct + 5km). Real mid-route deviations
+        // fit; pre-leg wanderings never do.
+        const _viaKm = (aLat, aLon, bLat, bLon) => {
+          const _dLat = (bLat - aLat) * 111.32;
+          const _dLon = (bLon - aLon) * 111.32 * Math.max(Math.cos(((aLat + bLat) / 2) * Math.PI / 180), 0.01);
+          return Math.hypot(_dLat, _dLon);
+        };
+        const _directKm = _viaKm(group.fromPoint.lat, group.fromPoint.lon, stop.lat, stop.lng);
+        const _budgetKm = Math.max(_directKm * 3, _directKm + 5);
+        const _keptVias = vias.filter((v) =>
+          (_viaKm(group.fromPoint.lat, group.fromPoint.lon, v.lat, v.lon)
+            + _viaKm(v.lat, v.lon, stop.lat, stop.lng)) <= _budgetKm);
+        if (_keptVias.length !== vias.length) {
+          console.warn(`[routePolylineGenerator] ${source} — dropped ${vias.length - _keptVias.length} stale deviation via(s) outside the ${_budgetKm.toFixed(1)}km detour budget (direct leg ${_directKm.toFixed(1)}km) — pre-leg points drew a round-trip loop (owner Oct 27)`);
+          vias = _keptVias;
+        }
+      }
       vias.forEach((v) => points.push(v));
       stopViaCounts.push(vias.length);
       if (useVia && liveViaIdx === -1 && !_suppressLiveVia) {
