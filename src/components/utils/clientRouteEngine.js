@@ -1102,8 +1102,12 @@ let _inheritedWindowCount = 0;
     const polylineOrigin = (() => {
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
-      const firstActive = activeRouteStops[0];
-      if (firstActive) return { lat: firstActive.lat, lon: firstActive.lng };
+      // OWNER DIRECTIVE (Oct 27 2026): the current leg's origin is the most
+      // recently finished stop, else the driver's HOME — NEVER the first
+      // active stop (that made the leg run firstStop→GPS→firstStop). The
+      // earlier abort guarantees one of the two rungs above resolved;
+      // reaching this point means only a segment-override origin exists.
+      console.error(`[clientRouteEngine] ${source} — polyline origin fell past lastFinished/home — using the resolved origin override, NOT the first active stop (owner Oct 27)`);
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
     const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';

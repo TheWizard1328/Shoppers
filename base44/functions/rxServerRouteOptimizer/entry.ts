@@ -711,9 +711,38 @@ Deno.serve(async (req) => {
       // inbound sections into RENDER (whole chain merged, client renderStart)
       // and METRICS (GPS->stop only on the live-GPS leg — client metricsStart;
       // whole chain otherwise).
-      const _polyOrigin = (polylineOrigin && Number.isFinite(Number(polylineOrigin.lat)) && Number.isFinite(Number(polylineOrigin.lng)))
+      // OWNER DIRECTIVE (Oct 27 2026): the current leg runs
+      // lastFinished/home → [vias] → live GPS → first stop — NEVER
+      // firstStop → GPS → firstStop. polylineOrigin comes from the client
+      // (lastFinished → home → null); the old `origin` fallback was the
+      // LOCKED NEXT STOP (the leg's own destination) → doubling. Anchoring
+      // ladder now: polylineOrigin → live-GPS via (via insertion suppressed)
+      // → first-stop degenerate anchor (same-address handler synthesizes a
+      // 2-point, 0 km leg — never a loop).
+      let _polyOrigin = (polylineOrigin && Number.isFinite(Number(polylineOrigin.lat)) && Number.isFinite(Number(polylineOrigin.lng)))
         ? { lat: Number(polylineOrigin.lat), lon: Number(polylineOrigin.lng) }
-        : { lat: origin.lat, lon: origin.lng };
+        : null;
+      let _suppressLiveVia = false;
+      const _liveViaValid = viaPoint && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng));
+      if (_polyOrigin && _liveViaValid && eligibleStops.length > 0) {
+        const _okm = codecCrowFliesKm(_polyOrigin.lat, _polyOrigin.lon, Number(eligibleStops[0].lat), Number(eligibleStops[0].lng));
+        if (Number.isFinite(_okm) && _okm < 0.15) {
+          console.warn(`[rxServerRouteOptimizer] polyline origin ≈ first stop (${_okm.toFixed(3)}km) — re-anchored current leg at the live-GPS via (owner Oct 27)`);
+          _polyOrigin = { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) };
+          _suppressLiveVia = true;
+        }
+      }
+      if (!_polyOrigin && _liveViaValid) {
+        console.warn('[rxServerRouteOptimizer] no lastFinished/home polyline origin — anchoring current leg at the live-GPS via (owner Oct 27)');
+        _polyOrigin = { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) };
+        _suppressLiveVia = true;
+      }
+      if (!_polyOrigin && eligibleStops.length > 0) {
+        console.warn('[rxServerRouteOptimizer] no polyline origin and no live via — degenerate first-leg anchor at the first stop (no loop, owner Oct 27)');
+        _polyOrigin = { lat: Number(eligibleStops[0].lat), lon: Number(eligibleStops[0].lng) };
+        _suppressLiveVia = true;
+      }
+      if (!_polyOrigin) { _polyOrigin = { lat: origin.lat, lon: origin.lng }; }
       const _liveVia = viaPoint && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng))
         ? { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) } : null;
       const _decodeChain = (encList) => {
@@ -741,7 +770,7 @@ Deno.serve(async (req) => {
           const dev = Array.isArray(st.deviationWaypoints) ? st.deviationWaypoints : [];
           dev.forEach((v) => pts.push({ lat: Number(v.lat), lon: Number(v.lng) }));
           viaCounts.push(dev.length);
-          if (li === 0 && gi === 0 && _liveVia) {
+          if (li === 0 && gi === 0 && _liveVia && !_suppressLiveVia) {
             pts.push({ lat: _liveVia.lat, lon: _liveVia.lon });
             liveOnFirst = true;
           }

@@ -291,9 +291,11 @@ export const buildServerOptimizeRequest = ({
       if (c) return c;
     }
     if (home) return home;
-    const fa = active.slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))[0];
-    const c = fa ? getDeliveryCoords(fa, patientMap, storeMap) : null;
-    return c || null;
+    // OWNER DIRECTIVE (Oct 27 2026): NEVER fall back to the FIRST ACTIVE stop —
+    // origin==destination made the server draw firstStop→GPS→firstStop. Null
+    // is safe now: entry.ts anchors the current leg at the live-GPS via (or
+    // synthesizes a degenerate 2-point first leg) when the anchor is missing.
+    return null;
   })();
 
   // ── Live-GPS via (client viaPointAfterOrigin parity)

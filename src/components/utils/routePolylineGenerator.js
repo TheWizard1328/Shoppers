@@ -376,7 +376,7 @@ export async function generateRoutePolylines({
   // inbound leg into it) — legacy fallback for routes with no home/anchor.
   const hasOrigin = originPoint && Number.isFinite(originPoint.lat) && Number.isFinite(originPoint.lon);
   const firstEligible = eligibleStops[0];
-  const effectiveOrigin = hasOrigin
+  let effectiveOrigin = hasOrigin
     ? { lat: originPoint.lat, lon: originPoint.lon }
     : { lat: firstEligible.lat, lon: firstEligible.lng };
   const stopsToPolyline = hasOrigin ? eligibleStops : eligibleStops.slice(1);
@@ -464,6 +464,32 @@ export async function generateRoutePolylines({
     }
   }
 
+  // ── DEGENERATE-ORIGIN GUARD (owner directive, Oct 27 2026) ─────────────────
+  // The current leg must run origin → [vias] → live GPS → first stop — NEVER
+  // firstStop → GPS → firstStop. When the resolved origin sits ~AT the first
+  // target (home == the store the route starts at, a completed stop sharing
+  // the next stop's address, or a caller passing the first stop itself as the
+  // origin), the requested leg loops back on itself. Re-anchor the current
+  // leg at the live-GPS via instead (home→GPS→stop collapses to GPS→stop)
+  // and suppress the duplicated via insertion.
+  let _suppressLiveVia = false;
+  if (hasOrigin && polyTargets.length > 0) {
+    const _haversineKm = (aLat, aLon, bLat, bLon) => {
+      const _dLat = (bLat - aLat) * 111.32;
+      const _dLon = (bLon - aLon) * 111.32 * Math.max(Math.cos(((aLat + bLat) / 2) * Math.PI / 180), 0.01);
+      return Math.hypot(_dLat, _dLon);
+    };
+    const _firstT = polyTargets[0];
+    const _originKm = _haversineKm(Number(effectiveOrigin.lat), Number(effectiveOrigin.lon), Number(_firstT.lat), Number(_firstT.lng));
+    if (_originKm < 0.15 && viaValid) {
+      effectiveOrigin = { lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) };
+      _suppressLiveVia = true;
+      console.warn(`[routePolylineGenerator] ${source} — polyline origin ≈ first stop (${_originKm.toFixed(3)}km) — re-anchored current leg at the live-GPS via to avoid a stop→GPS→stop loop (owner Oct 27)`);
+    } else if (_originKm < 0.15) {
+      console.warn(`[routePolylineGenerator] ${source} — polyline origin ≈ first stop (${_originKm.toFixed(3)}km) with no live-GPS via — inbound leg is degenerate (origin==destination)`);
+    }
+  }
+
   // Build transport-mode groups (consecutive runs of the same mode).
   // Each group's fromPoint = effectiveOrigin for group[0], else the last stop of
   // the previous group. HERE/Google accept one transport mode per call.
@@ -540,7 +566,7 @@ export async function generateRoutePolylines({
       if (groupIdx === 0 && stopLocalIdx === 0) vias = dropStaleVias(vias);
       vias.forEach((v) => points.push(v));
       stopViaCounts.push(vias.length);
-      if (useVia && liveViaIdx === -1) {
+      if (useVia && liveViaIdx === -1 && !_suppressLiveVia) {
         liveViaIdx = points.length;
         points.push({ lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) });
       }
