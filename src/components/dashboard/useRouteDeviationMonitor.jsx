@@ -301,6 +301,9 @@ export async function checkCurrentLegDeviationOnDuty({
   const cooldownMs = (Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
 
   const todayStr = localDateString();
+  // OWNER DIRECTIVE (Oct 27 2026): pause detection during route optimization —
+  // mid-commit polylines measure as false deviations (see the poll check gate).
+  if (_optInFlightFor(driverId)) return { checked: false, reason: 'optimization_in_flight' };
   const todayDeliveries = (deliveries || [])
     .filter((d) => d && d.driver_id === driverId && d.delivery_date === todayStr);
   const nextStop = todayDeliveries
@@ -420,6 +423,14 @@ export function useRouteDeviationMonitor({
       // Driver must be on duty (matches the clientRouteEngine via-point gates).
       const selfAppUser = (s.appUsers || []).find((au) => au?.user_id === driverId);
       if (!['on_duty', 'online'].includes(String(selfAppUser?.driver_status || '').toLowerCase())) { _diag('gate:appuser_duty', selfAppUser?.driver_status); return; }
+
+      // OWNER DIRECTIVE (Oct 27 2026): the CHECKER itself pauses while a route
+      // optimization is in flight — polylines are cleared/re-written mid-commit
+      // during optimization, and measuring GPS against a half-written or stale
+      // leg registers a FALSE deviation (points recorded where the driver never
+      // deviated). The optimizer redraws the current leg in its single commit;
+      // detection resumes on routeOptimizationComplete (3-min expiry watchdog).
+      if (_optInFlightFor(driverId)) { _diag('gate:optimization_in_flight', 'route optimization running — deviation detection paused'); return; }
 
       // Today's driver deliveries (same scope the delete flow passes the
       // coordinator) + the next in-flight stop (lowest stop_order among
