@@ -4,7 +4,8 @@ import { base44 } from "@/api/base44Client";
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2 } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3 } from "lucide-react";
+import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
@@ -535,6 +536,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // fee/loan/folder math) or DISMISSES it after review. No auto-updates of
   // the in-app collection type happen anywhere — detection only flags.
   const [paymentDiscrepancies, setPaymentDiscrepancies] = useState([]);
+  // OWNER FEATURE (Oct 27 2026): per-card Fees-by-day panel toggle - one card open at a time.
+  const [feesByDayLoc, setFeesByDayLoc] = useState(null);
   const [discrepancyBusy, setDiscrepancyBusy] = useState(false);
   const loadPaymentDiscrepancies = useCallback(async () => {
     try {
@@ -2580,7 +2583,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
                   <div className="text-slate-400 text-[13px]">{loc.saleCount} card sale{loc.saleCount === 1 ? '' : 's'} since true-up{loc.lastSaleAt ? ` · last ${new Date(loc.lastSaleAt).toLocaleTimeString()}` : ''}</div>
                 </div>
-                {ownerCanEdit &&
+                {ownerCanEdit && <div className="shrink-0 flex items-center gap-1">
+                  <button
+                    type="button"
+                    title="Fees by day"
+                    aria-label={`Fees by day for ${loc.name || loc.location_id}`}
+                    className={`shrink-0 w-7 h-7 rounded-md border flex items-center justify-center transition-colors ${feesByDayLoc === loc.location_id ? 'border-teal-500 text-teal-600 dark:text-teal-400 bg-teal-500/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500'}`}
+                    onClick={(e) => {e.stopPropagation(); setFeesByDayLoc((prev) => prev === loc.location_id ? null : loc.location_id);}}>
+                    <BarChart3 className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     type="button"
                     title="Funds transfer"
@@ -2588,9 +2599,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
                     onClick={(e) => {e.stopPropagation();openTransfer(loc);}}
                     disabled={isSaving || isLoading}>
-                    
+
                     <ArrowLeftRight className="w-3.5 h-3.5" />
                   </button>
+                </div>
                   }
               </div>
             </div>
@@ -2632,6 +2644,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
 
                 
+              {ownerCanEdit && feesByDayLoc === loc.location_id && (
+                <StoreFeesByDay locationId={loc.location_id} locationName={loc.name} />
+              )}
               {(() => {
                   // Collected/Uncollected/Past uncollected list — owner request
                   // Oct 4 2026: drivers see this full section too (same as the
