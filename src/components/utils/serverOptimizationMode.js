@@ -207,7 +207,7 @@ const crowFliesKmLocal = (lat1, lng1, lat2, lng2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-export const buildServerOptimizeRequest = ({
+export const buildServerOptimizeRequest = async ({
   deliveries, patients = [], stores = [], appUsers = [],
   driverId, deliveryDate, preserveExistingOrder = false,
   clearNextDeliveryLock = false, startingStopOrder = null,
@@ -241,6 +241,7 @@ export const buildServerOptimizeRequest = ({
     || !(Number.isFinite(Number(driverAppUser.home_latitude)) && Number.isFinite(Number(driverAppUser.home_longitude)));
   if (_homeMissing) {
     try {
+      const { base44 } = await import('@/api/base44Client');
       const dbRows = await Promise.race([
         base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []),
         new Promise((res) => setTimeout(() => res([]), 8000)),
@@ -475,7 +476,7 @@ export const runServerSideOptimization = async (buildArgs) => {
     } catch (_) {}
     return { supported: false, reason: 'server_engine_backoff' };
   }
-  const { supported, reason, request } = buildServerOptimizeRequest(buildArgs);
+  const { supported, reason, request } = await buildServerOptimizeRequest(buildArgs);
   if (!supported) return { supported: false, reason };
 
   // HERE key (Oct 20 2026): tool-deployed functions don't get the app's
