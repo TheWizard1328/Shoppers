@@ -155,7 +155,7 @@ function resolveCodLineItems(order: any, catalogByObjectId: Map<string, any>, ca
 // multi-item ring split pass: card brand is the authority for the collection
 // type (INTERAC = Debit, any credit = Credit), and the delivery is marked
 // cod_confirmed_collected. Returns true when a write happened.
-async function confirmCodDeliveryWithCard(base44: any, deliveryId: string, codType: string, cents: number): Promise<boolean> {
+async function confirmCodDeliveryWithCard(base44: any, deliveryId: string, codType: string, cents: number, swipeIso?: string | null): Promise<boolean> {
   try {
     const del: any = await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
     const payments = Array.isArray(del?.cod_payments) ? del.cod_payments : [];
@@ -171,11 +171,22 @@ async function confirmCodDeliveryWithCard(base44: any, deliveryId: string, codTy
       nextPayments = [...nextPayments, { type: codType, amount: cents / 100 }];
       updated = true;
     }
-    if (updated || !del?.cod_confirmed_collected) {
+    // OWNER REPORT (Oct 26 2026, one combined card swipe covering Somia
+    // Siffledeen KW $71.88 + James Grant BD $70.31): the auto-confirm path
+    // stamped cod_confirmed_collected + the Debit/Credit tender but NEVER
+    // cod_card_spend_at — and Collected Today only admits PAST-dated
+    // deliveries via that stamp, so past-dated CODs swiped today never
+    // appeared (and never joined the combined-swipe card). Stamp the card
+    // spend with the swipe's own moment whenever it is missing.
+    const swipeMs = swipeIso ? new Date(swipeIso).getTime() : NaN;
+    const spendIso = Number.isFinite(swipeMs) && swipeMs > 0 ? new Date(swipeMs).toISOString() : new Date().toISOString();
+    const spendMissing = !del?.cod_card_spend_at;
+    if (updated || !del?.cod_confirmed_collected || spendMissing) {
       await base44.asServiceRole.entities.Delivery.update(deliveryId, {
         ...(updated ? { cod_payments: nextPayments } : {}),
         cod_confirmed_collected: true,
         cod_confirmed_collected_at: new Date().toISOString(),
+        ...(spendMissing ? { cod_card_spend_at: spendIso } : {}),
       });
       return true;
     }
@@ -1740,7 +1751,8 @@ Deno.serve(async (req) => {
         }
         // Collection type sync (owner rule Oct 3): the swiped card is the
         // authority — INTERAC = Debit, any credit = Credit.
-        if (await confirmCodDeliveryWithCard(base44, d.id, codType, d.cents)) backfillTypeSyncs += 1;
+        const swipeIso1743 = Number.isFinite(match[0]?.at) ? new Date(match[0].at).toISOString() : null;
+        if (await confirmCodDeliveryWithCard(base44, d.id, codType, d.cents, swipeIso1743)) backfillTypeSyncs += 1;
       }
     // ── MULTI-ITEM RING SPLIT (owner report Oct 7 2026: "$4.53(MD) & $23.60(CW)
     // swiped as one $28.13 Callingwood debit") ─────────────────────────────────
@@ -1871,7 +1883,8 @@ Deno.serve(async (req) => {
             }
             // Delivery-side confirmation: the swiped card is the authority.
             const codType = String(parent.brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
-            if (part.deliveryId) await confirmCodDeliveryWithCard(base44, part.deliveryId, codType, part.amountCents);
+            const swipeIsoSplit = String(parentRow?.occurred_at || '') || (Number.isFinite(parent?.at) ? new Date(parent.at).toISOString() : null);
+            if (part.deliveryId) await confirmCodDeliveryWithCard(base44, part.deliveryId, codType, part.amountCents, swipeIsoSplit);
           }
           return created;
         };
@@ -1930,7 +1943,8 @@ Deno.serve(async (req) => {
             }
             backfillMatches.push(`${c.cents}:${String(l.delivery_id).slice(-6)}:${String(c.key).slice(-8)}`);
             const codType = String(c.brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
-            if (await confirmCodDeliveryWithCard(base44, String(l.delivery_id), codType, c.cents)) backfillTypeSyncs += 1;
+            const swipeIsoSingle = Number.isFinite(c?.at) ? new Date(c.at).toISOString() : null;
+            if (await confirmCodDeliveryWithCard(base44, String(l.delivery_id), codType, c.cents, swipeIsoSingle)) backfillTypeSyncs += 1;
             continue;
           }
           unresolved.push(c);
@@ -2077,6 +2091,40 @@ Deno.serve(async (req) => {
     }
     failedUpserts = Math.max(0, failedUpserts);
 
+    // ── CARD-SPEND STAMP HEALING (owner report Oct 26 2026) ──────────────
+    // Past-dated COD deliveries swiped TODAY only enter Collected Today via
+    // cod_card_spend_at. Already-split combined swipes are never re-confirmed
+    // (the split pass skips already-split parents), so deliveries whose
+    // confirm ran BEFORE this fix have confirmed+Debit/Credit but no spend
+    // stamp. Heal from the ledger itself: recent COMPLETED card
+    // cod_collection entries whose delivery is card-typed but has NO spend
+    // stamp get stamped with the entry's swipe moment. Idempotent — a
+    // delivery with an existing stamp is never touched again.
+    let spendStampsHealed = 0;
+    try {
+      const since3d = new Date(Date.now() - 3 * 86400000).toISOString();
+      const healRows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection', occurred_at: { $gte: since3d } }).catch(() => [])) as any[] || [];
+      const byDeliverySwipe = new Map<string, string>();
+      for (const e of healRows || []) {
+        if (!e?.delivery_id) continue;
+        if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+        if (String(e?.tender_type || '').toUpperCase() === 'CASH') continue;
+        const did = String(e.delivery_id);
+        const iso = String(e?.occurred_at || '');
+        if (!byDeliverySwipe.has(did) || (iso && iso < String(byDeliverySwipe.get(did) || ''))) byDeliverySwipe.set(did, iso);
+      }
+      for (const [did, swipeIso] of byDeliverySwipe) {
+        if (spendStampsHealed >= 40) break;
+        const del: any = await base44.asServiceRole.entities.Delivery.get(did).catch(() => null);
+        if (!del || del?.cod_card_spend_at) continue;
+        const cps = Array.isArray(del?.cod_payments) ? del.cod_payments : [];
+        if (!cps.some((p: any) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))) continue; // cash never carries a card-spend stamp
+        const ok = await base44.asServiceRole.entities.Delivery.update(did, { cod_card_spend_at: swipeIso || new Date().toISOString() }).then(() => true).catch(() => false);
+        if (ok) { spendStampsHealed += 1; await sleep(30); }
+      }
+    } catch { /* non-fatal */ }
+    if (spendStampsHealed > 0) console.log('[squareLedgerSync] healed cod_card_spend_at on', spendStampsHealed, 'card-collected delivery(ies)');
+
     // ── COD outstanding pass (card balance estimates, Oct 2026 owner spec) ──
     // A COD delivery subtracts its amount from the store's card balance while
     // pending/in_transit. Debit/Credit/Cheque collections lift it immediately;
@@ -2207,13 +2255,13 @@ Deno.serve(async (req) => {
     let syncStampWritten = false;
     try {
       const changed = multiSplitChildren > 0 || supersededRowsDeleted > 0 || stampedConfirmations > 0
-        || backfillLinks > 0 || backfillRepairs > 0 || backfillTypeSyncs > 0;
+        || backfillLinks > 0 || backfillRepairs > 0 || backfillTypeSyncs > 0 || spendStampsHealed > 0;
       if (changed) {
         const stampValue = {
           at: windowEnd,
           multiSplitRings, multiSplitChildren,
           supersededRowsDeleted, stampedConfirmations,
-          backfillLinks, backfillRepairs, backfillTypeSyncs,
+          backfillLinks, backfillRepairs, backfillTypeSyncs, spendStampsHealed,
           fingerprintExcluded,
           backfillMatches: backfillMatches.slice(0, 20),
         };
