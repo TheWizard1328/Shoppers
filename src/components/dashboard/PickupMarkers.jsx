@@ -92,7 +92,10 @@ export default function PickupMarkers({
     const isDark = document.documentElement.classList.contains('dark-theme') || (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
     return [
-      !isFanned && <Circle key={`pickup-circle-${pickup.id}`} center={[pickup.latitude, pickup.longitude]} radius={2500} pathOptions={{ color: pickup.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: isDark ? 0.4 : 0.2 }} />,
+      // Store pickup zone ring — REAL store pickups only. InterStore pickups
+      // (ISP/ISD) render through this same list but must NOT wear the big
+      // 2.5km store ring around the destination store (owner Oct 26 2026).
+      !isFanned && !pickup.isInterStorePickup && <Circle key={`pickup-circle-${pickup.id}`} center={[pickup.latitude, pickup.longitude]} radius={2500} pathOptions={{ color: pickup.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: isDark ? 0.4 : 0.2 }} />,
       isHighlighted && !isFanned && <Circle key={`pickup-halo-${pickup.id}`} center={[pickup.latitude, pickup.longitude]} radius={40} pathOptions={{ color: pickup.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       <Marker key={`pickup-${pickup.id}`} position={markerPosition} icon={icon} zIndexOffset={dynamicZIndex} draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver && isFanned} eventHandlers={handlers} ref={(ref) => { if (ref) markerRefs.current[`pickup-${pickup.id}`] = ref; }}>
         {!pickup.useSimpleCircle && !pickup.isOtherDriver && (isClustered && !isFanned ? (
