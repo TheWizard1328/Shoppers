@@ -1153,6 +1153,15 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   const retryCoveredIds = new Set();
   const coversByFailed = new Map();
   const failedHiddenByCompleted = new Set(); // completed same-amount retry collected it
+  // RETRY-PAIR REGISTRY (owner report Oct 27 2026 evening, Carmen $64.38
+  // Callingwood): a retried COD's CHARGE belongs to its failed ORIGINAL.
+  // The completed retry's deductItem is tagged with the ORIGINAL's
+  // id/date/created so the true-up gates in computePendingCodDeduction
+  // (counted-ids, pre-true-up neutral, amount-entered-since) judge the ONE
+  // real charge — not a phantom brand-new one. Without this, a failed COD
+  // already counted at a card true-up got re-deducted through its retry's
+  // 'collected_charge', taking the amount off the card total twice.
+  const retryPairById = new Map(); // retryDeliveryId -> { id, date, created } of the failed original
   // Oldest-first so failed->failed chains collapse to the EARLIEST row.
   const failedRowsAsc = [...(deliveriesWithStatus(allDeliveries, 'failed') || [])]
     .sort((a, b) => (new Date(a?.created_date || 0).getTime() - new Date(b?.created_date || 0).getTime()));
@@ -1164,6 +1173,13 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const refunded = !!manualRefundMarks[String(d.id)]
       || isFailedCodRefunded(item0, refundRows, (sid) => storeToLoc.get(String(sid || '')));
     if (refunded) continue; // refund between failed and retry — retry counts on its own date
+    const _createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
+    const _pairOf = { id: String(d.id), date: String(d.delivery_date || '').slice(0, 10), created: d.created_date || null };
+    const _setPair = (rid) => { if (rid && !retryPairById.has(String(rid))) retryPairById.set(String(rid), _pairOf); };
+    if (d?.cod_retry_delivery_id) _setPair(d.cod_retry_delivery_id);
+    const _pk = String(d?.patient_id || '');
+    for (const e of (retryIdx.get(_pk) || [])) { if (e.amt === amtC && e.createdT > _createdT) _setPair(e.id); }
+    for (const e of (completedRetryIdx.get(_pk) || [])) { if (e.amt === amtC && e.createdT > _createdT) _setPair(e.id); }
     if (retryCoveredIds.has(String(d.id))) continue; // covered by an OLDER kept failed — chain collapses
     // OWNER SPEC (Oct 27 2026 evening): hide the failed original ONLY when a
     // successfully COMPLETED delivery exists later (same day or another date)
@@ -1305,11 +1321,16 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const _pays = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const _cardCollected = _pays.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
     if (!deductByLoc.has(locId)) deductByLoc.set(locId, []);
+    // RETRY PAIR (Oct 27 2026): a completed retry of a failed ORIGINAL
+    // carries the ORIGINAL's charge identity — the true-up gates then see
+    // one charge, counted once (excluded when the original was already
+    // counted at true-up, deducted once when the original is post-true-up).
+    const _pair = retryPairById.get(String(d.id));
     deductByLoc.get(locId).push({
-      delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
+      delivery_id: _pair ? _pair.id : d.id, status: 'completed', amount: centsOf(required) / 100,
       reason: _cardCollected ? 'collected_charge' : 'cash_awaiting_card',
-      date: String(d.delivery_date || '').slice(0, 10),
-      created_date: d.created_date || null,
+      date: _pair ? _pair.date : String(d.delivery_date || '').slice(0, 10),
+      created_date: _pair ? _pair.created : (d.created_date || null),
     });
   }
 
