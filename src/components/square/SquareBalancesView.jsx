@@ -1698,18 +1698,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (ownerCanEditRef.current && !pageBootCancelled) {
         void (async () => {
           try {
-            // Same cooldown as the Sync button: only pull when a cash
-            // collection happened since the last COD sync.
-            if (!(await codSyncDue())) {
-              console.log('[SquareBalances] page-load COD sync skipped — up to date');
+            // OWNER DIRECTIVE (Oct 27 2026): no cash-collection gate — the
+            // sync runs on page load too (a driver's card swipe for a
+            // cash-collected COD can land after the last collection event).
+            // Throttled by the SHARED 90s marker so the pre-compute path and
+            // this boot path never double-run.
+            const _nowMs = Date.now();
+            const _lastSyncMs = Math.max(
+              Number(localStorage.getItem(LS_BAL_COD_SYNC) || 0),
+              Number(localStorage.getItem(LS_CODPAGE_SYNC) || 0));
+            if (_nowMs - _lastSyncMs < 90_000) {
+              console.log('[SquareBalances] page-load COD sync skipped — synced within the last 90s');
               return;
             }
             const tu = configRef.current?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
             await base44.functions.invoke('squareLedgerSync', { startDate: tu, includeCodOutstanding: true });
             if (pageBootCancelled) return;
-            localStorage.setItem(LS_BAL_COD_SYNC, String(Date.now()));
+            localStorage.setItem(LS_BAL_COD_SYNC, String(_nowMs));
             invalidateLedgerWindows();
             window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
+            // Catalog verification (owner spec Oct 27 2026): recheck the
+            // current active Square Catalog items for collected transactions
+            // across their own full age window — collected items clear.
+            await base44.functions.invoke('squareVerifyCatalog', {}).catch((e) => {
+              console.warn('[SquareBalances] page-load catalog verify failed:', e?.message || e);
+            });
           } catch (e) {
             console.warn('[SquareBalances] page-load COD sync failed (compute keeps cached ledger):', e?.message || e);
           }
@@ -1755,29 +1768,6 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     Number(localStorage.getItem(LS_BAL_COD_SYNC) || 0),
     Number(localStorage.getItem(LS_CODPAGE_SYNC) || 0)
   );
-  const lastCashCodCollectionMs = async () => {
-    try {
-      const rows = await getAllDeliveriesIdb();
-      let latest = 0;
-      for (const d of rows || []) {
-        if (String(d?.status || '') !== 'completed') continue;
-        const hasCash = (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
-          .some((p) => String(p?.type || '').toLowerCase() === 'cash' && Number(p?.amount || 0) > 0);
-        if (!hasCash) continue;
-        const t = new Date(String(d?.actual_delivery_time || '')).getTime();
-        if (Number.isFinite(t) && t > latest) latest = t;
-      }
-      return latest;
-    } catch { return 0; }
-  };
-  // True when the COD sync should run (no sync yet, or a cash collection
-  // landed after the last one).
-  const codSyncDue = async () => {
-    const lastSync = lastCodSyncAtMs();
-    if (!lastSync) return true;
-    const lastCash = await lastCashCodCollectionMs();
-    return lastCash > lastSync;
-  };
 
   const syncFromSquare = useCallback(async () => {
     setIsSyncing(true);
@@ -1795,14 +1785,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // clears the matched catalog items). Owner-only — drivers keep the
       // local-only refresh.
       let codSyncNote = '';
-      // COOLDOWN: skip the Square COD steps entirely when the last sync
-      // already covers the latest cash collection.
-      const due = ownerCanEdit ? await codSyncDue() : false;
-      if (ownerCanEdit && !due) {
-        console.log('[SquareBalances] COD sync skipped — no cash collections since the last COD sync');
-        codSyncNote = 'COD sync up to date';
-      }
-      if (ownerCanEdit && due) {
+      // OWNER DIRECTIVE (Oct 27 2026): the Square sync runs on EVERY balances
+      // refresh (no cash-collection gate — a driver's card swipe for a
+      // cash-collected COD can land after the last collection event, and the
+      // gate was skipping those).
+      if (ownerCanEdit) {
         const startDate = cfg?.trued_up_at || new Date(Date.now() - 3 * 86400000).toISOString();
         setSyncStatusText('Syncing Square payments…');
         try {
@@ -1819,28 +1806,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           console.warn('[SquareBalances] squareLedgerSync failed (continuing with cached ledger):', err?.message || err);
           codSyncNote = 'COD sync failed — used cached ledger';
         }
-        // STEP 2 — COD CATALOG SYNC: shares the Square COD page's localStorage
-        // lease so the two syncs never run concurrently (shared Square
-        // rate-limit budget). orderFetchSince is READ-ONLY here — the marker
-        // is not stamped (the COD page's IDB tx mirror re-covers the tail).
-        setSyncStatusText('Syncing Catalog Items.');
+        // STEP 2 — CATALOG VERIFICATION (owner spec Oct 27 2026): instead of the
+        // old 90-day squareGetCodData2 reconcile, recheck the CURRENT active
+        // Square Catalog items for collected transactions across their OWN
+        // full age window (some past items are older than any fixed lookback).
+        // Collected items clear; uncollected items are never touched. Shares
+        // the Square COD page's localStorage lease so the two syncs never run
+        // concurrently (shared Square rate-limit budget).
+        setSyncStatusText('Verifying Catalog Items.');
         try {
           const LS_INFLIGHT = 'squareCodSync_inFlightUntil';
           const nowMs = Date.now();
           if (Number(localStorage.getItem(LS_INFLIGHT) || 0) > nowMs) {
-            console.log('[SquareBalances] COD catalog sync skipped — Square COD page sync already running');
+            console.log('[SquareBalances] catalog verify skipped — Square COD page sync already running');
           } else {
             localStorage.setItem(LS_INFLIGHT, String(nowMs + 240000));
             try {
-              const lastOrderFetch = Number(localStorage.getItem('squareCod_lastOrderFetchAt') || 0);
-              const orderFetchSince = (lastOrderFetch > 0 && Date.now() - lastOrderFetch < 14 * 86400000)
-                ? new Date(lastOrderFetch - 7 * 86400000).toISOString()
-                : null;
-              const codRes = await base44.functions.invoke('squareGetCodData2', {
-                forceDeliveryRefresh: true,
-                daysBack: 90,
-                ...(orderFetchSince ? { orderFetchSince } : {}),
-              });
+              const codRes = await base44.functions.invoke('squareVerifyCatalog', {});
               // Sync status detail (owner spec): show the catalog adds/deletes
               // this reconcile performed — "Adding/Deleting [name - amount]".
               const fmt = (arr, verb) => (arr || []).map((c) => `${verb} ${c.name} - $${(Math.round(Number(c.amount_cents || 0)) / 100).toFixed(2)}`);
@@ -2742,7 +2724,29 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // uncollected until processed back to the Square card. They
                   // render with a 'Cash' status badge (CardCodList) and keep
                   // their Card Spend pills.
-                  const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date >= todayStr).map((it) => ({
+                  // OWNER SPEC (Oct 27 2026): FUTURE-dated CODs (delivery_date
+                  // after today) move to their own 'Awaiting Pickup' section
+                  // BELOW Uncollected Past — they are scheduled but not
+                  // collectible yet, so they leave the Today list.
+                  const awaitingPickupRows = combinedSrc.filter((it) => it.date && it.date > todayStr).map((it) => ({
+                    key: it.key || `f-${it.delivery_id}`,
+                    delivery_id: it.delivery_id || null,
+                    patientName: it.patientName || it.patient || null,
+                    storeAbbrev: it.storeAbbrev || null,
+                    storeColor: it.storeColor || null,
+                    amount: it.amount,
+                    sub: it.sub || it.date,
+                    date: it.date || null,
+                    collected: false,
+                    pendingPickup: !!it.pendingPickup,
+                    inTransit: !!it.inTransit,
+                    failed: !!it.failed,
+                    hasCardSpend: false,
+                    manualCardSpend: manualMark(it.delivery_id),
+                    notTapped: notTapped(it.delivery_id),
+                    cashAwaitingSquare: !!it.cashAwaitingSquare
+                  }));
+                  const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date === todayStr).map((it) => ({
                     key: it.key || `o-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
                     patientName: it.patientName || it.patient || null,
@@ -2760,11 +2764,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     notTapped: notTapped(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                  // combinedSrc already covers EVERY active-delivery COD (any
-                  // date) — future-dated rows land in Uncollected via the
-                  // today/past filters below, so no separate future merge is
-                  // needed anymore.
-                  const futurePendingRows = [];
+                  // Future-dated rows now live in the Awaiting Pickup section
+                  // (owner spec Oct 27 2026) — nothing extra merges here.
                   const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                     key: it.key || `p-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
@@ -2796,8 +2797,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected Today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
-                      { label: 'Uncollected Today', color: '#d97706', rows: [...futurePendingRows, ...uncollectedTodayRows], total: sumOf(uncollectedTodayRows) + sumOf(futurePendingRows) },
-                      { label: 'Uncollected Past', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) }]
+                      { label: 'Uncollected Today', color: '#d97706', rows: uncollectedTodayRows, total: sumOf(uncollectedTodayRows) },
+                      { label: 'Uncollected Past', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
+                      { label: 'Awaiting Pickup', color: '#7c3aed', rows: awaitingPickupRows, total: sumOf(awaitingPickupRows) }]
                       } />);
 
 

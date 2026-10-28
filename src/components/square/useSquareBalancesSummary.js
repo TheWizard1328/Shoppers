@@ -1979,6 +1979,42 @@ const loadStoreDeviceName = async () => {
   return storeDeviceName;
 };
 const DESIGNATED_COMPUTE_HOST = EDITOR_HOST_DEVICE_NAME;
+// PRE-COMPUTE SQUARE SYNC throttle (owner directive Oct 27 2026): every
+// balances sync on the designated host — auto or manual — first runs the
+// Square sync (fresh ledger pull + catalog verification). Shared with the
+// page's manual sync via the squareBalances_lastCodSyncAt localStorage
+// marker so the two paths never double-run inside the window.
+let _lastPreComputeSquareSyncMs = 0;
+const LS_BAL_COD_SYNC_KEY = 'squareBalances_lastCodSyncAt';
+async function runPreComputeSquareSync() {
+  const nowMs = Date.now();
+  const lastSyncMs = Math.max(_lastPreComputeSquareSyncMs, Number(localStorage.getItem(LS_BAL_COD_SYNC_KEY) || 0));
+  if (nowMs - lastSyncMs < STORE_EVENT_COMPUTE_COOLDOWN_MS) return; // inside the 90s compute cadence
+  _lastPreComputeSquareSyncMs = nowMs;
+  // 1) Fresh ledger pull — recent driver-card swipes for cash-collected CODs
+  //    land in SquareLedgerEntry before the balances math reads them.
+  try {
+    await base44.functions.invoke('squareLedgerSync', {
+      startDate: new Date(nowMs - 3 * 86400000).toISOString(),
+      includeCodOutstanding: true,
+    });
+    localStorage.setItem(LS_BAL_COD_SYNC_KEY, String(nowMs));
+    // Service-side writes broadcast nothing — force the next compute to
+    // re-pull the ledger windows instead of serving the cache.
+    invalidateLedgerWindows();
+  } catch (e) {
+    console.warn('[useSquareBalancesSummary] pre-compute ledger sync failed (continuing with cached ledger):', e?.message || e);
+  }
+  // 2) Catalog verification (owner spec Oct 27 2026): recheck the CURRENT
+  //    active Square Catalog items for collected transactions across their
+  //    own full age window — NOT the old 90-day reconcile. Collected items
+  //    clear; uncollected items are never touched, however old.
+  try {
+    await base44.functions.invoke('squareVerifyCatalog', {});
+  } catch (e) {
+    console.warn('[useSquareBalancesSummary] pre-compute catalog verify failed (continuing):', e?.message || e);
+  }
+}
 const HOST_PUBLISH_FRESH_MS = 90_000;
 const snapshotIsFresh = (rec) => {
   const at = Date.parse(rec?.computed_at || rec?.savedAt || '') || Number(rec?.version) || 0;
@@ -2075,6 +2111,12 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     return;
   }
   try {
+    // OWNER DIRECTIVE (Oct 27 2026): every balances sync on the designated
+    // host (auto or manual) FIRST runs the Square sync — fresh ledger pull +
+    // catalog verification of the current items — so driver-card swipes for
+    // cash-collected CODs are caught up BEFORE the balances math. Throttled
+    // to the 90s compute cadence; failures never block the compute.
+    await runPreComputeSquareSync();
     // OWNER DIRECTIVE (Oct 20 2026 — OFFLINE-FIRST COMPUTE): the designated
     // host no longer invokes the heavy squareBalancesCompute backend function.
     // That function re-scanned the database server-side on EVERY compute (5

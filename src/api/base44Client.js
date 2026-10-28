@@ -37,6 +37,7 @@ const LONG_TIMEOUT_FUNCTIONS = new Set([
   'syncSquareCods',
   'squareCodReconcile',
   'squareLedgerSync',
+  'squareVerifyCatalog',
   'squareSyncHealth',
   'squarePurgeBookkeepingTxs',
   'squareSyncOnline',
