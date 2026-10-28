@@ -198,21 +198,38 @@ async function confirmCodDeliveryWithCard(base44: any, deliveryId: string, codTy
 // items in proportion to each item's own money (remainder cents go to the
 // last split so the parts always sum exactly to the whole — no money
 // created or lost). Returns [] when there is nothing to split.
-function splitPaymentAcrossCodLinks(codLinks: any[], fullAmountCents: number, fullFeeCents: number) {
+// OWNER SPEC (Oct 28 2026): a grouped swipe's Square fee, folder fee and loan
+// fee are computed by Square / the balance rules on the TOTAL swipe amount —
+// never per item. The splitter therefore takes the WHOLE-SWIPE fee/folder/loan
+// cents (already computed once from the total) and divides them across the
+// COD parts proportionally; the LAST part absorbs every rounding remainder so
+// the parts sum back to the exact whole-swipe cents. Computing per part
+// previously double-counted truncation (folder floor per part lost up to
+// N-1 cents) and off-by-a-cent loan rounding on every multi-COD swipe.
+function splitPaymentAcrossCodLinks(codLinks: any[], fullAmountCents: number, fullFeeCents: number, fullFolderCents: number, fullLoanCents: number) {
   const lineTotal = codLinks.reduce((s, l) => s + Math.max(0, l.amountCents || 0), 0);
   if (lineTotal <= 0) return [];
   const full = Math.round(Number(fullAmountCents) || 0);
   const fee = Math.round(Number(fullFeeCents) || 0);
+  const folder = Math.max(0, Math.round(Number(fullFolderCents) || 0));
+  const loan = Math.max(0, Math.round(Number(fullLoanCents) || 0));
   let amountLeft = full;
   let feeLeft = fee;
+  let folderLeft = folder;
+  let loanLeft = loan;
   const parts = codLinks.map((link, idx) => {
     const isLast = idx === codLinks.length - 1;
     const share = Math.max(0, link.amountCents || 0) / lineTotal;
     const amount = isLast ? amountLeft : Math.round(full * share);
     const feePart = isLast ? feeLeft : Math.round(fee * share);
+    const folderPart = isLast ? folderLeft : Math.round(folder * share);
+    const loanPart = isLast ? loanLeft : Math.round(loan * share);
     amountLeft -= amount;
     feeLeft -= feePart;
-    return { ...link, amountCents: amount, feeCents: feePart };
+    folderLeft -= folderPart;
+    loanLeft -= loanPart;
+    const settledPart = amount - feePart - folderPart - loanPart;
+    return { ...link, amountCents: amount, feeCents: feePart, folderCents: folderPart, loanCents: loanPart, settledCents: settledPart };
   });
   return parts;
 }
@@ -1039,7 +1056,11 @@ Deno.serve(async (req) => {
         // split and is deleted below via supersededSquareIds.
         if (codLinksAll.length > 1) {
           const fullFee = sumProcessingFees(payment);
-          const splitParts = splitPaymentAcrossCodLinks(codLinksAll, payment?.amount_money?.amount, fullFee);
+          // WHOLE-SWIPE settlement (owner spec Oct 28 2026): folder/loan come
+          // from the TOTAL amount once — then the splitter divides fee,
+          // folder and loan across the parts (sums back to the exact cents).
+          const fullSettle = cardSettlementCents(rates, locationId, payment?.amount_money?.amount, fullFee);
+          const splitParts = splitPaymentAcrossCodLinks(codLinksAll, payment?.amount_money?.amount, fullFee, fullSettle.folder_cents, fullSettle.loan_cents);
           if (splitParts.length) {
             supersededSquareIds.add(String(payment.id));
             for (const part of splitParts) {
@@ -1051,7 +1072,9 @@ Deno.serve(async (req) => {
                 sale_class: 'cod_collection',
                 amount_cents: part.amountCents,
                 fee_cents: part.feeCents,
-                ...cardSettlementCents(rates, locationId, part.amountCents, part.feeCents),
+                folder_cents: part.folderCents,
+                loan_cents: part.loanCents,
+                settled_cents: part.settledCents,
                 status: payment.status,
                 occurred_at: payment.created_at,
                 location_id: locationId,
@@ -1111,7 +1134,7 @@ Deno.serve(async (req) => {
           // branch: a cash ring covering 2+ CODs in one tender needs one entry
           // per delivery so each can be individually matched/confirmed.
           if (codLinksAll.length > 1) {
-            const splitParts = splitPaymentAcrossCodLinks(codLinksAll, tender?.amount_money?.amount, 0);
+            const splitParts = splitPaymentAcrossCodLinks(codLinksAll, tender?.amount_money?.amount, 0, 0, 0); // cash tender: no fee/folder/loan
             if (splitParts.length) {
               supersededSquareIds.add(`tender-${tender.id}`);
               for (const part of splitParts) {
