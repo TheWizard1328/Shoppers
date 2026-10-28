@@ -1240,6 +1240,19 @@ function Dashboard() {
   const turnPreviewRef = useRef(null);
   if (!turnPreviewRef.current) turnPreviewRef.current = createTurnPreviewController();
 
+  // Route deviation instantly disables the turn auto-zoom (owner report Oct 28
+  // 2026): the deviation monitor dispatches this the moment the driver is
+  // measured off the planned leg, so the map pins back to regular Phase 2 even
+  // before the GPS distance gate would trip or the leg gets redrawn.
+  useEffect(() => {
+    const onDeviation = () => {
+      turnPreviewRef.current?.disable('route_deviation');
+      console.log('[TurnAutoZoom] disabled — route deviation detected');
+    };
+    window.addEventListener('routeDeviationDetected', onDeviation);
+    return () => window.removeEventListener('routeDeviationDetected', onDeviation);
+  }, []);
+
   useEffect(() => {
     const activePhase = pendingPhaseRef.current;
 
@@ -1728,7 +1741,10 @@ function Dashboard() {
               try { _tpPoints = decodeGooglePolyline(_tpStop.encoded_polyline); } catch (_) { _tpPoints = null; }
             }
             const _tpRes = turnPreviewRef.current.evaluate({
-              legKey: _tpStop ? `${_tpStop.id}:${_tpStop.status}` : null,
+              // Identity includes the polyline geometry: a deviation regen
+              // redraws the SAME stop's leg, and without the fingerprint the
+              // controller would keep measuring against the old corner.
+              legKey: _tpStop ? `${_tpStop.id}:${_tpStop.status}:${_tpStop.encoded_polyline?.length || 0}:${(_tpStop.encoded_polyline || '').slice(0, 12)}` : null,
               encodedPoints: _tpPoints,
               driverLat: fabTargetDriverLocation.latitude,
               driverLng: fabTargetDriverLocation.longitude,

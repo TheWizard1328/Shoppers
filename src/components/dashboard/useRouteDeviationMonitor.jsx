@@ -469,6 +469,20 @@ export function useRouteDeviationMonitor({
       if (!Number.isFinite(distance)) { _diag('gate:unusable_polyline', 'no encoded_polyline on next stop'); return; }
       if (distance <= threshold) { _diag('ok', `dist=${Math.round(distance)}m thr=${threshold}m next=${nextStop.tracking_number || nextStop.id}`); return; }
 
+      // ── OFF-ROUTE SIGNAL (owner report Oct 28 2026) ─────────────────────────
+      // Fired the moment the driver is measured beyond the threshold — BEFORE
+      // the cooldown / in-flight / regen gates, because those can skip the
+      // regen but the driver is still off route. The Phase 2 turn auto-zoom
+      // listens for this and pins the map back to normal Phase 2 immediately
+      // (without it the zoom stayed locked on the missed corner because the
+      // regenerated leg kept the same stop id/status).
+      try {
+        window.dispatchEvent(new CustomEvent('routeDeviationDetected', {
+          detail: { driverId, distanceM: Math.round(distance), thresholdM: threshold, nextStopId: nextStop.id },
+        }));
+      } catch {}
+
+
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
       const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;

@@ -47,6 +47,23 @@ export const TURN_PREVIEW_DEFAULTS = {
 
   // A vertex within this distance of the leg's end is arrival, not a turn.
   endBufferMeters: 20,
+
+  // While a preview is open, drifting this far off the leg means the driver
+  // did NOT take the corner (a city street is ~20 m wide). Release at once so
+  // the view snaps back to normal Phase 2 instead of staring at the corner the
+  // driver just missed. Smaller than the deviation threshold on purpose.
+  holdOffLegMeters: 60,
+
+  // ── Deviation guard (owner report Oct 28 2026) ────────────────────────────
+  // If the driver's GPS is this far from the leg polyline they are OFF the
+  // planned route, and turn guidance is meaningless (and used to LOCK the view
+  // on the missed corner). Matches the deviation detector's default 200 m.
+  deviationMeters: 200,
+
+  // How long the feature stays OFF after a deviation before it may re-arm.
+  // The distance gate re-trips on every tick while the driver is still off
+  // route, so in practice it stays off until they are back on a leg.
+  deviationSuppressMs: 180000,
 };
 
 const R_EARTH_M = 6371000;
@@ -119,6 +136,51 @@ export const nearestVertexIndex = (profile, lat, lon) => {
   return bestI;
 };
 
+/**
+ * Nearest point on the LEG (projected onto each segment, not just the
+ * vertices). Vertex-only snapping has two problems: on a sparse polyline (a
+ * straight leg with few points) it reports distance to the last vertex as if
+ * the driver were off route, and it quantises progress to whole vertices, so
+ * the 30 m release check could fire up to a segment early. Projection fixes
+ * both — the deviation guard needs a true perpendicular distance.
+ *
+ * Distances are computed in local metres (equirectangular around the driver's
+ * latitude), which is accurate to well under a metre over these scales.
+ */
+export const nearestOnLeg = (profile, lat, lon) => {
+  const { points, cum } = profile;
+  if (!points.length) return { index: 0, cumM: 0, distM: Infinity };
+  const mPerDegLat = 111132;
+  const mPerDegLon = 111320 * Math.cos((lat * Math.PI) / 180);
+  const px = 0;
+  const py = 0; // driver at the local origin
+
+  let best = { index: 0, cumM: 0, distM: haversineMeters(lat, lon, points[0][0], points[0][1]) };
+  for (let i = 0; i < points.length; i++) {
+    const ay = (points[i][0] - lat) * mPerDegLat;
+    const ax = (points[i][1] - lon) * mPerDegLon;
+    const da = Math.hypot(ax, ay);
+    if (da < best.distM) best = { index: i, cumM: cum[i], distM: da };
+    if (i === points.length - 1) break;
+    const by = (points[i + 1][0] - lat) * mPerDegLat;
+    const bx = (points[i + 1][1] - lon) * mPerDegLon;
+    const vx = bx - ax;
+    const vy = by - ay;
+    const segLen2 = vx * vx + vy * vy;
+    if (segLen2 <= 1e-9) continue;
+    // Projection of the driver (origin) onto this segment, clamped to it.
+    let t = -((ax * vx) + (ay * vy)) / segLen2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * vx;
+    const cy = ay + t * vy;
+    const d = Math.hypot(cx, cy);
+    if (d < best.distM) {
+      best = { index: i, cumM: cum[i] + t * (cum[i + 1] - cum[i]), distM: d };
+    }
+  }
+  return best;
+};
+
 /** First index at/after `index` whose running distance reaches targetM. */
 const indexAtDistance = (profile, index, targetM) => {
   const { cum } = profile;
@@ -165,12 +227,14 @@ export const turnAngleAt = (profile, i, windowMeters = TURN_PREVIEW_DEFAULTS.bea
 export const analyzeLegTurns = ({ points, driverLat, driverLng, options } = {}) => {
   const opt = { ...TURN_PREVIEW_DEFAULTS, ...(options || {}) };
   const profile = buildLegProfile(points);
-  const empty = { progressM: 0, totalM: profile.total, upcoming: null, passed: null, profile };
+  const empty = { progressM: 0, totalM: profile.total, upcoming: null, passed: null, nearestDistM: Infinity, profile };
   if (profile.points.length < 3 || !Number.isFinite(driverLat) || !Number.isFinite(driverLng)) return empty;
 
-  const nearI = nearestVertexIndex(profile, driverLat, driverLng);
-  if (nearI < 0) return { ...empty, profile };
-  const progressM = profile.cum[nearI];
+  const near = nearestOnLeg(profile, driverLat, driverLng);
+  if (near.index < 0) return { ...empty, profile };
+  const nearI = near.index;
+  const progressM = near.cumM;
+  const nearestDistM = near.distM;
 
   const legTurnLimit = Math.max(0, profile.total - opt.endBufferMeters);
 
@@ -233,7 +297,7 @@ export const analyzeLegTurns = ({ points, driverLat, driverLng, options } = {}) 
   const passed = scan(backStart, nearI - 1);
 
   if (upcoming && upcoming.aheadM > opt.lookAheadMeters) upcoming = null;
-  return { progressM, totalM: profile.total, upcoming, passed, profile };
+  return { progressM, totalM: profile.total, upcoming, passed, nearestDistM, profile };
 };
 
 /**
@@ -263,6 +327,19 @@ export const evaluateTurnPreview = ({
 
   const turnOk = (t) =>
     !!t && t.aheadM >= opt.minAheadMeters && t.aheadM <= opt.approachMeters;
+
+  // 0. Off-route guard. Once the driver is away from the leg the preview is
+  //    meaningless — and holding the last corner is exactly the "locked to the
+  //    turn point" bug the owner hit after missing a turn. Bail out FIRST,
+  //    ahead of every hold branch, so this always wins.
+  //      > holdOffLegMeters  -> the corner was missed, release (normal Phase 2)
+  //      > deviationMeters   -> genuinely off route, feature OFF for the
+  //                             suppression window (also fired explicitly by
+  //                             the deviation monitor's routeDeviationDetected)
+  if (Number.isFinite(a.nearestDistM) && a.nearestDistM > opt.holdOffLegMeters) {
+    const reason = a.nearestDistM > opt.deviationMeters ? 'deviation' : 'off_leg';
+    return { active: false, turn: null, bounds: null, reason, nearestDistM: a.nearestDistM };
+  }
 
   // 1. Already previewing this turn? Keep it until the driver is past it.
   //    Matching is by PROGRESS along the leg, not by "is this vertex in the
@@ -323,13 +400,24 @@ export const createTurnPreviewController = (options) => {
   let cacheKey = null;
   let cachePoints = null;
   let activeTurn = null;
+  // Set on a deviation — no previews at all until it expires every tick after.
+  let suppressUntil = 0;
 
   return {
     get activeTurn() {
       return activeTurn;
     },
+    get suppressed() {
+      return Date.now() < suppressUntil;
+    },
+    /** Kill any preview and keep the feature off for `ms` (default 3 min). */
+    disable(_reason = 'manual', ms = opt.deviationSuppressMs) {
+      activeTurn = null;
+      suppressUntil = Date.now() + Math.max(0, Number(ms) || 0);
+    },
     reset() {
       activeTurn = null;
+      suppressUntil = 0;
     },
     /**
      * @returns {{ bounds: number[][]|null, reason: string, turn: object|null }}
@@ -349,10 +437,19 @@ export const createTurnPreviewController = (options) => {
         activeTurn = null;
         return { bounds: null, reason: 'user_controlling', turn: null };
       }
+      // Any leg identity change (different stop, different polyline geometry —
+      // e.g. the deviation regen redrawing the same stop) restarts the state so
+      // a stale corner can never be measured against new geometry.
       if (cacheKey !== legKey) {
         cacheKey = legKey;
         cachePoints = encodedPoints;
         activeTurn = null;
+      }
+
+      // Deviation suppression: stay in normal Phase 2 until it expires.
+      if (Date.now() < suppressUntil) {
+        activeTurn = null;
+        return { bounds: null, reason: 'deviation_suppressed', turn: null };
       }
 
       const res = evaluateTurnPreview({
@@ -363,6 +460,14 @@ export const createTurnPreviewController = (options) => {
         activeTurn,
         options: opt,
       });
+
+      if (res.reason === 'deviation') {
+        // Driver is off the planned leg: pin the map back to regular Phase 2
+        // and keep the feature off for the suppression window.
+        activeTurn = null;
+        suppressUntil = Date.now() + opt.deviationSuppressMs;
+        return { bounds: null, reason: 'deviation_suppressed', turn: null, nearestDistM: res.nearestDistM };
+      }
 
       if (res.active) {
         activeTurn = { cumM: res.turn?.cumM ?? null, lat: res.turn?.lat, lon: res.turn?.lon };
