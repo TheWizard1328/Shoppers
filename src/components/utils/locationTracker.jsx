@@ -214,7 +214,7 @@ class LocationTracker {
     this.driverStatus = status;
     // Idle alerts (owner request, Sep 28 2026): break watcher starts/stops
     // here, and the off-duty heartbeat clock resets when duty resumes.
-    try { driverIdleAlerts.noteDutyStatus(status, this.currentUser?.id); } catch { }
+    try { driverIdleAlerts.noteDutyStatus(status, this.currentUser?.id, this.currentUser); } catch { }
     // CRITICAL: Keep currentUser.driver_status in sync so heartbeat broadcasts
     // include the correct status. Without this, every 15s heartbeat spreads
     // a stale driver_status (e.g. off_duty) to all connected devices via
@@ -2200,7 +2200,7 @@ class LocationTracker {
       // off_duty — on-duty/on-break drivers can legitimately land in web-only mode
       // (startTracking fallback) and must NOT get "you're off duty" alerts.
       if (this.driverStatus === 'off_duty') {
-        try { driverIdleAlerts.noteOffDutyHeartbeat(); } catch { }
+        try { driverIdleAlerts.noteOffDutyHeartbeat(this.currentUser); } catch { }
       }
       try {
         const provider = getLocationProvider();
@@ -2259,7 +2259,7 @@ class LocationTracker {
       // silent force-close now only fires as a 90-min safety net if the
       // driver ignored the notification and hasn't moved.
       if (elapsed < 90 * 60 * 1000) {
-        try { driverIdleAlerts.notifyOffDutyIdleKill(elapsed); } catch { }
+        try { driverIdleAlerts.notifyOffDutyIdleKill(elapsed, this.currentUser); } catch { }
       }
 
       // Threshold reached — check if driver has moved

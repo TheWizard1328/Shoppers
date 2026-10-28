@@ -1245,6 +1245,34 @@ let _inheritedWindowCount = 0;
       : null;
     console.log(`[clientRouteEngine] ${source} — live-GPS via point: ${viaPointAfterOrigin ? `(${viaPointAfterOrigin.lat.toFixed(4)}, ${viaPointAfterOrigin.lon.toFixed(4)})` : 'off (gates: onDuty=' + driverOnDuty + ', inFlight=' + hasInFlightStop + ', gps=' + (driverGpsCoords ? 'yes' : 'no') + ')'}`);
 
+    // ── PRE-GENERATION WAYPOINT CLEAR (owner directive Oct 27 2026 evening) ─
+    // ANY time polylines are generated: deviation_waypoints are cleared on
+    // every ACTIVE stop that is NOT the isNextDelivery stop — just before
+    // generation, so the legs drawn in THIS run are clean. The next stop
+    // KEEPS its waypoints (they are the live driven path of the current
+    // leg); terminal stops keep their vias as history. Stale points on
+    // other active stops (older legs, earlier attempts, transfers) must
+    // never bend their inbound legs. Clears ride deviationTransferChanges →
+    // writeBatch → atomic commit.
+    try {
+      const _clearedViaIds = [];
+      for (const rs of routeStops) {
+        const d = rs?.delivery;
+        if (!d || d.isNextDelivery) continue; // next keeps its waypoints
+        if (d.is_cycling_marker) continue; // cycling markers carry no vias
+        if (!['pending', 'in_transit', 'en_route'].includes(String(d?.status || ''))) continue; // terminal keeps history
+        if (!Array.isArray(d.deviation_waypoints) || d.deviation_waypoints.length === 0) continue;
+        d.deviation_waypoints = [];
+        deviationTransferChanges.set(String(d.id), []);
+        _clearedViaIds.push(String(d.id));
+      }
+      if (_clearedViaIds.length) {
+        console.log(`[clientRouteEngine] ${source} — pre-generation clear: emptied deviation_waypoints on ${_clearedViaIds.length} active non-next stop(s)`);
+      }
+    } catch (_viaClearErr) {
+      console.warn('[clientRouteEngine] pre-generation via clear skipped (non-fatal):', _viaClearErr?.message || _viaClearErr);
+    }
+
     segmentPolylineByDeliveryId = await generateRoutePolylines({
       orderUnchanged: orderUnchangedForPolylines,
       forceRegenerate,

@@ -949,6 +949,15 @@ Deno.serve(async (req) => {
         ...(!isPending && seg?.encoded_polyline ? { encoded_polyline: seg.encoded_polyline, polyline_from_order: newOrder } : {}),
         ...(isPending ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
       };
+      // OWNER DIRECTIVE (Oct 27 2026 evening): clear deviation_waypoints on
+      // every ACTIVE non-next stop at polyline generation/commit time —
+      // parity with the client engine's pre-generation clear. The next
+      // stop keeps its waypoints (live driven path of the current leg).
+      if (!isNextStop && !stop.isCyclingMarker
+        && ['pending', 'in_transit', 'en_route'].includes(String(stop.status || ''))
+        && Array.isArray(stop.deviationWaypoints) && stop.deviationWaypoints.length > 0) {
+        updateData.deviation_waypoints = [];
+      }
       writeBatch.push({ id: stop.id, data: updateData });
     }
 

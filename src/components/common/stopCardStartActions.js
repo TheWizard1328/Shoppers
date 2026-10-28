@@ -598,10 +598,13 @@ export function useStopCardStartActions({
             // Stamp the start time to NOW: a stop carrying a later-today window
             // otherwise keeps that future window as its sequencing/ETA anchor and
             // gets sorted behind other stops even though the driver just started it.
-            // _clearStaleVias empties the started stop's deviation_waypoints —
-            // starting the next stop ALWAYS begins with a clean leg (owner
-            // directive Oct 27 2026 evening).
-            return _clearStaleVias({ ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime });
+            // OWNER DIRECTIVE (Oct 27 2026 evening, refined): the STARTED stop
+            // becomes isNextDelivery — it KEEPS its deviation_waypoints (they
+            // are the live driven path of the current leg). Clearing applies
+            // to ACTIVE NON-NEXT stops only, just before polyline generation
+            // (clientRouteEngine pre-generation clear; _clearStaleVias below
+            // still sweeps the OTHER active stops of this route).
+            return { ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime };
           }
           if (d?.isNextDelivery) {
             return _clearStaleVias({ ...d, isNextDelivery: false });

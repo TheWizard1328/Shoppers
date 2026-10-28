@@ -50,6 +50,20 @@ let _offDutyFirstBeatAt = null;
 let _breakStartedAt = null;
 let _breakWatchInterval = null;
 let _driverUserId = null;
+let _idleUser = null;
+
+/**
+ * OWNER DIRECTIVE (Oct 27 2026): the 'RxDeliver is still running' push is a
+ * DRIVER battery alert — it must NOT be sent to APP OWNERS (platform App
+ * Owner role 'admin', or app_roles admin/owner). Owners run the app on
+ * dispatcher/monitor devices that legitimately stay open in the background.
+ */
+function userIsAppOwner(user) {
+  if (!user) return false;
+  if (String(user.role || '').toLowerCase() === 'admin') return true; // platform App Owner (isAppOwner parity)
+  const roles = Array.isArray(user.app_roles) ? user.app_roles : [];
+  return roles.some((r) => ['admin', 'owner'].includes(String(r || '').toLowerCase()));
+}
 
 function cooldownAllows(lsKey) {
   try {
@@ -80,6 +94,9 @@ async function countRemainingStopsToday() {
 async function scheduleIdleNotification(kind, body) {
   if (!isCapacitorNativeApp()) return false;
   const isOffDuty = kind === 'offduty';
+  // Owner gate (Oct 27 2026): app owners never receive the off-duty
+  // "still running" battery push.
+  if (isOffDuty && userIsAppOwner(_idleUser)) return false;
   const lsKey = isOffDuty ? LS_KEY_OFFDUTY : LS_KEY_ONBREAK;
   if (!cooldownAllows(lsKey)) return false;
   markNotified(lsKey);
@@ -111,7 +128,8 @@ async function scheduleIdleNotification(kind, body) {
  * The first tick starts the clock; once 30 min of continuous off-duty
  * heartbeats have passed, fire the notification (1-hour cooldown).
  */
-export function noteOffDutyHeartbeat() {
+export function noteOffDutyHeartbeat(user) {
+  if (user) _idleUser = user;
   if (_offDutyFirstBeatAt == null) {
     _offDutyFirstBeatAt = Date.now();
     return;
@@ -136,7 +154,8 @@ export function resetOffDutyWatch() {
  * the notification INSTEAD of the old silent force-close (which now waits
  * until 90 min as a safety net).
  */
-export function notifyOffDutyIdleKill(elapsedMs) {
+export function notifyOffDutyIdleKill(elapsedMs, user) {
+  if (user) _idleUser = user;
   const minutes = Math.round(elapsedMs / 60000);
   scheduleIdleNotification(
     'offduty',
@@ -178,8 +197,9 @@ function stopBreakWatch() {
  * transitions AND the app-load path). on_break starts the watcher; any other
  * status stops it and resets the off-duty clock appropriately.
  */
-export function noteDutyStatus(status, driverUserId) {
+export function noteDutyStatus(status, driverUserId, user) {
   if (driverUserId) _driverUserId = driverUserId;
+  if (user) _idleUser = user;
   if (String(status) === 'on_break') {
     startBreakWatch();
   } else {
