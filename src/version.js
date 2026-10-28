@@ -25,7 +25,7 @@ export const APP_VERSION_MAJOR = 1;
 export const APK_SUCCESS_BASELINE = 316;
 
 
-export const WEB_VERSION = 1; // post-APK-run-359 baseline (reset to 0) + this web push
+export const WEB_VERSION = 2; // post-APK-run-359 baseline (reset to 0) + this web push
 
 
 /** Successful build-apk.yml run count → APK release count under this scheme. */

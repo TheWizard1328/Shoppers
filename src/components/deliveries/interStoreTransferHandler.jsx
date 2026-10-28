@@ -355,7 +355,11 @@ export async function createInterStoreTransfer({
         (!!creatorAppUser?.id && !!driverAppUser?.id && creatorAppUser.id === driverAppUser.id) ||
         (!!currentUser?.id && !!driverAppUser?.user_id && currentUser.id === driverAppUser.user_id);
       if (creatorIsDispatcherOrAdmin && !sameUser && creatorAppUser?.id && driverAppUser) {
-        const content = `InterStore Pickup added to your route for ${formData.delivery_date}: SDM ${srcNum || '?'} -> ${dstNum || '?'}.`;
+        // OWNER WORDING (Oct 28 2026): plain two-line message using STORE
+        // NAMES (number fallback only when a name is missing).
+        const srcLabel = formData._interstore_source_name || (srcNum ? `SDM ${srcNum}` : 'Origin Store');
+        const dstLabel = formData._interstore_dest_name || (dstNum ? `SDM ${dstNum}` : 'Destination Store');
+        const content = `InterStore Pickup has been added to your route.\n${srcLabel} to ${dstLabel}`;
         const msg = await sendDeliveryMessage({
           senderId: creatorAppUser.id,
           senderName: getDriverNameForStorage?.(creatorAppUser) || creatorAppUser.user_name || 'Dispatcher',
