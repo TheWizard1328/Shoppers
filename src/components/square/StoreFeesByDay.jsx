@@ -100,10 +100,10 @@ export default function StoreFeesByDay({ locationId, locationName }) {
   }, []);
 
   const { days, totals, maxFeeC } = useMemo(() => {
-    const byDay = new Map(); // day -> { feeC, loanC, cods, swipes:Set }
+    const byDay = new Map(); // day -> { feeC, loanC, cods, amountC, swipes:Set }
     const todayKey = edmontonBusinessDayKey(new Date());
     const dim = daysInMonth(month);
-    const mTotals = { feeC: 0, loanC: 0, cods: 0, swipes: 0 };
+    const mTotals = { feeC: 0, loanC: 0, cods: 0, amountC: 0, swipes: 0 };
     let maxFee = 0;
     const swipeCount = new Map(); // day -> Set(txKey)
 
@@ -119,9 +119,11 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       const feeC = Math.round(Number(e.fee_cents || 0));
       const loanC = Math.round(Number(e.loan_cents || 0));
       if (feeC <= 0 && loanC <= 0) continue;
-      if (!byDay.has(day)) byDay.set(day, { feeC: 0, loanC: 0, cods: 0 });
+      if (!byDay.has(day)) byDay.set(day, { feeC: 0, loanC: 0, cods: 0, amountC: 0 });
       const row = byDay.get(day);
       row.feeC += feeC; row.loanC += loanC; row.cods += 1;
+      row.amountC += Math.max(0, Math.round(Number(e.amount_cents || 0)));
+      mTotals.amountC += Math.max(0, Math.round(Number(e.amount_cents || 0)));
       if (!swipeCount.has(day)) swipeCount.set(day, new Set());
       swipeCount.get(day).add(txKeyOf(e.square_id));
       mTotals.feeC += feeC; mTotals.loanC += loanC; mTotals.cods += 1;
@@ -147,6 +149,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
         feeC: data?.feeC || 0,
         loanC: data?.loanC || 0,
         cods: data?.cods || 0,
+        amountC: data?.amountC || 0,
         swipes: data?.swipes || 0,
       });
     }
@@ -198,6 +201,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
             <thead>
               <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                 <th className="text-left font-semibold py-1 pr-2">Day</th>
+                <th className="text-right font-semibold px-2">Collected</th>
                 <th className="text-right font-semibold px-2">Square fees</th>
                 <th className="text-right font-semibold px-2">Loan fees</th>
                 <th className="text-right font-semibold pl-2">CODs</th>
@@ -209,6 +213,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
                 return (
                   <tr key={d.dayKey} className={`border-b border-slate-100 dark:border-slate-800/60 ${empty ? 'opacity-40' : ''}`}>
                     <td className="py-1 pr-2 tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">{d.label}</td>
+                    <td className="py-1 px-2 text-right tabular-nums text-emerald-700 dark:text-emerald-300">{empty ? '—' : money(d.amountC)}</td>
                     <td className="py-1 px-2 text-right tabular-nums text-teal-700 dark:text-teal-300">
                       {empty ? '—' : money(d.feeC)}
                       {/* mini bar: day fee vs month max */}
