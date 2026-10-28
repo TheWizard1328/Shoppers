@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, MapPin, RefreshCw, Activity, History, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Loader2, MapPin, Activity, History, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
 import PatientGPSUpdatesDialog from './PatientGPSUpdatesDialog';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { useDevice } from '@/components/utils/DeviceContext';
@@ -17,7 +16,6 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
   const { isMobile } = useDevice();
   const stores = storesProp || contextStores || [];
   const [showPatientGpsUpdates, setShowPatientGpsUpdates] = useState(false);
-  const [localBackfillLoading, setLocalBackfillLoading] = useState(false);
 
   // Live progress for the store-by-store patient history backfill (owner spec
   // Oct 27 2026): rendered in the "dead space" left of the action buttons.
@@ -30,33 +28,9 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
   const historyRunActive = historyRun?.status === 'running';
   useEffect(() => { if (historyRunActive) setHistoryBannerDismissed(false); }, [historyRunActive]);
 
-  const isBackfilling = externalBackfillLoading || localBackfillLoading;
-
   const handleStartHistoryBackfill = () => {
     // Fire-and-forget: progress arrives via subscribePatientHistoryBackfillRun.
     startPatientHistoryBackfill(stores).catch((e) => console.warn('[PatientsTab] history backfill failed to start:', e?.message || e));
-  };
-
-  const handleBackfillLastDeliveryDates = async () => {
-    if (onBackfillLastDeliveryDates) {
-      onBackfillLastDeliveryDates();
-      return;
-    }
-
-    if (!window.confirm('Update patient last delivery dates using completed and failed deliveries from the last 90 days?')) {
-      return;
-    }
-
-    setLocalBackfillLoading(true);
-    try {
-      const result = await base44.functions.invoke('syncPatientLastDeliveryDate', { backfillDays: 90 });
-      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-      alert(`Updated ${result?.data?.patientsUpdated ?? 0} patients from the last 90 days.`);
-    } catch (error) {
-      alert(`Failed to update last delivery dates: ${error.message}`);
-    } finally {
-      setLocalBackfillLoading(false);
-    }
   };
 
   // Mobile-only layout (Sep 14 2026 fix): the whole tab becomes a flex column
@@ -159,23 +133,13 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
       <Button
         variant="outline"
         size="sm"
-        onClick={handleBackfillLastDeliveryDates}
-        disabled={isBackfilling}
-        className={buttonClass}
-      >
-        {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-        Backfill Last Delivery
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
         onClick={handleStartHistoryBackfill}
         disabled={historyRunActive}
         className={buttonClass}
-        title="Rebuild every patient's delivery history store by store — IDB-first, only changed patients are uploaded"
+        title="Rebuild every patient's delivery history AND last delivery date store by store — IDB-first, only changed patients are uploaded (replaces the old 90-day last-delivery backfill)"
       >
         {historyRunActive ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <History className="mr-2 h-4 w-4" />}
-        Backfill History
+        Backfill History & Last Delivery
       </Button>
       <div className={`flex gap-1 ${buttonClass}`}>
         <Button
