@@ -2838,16 +2838,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           per-store fee breakdown opens as a larger dialog instead of being
           stuck inside the store card. */}
       <Dialog open={!!feesByDayLoc} onOpenChange={(o) => { if (!o) setFeesByDayLoc(null); }}>
-        <DialogContent className="sm:max-w-2xl w-[94vw] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl w-[94vw] h-[88vh] max-h-[88vh] flex flex-col gap-3 overflow-hidden">
           <DialogHeader>
             <DialogTitle>Fees by day — {feesByDayLoc ? ((config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name || 'card') : ''}</DialogTitle>
             <DialogDescription>Daily Square fee and Loan fee for collected CODs on this card, by month.</DialogDescription>
           </DialogHeader>
           {feesByDayLoc && (
-            <StoreFeesByDay
-              locationId={feesByDayLoc}
-              locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
-            />
+            <div className="flex-1 min-h-0 flex flex-col">
+              <StoreFeesByDay
+                locationId={feesByDayLoc}
+                locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

@@ -138,9 +138,12 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       if (dayKey > todayKey) break; // future days of the current month
       const data = byDay.get(dayKey) || null;
       if (data) maxFee = Math.max(maxFee, data.feeC);
+      const _dd = new Date(y, m - 1, dIdx);
       rows.push({
         dayKey,
-        label: new Date(y, m - 1, dIdx).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }),
+        // COMPACT (owner spec Oct 27 2026 night): "Tue 27" instead of
+        // "Tue, Oct 27" — narrower Date column, scrollbar stays clear.
+        label: `${_dd.toLocaleDateString('en-CA', { weekday: 'short' })} ${dIdx}`,
         feeC: data?.feeC || 0,
         loanC: data?.loanC || 0,
         cods: data?.cods || 0,
@@ -151,7 +154,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
   }, [entries, locationId, month]);
 
   return (
-    <div className="mx-2 mb-2 mt-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-2.5">
+    <div className="mx-2 mb-2 mt-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-2.5 flex-1 min-h-0 flex flex-col">
       {/* Header: title + month selector */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -185,7 +188,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       </div>
 
       {/* Daily rows */}
-      <div className="mt-2 max-h-72 overflow-y-auto">
+      <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-2">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading ledger…
