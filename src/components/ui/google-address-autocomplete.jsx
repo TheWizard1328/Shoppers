@@ -36,9 +36,14 @@ const unabbreviateAddress = (address) => {
     result = result.replace(regex, abbrev);
   });
   
-  // Then unabbreviate street types
+  // Then unabbreviate street types.
+  // OWNER BUG FIX (Oct 28 2026): the old pattern had NO leading word boundary,
+  // so 'Rd\b' matched the tail of ordinary words — "Boulevard" became
+  // "BoulevaRoad", "Third" became "ThiRoad", "First" became "FirStreet".
+  // Every abbreviation is now anchored to a WHOLE word (\b), and a trailing
+  // period blocks the swap so "St. Albert" / "St." stays Saint, not Street.
   Object.entries(unabbreviations).forEach(([abbrev, full]) => {
-    const regex = new RegExp(abbrev, 'gi');
+    const regex = new RegExp(`\\b${abbrev}(?!\\.)`, 'gi');
     result = result.replace(regex, full);
   });
 
