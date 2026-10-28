@@ -569,6 +569,29 @@ export default function AdminUtilities() {
     finally { setFiltersReady(true); }
   };
 
+  // Patient history backfill (Oct 27 2026): merged live into the local lists as
+  // each upload batch lands, so the Patients tab updates store by store while
+  // the backfill runs — no full reload, no refetch.
+  useEffect(() => {
+    const onApply = (e) => {
+      const applied = e?.detail?.patients || [];
+      if (!applied.length) return;
+      setOfflinePatients((prev) => {
+        const map = new Map((prev || []).map((p) => [p.id, p]));
+        for (const p of applied) map.set(p.id, p);
+        return Array.from(map.values());
+      });
+      queryClient.setQueryData(['patients'], (old) => {
+        if (!Array.isArray(old)) return old;
+        const map = new Map(old.map((p) => [p.id, p]));
+        for (const p of applied) map.set(p.id, { ...(map.get(p.id) || {}), ...p });
+        return Array.from(map.values());
+      });
+    };
+    window.addEventListener('patientHistoryBackfillApply', onApply);
+    return () => window.removeEventListener('patientHistoryBackfillApply', onApply);
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       try {

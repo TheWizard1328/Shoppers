@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
-import { Loader2, MapPin, RefreshCw, Activity } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Loader2, MapPin, RefreshCw, Activity, History, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import PatientGPSUpdatesDialog from './PatientGPSUpdatesDialog';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { Link } from 'react-router-dom';
+import {
+  startPatientHistoryBackfill,
+  cancelPatientHistoryBackfill,
+  subscribePatientHistoryBackfillRun,
+} from '@/components/utils/patientHistoryBackfillRunner';
 
 export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children, onBackfillLastDeliveryDates, isBackfilling: externalBackfillLoading = false, stores: storesProp }) {
   const { stores: contextStores } = useAppData();
@@ -14,7 +19,23 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
   const [showPatientGpsUpdates, setShowPatientGpsUpdates] = useState(false);
   const [localBackfillLoading, setLocalBackfillLoading] = useState(false);
 
+  // Live progress for the store-by-store patient history backfill (owner spec
+  // Oct 27 2026): rendered in the "dead space" left of the action buttons.
+  const [historyRun, setHistoryRun] = useState(null);
+  const [historyBannerDismissed, setHistoryBannerDismissed] = useState(false);
+  useEffect(() => {
+    const unsub = subscribePatientHistoryBackfillRun(setHistoryRun);
+    return unsub;
+  }, []);
+  const historyRunActive = historyRun?.status === 'running';
+  useEffect(() => { if (historyRunActive) setHistoryBannerDismissed(false); }, [historyRunActive]);
+
   const isBackfilling = externalBackfillLoading || localBackfillLoading;
+
+  const handleStartHistoryBackfill = () => {
+    // Fire-and-forget: progress arrives via subscribePatientHistoryBackfillRun.
+    startPatientHistoryBackfill(stores).catch((e) => console.warn('[PatientsTab] history backfill failed to start:', e?.message || e));
+  };
 
   const handleBackfillLastDeliveryDates = async () => {
     if (onBackfillLastDeliveryDates) {
@@ -56,6 +77,63 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
     : 'mb-4 flex flex-wrap justify-end gap-2';
   const buttonClass = isMobile ? 'min-h-10 w-full' : 'min-h-10';
 
+  // Progress banner (owner spec Oct 27 2026): sits in the empty space left of
+  // the action buttons (below the tab bar, above the Patients content panel).
+  // Shows live per-store progress while running, then a done summary that
+  // auto-dismisses on the next run (or via the X).
+  const historyBanner = historyRun && !historyBannerDismissed &&
+    (historyRunActive || historyRun.status === 'done' || historyRun.status === 'cancelled' || historyRun.status === 'error') ? (() => {
+      const storePct = historyRun.storeCount > 0 ? Math.round((historyRun.storeIndex / historyRun.storeCount) * 100) : 0;
+      const isDone = !historyRunActive;
+      const tone = historyRun.status === 'error'
+        ? 'border-red-500/40 bg-red-500/10'
+        : historyRun.status === 'cancelled'
+          ? 'border-amber-500/40 bg-amber-500/10'
+          : isDone
+            ? 'border-emerald-500/40 bg-emerald-500/10'
+            : 'border-sky-500/40 bg-sky-500/10';
+      return (
+        <div className={`flex items-center gap-2 rounded-lg border ${tone} px-3 py-1.5 text-xs text-slate-200 min-w-0`}>
+          {historyRunActive
+            ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sky-400" />
+            : isDone
+              ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+              : <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap leading-tight">
+              <span className="font-semibold whitespace-nowrap">
+                {historyRunActive
+                  ? `History backfill — store ${historyRun.storeIndex}/${historyRun.storeCount}${historyRun.currentStoreName ? ` (${historyRun.currentStoreName})` : ''}`
+                  : historyRun.status === 'cancelled' ? 'History backfill — cancelled' : 'History backfill — done'}
+              </span>
+              <span className="text-slate-400 tabular-nums whitespace-nowrap">
+                {historyRun.processedPatients} processed · {historyRun.changedPatients} changed · {historyRun.uploaded} uploaded
+                {historyRun.uploadFailed > 0 ? ` · ${historyRun.uploadFailed} failed` : ''}
+                {historyRunActive && historyRun.uploadPending > 0 ? ` · ${historyRun.uploadPending} uploading` : ''}
+              </span>
+            </div>
+            {historyRunActive && (
+              <div className="mt-1 h-1 w-full max-w-md overflow-hidden rounded-full bg-slate-700/60">
+                <div className="h-full rounded-full bg-sky-400 transition-all duration-500" style={{ width: `${Math.max(3, storePct)}%` }} />
+              </div>
+            )}
+            {!historyRunActive && historyRun.message && (
+              <div className="text-slate-400 truncate">{historyRun.message}</div>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 shrink-0 p-0 text-slate-400 hover:text-slate-100"
+            onClick={() => (historyRunActive ? cancelPatientHistoryBackfill() : setHistoryBannerDismissed(true))}
+            title={historyRunActive ? 'Cancel backfill' : 'Dismiss'}
+          >
+            {historyRunActive ? <X className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      );
+    })() : null;
+
   const buttons = (
     <>
       <Button
@@ -88,6 +166,17 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
         {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
         Backfill Last Delivery
       </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleStartHistoryBackfill}
+        disabled={historyRunActive}
+        className={buttonClass}
+        title="Rebuild every patient's delivery history store by store — IDB-first, only changed patients are uploaded"
+      >
+        {historyRunActive ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <History className="mr-2 h-4 w-4" />}
+        Backfill History
+      </Button>
       <div className={`flex gap-1 ${buttonClass}`}>
         <Button
           variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
@@ -112,7 +201,10 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
   if (!isMobile) {
     return (
       <>
-        <div className={buttonRowClass}>{buttons}</div>
+        <div className="mb-4 flex items-center gap-3">
+          <div className="min-w-0 flex-1">{historyBanner}</div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">{buttons}</div>
+        </div>
         {children}
         <PatientGPSUpdatesDialog
           open={showPatientGpsUpdates}
@@ -125,6 +217,7 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
+      {historyBanner && <div className="mb-2 shrink-0">{historyBanner}</div>}
       <div className={buttonRowClass}>{buttons}</div>
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {children}
