@@ -579,26 +579,17 @@ export function useStopCardStartActions({
           return { ...d, deviation_waypoints: [] };
         };
 
-        // OWNER DIRECTIVE (Oct 27 2026): DEVIATION TRANSFER ON START.
-        // The stop that USED to be the next delivery carries the driven path
-        // (deviation_waypoints recorded while the driver was heading to it).
-        // Transfer those points to the started stop, clear them from the old
-        // holder, and append the driver's CURRENT location to the started
-        // stop's list — the regenerated current leg then chains
-        // last-finished → driven path → live GPS → started stop (the same
-        // via chain routePolylineGenerator builds for the current leg).
-        const _prevNextStop = routeDeliveries.find((d) => d?.isNextDelivery && d?.id !== delivery.id) || null;
-        const _prevNextVias = Array.isArray(_prevNextStop?.deviation_waypoints)
-          ? _prevNextStop.deviation_waypoints.filter((v) => v && Number.isFinite(Number(v.lat)) && Number.isFinite(Number(v.lng)))
-          : [];
-        const _startGpsUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id || au?.id === delivery.driver_id) || null;
-        const _startGpsLat = Number(_startGpsUser?.current_latitude);
-        const _startGpsLng = Number(_startGpsUser?.current_longitude);
-        const _startHasGps = Number.isFinite(_startGpsLat) && Number.isFinite(_startGpsLng);
-        const _startDeviationVias = [
-          ..._prevNextVias,
-          ...(_startHasGps ? [{ lat: _startGpsLat, lng: _startGpsLng, timestamp: new Date().toISOString() }] : [])
-        ].slice(-6);
+        // OWNER DIRECTIVE (Oct 27 2026 evening): START CLEARS WAYPOINTS.
+        // When the driver completes a stop and starts the NEXT one, any
+        // deviation_waypoints that next stop is carrying (left over from an
+        // earlier leg, transferred by the engine, or recorded before the
+        // route changed) are CLEARED — never chained into the new leg.
+        // This SUPERSEDES the earlier Oct 27 deviation-transfer-on-start:
+        // prev-next vias + live GPS are no longer merged onto the started
+        // stop. The regenerated current leg still anchors through the
+        // driver's live GPS — routePolylineGenerator inserts the live-GPS
+        // via independently of deviation_waypoints, so nothing is lost
+        // except the stale driven-path chaining (fresh clean leg).
 
         // Optimistic UI: only update isNextDelivery + status on the started stop.
         // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
@@ -607,11 +598,10 @@ export function useStopCardStartActions({
             // Stamp the start time to NOW: a stop carrying a later-today window
             // otherwise keeps that future window as its sequencing/ETA anchor and
             // gets sorted behind other stops even though the driver just started it.
-            // Clear the started stop's OWN stale vias first, then stamp the
-            // merged chain (old next's points + live GPS) — _clearStaleVias
-            // would otherwise wipe the merged vias we just set.
-            const _startedBase = _clearStaleVias({ ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime });
-            return { ..._startedBase, ...(_startDeviationVias.length > 0 ? { deviation_waypoints: _startDeviationVias } : {}) };
+            // _clearStaleVias empties the started stop's deviation_waypoints —
+            // starting the next stop ALWAYS begins with a clean leg (owner
+            // directive Oct 27 2026 evening).
+            return _clearStaleVias({ ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime });
           }
           if (d?.isNextDelivery) {
             return _clearStaleVias({ ...d, isNextDelivery: false });
