@@ -582,6 +582,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return delivery.driver_id === currentUser.id;
   }, [currentUser, delivery]);
 
+  // OWNER REQUEST (Oct 28 2026): on a COMPLETED driver route the whole action
+  // cluster is hidden, but dispatchers still need to phone patients from the
+  // stop card. This flag re-opens ONLY the call button, for dispatchers (and
+  // admins/owner), on completed routes. Privacy redaction still applies.
+  const canCallOnCompletedRoute = useMemo(() => {
+    if (!currentUser) return false;
+    return userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
+  }, [currentUser]);
+
   const isAssignedDispatcher = useMemo(() => {
     if (!currentUser || !delivery) return false;
     if (!userHasRole(currentUser, 'dispatcher')) return false;
@@ -1188,6 +1197,20 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 </button>)
 
                 }
+                  </div>
+              }
+              {/* OWNER REQUEST (Oct 28 2026): completed driver route - the action
+                  cluster above is hidden for everyone, but dispatchers still need
+                  the Call button to reach the patient. Call only, nothing else. */}
+              {routeCompletedForLayout && canCallOnCompletedRoute && finalDisplayPhone && !shouldRedact &&
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <a
+                      href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                      onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
+                      aria-label="Call customer"
+                      className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
+                        <Phone className="w-6 h-6" />
+                      </a>
                   </div>
               }
               </div>
