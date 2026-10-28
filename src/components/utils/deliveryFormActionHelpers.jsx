@@ -139,6 +139,10 @@ export const flushPendingInterStoreOptimizationsDeferred = async () => {
 
   try {
     const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+    const { commitDeliveryUpdatesSilently } = await import('@/components/utils/routeCommitMarker');
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+    const TERMINAL = ['completed', 'failed', 'cancelled'];
+
     for (const { driverId, deliveryDate, stores, appUsers } of pending) {
       if (!driverId || !deliveryDate) continue;
       try {
@@ -151,22 +155,70 @@ export const flushPendingInterStoreOptimizationsDeferred = async () => {
           : null;
         const localPatients = Array.isArray(window.__appPatients) ? window.__appPatients : null;
 
+        // ── NEW ISP ROUTE RE-OPTIMIZATION (owner spec Oct 28 2026) ────────
+        // The added pickups must be able to compete for position 1, so the
+        // isNextDelivery flags are SWEPT first (one silent bulk write, no
+        // per-stop broadcasts), the route is optimized in contest mode
+        // (clearNextDeliveryLock → no stale next-stop lock), and after the
+        // optimizer settles the flag is re-elected on the FIRST INCOMPLETE
+        // stop in the optimized order (one silent write).
+        const routeDeliveries = localDeliveries || (await offlineDB
+          .getDeliveriesByDateRange?.(deliveryDate, deliveryDate)
+          .then((rows) => (rows || []).filter((d) => d && d.driver_id === driverId))
+          .catch(() => null)) || [];
+        const flagged = routeDeliveries.filter((d) => d && d.isNextDelivery === true);
+        const sweptDeliveries = flagged.length
+          ? routeDeliveries.map((d) => (d?.isNextDelivery ? { ...d, isNextDelivery: false } : d))
+          : routeDeliveries;
+        if (flagged.length) {
+          // Local (IDB + UI) first so the engine and the driver both see the
+          // cleared flags, then ONE silent server commit.
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, flagged.map((d) => ({ ...d, isNextDelivery: false }))).catch(() => null);
+          await commitDeliveryUpdatesSilently(flagged.map((d) => ({ id: d.id, data: { isNextDelivery: false } }))).catch(() => 0);
+          console.log(`[InterStoreDeferred] Cleared isNextDelivery on ${flagged.length} stop(s) before re-optimizing`);
+        }
+
         // Surface the same KITT bar / orange overlay UI the regular Done path uses
         // (handleBatchSave → routeOptimizationStarted/optimizationRunning) so the
         // dispatcher sees the optimization running, not a silent no-op.
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'interstore_done', driverId, deliveryDate, showUI: true } }));
         window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
-        console.log(`[InterStoreDeferred] Running optimization for driver ${driverId} on ${deliveryDate} (local deliveries: ${localDeliveries?.length ?? 0})`);
-        await performRouteOptimization({
+        console.log(`[InterStoreDeferred] Running optimization for driver ${driverId} on ${deliveryDate} (local deliveries: ${sweptDeliveries?.length ?? 0})`);
+        const coordResult = await performRouteOptimization({
           driverId,
           deliveryDate,
-          deliveries: localDeliveries && localDeliveries.length > 0 ? localDeliveries : null,
+          deliveries: sweptDeliveries && sweptDeliveries.length > 0 ? sweptDeliveries : null,
           patients: localPatients,
           stores: stores || null,   // gap-fill context for stop coordinates
           appUsers: appUsers || null,
           source: 'interstore_done',
           skipPolyline: false,
+          clearNextDeliveryLock: true,   // no stale next-stop lock in the contest
         });
+
+        // ── RE-ELECT the next stop AFTER optimization ────────────────────
+        // First INCOMPLETE stop in the optimizer's final stop_order wins.
+        const fresh = Array.isArray(coordResult?.freshDeliveries) ? coordResult.freshDeliveries : [];
+        const incomplete = fresh
+          .filter((d) => d && !TERMINAL.includes(String(d.status || '')))
+          .sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
+        const nextStop = incomplete[0] || null;
+        if (fresh.length) {
+          const flagUpdates = fresh
+            .filter((d) => d && (d.isNextDelivery === true) !== (nextStop?.id === d.id))
+            .map((d) => ({ id: d.id, data: { isNextDelivery: nextStop?.id === d.id } }));
+          if (nextStop) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
+              ...(fresh.find((d) => d.id === nextStop.id) || nextStop),
+              isNextDelivery: true,
+            }]).catch(() => null);
+          }
+          if (flagUpdates.length) {
+            await commitDeliveryUpdatesSilently(flagUpdates).catch(() => 0);
+            console.log(`[InterStoreDeferred] isNextDelivery re-elected → stop ${nextStop?.stop_id || nextStop?.id || 'none'} (${flagUpdates.length} flag write(s))`);
+          }
+        }
+
         window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'interstore_done_optimization', fullReplacement: false } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
