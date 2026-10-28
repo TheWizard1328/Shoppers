@@ -175,7 +175,11 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       </div>
 
       {/* Monthly totals chips */}
-      <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px]">
+      <div className="mt-2 grid grid-cols-4 gap-1.5 text-[11px]">
+        <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-1.5">
+          <div className="text-slate-500 dark:text-slate-400">CODs collected</div>
+          <div className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{money(totals.amountC)}</div>
+        </div>
         <div className="rounded-md bg-teal-500/10 border border-teal-500/30 px-2 py-1.5">
           <div className="text-slate-500 dark:text-slate-400">Square fees</div>
           <div className="font-bold tabular-nums text-teal-700 dark:text-teal-300">{money(totals.feeC)}</div>
