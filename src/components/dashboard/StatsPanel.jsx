@@ -38,6 +38,11 @@ import { sortUsers } from "@/components/utils/sorting";
 import { countLegendStops } from "@/components/dashboard/legendStopCounter";
 import { getInterStoreMode, subscribeInterStore, setInterStorePickup, setInterStoreDropoff } from "@/components/dashboard/interStoreToggleStore";
 import { isAppOwner } from "@/components/utils/userRoles";
+import { getPastDateAddGuard } from "@/components/utils/pastDateAddGuard";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -166,6 +171,31 @@ export default function StatsPanel({
     }).length;
   }, [bookedOffOverrides]);
   const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
+  // PAST-DATE ADD GATE (owner spec Oct 28 2026): drivers + dispatchers cannot
+  // add to a past date at all; an admin always gets an explicit popup naming
+  // what the add will do (reopen a completed past route / create stops on an
+  // empty past date / join an unfinished past route).
+  const [pastDateAddPrompt, setPastDateAddPrompt] = useState(null);
+  const pastDateAddGuard = useMemo(() => getPastDateAddGuard({
+    selectedDate,
+    deliveries: (filteredDeliveries && filteredDeliveries.length ? filteredDeliveries : deliveries),
+    currentUser,
+  }), [selectedDate, filteredDeliveries, deliveries, currentUser]);
+
+  const openAddDeliveryGuarded = () => {
+    if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;
+    if (pastDateAddGuard.blocked) {
+      toast.error(pastDateAddGuard.message);
+      return;
+    }
+    if (pastDateAddGuard.needsConfirm) {
+      setPastDateAddPrompt(pastDateAddGuard);
+      return;
+    }
+    setEditingDelivery(null);
+    setShowDeliveryForm(true);
+  };
+
   const [travelModeDialogOpen, setTravelModeDialogOpen] = useState(false);
   const [cyclingSelectedStopIds, setCyclingSelectedStopIds] = useState([]);
   const [isOptimizingCyclingMode, setIsOptimizingCyclingMode] = useState(false);
@@ -597,11 +627,11 @@ export default function StatsPanel({
               </Popover>
 
               <Button
-                  onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;setEditingDelivery(null);setShowDeliveryForm(true);}}
+                  onClick={openAddDeliveryGuarded}
                   size="sm"
-                  className={`relative h-8 w-8 p-0 transition-colors ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                  disabled={isDateFinished && !isAdmin || currentUser?.status === 'inactive' && isDriver && !isAdmin}
-                  title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
+                  className={`relative h-8 w-8 p-0 transition-colors ${pastDateAddGuard.blocked || currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                  disabled={pastDateAddGuard.blocked || (isDateFinished && !isAdmin) || currentUser?.status === 'inactive' && isDriver && !isAdmin}
+                  title={pastDateAddGuard.blocked ? pastDateAddGuard.message : currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : isDateFinished && !isAdmin ? 'This past route is finished' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
                 {isDemoModeActive && !hasRateLimitError &&
                   <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-[8px] font-bold leading-none text-blue-600">
@@ -1032,6 +1062,34 @@ export default function StatsPanel({
           isSubmitting={isOptimizingCyclingMode} />
 
         }
+
+        {/* PAST-DATE ADD CONFIRM (admin only path — drivers/dispatchers can't
+            reach it because the add button is disabled on past dates). */}
+        <AlertDialog open={!!pastDateAddPrompt} onOpenChange={(open) => { if (!open) setPastDateAddPrompt(null); }}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <span className="text-lg">⚠️</span>
+                {pastDateAddPrompt?.title || 'Past date'}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-sm leading-relaxed">
+                {pastDateAddPrompt?.message}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPastDateAddPrompt(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={() => {
+                  setPastDateAddPrompt(null);
+                  setEditingDelivery(null);
+                  setShowDeliveryForm(true);
+                }}>
+                Add anyway
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>);
 

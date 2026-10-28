@@ -31,6 +31,7 @@ import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { notifyDriverRetry } from "@/components/utils/deliveryMessaging";
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import { toast } from 'sonner';
+import { getPastDateAddGuard } from '@/components/utils/pastDateAddGuard';
 import SkippedStopsDialog from '../components/dashboard/SkippedStopsDialog';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { calculateDistance, populateTemporaryStartTimes, buildMapPadding } from "@/components/dashboard/DashboardHelpers";
@@ -2453,12 +2454,21 @@ function Dashboard() {
   // ── GuideAssistant: open add-delivery form directly from Dashboard ──────────
   useEffect(() => {
     const handleOpenAddDelivery = () => {
+      // PAST-DATE ADD GATE (owner spec Oct 28 2026) — same rule set as the +
+      // button: drivers/dispatchers are refused on a past date, an admin must
+      // confirm what the add will do to that past route.
+      const guard = getPastDateAddGuard({ selectedDate, deliveries: filteredDeliveries, currentUser });
+      if (guard.blocked) {
+        toast.error(guard.message);
+        return;
+      }
+      if (guard.needsConfirm && !window.confirm(guard.message)) return;
       setEditingDelivery(null);
       setShowDeliveryForm(true);
     };
     window.addEventListener('rxdeliver_open_add_to_route', handleOpenAddDelivery);
     return () => window.removeEventListener('rxdeliver_open_add_to_route', handleOpenAddDelivery);
-  }, [setEditingDelivery, setShowDeliveryForm]);
+  }, [setEditingDelivery, setShowDeliveryForm, selectedDate, filteredDeliveries, currentUser]);
 
   const handleCardClick = useCallback((delivery) => {
     if (!delivery || !delivery.id) {

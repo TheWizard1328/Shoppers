@@ -67,6 +67,7 @@ import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { createInterStoreTransfer } from './interStoreTransferHandler';
 import { setInterStoreMode } from '../dashboard/interStoreToggleStore';
 import DeliveryFormView from './DeliveryFormView';
+import { isAdminUser } from '@/components/utils/pastDateAddGuard';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
 import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
 
@@ -1624,8 +1625,28 @@ export default function DeliveryForm({
     };
   }, [openMode, isInterStoreMode, delivery]);
 
+  // ── PAST-DATE BACKSTOP (owner spec Oct 28 2026) ───────────────────────
+  // The dashboard gate covers the + / Add To Route button, this covers EVERY
+  // other way the form can open (Patients page, guide assistant, events):
+  // a NEW delivery aimed at a past date is refused outright for drivers and
+  // dispatchers, and flagged in amber for an admin.
+  const pastDateTarget = useMemo(() => {
+    if (delivery) return false;                       // editing an existing stop
+    if (isInterStoreMode || isPickupMode) return false; // separate flows
+    const dateStr = formData?.delivery_date;
+    if (!dateStr) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const target = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return false;
+    return target.getTime() < today.getTime();
+  }, [delivery, isInterStoreMode, isPickupMode, formData?.delivery_date]);
+
+  const pastDateAddBlocked = pastDateTarget && !isAdminUser(currentUser);
+
   return (
     <DeliveryFormView
+      pastDateAddBlocked={pastDateAddBlocked}
+      pastDateTarget={pastDateTarget}
       formRef={formRef} useMobileLayout={useMobileLayout} isMobileDevice={isMobileDevice} useFullscreen={useFullscreen}
       delivery={delivery} formData={formData} setFormData={setFormData} isPickupMode={isPickupMode} setIsPickupMode={setIsPickupMode} isInterStoreMode={isInterStoreMode} setIsInterStoreMode={setIsInterStoreMode}
       isCyclingMarkerMode={isCyclingMarkerMode} setIsCyclingMarkerMode={setIsCyclingMarkerMode}

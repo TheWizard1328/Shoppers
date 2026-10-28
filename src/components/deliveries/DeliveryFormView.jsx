@@ -151,7 +151,9 @@ export default function DeliveryFormView({
   scheduledDriverMap = {},
   defaultSlotDrivers = null,
   statHolidayWarning = null,
-  autoCommitProgress = 1
+  autoCommitProgress = 1,
+  pastDateAddBlocked = false,
+  pastDateTarget = false
 }) {
   const activeFieldScrollFrameRef = useRef(null);
 
@@ -897,6 +899,16 @@ export default function DeliveryFormView({
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'} text-body bg-surface border-surface`}>
           
+          {/* PAST-DATE ADD WARNING (owner spec Oct 28 2026) */}
+          {pastDateTarget &&
+            <div className={`px-4 py-1.5 text-xs font-medium flex items-center gap-2 flex-shrink-0 ${pastDateAddBlocked ? 'bg-red-50 text-red-700 border-b border-red-200' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
+              <span className="text-base leading-none">{pastDateAddBlocked ? '🚫' : '⚠️'}</span>
+              {pastDateAddBlocked
+                ? 'This is a past date. Only an admin can add a delivery to a past date.'
+                : 'Adding to a PAST date. This will reopen/alter that past route.'}
+            </div>
+          }
+
           {/* Header */}
           <CardHeader className="px-4 py-1 flex flex-col space-y-1.5 border-b flex-shrink-0 border-surface">
             <div className="flex items-center justify-between gap-3">
@@ -2110,7 +2122,7 @@ export default function DeliveryFormView({
                   } else {
                     runLockedAction('batch_save', async () => {await handleBatchSave();fabControlEvents.resetToPhaseOneAfterDone(500);});
                   }
-                }} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || isInterStoreMode && interStoreReady || !isInterStoreMode && openMode !== 'add_to_route' && !hasChanges && pickupsAddedCount === 0}>
+                }} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || pastDateAddBlocked || isInterStoreMode && interStoreReady || !isInterStoreMode && openMode !== 'add_to_route' && !hasChanges && pickupsAddedCount === 0}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 effectiveButtonState === 'updateStaged' ?
