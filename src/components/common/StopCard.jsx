@@ -582,13 +582,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return delivery.driver_id === currentUser.id;
   }, [currentUser, delivery]);
 
-  // OWNER REQUEST (Oct 28 2026): on a COMPLETED driver route the whole action
-  // cluster is hidden, but dispatchers still need to phone patients from the
-  // stop card. This flag re-opens ONLY the call button, for dispatchers (and
-  // admins/owner), on completed routes. Privacy redaction still applies.
+  // OWNER REQUEST (Oct 28 2026, corrected same day): on a COMPLETED driver
+  // route the whole action cluster is hidden, and the owner wants the patient
+  // Call button re-opened there for ADMINISTRATORS ONLY — dispatchers never
+  // need to call. Privacy redaction still applies.
   const canCallOnCompletedRoute = useMemo(() => {
     if (!currentUser) return false;
-    return userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
+    return userHasRole(currentUser, 'admin') || isAppOwner(currentUser);
   }, [currentUser]);
 
   const isAssignedDispatcher = useMemo(() => {
@@ -1200,8 +1200,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   </div>
               }
               {/* OWNER REQUEST (Oct 28 2026): completed driver route - the action
-                  cluster above is hidden for everyone, but dispatchers still need
-                  the Call button to reach the patient. Call only, nothing else. */}
+                  cluster above is hidden for everyone, but ADMINS still need the
+                  Call button to reach the patient. Call only, nothing else. */}
               {routeCompletedForLayout && canCallOnCompletedRoute && finalDisplayPhone && !shouldRedact &&
               <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     <a
