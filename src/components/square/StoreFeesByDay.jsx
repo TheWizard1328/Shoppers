@@ -46,7 +46,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       setLoading(true);
       // Instant prefill from the offline mirror (zero API calls).
       const rows = await getLedgerEntriesOffline().catch(() => []);
-      if (alive) { setEntries(rows || []); setLoading(false); }
+      if (alive) {setEntries(rows || []);setLoading(false);}
       // OWNER FIX (Oct 27 2026, "fees all $0.00"): the offline mirror is
       // written ONLY by the owner-gated SquareSyncAudit page — on any device
       // that hasn't synced the audit page, the mirror is empty and every
@@ -77,7 +77,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
             const prevRows = Array.isArray(prev) ? prev : [];
             const serverIds = new Set(out.map((r) => String(r?.square_id || '')));
             const keptOffline = prevRows.filter((r) =>
-              !serverIds.has(String(r?.square_id || '')) && String(r?.occurred_at || '') < `${month}-01`);
+            !serverIds.has(String(r?.square_id || '')) && String(r?.occurred_at || '') < `${month}-01`);
             return [...keptOffline, ...out];
           });
         }
@@ -86,7 +86,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
         console.warn('[StoreFeesByDay] month ledger fetch failed (using offline mirror):', err?.message || err);
       }
     })();
-    return () => { alive = false; };
+    return () => {alive = false;};
   }, [locationId, month]);
 
   const monthOptions = useMemo(() => {
@@ -121,12 +121,12 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       if (feeC <= 0 && loanC <= 0) continue;
       if (!byDay.has(day)) byDay.set(day, { feeC: 0, loanC: 0, cods: 0, amountC: 0 });
       const row = byDay.get(day);
-      row.feeC += feeC; row.loanC += loanC; row.cods += 1;
+      row.feeC += feeC;row.loanC += loanC;row.cods += 1;
       row.amountC += Math.max(0, Math.round(Number(e.amount_cents || 0)));
       mTotals.amountC += Math.max(0, Math.round(Number(e.amount_cents || 0)));
       if (!swipeCount.has(day)) swipeCount.set(day, new Set());
       swipeCount.get(day).add(txKeyOf(e.square_id));
-      mTotals.feeC += feeC; mTotals.loanC += loanC; mTotals.cods += 1;
+      mTotals.feeC += feeC;mTotals.loanC += loanC;mTotals.cods += 1;
     }
     for (const [day, set] of swipeCount) {
       if (byDay.has(day)) byDay.get(day).swipes = set.size;
@@ -150,7 +150,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
         loanC: data?.loanC || 0,
         cods: data?.cods || 0,
         amountC: data?.amountC || 0,
-        swipes: data?.swipes || 0,
+        swipes: data?.swipes || 0
       });
     }
     return { days: rows, totals: mTotals, maxFeeC: maxFee };
@@ -166,16 +166,16 @@ export default function StoreFeesByDay({ locationId, locationName }) {
         <select
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200"
-        >
-          {monthOptions.map((mk) => (
-            <option key={mk} value={mk}>{monthLabel(mk)}</option>
-          ))}
+          className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200">
+          
+          {monthOptions.map((mk) =>
+          <option key={mk} value={mk}>{monthLabel(mk)}</option>
+          )}
         </select>
       </div>
 
       {/* Monthly totals chips */}
-      <div className="mt-2 grid grid-cols-4 gap-1.5 text-[11px]">
+      <div className="mt-2 grid grid-cols-4 gap-1.5 text-[11px] ml-32">
         <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-1.5">
           <div className="text-slate-500 dark:text-slate-400">CODs collected</div>
           <div className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{money(totals.amountC)}</div>
@@ -196,12 +196,12 @@ export default function StoreFeesByDay({ locationId, locationName }) {
 
       {/* Daily rows */}
       <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-2">
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
+        {loading ?
+        <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading ledger…
-          </div>
-        ) : (
-          <table className="w-full text-xs">
+          </div> :
+
+        <table className="w-full text-xs">
             <thead>
               <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                 <th className="text-left font-semibold py-1 pr-2">Day</th>
@@ -213,32 +213,32 @@ export default function StoreFeesByDay({ locationId, locationName }) {
             </thead>
             <tbody>
               {days.map((d) => {
-                const empty = d.cods === 0;
-                return (
-                  <tr key={d.dayKey} className={`border-b border-slate-100 dark:border-slate-800/60 ${empty ? 'opacity-40' : ''}`}>
+              const empty = d.cods === 0;
+              return (
+                <tr key={d.dayKey} className={`border-b border-slate-100 dark:border-slate-800/60 ${empty ? 'opacity-40' : ''}`}>
                     <td className="py-1 pr-2 tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">{d.label}</td>
                     <td className="py-1 px-2 text-right tabular-nums text-emerald-700 dark:text-emerald-300">{empty ? '—' : money(d.amountC)}</td>
                     <td className="py-1 px-2 text-right tabular-nums text-teal-700 dark:text-teal-300">
                       {empty ? '—' : money(d.feeC)}
                       {/* mini bar: day fee vs month max */}
-                      {!empty && maxFeeC > 0 && (
-                        <div className="h-1 mt-0.5 rounded-sm bg-teal-500/60" style={{ width: `${Math.max(6, Math.round((d.feeC / maxFeeC) * 100))}%`, marginLeft: 'auto' }} />
-                      )}
+                      {!empty && maxFeeC > 0 &&
+                    <div className="h-1 mt-0.5 rounded-sm bg-teal-500/60" style={{ width: `${Math.max(6, Math.round(d.feeC / maxFeeC * 100))}%`, marginLeft: 'auto' }} />
+                    }
                     </td>
                     <td className="py-1 px-2 text-right tabular-nums text-amber-700 dark:text-amber-300">{empty ? '—' : money(d.loanC)}</td>
                     <td className="py-1 pl-2 text-right tabular-nums text-slate-500 dark:text-slate-400">
-                      {empty ? '—' : (d.swipes && d.swipes < d.cods ? `${d.cods} (${d.swipes} swipes)` : d.cods)}
+                      {empty ? '—' : d.swipes && d.swipes < d.cods ? `${d.cods} (${d.swipes} swipes)` : d.cods}
                     </td>
-                  </tr>
-                );
-              })}
+                  </tr>);
+
+            })}
             </tbody>
           </table>
-        )}
-        {!loading && totals.cods === 0 && (
-          <div className="text-center text-xs text-slate-400 py-3">No card collections recorded this month.</div>
-        )}
+        }
+        {!loading && totals.cods === 0 &&
+        <div className="text-center text-xs text-slate-400 py-3">No card collections recorded this month.</div>
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 }
