@@ -29,6 +29,7 @@
  * generic 'Polyline generation' label.
  */
 import { base44 } from '@/api/base44Client';
+import { resolvePolylineOrigin } from './polylineOriginRules';
 import { haversineKm } from './geoUtils';
 import { generateRoutePolylines, decodeGooglePolyline } from './routePolylineGenerator';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
@@ -146,15 +147,20 @@ export async function regenerateCurrentLegPolyline({
   // this origin completed — older points from previous legs made the regenerated
   // leg route backward through the driver's earlier path.
   const originCompletedAt = latestFinished?.actual_delivery_time || null;
-  let origin = null;
-  let originSource = null;
-  if (latestFinishedCoords) {
-    origin = { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
-    originSource = 'last_finished_stop';
-  } else if (driverAppUser?.home_latitude != null && driverAppUser?.home_longitude != null) {
-    origin = { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) };
-    originSource = 'home';
-  }
+  // OWNER REPORT (Oct 28 2026): this path could pick a finished stop that sits
+  // AT the next stop's own location, producing stop -> vias -> stop round
+  // trips. resolvePolylineOrigin skips any finished stop at the destination.
+  const _pick = resolvePolylineOrigin({
+    finishedDeliveries: deliveries,
+    resolveCoords: (d) => getDeliveryCoords(d, patientMap, storeMap),
+    homePosition: (driverAppUser?.home_latitude != null && driverAppUser?.home_longitude != null)
+      ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) } : null,
+    firstTargetCoords: { lat: Number(stopCoords.lat), lon: Number(stopCoords.lng) },
+    gpsPosition: { lat: Number(gps.latitude), lon: Number(gps.longitude) },
+    log: (msg) => console.warn(`[currentLegRegenerator] origin: ${msg}`),
+  });
+  const origin = _pick.origin;
+  const originSource = _pick.source;
   if (!origin) {
     console.warn('[currentLegRegenerator] no polyline origin (no finished stop, no home) — skipping');
     return { success: false, reason: 'no_origin' };

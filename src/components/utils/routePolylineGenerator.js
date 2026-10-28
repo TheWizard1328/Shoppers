@@ -14,6 +14,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { guardLegGeometry } from './polylineOriginRules';
 import { isPolylineEligibleStop as sharedIsPolylineEligible } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
@@ -473,6 +474,7 @@ export async function generateRoutePolylines({
   // leg at the live-GPS via instead (home→GPS→stop collapses to GPS→stop)
   // and suppress the duplicated via insertion.
   let _suppressLiveVia = false;
+  let _suppressFirstLegVias = false;
   if (hasOrigin && polyTargets.length > 0) {
     const _haversineKm = (aLat, aLon, bLat, bLon) => {
       const _dLat = (bLat - aLat) * 111.32;
@@ -482,6 +484,15 @@ export async function generateRoutePolylines({
     const _firstT = polyTargets[0];
     const _originKm = _haversineKm(Number(effectiveOrigin.lat), Number(effectiveOrigin.lon), Number(_firstT.lat), Number(_firstT.lng));
     if (_originKm < 0.15 && viaValid) {
+    // OWNER REPORT (Oct 28 2026): when the origin IS the first stop's location
+    // the leg can only be a round trip - deviation vias drew destination ->
+    // vias -> destination (a 7.27km closed loop). Every via on that leg is
+    // dropped: there is no outbound path to bend, so a via can only double back.
+    if (_originKm < 0.15) {
+      _suppressFirstLegVias = true;
+      console.warn(`[routePolylineGenerator] ${source} - polyline origin sits AT the first stop (${_originKm.toFixed(3)}km) - dropping its ${Array.isArray(_firstT.delivery?.deviation_waypoints) ? _firstT.delivery.deviation_waypoints.length : 0} deviation via(s): they can only draw a round trip back to the same stop (owner Oct 28)`);
+    }
+
       effectiveOrigin = { lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) };
       _suppressLiveVia = true;
       console.warn(`[routePolylineGenerator] ${source} — polyline origin ≈ first stop (${_originKm.toFixed(3)}km) — re-anchored current leg at the live-GPS via to avoid a stop→GPS→stop loop (owner Oct 27)`);
@@ -563,7 +574,9 @@ export async function generateRoutePolylines({
       // valid via window. Later legs' origins are previous stops; their vias
       // were re-guarded by the engine's transfer cleanup before writeBatch.
       let vias = getDeviationWaypoints(stop.delivery);
-      if (groupIdx === 0 && stopLocalIdx === 0) {
+      if (groupIdx === 0 && stopLocalIdx === 0 && _suppressFirstLegVias) {
+        vias = [];
+      } else if (groupIdx === 0 && stopLocalIdx === 0) {
         vias = dropStaleVias(vias);
         // OWNER REPORT (Oct 27 2026, 1.3km home->first-stop leg drew a 24km
         // loop): stale pre-leg deviation points (recorded before this leg
@@ -687,6 +700,29 @@ export async function generateRoutePolylines({
           if (metricDuration == null) metricDuration = Math.max(1, Math.ceil((_km / 40) * 60));
           if (metricDistance == null) metricDistance = Number(_km.toFixed(3));
           console.warn(`[routePolylineGenerator] ${source} — leg INTO stop ${stop.delivery?.tracking_number || stop.delivery?.id} had no route section (partial provider response) — synthesized straight-line leg (${_km.toFixed(2)}km) instead of deleting the polyline`);
+        }
+      }
+
+      // FINAL GEOMETRY GATE (owner report Oct 28 2026): nothing leaves this
+      // function as a closed loop. A leg that starts and ends in the same place
+      // while its length dwarfs the anchor->stop distance is the "routes back
+      // to the current stop" shape; substitute a straight anchor->stop line so
+      // the loop can never be painted or persisted again.
+      if (encoded != null) {
+        const _gateAnchor = points[Math.max(0, stopIdx - 1 - viaCount)];
+        const _gated = guardLegGeometry({
+          encoded,
+          decode: decodeGooglePolyline,
+          encode: encodeGooglePolyline,
+          anchor: _gateAnchor,
+          stop: { lat: stop.lat, lng: stop.lng },
+          log: (msg) => console.warn(`[routePolylineGenerator] ${source} - ${msg}`),
+        });
+        if (_gated.replaced) {
+          encoded = _gated.encodedPolyline;
+          if (metricDistance == null && Number.isFinite(Number(_gateAnchor?.lat))) {
+            metricDistance = Number(haversineKm(Number(_gateAnchor.lat), Number(_gateAnchor.lon), Number(stop.lat), Number(stop.lng)).toFixed(3));
+          }
         }
       }
 

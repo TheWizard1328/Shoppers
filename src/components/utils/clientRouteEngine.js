@@ -17,6 +17,7 @@ import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMin
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
+import { resolvePolylineOrigin } from './polylineOriginRules';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 /**
  * clientRouteEngine.js
@@ -1099,18 +1100,31 @@ let _inheritedWindowCount = 0;
     // Polyline origin: last finished stop → driver home → first active stop →
     // current position (fallback). NEVER the driver's live GPS for a new route —
     // the planned polyline must start at home so it doesn't jump with every ping.
-    const polylineOrigin = (() => {
-      if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
-      if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
-      // OWNER DIRECTIVE (Oct 27 2026): the current leg's origin is the most
-      // recently finished stop, else the driver's HOME — NEVER the first
-      // active stop (that made the leg run firstStop→GPS→firstStop). The
-      // earlier abort guarantees one of the two rungs above resolved;
-      // reaching this point means only a segment-override origin exists.
-      console.error(`[clientRouteEngine] ${source} — polyline origin fell past lastFinished/home — using the resolved origin override, NOT the first active stop (owner Oct 27)`);
-      return { lat: currentPosition.lat, lon: currentPosition.lng };
-    })();
-    const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';
+    // OWNER REPORT (Oct 28 2026 - stop 23 painted a 7.27km closed loop that
+    // started AND ended at the destination while the most recent completed stop
+    // sat 3.9km away): the origin resolution accepted ANY finished stop or home
+    // without checking WHERE it is. A finished stop sitting at the first active
+    // stop's location (a pickup completed at the very store we are returning
+    // to, or a coordinate lookup that fell back to the store record) collapses
+    // origin into destination, and every deviation via then draws destination
+    // -> vias -> destination. resolvePolylineOrigin walks finished stops newest
+    // first and skips any that sit at the destination.
+    const _firstActiveCoords = activeRouteStops[0]
+      ? { lat: Number(activeRouteStops[0].lat), lon: Number(activeRouteStops[0].lng) }
+      : null;
+    const _originPick = resolvePolylineOrigin({
+      finishedDeliveries: completedDeliveries,
+      resolveCoords: (d) => getDeliveryCoords(d, patientMap, storeMap),
+      homePosition: resolvedHomePosition ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lon } : null,
+      firstTargetCoords: _firstActiveCoords,
+      gpsPosition: currentPosition ? { lat: Number(currentPosition.lat), lon: Number(currentPosition.lng) } : null,
+      log: (m) => console.warn(`[clientRouteEngine] ${source} - polyline origin: ${m}`),
+    });
+    const polylineOrigin = _originPick.origin
+      || (currentPosition
+        ? { lat: Number(currentPosition.lat), lon: Number(currentPosition.lng) }
+        : (latestFinishedCoords ? { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng } : null));
+    const _polylineOriginSource = _originPick.source;
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
 
     // ── Deviation waypoint transfer (Sep 17 2026) ──────────────────────────
@@ -1273,7 +1287,7 @@ let _inheritedWindowCount = 0;
       console.warn('[clientRouteEngine] pre-generation via clear skipped (non-fatal):', _viaClearErr?.message || _viaClearErr);
     }
 
-    segmentPolylineByDeliveryId = await generateRoutePolylines({
+    segmentPolylineByDeliveryId = polylineOrigin ? await generateRoutePolylines({
       orderUnchanged: orderUnchangedForPolylines,
       forceRegenerate,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
@@ -1290,7 +1304,7 @@ let _inheritedWindowCount = 0;
       routeStops,
       viaPointAfterOrigin,
       originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
-    });
+    }) : segmentPolylineByDeliveryId;
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
