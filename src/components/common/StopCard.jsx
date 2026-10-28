@@ -184,6 +184,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const startTapLockRef = useRef(false);
   const completeTapLockRef = useRef(false);
   const actionTapLockRef = useRef(false);
+  // OWNER BUG FIX (Oct 28 2026): "hitting Start also expands the card".
+  // The Start button fires on POINTERDOWN and the delivery flips to en_route
+  // right away, so the button UNMOUNTS before the click event is dispatched.
+  // The browser then retargets that click at the nearest surviving ancestor —
+  // the card itself — whose onClick toggles/expands it. Remember where the
+  // press STARTED (capture phase, before anything unmounts) and refuse a
+  // toggle for a press that began on a stop-card action control.
+  const pointerDownOnActionRef = useRef(false);
+  const ACTION_CONTROL_SELECTOR = '[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], [data-stopcard-action="retry"], [data-stopcard-action="return"], [data-stopcard-checkbox="true"]';
   const codAmountInputRefs = useRef([]);
 
   const isStrippedForDriver = useMemo(() => {
@@ -1033,10 +1042,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
       <Card
         data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden min-h-0 h-auto self-start border-blue-500"
+        onPointerDownCapture={(e) => {
+          pointerDownOnActionRef.current = !!e.target?.closest?.(ACTION_CONTROL_SELECTOR);
+        }}
         onClick={(e) => {
-          const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], [data-stopcard-action="retry"], [data-stopcard-action="return"]');
+          const pressedOnAction = pointerDownOnActionRef.current;
+          pointerDownOnActionRef.current = false; // consume: one press, one decision
+          const actionButton = e.target?.closest?.(ACTION_CONTROL_SELECTOR);
           const checkboxArea = e.target?.closest?.('[data-stopcard-checkbox="true"]');
-          if (checkboxArea || actionButton) {
+          if (checkboxArea || actionButton || pressedOnAction) {
             e.stopPropagation();
             return;
           }
