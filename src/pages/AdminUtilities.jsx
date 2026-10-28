@@ -1860,7 +1860,7 @@ export default function AdminUtilities() {
 
                   <TabsContent
                     value="patients"
-                    className={isMobile ? "mt-6 flex flex-col overflow-hidden data-[state=inactive]:hidden" : "mt-6"}
+                    className={isMobile ? "mt-6 flex flex-col overflow-hidden data-[state=inactive]:hidden" : "pt-6 h-full flex flex-col min-h-0"}
                     style={isMobile ? { height: 'calc(100vh - 220px)' } : undefined}
                   >
                     <AdminPatientsTab

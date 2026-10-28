@@ -164,18 +164,18 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
 
   if (!isMobile) {
     return (
-      <>
-        <div className="mb-4 flex items-center gap-3">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="mb-4 flex shrink-0 items-center gap-3">
           <div className="min-w-0 flex-1">{historyBanner}</div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">{buttons}</div>
         </div>
-        {children}
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         <PatientGPSUpdatesDialog
           open={showPatientGpsUpdates}
           onOpenChange={setShowPatientGpsUpdates}
           stores={stores}
         />
-      </>
+      </div>
     );
   }
 

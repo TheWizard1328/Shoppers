@@ -190,7 +190,7 @@ export const PatientDataTable = ({
   const duplicateFilterBtnClass = isMobile ? 'w-full' : '';
 
   return (
-    <Card className={isMobile ? 'bg-surface border-surface h-full flex flex-col min-h-0' : 'bg-surface border-surface'}>
+    <Card className={isMobile ? 'bg-surface border-surface h-full flex flex-col min-h-0' : 'bg-surface border-surface h-full flex flex-col min-h-0'}>
       <CardHeader className={isMobile ? 'shrink-0' : ''}>
         <CardTitle className="flex items-center justify-between text-body">
           <span>Patients</span>
@@ -202,8 +202,8 @@ export const PatientDataTable = ({
         </CardTitle>
         <CardDescription style={textMuted}>Filtered and sorted list of patients.</CardDescription>
       </CardHeader>
-      <CardContent className={isMobile ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : ''}>
-        <div className={isMobile ? 'space-y-3 mb-4 shrink-0' : 'space-y-3 mb-4'}>
+      <CardContent className={isMobile ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : 'flex-1 min-h-0 flex flex-col'}>
+        <div className={isMobile ? 'space-y-3 mb-4 shrink-0' : 'space-y-3 mb-4 shrink-0'}>
           <div className="flex gap-3 flex-wrap items-center">
             <Input placeholder="Filter by ID, name, PID, phone, address, store, last delivery date, Care Pro, or CP name..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} disabled={isLoadingData} className="flex-1 min-w-[250px]" />
             <Select value={storeFilter} onValueChange={setStoreFilter} disabled={isLoadingData}>
@@ -229,8 +229,8 @@ export const PatientDataTable = ({
             <Button className={duplicateFilterBtnClass} variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
           </div>
         </div>
-        <div className={isMobile ? 'border rounded-md overflow-hidden border-surface flex-1 min-h-0 flex flex-col' : 'border rounded-md overflow-hidden border-surface'}>
-          <div className={isMobile ? 'overflow-x-auto overflow-y-auto flex-1 min-h-0' : 'overflow-x-auto max-h-[600px] overflow-y-auto'}>
+        <div className={isMobile ? 'border rounded-md overflow-hidden border-surface flex-1 min-h-0 flex flex-col' : 'border rounded-md overflow-hidden border-surface flex-1 min-h-0 flex flex-col'}>
+          <div className={isMobile ? 'overflow-x-auto overflow-y-auto flex-1 min-h-0' : 'overflow-x-auto overflow-y-auto flex-1 min-h-0'}>
             <table className="w-full text-sm table-fixed">
               <thead className="border-b sticky top-0 z-10 border-surface" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
