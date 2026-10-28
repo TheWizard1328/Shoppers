@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,16 @@ const getStoredSettings = () => {
   try {
     const stored = localStorage.getItem('rxdeliver_route_optimization_settings');
     if (stored) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+      // OWNER BUG FIX (Oct 28 2026): HOME COORDINATES ARE NEVER READ FROM THE
+      // DEVICE CACHE. This key is per BROWSER PROFILE, not per user, so on any
+      // device where another driver had saved settings the cached home coords
+      // belonged to THAT driver — the panel then showed them and wrote them
+      // onto whoever was logged in (Robert's home became Erin's home).
+      // Home coords are seeded from the signed-in user's own AppUser record.
+      const parsed = JSON.parse(stored) || {};
+      delete parsed.driverHomeLatitude;
+      delete parsed.driverHomeLongitude;
+      return { ...DEFAULT_SETTINGS, ...parsed };
     }
   } catch (error) {
     console.error('Error loading route optimization settings:', error);
@@ -49,7 +58,10 @@ const getStoredSettings = () => {
 
 const saveSettings = async (settings) => {
   try {
-    localStorage.setItem('rxdeliver_route_optimization_settings', JSON.stringify(settings));
+    // Home coords are per-user and live ONLY on the AppUser record — never in
+    // the shared per-device cache (another user's coords would leak).
+    const { driverHomeLatitude: _hl, driverHomeLongitude: _hg, ...deviceSafeSettings } = settings || {};
+    localStorage.setItem('rxdeliver_route_optimization_settings', JSON.stringify(deviceSafeSettings));
     // Also save to AppSettings entity for backend functions to use
     const adminOnlySettings = {
       enableRouteDeviationDetection: settings.enableRouteDeviationDetection,
@@ -115,7 +127,30 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
     return () => { cancelled = true; };
   }, []);
 
+  // TRUE only when the user deliberately sets home coords in THIS session
+  // (typed or auto-detected). An untouched panel never rewrites the record.
+  const homeCoordsDirtyRef = useRef(false);
+
+  // One-time cleanup: purge home coords left in this device's cache by the
+  // pre-fix code so no other user's coordinates linger on the browser.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rxdeliver_route_optimization_settings');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) || {};
+      if ('driverHomeLatitude' in parsed || 'driverHomeLongitude' in parsed) {
+        delete parsed.driverHomeLatitude;
+        delete parsed.driverHomeLongitude;
+        localStorage.setItem('rxdeliver_route_optimization_settings', JSON.stringify(parsed));
+        console.log('[RouteOptimizationSettings] Purged stale device-cached home coords');
+      }
+    } catch (_) { /* ignore */ }
+  }, []);
+
   const handleSettingChange = (key, value) => {
+    if (key === 'driverHomeLatitude' || key === 'driverHomeLongitude') {
+      homeCoordsDirtyRef.current = true;
+    }
     setSettings((prev) => ({ ...prev, [key]: value }));
     setHasUnsavedChanges(true);
   };
@@ -123,14 +158,28 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   const handleSave = async () => {
     await saveSettings(settings);
     if (currentUser?.id) {
-      const home_latitude = settings.useDriverHome ? settings.driverHomeLatitude : null;
-      const home_longitude = settings.useDriverHome ? settings.driverHomeLongitude : null;
       const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id }, '-updated_date', 1);
       const appUser = appUsers?.[0];
       if (appUser?.id) {
-        await base44.entities.AppUser.update(appUser.id, { home_latitude, home_longitude });
+        const patch = {};
+        // OWNER BUG FIX (Oct 28 2026): home coords are written ONLY when this
+        // session actually changed them (or the use-home switch was turned
+        // off, which is an explicit choice). A panel that merely shows the
+        // seeded values must never re-stamp the record — that is how a stale
+        // cached home from another user used to overwrite the owner's.
+        if (homeCoordsDirtyRef.current) {
+          patch.home_latitude = settings.useDriverHome ? settings.driverHomeLatitude : null;
+          patch.home_longitude = settings.useDriverHome ? settings.driverHomeLongitude : null;
+        } else if (!settings.useDriverHome && (appUser.home_latitude != null || appUser.home_longitude != null)) {
+          patch.home_latitude = null;
+          patch.home_longitude = null;
+        }
+        if (Object.keys(patch).length) {
+          await base44.entities.AppUser.update(appUser.id, patch);
+        }
       }
     }
+    homeCoordsDirtyRef.current = false;
     setHasUnsavedChanges(false);
     if (onClose) onClose();
   };
@@ -166,36 +215,20 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
     }
   };
 
-  // Load home coordinates from currentUser if available
+  // SEED HOME COORDS FROM THE SIGNED-IN USER'S OWN AppUser RECORD (owner bug
+  // fix Oct 28 2026). The record is the single source of truth; the device
+  // cache is never consulted, and a user's own untouched values always win
+  // over anything left behind on this browser by someone else.
   useEffect(() => {
-    if (currentUser?.home_latitude && currentUser?.home_longitude &&
-    !settings.driverHomeLatitude && !settings.driverHomeLongitude) {
-      setSettings((prev) => ({
-        ...prev,
-        driverHomeLatitude: currentUser.home_latitude,
-        driverHomeLongitude: currentUser.home_longitude
-      }));
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser?.home_latitude || !currentUser?.home_longitude) return;
-    try {
-      const stored = getStoredSettings();
-      if (!stored.driverHomeLatitude || !stored.driverHomeLongitude) {
-        saveSettings({
-          ...stored,
-          driverHomeLatitude: currentUser.home_latitude,
-          driverHomeLongitude: currentUser.home_longitude
-        });
-        setSettings((prev) => ({
-          ...prev,
-          driverHomeLatitude: prev.driverHomeLatitude || currentUser.home_latitude,
-          driverHomeLongitude: prev.driverHomeLongitude || currentUser.home_longitude
-        }));
-      }
-    } catch (_) {}
-  }, [currentUser?.home_latitude, currentUser?.home_longitude]);
+    if (homeCoordsDirtyRef.current) return; // never clobber a deliberate edit
+    const lat = currentUser?.home_latitude ?? null;
+    const lng = currentUser?.home_longitude ?? null;
+    setSettings((prev) => (
+      prev.driverHomeLatitude === lat && prev.driverHomeLongitude === lng
+        ? prev
+        : { ...prev, driverHomeLatitude: lat, driverHomeLongitude: lng }
+    ));
+  }, [currentUser?.id, currentUser?.home_latitude, currentUser?.home_longitude]);
 
   // Load breadcrumbs settings from UserSettings and check if primary device
   useEffect(() => {
