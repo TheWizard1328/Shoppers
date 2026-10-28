@@ -32,17 +32,10 @@ const formatTime = (isoStr) => {
   return `${h12}:${String(hm.m).padStart(2, '0')} ${hm.h >= 12 ? 'PM' : 'AM'}`;
 };
 
-const calcSegmentMinutes = (seg) => {
-  if (!seg.start_time) return null;
-  const start = new Date(seg.start_time);
-  const end = seg.end_time ? new Date(seg.end_time) : new Date();
-  return Math.max(0, differenceInMinutes(end, start));
-};
-
-const totalOnDutyMinutes = (record) => {
-  if (!record?.activity_segments?.length) return 0;
-  return record.activity_segments.reduce((sum, seg) => sum + (calcSegmentMinutes(seg) || 0), 0);
-};
+// SHARED DUTY MATH (Oct 27 2026): identical module as the dashboard stats card —
+// one definition of on-duty time, no drift between the two pages.
+import { totalOnDutyMinutes as sharedTotalOnDutyMinutes } from '@/components/utils/driverDutyTime';
+const totalOnDutyMinutes = (record) => sharedTotalOnDutyMinutes(record);
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 

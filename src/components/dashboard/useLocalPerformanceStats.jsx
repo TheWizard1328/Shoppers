@@ -5,6 +5,7 @@ import { haversineKm } from '@/components/utils/geoUtils';
 import { commitDeliveryUpdatesSilently } from '@/components/utils/routeCommitMarker';
 import { calculateDeliveryPay } from '@/components/utils/payCalculator';
 import { parseAnyTimestamp } from '@/components/utils/albertaTime';
+import { totalOnDutyMinutes as sharedTotalOnDutyMinutes } from '@/components/utils/driverDutyTime';
 import { fetchDriverDailyActivityCached, invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
 
 // Polyline-derived leg km cache — key id:polylineSignature so a re-render
@@ -339,57 +340,12 @@ export function useLocalPerformanceStats({
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
 
-            // OPEN-SEGMENT CAP (owner report Oct 27 2026, Erin): a driver who
-            // finishes the route but stays on duty kept the open segment running
-            // against wall-clock "now" — her card read 6h for a 2h25m shift
-            // (15:30→17:55) until the segment finally closed. Once the driver's
-            // route is complete, cap any OPEN segment at the last finished
-            // stop's actual_delivery_time — the same end-time default the
-            // Driver Activity timeline shows. While the route is still active,
-            // "now" keeps counting as before.
-            const segDriverDeliveries = (filteredDeliveries || []).filter(d => d?.driver_id === segDriverId);
-            const segPatientDeliveries = segDriverDeliveries.filter(d => d?.patient_id);
-            const segRouteComplete = segPatientDeliveries.length > 0 &&
-              segPatientDeliveries.every(d => finishedStatuses.includes(d.status));
-            let lastStopMs = null;
-            if (segRouteComplete) {
-              for (const d of segDriverDeliveries) {
-                const t = parseAnyTimestamp(d.actual_delivery_time);
-                if (t && (lastStopMs === null || t.getTime() > lastStopMs)) lastStopMs = t.getTime();
-              }
-            }
-
-            const ranges = segments
-              .filter(s => s?.start_time)
-              .map(s => {
-                const start = parseAnyTimestamp(s.start_time);
-                const end = s.end_time ? parseAnyTimestamp(s.end_time) : null;
-                return {
-                  start: start ? start.getTime() : null,
-                  end: (end ? end.getTime() : nowMs),
-                  _open: !s.end_time
-                };
-              })
-              .filter(r => r.start !== null && Number.isFinite(r.end))
-              .map(r => (r._open && segRouteComplete && lastStopMs !== null)
-                ? { start: r.start, end: Math.min(r.end, lastStopMs) }
-                : { start: r.start, end: r.end })
-              .sort((a, b) => a.start - b.start);
-
-            const merged = [];
-            for (const r of ranges) {
-              if (r.end <= r.start) continue; // capped-away open segment
-              const last = merged[merged.length - 1];
-              if (last && r.start <= last.end) {
-                last.end = Math.max(last.end, r.end);
-              } else {
-                merged.push({ start: r.start, end: r.end });
-              }
-            }
-
-            const segMinutes = merged.reduce((sum, r) => {
-              return sum + Math.max(0, Math.round((r.end - r.start) / 60000));
-            }, 0);
+            // SHARED DUTY MATH (owner directive Oct 27 2026): the stats card
+            // uses the EXACT same on-duty computation as the Admin Driver
+            // Activity page — one shared module (driverDutyTime.js), per-segment
+            // sum, an open segment running against "now". Same record, same
+            // number, no drift.
+            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, nowMs);
 
             const cappedMinutes = Math.min(segMinutes, 1440);
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);
