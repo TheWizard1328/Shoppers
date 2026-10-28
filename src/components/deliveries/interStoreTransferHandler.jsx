@@ -5,6 +5,8 @@
 
 import { base44 } from '@/api/base44Client';
 import { ensureInterStoreCoords } from '@/components/utils/interStoreGeocode';
+import { sendDeliveryMessage, sendPushForNotification } from '@/components/utils/deliveryMessaging';
+import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { executeOfflineBatchAction } from '@/components/utils/offlineBatchAction';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
@@ -201,13 +203,16 @@ export async function createInterStoreTransfer({
   const stop_order = existingStopOrders.length > 0 ? Math.max(...existingStopOrders) + 1 : 1;
 
   // ── delivery_time_start ───────────────────────────────────────────────
-  // InterStore PICKUP (ISP): when the "To" store still has an ACTIVE stop
-  // (pending / in_transit / en_route) on the driver's route, schedule the
-  // pickup BEFORE that To store's delivery start time so the optimizer
-  // sequences the pickup ahead of the To store delivery. If the To store's
-  // stop is already finished (or there is no To store stop), fall back to
-  // now + 5 min. ISD (dropoff) always uses now + 5 min. A user-set form
-  // value always wins.
+  // NEWLY CREATED InterStore PICKUP (ISP) rule (owner spec Oct 28 2026):
+  //   A. The route ALREADY has a pickup at THIS ISP's destination store →
+  //      the driver will be at that store anyway, so the pickup can run up
+  //      to 1 hour ahead of that destination pickup's window start, never
+  //      earlier than now:  start = max(now, destPickupStart - 60min).
+  //   B. No pickup at the destination store → use the destination STORE's
+  //      own delivery start time for that date (+5 min buffer).
+  // Fallback when neither resolves: now + 5 min. ISD (dropoff) keeps
+  // now + 5 min. A user-set form value always wins. Applies to new ISPs
+  // only — existing stops are never re-timed.
   // ── delivery_time_end ─────────────────────────────────────────────────
   // Priority: user-set form value → blank (always)
   // Store business hours are NOT used — interstore times are independent of store hours.
@@ -225,17 +230,27 @@ export async function createInterStoreTransfer({
   if (!delivery_time_start) {
     let computed = '';
     if (!isDropOff && matchedDestStore?.id) {
-      // The To store's stop on the driver's route — prefer the store pickup
-      // (no patient_id), then any stop at that store.
-      const toStoreStops = routeDeliveriesAll.filter((d) => d && d.store_id === matchedDestStore.id);
-      const toStoreStop = toStoreStops.find((d) => !d.patient_id) || toStoreStops[0] || null;
-      const isActive = toStoreStop && ['pending', 'in_transit', 'en_route'].includes(toStoreStop.status);
-      if (toStoreStop && isActive && toStoreStop.delivery_time_start) {
-        const toStart = parseHHMM(toStoreStop.delivery_time_start);
-        if (toStart) {
-          // 10-minute lead so the pickup is scheduled before the To store delivery
-          computed = formatHHMM(new Date(toStart.getTime() - 10 * 60 * 1000));
+      // A. Store pickup already on the route for the DESTINATION store.
+      const destPickup = routeDeliveriesAll.find((d) =>
+        d && !d.patient_id && d.store_id === matchedDestStore.id &&
+        !d._interstore_source_id && !d._interstore_dest_id &&
+        String(d.status || '') !== 'cancelled'
+      ) || null;
+      if (destPickup?.delivery_time_start) {
+        const destStart = parseHHMM(destPickup.delivery_time_start);
+        if (destStart) {
+          // Up to 1 hour ahead of that pickup's window, but never before now.
+          computed = formatHHMM(new Date(Math.max(now.getTime(), destStart.getTime() - 60 * 60 * 1000)));
         }
+      }
+      // B. No destination pickup → destination STORE delivery start + 5 min.
+      if (!computed) {
+        const dow = new Date(String(formData.delivery_date || '').replace(/-/g, '/')).getDay();
+        const dayKey = dow === 6 ? 'saturday' : dow === 0 ? 'sunday' : 'weekday';
+        const slotKey = String(ampm_deliveries || 'AM').toUpperCase() === 'PM' ? 'pm' : 'am';
+        const storeStart = matchedDestStore?.[`${dayKey}_${slotKey}_start`] || matchedDestStore?.[`${dayKey}_am_start`] || '';
+        const storeStartDate = storeStart ? parseHHMM(storeStart) : null;
+        if (storeStartDate) computed = formatHHMM(new Date(storeStartDate.getTime() + 5 * 60 * 1000));
       }
     }
     if (!computed) {
@@ -320,6 +335,57 @@ export async function createInterStoreTransfer({
 
   // The real backend record is the finalized one from the batch flush
   created = batchResult?.records?.[0] || null;
+
+  // ── CREATOR NOTIFICATION (owner spec Oct 28 2026) ────────────────────
+  // A new InterStore PICKUP created by a DISPATCHER or ADMIN for a driver
+  // that is NOT the creator sends that driver a push + an in-app message.
+  // Self-created pickups (driver adding their own) send nothing.
+  if (!isDropOff && created?.id) {
+    try {
+      const creatorAppUser =
+        (appUsers || []).find((au) => au && au.user_id && currentUser?.id && au.user_id === currentUser.id) ||
+        (Array.isArray(currentUser?.app_roles) ? currentUser : null);
+      const creatorIsDispatcherOrAdmin =
+        isAppOwner(currentUser) ||
+        userHasRole(creatorAppUser, 'admin') ||
+        userHasRole(creatorAppUser, 'dispatcher') ||
+        userHasRole(creatorAppUser, 'store_owner');
+      const driverAppUser = (allDrivers || []).find((d) => d && d.id === formData.driver_id) || null;
+      const sameUser =
+        (!!creatorAppUser?.id && !!driverAppUser?.id && creatorAppUser.id === driverAppUser.id) ||
+        (!!currentUser?.id && !!driverAppUser?.user_id && currentUser.id === driverAppUser.user_id);
+      if (creatorIsDispatcherOrAdmin && !sameUser && creatorAppUser?.id && driverAppUser) {
+        const content = `InterStore Pickup added to your route for ${formData.delivery_date}: SDM ${srcNum || '?'} -> ${dstNum || '?'}.`;
+        const msg = await sendDeliveryMessage({
+          senderId: creatorAppUser.id,
+          senderName: getDriverNameForStorage?.(creatorAppUser) || creatorAppUser.user_name || 'Dispatcher',
+          receiverId: driverAppUser.id,
+          receiverName: getDriverNameForStorage?.(driverAppUser) || driverAppUser.user_name || 'Driver',
+          content,
+        });
+        const push = (receiver) => sendPushForNotification({
+          receiverId: receiver,
+          senderName: creatorAppUser.user_name || 'Dispatcher',
+          content,
+          titleOverride: 'InterStore Pickup',
+          event: 'interstore_pickup_added',
+          url: '/',
+          tag: `isp-${created.id}`,
+          message_id: msg?.id || null,
+          delivery_ids: [created.id],
+          reply_to: creatorAppUser.id,
+          reply_to_name: creatorAppUser.user_name || 'Dispatcher',
+        });
+        // Push subscriptions are keyed by the AUTH user_id; fall back to the
+        // AppUser id for legacy subscriptions.
+        const authUserId = driverAppUser.user_id || '';
+        let res = authUserId ? await push(authUserId) : { sent: 0 };
+        if (!res?.sent) await push(driverAppUser.id);
+      }
+    } catch (e) {
+      console.warn('[InterStoreTransfer] creator notification failed (non-critical):', e?.message || e);
+    }
+  }
 
   // Store the pending optimization context so the caller can run it when the form closes.
   // Multiple ISP/ISD additions accumulate — the optimizer runs once with all of them.
