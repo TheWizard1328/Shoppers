@@ -1891,7 +1891,7 @@ const persistSnapshotModule = (data) => {
 // stale record shape indefinitely and its badge computes a different
 // number than a desktop that saw the write. Pull the most-recently-
 // updated deliveries into the mirror, drop the read cache, THEN reload.
-async function healDeliveryMirror() {
+export async function healDeliveryMirror() {
   try {
     const rows = await base44.entities.Delivery.list('-updated_date', 500, 0).catch(() => []);
     if (rows?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows);
@@ -2002,6 +2002,10 @@ async function runPreComputeSquareSync() {
     // Service-side writes broadcast nothing — force the next compute to
     // re-pull the ledger windows instead of serving the cache.
     invalidateLedgerWindows();
+    // Same for the delivery mirror: the sync stamps collections
+    // (cod_confirmed_collected) server-side — heal so the compute below
+    // sees them and collected rows leave the Uncollected lists.
+    try { await healDeliveryMirror(); } catch {}
   } catch (e) {
     console.warn('[useSquareBalancesSummary] pre-compute ledger sync failed (continuing with cached ledger):', e?.message || e);
   }

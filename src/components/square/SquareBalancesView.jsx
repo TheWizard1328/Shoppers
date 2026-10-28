@@ -9,12 +9,13 @@ import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage, healDeliveryMirror } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot, subscribeSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from "@/components/utils/deviceManager";
 import PaymentDiscrepanciesList from "./PaymentDiscrepanciesList";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
@@ -1723,6 +1724,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             await base44.functions.invoke('squareVerifyCatalog', {}).catch((e) => {
               console.warn('[SquareBalances] page-load catalog verify failed:', e?.message || e);
             });
+            // FRESH DELIVERY MIRROR (owner report Oct 27 2026 night): the
+            // sync just stamped collections server-side — heal the IDB mirror
+            // and recompute the page lists so rows updated to Collected LEAVE
+            // the Uncollected sections immediately (no WS echo arrives for
+            // service-role writes).
+            invalidateServerOverlay();
+            invalidateIdbReadCache('deliveries');
+            await healDeliveryMirror().catch(() => {});
+            computeCodCollectedTodayRef.current?.();
+            computeLocalOutstandingRef.current?.();
+            computeCatalogUncollectedRef.current?.();
           } catch (e) {
             console.warn('[SquareBalances] page-load COD sync failed (compute keeps cached ledger):', e?.message || e);
           }
@@ -1840,6 +1852,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         } catch (err) {
           console.warn('[SquareBalances] COD catalog sync after ledger sync failed:', err);
         }
+      }
+      // FRESH DELIVERY MIRROR (owner report Oct 27 2026 night): the sync
+      // steps above stamp collections SERVER-SIDE (cod_confirmed_collected /
+      // tender confirmations — service-role writes, no WS echo). Without a
+      // mirror heal the recomputes below still read the STALE IDB copy and a
+      // COD updated to Collected kept showing in the Uncollected sections.
+      // Pull the recently-updated deliveries into IDB first, then recompute.
+      try {
+        invalidateServerOverlay();
+        invalidateIdbReadCache('deliveries');
+        await healDeliveryMirror();
+      } catch (e) {
+        console.warn('[SquareBalances] delivery mirror heal failed (recomputes may be stale):', e?.message || e);
       }
       setSyncStatusText('Syncing Square Balances.');
       await loadSales(cfg);
@@ -2626,9 +2651,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
 
                 
-              {ownerCanEdit && feesByDayLoc === loc.location_id && (
-                <StoreFeesByDay locationId={loc.location_id} locationName={loc.name} />
-              )}
+              {/* Fees by day now opens as a larger popout dialog (owner
+                  spec Oct 27 2026 night) — no longer crammed inside the card. */}
               {(() => {
                   // Collected/Uncollected/Past uncollected list — owner request
                   // Oct 4 2026: drivers see this full section too (same as the
@@ -2809,6 +2833,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
         })}
       </div>
+
+      {/* FEES BY DAY POPOUT DIALOG (owner spec Oct 27 2026 night): the
+          per-store fee breakdown opens as a larger dialog instead of being
+          stuck inside the store card. */}
+      <Dialog open={!!feesByDayLoc} onOpenChange={(o) => { if (!o) setFeesByDayLoc(null); }}>
+        <DialogContent className="sm:max-w-2xl w-[94vw] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Fees by day — {feesByDayLoc ? ((config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name || 'card') : ''}</DialogTitle>
+            <DialogDescription>Daily Square fee and Loan fee for collected CODs on this card, by month.</DialogDescription>
+          </DialogHeader>
+          {feesByDayLoc && (
+            <StoreFeesByDay
+              locationId={feesByDayLoc}
+              locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
                                    Square Cards, pulled from the card (MOBILE) locations the per-store

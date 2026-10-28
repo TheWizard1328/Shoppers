@@ -155,7 +155,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       {/* Header: title + month selector */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-          Fees by day — {locationName || 'card'}
+          {locationName || 'Card'} — month detail
         </span>
         <select
           value={month}
