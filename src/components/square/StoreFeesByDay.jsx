@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getLedgerEntriesOffline } from "@/components/utils/squareLedgerOfflineManager";
+import { base44 } from "@/api/base44Client";
 import { edmontonBusinessDayKey, parseAnyTimestamp } from "@/components/utils/albertaTime";
 
 /**
@@ -43,11 +44,50 @@ export default function StoreFeesByDay({ locationId, locationName }) {
     let alive = true;
     (async () => {
       setLoading(true);
+      // Instant prefill from the offline mirror (zero API calls).
       const rows = await getLedgerEntriesOffline().catch(() => []);
       if (alive) { setEntries(rows || []); setLoading(false); }
+      // OWNER FIX (Oct 27 2026, "fees all $0.00"): the offline mirror is
+      // written ONLY by the owner-gated SquareSyncAudit page — on any device
+      // that hasn't synced the audit page, the mirror is empty and every
+      // day showed $0.00 even though the server ledger has correct fee
+      // splits. Fetch the SELECTED MONTH's cod_collection ledger rows from
+      // the entity API (owner-only panel, ~1-2 paged calls per month
+      // selection). Server rows are authoritative for the month; offline
+      // rows outside the month are kept so past months still render from
+      // the mirror without refetching.
+      try {
+        const [y, m] = month.split('-').map(Number);
+        // Month window in UTC, padded 2 days into the next month: late-night
+        // Edmonton collections on the month's last day land after the UTC
+        // boundary; the day-bucket filter below discards out-of-month days.
+        const until = new Date(Date.UTC(y, m, 2)).toISOString();
+        const out = [];
+        for (let page = 0; page < 10; page++) {
+          const rows = await base44.entities.SquareLedgerEntry.filter(
+            { sale_class: 'cod_collection', occurred_at: { $gte: `${month}-01T00:00:00.000Z`, $lte: until } },
+            'created_date', 500, out.length
+          ).catch(() => []);
+          const list = rows || [];
+          out.push(...list);
+          if (list.length < 500) break;
+        }
+        if (alive) {
+          setEntries((prev) => {
+            const prevRows = Array.isArray(prev) ? prev : [];
+            const serverIds = new Set(out.map((r) => String(r?.square_id || '')));
+            const keptOffline = prevRows.filter((r) =>
+              !serverIds.has(String(r?.square_id || '')) && String(r?.occurred_at || '') < `${month}-01`);
+            return [...keptOffline, ...out];
+          });
+        }
+      } catch (err) {
+        // Offline / rate-limited: the offline prefill stays as-is.
+        console.warn('[StoreFeesByDay] month ledger fetch failed (using offline mirror):', err?.message || err);
+      }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [locationId, month]);
 
   const monthOptions = useMemo(() => {
     const now = new Date();
