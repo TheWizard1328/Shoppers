@@ -34,7 +34,7 @@ const formatTime = (isoStr) => {
 
 // SHARED DUTY MATH (Oct 27 2026): identical module as the dashboard stats card —
 // one definition of on-duty time, no drift between the two pages.
-import { totalOnDutyMinutes as sharedTotalOnDutyMinutes } from '@/components/utils/driverDutyTime';
+import { totalOnDutyMinutes as sharedTotalOnDutyMinutes, calcSegmentMinutes } from '@/components/utils/driverDutyTime';
 const totalOnDutyMinutes = (record) => sharedTotalOnDutyMinutes(record);
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
