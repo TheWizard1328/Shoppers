@@ -539,6 +539,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [paymentDiscrepancies, setPaymentDiscrepancies] = useState([]);
   // OWNER FEATURE (Oct 27 2026): per-card Fees-by-day panel toggle - one card open at a time.
   const [feesByDayLoc, setFeesByDayLoc] = useState(null);
+  // 'month' = single-month day table, 'year' = full-year month-by-month graph
+  // (owner spec Oct 28 2026) — toggle sits in the dialog header top-right.
+  const [feesViewMode, setFeesViewMode] = useState('month');
   const [discrepancyBusy, setDiscrepancyBusy] = useState(false);
   const loadPaymentDiscrepancies = useCallback(async () => {
     try {
@@ -2837,11 +2840,33 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       {/* FEES BY DAY POPOUT DIALOG (owner spec Oct 27 2026 night): the
           per-store fee breakdown opens as a larger dialog instead of being
           stuck inside the store card. */}
-      <Dialog open={!!feesByDayLoc} onOpenChange={(o) => { if (!o) setFeesByDayLoc(null); }}>
+      <Dialog open={!!feesByDayLoc} onOpenChange={(o) => { if (!o) { setFeesByDayLoc(null); setFeesViewMode('month'); } }}>
         <DialogContent className="sm:max-w-2xl w-[94vw] max-h-[88vh] flex flex-col gap-3 overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Fees by day — {feesByDayLoc ? ((config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name || 'card') : ''}</DialogTitle>
-            <DialogDescription>Daily Square fee and Loan fee for collected CODs on this card, by month.</DialogDescription>
+            <div className="flex items-start justify-between gap-2 pr-6">
+              <div className="min-w-0">
+                <DialogTitle>{feesViewMode === 'year' ? 'Fees by month' : 'Fees by day'} — {feesByDayLoc ? ((config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name || 'card') : ''}</DialogTitle>
+                <DialogDescription className="mt-1.5">
+                  {feesViewMode === 'year'
+                    ? 'Month-by-month fees for collected CODs, full year, per store.'
+                    : 'Daily Square fee and Loan fee for collected CODs on this card, by month.'}
+                </DialogDescription>
+              </div>
+              {/* VIEW TOGGLE (owner spec Oct 28 2026): single month <-> full year */}
+              <div className="shrink-0 inline-flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-xs" role="group" aria-label="Fees view">
+                {[['month', 'Month'], ['year', 'Year']].map(([val, lbl]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setFeesViewMode(val)}
+                    aria-pressed={feesViewMode === val}
+                    className={`px-2.5 py-1 transition-colors ${feesViewMode === val ? 'bg-teal-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
           </DialogHeader>
           {feesByDayLoc && (
             <div className="flex-1 min-h-0 flex flex-col">
@@ -2849,6 +2874,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 locationId={feesByDayLoc}
                 locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
                 locations={config?.locations || []}
+                viewMode={feesViewMode}
               />
             </div>
           )}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, FileDown } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 import { jsPDF } from "jspdf";
 import { getLedgerEntriesOffline } from "@/components/utils/squareLedgerOfflineManager";
 import { base44 } from "@/api/base44Client";
@@ -36,7 +37,8 @@ const daysInMonth = (mk) => {
   return new Date(y, m, 0).getDate();
 };
 
-export default function StoreFeesByDay({ locationId, locationName, locations }) {
+export default function StoreFeesByDay({ locationId, locationName, locations, viewMode = "month" }) {
+  const isYear = viewMode === "year";
   // STORE SELECTOR (owner spec Oct 27 2026 night): checkboxes so the dialog
   // can show another card (or a COMBINED view of several cards) without
   // closing and reopening it. Starts with the card that opened the dialog;
@@ -71,6 +73,109 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
   const [entries, setEntries] = useState(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => monthKey(new Date()));
+  // YEAR VIEW (owner spec Oct 28 2026): month-by-month graph per store for a
+  // full calendar year. Fetches the year's cod_collection ledger rows once
+  // per year selection (paged) and keeps them in their own state so the
+  // single-month view's cache is never disturbed.
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [yearEntries, setYearEntries] = useState(null);
+  const [yearLoading, setYearLoading] = useState(false);
+  const [yearMetric, setYearMetric] = useState('feeC'); // graph metric
+  useEffect(() => {
+    if (!isYear) return undefined;
+    let alive = true;
+    (async () => {
+      setYearLoading(true);
+      // Instant prefill from the offline mirror (zero API calls).
+      const offline = await getLedgerEntriesOffline().catch(() => []);
+      if (alive) setYearEntries(offline || []);
+      try {
+        // Pad 2 days into the next year: late-night Edmonton collections on
+        // Dec 31 land after the UTC boundary; the month bucket filter below
+        // discards out-of-year days.
+        const since = `${year}-01-01T00:00:00.000Z`;
+        const until = new Date(Date.UTC(year + 1, 0, 2)).toISOString();
+        const out = [];
+        for (let page = 0; page < 40; page++) {
+          const rows = await base44.entities.SquareLedgerEntry.filter(
+            { sale_class: 'cod_collection', occurred_at: { $gte: since, $lte: until } },
+            'created_date', 500, out.length
+          ).catch(() => []);
+          const list = rows || [];
+          out.push(...list);
+          if (list.length < 500) break;
+        }
+        if (alive && out.length) {
+          setYearEntries((prev) => {
+            const serverIds = new Set(out.map((r) => String(r?.square_id || '')));
+            const kept = (Array.isArray(prev) ? prev : []).filter((r) => !serverIds.has(String(r?.square_id || '')));
+            return [...kept, ...out];
+          });
+        }
+      } catch (err) {
+        console.warn('[StoreFeesByDay] year ledger fetch failed (using offline mirror):', err?.message || err);
+      }
+      if (alive) setYearLoading(false);
+    })();
+    return () => { alive = false; };
+  }, [isYear, year]);
+
+  const yearOptions = useMemo(() => {
+    const y = new Date().getFullYear();
+    return [y, y - 1, y - 2];
+  }, []);
+
+  // Per selected store × month aggregate (same CARD / COMPLETED / collected
+  // filters as the day view, so both views always agree).
+  const yearData = useMemo(() => {
+    const ids = [...selectedIds];
+    const blank = () => ({ amountC: 0, feeC: 0, folderC: 0, loanC: 0, cods: 0, swipeSet: new Set() });
+    const perStore = new Map(ids.map((id) => [id, Array.from({ length: 12 }, blank)]));
+    const total = Array.from({ length: 12 }, blank);
+    for (const e of yearEntries || []) {
+      if (!e?.occurred_at) continue;
+      const lid = String(e.location_id || '');
+      if (!perStore.has(lid)) continue;
+      if (String(e.sale_class || '') !== 'cod_collection') continue;
+      if (String(e.entry_kind || '') !== 'collected') continue;
+      if (String(e.tender_type || '').toUpperCase() !== 'CARD') continue;
+      if (String(e.status || '').toUpperCase() !== 'COMPLETED') continue;
+      const day = edmontonBusinessDayKey(parseAnyTimestamp(e.occurred_at));
+      if (!day || !day.startsWith(`${year}-`)) continue;
+      const mi = Number(day.slice(5, 7)) - 1;
+      if (!(mi >= 0 && mi < 12)) continue;
+      const feeC = Math.round(Number(e.fee_cents || 0));
+      const folderC = Math.round(Number(e.folder_cents || 0));
+      const loanC = Math.round(Number(e.loan_cents || 0));
+      if (feeC <= 0 && folderC <= 0 && loanC <= 0) continue;
+      const amt = Math.max(0, Math.round(Number(e.amount_cents || 0)));
+      for (const b of [perStore.get(lid)[mi], total[mi]]) {
+        b.amountC += amt; b.feeC += feeC; b.folderC += folderC; b.loanC += loanC; b.cods += 1;
+        b.swipeSet.add(txKeyOf(e.square_id));
+      }
+    }
+    const fin = (b) => ({ amountC: b.amountC, feeC: b.feeC, folderC: b.folderC, loanC: b.loanC, cods: b.cods, swipes: b.swipeSet.size });
+    const monthsTotal = total.map(fin);
+    const yearTotals = monthsTotal.reduce((a, m) => ({
+      amountC: a.amountC + m.amountC, feeC: a.feeC + m.feeC, folderC: a.folderC + m.folderC,
+      loanC: a.loanC + m.loanC, cods: a.cods + m.cods, swipes: a.swipes + m.swipes,
+    }), { amountC: 0, feeC: 0, folderC: 0, loanC: 0, cods: 0, swipes: 0 });
+    return {
+      monthsTotal,
+      yearTotals,
+      perStore: ids.map((id) => ({ id, months: perStore.get(id).map(fin) })),
+    };
+  }, [yearEntries, selectedIds, year]);
+
+  const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const METRICS = [
+    { key: 'amountC', label: 'Collected', color: '#10b981' },
+    { key: 'feeC', label: 'Square fees', color: '#14b8a6' },
+    { key: 'folderC', label: 'Folder fees', color: '#8b5cf6' },
+    { key: 'loanC', label: 'Loan fees', color: '#f59e0b' },
+  ];
+  const STORE_COLORS = ['#14b8a6', '#8b5cf6', '#f59e0b', '#3b82f6', '#ec4899', '#10b981'];
+  const nameOf = (id) => (locList.find((l) => String(l.location_id) === String(id))?.name) || id;
 
   useEffect(() => {
     let alive = true;
@@ -134,7 +239,74 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
   // EXPORT TO PDF (owner spec Oct 27 2026 night): plain jsPDF table —
   // header block (stores + month + totals) then the same Day / Collected /
   // Square fees / Loan fees / CODs rows the dialog shows.
+  const exportYearPdf = () => {
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(13).setFont('helvetica', 'bold');
+      doc.text(`Fees by Month — ${selectedNames.join(', ') || (locationName || 'Card')}`, 14, 16);
+      doc.setFontSize(11).setFont('helvetica', 'normal');
+      doc.text(String(year), 14, 22);
+      doc.setFontSize(9);
+      const yt = yearData.yearTotals;
+      doc.text(
+        `Collected: ${money(yt.amountC)}    Square fees: ${money(yt.feeC)}    Folder fees: ${money(yt.folderC)}    Loan fees: ${money(yt.loanC)}    CODs: ${yt.cods} (${yt.swipes} swipes)`,
+        14, 28
+      );
+      const cols = [14, 66, 100, 134, 168, 196];
+      let y = 36;
+      const header = () => {
+        doc.setFont('helvetica', 'bold');
+        doc.text('Month', cols[0], y);
+        doc.text('Collected', cols[1], y, { align: 'right' });
+        doc.text('Square fees', cols[2], y, { align: 'right' });
+        doc.text('Folder fees', cols[3], y, { align: 'right' });
+        doc.text('Loan fees', cols[4], y, { align: 'right' });
+        doc.text('CODs', cols[5], y, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        y += 3; doc.line(14, y, 196, y); y += 5;
+      };
+      const rowOf = (label, m, bold = false) => {
+        if (y > 280) { doc.addPage(); y = 20; header(); }
+        const empty = m.cods === 0;
+        if (bold) doc.setFont('helvetica', 'bold');
+        doc.text(label, cols[0], y);
+        doc.text(empty ? '—' : money(m.amountC), cols[1], y, { align: 'right' });
+        doc.text(empty ? '—' : money(m.feeC), cols[2], y, { align: 'right' });
+        doc.text(empty ? '—' : money(m.folderC), cols[3], y, { align: 'right' });
+        doc.text(empty ? '—' : money(m.loanC), cols[4], y, { align: 'right' });
+        doc.text(empty ? '—' : String(m.cods), cols[5], y, { align: 'right' });
+        if (bold) doc.setFont('helvetica', 'normal');
+        y += 5;
+      };
+      // One block per selected store (month by month), then the combined
+      // block when more than one store is selected.
+      for (const st of yearData.perStore) {
+        if (y > 250) { doc.addPage(); y = 20; }
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+        doc.text(nameOf(st.id), 14, y); y += 5;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        header();
+        st.months.forEach((m, i) => rowOf(SHORT_MONTHS[i], m));
+        y += 4;
+      }
+      if (yearData.perStore.length > 1) {
+        if (y > 250) { doc.addPage(); y = 20; }
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+        doc.text('All selected stores', 14, y); y += 5;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        header();
+        yearData.monthsTotal.forEach((m, i) => rowOf(SHORT_MONTHS[i], m));
+      }
+      const slug = (selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length}-stores`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      doc.save(`fees-by-month-${year}-${slug}.pdf`);
+    } catch (e) {
+      console.error('[StoreFeesByDay] year PDF export failed:', e);
+      import('sonner').then(({ toast }) => toast.error('PDF export failed'));
+    }
+  };
+
   const exportPdf = () => {
+    if (isYear) { exportYearPdf(); return; }
     try {
       const doc = new jsPDF();
       const title = `Fees by Day — ${selectedNames.length ? selectedNames.join(', ') : (locationName || 'Card')}`;
@@ -244,18 +416,30 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
       {/* Header: title + month selector + PDF export (icon only) */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-          {headerLabel} — month detail
+          {headerLabel} — {isYear ? `${year} by month` : 'month detail'}
         </span>
         <div className="flex items-center gap-1.5">
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200"
-          >
-            {monthOptions.map((mk) => (
-              <option key={mk} value={mk}>{monthLabel(mk)}</option>
-            ))}
-          </select>
+          {isYear ? (
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          ) : (
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200"
+            >
+              {monthOptions.map((mk) => (
+                <option key={mk} value={mk}>{monthLabel(mk)}</option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             title="Export to PDF"
@@ -294,31 +478,123 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
           centered over the column it totals. Content is centered inside each
           card. Trailing gutter space is NOT reserved — it only appears
           when a scrollbar actually shows (owner spec Oct 28 2026). */}
+      {(() => { const T = isYear ? yearData.yearTotals : totals; return (
       <div className="mt-2 grid grid-cols-[15fr_17fr_17fr_17fr_17fr_17fr] gap-1.5 text-[11px]">
         <div />
         <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">CODs collected</div>
-          <div className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{money(totals.amountC)}</div>
+          <div className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{money(T.amountC)}</div>
         </div>
         <div className="rounded-md bg-teal-500/10 border border-teal-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Square fees</div>
-          <div className="font-bold tabular-nums text-teal-700 dark:text-teal-300">{money(totals.feeC)}</div>
+          <div className="font-bold tabular-nums text-teal-700 dark:text-teal-300">{money(T.feeC)}</div>
         </div>
         <div className="rounded-md bg-violet-500/10 border border-violet-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Folder fees</div>
-          <div className="font-bold tabular-nums text-violet-700 dark:text-violet-300">{money(totals.folderC)}</div>
+          <div className="font-bold tabular-nums text-violet-700 dark:text-violet-300">{money(T.folderC)}</div>
         </div>
         <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Loan fees</div>
-          <div className="font-bold tabular-nums text-amber-700 dark:text-amber-300">{money(totals.loanC)}</div>
+          <div className="font-bold tabular-nums text-amber-700 dark:text-amber-300">{money(T.loanC)}</div>
         </div>
         <div className="rounded-md bg-blue-500/10 border border-blue-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">CODs (swipes)</div>
-          <div className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{totals.cods} ({totals.swipes})</div>
+          <div className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{T.cods} ({T.swipes})</div>
         </div>
       </div>
+      ); })()}
 
-      {/* Daily rows */}
+      {/* YEAR VIEW (owner spec Oct 28 2026): month-by-month graph per store
+          for the selected year + a month summary table. Same store
+          checkboxes and PDF export as the single-month view. */}
+      {isYear && (
+        <div className="mt-2 flex-1 min-h-0 overflow-y-auto">
+          {yearLoading && !yearEntries ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading ledger…
+            </div>
+          ) : (
+            <>
+              {/* metric switcher for the graph */}
+              <div className="flex items-center gap-1 flex-wrap mb-1.5">
+                {METRICS.map((mt) => (
+                  <button
+                    key={mt.key}
+                    type="button"
+                    onClick={() => setYearMetric(mt.key)}
+                    className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${yearMetric === mt.key ? 'text-white border-transparent' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400'}`}
+                    style={yearMetric === mt.key ? { backgroundColor: mt.color } : undefined}
+                  >
+                    {mt.label}
+                  </button>
+                ))}
+                {yearLoading && <Loader2 className="w-3 h-3 animate-spin text-slate-400 ml-1" />}
+              </div>
+              {/* one grouped bar per month, one colored bar per selected store */}
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={SHORT_MONTHS.map((lbl, i) => {
+                      const row = { month: lbl };
+                      yearData.perStore.forEach((st) => { row[st.id] = (st.months[i][yearMetric] || 0) / 100; });
+                      return row;
+                    })}
+                    margin={{ top: 6, right: 6, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#64748b" strokeOpacity={0.25} />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={46} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip
+                      formatter={(v, name) => [`$${Number(v).toFixed(2)}`, nameOf(name)]}
+                      contentStyle={{ fontSize: 11, borderRadius: 8, background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }}
+                      labelStyle={{ color: '#e2e8f0' }}
+                    />
+                    {yearData.perStore.length > 1 && <Legend formatter={(v) => nameOf(v)} wrapperStyle={{ fontSize: 11 }} />}
+                    {yearData.perStore.map((st, i) => (
+                      <Bar key={st.id} dataKey={st.id} fill={yearData.perStore.length === 1 ? (METRICS.find((m) => m.key === yearMetric)?.color || '#14b8a6') : STORE_COLORS[i % STORE_COLORS.length]} radius={[3, 3, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* month summary table (all selected stores combined) */}
+              <table className="w-full table-fixed text-xs mt-2">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left font-semibold py-1 pr-2 w-[15%]">Month</th>
+                    <th className="text-right font-semibold px-2 w-[17%]">Collected</th>
+                    <th className="text-right font-semibold px-2 w-[17%]">Square fees</th>
+                    <th className="text-right font-semibold px-2 w-[17%]">Folder fees</th>
+                    <th className="text-right font-semibold px-2 w-[17%]">Loan fees</th>
+                    <th className="text-right font-semibold pl-2 w-[17%]">CODs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearData.monthsTotal.map((m, i) => {
+                    const empty = m.cods === 0;
+                    return (
+                      <tr key={i} className={`border-b border-slate-100 dark:border-slate-800/60 ${empty ? 'opacity-40' : ''}`}>
+                        <td className="py-1 pr-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{SHORT_MONTHS[i]}</td>
+                        <td className="py-1 px-2 text-right tabular-nums text-emerald-700 dark:text-emerald-300">{empty ? '—' : money(m.amountC)}</td>
+                        <td className="py-1 px-2 text-right tabular-nums text-teal-700 dark:text-teal-300">{empty ? '—' : money(m.feeC)}</td>
+                        <td className="py-1 px-2 text-right tabular-nums text-violet-700 dark:text-violet-300">{empty ? '—' : money(m.folderC)}</td>
+                        <td className="py-1 px-2 text-right tabular-nums text-amber-700 dark:text-amber-300">{empty ? '—' : money(m.loanC)}</td>
+                        <td className="py-1 pl-2 text-right tabular-nums text-slate-500 dark:text-slate-400">{empty ? '—' : (m.swipes && m.swipes < m.cods ? `${m.cods} (${m.swipes} swipes)` : m.cods)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {yearData.yearTotals.cods === 0 && !yearLoading && (
+                <div className="text-center text-xs text-slate-400 py-3">No card collections recorded this year.</div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Daily rows (single-month view) */}
+      {!isYear && (
       <div className="mt-2 flex-1 min-h-0 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
@@ -367,6 +643,7 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
           <div className="text-center text-xs text-slate-400 py-3">No card collections recorded this month.</div>
         )}
       </div>
+      )}
     </div>
   );
 }
