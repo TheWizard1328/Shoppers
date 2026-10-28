@@ -20,7 +20,8 @@ import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useUser } from '@/components/utils/UserContext';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
-import { determinePolylineSegment, fetchPolylineForSegment } from "@/components/utils/dynamicPolylineManager";
+import { determinePolylineSegment, fetchPolylineForSegment, decodeGooglePolyline } from "@/components/utils/dynamicPolylineManager";
+import { createTurnPreviewController } from "@/components/utils/turnAutoZoom";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager"; import { queueEntityRequest } from "@/components/utils/requestQueue";
@@ -1232,6 +1233,13 @@ function Dashboard() {
 
   const lastAppliedTriggerRef = useRef(0);
 
+  // ── TURN AUTO-ZOOM controller (owner request Oct 28 2026) ──────────────────
+  // One instance for the life of the dashboard: it remembers which corner is
+  // being previewed and the decoded leg so Phase 2's per-GPS-tick fits don't
+  // re-decode a long polyline every second.
+  const turnPreviewRef = useRef(null);
+  if (!turnPreviewRef.current) turnPreviewRef.current = createTurnPreviewController();
+
   useEffect(() => {
     const activePhase = pendingPhaseRef.current;
 
@@ -1691,6 +1699,60 @@ function Dashboard() {
           }
         }
         console.log(`🗺️ [mapPos P2] immersiveHiddenRef=${immersiveHiddenRef.current} cancelInFlight=${_cancelInFlight} driverLoc=${fabTargetDriverLocation ? 'yes' : 'no'}`);
+
+        // ── TURN AUTO-ZOOM (owner request Oct 28 2026) ────────────────────────
+        // Plain Phase 2 frames driver + next stop, which is far too wide to read
+        // a corner in. If the CURRENT LEG (the en_route/in_transit stop's stored
+        // encoded_polyline) changes heading by >= 35 degrees within 150 m, and
+        // the map is currently zoomed out below 16, this tick draws a tight
+        // driver+turn view instead. It holds through the corner and releases
+        // 30 m past it, at which point the very next GPS tick resumes the normal
+        // Phase 2 framing (no timers, no map API calls of its own - it only
+        // swaps the bounds that the existing fit pipeline already receives).
+        if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude &&
+            localStorage.getItem('rxdeliver_turn_autozoom') !== 'off') {
+          try {
+            const _tpDriverId = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null);
+            const _tpDateStr = format(selectedDateRef.current, 'yyyy-MM-dd');
+            let _tpStop = null;
+            if (_tpDriverId) {
+              const _tpToday = deliveriesRef.current.filter((d) =>
+                d && d.delivery_date === _tpDateStr && d.driver_id === _tpDriverId && d.encoded_polyline && !['completed', 'failed', 'cancelled', 'pending'].includes(d.status)
+              );
+              // The leg the driver is actually driving: the active stop first,
+              // then the flagged next stop as a fallback.
+              _tpStop = _tpToday.find((d) => d.isNextDelivery === true) || _tpToday[0] || null;
+            }
+            let _tpPoints = null;
+            if (_tpStop?.encoded_polyline) {
+              try { _tpPoints = decodeGooglePolyline(_tpStop.encoded_polyline); } catch (_) { _tpPoints = null; }
+            }
+            const _tpRes = turnPreviewRef.current.evaluate({
+              legKey: _tpStop ? `${_tpStop.id}:${_tpStop.status}` : null,
+              encodedPoints: _tpPoints,
+              driverLat: fabTargetDriverLocation.latitude,
+              driverLng: fabTargetDriverLocation.longitude,
+              currentZoom: window.__currentMapZoom,
+              phase: 2,
+              userControlling: (window._userMapControlUntil || 0) > Date.now() || window._isUserTouchingMap === true,
+            });
+            if (_tpRes?.bounds) {
+              console.log(`🎯 [TurnAutoZoom] ${_tpRes.reason} ahead=${Math.round(_tpRes.turn?.aheadM ?? 0)}m angle=${Math.round(_tpRes.turn?.angleDeg ?? 0)}deg zoom=${window.__currentMapZoom}`);
+              setShouldFitBounds({
+                bounds: _tpRes.bounds,
+                options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 18, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.05 },
+                cancelInFlight: _cancelInFlight,
+              });
+              setMapCenter(null);
+              setMapZoom(null);
+              break;
+            }
+          } catch (e) {
+            // Never let the preview break normal map behaviour.
+            console.warn('[TurnAutoZoom] skipped:', e?.message);
+          }
+        }
+
         if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null); const _selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd'); const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.delivery_date === _selectedDateStr2 && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
           const _nc = _ns?.patient_id ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })() : _ns && isInterStoreDelivery(_ns.delivery_id) ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : _ns?.store_id ? (() => { const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : (selectedDriverId === currentUser?.id || !_p2TgtId2 ? nextStopCoordinatesRef.current : null);
