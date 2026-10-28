@@ -2848,6 +2848,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <StoreFeesByDay
                 locationId={feesByDayLoc}
                 locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
+                locations={config?.locations || []}
               />
             </div>
           )}

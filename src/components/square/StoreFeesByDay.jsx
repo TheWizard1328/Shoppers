@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, FileDown } from "lucide-react";
+import { jsPDF } from "jspdf";
 import { getLedgerEntriesOffline } from "@/components/utils/squareLedgerOfflineManager";
 import { base44 } from "@/api/base44Client";
 import { edmontonBusinessDayKey, parseAnyTimestamp } from "@/components/utils/albertaTime";
@@ -35,7 +36,38 @@ const daysInMonth = (mk) => {
   return new Date(y, m, 0).getDate();
 };
 
-export default function StoreFeesByDay({ locationId, locationName }) {
+export default function StoreFeesByDay({ locationId, locationName, locations }) {
+  // STORE SELECTOR (owner spec Oct 27 2026 night): checkboxes so the dialog
+  // can show another card (or a COMBINED view of several cards) without
+  // closing and reopening it. Starts with the card that opened the dialog;
+  // re-syncs if the dialog is reopened for a different card.
+  const locList = useMemo(
+    () => (Array.isArray(locations) ? locations.filter((l) => l?.location_id) : []),
+    [locations]
+  );
+  const [selectedIds, setSelectedIds] = useState(() => new Set([String(locationId)]));
+  const locIdRef = useRef(locationId);
+  useEffect(() => {
+    if (locIdRef.current !== locationId) {
+      locIdRef.current = locationId;
+      setSelectedIds(new Set([String(locationId)]));
+    }
+  }, [locationId]);
+  const selectedNames = useMemo(
+    () => locList.filter((l) => selectedIds.has(String(l.location_id))).map((l) => l.name || l.location_id),
+    [locList, selectedIds]
+  );
+  const headerLabel = selectedNames.length === 1 ? (selectedNames[0] || 'Card')
+    : selectedNames.length > 1 ? `${selectedNames.length} stores` : (locationName || 'Card');
+  const toggleLoc = (id) => {
+    setSelectedIds((prev) => {
+      const key = String(id);
+      const next = new Set(prev);
+      if (next.has(key)) { if (next.size > 1) next.delete(key); } // keep ≥1 checked
+      else next.add(key);
+      return next;
+    });
+  };
   const [entries, setEntries] = useState(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => monthKey(new Date()));
@@ -99,6 +131,53 @@ export default function StoreFeesByDay({ locationId, locationName }) {
     return out;
   }, []);
 
+  // EXPORT TO PDF (owner spec Oct 27 2026 night): plain jsPDF table —
+  // header block (stores + month + totals) then the same Day / Collected /
+  // Square fees / Loan fees / CODs rows the dialog shows.
+  const exportPdf = () => {
+    try {
+      const doc = new jsPDF();
+      const title = `Fees by Day — ${selectedNames.length ? selectedNames.join(', ') : (locationName || 'Card')}`;
+      doc.setFontSize(13).setFont('helvetica', 'bold');
+      doc.text(title, 14, 16);
+      doc.setFontSize(11).setFont('helvetica', 'normal');
+      doc.text(monthLabel(month), 14, 22);
+      doc.setFontSize(9);
+      doc.text(
+        `Collected: ${money(totals.amountC)}    Square fees: ${money(totals.feeC)}    Loan fees: ${money(totals.loanC)}    CODs: ${totals.cods} (${totals.swipes} swipes)`,
+        14, 28
+      );
+      // Column x positions (mm) — Day, Collected, Square fees, Loan fees, CODs
+      const cols = [14, 74, 112, 150, 188];
+      let y = 36;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Day', cols[0], y);
+      doc.text('Collected', cols[1], y, { align: 'right' });
+      doc.text('Square fees', cols[2], y, { align: 'right' });
+      doc.text('Loan fees', cols[3], y, { align: 'right' });
+      doc.text('CODs', cols[4], y, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      y += 3;
+      doc.line(14, y, 196, y);
+      y += 5;
+      for (const d of days) {
+        if (y > 280) { doc.addPage(); y = 20; }
+        const empty = d.cods === 0;
+        doc.text(String(d.label), cols[0], y);
+        doc.text(empty ? '—' : money(d.amountC), cols[1], y, { align: 'right' });
+        doc.text(empty ? '—' : money(d.feeC), cols[2], y, { align: 'right' });
+        doc.text(empty ? '—' : money(d.loanC), cols[3], y, { align: 'right' });
+        doc.text(empty ? '—' : (d.swipes && d.swipes < d.cods ? `${d.cods} (${d.swipes} swipes)` : String(d.cods)), cols[4], y, { align: 'right' });
+        y += 5;
+      }
+      const slug = (selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length}-stores`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      doc.save(`fees-by-day-${month}-${slug}.pdf`);
+    } catch (e) {
+      console.error('[StoreFeesByDay] PDF export failed:', e);
+      import('sonner').then(({ toast }) => toast.error('PDF export failed'));
+    }
+  };
+
   const { days, totals, maxFeeC } = useMemo(() => {
     const byDay = new Map(); // day -> { feeC, loanC, cods, amountC, swipes:Set }
     const todayKey = edmontonBusinessDayKey(new Date());
@@ -109,7 +188,7 @@ export default function StoreFeesByDay({ locationId, locationName }) {
 
     for (const e of entries || []) {
       if (!e?.occurred_at) continue;
-      if (String(e.location_id || '') !== String(locationId)) continue;
+      if (!selectedIds.has(String(e.location_id || ''))) continue;
       if (String(e.sale_class || '') !== 'cod_collection') continue;
       if (String(e.entry_kind || '') !== 'collected') continue;
       if (String(e.tender_type || '').toUpperCase() !== 'CARD') continue;
@@ -154,25 +233,56 @@ export default function StoreFeesByDay({ locationId, locationName }) {
       });
     }
     return { days: rows, totals: mTotals, maxFeeC: maxFee };
-  }, [entries, locationId, month]);
+  }, [entries, selectedIds, month]);
 
   return (
     <div className="mx-2 mb-2 mt-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-2.5 flex-1 min-h-0 flex flex-col">
-      {/* Header: title + month selector */}
+      {/* Header: title + month selector + PDF export (icon only) */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-          {locationName || 'Card'} — month detail
+          {headerLabel} — month detail
         </span>
-        <select
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200"
-        >
-          {monthOptions.map((mk) => (
-            <option key={mk} value={mk}>{monthLabel(mk)}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="text-xs rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-1 text-slate-700 dark:text-slate-200"
+          >
+            {monthOptions.map((mk) => (
+              <option key={mk} value={mk}>{monthLabel(mk)}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            title="Export to PDF"
+            aria-label="Export to PDF"
+            onClick={exportPdf}
+            className="w-7 h-7 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
+
+      {/* Store selector checkboxes (owner spec Oct 27 2026 night): pick
+          another card — or several at once for a combined view — without
+          closing the dialog. The card that opened the dialog starts
+          checked; at least one stays checked. */}
+      {locList.length > 1 && (
+        <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap">
+          {locList.map((l) => (
+            <label key={l.location_id} className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(String(l.location_id))}
+                onChange={() => toggleLoc(l.location_id)}
+                className="h-3 w-3 accent-teal-600"
+              />
+              {l.name || l.location_id}
+            </label>
+          ))}
+        </div>
+      )}
 
       {/* Monthly totals chips — ALIGNED WITH THE TABLE (owner spec Oct 27
           2026 night): the grid uses the SAME 5-column template as the table
