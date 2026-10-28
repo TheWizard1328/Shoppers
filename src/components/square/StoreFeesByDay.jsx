@@ -174,41 +174,49 @@ export default function StoreFeesByDay({ locationId, locationName }) {
         </select>
       </div>
 
-      {/* Monthly totals chips */}
-      <div className="mt-2 grid grid-cols-4 gap-1.5 text-[11px]">
-        <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-1.5">
+      {/* Monthly totals chips — ALIGNED WITH THE TABLE (owner spec Oct 27
+          2026 night): the grid uses the SAME 5-column template as the table
+          below (Day-width spacer + the four data columns), so each card sits
+          centered over the column it totals. Content is centered inside each
+          card. [scrollbar-gutter:stable] + pr-2 mirror the scroll container
+          so the columns stay aligned whether or not the scrollbar shows. */}
+      <div className="mt-2 grid grid-cols-[24fr_19fr_19fr_19fr_19fr] gap-1.5 text-[11px] pr-2 overflow-y-auto [scrollbar-gutter:stable]">
+        <div />
+        <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">CODs collected</div>
           <div className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{money(totals.amountC)}</div>
         </div>
-        <div className="rounded-md bg-teal-500/10 border border-teal-500/30 px-2 py-1.5">
+        <div className="rounded-md bg-teal-500/10 border border-teal-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Square fees</div>
           <div className="font-bold tabular-nums text-teal-700 dark:text-teal-300">{money(totals.feeC)}</div>
         </div>
-        <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-1.5">
+        <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Loan fees</div>
           <div className="font-bold tabular-nums text-amber-700 dark:text-amber-300">{money(totals.loanC)}</div>
         </div>
-        <div className="rounded-md bg-blue-500/10 border border-blue-500/30 px-2 py-1.5">
+        <div className="rounded-md bg-blue-500/10 border border-blue-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">CODs (swipes)</div>
           <div className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{totals.cods} ({totals.swipes})</div>
         </div>
       </div>
 
       {/* Daily rows */}
-      <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-2">
+      <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading ledger…
           </div>
         ) : (
-          <table className="w-full text-xs">
+          <table className="w-full table-fixed text-xs">
             <thead>
               <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                <th className="text-left font-semibold py-1 pr-2">Day</th>
-                <th className="text-right font-semibold px-2">Collected</th>
-                <th className="text-right font-semibold px-2">Square fees</th>
-                <th className="text-right font-semibold px-2">Loan fees</th>
-                <th className="text-right font-semibold pl-2">CODs</th>
+                {/* widths match the chips grid above (24fr + 4×19fr) so each
+                    card is centered over its column */}
+                <th className="text-left font-semibold py-1 pr-2 w-[24%]">Day</th>
+                <th className="text-right font-semibold px-2 w-[19%]">Collected</th>
+                <th className="text-right font-semibold px-2 w-[19%]">Square fees</th>
+                <th className="text-right font-semibold px-2 w-[19%]">Loan fees</th>
+                <th className="text-right font-semibold pl-2 w-[19%]">CODs</th>
               </tr>
             </thead>
             <tbody>
