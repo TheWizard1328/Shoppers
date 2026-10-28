@@ -144,18 +144,19 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
       doc.text(monthLabel(month), 14, 22);
       doc.setFontSize(9);
       doc.text(
-        `Collected: ${money(totals.amountC)}    Square fees: ${money(totals.feeC)}    Loan fees: ${money(totals.loanC)}    CODs: ${totals.cods} (${totals.swipes} swipes)`,
+        `Collected: ${money(totals.amountC)}    Square fees: ${money(totals.feeC)}    Folder fees: ${money(totals.folderC)}    Loan fees: ${money(totals.loanC)}    CODs: ${totals.cods} (${totals.swipes} swipes)`,
         14, 28
       );
-      // Column x positions (mm) — Day, Collected, Square fees, Loan fees, CODs
-      const cols = [14, 74, 112, 150, 188];
+      // Column x positions (mm) — Day, Collected, Square fees, Folder fees, Loan fees, CODs
+      const cols = [14, 66, 100, 134, 168, 196];
       let y = 36;
       doc.setFont('helvetica', 'bold');
       doc.text('Day', cols[0], y);
       doc.text('Collected', cols[1], y, { align: 'right' });
       doc.text('Square fees', cols[2], y, { align: 'right' });
-      doc.text('Loan fees', cols[3], y, { align: 'right' });
-      doc.text('CODs', cols[4], y, { align: 'right' });
+      doc.text('Folder fees', cols[3], y, { align: 'right' });
+      doc.text('Loan fees', cols[4], y, { align: 'right' });
+      doc.text('CODs', cols[5], y, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       y += 3;
       doc.line(14, y, 196, y);
@@ -166,8 +167,9 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
         doc.text(String(d.label), cols[0], y);
         doc.text(empty ? '—' : money(d.amountC), cols[1], y, { align: 'right' });
         doc.text(empty ? '—' : money(d.feeC), cols[2], y, { align: 'right' });
-        doc.text(empty ? '—' : money(d.loanC), cols[3], y, { align: 'right' });
-        doc.text(empty ? '—' : (d.swipes && d.swipes < d.cods ? `${d.cods} (${d.swipes} swipes)` : String(d.cods)), cols[4], y, { align: 'right' });
+        doc.text(empty ? '—' : money(d.folderC), cols[3], y, { align: 'right' });
+        doc.text(empty ? '—' : money(d.loanC), cols[4], y, { align: 'right' });
+        doc.text(empty ? '—' : (d.swipes && d.swipes < d.cods ? `${d.cods} (${d.swipes} swipes)` : String(d.cods)), cols[5], y, { align: 'right' });
         y += 5;
       }
       const slug = (selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length}-stores`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
@@ -179,10 +181,10 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
   };
 
   const { days, totals, maxFeeC } = useMemo(() => {
-    const byDay = new Map(); // day -> { feeC, loanC, cods, amountC, swipes:Set }
+    const byDay = new Map(); // day -> { feeC, folderC, loanC, cods, amountC, swipes:Set }
     const todayKey = edmontonBusinessDayKey(new Date());
     const dim = daysInMonth(month);
-    const mTotals = { feeC: 0, loanC: 0, cods: 0, amountC: 0, swipes: 0 };
+    const mTotals = { feeC: 0, folderC: 0, loanC: 0, cods: 0, amountC: 0, swipes: 0 };
     let maxFee = 0;
     const swipeCount = new Map(); // day -> Set(txKey)
 
@@ -196,16 +198,17 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
       const day = edmontonBusinessDayKey(parseAnyTimestamp(e.occurred_at));
       if (!day || !day.startsWith(month)) continue;
       const feeC = Math.round(Number(e.fee_cents || 0));
+      const folderC = Math.round(Number(e.folder_cents || 0));
       const loanC = Math.round(Number(e.loan_cents || 0));
-      if (feeC <= 0 && loanC <= 0) continue;
-      if (!byDay.has(day)) byDay.set(day, { feeC: 0, loanC: 0, cods: 0, amountC: 0 });
+      if (feeC <= 0 && folderC <= 0 && loanC <= 0) continue;
+      if (!byDay.has(day)) byDay.set(day, { feeC: 0, folderC: 0, loanC: 0, cods: 0, amountC: 0 });
       const row = byDay.get(day);
-      row.feeC += feeC; row.loanC += loanC; row.cods += 1;
+      row.feeC += feeC; row.folderC += folderC; row.loanC += loanC; row.cods += 1;
       row.amountC += Math.max(0, Math.round(Number(e.amount_cents || 0)));
       mTotals.amountC += Math.max(0, Math.round(Number(e.amount_cents || 0)));
       if (!swipeCount.has(day)) swipeCount.set(day, new Set());
       swipeCount.get(day).add(txKeyOf(e.square_id));
-      mTotals.feeC += feeC; mTotals.loanC += loanC; mTotals.cods += 1;
+      mTotals.feeC += feeC; mTotals.folderC += folderC; mTotals.loanC += loanC; mTotals.cods += 1;
     }
     for (const [day, set] of swipeCount) {
       if (byDay.has(day)) byDay.get(day).swipes = set.size;
@@ -226,6 +229,7 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
         // "Tue, Oct 27" — narrower Date column, scrollbar stays clear.
         label: `${_dd.toLocaleDateString('en-CA', { weekday: 'short' })} ${dIdx}`,
         feeC: data?.feeC || 0,
+        folderC: data?.folderC || 0,
         loanC: data?.loanC || 0,
         cods: data?.cods || 0,
         amountC: data?.amountC || 0,
@@ -285,12 +289,12 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
       )}
 
       {/* Monthly totals chips — ALIGNED WITH THE TABLE (owner spec Oct 27
-          2026 night): the grid uses the SAME 5-column template as the table
-          below (Day-width spacer + the four data columns), so each card sits
+          2026 night): the grid uses the SAME 6-column template as the table
+          below (Day-width spacer + the five data columns), so each card sits
           centered over the column it totals. Content is centered inside each
           card. [scrollbar-gutter:stable] + pr-2 mirror the scroll container
           so the columns stay aligned whether or not the scrollbar shows. */}
-      <div className="mt-2 grid grid-cols-[24fr_19fr_19fr_19fr_19fr] gap-1.5 text-[11px] pr-2 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="mt-2 grid grid-cols-[25fr_15fr_15fr_15fr_15fr_15fr] gap-1.5 text-[11px] pr-2 overflow-y-auto [scrollbar-gutter:stable]">
         <div />
         <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">CODs collected</div>
@@ -299,6 +303,10 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
         <div className="rounded-md bg-teal-500/10 border border-teal-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Square fees</div>
           <div className="font-bold tabular-nums text-teal-700 dark:text-teal-300">{money(totals.feeC)}</div>
+        </div>
+        <div className="rounded-md bg-violet-500/10 border border-violet-500/30 px-1 py-1.5 text-center">
+          <div className="text-slate-500 dark:text-slate-400">Folder fees</div>
+          <div className="font-bold tabular-nums text-violet-700 dark:text-violet-300">{money(totals.folderC)}</div>
         </div>
         <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">Loan fees</div>
@@ -320,13 +328,14 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
           <table className="w-full table-fixed text-xs">
             <thead>
               <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                {/* widths match the chips grid above (24fr + 4×19fr) so each
+                {/* widths match the chips grid above (25fr + 5×15fr) so each
                     card is centered over its column */}
-                <th className="text-left font-semibold py-1 pr-2 w-[24%]">Day</th>
-                <th className="text-right font-semibold px-2 w-[19%]">Collected</th>
-                <th className="text-right font-semibold px-2 w-[19%]">Square fees</th>
-                <th className="text-right font-semibold px-2 w-[19%]">Loan fees</th>
-                <th className="text-right font-semibold pl-2 w-[19%]">CODs</th>
+                <th className="text-left font-semibold py-1 pr-2 w-[25%]">Day</th>
+                <th className="text-right font-semibold px-2 w-[15%]">Collected</th>
+                <th className="text-right font-semibold px-2 w-[15%]">Square fees</th>
+                <th className="text-right font-semibold px-2 w-[15%]">Folder fees</th>
+                <th className="text-right font-semibold px-2 w-[15%]">Loan fees</th>
+                <th className="text-right font-semibold pl-2 w-[15%]">CODs</th>
               </tr>
             </thead>
             <tbody>
@@ -343,6 +352,7 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
                         <div className="h-1 mt-0.5 rounded-sm bg-teal-500/60" style={{ width: `${Math.max(6, Math.round((d.feeC / maxFeeC) * 100))}%`, marginLeft: 'auto' }} />
                       )}
                     </td>
+                    <td className="py-1 px-2 text-right tabular-nums text-violet-700 dark:text-violet-300">{empty ? '—' : money(d.folderC)}</td>
                     <td className="py-1 px-2 text-right tabular-nums text-amber-700 dark:text-amber-300">{empty ? '—' : money(d.loanC)}</td>
                     <td className="py-1 pl-2 text-right tabular-nums text-slate-500 dark:text-slate-400">
                       {empty ? '—' : (d.swipes && d.swipes < d.cods ? `${d.cods} (${d.swipes} swipes)` : d.cods)}
