@@ -292,9 +292,9 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
           2026 night): the grid uses the SAME 6-column template as the table
           below (Day-width spacer + the five data columns), so each card sits
           centered over the column it totals. Content is centered inside each
-          card. [scrollbar-gutter:stable] + pr-2 mirror the scroll container
-          so the columns stay aligned whether or not the scrollbar shows. */}
-      <div className="mt-2 grid grid-cols-[25fr_15fr_15fr_15fr_15fr_15fr] gap-1.5 text-[11px] pr-2 overflow-y-auto [scrollbar-gutter:stable]">
+          card. Trailing gutter space is NOT reserved — it only appears
+          when a scrollbar actually shows (owner spec Oct 28 2026). */}
+      <div className="mt-2 grid grid-cols-[15fr_17fr_17fr_17fr_17fr_17fr] gap-1.5 text-[11px]">
         <div />
         <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-1 py-1.5 text-center">
           <div className="text-slate-500 dark:text-slate-400">CODs collected</div>
@@ -319,7 +319,7 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
       </div>
 
       {/* Daily rows */}
-      <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+      <div className="mt-2 flex-1 min-h-0 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading ledger…
@@ -328,14 +328,14 @@ export default function StoreFeesByDay({ locationId, locationName, locations }) 
           <table className="w-full table-fixed text-xs">
             <thead>
               <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                {/* widths match the chips grid above (25fr + 5×15fr) so each
+                {/* widths match the chips grid above (15fr + 5×17fr) so each
                     card is centered over its column */}
-                <th className="text-left font-semibold py-1 pr-2 w-[25%]">Day</th>
-                <th className="text-right font-semibold px-2 w-[15%]">Collected</th>
-                <th className="text-right font-semibold px-2 w-[15%]">Square fees</th>
-                <th className="text-right font-semibold px-2 w-[15%]">Folder fees</th>
-                <th className="text-right font-semibold px-2 w-[15%]">Loan fees</th>
-                <th className="text-right font-semibold pl-2 w-[15%]">CODs</th>
+                <th className="text-left font-semibold py-1 pr-2 w-[15%]">Day</th>
+                <th className="text-right font-semibold px-2 w-[17%]">Collected</th>
+                <th className="text-right font-semibold px-2 w-[17%]">Square fees</th>
+                <th className="text-right font-semibold px-2 w-[17%]">Folder fees</th>
+                <th className="text-right font-semibold px-2 w-[17%]">Loan fees</th>
+                <th className="text-right font-semibold pl-2 w-[17%]">CODs</th>
               </tr>
             </thead>
             <tbody>
