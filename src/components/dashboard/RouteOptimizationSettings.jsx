@@ -121,7 +121,10 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
         const rows = await getAppSettingRows('route_optimization');
         const serverValue = rows?.[0]?.setting_value;
         if (cancelled || !serverValue || typeof serverValue !== 'object') return;
-        setSettings((prev) => ({ ...prev, ...serverValue }));
+        // The shared record must never carry a user's home coords either —
+        // personal fields stay on the AppUser record only.
+        const { driverHomeLatitude: _sl, driverHomeLongitude: _sg, ...sharedSafe } = serverValue;
+        setSettings((prev) => ({ ...prev, ...sharedSafe }));
       } catch (_) { /* offline or fetch failed — keep showing the local cache */ }
     })();
     return () => { cancelled = true; };
