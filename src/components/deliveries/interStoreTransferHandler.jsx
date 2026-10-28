@@ -359,7 +359,23 @@ export async function createInterStoreTransfer({
         // NAMES (number fallback only when a name is missing).
         const srcLabel = formData._interstore_source_name || (srcNum ? `SDM ${srcNum}` : 'Origin Store');
         const dstLabel = formData._interstore_dest_name || (dstNum ? `SDM ${dstNum}` : 'Destination Store');
-        const content = `InterStore Pickup has been added to your route.\n${srcLabel} to ${dstLabel}`;
+        // TRANSFER NOTES + DELIVERY OPTIONS (owner spec Oct 28 2026): the
+        // message carries the transfer notes and the checked delivery
+        // options so the driver knows what they are moving before they
+        // open the card. Empty lines are omitted entirely.
+        const notesLine = String(formData._interstore_notes || '').trim();
+        const optionLabels = [
+          formData.fridge_item ? 'Fridge Item' : null,
+          formData.oversized ? 'Oversized Item' : null,
+          formData.signature_needed ? 'Signature Needed' : null,
+          formData.no_charge ? 'No Charge Delivery' : null,
+        ].filter(Boolean);
+        const content = [
+          'InterStore Pickup has been added to your route.',
+          `${srcLabel} to ${dstLabel}`,
+          notesLine ? notesLine : null,
+          optionLabels.length ? optionLabels.join(', ') : null,
+        ].filter(Boolean).join('\n');
         const msg = await sendDeliveryMessage({
           senderId: creatorAppUser.id,
           senderName: getDriverNameForStorage?.(creatorAppUser) || creatorAppUser.user_name || 'Dispatcher',
