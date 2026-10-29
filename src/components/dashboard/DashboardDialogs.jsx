@@ -51,6 +51,38 @@ export default function DashboardDialogs({
   setPreferredTravelMode,
 }) {
   const [historyPatient, setHistoryPatient] = useState(null);
+  // ── End-of-Day "Best Day" history (owner report Oct 28 2026) ──────────────
+  // The panel used to receive only TODAY's deliveries, so today always won. Load
+  // the selected driver's real per-date stop totals for the year when the panel
+  // opens. Declared at the top of the component (before any return) so the hook
+  // order is stable.
+  const [eodDailyTotals, setEodDailyTotals] = useState(null);
+  const eodDriverId = useMemo(() => {
+    if (!selectedDriverId || selectedDriverId === 'all') return null;
+    const d = endOfDayDriver
+      || appUsers?.find(au => au?.user_id === selectedDriverId)
+      || drivers?.find(x => x?.id === selectedDriverId);
+    return d?.user_id || d?.id || selectedDriverId || null;
+  }, [selectedDriverId, endOfDayDriver, appUsers, drivers]);
+  const eodYear = useMemo(() => {
+    const y = Number(format(selectedDate || new Date(), 'yyyy'));
+    return Number.isFinite(y) ? y : new Date().getFullYear();
+  }, [selectedDate]);
+  useEffect(() => {
+    if (!showEndOfDayStats) return undefined;
+    let alive = true;
+    setEodDailyTotals(null);
+    getDriverDailyTotals({ driverId: eodDriverId, year: eodYear, localDeliveries: deliveries || [] })
+      .then((res) => {
+        if (!alive) return;
+        const days = Array.isArray(res?.days) ? res.days : buildTotalsFromDeliveries(deliveries || [], eodYear, eodDriverId);
+        setEodDailyTotals(days);
+      })
+      .catch(() => {
+        if (alive) setEodDailyTotals(buildTotalsFromDeliveries(deliveries || [], eodYear, eodDriverId));
+      });
+    return () => { alive = false; };
+  }, [showEndOfDayStats, eodDriverId, eodYear]);
 
   useEffect(() => {
     const handler = (e) => {
