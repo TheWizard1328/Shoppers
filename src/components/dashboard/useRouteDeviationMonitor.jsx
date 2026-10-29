@@ -151,7 +151,7 @@ const _healByDriver = new Map();
 const HEAL_COOLDOWN_MS = 10 * 60 * 1000;
 const HEAL_MAX_DRIFT_KM = 1.5;
 
-async function _healMisAnchoredLeg({ nextStop, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally }) {
+async function _healMisAnchoredLeg({ nextStop, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally, gps = null }) {
   try {
     const enc = String(nextStop?.encoded_polyline || '');
     if (enc.length < 20) return;
@@ -173,7 +173,9 @@ async function _healMisAnchoredLeg({ nextStop, todayDeliveries, patients, stores
       homePosition: (selfAppUser?.home_latitude != null && selfAppUser?.home_longitude != null)
         ? { lat: Number(selfAppUser.home_latitude), lon: Number(selfAppUser.home_longitude) } : null,
       firstTargetCoords: stopCoords ? { lat: Number(stopCoords.lat), lon: Number(stopCoords.lng) } : null,
-      gpsPosition: null,
+      // Late-route fallback only: no finished stop AND no home on file.
+      gpsPosition: (gps && Number.isFinite(Number(gps.latitude)))
+        ? { lat: Number(gps.latitude), lon: Number(gps.longitude) } : null,
     });
     const origin = pick?.origin;
     if (!origin) return;
@@ -516,6 +518,7 @@ export function useRouteDeviationMonitor({
         appUsers: s.appUsers,
         driverId,
         updateDeliveriesLocally: s.updateDeliveriesLocally,
+        gps,
       });
 
       // ── AT-LOCATION GATE (owner directive Oct 20 2026) ───────────────────────
