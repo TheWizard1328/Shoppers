@@ -44,6 +44,8 @@ const valid = (lat, lon) => Number.isFinite(Number(lat)) && Number.isFinite(Numb
  * @param {object}   p.homePosition        driver home {lat,lng}|null
  * @param {object}   p.firstTargetCoords   first active stop (the leg's destination)
  * @param {object}   p.gpsPosition         live GPS {lat,lng}|null
+ * @param {Array}    [p.finishedStatuses]  statuses that count as FINISHED
+ *                                         (default completed/failed/cancelled)
  * @param {number}   [p.minSeparationKm]   origin must be at least this far from
  *                                         the destination (default 0.15 = 150m)
  * @param {Function} [p.log]
@@ -55,17 +57,34 @@ export const resolvePolylineOrigin = ({
   homePosition = null,
   firstTargetCoords = null,
   gpsPosition = null,
+  finishedStatuses = ['completed', 'failed', 'cancelled'],
   minSeparationKm = 0.15,
   log = () => {},
 } = {}) => {
   const dest = valid(firstTargetCoords?.lat, firstTargetCoords?.lon) ? firstTargetCoords : null;
 
+  // OWNER REPORT (Oct 29 2026): "my current leg polyline originates from the
+  // last stop which is still PENDING". Callers were handing over the day's raw
+  // delivery list, and a pending stop that had been edited (fresh updated_date)
+  // sorted as the newest "finished" stop, becoming the leg's origin — so the
+  // blue line ran from an undelivered stop through home to the first active
+  // stop. PENDING STOPS ARE NEVER POLYLINE ANCHORS: filter to terminal statuses
+  // first, here, so no caller can reintroduce this.
+  const onlyFinished = (finishedDeliveries || []).filter(
+    (d) => d && finishedStatuses.includes(String(d?.status || ''))
+  );
+  const ignored = (finishedDeliveries || []).length - onlyFinished.length;
+
   // Newest finished stop first (actual_delivery_time → updated_date → created_date).
-  const sorted = [...(finishedDeliveries || [])].sort((a, b) => {
+  const sorted = [...onlyFinished].sort((a, b) => {
     const at = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
     const bt = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
     return bt - at;
   });
+
+  if (ignored > 0) {
+    log(`ignored ${ignored} non-finished delivery record(s) when picking the origin — pending stops never anchor a leg`);
+  }
 
   const collapsed = [];
   for (const d of sorted) {

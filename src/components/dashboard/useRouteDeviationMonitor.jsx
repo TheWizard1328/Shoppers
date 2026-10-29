@@ -32,6 +32,7 @@ import { emitGatedEvent, isUIHidden } from '@/components/utils/uiGate';
 import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
 import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
 import { haversineKm } from '@/components/utils/geoUtils';
+import { resolvePolylineOrigin } from '@/components/utils/polylineOriginRules';
 import { parseTimeToMinutes } from '@/components/utils/fuzzyMatching';
 import { locationTracker } from '@/components/utils/locationTracker';
 
@@ -136,6 +137,65 @@ const _optInFlightFor = (driverId) => {
   const t = _optInFlightByDriver.get(String(driverId));
   return !!t && Date.now() - t < _OPT_GATE_MS;
 };
+
+// ── MIS-ANCHORED LEG HEAL (owner report Oct 29 2026) ─────────────────────────
+// "My current leg polyline originates from the last stop, which is still
+// PENDING." Before the origin rule was hardened, a freshly edited pending stop
+// could be picked as the current leg's anchor, so the stored leg runs
+// pending-stop -> home -> first active stop. The generator fix stops NEW legs
+// from doing that, but the bad leg is already painted from the stop's
+// encoded_polyline. This checks the stored leg once per leg signature: if its
+// FIRST point sits >1.5km from the true origin (most recent FINISHED stop, else
+// home), regenerate the current leg anchored to that origin.
+const _healByDriver = new Map();
+const HEAL_COOLDOWN_MS = 10 * 60 * 1000;
+const HEAL_MAX_DRIFT_KM = 1.5;
+
+async function _healMisAnchoredLeg({ nextStop, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally }) {
+  try {
+    const enc = String(nextStop?.encoded_polyline || '');
+    if (enc.length < 20) return;
+    const { decodeGooglePolyline } = await import('@/components/utils/routePolylineGenerator');
+    const pts = decodeGooglePolyline(enc);
+    if (!Array.isArray(pts) || pts.length < 2) return;
+    const key = `${nextStop.id}:${enc.length}:${enc.slice(0, 24)}`;
+    const prev = _healByDriver.get(driverId);
+    if (prev?.key === key) return; // this exact leg already evaluated
+    if (prev && Date.now() - prev.at < HEAL_COOLDOWN_MS) return;
+
+    const patientMap = new Map((patients || []).filter(Boolean).map((p) => [p.id, p]));
+    const storeMap = new Map((stores || []).filter(Boolean).map((st) => [st.id, st]));
+    const stopCoords = getDeliveryCoords(nextStop, patientMap, storeMap);
+    const selfAppUser = (appUsers || []).find((au) => au?.user_id === driverId) || null;
+    const pick = resolvePolylineOrigin({
+      finishedDeliveries: todayDeliveries,
+      resolveCoords: (d) => getDeliveryCoords(d, patientMap, storeMap),
+      homePosition: (selfAppUser?.home_latitude != null && selfAppUser?.home_longitude != null)
+        ? { lat: Number(selfAppUser.home_latitude), lon: Number(selfAppUser.home_longitude) } : null,
+      firstTargetCoords: stopCoords ? { lat: Number(stopCoords.lat), lon: Number(stopCoords.lng) } : null,
+      gpsPosition: null,
+    });
+    const origin = pick?.origin;
+    if (!origin) return;
+
+    const driftKm = haversineKm(Number(pts[0][0]), Number(pts[0][1]), origin.lat, origin.lon);
+    if (!Number.isFinite(driftKm) || driftKm <= HEAL_MAX_DRIFT_KM) return;
+
+    _healByDriver.set(driverId, { key, at: Date.now() });
+    console.warn(`[RouteDeviation] stored current leg starts ${driftKm.toFixed(2)}km from its true origin (${pick.source}) — regenerating anchored to it`);
+    await _regenCurrentLeg({
+      nextStop,
+      // Anchor the regen at the true origin: 0m from the anchor means no live-GPS via.
+      gps: { latitude: origin.lat, longitude: origin.lon },
+      todayDeliveries,
+      patients,
+      stores,
+      appUsers,
+      driverId,
+      updateDeliveriesLocally,
+    });
+  } catch (_) { /* best effort — never break the deviation loop */ }
+}
 
 async function _regenCurrentLeg({ nextStop, gps, todayDeliveries, patients, stores, appUsers, driverId, updateDeliveriesLocally, todayStr }) {
   if (_optInFlightFor(driverId)) {
@@ -445,6 +505,18 @@ export function useRouteDeviationMonitor({
       // Cycling markers have their own specialized regen paths (segment-only,
       // hand-picked origins) — never deviation-regen them.
       if (nextStop.delivery_notes === 'Cycling Route Start') { _diag('gate:cycling_marker'); return; }
+
+      // Stored-leg origin sanity (once per leg): a leg anchored to a pending
+      // stop is regenerated from the real origin before any deviation math.
+      await _healMisAnchoredLeg({
+        nextStop,
+        todayDeliveries,
+        patients: s.patients,
+        stores: s.stores,
+        appUsers: s.appUsers,
+        driverId,
+        updateDeliveriesLocally: s.updateDeliveriesLocally,
+      });
 
       // ── AT-LOCATION GATE (owner directive Oct 20 2026) ───────────────────────
       // 'If a driver is at a location the route deviation monitor should be
