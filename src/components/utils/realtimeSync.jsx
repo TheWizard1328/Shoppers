@@ -329,6 +329,9 @@ async function flushBuffered(entityName) {
     return;
   }
 
+  // Socket just delivered real data — pullers may stand down (see health signal)
+  if (items.length) stampRealtimeEvent();
+
   // Notify listeners and dispatch window events once per record
   items.forEach(({ entityType, eventType, data, id, updatedBy, changedFields }) => {
     listeners.forEach(callback => {
@@ -1770,6 +1773,18 @@ const attemptReconnect = () => {
  * Check if connected
  */
 export const isConnectedStatus = () => isConnected;
+
+// ── WebSocket HEALTH signal (owner report Oct 29 2026) ───────────────────────
+// "Shouldn't websockets be covering most of this?" — they already do for live
+// data, but every periodic timer puller (smart refresh cycles, delta syncs)
+// kept pulling the SAME rows the socket had just delivered, on every device.
+// Every incoming record stamps this, so pullers can stand down while the
+// socket is demonstrably live.
+let _lastRealtimeEventAt = 0;
+export const stampRealtimeEvent = () => { _lastRealtimeEventAt = Date.now(); };
+export const getLastRealtimeEventAt = () => _lastRealtimeEventAt;
+export const isRealtimeHealthy = (maxAgeMs = 120000) =>
+  isConnected && _lastRealtimeEventAt > 0 && (Date.now() - _lastRealtimeEventAt) <= maxAgeMs;
 
 /**
  * Get connection status

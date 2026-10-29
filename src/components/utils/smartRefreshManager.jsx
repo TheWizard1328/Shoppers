@@ -3,6 +3,7 @@
 // This manager handles: initial loads, offline sync, cache reconciliation, and non-real-time entities
 
 import { base44 } from "@/api/base44Client";
+import { isRealtimeHealthy } from './realtimeSync';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp } from "./dataDiffer";
 import { format } from "date-fns";
@@ -234,7 +235,15 @@ class LightweightRefreshManager {
   shouldRefresh(type) {
     const now = Date.now();
     const lastRefresh = this.lastRefreshTimes[type] || 0;
-    const interval = this.intervals[type] || 300000;
+    let interval = this.intervals[type] || 300000;
+    // WEBSOCKET-FIRST (owner report Oct 29 2026): when the socket is connected
+    // AND has delivered a real entity event in the last 2 minutes, live data is
+    // already flowing over WS — stretching the timer 3x stops every device from
+    // re-pulling rows the socket just delivered (this is what stacked reads on
+    // the shared per-app rate-limit bucket). Dead or quiet socket = normal rate.
+    try {
+      if (isRealtimeHealthy(2 * 60 * 1000)) interval *= 3;
+    } catch (_) { /* health signal unavailable — keep the plain interval */ }
     return (now - lastRefresh) >= interval;
   }
 
