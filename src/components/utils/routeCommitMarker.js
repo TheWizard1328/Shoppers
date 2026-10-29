@@ -133,12 +133,45 @@ const _dropLockedFieldStomps = (updates) => {
   }
 };
 
+// ── No-op resend gate (owner report Oct 29 2026: "one rate limit per stop") ──
+// Every completion runs several silent passes over the SAME route (compute
+// flags, ETA cascade, optimizer). Each pass re-sent records whose payload was
+// already written seconds earlier by the previous pass, so one completion could
+// spend 40+ entity_update slots on maybe 15 genuinely different rows. Identical
+// payloads for the same record inside 90s are dropped here, at the single bulk
+// choke point, so only real changes reach the server.
+const _recentBulkSends = new Map();
+const _BULK_SIG_TTL_MS = 90 * 1000;
+const _bulkPayloadSig = (data) => {
+  try {
+    return JSON.stringify(Object.keys(data || {}).sort().reduce((acc, k) => { acc[k] = data[k]; return acc; }, {}));
+  } catch (_) { return ''; }
+};
+const _dropNoopResends = (list) => {
+  const now = Date.now();
+  for (const [id, v] of _recentBulkSends) { if (now - v.at > _BULK_SIG_TTL_MS) _recentBulkSends.delete(id); }
+  const kept = [];
+  let skipped = 0;
+  for (const u of list) {
+    const key = String(u.id);
+    const sig = _bulkPayloadSig(u.data);
+    const prev = _recentBulkSends.get(key);
+    if (prev && prev.sig === sig) { skipped++; continue; }
+    _recentBulkSends.set(key, { sig, at: now });
+    kept.push(u);
+  }
+  if (skipped) console.log(`[RouteCommit] skipped ${skipped} no-op resend(s) — identical payload already sent within ${_BULK_SIG_TTL_MS / 1000}s`);
+  return kept;
+};
+
 export const commitDeliveryUpdatesSilently = async (updates = []) => {
   let valid = (updates || []).filter((u) => u?.id && u?.data && Object.keys(u.data).length > 0);
   if (valid.length === 0) return 0;
   valid = await _dropTerminalStomps(valid);
   if (valid.length > 0) valid = await _dropStartStomps(valid);
   if (valid.length > 0) valid = _dropLockedFieldStomps(valid);
+  if (valid.length === 0) return 0;
+  valid = _dropNoopResends(valid);
   if (valid.length === 0) return 0;
   try {
     const r = await base44.functions.invoke('bulkUpdateDeliveries', { updates: valid, silent: true });
