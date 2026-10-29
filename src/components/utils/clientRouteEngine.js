@@ -1394,6 +1394,46 @@ let _inheritedWindowCount = 0;
           });
         }
       }
+      // ── FIRST ACTIVE LEG SELF-HEAL (owner report Oct 29 2026) ─────────────
+      // He pressed Start halfway between stop 12 and the new stop 13: the route
+      // reorganized and every leg AFTER 13 regenerated, but the 12 -> 13 leg came
+      // out blank because the origin/stop separation was small and the resolved
+      // origin landed on (or beside) the destination. A next-delivery stop with
+      // no inbound leg is never acceptable: rebuild that single leg explicitly as
+      // anchor -> live GPS (midway) -> stop, exactly what the owner described.
+      try {
+        const _legUsable = (seg) => !!(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10
+          && !(Array.isArray(seg.coordinates) && seg.coordinates.length <= 2
+            && Number.isFinite(Number(seg.estimatedDistanceKm)) && Number(seg.estimatedDistanceKm) < 0.03));
+        const _firstActive = routeStops.find((st) => st?.delivery
+          && ['en_route', 'in_transit'].includes(String(st.delivery.status || '')));
+        if (_firstActive && polylineOrigin && _firstActive.lat != null && _firstActive.lng != null
+          && !_legUsable(segmentPolylineByDeliveryId.get(String(_firstActive.delivery.id)))) {
+          console.log(`[clientRouteEngine] ${source} — no usable inbound leg for the active stop ${_firstActive.delivery.id} — rebuilding anchor -> live GPS -> stop`);
+          const _healMap = await generateRoutePolylines({
+            orderUnchanged: false,
+            forceRegenerate: true,
+            stops: [{ delivery: _firstActive.delivery, lat: _firstActive.lat, lng: _firstActive.lng }],
+            originPoint: polylineOrigin,
+            cyclingSegmentOnly: false,
+            hereApiKey,
+            polylineProvider,
+            polylineApiKey,
+            driverId,
+            userName: _driverUserName,
+            source: `${source}:first_leg_heal`,
+            fallbackTravelMode: 'driving',
+            viaPointAfterOrigin,
+            originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
+          });
+          _healMap.forEach((seg, id) => {
+            if (_legUsable(seg)) segmentPolylineByDeliveryId.set(String(id), seg);
+          });
+        }
+      } catch (_firstLegHealErr) {
+        console.warn('[clientRouteEngine] first-leg self-heal skipped (non-fatal):', _firstLegHealErr?.message || _firstLegHealErr);
+      }
+
       // Safety net only: if both segment passes produced nothing at all (HERE
       // refusal / missing coords), fall back to the single mixed call so the
       // route still gets legs. Never fires on a healthy run.
