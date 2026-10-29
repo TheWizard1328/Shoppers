@@ -31,8 +31,13 @@ export const resetBatchSaveDraftState = ({
   setHasPendingDeletes(false);
   setHasChanges(false);
   hasLoadedPendingRef.current = false;
-  unblockPredictions();
-  setIsLoadingPredictions(true);
+  // OWNER REPORT (Oct 28 2026): the form is closing right now, so clearing the
+  // block here and flipping the loading spinner made the Done click look like it
+  // was "refreshing projections" and stole main-thread time from the save. Leave
+  // predictions blocked; the hook repopulates lazily (idle) when the form reopens.
+  setProjectedDeliveries([]);
+  setIsLoadingPredictions(false);
+  void unblockPredictions; // kept in the signature for existing callers
 };
 
 export const resumeManagersAndCloseBatchForm = async (args) => {

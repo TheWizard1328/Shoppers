@@ -50,7 +50,11 @@ export async function handleBatchSave({
 
   if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
     hasLoadedPending.current = false;
-    unblockPredictions();
+    // OWNER REPORT (Oct 28 2026): do NOT unblock here. The form is still mounted
+    // while the Done last step runs, so unblocking let a full projection rebuild
+    // fire mid-save. The hook repopulates lazily when the form reopens.
+    setProjectedDeliveries([]);
+    setIsLoadingPredictions(false);
     // UNIVERSAL DONE LAST STEP (owner spec Oct 23 2026): Done ALWAYS ends with the
     // route optimizer + polyline generator for every affected route — InterStore
     // (ISP/ISD) queue AND store pickups added this session. Cancel-parity: managers
@@ -142,8 +146,8 @@ export async function handleBatchSave({
     setStagedDeliveries([]);
     setProjectedDeliveries([]);
     hasLoadedPending.current = false;
-    unblockPredictions();
-    setIsLoadingPredictions(true);
+    // Keep projections blocked through the Done last step (see note above).
+    setIsLoadingPredictions(false);
     // UNIVERSAL DONE LAST STEP: even with an empty effective batch, InterStore
     // stops and store pickups added this session still need their optimization.
     runDoneOptimizationLastStep({ addedPickupRoutes }).catch(() => {});
