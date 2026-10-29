@@ -2769,7 +2769,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // after today) move to their own 'Awaiting Pickup' section
                   // BELOW Uncollected Past — they are scheduled but not
                   // collectible yet, so they leave the Today list.
-                  const awaitingPickupRows = combinedSrc.filter((it) => it.date && it.date > todayStr).map((it) => ({
+                  // OWNER REPORT (Oct 29 2026): today's pending-status CODs (driver has not
+                  // picked them up yet, 'Awaiting Pickup' pill) were listed under
+                  // Uncollected Today while the Awaiting Pickup section read 'none'.
+                  // The section is now: future-dated rows PLUS any pending-status row
+                  // dated today. Past-dated pending rows stay in Uncollected Past
+                  // (they are overdue, not merely scheduled).
+                  const isAwaitingPickupRow = (it) => !!it && !it.cashAwaitingSquare && !it.failed && (
+                    (it.date && it.date > todayStr) || (!!it.pendingPickup && (!it.date || it.date === todayStr))
+                  );
+                  const awaitingPickupRows = combinedSrc.filter(isAwaitingPickupRow).map((it) => ({
                     key: it.key || `f-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
                     patientName: it.patientName || it.patient || null,
@@ -2787,7 +2796,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     notTapped: notTapped(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                  const uncollectedTodayRows = combinedSrc.filter((it) => !it.date || it.date === todayStr).map((it) => ({
+                  const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date === todayStr) && !isAwaitingPickupRow(it)).map((it) => ({
                     key: it.key || `o-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
                     patientName: it.patientName || it.patient || null,
