@@ -17,11 +17,20 @@ const inflight = new Map(); // key -> promise (dedups concurrent effect runs)
  * TTL cache when fresh. Dedups concurrent callers. Failures are NOT cached and
  * re-throw so existing catch/fallback paths behave as before.
  */
-export async function fetchDriverDailyActivityCached(driverId, activityDate) {
+export async function fetchDriverDailyActivityCached(driverId, activityDate, { force = false } = {}) {
   if (!driverId || !activityDate) return null;
   const key = `${driverId}:${activityDate}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.record;
+  if (force) {
+    // OWNER REPORT (Oct 28 2026): the IDB-first read below meant a device could
+    // render a MONTHS-stale activity record forever (tablet showed 2h while the
+    // server had 8h20 for the same driver). A forced call skips memory + IDB and
+    // pulls the authoritative server record once, then writes through so every
+    // later read is fresh.
+    cache.delete(key);
+  } else {
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.record;
+  }
   if (inflight.has(key)) return inflight.get(key);
   const req = (async () => {
     // IDB-FIRST (owner directive Oct 25 2026): boot must not burn entity_list
@@ -29,7 +38,7 @@ export async function fetchDriverDailyActivityCached(driverId, activityDate) {
     // TTL then revalidates against the server and the WS-driven invalidation
     // calls keep it fresh. Server fetches write through to IDB so every boot
     // after the first renders offline.
-    try {
+    if (!force) try {
       const { offlineDB } = await import('./offlineDatabase');
       const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_DAILY_ACTIVITY);
       const idbRecord = (rows || []).find(

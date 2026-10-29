@@ -5,7 +5,7 @@ import { haversineKm } from '@/components/utils/geoUtils';
 import { commitDeliveryUpdatesSilently } from '@/components/utils/routeCommitMarker';
 import { calculateDeliveryPay } from '@/components/utils/payCalculator';
 import { parseAnyTimestamp } from '@/components/utils/albertaTime';
-import { totalOnDutyMinutes as sharedTotalOnDutyMinutes } from '@/components/utils/driverDutyTime';
+import { totalOnDutyMinutes as sharedTotalOnDutyMinutes, hasOpenSegment } from '@/components/utils/driverDutyTime';
 import { fetchDriverDailyActivityCached, invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
 
 // Polyline-derived leg km cache — key id:polylineSignature so a re-render
@@ -38,6 +38,9 @@ const _polylineLegKm = (delivery) => {
 // always accompany DriverDailyActivity segment changes, so a status flip is the
 // signal to drop that driver's cached segments instead of waiting out the TTL.
 const _lastSeenDriverStatus = new Map();
+// One forced DriverDailyActivity revalidate per driver+date+duty-state per session
+// (owner report Oct 28 2026 — stale IDB record / unclosed segment).
+const _dutyForceRefreshed = new Set();
 
 /**
  * Computes performance stats (pay, km, extra km, duty time) for the currently
@@ -335,7 +338,37 @@ export function useLocalPerformanceStats({
             invalidateDriverDailyActivityCache(segDriverId, segDate);
           }
           _lastSeenDriverStatus.set(segDriverId, segStatus);
-          const dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate);
+          // OWNER REPORT (Oct 28 2026): the card must show the SAME number as
+          // the Driver Activity page and must never keep counting once the
+          // driver is off duty. Two failure modes caused the drift:
+          //   • phone kept counting: the local record held an OPEN segment long
+          //     after auto-off-duty closed it server-side, and the math ran that
+          //     segment against "now" forever.
+          //   • tablet showed 2h: the IDB-first cache served a stale record and
+          //     never revalidated, while the activity page read the server.
+          // Fix: read the authoritative record ONCE when the driver is off duty
+          // or their stale copy still has an open segment (forced revalidate,
+          // memoized per driver+date), and stop running open segments against
+          // the clock while off duty.
+          let dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate);
+          const _isOnDutyStatus = String(segStatus || '').toLowerCase() === 'on_duty';
+          // "Route finished" also ends the live clock: the owner's report was a
+          // driver whose route was done while the card kept counting. Duty time
+          // stops accruing once every stop for that day is terminal.
+          const _FINISHED = ['completed', 'failed', 'cancelled'];
+          const _dayStops = (filteredDeliveries || []).filter(d => d?.driver_id === segDriverId && d?.delivery_date === segDate);
+          const _routeFinishedToday = _dayStops.length > 0 && _dayStops.every(d => _FINISHED.includes(String(d?.status || '').toLowerCase()));
+          const isOnDutyNow = _isOnDutyStatus && !_routeFinishedToday;
+          const needsFresh = !isOnDutyNow || hasOpenSegment(dailyRec);
+          if (needsFresh) {
+            const _forceKey = `${segDriverId}:${segDate}:${isOnDutyNow ? 'open' : 'off'}`;
+            if (!_dutyForceRefreshed.has(_forceKey)) {
+              try {
+                dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate, { force: true }) || dailyRec;
+                _dutyForceRefreshed.add(_forceKey);
+              } catch (_) { /* keep the local copy on failure */ }
+            }
+          }
           const segments = dailyRec?.activity_segments;
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
@@ -343,9 +376,9 @@ export function useLocalPerformanceStats({
             // SHARED DUTY MATH (owner directive Oct 27 2026): the stats card
             // uses the EXACT same on-duty computation as the Admin Driver
             // Activity page — one shared module (driverDutyTime.js), per-segment
-            // sum, an open segment running against "now". Same record, same
-            // number, no drift.
-            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, nowMs);
+            // sum. liveOpenSegment is TRUE only while the driver is actually on
+            // duty, so a route-finished driver's clock stops.
+            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, nowMs, { liveOpenSegment: isOnDutyNow });
 
             const cappedMinutes = Math.min(segMinutes, 1440);
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);

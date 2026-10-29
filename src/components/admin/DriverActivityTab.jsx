@@ -35,7 +35,12 @@ const formatTime = (isoStr) => {
 // SHARED DUTY MATH (Oct 27 2026): identical module as the dashboard stats card —
 // one definition of on-duty time, no drift between the two pages.
 import { totalOnDutyMinutes as sharedTotalOnDutyMinutes, calcSegmentMinutes } from '@/components/utils/driverDutyTime';
-const totalOnDutyMinutes = (record) => sharedTotalOnDutyMinutes(record);
+// OWNER RULE (Oct 28 2026): a finished/off-duty shift never keeps counting.
+// An unclosed segment on a PAST date can never be live, so it contributes only
+// what it already banked instead of running against "now".
+const totalOnDutyMinutes = (record) => sharedTotalOnDutyMinutes(record, Date.now(), {
+  liveOpenSegment: record?.activity_date === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }),
+});
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 
