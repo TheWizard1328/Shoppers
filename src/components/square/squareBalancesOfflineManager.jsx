@@ -14,6 +14,20 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 const SUMMARY_STORE = offlineDB.STORES.SQUARE_BALANCES_SUMMARY;
 const RECORD_ID = 'summary';
 
+// RATE SIGNATURE (owner report Oct 28 2026: after Bonnie Doon's loan rate was
+// corrected 17.25% -> 16.5% the CARD BALANCE kept rendering the pre-fix
+// numbers). The cached summary carries fully computed figures (credits, loan,
+// card estimate), so it is only valid for the RATE SHEET that produced it.
+// Stamping the signature lets any reader discard a snapshot computed under a
+// different loan/folder rate instead of showing stale money math.
+const ratesSignature = (config) => {
+  const locs = [...(config?.locations || [])]
+    .map((l) => `${l?.location_id}:${Number(l?.loan_rate || 0)}`)
+    .sort()
+    .join(',');
+  return `${Number(config?.folder_rate || 0)}|${locs}`;
+};
+
 /**
  * Persist a summary snapshot. `payload` must be JSON-plain (Maps serialized as
  * entry arrays) — deserializeSummary() rebuilds it.
@@ -24,6 +38,7 @@ export const saveSummarySnapshot = async (userId, payload) => {
       id: RECORD_ID,
       user_id: userId || null,
       saved_at: new Date().toISOString(),
+      rates_sig: ratesSignature(payload?.config),
       payload: payload || null,
     };
     await offlineDB.save(SUMMARY_STORE, record);
@@ -40,10 +55,16 @@ export const saveSummarySnapshot = async (userId, payload) => {
  * role/user-scoped (admin sees all cards, drivers only their stores) and the
  * snapshot is whatever the last signed-in user computed.
  */
-export const getSummarySnapshot = async () => {
+export const getSummarySnapshot = async (currentConfig = null) => {
   try {
     const rec = await offlineDB.getById(SUMMARY_STORE, RECORD_ID);
-    return rec && rec.payload ? rec : null;
+    if (!rec || !rec.payload) return null;
+    // Computed under a different rate sheet? Discard — the caller recomputes.
+    if (currentConfig && rec.rates_sig && rec.rates_sig !== ratesSignature(currentConfig)) {
+      console.warn('[SquareBalancesOffline] summary snapshot discarded — loan/folder rate changed');
+      return null;
+    }
+    return rec;
   } catch (error) {
     console.error('[SquareBalancesOffline] Error reading summary snapshot:', error);
     return null;

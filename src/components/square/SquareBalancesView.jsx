@@ -1688,7 +1688,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // overwrite everything with fresh data.
       if (!painted) {
         try {
-          const snap = await getSummarySnapshot().catch(() => null);
+          // Pass the CURRENT config once it is loaded: a snapshot computed
+          // under a different loan/folder rate sheet is discarded so the card
+          // balance can never render pre-fix money math (Oct 28 2026).
+          const snap = await getSummarySnapshot(configRef.current || null).catch(() => null);
           if (snap?.payload && (!snap.user_id || snap.user_id === currentUser?.id)) {
             applySnapshotData(deserializeSummary(snap.payload));
           }
