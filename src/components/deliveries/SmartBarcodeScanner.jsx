@@ -123,6 +123,15 @@ export default function SmartBarcodeScanner({
   const [selectedBarcode, setSelectedBarcode] = useState(null);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [flashHit, setFlashHit] = useState(false);
+  // ── Camera frame aspect (owner report Oct 29 2026) ────────────────────────
+  // The decoder always scanned the FULL camera frame, but the preview was a
+  // fixed 16:8 box with object-cover, so the screen showed a magnified SLICE of
+  // that frame. A barcode that looked centred on screen sat somewhere else in
+  // the frame the detector actually reads, which is why it "had to be
+  // positioned just right" and often had to sit low in the viewfinder.
+  // Now the viewfinder takes the camera's real aspect ratio and shows the WHOLE
+  // frame (object-contain), so what you see is exactly what is being scanned.
+  const [frameAspect, setFrameAspect] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [canZoom, setCanZoom] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
@@ -788,11 +797,28 @@ export default function SmartBarcodeScanner({
         {/* ── Top: viewfinder + status hint + scanned list ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
           {/* Viewfinder — 50% shorter (16:4.5 instead of 16:9) */}
-          <div className="relative w-full" style={{ aspectRatio: '16 / 8' }}>
+          <div className="relative w-full" style={{ aspectRatio: frameAspect || '16 / 8' }}>
             <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
               flashHit ? 'border-emerald-400' : 'border-white/30'
             }`}>
-              <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline autoPlay muted style={{ objectPosition: 'center' }} />
+              <video
+                ref={videoRef}
+                className="absolute inset-0 w-full h-full object-contain"
+                playsInline
+                autoPlay
+                muted
+                style={{ objectPosition: 'center', background: '#000' }}
+                onLoadedMetadata={(e) => {
+                  // Match the viewfinder to the camera's own frame so the
+                  // preview and the decoder see the SAME picture (no crop).
+                  const v = e.currentTarget;
+                  if (v?.videoWidth && v?.videoHeight) setFrameAspect(`${v.videoWidth} / ${v.videoHeight}`);
+                }}
+                onResize={(e) => {
+                  const v = e.currentTarget;
+                  if (v?.videoWidth && v?.videoHeight) setFrameAspect(`${v.videoWidth} / ${v.videoHeight}`);
+                }}
+              />
 
               {/* Flash hit overlay */}
               {flashHit && (

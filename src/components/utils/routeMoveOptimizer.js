@@ -50,6 +50,28 @@ export async function optimizeRoutesForMovePairs({ pairs, source, patients, stor
         offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]
       ).catch(() => null)) || null;
       const scoped = Array.isArray(idbRouteDeliveries) ? idbRouteDeliveries : null;
+
+      // ── Orphaned-leg purge (owner report Oct 29 2026) ─────────────────────
+      // A moved stop leaves its neighbours' legs chained to the OLD stop. The
+      // engine's order gate could skip them (order unchanged) and any stale
+      // write/replay then restored the old geometry, which is why the map kept
+      // drawing polylines to the moved stop after every re-optimization. Clear
+      // every leg that is not anchored at its current predecessor BEFORE
+      // optimizing, so nothing stale can be inherited or restored.
+      if (scoped) {
+        try {
+          const { clearOrphanedPolylineLegs } = await import('./polylineLegAudit');
+          await clearOrphanedPolylineLegs({
+            deliveries: scoped,
+            patients: patients || (typeof window !== 'undefined' ? window.__appPatients : null) || [],
+            stores: stores || [],
+            source: `route_move_${source}`,
+          });
+        } catch (auditErr) {
+          console.warn('⚠️ [routeMoveOptimizer] orphan leg audit failed:', auditErr?.message || auditErr);
+        }
+      }
+
       const result = await performRouteOptimization({
         driverId,
         deliveryDate,

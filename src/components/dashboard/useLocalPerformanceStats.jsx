@@ -42,9 +42,22 @@ const _lastSeenDriverStatus = new Map();
 // copy retries every 20s until it is coherent (owner report Oct 29 2026: a
 // single failed attempt left a tablet on the wrong number all shift).
 const _dutyRevalidateAt = new Map();
-// Authoritative driver_status per driver+date, resolved ONCE when the local
-// AppUser copy disagrees with an OPEN segment (owner report Oct 29 2026).
+// Authoritative driver_status per driver+date, resolved when the local AppUser
+// copy disagrees with an OPEN segment. OWNER REPORT (Oct 29 2026): "the time on
+// duty is still counting up even though I've been on break 8-9 minutes." This
+// memo used to be resolved ONCE per session, so a server read taken while the
+// driver was on duty ('on_duty') survived the break for the rest of the shift
+// and kept the open segment running live. It now expires every 30s.
 const _authDutyStatus = new Map();
+const _AUTH_DUTY_TTL_MS = 30000;
+// Last moment a driver+date was CONFIRMED on duty. When the status leaves
+// on_duty (break / off duty) an open segment that was never closed is frozen at
+// this instant instead of counting against "now" — the clock stops the moment
+// the break started, even if the break's segment-close write never landed.
+const _lastOnDutyAt = new Map();
+// Per driver+date break accounting for an UNCLOSED open leg:
+// { openStart, pausedMs, since } — see the Break pause block below.
+const _dutyPause = new Map();
 
 /**
  * Computes performance stats (pay, km, extra km, duty time) for the currently
@@ -381,7 +394,11 @@ export function useLocalPerformanceStats({
             // coherent record arrives; a coherent copy never triggers a pull.
             const _forceKey = `${segDriverId}:${segDate}`;
             const _lastTry = _dutyRevalidateAt.get(_forceKey) || 0;
-            if (Date.now() - _lastTry > 20000) {
+            // On duty a broken copy retries every 20s (the number must be right
+            // while the shift is running). Off duty / on break there is nothing
+            // live to fix, so back off to once a minute.
+            const _retryMs = isOnDutyNow ? 20000 : 60000;
+            if (Date.now() - _lastTry > _retryMs) {
               _dutyRevalidateAt.set(_forceKey, Date.now());
               try {
                 const _fresh = await fetchDriverDailyActivityCached(segDriverId, segDate, { force: true });
@@ -400,16 +417,22 @@ export function useLocalPerformanceStats({
           // guarded reference resolution above already handles the genuine
           // off-duty case.
           let _dutyStatusFinal = segStatus;
-          if (!_isOnDutyStatus && !_routeFinishedToday && hasOpenSegment(dailyRec)) {
+          const _localStatusLc = String(segStatus || '').toLowerCase();
+          // A BREAK is a deliberate transition the driver just made on THIS
+          // device — never overrule it with a server read (that is what kept the
+          // clock running through the break). Only a stale-looking off_duty is
+          // cross-checked.
+          if (_localStatusLc !== 'on_break' && !_isOnDutyStatus && !_routeFinishedToday && hasOpenSegment(dailyRec)) {
             const _authKey = `${segDriverId}:${segDate}`;
-            if (!_authDutyStatus.has(_authKey)) {
+            const _cached = _authDutyStatus.get(_authKey);
+            if (!_cached || Date.now() - _cached.at > _AUTH_DUTY_TTL_MS) {
               try {
                 const _authRows = await base44.entities.AppUser.filter({ user_id: segDriverId }, '-updated_date', 1);
                 const _authStatus = _authRows?.[0]?.driver_status;
-                if (_authStatus) _authDutyStatus.set(_authKey, String(_authStatus).toLowerCase());
+                if (_authStatus) _authDutyStatus.set(_authKey, { value: String(_authStatus).toLowerCase(), at: Date.now() });
               } catch (_) { /* keep the local copy on failure */ }
             }
-            const _authStatus = _authDutyStatus.get(_authKey);
+            const _authStatus = _authDutyStatus.get(_authKey)?.value;
             if (_authStatus) {
               _dutyStatusFinal = _authStatus;
               if (_authStatus === 'on_duty') {
@@ -419,7 +442,35 @@ export function useLocalPerformanceStats({
           }
           const isOnDutyNowFinal = (String(_dutyStatusFinal || '').toLowerCase() === 'on_duty') && !_routeFinishedToday;
 
+          // Remember the last confirmed on-duty instant for this driver+date.
+          const _dutyKey = `${segDriverId}:${segDate}`;
+          if (isOnDutyNowFinal) _lastOnDutyAt.set(_dutyKey, Date.now());
+
           const segments = dailyRec?.activity_segments;
+
+          // ── Break pause (owner report Oct 29 2026) ─────────────────────────
+          // "I went on break 8-9 minutes ago and it's still counting up every
+          // minute." The break did not close the open activity leg, so the leg
+          // kept running against the wall clock. Track the pause per driver+date
+          // and per open leg: while off duty the clock FREEZES at the break
+          // instant, and when the driver resumes the paused time is subtracted
+          // so the break is never counted (and never jumps back on return).
+          const _openSeg = Array.isArray(segments)
+            ? [...segments].reverse().find((sg) => sg?.start_time && !sg?.end_time) || null
+            : null;
+          const _openSegStart = _openSeg?.start_time || null;
+          let _pause = _dutyPause.get(_dutyKey);
+          if (!_pause || _pause.openStart !== _openSegStart) {
+            _pause = { openStart: _openSegStart, pausedMs: 0, since: null };
+            _dutyPause.set(_dutyKey, _pause);
+          }
+          if (!isOnDutyNowFinal) {
+            if (_pause.since == null) _pause.since = Date.now();
+          } else if (_pause.since != null) {
+            _pause.pausedMs += Math.max(0, Date.now() - _pause.since);
+            _pause.since = null;
+          }
+          const _pausedMs = _pause.pausedMs;
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
 
@@ -428,7 +479,17 @@ export function useLocalPerformanceStats({
             // Activity page — one shared module (driverDutyTime.js), per-segment
             // sum. liveOpenSegment is TRUE only while the driver is actually on
             // duty, so a route-finished driver's clock stops.
-            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, nowMs, { liveOpenSegment: isOnDutyNowFinal });
+            // OWNER REPORT (Oct 29 2026): during a break the clock kept ticking
+            // once a minute. The open segment was never closed (break-close
+            // write lost / stale mirror), so it ran against "now". Freeze the
+            // live leg at the moment the driver was last confirmed on duty:
+            // the banked shift is correct and the counter stops dead at break.
+            const _frozenAt = _pause.since || _lastOnDutyAt.get(_dutyKey);
+            const _clockMs = isOnDutyNowFinal
+              ? (nowMs - _pausedMs) // break time never counts
+              : (_frozenAt || nowMs); // frozen at the break / off-duty instant
+            const _liveLeg = isOnDutyNowFinal || !!_frozenAt;
+            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, _clockMs, { liveOpenSegment: _liveLeg });
 
             const cappedMinutes = Math.min(segMinutes, 1440);
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);

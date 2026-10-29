@@ -484,7 +484,11 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           <div className="relative w-screen mx-auto mt-[10vh] px-0">
             {/* Viewfinder with embedded video */}
             <div onClick={tapToFocus} className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
+              {/* object-CONTAIN (owner report Oct 29 2026): the decoder reads the
+                  whole camera frame, so the preview must show the whole frame too.
+                  object-cover cropped it to a magnified slice, which made barcodes
+                  only scan when they happened to land in the right spot. */}
+              <video ref={videoRef} className="w-full h-full object-contain bg-black" playsInline autoPlay muted />
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/50" />
                 {/* Aim tip */}
