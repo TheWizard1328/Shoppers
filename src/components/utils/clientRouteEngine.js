@@ -1547,8 +1547,15 @@ let _inheritedWindowCount = 0;
       // compares it against the record's CURRENT stop_order — if a manual
       // reorder (adjust panel) changed stop_order without regenerating legs,
       // the mismatch forces a full regeneration of ALL remaining stops.
-      ...(!isPending && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
-      ...(isPending ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
+      // OWNER REPORT (Oct 29 2026): a freshly added CYCLING MARKER is pending
+      // until the driver starts it, and this pending branch NULLED the leg that
+      // had just been generated for it — so the previous stop -> cycling start
+      // marker polyline never survived, no matter how many times the FAB or the
+      // adjust panel regenerated it (five attempts, always blank). Markers are
+      // polyline-eligible while pending (routeRules.isPolylineEligibleStop), so
+      // they keep their leg; only real pending patient/pickup stops are cleared.
+      ...((!isPending || stop.is_cycling_marker === true) && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
+      ...(isPending && stop.is_cycling_marker !== true ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
     // Deviation-waypoint transfer changes ride along with stop_order/polyline
