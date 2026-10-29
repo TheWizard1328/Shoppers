@@ -69,9 +69,9 @@ export async function handleReoptimizeRoute({
       appUsers,
       source: 'reoptimize_fab',
       bypassDriverStatus: true,
-      // Manual re-optimize ALWAYS redraws the legs (same owner report as the
-      // FAB above: order unchanged meant the stale leg was never regenerated).
-      forceRegenerate: true,
+      // Same owner rule as the FAB: redraw only when the run actually changed
+      // the order. The Quick Route Adjustments panel keeps forceRegenerate:true.
+      forceRegenerate: false,
     });
 
     if (result.success) {
