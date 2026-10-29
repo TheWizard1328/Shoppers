@@ -1407,7 +1407,16 @@ let _inheritedWindowCount = 0;
             && Number.isFinite(Number(seg.estimatedDistanceKm)) && Number(seg.estimatedDistanceKm) < 0.03));
         const _firstActive = routeStops.find((st) => st?.delivery
           && ['en_route', 'in_transit'].includes(String(st.delivery.status || '')));
+        // OWNER REPORT (Oct 29 2026): this heal was firing a SECOND generation call
+        // on every Start even when the run had legitimately reused the stop's
+        // already-good leg (order-unchanged / fast-path runs produce no new segment
+        // for it, so the map looked empty). The heal must only fire when the stop
+        // has NO usable leg ANYWHERE — neither in this run's output nor in its
+        // stored record. Otherwise it is a wasted HERE/Google request per tap.
+        const _storedLeg = _firstActive?.delivery?.encoded_polyline;
+        const _storedUsable = typeof _storedLeg === 'string' && _storedLeg.length > 10;
         if (_firstActive && polylineOrigin && _firstActive.lat != null && _firstActive.lng != null
+          && !_storedUsable
           && !_legUsable(segmentPolylineByDeliveryId.get(String(_firstActive.delivery.id)))) {
           console.log(`[clientRouteEngine] ${source} — no usable inbound leg for the active stop ${_firstActive.delivery.id} — rebuilding anchor -> live GPS -> stop`);
           const _healMap = await generateRoutePolylines({
