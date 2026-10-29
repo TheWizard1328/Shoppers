@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
 import { format } from 'date-fns';
+import { computeBestDay } from '@/components/utils/driverDailyTotals';
 import confetti from 'canvas-confetti';
 
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -61,6 +62,7 @@ export default function EndOfDayStatsDialog({
   onClose, 
   deliveries = [],
   allYearDeliveries = [],
+  dailyTotals = null,
   driver,
   deliveryDate,
   isProcessing = false,
@@ -174,23 +176,32 @@ export default function EndOfDayStatsDialog({
       ? (deliveries || []).filter(d => d).reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
       : null;
 
-    // Compute best day of the year from allYearDeliveries
-    const currentYear = new Date().getFullYear();
-    const yearStr = String(currentYear);
+    // ── Best day of the year (owner report Oct 28 2026) ──────────────────────
+    // This used to be built from the CURRENT day's deliveries only, so today won
+    // by default ("always making today the best day because it's the only daily
+    // total it has stored"). dailyTotals now carries the driver's real per-date
+    // stop counts for the year (getDriverDailyTotals). allYearDeliveries is
+    // still used as the fallback when history could not be loaded.
+    const yearStr = String(deliveryDate || '').slice(0, 4) || String(new Date().getFullYear());
     const driverIdToMatch = driver?.user_id || driver?.id || null;
 
-    // Group all year deliveries by date → count patient deliveries only,
-    // matching the Total Stops card (patient_id present) so the best-day
-    // comparison is apples-to-apples.
     const dayMap = new Map();
-    (allYearDeliveries || []).forEach(d => {
-      if (!d || !d.delivery_date || !d.delivery_date.startsWith(yearStr)) return;
-      if (!d.patient_id) return; // patient deliveries only — matches Total Stops card
-      if (driverIdToMatch && d.driver_id !== driverIdToMatch) return;
-      if (!dayMap.has(d.delivery_date)) dayMap.set(d.delivery_date, { stops: 0, pay: 0 });
-      const entry = dayMap.get(d.delivery_date);
-      entry.stops += 1;
-    });
+    if (Array.isArray(dailyTotals) && dailyTotals.length > 0) {
+      dailyTotals.forEach(entry => {
+        if (!entry?.date || !String(entry.date).startsWith(yearStr)) return;
+        dayMap.set(entry.date, { stops: Number(entry.stops) || 0, pay: 0 });
+      });
+    } else {
+      // loud fallback: without history every day looks like a record
+      (allYearDeliveries || []).forEach(d => {
+        if (!d || !d.delivery_date || !String(d.delivery_date).startsWith(yearStr)) return;
+        if (!d.patient_id) return; // patient deliveries only — matches Total Stops card
+        if (driverIdToMatch && d.driver_id !== driverIdToMatch) return;
+        const entry = dayMap.get(d.delivery_date) || { stops: 0, pay: 0 };
+        entry.stops += 1;
+        dayMap.set(d.delivery_date, entry);
+      });
+    }
 
     // Override today's entry with the live Total Stops card value so the
     // best-day record reflects the exact same count shown in the dialog.
@@ -199,15 +210,14 @@ export default function EndOfDayStatsDialog({
       dayMap.set(deliveryDate, { stops: total, pay: 0 });
     }
 
-    let bestDayByStops = null;
     let bestDayByEarned = null;
-
-    if (dayMap.size > 0) {
-      let maxStops = 0;
-      for (const [date, entry] of dayMap) {
-        if (entry.stops > maxStops) { maxStops = entry.stops; bestDayByStops = { date, stops: entry.stops }; }
-      }
-    }
+    const _best = computeBestDay({
+      days: Array.from(dayMap.entries()).map(([date, entry]) => ({ date, stops: entry.stops })),
+      deliveryDate,
+    });
+    const bestDayByStops = _best.bestDate ? { date: _best.bestDate, stops: _best.bestStops } : null;
+    const priorBestStops = _best.priorBestStops;
+    const isNewStopsRecord = _best.isNewRecord;
 
     const newStats = {
       total,
@@ -228,6 +238,9 @@ export default function EndOfDayStatsDialog({
       routeComplete: routeActuallyComplete,
       routeStarted,
       bestDayByStops,
+      priorBestStops,
+      isNewStopsRecord,
+      bestDaySource: Array.isArray(dailyTotals) && dailyTotals.length > 0 ? 'history' : 'fallback',
     };
     // Pick a random message only once per open session
     if (!messageLockedRef.current) {
@@ -420,7 +433,10 @@ export default function EndOfDayStatsDialog({
             const bestDayLabel = bestDay
               ? format(new Date(bestDay.date + 'T00:00:00'), 'MMM d')
               : null;
-            const isNewRecord = bestDay && stats.total >= bestDay.stops && deliveryDate === bestDay.date;
+            // "New record" only when today strictly BEAT the previous best from
+            // real history. Never claim a record off the local-only fallback —
+            // that is what made every route look like a record day.
+            const isNewRecord = stats?.bestDaySource === 'history' && !!stats?.isNewStopsRecord;
             return (
               <div className="text-center py-3 px-4 rounded-lg border" style={{ background: bgVar, borderColor: borderVar }}>
                 <p className={`text-sm font-medium ${textClass}`}>{emoji} {text}</p>

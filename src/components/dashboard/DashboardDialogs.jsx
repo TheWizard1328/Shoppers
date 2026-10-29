@@ -1,4 +1,5 @@
 import { AnimatePresence } from "framer-motion";
+import { getDriverDailyTotals, buildTotalsFromDeliveries } from '@/components/utils/driverDailyTotals';
 import { base44 } from "@/api/base44Client";
 import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import useModeRouteDialog from '@/components/dashboard/useModeRouteDialog';
 
 import EndOfDayStatsDialog from '@/components/dashboard/EndOfDayStatsDialog';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function DashboardDialogs({
   currentUser, isDriver, isDispatcher,
@@ -114,6 +115,7 @@ export default function DashboardDialogs({
               onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }}
               deliveries={filteredDeliveries}
               allYearDeliveries={deliveries || []}
+              dailyTotals={eodDailyTotals}
               driver={selectedDriver}
               deliveryDate={format(selectedDate, 'yyyy-MM-dd')}
               isProcessing={isEntityUpdating}

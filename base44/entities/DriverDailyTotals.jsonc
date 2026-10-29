@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "properties": {
+    "driver_id": { "type": "string", "description": "AppUser user_id of the driver" },
+    "driver_name": { "type": "string" },
+    "year": { "type": "number", "description": "Calendar year the daily totals belong to" },
+    "days": {
+      "type": "array",
+      "description": "Per-date stop counts for the year: [{ date: 'YYYY-MM-DD', stops: n }]",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string" },
+          "stops": { "type": "number" }
+        }
+      }
+    },
+    "best_date": { "type": "string", "description": "Date with the most patient stops this year" },
+    "best_stops": { "type": "number" },
+    "days_worked": { "type": "number" },
+    "total_stops": { "type": "number" },
+    "computed_at": { "type": "string", "description": "ISO timestamp of the aggregation" }
+  },
+  "required": ["driver_id", "year"]
+}
