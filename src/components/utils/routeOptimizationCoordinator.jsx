@@ -133,7 +133,16 @@ async function _performRouteOptimizationInner({
         for (const id of prev.order || []) {
           if (i < currentOrder.length && currentOrder[i] === id) i++;
         }
-        if (i === currentOrder.length) {
+        // NEVER skip when a leg has no stored geometry: a previous pass may have
+        // cleared a polyline (pending clear / marker insert) and the run being
+        // skipped is the one that would rebuild it. Missing geometry always wins.
+        const missingLeg = deliveries
+          .filter((d) => d && !TERMINAL_STATUSES.includes(String(d.status || '')))
+          .filter((d) => ['en_route', 'in_transit'].includes(String(d.status || ''))
+            || d.delivery_notes === 'Cycling Route Start'
+            || d.delivery_notes === 'Cycling Route End')
+          .some((d) => !d.encoded_polyline || String(d.encoded_polyline).length <= 10);
+        if (i === currentOrder.length && !missingLeg) {
           console.log(`[RouteOptimization] ${source} — skipped: remaining order matches the run ${Math.round((Date.now() - prev.at) / 1000)}s ago (${currentOrder.length} stop(s), no geometry change)`);
           return { success: true, skipped: 'fresh_order_unchanged', freshDeliveries: deliveries };
         }

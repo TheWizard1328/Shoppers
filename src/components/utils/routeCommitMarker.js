@@ -152,8 +152,24 @@ const _dropNoopResends = (list) => {
   for (const [id, v] of _recentBulkSends) { if (now - v.at > _BULK_SIG_TTL_MS) _recentBulkSends.delete(id); }
   const kept = [];
   let skipped = 0;
+  // NEVER dedupe geometry, status, flag or timing writes (owner report Oct 29
+  // 2026: after adding a cycling marker the current leg polyline vanished). A
+  // clear-then-rewrite cycle (leg nulled on a pending clear, then regenerated
+  // to the SAME encoded string) made the restore look like a duplicate of the
+  // earlier send and get dropped, leaving the server with the null. Dedupe is
+  // only safe for plain ETA/derived fields.
+  const PROTECTED_KEYS = ['encoded_polyline', 'finished_leg_encoded_polyline', 'polyline_from_order',
+    'status', 'actual_delivery_time', 'arrival_time', 'isNextDelivery', 'stop_order',
+    'transport_mode', 'finished_leg_transport_mode', 'deviation_waypoints', 'travel_dist',
+    'route_commit_at', 'tracking_number'];
   for (const u of list) {
     const key = String(u.id);
+    const keys = Object.keys(u.data || {});
+    if (keys.some((k) => PROTECTED_KEYS.includes(k))) {
+      _recentBulkSends.delete(key); // this record's history is stale now
+      kept.push(u);
+      continue;
+    }
     const sig = _bulkPayloadSig(u.data);
     const prev = _recentBulkSends.get(key);
     if (prev && prev.sig === sig) { skipped++; continue; }
