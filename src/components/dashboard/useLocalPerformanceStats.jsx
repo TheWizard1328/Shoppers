@@ -41,6 +41,9 @@ const _lastSeenDriverStatus = new Map();
 // One forced DriverDailyActivity revalidate per driver+date+duty-state per session
 // (owner report Oct 28 2026 — stale IDB record / unclosed segment).
 const _dutyForceRefreshed = new Set();
+// Authoritative driver_status per driver+date, resolved ONCE when the local
+// AppUser copy disagrees with an OPEN segment (owner report Oct 29 2026).
+const _authDutyStatus = new Map();
 
 /**
  * Computes performance stats (pay, km, extra km, duty time) for the currently
@@ -369,6 +372,36 @@ export function useLocalPerformanceStats({
               } catch (_) { /* keep the local copy on failure */ }
             }
           }
+          // ── AUTHORITATIVE DUTY STATE (owner report Oct 29 2026) ──────────
+          // Phone showed 2h40 while the tablet showed 4h45 for the SAME record
+          // (closed 160 min + an OPEN segment since 12:45). The phone's local
+          // AppUser copy still said off_duty, so `liveOpenSegment` was false and
+          // the open shift simply vanished — half the number. A record that
+          // still holds an OPEN segment while the day has unfinished stops and
+          // the local status says otherwise means the LOCAL status is the stale
+          // side; read the server's driver_status once and decide from that. The
+          // guarded reference resolution above already handles the genuine
+          // off-duty case.
+          let _dutyStatusFinal = segStatus;
+          if (!_isOnDutyStatus && !_routeFinishedToday && hasOpenSegment(dailyRec)) {
+            const _authKey = `${segDriverId}:${segDate}`;
+            if (!_authDutyStatus.has(_authKey)) {
+              try {
+                const _authRows = await base44.entities.AppUser.filter({ user_id: segDriverId }, '-updated_date', 1);
+                const _authStatus = _authRows?.[0]?.driver_status;
+                if (_authStatus) _authDutyStatus.set(_authKey, String(_authStatus).toLowerCase());
+              } catch (_) { /* keep the local copy on failure */ }
+            }
+            const _authStatus = _authDutyStatus.get(_authKey);
+            if (_authStatus) {
+              _dutyStatusFinal = _authStatus;
+              if (_authStatus === 'on_duty') {
+                console.log(`[DutyTime] local status "${segStatus || 'unknown'}" disagreed with an OPEN segment — using server status "on_duty" for ${segDriverId}`);
+              }
+            }
+          }
+          const isOnDutyNowFinal = (String(_dutyStatusFinal || '').toLowerCase() === 'on_duty') && !_routeFinishedToday;
+
           const segments = dailyRec?.activity_segments;
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
@@ -378,7 +411,7 @@ export function useLocalPerformanceStats({
             // Activity page — one shared module (driverDutyTime.js), per-segment
             // sum. liveOpenSegment is TRUE only while the driver is actually on
             // duty, so a route-finished driver's clock stops.
-            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, nowMs, { liveOpenSegment: isOnDutyNow });
+            const segMinutes = sharedTotalOnDutyMinutes(dailyRec, nowMs, { liveOpenSegment: isOnDutyNowFinal });
 
             const cappedMinutes = Math.min(segMinutes, 1440);
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);
