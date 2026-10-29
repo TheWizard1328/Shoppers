@@ -1305,6 +1305,56 @@ let _inheritedWindowCount = 0;
       viaPointAfterOrigin,
       originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
     }) : segmentPolylineByDeliveryId;
+
+    // ── CYCLING MARKER LEG SELF-HEAL (owner report Oct 29 2026) ──────────────
+    // The leg INTO a cycling start marker kept coming back blank through the
+    // manual FAB and the adjust-panel re-optimize (5 attempts, marker always
+    // in_transit, never pending). The markers are positional anchors in the
+    // sequencing split, so whichever pool the pass used could leave their
+    // inbound leg unrequested while every other leg regenerated. A marker is a
+    // real, drivable stop: guarantee it gets its inbound leg by requesting that
+    // single leg on its own (origin = the stop immediately before it in the
+    // route, else the normal polyline origin). Cheap: only fires when the leg is
+    // genuinely missing from this run's generation.
+    try {
+      const _markersMissingLeg = routeStops.filter((s) => {
+        const d = s?.delivery;
+        if (!d?.is_cycling_marker || s.lat == null || s.lng == null) return false;
+        if (TERMINAL_STATUSES.includes(String(d.status || ''))) return false;
+        const seg = segmentPolylineByDeliveryId.get(String(d.id));
+        return !(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10);
+      });
+      for (const m of _markersMissingLeg) {
+        const idx = routeStops.indexOf(m);
+        const prev = idx > 0 ? routeStops[idx - 1] : null;
+        const legOrigin = (prev && prev.lat != null && prev.lng != null)
+          ? { lat: prev.lat, lon: prev.lng }
+          : polylineOrigin;
+        if (!legOrigin) continue;
+        console.log(`[clientRouteEngine] ${source} — cycling marker ${m.delivery.id} (${m.delivery.delivery_notes}) had no inbound leg — regenerating that single leg from (${legOrigin.lat}, ${legOrigin.lon})`);
+        const markerLeg = await generateRoutePolylines({
+          orderUnchanged: false,
+          forceRegenerate: true,
+          stops: [{ delivery: m.delivery, lat: m.lat, lng: m.lng }],
+          originPoint: legOrigin,
+          cyclingSegmentOnly: false,
+          hereApiKey,
+          polylineProvider,
+          polylineApiKey,
+          driverId,
+          userName: _driverUserName,
+          source: `${source}:marker_leg_selfheal`,
+          fallbackTravelMode: effectiveTravelMode,
+        });
+        markerLeg.forEach((seg, id) => {
+          if (seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10) {
+            segmentPolylineByDeliveryId.set(String(id), seg);
+          }
+        });
+      }
+    } catch (_markerHealErr) {
+      console.warn('[clientRouteEngine] cycling marker leg self-heal skipped (non-fatal):', _markerHealErr?.message || _markerHealErr);
+    }
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
