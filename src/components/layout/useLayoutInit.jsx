@@ -277,6 +277,12 @@ export function useLayoutInit({
           const { seedPolylineConfig } = await import('../utils/polylineKeyStore');
           seedPolylineConfig({ provider: ms.polylineProvider, apiKey: ms.polylineApiKey });
         }
+        // Seed the polyline routing preferences (traffic awareness + route
+        // preference) so the very first polyline generation on this device uses
+        // the admin's choice instead of the defaults.
+        import('../utils/polylineRoutePrefs').then(({ loadPolylineRoutePrefs }) => {
+          loadPolylineRoutePrefs().catch(() => {});
+        }).catch(() => {});
         // Seed the route_optimization slot key (HERE) used by the client engine
         // for findsequence2 stop sequencing. Distinct from the map_tiles key above.
         if (ms.routeOptimizationKey) {

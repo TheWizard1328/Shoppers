@@ -1756,7 +1756,9 @@ function Dashboard() {
               console.log(`🎯 [TurnAutoZoom] ${_tpRes.reason} ahead=${Math.round(_tpRes.turn?.aheadM ?? 0)}m angle=${Math.round(_tpRes.turn?.angleDeg ?? 0)}deg zoom=${window.__currentMapZoom}`);
               setShouldFitBounds({
                 bounds: _tpRes.bounds,
-                options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.05 },
+                // OWNER REQUEST (Oct 29 2026): cap the direction-change auto
+                // zoom-in at 16 — 17.5 was too far in to read the turn.
+                options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 16, animate: true, duration: 0.5, easeLinearity: 0.15, edgeBufferZoom: 0.05 },
                 cancelInFlight: _cancelInFlight,
               });
               setMapCenter(null);

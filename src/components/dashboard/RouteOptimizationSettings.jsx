@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Settings, MapPin, Clock, Truck, Target, Save, RotateCcw, Navigation, AlertTriangle } from "lucide-react";
+import { Settings, MapPin, Clock, Truck, Target, Save, RotateCcw, Navigation, AlertTriangle, Route as RouteIcon, Gauge } from "lucide-react";
 import { userHasRole } from "../utils/userRoles";
 import { locationTracker } from "../utils/locationTracker";
 import { base44 } from "@/api/base44Client";
@@ -32,7 +32,11 @@ const DEFAULT_SETTINGS = {
   minMovementDistanceMeters: 50,
   // OWNER-ONLY (Oct 16 2026): route optimization runs SERVER-SIDE (duplicated
   // engine in rxServerRouteOptimizer) on the app owner's devices while armed.
-  serverSideOptimization: false
+  serverSideOptimization: false,
+  // OWNER REQUEST (Oct 29 2026): polyline routing preferences — live traffic and
+  // one (and only one) route preference: fastest | shortest | best.
+  polylineTrafficAware: false,
+  polylineRoutePreference: 'fastest'
 };
 
 const getStoredSettings = () => {
@@ -69,7 +73,11 @@ const saveSettings = async (settings) => {
       routeDeviationCooldownMinutes: settings.routeDeviationCooldownMinutes,
       locationUpdateIntervalSeconds: settings.locationUpdateIntervalSeconds,
       minMovementDistanceMeters: settings.minMovementDistanceMeters,
-      serverSideOptimization: settings.serverSideOptimization === true
+      serverSideOptimization: settings.serverSideOptimization === true,
+      polylineTrafficAware: settings.polylineTrafficAware === true,
+      polylineRoutePreference: ['fastest', 'shortest', 'best'].includes(settings.polylineRoutePreference)
+        ? settings.polylineRoutePreference
+        : 'fastest'
     };
     const appSettings = await getFreshAppSettingRows('route_optimization');
     if (appSettings && appSettings.length > 0) {
@@ -84,6 +92,12 @@ const saveSettings = async (settings) => {
       });
     }
     console.log('✅ Route optimization settings saved to AppSettings');
+    // Seed the polyline generator's synchronous preference cache so the next
+    // polyline generation already uses the new traffic / route preference.
+    try {
+      const { seedPolylineRoutePrefs } = await import('@/components/utils/polylineRoutePrefs');
+      seedPolylineRoutePrefs(adminOnlySettings);
+    } catch (_) { /* non-fatal */ }
     // Cache-bust the engine-mode resolver so FAB/Navigate badges flip promptly.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('routeOptimizationSettingsSaved'));
@@ -307,6 +321,68 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       </CardHeader>
 
       <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        {/* ── Route & traffic preferences (owner request Oct 29 2026) ──────────
+            Applied by the polyline generator on the next generation:
+            traffic awareness feeds live traffic into drive times, and exactly
+            one route preference is active — fastest (quickest), shortest
+            (fewest km) or best (provider's recommendation). */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <RouteIcon className="w-4 h-4" />
+            Route &amp; Traffic
+          </h3>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+            <div className="space-y-1">
+              <Label htmlFor="trafficAware" className="text-sm flex items-center gap-2">
+                <Gauge className="w-3.5 h-3.5" />
+                Traffic awareness
+              </Label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Factor live traffic into drive times and route choice
+              </p>
+            </div>
+            <Switch
+              id="trafficAware"
+              checked={settings.polylineTrafficAware === true}
+              onCheckedChange={(v) => handleSettingChange('polylineTrafficAware', v)}
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { value: 'fastest', label: 'Fastest', hint: 'Quickest drive' },
+              { value: 'shortest', label: 'Shortest', hint: 'Fewest km' },
+              { value: 'best', label: 'Best', hint: 'Balanced' }
+            ].map((opt) => {
+              const active = (settings.polylineRoutePreference || 'fastest') === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleSettingChange('polylineRoutePreference', opt.value)}
+                  className={`rounded-lg border p-3 text-left transition-colors ${
+                    active
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-500'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{opt.label}</span>
+                    <span className={`w-3 h-3 rounded-full border ${active ? 'bg-emerald-500 border-emerald-500' : 'border-slate-400'}`} />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{opt.hint}</p>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Only one route preference can be active. Shortest and Best compare the provider's alternative routes before choosing.
+          </p>
+        </div>
+
+        <div className="border-t border-slate-200 dark:border-slate-700"></div>
+
         {/* Timing Settings */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">

@@ -22,6 +22,16 @@ Deno.serve(async (req) => {
     // Optional usage-log purpose override from the caller (e.g. the route-deviation
     // current-leg regen passes its own label so Maps API usage is attributable).
     const purposeLabel = typeof body?.purpose === 'string' && body.purpose.trim() ? body.purpose.trim() : null;
+    // OWNER REQUEST (Oct 29 2026): traffic awareness + route preference come from
+    // the Route Optimization Settings panel (AppSettings 'route_optimization',
+    // keys polylineTrafficAware / polylineRoutePreference) and are forwarded by
+    // the client on every call. 'fastest' = Google's quickest route, 'shortest' =
+    // fewest kilometres (alternatives compared on distance), 'best' = the
+    // provider's own recommendation among alternatives.
+    const trafficAware = body?.trafficAware === true;
+    const routePreference = ['fastest', 'shortest', 'best'].includes(body?.routePreference)
+      ? body.routePreference
+      : 'fastest';
     const validPoints = points.filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
     if (validPoints.length < 2) {
       return Response.json({ sections: [], usedFallbackPolyline: false });
@@ -78,6 +88,15 @@ Deno.serve(async (req) => {
       params.set('mode', travelMode);
       const wps = chunk.slice(1, -1).map((p) => `${p.lat},${p.lon}`);
       if (wps.length) params.set('waypoints', wps.join('|'));
+      // Traffic-aware drive times: departure_time=now + best_guess traffic model.
+      // Google only returns traffic-adjusted durations when departure_time is sent.
+      if (trafficAware && travelMode === 'driving') {
+        params.set('departure_time', 'now');
+        params.set('traffic_model', 'best_guess');
+      }
+      // Shortest / best need candidate routes to choose between; 'fastest' keeps
+      // the single default route (cheapest call, Google's own quickest).
+      if (routePreference !== 'fastest') params.set('alternatives', 'true');
 
       let routeData = null;
       let httpOk = false;
@@ -92,7 +111,29 @@ Deno.serve(async (req) => {
         console.warn('[getGoogleDirectionsPolyline] Google Directions fetch threw', err?.message || err);
       }
 
-      const legs = Array.isArray(routeData?.routes?.[0]?.legs) ? routeData.routes[0].legs : [];
+      // CHOOSE THE ROUTE (owner request Oct 29 2026). Google returns its own
+      // ranking (routes[0] is the recommendation) plus alternatives when asked:
+      //   fastest  -> routes[0]
+      //   shortest -> smallest total distance among the candidates
+      //   best     -> smallest total duration among the candidates (traffic-aware
+      //               when the toggle is on), which is Google's recommendation
+      //               validated against the alternatives it offered.
+      const candidateRoutes = Array.isArray(routeData?.routes) ? routeData.routes.filter((r) => Array.isArray(r?.legs) && r.legs.length) : [];
+      const routeTotals = (r: any) => (r.legs as any[]).reduce((acc: any, leg: any) => ({
+        meters: acc.meters + (Number(leg?.distance?.value) || 0),
+        seconds: acc.seconds + (Number(leg?.duration_in_traffic?.value ?? leg?.duration?.value) || 0),
+      }), { meters: 0, seconds: 0 });
+      let chosenRoute = candidateRoutes[0] || null;
+      if (candidateRoutes.length > 1 && routePreference !== 'fastest') {
+        chosenRoute = candidateRoutes.reduce((best: any, r: any) => {
+          if (!best) return r;
+          const a = routeTotals(r);
+          const b = routeTotals(best);
+          if (routePreference === 'shortest') return a.meters < b.meters ? r : best;
+          return a.seconds < b.seconds ? r : best;
+        }, null);
+      }
+      const legs = Array.isArray(chosenRoute?.legs) ? chosenRoute.legs : [];
 
       if (!httpOk || legs.length === 0) {
         // Crow-flies fallback for this chunk

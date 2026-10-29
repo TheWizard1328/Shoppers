@@ -20,11 +20,16 @@
 export const TURN_PREVIEW_DEFAULTS = {
   // Only START a preview when the map is zoomed out past this level. At or
   // beyond it the driver already has plenty of detail, so nothing is gained.
-  entryZoomBelow: 16,
+  // OWNER REQUEST (Oct 29 2026): the turn zoom now tops out at 16, so the gate
+  // moves with it — a preview only starts when the view is further out than the
+  // zoom the preview would settle at, otherwise it would be a no-op.
+  entryZoomBelow: 15,
 
   // The tight view used while a preview is active (bound via maxZoom).
-  // OWNER REQUEST (Oct 29 2026): zoom out half a level — 18 was too tight.
-  previewMaxZoom: 17.5,
+  // OWNER REQUEST (Oct 29 2026): the auto zoom-in on a direction change was far
+  // too deep (18, then 17.5). 16 is the maximum now — close enough to read the
+  // street the driver is turning onto without losing the surrounding blocks.
+  previewMaxZoom: 16,
 
   // Distance ahead of the turn where the zoom-in begins (plus the driver dot is
   // always included, so both stay on screen).

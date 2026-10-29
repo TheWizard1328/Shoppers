@@ -18,6 +18,7 @@ import { guardLegGeometry } from './polylineOriginRules';
 import { isPolylineEligibleStop as sharedIsPolylineEligible } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
+import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 
 /**
@@ -176,9 +177,18 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
 
   const hereTransportMode = transportMode === 'cycling' ? 'bicycle' : transportMode === 'pedestrian' ? 'pedestrian' : 'car';
 
+  const prefs = getPolylineRoutePrefs();
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
   params.set('transportMode', hereTransportMode);
+  // OWNER REQUEST (Oct 29 2026): honour the route-preference + traffic toggles.
+  // HERE only has two modes: fast (quickest) and short (fewest km) — 'best' maps
+  // to fast, which is HERE's own recommendation. departureTime=any is what makes
+  // HERE actually use traffic; without it the Router ignores traffic entirely.
+  if (hereTransportMode === 'car') {
+    params.set('routingMode', prefs.routePreference === 'shortest' ? 'short' : 'fast');
+    if (prefs.trafficAware) params.set('departureTime', 'any');
+  }
   params.set('origin', `${validPoints[0].lat},${validPoints[0].lon}`);
   params.set('destination', `${validPoints[validPoints.length - 1].lat},${validPoints[validPoints.length - 1].lon}`);
   params.set('return', 'polyline,summary');
@@ -611,7 +621,7 @@ export async function generateRoutePolylines({
     });
     const viaTotal = stopViaCounts.reduce((s, n) => s + n, 0) + (liveViaIdx !== -1 ? 1 : 0);
     const result = useGooglePoly
-      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose }).catch((err) => {
+      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose, ...getPolylineRoutePrefs() }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — Google Directions THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
           return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
         })

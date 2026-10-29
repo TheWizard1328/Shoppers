@@ -53,6 +53,10 @@ export async function getMultiStopRouteGoogle(points, transportMode, _googleApiK
       points: validPoints,
       transportMode,
       ...(_opts?.purpose ? { purpose: _opts.purpose } : {}),
+      // OWNER REQUEST (Oct 29 2026): traffic + route preference toggles from the
+      // Route Optimization Settings panel ride along with every polyline call.
+      trafficAware: _opts?.trafficAware === true,
+      routePreference: _opts?.routePreference || 'fastest',
     });
     const data = res?.data || res || {};
     let sections = Array.isArray(data.sections) ? data.sections : [];
