@@ -270,7 +270,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_250px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1 border-surface">
+      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_110px_250px_minmax(300px,1fr)_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1 border-surface">
       
         {bulkEditMode &&
       <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
@@ -299,6 +299,11 @@ const DeliveryRow = memo(({
 
         <div className="flex items-center justify-center">
           {getTimeDisplay(delivery)}
+        </div>
+
+        {/* COD — moved from the last column to 4th (owner request Oct 28 2026) */}
+        <div className="flex items-center justify-center min-w-[90px]">
+          {getCODDisplay(delivery)}
         </div>
 
         <div className="flex items-center min-w-0">
@@ -411,10 +416,6 @@ const DeliveryRow = memo(({
         }
         </div>
 
-        {/* COD */}
-        <div className="flex items-center justify-center min-w-[90px]">
-          {getCODDisplay(delivery)}
-        </div>
       </div>);
 
 });
@@ -696,7 +697,7 @@ const DeliveryListView = ({
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className="grid min-w-max grid-cols-[120px_100px_100px_250px_minmax(0,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold text-body-2" style={{ width: listWidth }}>
+              <div className="grid min-w-max grid-cols-[120px_100px_100px_110px_250px_minmax(0,1fr)_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold text-body-2" style={{ width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox
@@ -708,13 +709,16 @@ const DeliveryListView = ({
                 <div className="text-center">Stop/TR</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">Time</div>
+                {/* COD MOVED HERE (owner request Oct 28 2026): was the last column,
+                    now sits directly after Time so the amount is visible without
+                    scrolling the row. */}
+                <div className="text-center">COD</div>
                 <div className="text-left">Patient/Pickup</div>
                 <div className="text-left">Notes</div>
                 <div className="text-center">Receipts</div>
                 <div className="text-center">Rx</div>
                 <div className="text-center">Signature</div>
                 <div className="text-center">Photos</div>
-                <div className="text-center">COD</div>
               </div>
             </div>
           }

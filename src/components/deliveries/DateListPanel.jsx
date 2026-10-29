@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Package, CheckCircle, XCircle, RotateCcw, Trash2, Truck } from 'lucide-react';
+import { Package, CheckCircle, XCircle, RotateCcw, Trash2, Truck, Printer, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isAppOwner, userHasRole } from '../utils/userRoles';
+import { printRouteManifestForDate } from './routeManifestQuickPrint';
 
 export default function DateListPanel({
   deliveries = [],
@@ -22,6 +23,10 @@ export default function DateListPanel({
   currentUser
 }) {
   const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+  // Owner request (Oct 28 2026): a printer button on each date card that opens
+  // the Export Route PDF for that date in a preview tab.
+  const [printingDate, setPrintingDate] = useState(null);
+  const canPrintManifest = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || isAppOwner(currentUser);
 
   const datesWithDeliveries = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return [];
@@ -179,6 +184,33 @@ export default function DateListPanel({
                       <Truck className="w-3 h-3" />
                       {driversCount}
                     </span>
+                  )}
+                  {canPrintManifest && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                      style={{ color: 'var(--text-slate-400)' }}
+                      disabled={printingDate === dateStr}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (printingDate) return;
+                        setPrintingDate(dateStr);
+                        const res = await printRouteManifestForDate({
+                          currentUser,
+                          dateValue: dateStr,
+                          deliveries: dateDeliveries,
+                          driverFilter: selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null,
+                        });
+                        setPrintingDate(null);
+                        if (!res.ok) alert(res.error || 'Could not generate the route PDF.');
+                      }}
+                      title="Print / preview route PDF for this date"
+                    >
+                      {printingDate === dateStr
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Printer className="w-3.5 h-3.5" />}
+                    </Button>
                   )}
                   {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute && isAppOwner(currentUser) && (
                     <Button
