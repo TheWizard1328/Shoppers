@@ -115,7 +115,18 @@ export const resolvePolylineOrigin = ({
   }
 
   if (valid(gpsPosition?.lat, gpsPosition?.lon)) {
-    return { origin: { lat: Number(gpsPosition.lat), lon: Number(gpsPosition.lon) }, source: 'live_gps' };
+    const gps = { lat: Number(gpsPosition.lat), lon: Number(gpsPosition.lon) };
+    // OWNER REPORT (Oct 29 2026, stop 13): pressing Start happens ON ARRIVAL, so
+    // the live GPS sits at the stop itself. Falling back to it produced a
+    // zero-length two-point leg that overwrote the stop's real inbound leg — the
+    // newly started (now next) stop appeared to have no polyline at all. A GPS
+    // that close to the destination is not a usable anchor; return none so the
+    // generator keeps the stored leg instead of writing a dot.
+    if (dest && haversineKm(gps.lat, gps.lon, dest.lat, dest.lon) < minSeparationKm) {
+      log(`live GPS sits at the destination (${haversineKm(gps.lat, gps.lon, dest.lat, dest.lon).toFixed(3)}km) — no usable origin, keeping the stored leg`);
+      return { origin: null, source: 'gps_at_destination' };
+    }
+    return { origin: gps, source: 'live_gps' };
   }
 
   return { origin: null, source: 'none' };

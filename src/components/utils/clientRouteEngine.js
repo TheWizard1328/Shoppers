@@ -1670,7 +1670,13 @@ let _inheritedWindowCount = 0;
       // adjust panel regenerated it (five attempts, always blank). Markers are
       // polyline-eligible while pending (routeRules.isPolylineEligibleStop), so
       // they keep their leg; only real pending patient/pickup stops are cleared.
-      ...((!isPending || stop.is_cycling_marker === true) && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
+      // OWNER REPORT (Oct 29 2026, stop 13): pressing Start on a stop wrote a
+      // 12-character TWO-POINT stub (a single '??' delta = zero length) over the
+      // stop's real leg, so the newly started stop's polyline vanished from the
+      // map. A degenerate leg (<= 2 points AND under 30 m) is never written: the
+      // stop keeps its existing stored leg instead of being overwritten with a
+      // dot, which is what the map reads as "no polyline".
+      ...(_segIsUsable(seg, stop) && (!isPending || stop.is_cycling_marker === true) ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
       ...(isPending && stop.is_cycling_marker !== true ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
@@ -1714,6 +1720,21 @@ let _inheritedWindowCount = 0;
   const _polylineWriteCount = writeBatch.filter(w => w.data?.encoded_polyline != null).length;
   const _pendingClearCount = writeBatch.filter(w => w.data?.encoded_polyline === null).length;
   console.log(`[clientRouteEngine] ${source} — WRITE BATCH: ${writeBatch.length} updates, ${_polylineWriteCount} with polylines, ${_pendingClearCount} pending-cleared`);
+
+  // A generated leg is USABLE only when it actually carries a path: more than
+  // two points, or a real distance. A zero-length two-point stub (origin ===
+  // destination, e.g. Start pressed while parked on the stop) must never
+  // overwrite the stop's stored polyline.
+  const _segIsUsable = (seg, stop) => {
+    if (!seg || typeof seg.encodedPolyline !== 'string' || seg.encodedPolyline.length <= 10) return false;
+    const pts = Array.isArray(seg.coordinates) ? seg.coordinates.length : null;
+    const km = Number(seg.estimatedDistanceKm);
+    if (pts != null && pts <= 2 && (!Number.isFinite(km) || km < 0.03)) {
+      console.log(`[clientRouteEngine] degenerate leg for stop ${stop?.id} (${pts} point(s), ${Number.isFinite(km) ? km.toFixed(3) : '?'} km) — keeping the stored polyline instead of writing a stub`);
+      return false;
+    }
+    return true;
+  };
 
   const orderedDeliveryIds = optimizedRouteStopsForResponse.map(s => s.id);
   const optimizedRoute = optimizedRouteStopsForResponse.map((stop, index) => {
