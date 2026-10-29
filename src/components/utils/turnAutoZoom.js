@@ -23,7 +23,8 @@ export const TURN_PREVIEW_DEFAULTS = {
   entryZoomBelow: 16,
 
   // The tight view used while a preview is active (bound via maxZoom).
-  previewMaxZoom: 18,
+  // OWNER REQUEST (Oct 29 2026): zoom out half a level — 18 was too tight.
+  previewMaxZoom: 17.5,
 
   // Distance ahead of the turn where the zoom-in begins (plus the driver dot is
   // always included, so both stay on screen).
@@ -59,6 +60,13 @@ export const TURN_PREVIEW_DEFAULTS = {
   // planned route, and turn guidance is meaningless (and used to LOCK the view
   // on the missed corner). Matches the deviation detector's default 200 m.
   deviationMeters: 200,
+
+  // ── Post-completion gate (owner request Oct 29 2026) ─────────────────────
+  // Do NOT re-zoom for the next turn while the driver is still near the stop
+  // they just finished. The current leg's origin IS that finished stop, so the
+  // gate measures the driver against the leg's first point: inside this radius
+  // no preview starts (the wide Phase 2 view is correct while leaving a stop).
+  postCompletionSuppressMeters: 250,
 
   // How long the feature stays OFF after a deviation before it may re-arm.
   // The distance gate re-trips on every tick while the driver is still off
@@ -364,6 +372,25 @@ export const evaluateTurnPreview = ({
       };
     }
     // Fall through with activeTurn cleared below (released).
+  }
+
+  // 1.5 Post-completion gate (owner request Oct 29 2026): the map used to snap
+  //     back into a tight turn view the moment a stop was completed — the driver
+  //     was still pulling away from the address and the next corner got blown up
+  //     in their face. The finished stop IS the current leg's origin (points[0]),
+  //     so while the driver is still inside postCompletionSuppressMeters of it no
+  //     NEW preview starts; ordinary Phase 2 framing stays quiet until they clear
+  //     the address. An already-running preview is unaffected (hold branch above).
+  if (Array.isArray(points) && points.length > 0) {
+    const _o = points[0];
+    const _oLat = Array.isArray(_o) ? Number(_o[0]) : NaN;
+    const _oLon = Array.isArray(_o) ? Number(_o[1]) : NaN;
+    if (Number.isFinite(_oLat) && Number.isFinite(_oLon) && Number.isFinite(Number(driverLat)) && Number.isFinite(Number(driverLng))) {
+      const _nearStopM = haversineMeters(Number(driverLat), Number(driverLng), _oLat, _oLon);
+      if (_nearStopM < opt.postCompletionSuppressMeters) {
+        return { active: false, turn: null, bounds: null, reason: 'near_completed_stop', nearStopM: _nearStopM };
+      }
+    }
   }
 
   // 2. Start a new preview — only from a zoomed-out map.
