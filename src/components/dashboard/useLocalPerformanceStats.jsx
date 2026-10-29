@@ -38,9 +38,10 @@ const _polylineLegKm = (delivery) => {
 // always accompany DriverDailyActivity segment changes, so a status flip is the
 // signal to drop that driver's cached segments instead of waiting out the TTL.
 const _lastSeenDriverStatus = new Map();
-// One forced DriverDailyActivity revalidate per driver+date+duty-state per session
-// (owner report Oct 28 2026 — stale IDB record / unclosed segment).
-const _dutyForceRefreshed = new Set();
+// Last forced DriverDailyActivity revalidate per driver+date. A broken local
+// copy retries every 20s until it is coherent (owner report Oct 29 2026: a
+// single failed attempt left a tablet on the wrong number all shift).
+const _dutyRevalidateAt = new Map();
 // Authoritative driver_status per driver+date, resolved ONCE when the local
 // AppUser copy disagrees with an OPEN segment (owner report Oct 29 2026).
 const _authDutyStatus = new Map();
@@ -368,16 +369,24 @@ export function useLocalPerformanceStats({
           // before the last closed leg ends (tablet: the 25-minute break was
           // never banked, so it displayed as one long 5h19 shift). Normal local
           // records are still computed entirely on-device, no server pull.
-          const needsFresh = !isOnDutyNow
-            || hasOpenSegment(dailyRec)
-            || segmentsLookIncoherent(dailyRec, { onDutyNow: _isOnDutyStatus && !_routeFinishedToday, routeFinished: _routeFinishedToday, nowMs: Date.now() });
+          const _localIncoherent = segmentsLookIncoherent(dailyRec, { onDutyNow: _isOnDutyStatus && !_routeFinishedToday, routeFinished: _routeFinishedToday, nowMs: Date.now() });
+          const _noSegments = !Array.isArray(dailyRec?.activity_segments) || dailyRec.activity_segments.length === 0;
+          const needsFresh = !isOnDutyNow || _localIncoherent || _noSegments;
           if (needsFresh) {
-            const _forceKey = `${segDriverId}:${segDate}:${isOnDutyNow ? 'open' : 'off'}`;
-            if (!_dutyForceRefreshed.has(_forceKey)) {
+            // RETRY, DON'T GIVE UP (owner report Oct 29 2026): the tablet kept
+            // showing the break-inclusive 5h29 because its revalidate is a single
+            // shot per session — one 429/timeout and that device was stuck on a
+            // broken copy for the rest of the shift no matter how many restarts.
+            // Now a still-broken copy is retried at most every 20s until a
+            // coherent record arrives; a coherent copy never triggers a pull.
+            const _forceKey = `${segDriverId}:${segDate}`;
+            const _lastTry = _dutyRevalidateAt.get(_forceKey) || 0;
+            if (Date.now() - _lastTry > 20000) {
+              _dutyRevalidateAt.set(_forceKey, Date.now());
               try {
-                dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate, { force: true }) || dailyRec;
-                _dutyForceRefreshed.add(_forceKey);
-              } catch (_) { /* keep the local copy on failure */ }
+                const _fresh = await fetchDriverDailyActivityCached(segDriverId, segDate, { force: true });
+                if (_fresh) dailyRec = _fresh;
+              } catch (_) { /* keep the local copy; retried in 20s */ }
             }
           }
           // ── AUTHORITATIVE DUTY STATE (owner report Oct 29 2026) ──────────
@@ -424,10 +433,14 @@ export function useLocalPerformanceStats({
             const cappedMinutes = Math.min(segMinutes, 1440);
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);
           } else {
-            setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) } : null);
+            // No activity legs at all (record unreadable this tick). The old
+            // fallback here was first-stop -> now, which counts breaks and is
+            // exactly the tablet's inflated 5h29. Hold the value already on the
+            // card and let the 20s retry land the real record instead.
+            console.warn('[DutyTime] no activity legs readable for', segDriverId, '— holding the current value while retrying');
           }
-        } catch (_) {
-          setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) } : null);
+        } catch (_err) {
+          console.warn('[DutyTime] activity read failed for', segDriverId, '— holding the current value:', _err?.message || _err);
         }
       })();
     };
