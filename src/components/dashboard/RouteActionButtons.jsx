@@ -44,6 +44,11 @@ async function runClientSideOptimize({
     source,
     bypassDriverStatus: true,
     preserveExistingOrder: false,
+    // OWNER REPORT (Oct 29 2026): pressing this FAB after adding a cycling
+    // marker left the current leg -> marker polyline un-regenerated. The engine
+    // skips polyline work when the stop order did not change, and a stale leg
+    // still counts as "present". A MANUAL optimize always redraws every leg.
+    forceRegenerate: true,
     // Future-date routes: pending stops also get planned polylines so the FAB
     // shows the full path for tomorrow's route (not just in_transit stops).
     includePendingPolylines: true,

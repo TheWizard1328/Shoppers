@@ -114,8 +114,15 @@ async function _performRouteOptimizationInner({
   // order the previous pass just committed, so sequencing cannot change it and
   // re-writing every stop would only burn quota. The ETA cascade already
   // refreshed times. Applies ONLY to plain completion-driven runs.
+  // INTERACTIVE RUNS ARE NEVER SKIPPED (owner report Oct 29 2026: the manual
+  // optimize FAB and the quick-adjust re-optimize button did nothing to the
+  // current leg -> cycling start marker). Only the two automatic post-completion
+  // syncs may take the shortcut; every manual/reoptimize/mode/reset run always
+  // executes the full engine pass.
+  const _SKIP_SAFE_SOURCES = new Set(['next_delivery_sync', 'post_delivery_sync']);
   if (
-    Array.isArray(deliveries) && deliveries.length > 0
+    _SKIP_SAFE_SOURCES.has(String(source))
+    && Array.isArray(deliveries) && deliveries.length > 0
     && !forceRegenerate
     && !recalcTrackingNumbers
     && !orderedDeliveryIds
