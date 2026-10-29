@@ -860,11 +860,17 @@ let _inheritedWindowCount = 0;
       // If the start marker IS the locked next stop, don't duplicate it.
       const isRouteOriginStart = routeOriginStop && startMarker &&
         routeOriginStop.delivery.id === startMarker.delivery.id;
+      // OWNER FIX (Oct 29 2026): a FINISHED cycling marker must never be
+      // re-stitched into the ordered list — it already sits in the finished
+      // block (startOrder counts it), so re-adding it consumed a fresh sequence
+      // slot: the end marker came out one too high and the following stop shared
+      // its number, pushing every later stop_order +1 across the app.
+      const _isFinishedStop = (st) => ['completed', 'failed', 'cancelled'].includes(String(st?.delivery?.status || ''));
       const stitchedStops = [
         ...(routeOriginStop ? [routeOriginStop] : []),
-        ...(startMarker && !isRouteOriginStart ? [startMarker] : []),
+        ...(startMarker && !isRouteOriginStart && !_isFinishedStop(startMarker) ? [startMarker] : []),
         ...orderedCycling,
-        endMarker,
+        ...(endMarker && !_isFinishedStop(endMarker) ? [endMarker] : []),
         ...orderedDriving,
       ];
 
@@ -1287,7 +1293,13 @@ let _inheritedWindowCount = 0;
       console.warn('[clientRouteEngine] pre-generation via clear skipped (non-fatal):', _viaClearErr?.message || _viaClearErr);
     }
 
-    segmentPolylineByDeliveryId = polylineOrigin ? await generateRoutePolylines({
+    // OWNER RULE (Oct 29 2026): on a cycling route the two segment passes below
+    // replace the single mixed call — driving pass for all active stops, then the
+    // cycling loop. Same number of HERE calls, no extra single-leg request.
+    const _cyclingRoutePresent = !!polylineOrigin
+      && routeStops.some((s) => s?.delivery?.is_cycling_marker)
+      && routeStops.some((s) => String(s?.delivery?.transport_mode || '').toLowerCase() === 'cycling');
+    segmentPolylineByDeliveryId = (polylineOrigin && !_cyclingRoutePresent) ? await generateRoutePolylines({
       orderUnchanged: orderUnchangedForPolylines,
       forceRegenerate,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
@@ -1306,54 +1318,108 @@ let _inheritedWindowCount = 0;
       originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
     }) : segmentPolylineByDeliveryId;
 
-    // ── CYCLING MARKER LEG SELF-HEAL (owner report Oct 29 2026) ──────────────
-    // The leg INTO a cycling start marker kept coming back blank through the
-    // manual FAB and the adjust-panel re-optimize (5 attempts, marker always
-    // in_transit, never pending). The markers are positional anchors in the
-    // sequencing split, so whichever pool the pass used could leave their
-    // inbound leg unrequested while every other leg regenerated. A marker is a
-    // real, drivable stop: guarantee it gets its inbound leg by requesting that
-    // single leg on its own (origin = the stop immediately before it in the
-    // route, else the normal polyline origin). Cheap: only fires when the leg is
-    // genuinely missing from this run's generation.
+    // ── CYCLING ROUTE POLYLINE ORDER (owner spec Oct 29 2026) ────────────────
+    // The markers are positional anchors in the sequencing split, so a mixed
+    // single pass could regenerate every other leg and never request the leg
+    // INTO the cycling start marker (5 blank attempts). Owner's required order,
+    // still ONE call per segment (no extra single-leg calls):
+    //   PASS 1 — driving mode for ALL active stops, start marker included, so its
+    //            inbound driving leg is encoded with the rest;
+    //   PASS 2 — the cycling loop only: start marker (or the most recent finished
+    //            cycling stop) through the cycling stops to the cycling end marker.
     try {
-      const _markersMissingLeg = routeStops.filter((s) => {
-        const d = s?.delivery;
-        if (!d?.is_cycling_marker || s.lat == null || s.lng == null) return false;
-        if (TERMINAL_STATUSES.includes(String(d.status || ''))) return false;
-        const seg = segmentPolylineByDeliveryId.get(String(d.id));
-        return !(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10);
-      });
-      for (const m of _markersMissingLeg) {
-        const idx = routeStops.indexOf(m);
-        const prev = idx > 0 ? routeStops[idx - 1] : null;
-        const legOrigin = (prev && prev.lat != null && prev.lng != null)
-          ? { lat: prev.lat, lon: prev.lng }
-          : polylineOrigin;
-        if (!legOrigin) continue;
-        console.log(`[clientRouteEngine] ${source} — cycling marker ${m.delivery.id} (${m.delivery.delivery_notes}) had no inbound leg — regenerating that single leg from (${legOrigin.lat}, ${legOrigin.lon})`);
-        const markerLeg = await generateRoutePolylines({
-          orderUnchanged: false,
-          forceRegenerate: true,
-          stops: [{ delivery: m.delivery, lat: m.lat, lng: m.lng }],
-          originPoint: legOrigin,
-          cyclingSegmentOnly: false,
+      const _liveStops = routeStops.filter((s) => s?.delivery && !['completed', 'failed', 'cancelled'].includes(String(s.delivery.status || '')));
+      const _isCyclingModeStop = (s) => String(s?.delivery?.transport_mode || '').toLowerCase() === 'cycling';
+      const _startM = _liveStops.find((s) => s.delivery.is_cycling_marker && String(s.delivery.delivery_notes || '').toLowerCase().includes('start'));
+      const _endM = _liveStops.find((s) => s.delivery.is_cycling_marker && String(s.delivery.delivery_notes || '').toLowerCase().includes('end'));
+      const _cyclingStops = _liveStops.filter(_isCyclingModeStop);
+
+      if (_startM && _endM && _cyclingStops.length > 0) {
+        // PASS 1 — driving legs: every active non-cycling stop + the start marker.
+        const _driveTargets = _liveStops.filter((s) => !_isCyclingModeStop(s) && s.delivery.id !== _endM.delivery.id);
+        if (_driveTargets.length > 0 && polylineOrigin) {
+          const _driveMap = await generateRoutePolylines({
+            orderUnchanged: false,
+            forceRegenerate: true,
+            stops: _driveTargets.map((s) => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
+            originPoint: polylineOrigin,
+            cyclingSegmentOnly: false,
+            hereApiKey,
+            polylineProvider,
+            polylineApiKey,
+            driverId,
+            userName: _driverUserName,
+            source: `${source}:driving_pass`,
+            fallbackTravelMode: 'driving',
+            viaPointAfterOrigin,
+            originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
+          });
+          _driveMap.forEach((seg, id) => {
+            if (seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10) {
+              segmentPolylineByDeliveryId.set(String(id), seg);
+            }
+          });
+        }
+
+        // PASS 2 — cycling loop: start marker (or most recent finished cycling
+        // stop) → cycling stops → end marker. Bicycle mode.
+        const _finishedCycling = (Array.isArray(allDeliveries) ? allDeliveries : [])
+          .filter((d) => d && String(d.driver_id) === String(driverId) && d.delivery_date === deliveryDate
+            && ['completed', 'failed', 'cancelled'].includes(String(d.status || ''))
+            && (d.is_cycling_marker || String(d.transport_mode || '').toLowerCase() === 'cycling'))
+          .sort((a, b) => String(b.actual_delivery_time || '').localeCompare(String(a.actual_delivery_time || '')));
+        const _loopOrigin = (_finishedCycling.length > 0 && _finishedCycling[0].id !== _startM.delivery.id)
+          ? { lat: Number(_finishedCycling[0].cycling_latitude ?? _finishedCycling[0].patient_latitude ?? _startM.lat), lon: Number(_finishedCycling[0].cycling_longitude ?? _finishedCycling[0].patient_longitude ?? _startM.lng) }
+          : { lat: _startM.lat, lon: _startM.lng };
+        const _loopTargets = [..._cyclingStops, _endM].filter((s) => Number.isFinite(_loopOrigin.lat) && Number.isFinite(_loopOrigin.lon));
+        if (_loopTargets.length > 0) {
+          const _loopMap = await generateRoutePolylines({
+            orderUnchanged: false,
+            forceRegenerate: true,
+            stops: _loopTargets.map((s) => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
+            originPoint: _loopOrigin,
+            cyclingSegmentOnly: true,
+            hereApiKey,
+            polylineProvider,
+            polylineApiKey,
+            driverId,
+            userName: _driverUserName,
+            source: `${source}:cycling_pass`,
+            fallbackTravelMode: 'cycling',
+          });
+          _loopMap.forEach((seg, id) => {
+            if (seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10) {
+              segmentPolylineByDeliveryId.set(String(id), seg);
+            }
+          });
+        }
+      }
+      // Safety net only: if both segment passes produced nothing at all (HERE
+      // refusal / missing coords), fall back to the single mixed call so the
+      // route still gets legs. Never fires on a healthy run.
+      if (_cyclingRoutePresent && segmentPolylineByDeliveryId.size === 0 && polylineOrigin) {
+        console.warn(`[clientRouteEngine] ${source} — cycling segment passes produced no legs, falling back to the single mixed pass`);
+        segmentPolylineByDeliveryId = await generateRoutePolylines({
+          orderUnchanged: orderUnchangedForPolylines,
+          forceRegenerate,
+          stops: routeStops.map((s) => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
+          originPoint: polylineOrigin,
+          cyclingSegmentOnly,
           hereApiKey,
           polylineProvider,
           polylineApiKey,
           driverId,
           userName: _driverUserName,
-          source: `${source}:marker_leg_selfheal`,
+          source,
           fallbackTravelMode: effectiveTravelMode,
-        });
-        markerLeg.forEach((seg, id) => {
-          if (seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10) {
-            segmentPolylineByDeliveryId.set(String(id), seg);
-          }
+          directionsLegs,
+          routeStops,
+          viaPointAfterOrigin,
+          originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
         });
       }
-    } catch (_markerHealErr) {
-      console.warn('[clientRouteEngine] cycling marker leg self-heal skipped (non-fatal):', _markerHealErr?.message || _markerHealErr);
+    } catch (_cyclingPassErr) {
+      console.warn('[clientRouteEngine] cycling route polyline passes skipped (non-fatal):', _cyclingPassErr?.message || _cyclingPassErr);
     }
   }
 
