@@ -1589,7 +1589,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (rec?.payload) {
         const data = deserializeSummary(rec.payload);
         if (!data) return false;
-        if (data.config) setConfig(data.config);
+        // CONFIG IS NEVER TAKEN FROM THE CACHE WHEN A REAL ONE IS LOADED
+        // (owner report Oct 28 2026: Bonnie Doon loan fees stayed at 17.25%
+        // after the rate was corrected to 16.5% in AppSettings). The shared
+        // snapshot carries a COPY of whatever config the publishing device
+        // had in memory — a device that published before a rate change keeps
+        // re-seeding the old rate into every other device's page on load.
+        // AppSettings is the source of truth; the snapshot copy only fills in
+        // when nothing local has loaded yet.
+        if (data.config) setConfig((prev) => prev || data.config);
         if (data.configRecordId) setConfigRecordId(data.configRecordId);
         setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
         setPayouts(data.payouts || []);
@@ -1642,7 +1650,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     let pageBootCancelled = false;
     const applySnapshotData = (data) => {
       if (!data || pageBootCancelled) return false;
-      if (data.config) setConfig(data.config);
+      // Same rule as paintLatestSharedSnapshot: the snapshot's config copy is
+      // whatever the publisher had in memory and must never beat the real
+      // AppSettings config already loaded on this device (Oct 28 2026 rate fix).
+      if (data.config) setConfig((prev) => prev || data.config);
       if (data.configRecordId) setConfigRecordId(data.configRecordId);
       setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
       setPayouts(data.payouts || []);

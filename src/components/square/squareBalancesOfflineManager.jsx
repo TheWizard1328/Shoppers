@@ -97,6 +97,11 @@ export const purgeSummarySnapshot = async () => {
 // TTL, or a SquareLedgerEntry WS broadcast. Ledger rows are Square financial
 // data, not PHI and not user-scoped — one shared record per device.
 const LEDGER_WINDOWS_ID = 'ledger_windows';
+// Schema stamp for the cached ledger windows. Bump this whenever ledger ROWS
+// themselves are corrected server-side (e.g. a rate fix re-stamped loan_cents):
+// every device then treats its cached copy as a miss and refetches the real
+// rows once, instead of serving stale money math for the 10-minute TTL.
+const LEDGER_WINDOWS_SCHEMA = 2;
 
 export const saveLedgerWindows = async (windows, userId = null) => {
   try {
@@ -104,6 +109,7 @@ export const saveLedgerWindows = async (windows, userId = null) => {
       id: LEDGER_WINDOWS_ID,
       user_id: userId || null,
       saved_at: new Date().toISOString(),
+      schema: LEDGER_WINDOWS_SCHEMA,
       trued_up_at: windows?.trued_up_at || null,
       sales: Array.isArray(windows?.sales) ? windows.sales : [],
       payouts: Array.isArray(windows?.payouts) ? windows.payouts : [],
@@ -128,6 +134,7 @@ export const getLedgerWindows = async (userId = null) => {
   try {
     const rec = await offlineDB.getById(SUMMARY_STORE, LEDGER_WINDOWS_ID);
     if (!rec?.saved_at) return null;
+    if (Number(rec.schema || 0) !== LEDGER_WINDOWS_SCHEMA) return null; // stale schema → refetch
     if (rec.user_id && userId && rec.user_id !== userId) return null;
     if (!rec.user_id && userId) return null; // anonymous record after a named session — refuse
     return rec;
