@@ -37,6 +37,29 @@ let _lastOnlineSyncTime = 0;
 let _breadcrumbSaveCount = 0;
 const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s = 15s)
 
+// ── Duplicate-flush guard (owner report Oct 29 2026) ────────────────────────
+// "Rate limit exceeded: entity_update allows 140 requests..." popped right
+// after Start. Three code paths flush the master trail (routine 3rd-save,
+// duty-toggle seed, pending queue) and two of them routinely fire the SAME
+// encoded trail within a second of each other — every call lands server-side
+// as an entity update against the shared account quota. Skip a flush whose
+// exact trail was already sent for this driver/date in the last 60s.
+const _lastFlushByKey = new Map();
+const _FLUSH_DEDUPE_MS = 60 * 1000;
+const _alreadyFlushed = (driverId, date, encodedPolyline) => {
+  try {
+    const key = `${driverId}__${date}`;
+    const sig = `${String(encodedPolyline || '').length}:${String(encodedPolyline || '').slice(-32)}`;
+    const prev = _lastFlushByKey.get(key);
+    if (prev && prev.sig === sig && Date.now() - prev.at < _FLUSH_DEDUPE_MS) return true;
+    _lastFlushByKey.set(key, { sig, at: Date.now() });
+    if (_lastFlushByKey.size > 30) {
+      for (const [k, v] of _lastFlushByKey) if (Date.now() - v.at > _FLUSH_DEDUPE_MS) _lastFlushByKey.delete(k);
+    }
+    return false;
+  } catch (_) { return false; }
+};
+
 // MAX DISTANCE FILTER: 250m max between consecutive breadcrumb points
 // At 110 km/h over 5 seconds, max legitimate travel is ~153m. 250m gives a safe buffer.
 // Exception: if > 5 minutes have passed since the last point, always accept (heartbeat).
@@ -333,6 +356,9 @@ export const collectBreadcrumbForTracker = async ({
   if (_breadcrumbSaveCount >= ONLINE_SYNC_EVERY_N_SAVES) {
     _breadcrumbSaveCount = 0;
     _lastOnlineSyncTime = now;
+    if (_alreadyFlushed(currentUser.id, deliveryDate, encodedPolyline)) {
+      return; // identical trail already sent < 60s ago
+    }
     const releaseLock = await acquireBreadcrumbSyncLock();
     try {
       await base44.functions.invoke('syncPendingBreadcrumbs', {
@@ -454,6 +480,7 @@ export const seedHomeAnchorOnDuty = async ({
 
   // Immediate flush so the server master (and the slicer's home anchor) sees it
   // right away — don't wait for the 3rd-collect sync cycle.
+  if (_alreadyFlushed(driverId, d, encodedPolyline)) return { skipped: 'duplicate_flush' };
   const releaseLock = await acquireBreadcrumbSyncLock();
   try {
     await base44.functions.invoke('syncPendingBreadcrumbs', {
@@ -547,6 +574,7 @@ export const flushPendingBreadcrumbMasters = async () => {
     for (const record of pending) {
       try {
       if (Number(record.stop_order) === -1) {
+        if (_alreadyFlushed(record.driver_id, record.delivery_date, record.encoded_polyline)) continue;
         await base44.functions.invoke('syncPendingBreadcrumbs', {
           driver_id: record.driver_id,
           delivery_date: record.delivery_date,
