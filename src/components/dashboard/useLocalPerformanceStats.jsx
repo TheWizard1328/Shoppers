@@ -5,7 +5,7 @@ import { haversineKm } from '@/components/utils/geoUtils';
 import { commitDeliveryUpdatesSilently } from '@/components/utils/routeCommitMarker';
 import { calculateDeliveryPay } from '@/components/utils/payCalculator';
 import { parseAnyTimestamp } from '@/components/utils/albertaTime';
-import { totalOnDutyMinutes as sharedTotalOnDutyMinutes, hasOpenSegment } from '@/components/utils/driverDutyTime';
+import { totalOnDutyMinutes as sharedTotalOnDutyMinutes, hasOpenSegment, segmentsLookIncoherent } from '@/components/utils/driverDutyTime';
 import { fetchDriverDailyActivityCached, invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
 
 // Polyline-derived leg km cache — key id:polylineSignature so a re-render
@@ -362,7 +362,15 @@ export function useLocalPerformanceStats({
           const _dayStops = (filteredDeliveries || []).filter(d => d?.driver_id === segDriverId && d?.delivery_date === segDate);
           const _routeFinishedToday = _dayStops.length > 0 && _dayStops.every(d => _FINISHED.includes(String(d?.status || '').toLowerCase()));
           const isOnDutyNow = _isOnDutyStatus && !_routeFinishedToday;
-          const needsFresh = !isOnDutyNow || hasOpenSegment(dailyRec);
+          // OWNER REPORT (Oct 29 2026): also revalidate when the LOCAL legs are
+          // incoherent with the live duty state — driver on duty but no open leg
+          // (phone: only the closed 160 min showed) or an open leg that starts
+          // before the last closed leg ends (tablet: the 25-minute break was
+          // never banked, so it displayed as one long 5h19 shift). Normal local
+          // records are still computed entirely on-device, no server pull.
+          const needsFresh = !isOnDutyNow
+            || hasOpenSegment(dailyRec)
+            || segmentsLookIncoherent(dailyRec, { onDutyNow: _isOnDutyStatus && !_routeFinishedToday, routeFinished: _routeFinishedToday, nowMs: Date.now() });
           if (needsFresh) {
             const _forceKey = `${segDriverId}:${segDate}:${isOnDutyNow ? 'open' : 'off'}`;
             if (!_dutyForceRefreshed.has(_forceKey)) {
