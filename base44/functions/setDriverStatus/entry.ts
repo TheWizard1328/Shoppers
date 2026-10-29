@@ -79,16 +79,19 @@ const roundTo5Min = (isoTimestamp, direction) => {
   const d = new Date(isoTimestamp);
   const ms = d.getTime();
   const fiveMin = 5 * 60 * 1000;
+  const minute = 60 * 1000;
+  // OWNER RULE (Oct 29 2026): SECONDS ARE IGNORED. Truncate to the minute first
+  // (08:30:41 -> 08:30), THEN apply the 5-minute rule. A minute that is already
+  // a multiple of 5 is left alone instead of being pushed to 08:35 because a
+  // few seconds had elapsed on the clock.
+  const truncated = Math.floor(ms / minute) * minute;
   let rounded;
-  if (direction === 'floor') {
-    rounded = Math.floor(ms / fiveMin) * fiveMin;
+  if (truncated % fiveMin === 0) {
+    rounded = truncated;                       // already on a 5-min mark
+  } else if (direction === 'floor') {
+    rounded = Math.floor(truncated / fiveMin) * fiveMin;
   } else {
-    // If already exactly on a 5-min mark, don't round up
-    if (ms % fiveMin === 0) {
-      rounded = ms;
-    } else {
-      rounded = Math.ceil(ms / fiveMin) * fiveMin;
-    }
+    rounded = Math.ceil(truncated / fiveMin) * fiveMin;
   }
   return new Date(rounded).toISOString();
 };

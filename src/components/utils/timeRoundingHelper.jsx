@@ -15,6 +15,23 @@ import { edmontonWallString, parseAnyTimestamp } from './albertaTime';
  * @param {Array} FINISHED_STATUSES - Array of finished status values
  * @returns {{ isFirstFinished: boolean, isLastFinished: boolean }}
  */
+// ── 5-minute grid rounding (owner rule Oct 29 2026) ──────────────────────────
+// SECONDS ARE ALWAYS IGNORED: the instant is first truncated to the minute, so
+// a clock reading of 08:30:41 is treated as 08:30. THEN the 5-minute rule runs
+// and a minute that is already a multiple of 5 is left exactly as it is (no
+// drifting forward to 08:35 just because 41 seconds had elapsed).
+//   direction 'floor' → previous 5-min mark
+//   direction 'ceil'  → next 5-min mark, unless already on one
+export const roundInstantToFiveMin = (ms, direction = 'floor') => {
+  const FIVE_MIN = 5 * 60 * 1000;
+  const MINUTE = 60 * 1000;
+  const truncated = Math.floor(Number(ms) / MINUTE) * MINUTE; // drop seconds/ms
+  if (truncated % FIVE_MIN === 0) return truncated;          // already on a mark
+  return direction === 'ceil'
+    ? Math.ceil(truncated / FIVE_MIN) * FIVE_MIN
+    : Math.floor(truncated / FIVE_MIN) * FIVE_MIN;
+};
+
 export function getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES) {
   const allDriverDeliveries = allDeliveries.filter(d =>
     d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
@@ -69,19 +86,12 @@ export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_ST
 
   let ms = now.getTime();
   if (isFirstFinished || isLastFinished) {
-    const fiveMin = 5 * 60 * 1000;
-    if (isFirstFinished) {
-      // First finished stop → floor to previous 5-min mark
-      ms = Math.floor(ms / fiveMin) * fiveMin;
-    } else {
-      // Last finished stop → ceil to next 5-min mark
-      // If already exactly on a 5-min mark, don't round up
-      if (ms % fiveMin === 0) {
-        // keep
-      } else {
-        ms = Math.ceil(ms / fiveMin) * fiveMin;
-      }
-    }
+    // Seconds are dropped FIRST, then the 5-minute rule applies — a stop
+    // completed at 15:30:52 is 15:30, not 15:35 (owner rule Oct 29 2026).
+    ms = roundInstantToFiveMin(ms, isFirstFinished ? 'floor' : 'ceil');
+  } else {
+    // Middle stops keep the exact time, but never carry seconds.
+    ms = Math.floor(ms / 60000) * 60000;
   }
 
   return edmontonWallString(new Date(ms));
@@ -249,19 +259,10 @@ export const calculateRetroactiveStopTiming = async ({
   // Apply 5-min rounding for first/last finished stops (retroactive path)
   const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, ['completed', 'failed', 'cancelled']);
   if (isFirstFinished || isLastFinished) {
-    const fiveMin = 5 * 60 * 1000;
-    const ms = baseTime.getTime();
-    let roundedMs;
-    if (isFirstFinished) {
-      roundedMs = Math.floor(ms / fiveMin) * fiveMin;
-    } else {
-      if (ms % fiveMin === 0) {
-        roundedMs = ms;
-      } else {
-        roundedMs = Math.ceil(ms / fiveMin) * fiveMin;
-      }
-    }
-    baseTime = new Date(roundedMs);
+    // Same seconds-first rule as the live path (retro stamps land on the grid).
+    baseTime = new Date(roundInstantToFiveMin(baseTime.getTime(), isFirstFinished ? 'floor' : 'ceil'));
+  } else {
+    baseTime = new Date(Math.floor(baseTime.getTime() / 60000) * 60000);
   }
 
   // baseTime = when driver arrives at the stop (end of travel)
