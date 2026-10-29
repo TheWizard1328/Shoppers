@@ -55,6 +55,17 @@ import { cancelDeferredReoptimization } from '@/components/utils/deferredRouteRe
  * @param {boolean} [params.awaitServerWrite=false] — When true, AWAIT the bulkUpdateDeliveries server write (and its fallback) before returning. Used by paths that immediately resume sync managers after the coordinator returns (Start button, retry) — a fire-and-forget write would still be in flight when SmartRefresh/priority-sync re-pull from the server, and the pre-commit response would bounce the UI back to stale stop_order/isNextDelivery (the Start-button bouncing bug).
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
+// ── Fresh-order skip state (owner report Oct 29 2026) ────────────────────────
+// A multi-delivery stop completes 2+ deliveries seconds apart. Each completion
+// ran a FULL pass: fetch + HERE sequencing + a writeBatch over every remaining
+// stop. The second pass re-wrote rows the first pass had just written and
+// produced the same ORDER, which is exactly what piled onto the shared
+// entity_update quota ("one rate limit per stop"). Remember the order each
+// successful run committed; if the next run's remaining active order is that
+// same sequence (only completed stops removed), skip the sequencing + write.
+const _lastOrderByDriverDate = new Map();
+const _FRESH_ORDER_MS = 45 * 1000;
+
 async function _performRouteOptimizationInner({
   driverId,
   deliveryDate,
@@ -98,6 +109,38 @@ async function _performRouteOptimizationInner({
   // "Active" = not in a terminal status (completed/failed/cancelled).
   // EXCEPTION: forceRegenerate=true bypasses this gate (e.g. ResetPolylinesButton on a completed route).
   const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
+  // ── Fresh-order skip (see _lastOrderByDriverDate above) ────────────────────
+  // Second completion at a multi-delivery address: the remaining order is the
+  // order the previous pass just committed, so sequencing cannot change it and
+  // re-writing every stop would only burn quota. The ETA cascade already
+  // refreshed times. Applies ONLY to plain completion-driven runs.
+  if (
+    Array.isArray(deliveries) && deliveries.length > 0
+    && !forceRegenerate
+    && !recalcTrackingNumbers
+    && !orderedDeliveryIds
+    && !(excludeStopIds && excludeStopIds.length)
+    && !includePendingPolylines
+  ) {
+    try {
+      const prev = _lastOrderByDriverDate.get(`${driverId}:${deliveryDate}`);
+      const currentOrder = deliveries
+        .filter((d) => d && !TERMINAL_STATUSES.includes(String(d.status || '')))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
+        .map((d) => String(d.id));
+      if (prev && (Date.now() - prev.at) < _FRESH_ORDER_MS && currentOrder.length > 0) {
+        let i = 0;
+        for (const id of prev.order || []) {
+          if (i < currentOrder.length && currentOrder[i] === id) i++;
+        }
+        if (i === currentOrder.length) {
+          console.log(`[RouteOptimization] ${source} — skipped: remaining order matches the run ${Math.round((Date.now() - prev.at) / 1000)}s ago (${currentOrder.length} stop(s), no geometry change)`);
+          return { success: true, skipped: 'fresh_order_unchanged', freshDeliveries: deliveries };
+        }
+      }
+    } catch (_) { /* fall through to a full run */ }
+  }
+
   if (!forceRegenerate && Array.isArray(deliveries) && deliveries.length > 0) {
     const activeStops = deliveries.filter(
       (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
@@ -801,6 +844,17 @@ export async function performRouteOptimization(params) {
   // BEFORE this run started (its fire would just redo this work and burn a
   // HERE call). Entries scheduled DURING this run keep their own countdown.
   // The deferred fire itself (source 'post_delivery_sync') is excluded.
+  if (result?.success && params?.driverId && params?.deliveryDate && !result?.skipped) {
+    try {
+      const order = (result?.freshDeliveries || params?.deliveries || [])
+        .filter((d) => d && !['completed', 'failed', 'cancelled'].includes(String(d.status || '')))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
+        .map((d) => String(d.id));
+      if (order.length) {
+        _lastOrderByDriverDate.set(`${params.driverId}:${params.deliveryDate}`, { at: Date.now(), order });
+      }
+    } catch (_) {}
+  }
   if (result?.success && params?.driverId && params?.deliveryDate && params?.source !== 'post_delivery_sync') {
     cancelDeferredReoptimization(`${params.driverId}:${params.deliveryDate}`, _t0);
   }
