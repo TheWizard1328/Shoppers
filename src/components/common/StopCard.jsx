@@ -679,7 +679,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // multiple active deliveries at the same address.
   const coLocatedCount = useMemo(() => {
     if (!delivery?.patient_id || !patient?.latitude || !patient?.longitude) return 0;
-    const ACTIVE = new Set(['in_transit', 'en_route', 'pending']);
+    // OWNER RULE (Oct 29 2026): pending stops are NOT part of the current visit.
+    // Counting them opened the multi-delivery panel for a location that had one
+    // actionable stop plus an unaccepted one ("if there are only two stops and
+    // one is pending it should not be showing at all").
+    const ACTIVE = new Set(['in_transit', 'en_route']);
     const FINISHED = new Set(FINISHED_STATUSES);
     const origin = { lat: Number(patient.latitude), lon: Number(patient.longitude) };
     let count = 0;

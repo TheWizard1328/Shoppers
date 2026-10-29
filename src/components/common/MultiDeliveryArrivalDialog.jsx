@@ -32,6 +32,8 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
  *  onCompleteDelivery – async (delivery) => void  — called when driver taps Complete
  *  onFailDelivery    – async (delivery, reason) => void — called after failure reason confirmed
  */
+const ACTIVE_STATUSES = ['en_route', 'in_transit'];
+
 export default function MultiDeliveryArrivalDialog({
   open,
   onClose,
@@ -60,7 +62,11 @@ export default function MultiDeliveryArrivalDialog({
 
     return allDeliveries.filter((d) => {
       if (!d || d.id === currentDelivery.id) return false;
-      if (FINISHED_STATUSES.includes(d.status)) return false;
+      // OWNER RULE (Oct 29 2026): this panel is for deliveries the driver can
+      // action RIGHT NOW. A PENDING stop at the same address is not part of the
+      // current visit — it showed a Complete/Fail pair for a stop that has not
+      // even been accepted. Only in-flight stops group here.
+      if (!ACTIVE_STATUSES.includes(String(d.status || '').toLowerCase())) return false;
       if (d.driver_id !== currentDelivery.driver_id) return false;
       if (d.delivery_date !== currentDelivery.delivery_date) return false;
       if (!d.patient_id) return false;
@@ -70,7 +76,8 @@ export default function MultiDeliveryArrivalDialog({
     }).sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
   }, [currentDelivery, allDeliveries, patients]);
 
-  const allAtLocation = [currentDelivery, ...sameLocationDeliveries];
+  const allAtLocation = [currentDelivery, ...sameLocationDeliveries]
+    .filter((d) => d && ACTIVE_STATUSES.includes(String(d?.status || '').toLowerCase()));
 
   // ── Auto-close + advance when EVERY delivery at this location is finished ──
   // (owner request, Sep 28 2026). Previously the dialog just silently rendered
@@ -115,7 +122,11 @@ export default function MultiDeliveryArrivalDialog({
     }
   }, [open, currentDelivery, sameLocationDeliveries, locallyFinishedIds, onClose]);
 
-  if (!open || sameLocationDeliveries.length === 0) return null;
+  // OWNER RULE (Oct 29 2026): "if there are only two stops and one is pending it
+  // should not be showing at all" — the panel needs TWO OR MORE actionable
+  // stops at this address. One active stop (the rest pending/finished) is just
+  // the normal stop card, so render nothing.
+  if (!open || allAtLocation.length < 2) return null;
 
   const handleComplete = async (targetDelivery) => {
     if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;
