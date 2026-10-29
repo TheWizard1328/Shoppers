@@ -33,6 +33,7 @@ import {
   X } from
 "lucide-react";
 import { format } from "date-fns";
+import { edmontonHHmm, edmontonNowHHmm, toEdmontonWall, parseAnyTimestamp } from '../utils/albertaTime';
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import { isAppOwner } from "../utils/userRoles";
 import { openInMaps } from "../utils/mapHelpers";
@@ -63,6 +64,18 @@ const statusConfig = {
   projected: { color: 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600', label: 'Projected', icon: Clock }
 };
 
+
+// Edmonton 12-hour label for a stamp that may be naive wall or real UTC
+// (Oct 29 2026: device tz data can be an hour off in this fleet).
+const formatEdmontonTime = (timestamp) => {
+  if (!timestamp) return '';
+  const d = parseAnyTimestamp(timestamp);
+  if (!d || isNaN(d.getTime())) return '';
+  const w = toEdmontonWall(d);
+  const h12 = w.h % 12 === 0 ? 12 : w.h % 12;
+  return `${h12}:${String(w.mi).padStart(2, '0')} ${w.h >= 12 ? 'PM' : 'AM'}`;
+};
+
 export default function StopDetailsPanel({
   delivery,
   patient,
@@ -87,7 +100,7 @@ export default function StopDetailsPanel({
   const [deliveryTimeEnd, setDeliveryTimeEnd] = useState(delivery?.delivery_time_end || '');
   const [codAmountRequired, setCodAmountRequired] = useState(delivery?.cod_total_amount_required || 0);
   const [completionTime, setCompletionTime] = useState(
-    delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
+    delivery?.actual_delivery_time ? edmontonHHmm(delivery.actual_delivery_time) : edmontonNowHHmm()
   );
   const [arrivalTime, setArrivalTime] = useState(
     delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''
@@ -100,7 +113,7 @@ export default function StopDetailsPanel({
     setDeliveryTimeEnd(delivery?.delivery_time_end || '');
     setCodAmountRequired(delivery?.cod_total_amount_required || 0);
     setCompletionTime(
-      delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
+      delivery?.actual_delivery_time ? edmontonHHmm(delivery.actual_delivery_time) : edmontonNowHHmm()
     );
     setArrivalTime(delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '');
   }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time, delivery?.arrival_time]);
@@ -236,7 +249,7 @@ export default function StopDetailsPanel({
   const showTimeWindowEditors = canEditTimeWindows || isActiveEditStatus;
   const showDesktopClearButtons = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
   const initialArrivalTime = delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '';
-  const initialCompletionTime = delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : '';
+  const initialCompletionTime = delivery?.actual_delivery_time ? edmontonHHmm(delivery.actual_delivery_time) : '';
   const hasStatusTimingChanges = (() => {
     if (editableStatus !== (delivery?.status || 'pending')) return true;
     if ((arrivalTime || '') !== initialArrivalTime) return true;
@@ -257,7 +270,7 @@ export default function StopDetailsPanel({
     const changingToCompletion = completionStatuses.includes(value) && !wasCompletionStatus;
     setEditableStatus(value);
     if (changingToCompletion) {
-      setCompletionTime(format(new Date(), 'HH:mm'));
+      setCompletionTime(edmontonNowHHmm());
       setTimeout(() => completionTimeRef.current?.focus(), 50);
     }
   };
@@ -507,7 +520,7 @@ export default function StopDetailsPanel({
             {/* Status badge + time (RIGHT) */}
             <Badge className={`border rounded-full ${status.color}`}>
               <StatusIcon className="w-3 h-3 mr-1" />
-              {status.label}{['completed', 'failed', 'cancelled'].includes(delivery.status) && delivery?.actual_delivery_time ? ` ${format(new Date(delivery.actual_delivery_time), 'h:mm a')}` : ''}
+              {status.label}{['completed', 'failed', 'cancelled'].includes(delivery.status) && delivery?.actual_delivery_time ? ` ${formatEdmontonTime(delivery.actual_delivery_time)}` : ''}
             </Badge>
           </div>
           }
@@ -560,7 +573,7 @@ export default function StopDetailsPanel({
             {delivery.actual_delivery_time &&
             <Badge variant="secondary" className="font-mono rounded-full text-xs text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
               <Clock className="w-3 h-3 mr-1" />
-              {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
+              {formatEdmontonTime(delivery.actual_delivery_time)}
             </Badge>
             }
           </div>

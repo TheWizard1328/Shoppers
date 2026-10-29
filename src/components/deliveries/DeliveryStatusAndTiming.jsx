@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
+import { edmontonNowHHmm, edmontonTodayKey } from '../utils/albertaTime';
 import { X } from "lucide-react";
 import { isAppOwner } from '../utils/userRoles';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
@@ -111,9 +112,11 @@ export default function DeliveryStatusAndTiming({
 
     const changingToCompletion = completionStatuses.includes(value) && activeStatuses.includes(prevStatus);
     if (changingToCompletion) {
-      const defaultCompletionTime = delivery?.delivery_date && delivery.delivery_date < format(new Date(), 'yyyy-MM-dd') ?
+      // Edmonton wall clock, NOT the device clock (Oct 29 2026: devices whose
+      // tz data already dropped DST stamped 07:40 for an 08:40 completion).
+      const defaultCompletionTime = delivery?.delivery_date && delivery.delivery_date < edmontonTodayKey() ?
       completionTime || '' :
-      format(new Date(), 'HH:mm');
+      edmontonNowHHmm();
       setCompletionTime(defaultCompletionTime);
       // Auto-focus the completion time input after state update
       setTimeout(() => completionTimeRef.current?.focus(), 50);

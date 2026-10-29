@@ -57,6 +57,28 @@ export const edmontonWallToUTC = (y, mo, d, h, mi, s = 0) =>
 
 const pad = (v) => String(v).padStart(2, '0');
 
+// ── Device-tz-proof wall clock for form fields (owner report Oct 29 2026) ────
+// "Manual Complete set 07:40 when it was 08:40." Handlers were using
+// format(new Date(), 'HH:mm') / date.getHours(), i.e. the DEVICE timezone
+// engine — machines whose tz database already flipped Alberta off DST report
+// UTC-7 and prefill completion times an hour early. These read the legislated
+// Alberta wall clock instead, identical on every device.
+export const edmontonNowHHmm = (date = new Date()) => {
+  const w = toEdmontonWall(date);
+  return `${pad(w.h)}:${pad(w.mi)}`;
+};
+
+// Naive Edmonton wall string OR real UTC/offset string -> Edmonton wall HH:mm.
+export const edmontonHHmm = (timestamp) => {
+  if (!timestamp) return '';
+  const d = parseAnyTimestamp(timestamp);
+  if (!d || isNaN(d.getTime())) return '';
+  return edmontonNowHHmm(d);
+};
+
+// Edmonton wall date "YYYY-MM-DD" for an instant (defaults to now).
+export const edmontonTodayKey = (date = new Date()) => edmontonWallString(date).slice(0, 10);
+
 // UTC instant -> naive Edmonton wall string "YYYY-MM-DDTHH:mm:ss" (storage convention
 // for client-generated wall timestamps like actual_delivery_time)
 export const edmontonWallString = (date) => {

@@ -1,8 +1,10 @@
+import { edmontonNowHHmm } from '../utils/albertaTime';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
 export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime, currentTravelMode = 'driving' }) => {
   const now = new Date();
-  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  // Edmonton wall clock (the device tz engine can be an hour off in this fleet).
+  const currentLocalTime = edmontonNowHHmm(now);
   const isHistoricalDelivery = Boolean(
     delivery?.delivery_date && delivery.delivery_date < new Date().toISOString().split('T')[0]
   );
