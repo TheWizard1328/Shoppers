@@ -125,6 +125,39 @@ export const lockDeliveryFields = (deliveryId, fields, ttlMs = DEFAULT_TTL_MS, v
 };
 
 /**
+ * IDB WRITE GUARD (owner report Oct 29 2026).
+ *
+ * "I finished a stop, the next stop got its is-next-delivery flag, and somewhere
+ * along the route to that stop it lost the flag." Every writer that touches the
+ * Delivery store could re-introduce a stale flag value: a periodic server pull,
+ * a replay of a queued mutation, a stale snapshot written by a background
+ * refresher. The realtime merge guard only covers WebSocket payloads, so the
+ * stale value came back through IndexedDB.
+ *
+ * This applies the LOCKED isNextDelivery value to any record about to be written
+ * to the Delivery store. Only isNextDelivery is forced (status/order keep their
+ * own guards) so a legitimate later transition is never frozen.
+ */
+export const applyDeliveryNextFlagGuard = (record) => {
+  if (!record?.id) return record;
+  const entry = locks.get(record.id);
+  if (!entry) return record;
+  if (Date.now() > entry.expiresAt) { locks.delete(record.id); return record; }
+  // A TERMINAL record is a completion — it legitimately clears the next flag and
+  // must never be pinned back to true. Release the lock and take the write as-is
+  // (the completion queue immediately re-locks the freshly computed values).
+  if (TERMINAL_STATUSES.includes(String(record.status || ''))) {
+    try { entry.fields?.delete?.('isNextDelivery'); } catch (_) {}
+    if (!entry.fields || entry.fields.size === 0) locks.delete(record.id);
+    return record;
+  }
+  if (!entry.fields?.has?.('isNextDelivery') && !entry.fields?.includes?.('isNextDelivery')) return record;
+  const pinned = entry.values?.isNextDelivery;
+  if (pinned === undefined || record.isNextDelivery === pinned) return record;
+  return { ...record, isNextDelivery: pinned };
+};
+
+/**
  * Unlock all fields for a delivery (call when action fully confirmed).
  * @param {string} deliveryId
  */

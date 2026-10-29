@@ -526,10 +526,37 @@ const openDatabase = async () => {
  * lost. Always read the existing record first and merge before saving.
  * See DriverStatusToggle for the correct merge pattern.
  */
+// ── Locked-flag guard on every Delivery write ────────────────────────────────
+// OWNER REPORT (Oct 29 2026): a next-delivery flag that was correctly set after
+// completing a stop disappeared again on the way to that stop. The stale value
+// was being re-written into IndexedDB by a pull / queued replay / snapshot, not
+// by the completion flow (the WS merge already guards it). completionLockout
+// pins the flag for a short window after a duty transition, so apply that pin to
+// anything written here. Loaded lazily (and once) to keep this module free of a
+// hard import cycle.
+let _deliveryFlagGuard = null;
+const _getDeliveryFlagGuard = async () => {
+  if (_deliveryFlagGuard !== null) return _deliveryFlagGuard;
+  try {
+    const mod = await import('./completionLockout');
+    _deliveryFlagGuard = typeof mod?.applyDeliveryNextFlagGuard === 'function' ? mod.applyDeliveryNextFlagGuard : false;
+  } catch (_) {
+    _deliveryFlagGuard = false;
+  }
+  return _deliveryFlagGuard;
+};
+const _guardDeliveryRecord = async (storeName, record) => {
+  if (storeName !== STORES.DELIVERIES || !record?.id) return record;
+  const guard = await _getDeliveryFlagGuard();
+  if (!guard) return record;
+  try { return guard(record) || record; } catch (_) { return record; }
+};
+
 const save = async (storeName, record) => {
   if (!record) {
     return { success: false, error: 'No record provided' };
   }
+  record = await _guardDeliveryRecord(storeName, record);
 
   try {
     // Encrypt PHI records before storing
@@ -577,6 +604,15 @@ const BULK_SAVE_CHUNK_SIZE = 300;
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
+  }
+
+  // Apply the locked next-delivery flag to every record in this batch BEFORE the
+  // dedupe/diff below (see the guard note above `save`).
+  if (storeName === STORES.DELIVERIES) {
+    const guard = await _getDeliveryFlagGuard();
+    if (guard) {
+      try { records = records.map((r) => guard(r) || r); } catch (_) { /* keep originals */ }
+    }
   }
 
   const isPHI = isPHIStore(storeName);

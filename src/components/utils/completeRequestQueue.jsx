@@ -335,6 +335,21 @@ const flushCompletionJob = async (entry) => {
 
         // Write computed stop_order and isNextDelivery to server + IDB
         if (result.changedDeliveries.length > 0) {
+          // ── Pin the flag swap (owner report Oct 29 2026) ──────────────────
+          // The flag landed correctly and then vanished on the drive to the
+          // next stop: a stale pull / replay / echo re-wrote the old value.
+          // Lock each computed value for 2 minutes so nothing — IDB write,
+          // silent bulk commit or WS merge — can undo the swap. A later duty
+          // transition re-locks its own value, so a genuine change still wins.
+          try {
+            const { lockDeliveryFields } = await import('./completionLockout');
+            for (const rec of result.changedDeliveries) {
+              if (rec?.id && rec.isNextDelivery !== undefined) {
+                lockDeliveryFields(rec.id, ['isNextDelivery'], 120000, { isNextDelivery: rec.isNextDelivery === true });
+              }
+            }
+          } catch (_) { /* locking is best-effort */ }
+
           // Update IDB first (local-first)
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
 
