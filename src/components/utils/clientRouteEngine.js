@@ -1673,10 +1673,27 @@ let _inheritedWindowCount = 0;
     const isISP_ISD = isInterStoreDelivery(s.delivery_id);
     return !isISP_ISD;
   }) || null;
+  // OWNER REPORT (Oct 30 2026): "many times today I've had to set a stop as the
+  // next delivery again ... my isNextDelivery flag is gone." A mid-route run with
+  // NO flag present used to resolve nextStopId to null, so the writeBatch stamped
+  // isNextDelivery:false on EVERY stop — leaving the route with no next stop at
+  // all, and each later run reinforced it. Rule 3 is now a REAL fallback: if the
+  // route is in progress and nothing holds the flag, promote the first accepted
+  // active stop (non-pending preferred, inter-store last) so the route always has
+  // exactly one next stop. An existing explicit flag still wins untouched.
+  const _statusOf = (s) => String(s?.status || s?.delivery?.status || '').toLowerCase();
+  const _midRouteFallback = (() => {
+    const nonInterStore = activeStops.filter((s) => !isInterStoreDelivery(s.delivery_id));
+    const pool = nonInterStore.length > 0 ? nonInterStore : activeStops;
+    const accepted = pool.find((s) => _statusOf(s) !== 'pending');
+    return accepted?.id || pool[0]?.id || null;
+  })();
   const nextStopId = (explicitNextDelivery && !clearNextDeliveryLock ? explicitNextDelivery.id : null)
     || (clearNextDeliveryLock
       ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null)
-      : (!routeInProgress ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null) : null));
+      : (!routeInProgress
+        ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null)
+        : _midRouteFallback));
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   // TDZ FIX (owner report Oct 30 2026): this guard was a const arrow declared
   // AFTER the write-batch loop that calls it, so every polyline pass threw

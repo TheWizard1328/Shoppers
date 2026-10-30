@@ -969,10 +969,24 @@ Deno.serve(async (req) => {
         originalOrderIds.some((id, index) => id !== optimizedOrderIds[index]);
 
     const firstNonInterStoreActive = orderedStops.find((s) => !s.isInterStore) || null;
+    // OWNER REPORT (Oct 30 2026, CLIENT PARITY): "many times today I've had to set
+    // a stop as the next delivery again ... my isNextDelivery flag is gone." A
+    // mid-route run with NO flag present resolved nextStopId to null, and the
+    // writeBatch then stamped isNextDelivery:false on EVERY stop — the route ended
+    // up with no next stop at all, and every later run reinforced it. Rule 3 is now
+    // the same real fallback the client engine uses: promote the first ACCEPTED
+    // active stop (non-pending preferred, inter-store last) so a route always keeps
+    // exactly one next stop. An existing explicit flag still wins untouched.
+    const _midRouteFallback = (() => {
+      const nonInterStore = orderedStops.filter((st) => !st.isInterStore);
+      const pool = nonInterStore.length > 0 ? nonInterStore : orderedStops;
+      const accepted = pool.find((st) => String(st.status || '').toLowerCase() !== 'pending');
+      return accepted?.id || pool[0]?.id || null;
+    })();
     const nextStopId = (explicitNextDeliveryId && !clearNextDeliveryLock ? explicitNextDeliveryId : null)
       || (clearNextDeliveryLock
         ? (firstNonInterStoreActive?.id || orderedStops[0]?.id || null)
-        : (!routeInProgress ? (firstNonInterStoreActive?.id || orderedStops[0]?.id || null) : null));
+        : (!routeInProgress ? (firstNonInterStoreActive?.id || orderedStops[0]?.id || null) : _midRouteFallback));
 
     const sameCoordsAdjacentIds = new Set();
     for (let i = 1; i < orderedStops.length; i++) {
