@@ -14,7 +14,14 @@
  * client route optimizer with forceRegenerate, exactly like the manual FAB.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMapEvents } from 'react-leaflet';
+import { MapContainer, Polyline, CircleMarker, Tooltip, useMapEvents } from 'react-leaflet';
+import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
+import { CachedTileLayer } from '../utils/hereTileCache';
+
+// Tiles: the app shell blocks the public OSM tile hosts, so use the same HERE
+// basemap every other map uses (owner report Oct 30 2026: blank map).
+const buildHereLightTileUrl = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${k}`;
+const buildHereDarkTileUrl = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${k}`;
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -72,9 +79,19 @@ const readWaypoints = (delivery) =>
 // Fits the map to the leg + its waypoints whenever they change.
 function FitToData({ positions }) {
   const map = useMapEvents({});
+  // The panel animates in, so the container often has no size at first paint —
+  // Leaflet then keeps a 0x0 canvas and paints no tiles at all. Force a size
+  // read on mount, after the open animation, and whenever the data settles.
+  useEffect(() => {
+    const settle = [80, 320, 700].map((ms) => setTimeout(() => {
+      try { map.invalidateSize(); } catch (_) {}
+    }, ms));
+    return () => settle.forEach(clearTimeout);
+  }, [map]);
   useEffect(() => {
     if (!positions.length) return;
     try {
+      map.invalidateSize();
       map.fitBounds(positions, { padding: [24, 24], maxZoom: 16 });
     } catch (_) {}
   }, [positions.map((p) => p.join(',')).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -96,6 +113,31 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
   const [encoded, setEncoded] = useState(delivery?.encoded_polyline || '');
   const [addMode, setAddMode] = useState(false);
   const [busy, setBusy] = useState(false);
+  // HERE basemap key — same resolution as the other maps (settings override,
+  // refreshed when settings change; tiles only render once a key exists).
+  const [hereApiKey, setHereApiKey] = useState(null);
+  const [tileKey, setTileKey] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const res = await getActiveHereApiKey({}).catch(() => null);
+      if (mounted && res?.data?.apiKey) setHereApiKey(res.data.apiKey);
+    };
+    load();
+    window.addEventListener('appSettingsUpdated', load);
+    return () => { mounted = false; window.removeEventListener('appSettingsUpdated', load); };
+  }, []);
+  useEffect(() => { if (hereApiKey) setTileKey((k) => k + 1); }, [hereApiKey]);
+  const tileLayerUrl = useMemo(() => {
+    if (!hereApiKey) return null;
+    let dark = false;
+    try {
+      dark = document.documentElement.classList.contains('dark-theme') ||
+        (document.documentElement.classList.contains('auto-theme') &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (_) { dark = false; }
+    return dark ? buildHereDarkTileUrl(hereApiKey) : buildHereLightTileUrl(hereApiKey);
+  }, [hereApiKey]);
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [showRaw, setShowRaw] = useState(false);
 
@@ -261,11 +303,16 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
           dragging
           doubleClickZoom
         >
-          <TileLayer
-            attribution='&copy; OpenStreetMap'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maxZoom={19}
-          />
+          {tileLayerUrl && (
+            <CachedTileLayer
+              key={`stop-dev-${tileKey}`}
+              url={tileLayerUrl}
+              attribution='&copy; <a href="https://www.here.com/">HERE</a>'
+              tileSize={512}
+              zoomOffset={-1}
+              keepBuffer={0}
+            />
+          )}
           <FitToData positions={allPositions} />
           <MapClickCatcher active={addMode} onPick={addPoint} />
 
