@@ -9,9 +9,11 @@ import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon } from './M
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
 
-// Zoom level at which co-located markers fan out on their own (matches the
-// cycling start/end pin threshold so the map behaves consistently).
-const CLUSTER_FAN_ZOOM = 16;
+// OWNER REQUEST (Oct 30 2026): co-located markers fan out at zoom 15 on phones
+// and 16 on larger screens, same rule as the cycling pins.
+const CLUSTER_FAN_ZOOM_DESKTOP = 16;
+const CLUSTER_FAN_ZOOM_MOBILE = 15;
+const clusterFanZoom = (isMobile) => (isMobile ? CLUSTER_FAN_ZOOM_MOBILE : CLUSTER_FAN_ZOOM_DESKTOP);
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -35,8 +37,8 @@ export default function PickupMarkers({
     const lk = pickup.locationKey || `${pickup.latitude.toFixed(cappedPrecision)},${pickup.longitude.toFixed(cappedPrecision)}`;
     const isClustered = pickup.duplicateCount > 1;
     // OWNER REQUEST (Oct 30 2026): co-located markers fan out like flower petals
-    // automatically past CLUSTER_FAN_ZOOM (same threshold as the cycling pins).
-    const isAutoFannedCluster = isClustered && currentZoom >= CLUSTER_FAN_ZOOM;
+    // automatically past clusterFanZoom() (15 phone / 16 larger screens).
+    const isAutoFannedCluster = isClustered && currentZoom >= clusterFanZoom(isMobile);
     const isFanned = fannedLocationKey === lk || isAutoFannedCluster;
     const isHighlighted = highlightedDeliveryId === pickup.id;
 

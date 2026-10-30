@@ -9,9 +9,13 @@ import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
 import { portalWatchersStore, usePortalWatcherVersion } from '../utils/portalWatchers';
 
-// Zoom level at which co-located markers fan out on their own (matches the
-// cycling start/end pin threshold so the map behaves consistently).
-const CLUSTER_FAN_ZOOM = 16;
+// Zoom level at which co-located markers fan out on their own. OWNER REQUEST
+// (Oct 30 2026): 15 on phones (they show far less ground per zoom step), 16 on
+// larger screens. Cycling start/end pins use the same rule so the whole map
+// opens up consistently.
+const CLUSTER_FAN_ZOOM_DESKTOP = 16;
+const CLUSTER_FAN_ZOOM_MOBILE = 15;
+const clusterFanZoom = (isMobile) => (isMobile ? CLUSTER_FAN_ZOOM_MOBILE : CLUSTER_FAN_ZOOM_DESKTOP);
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -175,7 +179,7 @@ function DeliveryMarkers({
       const isStart = delivery.delivery_notes === 'Cycling Route Start';
 
       // At or above zoom 16: show separate start/end pins (fanned out)
-      if (currentZoom >= 16) {
+      if (currentZoom >= clusterFanZoom(isMobile)) {
         const locKey = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
         const pairsAtLoc = cyclingPairsAtLocation.get(locKey) || 1;
         const allPairsHere = cyclingPairsByLocation.get(locKey) || [];
@@ -293,10 +297,10 @@ function DeliveryMarkers({
     const locationKey = delivery.locationKey || `${markerLatitude.toFixed(cappedPrecision)},${markerLongitude.toFixed(cappedPrecision)}`;
     const isClustered = delivery.duplicateCount > 1;
     // OWNER REQUEST (Oct 30 2026): co-located markers should fan out like flower
-    // petals automatically once the map is zoomed in past CLUSTER_FAN_ZOOM — the
+    // petals automatically once the map is zoomed in past clusterFanZoom() — the
     // same behaviour the cycling start/end pins already have at zoom 16. The
     // click-to-fan path still works below the threshold.
-    const isAutoFannedCluster = isClustered && currentZoom >= CLUSTER_FAN_ZOOM;
+    const isAutoFannedCluster = isClustered && currentZoom >= clusterFanZoom(isMobile);
     const isFanned = fannedLocationKey === locationKey || isAutoFannedCluster;
     const isHighlighted = highlightedDeliveryId === delivery.id;
 

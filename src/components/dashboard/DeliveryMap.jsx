@@ -59,8 +59,11 @@ const DRIVER_COLORS = [
 const FINISHED_STATUSES = ["completed", "failed", "cancelled"];
 const ZOOM_LEVELS = { HIDE_ROUTES: 8, SIMPLIFY_ROUTES: 12, HIDE_NUMBERS: 11, HIDE_CIRCLES: 11, FULL_DETAIL: 13 };
 // OWNER REQUEST (Oct 30 2026): co-located markers fan out like flower petals
-// automatically at this zoom — the same level the cycling start/end pins fan at.
-const AUTO_FAN_ZOOM = 16;
+// automatically at this zoom — 15 on phones, 16 on larger screens, the same
+// levels the cycling start/end pins use.
+const AUTO_FAN_ZOOM_DESKTOP = 16;
+const AUTO_FAN_ZOOM_MOBILE = 15;
+const autoFanZoom = (isMobile) => (isMobile ? AUTO_FAN_ZOOM_MOBILE : AUTO_FAN_ZOOM_DESKTOP);
 const getDistanceMeters = (previousLocation, nextLocation) => {
   if (!previousLocation?.latitude || !previousLocation?.longitude) return Infinity;
   if (!nextLocation?.latitude || !nextLocation?.longitude) return 0;
@@ -2166,12 +2169,12 @@ function DeliveryMap({
         )}
 
         {/* Fan lines: draw lines from cluster origin to each fanned marker */}
-        {mapReady && fanRendererReady && (fannedLocationKey || currentZoom >= AUTO_FAN_ZOOM) && (() => {
+        {mapReady && fanRendererReady && (fannedLocationKey || currentZoom >= autoFanZoom(isMobile)) && (() => {
           // OWNER REQUEST (Oct 30 2026): co-located markers fan out like flower
           // petals automatically at high zoom, so the petal spokes must be drawn
           // for EVERY auto-fanned cluster — not only the one that was tapped.
           // Capped so a dense pending-route view can never spam polylines.
-          const _autoKeys = currentZoom >= AUTO_FAN_ZOOM
+          const _autoKeys = currentZoom >= autoFanZoom(isMobile)
             ? Array.from(new Set([
                 ...Array.from(groupedDeliveryMarkers.keys()),
                 ...Array.from(groupedPickupMarkers.keys()),
