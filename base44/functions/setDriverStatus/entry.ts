@@ -195,7 +195,16 @@ const getOrCreateDailyActivityRecord = async (base44, driverId, driverName, toda
   return created;
 };
 
-const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus, anchorTime = null) => {
+const recordActivitySegment = async (base44, requestClient, driverId, driverName, newStatus, previousStatus, anchorTime = null) => {
+  // OWNER REPORT (Oct 30 2026 15:11): duty-time values disagreed between devices
+  // (2 minutes apart until something refreshed them). Root cause: the activity
+  // record is written with asServiceRole, and a service-role write does NOT
+  // broadcast a WebSocket event — so every other device kept its old segments
+  // until a lazy pull, and a break boundary landed minutes later on the tablet
+  // than on the phone. The record is now returned to the caller AND re-written
+  // with the REQUEST-SCOPED client (best-effort) so the platform broadcasts it
+  // to every connected device the moment it changes.
+  let lastSavedActivity = null;
   try {
     const todayStr = getEdmDate();
     const rawNow = anchorTime ? normalizeToUTC(anchorTime) : new Date().toISOString();
@@ -231,7 +240,8 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
           console.log(`⏱️ [setDriverStatus] Closed dangling open segment before opening new one for ${driverId}`);
         }
         segments.push({ start_time: now, end_time: null, tot: null });
-        await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+        const savedOpen = await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+        lastSavedActivity = savedOpen || { ...record, activity_segments: segments };
         console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId} (start: ${now}, previousStatus: ${previousStatus})`);
       }
 
@@ -242,7 +252,8 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
         const startMs = new Date(segments[openIdx].start_time).getTime();
         const tot = Math.max(0, Math.round((nowMs - startMs) / 60000));
         segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
-        await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+        const savedClose = await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+        lastSavedActivity = savedClose || { ...record, activity_segments: segments };
         console.log(`⏸️ [setDriverStatus] Activity segment closed — ${tot} min for ${driverId} (end: ${now}, newStatus: ${newStatus})`);
       } else {
         console.log(`ℹ️ [setDriverStatus] No open segment to close for ${newStatus} (previousStatus: ${previousStatus})`);
@@ -253,6 +264,20 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
   } catch (err) {
     console.warn('⚠️ [setDriverStatus] recordActivitySegment failed (non-critical):', err?.message || err);
   }
+
+  // Broadcast the authoritative record (request-scoped write = realtime event).
+  // Best effort: RLS may reject a dispatcher writing another driver's record,
+  // in which case devices still converge through their normal pulls.
+  if (lastSavedActivity?.id) {
+    try {
+      await requestClient?.entities?.DriverDailyActivity?.update(lastSavedActivity.id, {
+        activity_segments: lastSavedActivity.activity_segments,
+      });
+    } catch (err) {
+      console.warn('⚠️ [setDriverStatus] activity broadcast write skipped:', err?.message || err);
+    }
+  }
+  return lastSavedActivity;
 };
 
 const clearNextDeliveryFlags = async (base44, driverId, deliveryDate) => {
@@ -404,7 +429,7 @@ Deno.serve(async (req) => {
     }
 
     // Record DriverDailyActivity segment for this status transition
-    await recordActivitySegment(base44, subjectUserId, appUser.user_name || '', newStatus, previousStatus, activityAnchorTime);
+    const dailyActivityRecord = await recordActivitySegment(base44, base44, subjectUserId, appUser.user_name || '', newStatus, previousStatus, activityAnchorTime);
     
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
@@ -501,6 +526,9 @@ Deno.serve(async (req) => {
       success: true,
       newStatus,
       appUserId: appUser.id,
+      // Authoritative DriverDailyActivity row so the toggling device can adopt it
+      // immediately instead of waiting for a pull (duty-time parity across devices).
+      dailyActivity: dailyActivityRecord || null,
       data: updatedAppUser
     });
 

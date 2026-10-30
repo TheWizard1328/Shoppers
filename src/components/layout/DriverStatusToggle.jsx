@@ -468,6 +468,25 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       });
 
       const confirmedStatus = result?.data?.driver_status || newStatus;
+
+      // OWNER REPORT (Oct 30 2026): duty time drifted 2 minutes between devices.
+      // The server now returns the authoritative DriverDailyActivity row it just
+      // wrote; adopt it here so THIS device is exact immediately (and rebroadcast
+      // the event for the stats card) instead of recomputing from a possibly
+      // stale local copy.
+      try {
+        const activityRecord = result?.data?.dailyActivity || result?.dailyActivity || null;
+        if (activityRecord?.id) {
+          const { offlineDB: _odb } = await import('../utils/offlineDatabase');
+          await _odb.save(_odb.STORES.DRIVER_DAILY_ACTIVITY, activityRecord);
+          const { invalidateDriverDailyActivityCache } = await import('../utils/driverDailyActivityCache');
+          invalidateDriverDailyActivityCache(activityRecord.driver_id, activityRecord.activity_date);
+          window.dispatchEvent(new CustomEvent('driverActivityUpdated', {
+            detail: { record: activityRecord, fromToggle: true },
+          }));
+        }
+      } catch (_) { /* non-fatal — the record still arrives via the WS broadcast */ }
+
       // The backend is the final authority (it may normalize the status), so
       // publish the confirmed value too — local state, IDB and server can never
       // disagree after a toggle.

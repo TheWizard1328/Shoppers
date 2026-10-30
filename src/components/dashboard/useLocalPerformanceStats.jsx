@@ -97,6 +97,16 @@ export function useLocalPerformanceStats({
   // Cached fresh AppUser record(s) fetched on demand when pay rates are missing.
   // Keyed by user_id so multiple selections are remembered within the session.
   const [freshAppUserMap, setFreshAppUserMap] = useState({});
+  // Bumped whenever a DriverDailyActivity row arrives (WS broadcast from the
+  // device that toggled duty). Without this the stats effect never re-ran on an
+  // activity change, so each device kept its own copy until some unrelated
+  // delivery/appUser update happened to refresh it (the 2-minute drift).
+  const [driverActivityVersion, setDriverActivityVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setDriverActivityVersion((v) => v + 1);
+    window.addEventListener('driverActivityUpdated', handler);
+    return () => window.removeEventListener('driverActivityUpdated', handler);
+  }, []);
 
   useEffect(() => {
     if (!currentUser?.id || !isDataLoaded || isDispatcher) {
@@ -597,6 +607,7 @@ export function useLocalPerformanceStats({
     patients,
     appUsers,
     freshAppUserMap,
+    driverActivityVersion,
     setPerformanceStats,
     setIsLoadingPayrollStats
   ]);

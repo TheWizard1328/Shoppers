@@ -1011,6 +1011,30 @@ const subscribeToEntity = (entityName) => {
 
     const handleRealtimeEvent = async (entityName, event) => {
     const { type, id } = event;
+
+    // ── DRIVER DAILY ACTIVITY (owner report Oct 30 2026 15:11) ──────────────
+    // Duty-time values drifted between devices (2 minutes apart until a later
+    // refresh pulled them together) because the only writer is the server's
+    // setDriverStatus, which used asServiceRole — and a service-role write does
+    // not broadcast. The record now ships with a request-scoped write so this
+    // event arrives the moment a driver toggles duty, and every device banks the
+    // SAME segments: save the row, drop the 5-minute duty cache entry, redraw.
+    if (entityName === 'DriverDailyActivity') {
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        if (type === 'delete') {
+          await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, id).catch(() => {});
+        } else if (event.data?.id) {
+          await offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, event.data).catch(() => {});
+        }
+        const { invalidateDriverDailyActivityCache } = await import('./driverDailyActivityCache');
+        invalidateDriverDailyActivityCache(event.data?.driver_id, event.data?.activity_date);
+        window.dispatchEvent(new CustomEvent('driverActivityUpdated', {
+          detail: { record: event.data || null, fromRealtime: true },
+        }));
+      } catch (_) { /* non-fatal — duty time still revalidates on the next pull */ }
+      return;
+    }
     const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
 
     // ── ROLE-GATED BREADCRUMB FILTER (very top — before dedupe, log, IDB save) ──
@@ -1646,6 +1670,8 @@ export const connect = () => {
     subscribeToEntity('Delivery');
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
+    // Duty-time parity across devices (owner report Oct 30 2026)
+    subscribeToEntity('DriverDailyActivity');
     subscribeToEntity('Payroll');
     subscribeToEntity('Message');
     subscribeToEntity('GoogleAPILog');
