@@ -420,64 +420,75 @@ Deno.serve(async (req) => {
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
     
-    // When coming back on_duty (from on_break OR off_duty), restore isNextDelivery and polyline.
+    // When coming back on_duty (from on_break OR off_duty), restore isNextDelivery.
     //
-    // IMPORTANT: When a driver goes on_break, clearNextDeliveryFlags() wipes ALL isNextDelivery
-    // flags. So when they return on_duty, flaggedDeliveries will be 0. We must call
-    // setNextDeliveryFlag first to re-establish the correct next stop, THEN regenerate
-    // the polyline so the route line appears correctly.
+    // OWNER REPORT (Oct 30 2026 14:48): "when a driver returns from a break back
+    // to on duty it is not setting the is next delivery flag to the next stop…
+    // requiring the driver to hit the start button and costing API hits to the
+    // Google and HERE APIs." Root cause: this block called setNextDeliveryFlag
+    // through base44.functions.invoke(), and a backend→backend invoke does NOT
+    // carry the caller's auth context, so the gateway rejected it with 401/403
+    // before its code ran. The flag was therefore never re-established — going on
+    // break clears every flag (clearNextDeliveryFlags below), so the driver came
+    // back to a route with NO next stop and had to press Start, which runs the
+    // whole optimizer (HERE + Google) just to re-flag one stop.
+    //
+    // The resolution is now INLINE and self-contained (no cross-function hop, no
+    // optimizer, no routing API calls): active stops (in_transit/en_route/arrived,
+    // cycling markers included) by stop_order, else pending stops by stop_order.
+    // Only records whose flag actually changes are written.
     if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
       const targetDate = selectedDate || getEdmDate();
-      const INCOMPLETE_STATUSES = new Set(['in_transit', 'en_route', 'arrived', 'pending']);
-      const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      const FINISHED = new Set(['completed', 'failed', 'cancelled']);
+      const ACTIVE = new Set(['in_transit', 'en_route', 'arrived']);
+      const byOrder = (a, b) => {
+        const diff = Number(a?.stop_order || 0) - Number(b?.stop_order || 0);
+        return diff !== 0 ? diff : String(a?.id || '').localeCompare(String(b?.id || ''));
+      };
+
+      const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: subjectUserId,
         delivery_date: targetDate
-      }, 'stop_order');
+      }, 'stop_order', 5000);
 
-      const flaggedDeliveries = allTodayDeliveries.filter((d) => d?.isNextDelivery === true);
-      const incompleteDeliveries = allTodayDeliveries.filter((d) => d && INCOMPLETE_STATUSES.has(d.status) && !d.is_cycling_marker);
-      console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
-      console.log(`📦 [setDriverStatus] Flagged: ${flaggedDeliveries.length}, Incomplete: ${incompleteDeliveries.length}`);
+      const activeStops = routeDeliveries
+        .filter((d) => d && !FINISHED.has(d.status) && (ACTIVE.has(d.status) || d.is_cycling_marker === true))
+        .sort(byOrder);
+      const pendingStops = routeDeliveries
+        .filter((d) => d && d.status === 'pending' && !d.is_cycling_marker)
+        .sort(byOrder);
 
-      // Always re-establish the isNextDelivery flag when going on_duty:
-      // covers both returning from on_break (flags cleared) and first on_duty of the day (all pending).
-      let resolvedFlagged = flaggedDeliveries;
-      if (incompleteDeliveries.length > 0) {
-        console.log(`🔄 [setDriverStatus] Calling setNextDeliveryFlag to establish next stop for on_duty`);
-        await base44.asServiceRole.functions.invoke('setNextDeliveryFlag', {
-          driverId: subjectUserId,
-          deliveryDate: targetDate
-        }).catch((error) => {
-          console.warn('⚠️ [setDriverStatus] setNextDeliveryFlag failed on on_duty restore:', error?.message || error);
-        });
-        // Re-fetch to see what was flagged
-        const refreshed = await base44.asServiceRole.entities.Delivery.filter({
-          driver_id: subjectUserId,
-          delivery_date: targetDate
-        }, 'stop_order').catch(() => []);
-        resolvedFlagged = refreshed.filter((d) => d?.isNextDelivery === true);
-        console.log(`✅ [setDriverStatus] After setNextDeliveryFlag: ${resolvedFlagged.length} flagged`);
+      const nextStop = activeStops[0] || pendingStops[0] || null;
+      console.log(`📦 [setDriverStatus] On-duty restore: ${routeDeliveries.length} stops, next=${nextStop?.id || 'none'} (order ${nextStop?.stop_order ?? '-'})`);
+
+      if (nextStop) {
+        const flagWrites = routeDeliveries
+          .filter((d) => !!d?.isNextDelivery !== (d.id === nextStop.id))
+          .map((d) => ({ id: d.id, isNextDelivery: d.id === nextStop.id }));
+        for (const write of flagWrites) {
+          try {
+            await base44.asServiceRole.entities.Delivery.update(write.id, { isNextDelivery: write.isNextDelivery });
+          } catch (error) {
+            if (!isNotFoundError(error)) {
+              console.warn(`⚠️ [setDriverStatus] isNextDelivery write failed for ${write.id}:`, error?.message || error);
+            }
+          }
+        }
+        console.log(`🔄 [setDriverStatus] isNextDelivery restored on ${nextStop.id} (${flagWrites.length} record(s) changed)`);
+      } else {
+        console.log('ℹ️ [setDriverStatus] No incomplete stops left — no next-delivery flag to restore');
       }
 
-      // Regenerate the current-leg polyline now that isNextDelivery is correctly set.
-      // Use driver's current GPS if available, fall back to home coordinates.
-      const originLat = updatedAppUser?.current_latitude ?? updatedAppUser?.home_latitude;
-      const originLon = updatedAppUser?.current_longitude ?? updatedAppUser?.home_longitude;
+      // NOTE: the polyline is NOT regenerated here. The legacy
+      // regenerateType1Polyline function was deleted when polyline generation
+      // moved client-side (routeOptimizationCoordinator / routePolylineGenerator);
+      // invoking it just burned a failed call on every on-duty transition. The
+      // existing legs are already correct — returning from a break does not
+      // change the route.
 
-      if (resolvedFlagged.length > 0 && originLat != null && originLon != null) {
-        await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
-          driverId: subjectUserId,
-          deliveryDate: targetDate,
-          currentLocation: { lat: originLat, lon: originLon },
-          isPrimaryDevice: true,
-          force: true,
-          routeChangeSource: 'on_duty_restore'
-        }).catch((error) => {
-          console.warn('⚠️ [setDriverStatus] regenerateType1Polyline skipped on on_duty restore:', error?.message || error);
-        });
-      }
+      console.log(`📡 [setDriverStatus] Broadcast driver status change to on_duty complete`);
     }
-    
+
     // When going off_duty, clear all next-stop flags for the selected driver/date
     if (newStatus === 'off_duty') {
       const targetDate = selectedDate || getEdmDate();

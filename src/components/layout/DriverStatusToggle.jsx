@@ -491,11 +491,30 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
           const INCOMPLETE_STATUSES = new Set(['in_transit', 'en_route', 'pending', 'arrived']);
           const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
-          // Fetch all route deliveries for this driver/date
-          const allRouteDeliveries = await base44.entities.Delivery.filter({
-            driver_id: effectiveUser.id,
-            delivery_date: optimizerDate,
-          });
+          // OWNER REPORT (Oct 30 2026): returning from a break left the route
+          // with NO next stop, so the driver had to press Start — which runs the
+          // whole optimizer (HERE + Google routing calls) just to re-flag one
+          // stop. Two fixes: the server now restores the flag inline in
+          // setDriverStatus (its cross-function invoke never had auth), and this
+          // local path no longer starts with a network read that can 429 and
+          // silently abandon the whole restore.
+          //
+          // IDB-FIRST: the local mirror already holds this driver's route, so
+          // resolve the next stop from it and only fall back to the server when
+          // the mirror is empty (fresh device).
+          let allRouteDeliveries = [];
+          try {
+            const rows = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            allRouteDeliveries = (rows || []).filter(
+              (d) => d && d.driver_id === effectiveUser.id && d.delivery_date === optimizerDate
+            );
+          } catch (_) { /* IDB degraded — fall through to the server */ }
+          if (allRouteDeliveries.length === 0) {
+            allRouteDeliveries = (await base44.entities.Delivery.filter({
+              driver_id: effectiveUser.id,
+              delivery_date: optimizerDate,
+            }).catch(() => [])) || [];
+          }
 
           if (allRouteDeliveries?.length > 0) {
             // Find the next stop: lowest stop_order among incomplete, non-cycling, non-pending-only
