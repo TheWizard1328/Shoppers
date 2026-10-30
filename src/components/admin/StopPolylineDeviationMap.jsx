@@ -140,6 +140,24 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
   }, [hereApiKey]);
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [showRaw, setShowRaw] = useState(false);
+  // Driver's home — the fallback origin when the selected stop has no finished
+  // stop or predecessor in front of it.
+  const [driverHome, setDriverHome] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!delivery?.driver_id) return;
+      try {
+        const rows = await base44.entities.AppUser.filter({ user_id: delivery.driver_id });
+        const au = Array.isArray(rows) ? rows[0] : null;
+        if (!cancelled && au && au.home_latitude != null && au.home_longitude != null) {
+          setDriverHome({ lat: Number(au.home_latitude), lon: Number(au.home_longitude) });
+        }
+      } catch (_) { /* no home → later fallbacks */ }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [delivery?.driver_id]);
 
   // Panel switches stop → adopt that stop's data.
   useEffect(() => {
@@ -173,8 +191,63 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
     }
   }, [delivery?.id, onChanged]);
 
+  // ── Redraw THIS stop's leg with the origin reassigned to the selected stop ──
+  // Owner request Oct 30 2026: Redraw must re-anchor the leg on the selected
+  // stop, not on the route-wide origin. Priority:
+  //   1. the most recent FINISHED stop (completed/failed) that precedes it,
+  //   2. else the previous stop in the route (an active predecessor),
+  //   3. else the driver's home,
+  //   4. else the driver's live position.
+  // One request: origin → this stop's deviation points → (live GPS when this is
+  // the stop being driven to) → the stop itself.
+  const resolveOriginForStop = useCallback(async (deliveries) => {
+    const order = Number(delivery?.stop_order);
+    const hasOrder = Number.isFinite(order);
+    const coordsOf = (d) => {
+      const lat = Number(d?.latitude ?? d?.patient_latitude);
+      const lng = Number(d?.longitude ?? d?.patient_longitude);
+      return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lon: lng } : null;
+    };
+    const statusOf = (d) => String(d?.status || '').toLowerCase();
+    const before = (d) => !hasOrder || !Number.isFinite(Number(d?.stop_order)) || Number(d.stop_order) < order || d?.id === delivery?.id;
+
+    const finished = (deliveries || []).filter((d) => d?.id !== delivery?.id && before(d) && ['completed', 'failed'].includes(statusOf(d)) && !d?.is_cycling_marker);
+    const finishedCoords = finished
+      .map((d) => ({ d, c: coordsOf(d) }))
+      .filter((x) => x.c)
+      .sort((a, b) => {
+        const ta = a.d?.actual_delivery_time ? new Date(a.d.actual_delivery_time).getTime() : 0;
+        const tb = b.d?.actual_delivery_time ? new Date(b.d.actual_delivery_time).getTime() : 0;
+        if (ta !== tb) return tb - ta;
+        return (Number(b.d?.stop_order) || 0) - (Number(a.d?.stop_order) || 0);
+      });
+    if (finishedCoords.length) return { origin: finishedCoords[0].c, source: 'finished_stop' };
+
+    const predecessor = (deliveries || [])
+      .filter((d) => d?.id !== delivery?.id && Number.isFinite(Number(d?.stop_order)) && Number(d.stop_order) < order && !d?.is_cycling_marker)
+      .sort((a, b) => (Number(b.stop_order) || 0) - (Number(a.stop_order) || 0))[0];
+    const predCoords = predecessor ? coordsOf(predecessor) : null;
+    if (predCoords) return { origin: predCoords, source: 'previous_stop' };
+
+    if (Number.isFinite(Number(driverHome?.lat)) && Number.isFinite(Number(driverHome?.lon))) {
+      return { origin: driverHome, source: 'home' };
+    }
+
+    const stopLat = Number(delivery?.latitude ?? delivery?.patient_latitude);
+    const stopLng = Number(delivery?.longitude ?? delivery?.patient_longitude);
+    const gpsLat = Number(delivery?.driver_latitude ?? NaN);
+    const gpsLng = Number(delivery?.driver_longitude ?? NaN);
+    if (Number.isFinite(gpsLat) && Number.isFinite(gpsLng) && Number.isFinite(stopLat) && Number.isFinite(stopLng)) {
+      const far = Math.hypot(gpsLat - stopLat, gpsLng - stopLng) > 0.002;
+      if (far) return { origin: { lat: gpsLat, lon: gpsLng }, source: 'live_gps' };
+    }
+    return { origin: null, source: 'none' };
+  }, [delivery?.id, delivery?.stop_order, delivery?.latitude, delivery?.patient_latitude, driverHome]);
+
   const redrawRoute = useCallback(async () => {
-    const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+    const { generateRoutePolylines } = await import('@/components/utils/routePolylineGenerator');
+    const { getOrFetchHereApiKey, getOrFetchPolylineConfig } = await import('@/components/utils/polylineKeyStore');
+
     const mirror = Array.isArray(window.__appDeliveries) ? window.__appDeliveries : [];
     let deliveries = mirror.filter(
       (d) => d?.driver_id === delivery.driver_id && d?.delivery_date === delivery.delivery_date
@@ -185,16 +258,56 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
         delivery_date: delivery.delivery_date,
       })) || [];
     }
-    return performRouteOptimization({
-      driverId: delivery.driver_id,
-      deliveryDate: delivery.delivery_date,
-      deliveries,
-      source: 'admin_polyline_deviation_edit',
-      preserveExistingOrder: true,
+
+    const { origin, source: originSource } = await resolveOriginForStop(deliveries);
+    if (!origin) return { success: false, error: 'no usable origin (no finished stop, predecessor, home or GPS)' };
+
+    const stopLat = Number(delivery.latitude ?? delivery.patient_latitude);
+    const stopLng = Number(delivery.longitude ?? delivery.patient_longitude);
+    if (!Number.isFinite(stopLat) || !Number.isFinite(stopLng)) {
+      return { success: false, error: 'this stop has no coordinates' };
+    }
+    if (Math.hypot(origin.lat - stopLat, origin.lon - stopLng) < 0.0009) {
+      return { success: false, error: `origin (${originSource}) is on the stop itself — nothing to draw` };
+    }
+
+    const hereApiKey = await getOrFetchHereApiKey().catch(() => null);
+    if (!hereApiKey) return { success: false, error: 'no HERE API key resolved' };
+    let polylineProvider = 'here';
+    let polylineApiKey = null;
+    try {
+      const cfg = await getOrFetchPolylineConfig();
+      polylineProvider = cfg?.provider || 'here';
+      polylineApiKey = cfg?.apiKey || null;
+    } catch (_) { /* defaults */ }
+
+    const map = await generateRoutePolylines({
+      orderUnchanged: false,
       forceRegenerate: true,
-      bypassDriverStatus: true,
+      stops: [{ delivery, lat: stopLat, lng: stopLng }],
+      originPoint: { lat: origin.lat, lon: origin.lon },
+      cyclingSegmentOnly: false,
+      hereApiKey,
+      polylineProvider,
+      polylineApiKey,
+      driverId: delivery.driver_id,
+      source: 'admin_stop_origin_redraw',
+      fallbackTravelMode: String(delivery.transport_mode || '').toLowerCase() === 'cycling' ? 'cycling' : 'driving',
     });
-  }, [delivery?.id, delivery?.driver_id, delivery?.delivery_date]);
+    const seg = map?.get?.(delivery.id) || map?.[delivery.id] || null;
+    const encoded = seg?.encodedPolyline || null;
+    if (!encoded) return { success: false, error: `nothing returned (origin ${originSource})` };
+
+    const { updateDelivery } = await import('@/components/utils/entityMutations');
+    await updateDelivery(delivery.id, {
+      encoded_polyline: encoded,
+      polyline_from_order: Number.isFinite(Number(delivery.stop_order)) ? Number(delivery.stop_order) : null,
+      ...(Number.isFinite(Number(seg.estimatedDistanceKm)) ? { estimated_distance_km: Number(seg.estimatedDistanceKm) } : {}),
+      ...(Number.isFinite(Number(seg.estimatedDurationMinutes)) ? { estimated_duration_minutes: Number(seg.estimatedDurationMinutes) } : {}),
+    }, { skipSmartRefresh: true });
+    setEncoded(encoded);
+    return { success: true, originSource, points: decodePolyline(encoded).length };
+  }, [delivery, resolveOriginForStop]);
 
   const persist = useCallback(
     async (nextWaypoints, { redraw = true, label = 'Saved' } = {}) => {
@@ -280,14 +393,14 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
                 const res = await redrawRoute();
                 await refreshStop();
                 if (res && res.success === false) toast.warning(`Redraw failed (${res.error || res.skipped || 'unknown'})`);
-                else toast.success('Polyline redrawn');
+                else toast.success(`Polyline redrawn — origin: ${String(res?.originSource || 'selected stop').replace(/_/g, ' ')}`);
               } catch (err) {
                 toast.error(`Redraw failed: ${err?.message || 'unknown'}`);
               } finally {
                 setBusy(false);
               }
             }}
-            title="Regenerate this route's polylines from the current deviation data"
+            title="Redraw THIS stop's leg, re-anchored on the selected stop (last finished stop, else previous stop, else home)"
           >
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Redraw
           </Button>
