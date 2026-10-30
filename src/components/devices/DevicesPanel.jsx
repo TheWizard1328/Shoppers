@@ -444,7 +444,7 @@ export default function DevicesPanel({ currentUser }) {
   return (
     <div className="space-y-4">
       {/* Toolbar: user picker (admin only) + Add Device + Refresh share one row
-           (owner request Oct 29 2026 — the picker no longer spans the panel). */}
+            (owner request Oct 29 2026 — the picker no longer spans the panel). */}
       <div className="flex items-center gap-2">
         {isAdminViewer && (() => {
           // Owner request Oct 29 2026: the "View devices for" list is colour
@@ -565,7 +565,7 @@ export default function DevicesPanel({ currentUser }) {
       }
 
       {/* Device cards — multi-column on wider screens (owner request Oct 29 2026) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 items-start pb-1">
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 items-start pb-6">
       {sortedDevices.map((device) => {
           const displayOS = device.device_info?.os === 'Linux' ? 'Android' : device.device_info?.os;
           const lastActive = device.last_active_at ? new Date(device.last_active_at).toLocaleString() : 'Never';
@@ -655,8 +655,8 @@ export default function DevicesPanel({ currentUser }) {
 
                   <>
                     {/* Owner spec Oct 29 2026: the four action buttons share ONE row
-                         and stretch evenly to fill the card; Delete keeps its own
-                         row, aligned bottom-right. */}
+                          and stretch evenly to fill the card; Delete keeps its own
+                          row, aligned bottom-right. */}
                     <div className="flex items-stretch gap-1.5 w-full">
                       <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
                         <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Edit</span>
