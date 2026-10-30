@@ -6,7 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 
-export default function DeviceForm({ device, existingDevices, onSubmit, onCancel }) {
+export default function DeviceForm({
+  device, existingDevices, onSubmit, onCancel,
+  // Owner directive Oct 30 2026: primary tracking is a driver / App Owner
+  // control. When false the checkbox is hidden AND a new device is never
+  // silently created as primary (the old "first device defaults to primary"
+  // rule would otherwise hand a dispatcher the flag the button no longer grants).
+  canSetPrimary = true,
+}) {
   const [deviceName, setDeviceName] = useState('');
   const [isPrimary, setIsPrimary] = useState(false);
   const [status, setStatus] = useState('active');
@@ -25,7 +32,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
       setDeviceType(detectedType);
       
       // If no existing devices, make this primary by default
-      if (!existingDevices || existingDevices.length === 0) {
+      if (canSetPrimary && (!existingDevices || existingDevices.length === 0)) {
         setIsPrimary(true);
       }
     }
@@ -41,7 +48,9 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
 
     const deviceData = {
       device_name: deviceName.trim(),
-      is_primary_tracker: isPrimary,
+      // Never let a non-driver/non-owner change the primary flag: keep whatever
+      // the record already has, and default a brand-new device to not primary.
+      is_primary_tracker: canSetPrimary ? isPrimary : (device?.is_primary_tracker || false),
       status,
       device_info: {
         ...device?.device_info,
@@ -50,7 +59,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
     };
 
     // If setting as primary, include flag to unset others
-    if (isPrimary && !device?.is_primary_tracker) {
+    if (canSetPrimary && isPrimary && !device?.is_primary_tracker) {
       deviceData.unset_other_primary = true;
     }
 
@@ -105,6 +114,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
             </Select>
           </div>
 
+          {canSetPrimary && (
           <div className="flex items-center space-x-2 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
             <input
               type="checkbox"
@@ -120,6 +130,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
               </span>
             </Label>
           </div>
+          )}
 
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onCancel} className="flex-1">

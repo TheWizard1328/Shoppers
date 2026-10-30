@@ -20,6 +20,7 @@ import {
 import {
   classifyDeviceHost, summarizeUserDevices, domainStatus,
 } from '@/components/devices/deviceDomainStatus';
+import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 // InkbirdBleLog moved to Admin Utilities - BLE Diag tab
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
@@ -60,6 +61,12 @@ export default function DevicesPanel({ currentUser }) {
   const [userDomainStatus, setUserDomainStatus] = useState({});
   const isAdminViewer = !!currentUser &&
     (currentUser.app_roles?.includes?.('admin') || currentUser.role === 'admin');
+
+  // Owner directive Oct 30 2026: "Set Primary" / "Remove Primary" is a DRIVER
+  // and App Owner control only — dispatchers (and store accounts) must not see
+  // it. The same rule hides the primary checkbox on the device form, otherwise
+  // the button could simply be re-created through Edit.
+  const canSetPrimary = userHasRole(currentUser, 'driver') || isAppOwner(currentUser);
 
   const viewUserId = targetUserId || currentUser?.id || null;
   const isOwnDevices = !currentUser?.id || viewUserId === currentUser.id;
@@ -559,6 +566,7 @@ export default function DevicesPanel({ currentUser }) {
         <DeviceForm
           device={editingDevice}
           existingDevices={devices}
+          canSetPrimary={canSetPrimary}
           onSubmit={handleFormSubmit}
           onCancel={() => { setShowForm(false); setEditingDevice(null); }}
         />
@@ -671,7 +679,7 @@ export default function DevicesPanel({ currentUser }) {
                           <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Copy From...</span>
                         </Button>
                       )}
-                      {device.is_primary_tracker ? (
+                      {canSetPrimary && (device.is_primary_tracker ? (
                         <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleClearPrimary(device)}>
                           <span className="truncate">Remove Primary</span>
                         </Button>
@@ -679,7 +687,7 @@ export default function DevicesPanel({ currentUser }) {
                         <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleSetPrimary(device)}>
                           <span className="truncate">Set Primary</span>
                         </Button>
-                      )}
+                      ))}
                       <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleToggleDeviceStatus(device)}>
                         <span className="truncate">{device.status === 'inactive' ? 'Enable' : 'Disable'}</span>
                       </Button>
