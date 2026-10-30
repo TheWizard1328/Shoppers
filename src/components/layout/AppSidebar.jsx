@@ -56,7 +56,7 @@ import { useAndroidAppUpdateCheck, NativeUpdateBadge } from '../utils/nativeAppU
  */
 export default function AppSidebar({
   sidebarOpen, setSidebarOpen,
-  branding, appVersion,
+  branding, appVersion, buildsAheadCount,
   currentUser, setCurrentUser,
   currentPageName,
   stores, cities, drivers, users, appUsers,
@@ -306,7 +306,15 @@ export default function AppSidebar({
           </h2>
           <p className="text-xs text-soft">Pharmacy Logistics</p>
           <div className="flex items-center gap-1">
-            <p className="text-xs text-soft">{appVersion}</p>
+            <p className="text-xs text-soft">
+              {appVersion}
+              {/* Owner-only builds-ahead counter: monotonic BUILD_NUMBER minus
+                  the last published baseline, so it survives APK bumps and the
+                  WEB_VERSION reset to 0 (owner request Oct 30 2026). */}
+              {buildsAheadCount > 0 && (
+                <span className="ml-1 font-semibold text-amber-600">(+{buildsAheadCount})</span>
+              )}
+            </p>
             {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
         </div>

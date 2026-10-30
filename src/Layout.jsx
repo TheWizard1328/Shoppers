@@ -28,6 +28,9 @@ import TestModeBanner from "./components/layout/TestModeBanner";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
+import { BUILD_NUMBER, buildsAhead, entriesSince } from './changeLog';
+import { getChangeLogStateSync, loadChangeLogState, detectPublishAndCollect } from './components/utils/changeLogState';
+import BuildUpdateDialog from './components/common/BuildUpdateDialog';
 import DispatcherLocationGate from './components/common/DispatcherLocationGate';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { filterDeleted } from './components/utils/deletedDeliveryRegistry';
@@ -297,6 +300,34 @@ export default function Layout({ children, currentPageName }) {
     if (!base) base = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
     return isPreviewEnv ? `${base} (Prev)` : base;
   })();
+
+  // ── Builds-ahead counter + publish summary (owner request Oct 30 2026) ─────
+  // Baseline = the BUILD_NUMBER that was live at the last detected publish, so
+  // (+X) stays honest across APK bumps and the WEB_VERSION reset to 0.
+  const [changeLogBaseline, setChangeLogBaseline] = useState(() => getChangeLogStateSync().baselineBuild);
+  const [buildUpdateEntries, setBuildUpdateEntries] = useState(null);
+  const isOwnerDevice = isAppOwner(currentUser);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const state = await loadChangeLogState();
+        if (!cancelled && state.baselineBuild) setChangeLogBaseline(state.baselineBuild);
+        // Publish detection is OWNER + LIVE domain only: a non-preview bundle
+        // that is ahead of the stamped baseline means this build was just
+        // published, so stamp it and show that publish's grouped summary once.
+        if (!isOwnerDevice || isPreviewEnv) return;
+        const { stamped, entries } = await detectPublishAndCollect(entriesSince);
+        if (cancelled || !stamped) return;
+        setChangeLogBaseline(BUILD_NUMBER);
+        if (entries.length > 0) setBuildUpdateEntries(entries);
+      } catch (_) { /* non-fatal — the sidebar simply shows no counter */ }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id, isOwnerDevice, isPreviewEnv]);
+
+  const buildsAheadCount = isOwnerDevice ? buildsAhead(changeLogBaseline) : 0;
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
@@ -1723,6 +1754,7 @@ export default function Layout({ children, currentPageName }) {
                   setSidebarOpen={setSidebarOpen}
                   branding={branding}
                   appVersion={sidebarVersion}
+                  buildsAheadCount={buildsAheadCount}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}
                   autoUpdatedNotice={autoUpdatedNotice}
@@ -1829,5 +1861,13 @@ export default function Layout({ children, currentPageName }) {
 
       {/* OptimizationSpinner removed — KITT bar now in DashboardView */}
       <PatientViewOverlay />
+      {/* Version update summary — owner only, once per detected publish */}
+      {buildUpdateEntries && buildUpdateEntries.length > 0 && (
+        <BuildUpdateDialog
+          entries={buildUpdateEntries}
+          versionLabel={sidebarVersion}
+          onClose={() => setBuildUpdateEntries(null)}
+        />
+      )}
     </AppErrorBoundary>);
 }
