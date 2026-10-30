@@ -16,6 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MapContainer, Polyline, CircleMarker, Tooltip, useMapEvents } from 'react-leaflet';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
+import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
 import { CachedTileLayer } from '../utils/hereTileCache';
 
 // Tiles: the app shell blocks the public OSM tile hosts, so use the same HERE
@@ -200,13 +201,44 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
   //   4. else the driver's live position.
   // One request: origin → this stop's deviation points → (live GPS when this is
   // the stop being driven to) → the stop itself.
-  const resolveOriginForStop = useCallback(async (deliveries) => {
+  // Deliveries do NOT carry coordinates — they live on the Patient / Store
+  // records — so every origin candidate is resolved through the engine's own
+  // getDeliveryCoords with the local IDB mirrors (owner report Oct 30 2026:
+  // Redraw kept failing "neither origin nor deviation points" because every
+  // candidate resolved to null).
+  const loadRouteContext = useCallback(async () => {
+    const { offlineDB } = await import('@/components/utils/offlineDatabase');
+    const safe = async (store) => {
+      try { return (await offlineDB.getAll(store)) || []; } catch (_) { return []; }
+    };
+    const [patients, stores, appUsers] = await Promise.all([
+      safe(offlineDB.STORES.PATIENTS),
+      safe(offlineDB.STORES.STORES),
+      safe(offlineDB.STORES.APP_USERS),
+    ]);
+    return {
+      patientMap: new Map((patients || []).filter(Boolean).map((p) => [p.id, p])),
+      storeMap: new Map((stores || []).filter(Boolean).map((st) => [st.id, st])),
+      driverRow: (appUsers || []).find((au) => au?.user_id === delivery?.driver_id) || null,
+    };
+  }, [delivery?.driver_id]);
+
+  const resolveOriginForStop = useCallback(async (deliveries, ctx) => {
     const order = Number(delivery?.stop_order);
     const hasOrder = Number.isFinite(order);
     const coordsOf = (d) => {
-      const lat = Number(d?.latitude ?? d?.patient_latitude);
-      const lng = Number(d?.longitude ?? d?.patient_longitude);
-      return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lon: lng } : null;
+      const direct = {
+        lat: Number(d?.latitude ?? d?.patient_latitude),
+        lon: Number(d?.longitude ?? d?.patient_longitude),
+      };
+      if (Number.isFinite(direct.lat) && Number.isFinite(direct.lon) && direct.lat !== 0) return direct;
+      try {
+        const c = getDeliveryCoords(d, ctx?.patientMap || new Map(), ctx?.storeMap || new Map());
+        if (c && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng ?? c.lon))) {
+          return { lat: Number(c.lat), lon: Number(c.lng ?? c.lon) };
+        }
+      } catch (_) { /* unresolved */ }
+      return null;
     };
     const statusOf = (d) => String(d?.status || '').toLowerCase();
     const before = (d) => !hasOrder || !Number.isFinite(Number(d?.stop_order)) || Number(d.stop_order) < order || d?.id === delivery?.id;
@@ -229,20 +261,23 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
     const predCoords = predecessor ? coordsOf(predecessor) : null;
     if (predCoords) return { origin: predCoords, source: 'previous_stop' };
 
-    if (Number.isFinite(Number(driverHome?.lat)) && Number.isFinite(Number(driverHome?.lon))) {
-      return { origin: driverHome, source: 'home' };
+    const rowHome = (ctx?.driverRow && ctx.driverRow.home_latitude != null && ctx.driverRow.home_longitude != null)
+      ? { lat: Number(ctx.driverRow.home_latitude), lon: Number(ctx.driverRow.home_longitude) }
+      : null;
+    const home = rowHome || driverHome;
+    if (home && Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lon))) {
+      return { origin: home, source: 'home' };
     }
 
-    const stopLat = Number(delivery?.latitude ?? delivery?.patient_latitude);
-    const stopLng = Number(delivery?.longitude ?? delivery?.patient_longitude);
-    const gpsLat = Number(delivery?.driver_latitude ?? NaN);
-    const gpsLng = Number(delivery?.driver_longitude ?? NaN);
-    if (Number.isFinite(gpsLat) && Number.isFinite(gpsLng) && Number.isFinite(stopLat) && Number.isFinite(stopLng)) {
-      const far = Math.hypot(gpsLat - stopLat, gpsLng - stopLng) > 0.002;
+    const stopCoords = coordsOf(delivery);
+    const gpsLat = Number(ctx?.driverRow?.current_latitude ?? NaN);
+    const gpsLng = Number(ctx?.driverRow?.current_longitude ?? NaN);
+    if (Number.isFinite(gpsLat) && Number.isFinite(gpsLng) && stopCoords) {
+      const far = Math.hypot(gpsLat - stopCoords.lat, gpsLng - stopCoords.lon) > 0.002;
       if (far) return { origin: { lat: gpsLat, lon: gpsLng }, source: 'live_gps' };
     }
     return { origin: null, source: 'none' };
-  }, [delivery?.id, delivery?.stop_order, delivery?.latitude, delivery?.patient_latitude, driverHome]);
+  }, [delivery, driverHome]);
 
   const redrawRoute = useCallback(async () => {
     const { generateRoutePolylines } = await import('@/components/utils/routePolylineGenerator');
@@ -259,13 +294,15 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
       })) || [];
     }
 
-    const { origin, source: originSource } = await resolveOriginForStop(deliveries);
+    const ctx = await loadRouteContext();
+    const { origin, source: originSource } = await resolveOriginForStop(deliveries, ctx);
     if (!origin) return { success: false, error: 'no usable origin (no finished stop, predecessor, home or GPS)' };
 
-    const stopLat = Number(delivery.latitude ?? delivery.patient_latitude);
-    const stopLng = Number(delivery.longitude ?? delivery.patient_longitude);
+    const stopResolved = getDeliveryCoords(delivery, ctx.patientMap, ctx.storeMap);
+    const stopLat = Number(stopResolved?.lat);
+    const stopLng = Number(stopResolved?.lng ?? stopResolved?.lon);
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLng)) {
-      return { success: false, error: 'this stop has no coordinates' };
+      return { success: false, error: 'this stop has no resolvable coordinates (patient/store record missing)' };
     }
     if (Math.hypot(origin.lat - stopLat, origin.lon - stopLng) < 0.0009) {
       return { success: false, error: `origin (${originSource}) is on the stop itself — nothing to draw` };
