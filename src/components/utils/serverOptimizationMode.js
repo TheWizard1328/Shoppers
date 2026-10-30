@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { inheritPickupWindows as sharedInheritPickupWindows } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 import { getAppSettingRows, refreshAppSetting } from './appSettingsCache';
 import { isAppOwner } from './userRoles';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
@@ -435,6 +436,18 @@ export const buildServerOptimizeRequest = async ({
       home,
       startOrder,
       stops,
+      // Route preference parity (owner directive Oct 30 2026): the server
+      // sequences with the SAME Fastest / Shortest / Best search the client
+      // uses. Passed explicitly so a server run can never differ from a client
+      // run for the same route; the server also has an AppSettings fallback.
+      routePrefs: (() => {
+        try {
+          const prefs = getPolylineRoutePrefs();
+          return { routePreference: prefs?.routePreference || 'fastest', trafficAware: prefs?.trafficAware === true };
+        } catch (_) {
+          return { routePreference: 'fastest', trafficAware: false };
+        }
+      })(),
       options: {
         ...(viaPoint ? { viaPoint } : {}),
         preserveExistingOrder,

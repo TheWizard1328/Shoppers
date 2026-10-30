@@ -10,6 +10,22 @@
 // RULE: every sequencing/window/polyline-eligibility/dwell rule lives HERE and
 // ONLY here. Engines pass shape adapters (plain accessors) — they must never
 // re-implement a rule. If you change route behavior, you change this file.
+//
+// PARITY CHECKLIST (owner directive Oct 30 2026: "any changes that I make to the
+// route optimizer should be mirrored both client and server side ... eventually
+// we would be getting rid of the client side"). Before shipping ANY optimizer
+// change, confirm BOTH engines pick it up:
+//   1. Sequencing inputs      → resolveSequenceSearch() here (client v13 had its
+//                              own copy; that is exactly how the order drifted)
+//   2. Window bands / 2h sort → windowBandSort / windowBandOfStop here
+//   3. ISP-before-ISD, pickup-before-pending → enforceIspBeforeIsd /
+//                              enforcePickupBeforePendingDeliveries here
+//   4. Dwell + same-address   → dwellMinutesForStop / isSameAddressAnchor here
+//   5. Polyline eligibility   → isPolylineEligibleStop here
+//   6. ETA ladder             → client calculateRealTimeETA chain, mirrored in
+//                              entry.ts; window floors + dwell caps must match
+// If a rule cannot live here (HERE/Google request shape), keep the mapping in a
+// resolver function in THIS file and call it from both engines.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // 2-hour chronology bands (owner rule Oct 5 2026)
@@ -20,6 +36,33 @@ export const SAME_ADDRESS_TRAVEL_MINUTES = 2;
 export const PICKUP_DWELL_MINUTES = 15;
 export const DELIVERY_DWELL_MINUTES = 5;
 export const SAME_ADDRESS_KM = 0.05;
+
+// ─── Route preference → HERE sequence search (OWNER DIRECTIVE Oct 30 2026) ───
+// "Any changes that I make to the route optimizer should be mirrored both client
+// and server side." The Fastest / Shortest / Best preference used to be applied
+// by each engine on its own (the client in v13, the server not at all) — exactly
+// the drift this file exists to prevent. BOTH engines now call this one helper:
+//   fastest  → mode=fastest,  improveFor=time      (quickest total drive)
+//   shortest → mode=shortest, improveFor=distance   (fewest total km)
+//   best     → mode=fastest,  improveFor=quality    (HERE's balanced pick)
+// Traffic awareness adds HERE's traffic flag to the FASTEST modes only: HERE's
+// shortest mode has no traffic weighting, so it is omitted there rather than
+// silently degrading the request.
+export const ROUTE_PREFERENCE_VALUES = ['fastest', 'shortest', 'best'];
+
+export function resolveSequenceSearch({ routePreference, trafficAware, transportMode = 'car' } = {}) {
+  const pref = ROUTE_PREFERENCE_VALUES.includes(routePreference) ? routePreference : 'fastest';
+  const traffic = trafficAware === true;
+  if (pref === 'shortest') {
+    return { preference: pref, traffic: false, mode: `shortest;${transportMode}`, improveFor: 'distance' };
+  }
+  return {
+    preference: pref,
+    traffic,
+    mode: `fastest;${transportMode};traffic:${traffic ? 'enabled' : 'disabled'}`,
+    improveFor: pref === 'best' ? 'quality' : 'time',
+  };
+}
 
 // Missing/invalid time → Infinity (both engines' canonical semantics).
 export function parseTimeToMinutes(timeStr) {

@@ -37,6 +37,7 @@ import {
   dwellMinutesForStop as sharedDwellMinutes,
   isSameAddressAnchor as sharedIsSameAddress,
   SAME_ADDRESS_TRAVEL_MINUTES as SHARED_SAME_ADDRESS_MINUTES,
+  resolveSequenceSearch,
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -191,12 +192,23 @@ const decodeHereFlexiblePolyline = (encoded) => {
 };
 
 // ─── HERE findsequence2 (ported from callHereSequence) ───────────────────────
-async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows }) {
+async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null }) {
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
   params.set('departure', buildLocalIso(deliveryDate, formatMinutesToTime(currentMinutes)));
-  params.set('mode', `fastest;${mode};traffic:disabled`);
-  params.set('improveFor', 'time');
+  // FULL PARITY with the client engine (owner directive Oct 30 2026: "any
+  // changes that I make to the route optimizer should be mirrored both client
+  // and server side"). The Fastest / Shortest / Best preference now decides the
+  // SEQUENCE SEARCH here too, through the same shared resolver — previously the
+  // server hardcoded fastest + improveFor=time, so server runs produced a
+  // different stop ORDER than the client for the same route.
+  const _search = resolveSequenceSearch({
+    routePreference: routePrefs?.routePreference,
+    trafficAware: routePrefs?.trafficAware,
+    transportMode: mode,
+  });
+  params.set('mode', _search.mode);
+  params.set('improveFor', _search.improveFor);
   params.set('start', `driverStart;${origin.lat},${origin.lng}`);
   if (destination && Number.isFinite(destination.lat) && Number.isFinite(destination.lng)) {
     // Explicit destination anchor (mixed-mode: the cycling END marker is the
@@ -465,6 +477,34 @@ Deno.serve(async (req) => {
     const mixedMode = !!_endMarker;
 
     const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false, forceRegenerate = false, viaPoint = null, polylineOrigin = null } = options;
+
+    // ── Route preference (Fastest / Shortest / Best + traffic) ────────────────
+    // OWNER DIRECTIVE (Oct 30 2026): "any changes that I make to the route
+    // optimizer should be mirrored both client and server side." The client
+    // passes the values it already resolved (polylineRoutePrefs) so a server run
+    // sequences EXACTLY like the client would. When they are absent (an older
+    // client, or the eventual client-less future the owner is aiming for) the
+    // shared AppSettings 'route_optimization' record is read here, so the search
+    // still honours the owner's setting instead of silently defaulting to
+    // fastest/time. Any read failure leaves it null → shared default (fastest).
+    let routePrefs = (payload?.routePrefs && typeof payload.routePrefs === 'object')
+      ? {
+          routePreference: payload.routePrefs.routePreference,
+          trafficAware: payload.routePrefs.trafficAware === true,
+        }
+      : null;
+    if (!routePrefs) {
+      try {
+        const sRows = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' });
+        const sVal = sRows?.[0]?.setting_value;
+        if (sVal && typeof sVal === 'object') {
+          routePrefs = {
+            routePreference: sVal.polylineRoutePreference,
+            trafficAware: sVal.polylineTrafficAware === true,
+          };
+        }
+      } catch (_) { /* keep null → shared defaults */ }
+    }
     // CLIENT PARITY (owner reports Oct 26 2026): the SEQUENCING anchor
     // (origin — locked next stop, Oct 21 calibration) and the POLYLINE
     // anchor are DIFFERENT points on the client: polylineOrigin =
@@ -584,7 +624,7 @@ Deno.serve(async (req) => {
         try {
           const seqResult = await callHereSequence({
             origin, stops: cyclingPool, destination: { lat: _endMarker.lat, lng: _endMarker.lng },
-            mode: 'bicycle', apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+            mode: 'bicycle', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs,
           });
           orderedCycling = resolveSequence(seqResult, cyclingPool);
           hereCalls++;
@@ -598,7 +638,7 @@ Deno.serve(async (req) => {
         try {
           const seqResult = await callHereSequence({
             origin: { lat: _endMarker.lat, lng: _endMarker.lng }, stops: drivingPool, home,
-            mode: 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+            mode: 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs,
           });
           orderedDriving = resolveSequence(seqResult, drivingPool);
           hereCalls++;
@@ -634,7 +674,7 @@ Deno.serve(async (req) => {
           orderedStops = _lockedStop ? [_lockedStop] : [];
         } else {
           const seqResult = await callHereSequence({
-            origin, stops: _seqPool, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows,
+            origin, stops: _seqPool, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs,
           });
           orderedStops = _lockedStop ? [_lockedStop, ...resolveSequence(seqResult, _seqPool)] : resolveSequence(seqResult, _seqPool);
         }

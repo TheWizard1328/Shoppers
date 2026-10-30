@@ -12,6 +12,7 @@ import {
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   dwellMinutesForStop as sharedDwellMinutes,
+  resolveSequenceSearch,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
 import { base44 } from '@/api/base44Client';
@@ -229,18 +230,18 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   // Traffic awareness still only adds the traffic flag to the FASTEST modes —
   // HERE's shortest mode does not support traffic weighting, so it is omitted
   // there rather than silently degrading the request.
+  // The mapping itself lives in the SHARED rule base so the server engine can
+  // never drift from it (owner directive Oct 30 2026).
   const _prefs = getPolylineRoutePrefs();
-  const _pref = _prefs?.routePreference === 'shortest'
-    ? 'shortest'
-    : (_prefs?.routePreference === 'best' ? 'best' : 'fastest');
-  const _traffic = _prefs?.trafficAware === true;
-  if (_pref === 'shortest') {
-    params.set('mode', `shortest;${hereTransportMode}`);
-    params.set('improveFor', 'distance');
-  } else {
-    params.set('mode', `fastest;${hereTransportMode};traffic:${_traffic ? 'enabled' : 'disabled'}`);
-    params.set('improveFor', _pref === 'best' ? 'quality' : 'time');
-  }
+  const _search = resolveSequenceSearch({
+    routePreference: _prefs?.routePreference,
+    trafficAware: _prefs?.trafficAware,
+    transportMode: hereTransportMode,
+  });
+  const _pref = _search.preference;
+  const _traffic = _search.traffic;
+  params.set('mode', _search.mode);
+  params.set('improveFor', _search.improveFor);
   params.set('start', `driverStart;${sequenceStart.lat},${sequenceStart.lng}`);
   if (resolvedHomePosition) {
     params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
