@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Smartphone, Tablet, Monitor, CheckCircle, Trash2, Edit2,
-  Plus, MapPin, ShieldCheck,
+  Plus, MapPin, ShieldCheck, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getLocationProvider } from '@/components/utils/locationProviders';
@@ -35,6 +35,8 @@ export default function DevicesPanel({ currentUser }) {
   // auth user id, and AppUser.user_id carries the same value.
   const [targetUserId, setTargetUserId] = useState(null);
   const [users, setUsers] = useState([]);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isAdminViewer = !!currentUser &&
     (currentUser.app_roles?.includes?.('admin') || currentUser.role === 'admin');
 
@@ -45,6 +47,34 @@ export default function DevicesPanel({ currentUser }) {
     ? (viewUser.user_name || viewUser.full_name || viewUser.ETrans_Email || 'this user')
     : null;
   const devicesCacheKey = viewUserId ? `rxdeliver_devices_${viewUserId}` : null;
+
+  // ── Data layer (owner report Oct 29 2026) ────────────────────────────────────
+  // The UserDevice entity is RLS-scoped to created_by === {{user.email}}, so a
+  // plain client read as an admin returns ONLY the rows that admin created —
+  // which is why another user's device list came back empty. Viewing someone
+  // else's devices therefore goes through the admin-only userDevicesAdmin
+  // backend function (service role after an explicit app_roles check). Your own
+  // devices keep the direct entity path they always had.
+  const callAdminDevices = async (payload) => {
+    const res = await base44.functions.invoke('userDevicesAdmin', payload);
+    const data = res?.data ?? res;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+  const updateDeviceRecord = async (id, updates) => {
+    if (isOwnDevices) return base44.entities.UserDevice.update(id, updates);
+    const res = await callAdminDevices({ action: 'update', id, updates });
+    return res?.device || null;
+  };
+  const deleteDeviceRecord = async (id) => {
+    if (isOwnDevices) return base44.entities.UserDevice.delete(id);
+    return callAdminDevices({ action: 'delete', id });
+  };
+  const createDeviceRecord = async (record) => {
+    if (isOwnDevices) return base44.entities.UserDevice.create(record);
+    const res = await callAdminDevices({ action: 'create', record });
+    return res?.device || null;
+  };
 
   const locationProvider = getLocationProvider();
   const isNativeBackgroundTrackingAvailable =
@@ -58,9 +88,16 @@ export default function DevicesPanel({ currentUser }) {
       try {
         const list = await base44.entities.AppUser.list('user_name', 200);
         if (cancelled) return;
+        // Same ordering as the rest of the app's user lists: AppUser.sort_order
+        // ascending (unset sorts last), name as a stable tie-break.
         setUsers((list || [])
           .filter((u) => u?.user_id)
-          .sort((a, b) => String(a.user_name || a.full_name || '').localeCompare(String(b.user_name || b.full_name || ''))));
+          .sort((a, b) => {
+            const ao = typeof a.sort_order === 'number' && Number.isFinite(a.sort_order) ? a.sort_order : Infinity;
+            const bo = typeof b.sort_order === 'number' && Number.isFinite(b.sort_order) ? b.sort_order : Infinity;
+            if (ao !== bo) return ao - bo;
+            return String(a.user_name || a.full_name || '').localeCompare(String(b.user_name || b.full_name || ''));
+          }));
       } catch { /* picker stays limited to "me" */ }
     })();
     return () => { cancelled = true; };
@@ -83,7 +120,9 @@ export default function DevicesPanel({ currentUser }) {
         }
       } catch {}
       try {
-        const list = await base44.entities.UserDevice.filter({ user_id: viewUserId });
+        const list = isOwnDevices
+          ? await base44.entities.UserDevice.filter({ user_id: viewUserId })
+          : ((await callAdminDevices({ action: 'list', userId: viewUserId }))?.devices || []);
         if (cancelled) return;
         setDevices(list || []);
         localStorage.setItem(cacheKey, JSON.stringify(list || []));
@@ -102,7 +141,7 @@ export default function DevicesPanel({ currentUser }) {
           const own = (list || []).find((d) => d.device_identifier === storedId);
           if (own?.id && host && own.device_info?.host !== host) {
             const deviceInfo = { ...(own.device_info || {}), host };
-            base44.entities.UserDevice.update(own.id, { device_info: deviceInfo }).then(() => {
+            updateDeviceRecord(own.id, { device_info: deviceInfo }).then(() => {
               setDevices((prev) => prev.map((d) => d.id === own.id ? { ...d, device_info: deviceInfo } : d));
             }).catch(() => {});
           }
@@ -111,12 +150,12 @@ export default function DevicesPanel({ currentUser }) {
     };
     load();
     return () => { cancelled = true; };
-  }, [viewUserId]);
+  }, [viewUserId, refreshTick]);
 
   const handleDeleteDevice = async (device) => {
     if (!confirm(`Delete "${device.device_name}"?`)) return;
     try {
-      await base44.entities.UserDevice.delete(device.id);
+      await deleteDeviceRecord(device.id);
       setDevices((prev) => {
         const u = prev.filter((d) => d.id !== device.id);
         if (devicesCacheKey) localStorage.setItem(devicesCacheKey, JSON.stringify(u));
@@ -131,9 +170,9 @@ export default function DevicesPanel({ currentUser }) {
     try {
       await Promise.all(
         devices.filter((d) => d.is_primary_tracker && d.id !== device.id)
-          .map((d) => base44.entities.UserDevice.update(d.id, { is_primary_tracker: false }))
+          .map((d) => updateDeviceRecord(d.id, { is_primary_tracker: false }))
       );
-      await base44.entities.UserDevice.update(device.id, { is_primary_tracker: true, status: 'active' });
+      await updateDeviceRecord(device.id, { is_primary_tracker: true, status: 'active' });
       setDevices((prev) => prev.map((d) => ({
         ...d,
         is_primary_tracker: d.id === device.id,
@@ -145,7 +184,7 @@ export default function DevicesPanel({ currentUser }) {
 
   const handleClearPrimary = async (device) => {
     try {
-      await base44.entities.UserDevice.update(device.id, { is_primary_tracker: false });
+      await updateDeviceRecord(device.id, { is_primary_tracker: false });
       setDevices((prev) => prev.map((d) => d.id === device.id ? { ...d, is_primary_tracker: false } : d));
       toast.success('Primary tracker removed');
     } catch { toast.error('Failed to remove primary tracker'); }
@@ -155,7 +194,7 @@ export default function DevicesPanel({ currentUser }) {
     const nextStatus = device.status === 'inactive' ? 'active' : 'inactive';
     const updates = { status: nextStatus, ...(nextStatus === 'inactive' ? { is_primary_tracker: false } : {}) };
     try {
-      await base44.entities.UserDevice.update(device.id, updates);
+      await updateDeviceRecord(device.id, updates);
       setDevices((prev) => prev.map((d) => d.id === device.id ? { ...d, ...updates } : d));
       if (device.id === currentDeviceId && nextStatus === 'inactive') {
         localStorage.removeItem(DEVICE_ID_KEY); setCurrentDeviceId(null);
@@ -172,7 +211,7 @@ export default function DevicesPanel({ currentUser }) {
         toast.error('Device name cannot be empty'); return;
       }
       const updates = { ...pending, ...(pending.status === 'inactive' ? { is_primary_tracker: false } : {}) };
-      await base44.entities.UserDevice.update(device.id, updates);
+      await updateDeviceRecord(device.id, updates);
       setDevices((prev) => prev.map((d) => d.id === device.id ? { ...d, ...updates } : d));
       if (device.id === currentDeviceId && updates.status === 'inactive') {
         localStorage.removeItem(DEVICE_ID_KEY); setCurrentDeviceId(null);
@@ -193,7 +232,7 @@ export default function DevicesPanel({ currentUser }) {
         device_type: sourceDevice.device_info?.device_type,
         device_info: sourceDevice.device_info,
       };
-      await base44.entities.UserDevice.update(currentDeviceId, updates);
+      await updateDeviceRecord(currentDeviceId, updates);
       setDevices((prev) => prev.map((d) => d.id === currentDeviceId ? { ...d, ...updates } : d));
       setShowChangeSettings(false);
       toast.success(`Applied settings from ${sourceDevice.device_name}`);
@@ -204,7 +243,7 @@ export default function DevicesPanel({ currentUser }) {
     try {
       localStorage.setItem(DEVICE_ID_KEY, device.device_identifier);
       localStorage.setItem(`rxdeliver_device_registered_${device.device_identifier}`, 'true');
-      await base44.entities.UserDevice.update(device.id, { last_active_at: new Date().toISOString() });
+      await updateDeviceRecord(device.id, { last_active_at: new Date().toISOString() });
       setCurrentDeviceId(device.id);
       toast.success(`Now using ${device.device_name}`);
       window.location.reload();
@@ -227,13 +266,13 @@ export default function DevicesPanel({ currentUser }) {
         const othersToDemote = devices.filter((d) => d.is_primary_tracker && d.id !== deviceId);
         if (othersToDemote.length > 0) {
           await Promise.all(
-            othersToDemote.map((d) => base44.entities.UserDevice.update(d.id, { is_primary_tracker: false }))
+            othersToDemote.map((d) => updateDeviceRecord(d.id, { is_primary_tracker: false }))
           );
         }
       }
 
       if (deviceId) {
-        await base44.entities.UserDevice.update(deviceId, cleanDeviceData);
+        await updateDeviceRecord(deviceId, cleanDeviceData);
         setDevices((prev) => prev.map((d) => {
           if (d.id === deviceId) return { ...d, ...cleanDeviceData };
           if (unset_other_primary && d.is_primary_tracker) return { ...d, is_primary_tracker: false };
@@ -241,7 +280,7 @@ export default function DevicesPanel({ currentUser }) {
         }));
         toast.success('Device updated');
       } else {
-        const newDevice = await base44.entities.UserDevice.create({
+        const newDevice = await createDeviceRecord({
           ...cleanDeviceData,
           // Admin managing someone else's devices → the record belongs to THEM.
           user_id: viewUserId,
@@ -296,11 +335,12 @@ export default function DevicesPanel({ currentUser }) {
 
   return (
     <div className="space-y-4">
-      {/* Admin: manage someone else's devices (owner request Oct 29 2026) */}
-      {isAdminViewer && (
-        <div className="rounded-xl border p-2.5 space-y-1.5 bg-surface border-surface">
-          <label className="text-xs font-medium block text-soft">View devices for</label>
+      {/* Toolbar: user picker (admin only) + Add Device + Refresh share one row
+          (owner request Oct 29 2026 — the picker no longer spans the panel). */}
+      <div className="flex items-center gap-2">
+        {isAdminViewer && (
           <select
+            aria-label="View devices for"
             value={viewUserId || ''}
             onChange={(e) => {
               const next = e.target.value === currentUser?.id ? null : e.target.value;
@@ -310,7 +350,7 @@ export default function DevicesPanel({ currentUser }) {
               setShowForm(false);
               setEditingDevice(null);
             }}
-            className="w-full px-2 py-1.5 rounded text-sm border bg-surface border-surface text-body"
+            className="flex-1 min-w-0 px-2 py-1.5 rounded text-sm border bg-surface border-surface text-body"
           >
             <option value={currentUser?.id || ''}>Me{currentUser?.user_name ? ` (${currentUser.user_name})` : ''}</option>
             {users
@@ -322,18 +362,28 @@ export default function DevicesPanel({ currentUser }) {
                 </option>
               ))}
           </select>
-          {!isOwnDevices && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400">
-              Showing {viewUserName}'s devices. Edits, primary flags, disables and deletes apply to their account.
-            </p>
-          )}
-        </div>
-      )}
+        )}
+        <Button size="sm" className={`gap-2 shrink-0 ${isAdminViewer ? '' : 'flex-1'}`} onClick={() => { setEditingDevice(null); setShowForm(true); }}>
+          <Plus className="w-4 h-4" /> Add Device{!isOwnDevices ? ` for ${viewUserName}` : ''}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2 shrink-0"
+          title="Refresh devices"
+          aria-label="Refresh devices"
+          disabled={isRefreshing}
+          onClick={() => { setIsRefreshing(true); setRefreshTick((t) => t + 1); setTimeout(() => setIsRefreshing(false), 1200); }}
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
 
-      {/* Add Device button */}
-      <Button size="sm" className="gap-2 w-full" onClick={() => { setEditingDevice(null); setShowForm(true); }}>
-        <Plus className="w-4 h-4" /> Add Device{!isOwnDevices ? ` for ${viewUserName}` : ''}
-      </Button>
+      {!isOwnDevices && (
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">
+          Showing {viewUserName}'s devices. Edits, primary flags, disables and deletes apply to their account.
+        </p>
+      )}
 
       {/* Background GPS */}
       {isNativeBackgroundTrackingAvailable && (
@@ -394,7 +444,7 @@ export default function DevicesPanel({ currentUser }) {
                   </div>
                 </div>
                 {device.is_primary_tracker && (
-                  <Badge className="bg-green-100 text-green-800 gap-1 text-xs">
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200 dark:border dark:border-green-700/60 gap-1 text-xs">
                     <CheckCircle className="w-3 h-3" /> Primary
                   </Badge>
                 )}
