@@ -2,7 +2,7 @@
  * DevicesPanel — shared device management UI.
  * Used by both pages/DeviceSettings (fullscreen) and pages/Settings (dialog).
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,9 @@ export default function DevicesPanel({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [refreshTick, setRefreshTick] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const loadedUserRef = useRef(null);
+  const lastSignatureRef = useRef('');
+  const hostStampAttemptedRef = useRef('');
   const isAdminViewer = !!currentUser &&
     (currentUser.app_roles?.includes?.('admin') || currentUser.role === 'admin');
 
@@ -112,67 +115,100 @@ export default function DevicesPanel({ currentUser }) {
     return () => { cancelled = true; };
   }, [isAdminViewer]);
 
-  // Live updates (owner request Oct 29 2026): any UserDevice change for the
-  // viewed user re-runs the load — new registrations, domain stamps, primary
-  // flags, disables and deletes appear without reopening the panel.
+  // Live updates (owner request Oct 29 2026) — FLICKER FIX (owner report
+  // Oct 29 2026, 23:11): the first version bumped a refresh tick, which re-ran
+  // the whole load — spinner on, list cleared, refetched — so every WS event
+  // blanked and rebuilt the panel. Now an event is PATCHED straight into the
+  // list: one record replaced/inserted/removed, no fetch, no spinner, and a
+  // no-op event (e.g. a last_active_at heartbeat that changed nothing visible)
+  // returns the previous array so React skips the render entirely.
   useEffect(() => {
     if (!viewUserId) return undefined;
     let unsubscribe = null;
-    let timer = null;
-    const bump = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setRefreshTick((t) => t + 1), 700);
-    };
     try {
       unsubscribe = base44.entities.UserDevice.subscribe((event) => {
-        const row = event?.data || event;
-        const rowUserId = row?.user_id;
-        if (!rowUserId || String(rowUserId) === String(viewUserId)) bump();
+        const type = event?.type;
+        const row = event?.data;
+        if (!row?.id) return;
+        if (row.user_id && String(row.user_id) !== String(viewUserId)) return;
+        setDevices((prev) => {
+          const idx = prev.findIndex((d) => d.id === row.id);
+          if (type === 'delete') return idx < 0 ? prev : prev.filter((d) => d.id !== row.id);
+          if (idx < 0) return [row, ...prev];
+          const merged = { ...prev[idx], ...row };
+          const before = prev[idx];
+          const unchanged =
+            merged.device_name === before.device_name &&
+            merged.status === before.status &&
+            merged.is_primary_tracker === before.is_primary_tracker &&
+            merged.device_info?.host === before.device_info?.host &&
+            merged.device_info?.device_type === before.device_info?.device_type &&
+            merged.last_active_minute_key === before.last_active_minute_key;
+          // last_active_at alone still updates the "last active" label, so it is
+          // compared at minute granularity instead of being ignored outright.
+          const minuteKey = String(merged.last_active_at || '').slice(0, 16);
+          if (unchanged && minuteKey === String(before.last_active_at || '').slice(0, 16)) return prev;
+          const next = prev.slice();
+          next[idx] = merged;
+          return next;
+        });
       });
     } catch (_) { /* WS unavailable → manual Refresh still works */ }
-    return () => {
-      if (timer) clearTimeout(timer);
-      try { unsubscribe?.(); } catch (_) {}
-    };
+    return () => { try { unsubscribe?.(); } catch (_) {} };
   }, [viewUserId]);
 
   useEffect(() => {
-    if (!viewUserId) return;
+    if (!viewUserId) return undefined;
     const cacheKey = `rxdeliver_devices_${viewUserId}`;
     let cancelled = false;
+    // Fresh user switch → blank slate + spinner. Same user (manual Refresh) →
+    // quiet in-place refresh: keep the list on screen the whole time.
+    const isFreshView = loadedUserRef.current !== viewUserId;
 
     const load = async () => {
-      setIsLoading(true);
-      setDevices([]);            // never show the previous user's devices
-      setCurrentDeviceId(null);
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const c = JSON.parse(cached);
-          if (Array.isArray(c) && c.length) setDevices(c);
-        }
-      } catch {}
+      if (isFreshView) {
+        setIsLoading(true);
+        setDevices([]);            // never show the previous user's devices
+        setCurrentDeviceId(null);
+        try {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            const c = JSON.parse(cached);
+            if (Array.isArray(c) && c.length) setDevices(c);
+          }
+        } catch {}
+      }
       try {
         const list = isOwnDevices
           ? await base44.entities.UserDevice.filter({ user_id: viewUserId })
           : ((await callAdminDevices({ action: 'list', userId: viewUserId }))?.devices || []);
         if (cancelled) return;
-        setDevices(list || []);
-        localStorage.setItem(cacheKey, JSON.stringify(list || []));
+        const next = list || [];
+        // Only replace state when something actually changed — identical data
+        // must not re-render the panel.
+        const sig = next
+          .map((d) => [d.id, d.device_name, d.status, d.is_primary_tracker, d.last_active_at, d.device_info?.host, d.device_info?.device_type, d.device_identifier].join('|'))
+          .sort()
+          .join('~');
+        setDevices((prev) => (prev.length === next.length && sig === lastSignatureRef.current ? prev : next));
+        lastSignatureRef.current = sig;
+        try { localStorage.setItem(cacheKey, JSON.stringify(next)); } catch (_) {}
         // Own devices: the "Current" badge + Use Here depend on the local id.
         const storedId = localStorage.getItem(DEVICE_ID_KEY);
         if (storedId) {
-          const cur = (list || []).find((d) => d.device_identifier === storedId);
+          const cur = next.find((d) => d.device_identifier === storedId);
           if (cur) setCurrentDeviceId(cur.id);
         }
         // Domain self-stamp: if THIS device's record has no host yet, write it
-        // now instead of waiting for the 5-minute up-sync, so the panel shows
-        // the domain immediately.
+        // now instead of waiting for the 5-minute up-sync. Attempted at most
+        // once per device+host per panel session so it can never loop.
         if (storedId) {
           let host = null;
           try { host = window.location.hostname || null; } catch (_) {}
-          const own = (list || []).find((d) => d.device_identifier === storedId);
-          if (own?.id && host && own.device_info?.host !== host) {
+          const own = next.find((d) => d.device_identifier === storedId);
+          const stampKey = `${storedId}:${host}`;
+          if (own?.id && host && own.device_info?.host !== host && hostStampAttemptedRef.current !== stampKey) {
+            hostStampAttemptedRef.current = stampKey;
             // Backend stamp: works even when the device's record was created by
             // another account (RLS would silently reject a direct update).
             base44.functions.invoke('stampDeviceHost', { deviceIdentifier: storedId, host }).then(() => {
@@ -182,7 +218,8 @@ export default function DevicesPanel({ currentUser }) {
             }).catch(() => {});
           }
         }
-      } catch { toast.error('Failed to load devices'); } finally { if (!cancelled) setIsLoading(false); }
+      } catch { if (isFreshView) toast.error('Failed to load devices'); }
+      finally { if (!cancelled) setIsLoading(false); loadedUserRef.current = viewUserId; }
     };
     load();
     return () => { cancelled = true; };
