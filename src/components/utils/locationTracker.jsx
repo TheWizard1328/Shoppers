@@ -2351,6 +2351,19 @@ class LocationTracker {
   async _forceCloseApp(message) {
     try { remoteLogger.warn('[IDLE_KILL] FORCE_CLOSE | ' + message); } catch (_) {}
 
+    // NEVER self-close inside the Base44 editor preview (owner report, Oct 29
+    // 2026): on the Android APK the preview runs inside the Base44 app itself,
+    // so App.exitApp() closed the editor and the Preview tab reported
+    // "Preview unavailable". Battery saving only applies to real installs.
+    try {
+      const { isEditorPreview } = await import('@/lib/utils');
+      if (isEditorPreview) {
+        try { remoteLogger.warn('[IDLE_KILL] SKIPPED | editor preview host — not exiting'); } catch (_) {}
+        return;
+      }
+    } catch (_) {}
+
+
     this._stopIdleKillTimer();
     this._teardownWebOnlyVisibilityHandler();
     this._clearHeartbeat();

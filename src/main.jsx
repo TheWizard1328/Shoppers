@@ -4,6 +4,7 @@ import App from '@/App.jsx'
 import '@/index.css'
 import '@/components/utils/suppressResizeObserverWarning'
 import { startAuthTokenBridge } from '@/lib/authTokenBridge'
+import { isEditorPreview } from '@/lib/utils'
 
 // ── Global rate-limit flag broadcaster ──────────────────────────────────────
 // The Base44 SDK logs "[Base44 SDK Error] ... Rate limit exceeded" via
@@ -121,7 +122,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   // </React.StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
+// Editor-preview guard (owner report, Oct 29 2026): never register the app's
+// service worker on a Base44 preview/sandbox host. The preview rebuilds on every
+// push and prunes the old hashed chunks, so a preview SW plus a stale index is a
+// guaranteed 404 on the next lazy import. Push notifications and tile caching are
+// production/native concerns only.
+if ('serviceWorker' in navigator && !isEditorPreview) {
   window.__hereTileSwMessageQueue = window.__hereTileSwMessageQueue || [];
 
   navigator.serviceWorker.addEventListener('message', (event) => {
