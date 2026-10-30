@@ -330,6 +330,28 @@ async function _regenCurrentLegPolylineInner({
     ...(Number.isFinite(seg.estimatedDistanceKm) ? { travel_dist: seg.estimatedDistanceKm } : {}),
   };
 
+  // ── NO-OP GUARD (owner directive Oct 30 2026: 'it shouldn't need to redraw it
+  // if it hasn't changed') ────────────────────────────────────────────────────
+  // Every live-GPS marker update re-ran a regen, and each regen wrote the stop
+  // even when the produced leg was byte-identical to what was already stored
+  // (same Router result, same waypoints, same ETA) — a Delivery write plus a WS
+  // broadcast per GPS tick for no change at all. If nothing about the leg
+  // actually moved, skip the whole commit.
+  const _prevPolyline = nextStop.encoded_polyline || '';
+  const _prevWaypoints = JSON.stringify(nextStop.deviation_waypoints || []);
+  const _nextWaypoints = JSON.stringify(updateData.deviation_waypoints || []);
+  const _prevOrder = nextStop.polyline_from_order == null ? null : Number(nextStop.polyline_from_order);
+  const _sameEta = String(nextStop.delivery_time_eta || '') === String(newEta || '');
+  if (
+    _prevPolyline &&
+    _prevPolyline === updateData.encoded_polyline &&
+    _prevWaypoints === _nextWaypoints &&
+    _prevOrder === Number(updateData.polyline_from_order) &&
+    _sameEta
+  ) {
+    return { success: true, unchanged: true, updatedDelivery: nextStop, updateData, originSource, usedVia: !!via };
+  }
+
   console.log(`[currentLegRegenerator] leg regenerated: origin=${originSource}${via ? ' →GPS' : ''} → stop ${nextStop.stop_order}, dist=${seg.estimatedDistanceKm ?? 'n/a'}km, dur=${seg.estimatedDurationMinutes ?? 'n/a'}min, eta=${newEta}`);
 
   // ── Commit: entityMutations.updateDelivery = optimistic UI + IDB + user-scoped
