@@ -34,7 +34,7 @@ export const formatDeviceHost = (host) => {
   return h;
 };
 
-export default function DevicesPanel({ currentUser }) {
+export default function DevicesPanel({ currentUser, onColumnCountChange }) {
   const [devices, setDevices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -435,6 +435,53 @@ export default function DevicesPanel({ currentUser }) {
     return <Smartphone className="w-5 h-5" />;
   };
 
+  // ── Card columns (owner request Oct 30 2026) ────────────────────────────────
+  // The dialog width follows how many cards actually fit on one row: one card
+  // gives a single-card panel, three cards fill a triple-width panel. Columns
+  // are capped by the main content area (viewport minus the live sidebar) and by
+  // how many cards this user has, then reported up to Settings via
+  // onColumnCountChange so the dialog can size itself.
+  const CARD_MIN_PX = 352;        // 22rem — narrowest a card may get
+  const CARD_TARGET_PX = 400;     // 25rem — card width the panel aims for
+  const SINGLE_COLUMN_PANEL_PX = 560; // 35rem — same as the one-card panel before
+  const layoutRef = useRef({ columns: 1, widthPx: 576 });
+  const GRID_GAP_PX = 12;    // gap-3
+  const [columns, setColumns] = useState(1);
+
+  useEffect(() => {
+    const measure = () => {
+      let sidebar = 0;
+      try {
+        const el = document.querySelector('.app-sidebar');
+        const r = el?.getBoundingClientRect();
+        if (r && r.width > 40 && r.left > -2) sidebar = Math.round(r.right);
+      } catch (_) { sidebar = 0; }
+      const avail = Math.max(320, (window.innerWidth || 1280) - sidebar - 48);
+      const fit = Math.max(1, Math.floor((avail + GRID_GAP_PX) / (CARD_MIN_PX + GRID_GAP_PX)));
+      const wanted = Math.min(3, fit, Math.max(1, devices.length || 1));
+      // Exact dialog width for those columns: one card keeps the old
+      // single-card panel width, two and three get CARD_TARGET_PX cards plus the
+      // gaps and panel padding, never wider than the main content area.
+      const basePx = wanted === 1
+        ? SINGLE_COLUMN_PANEL_PX
+        : wanted * CARD_TARGET_PX + (wanted - 1) * GRID_GAP_PX + 40;
+      const widthPx = Math.min(avail, basePx);
+      setColumns(wanted);
+      layoutRef.current = { columns: wanted, widthPx: Math.round(widthPx) };
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [devices.length]);
+
+  useEffect(() => {
+    // grow the panel only when BOTH the column count and the width are settled,
+    // so the dialog never jumps mid-measure
+    if (typeof onColumnCountChange === 'function') {
+      onColumnCountChange({ columns, widthPx: layoutRef.current.widthPx });
+    }
+  }, [columns, onColumnCountChange]);
+
   const sortedDevices = [...devices].sort((a, b) => {
     if (a.id === currentDeviceId) return -1;
     if (b.id === currentDeviceId) return 1;
@@ -574,8 +621,11 @@ export default function DevicesPanel({ currentUser }) {
         />
       )}
 
-      {/* Device cards — multi-column on wider screens (owner request Oct 29 2026) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
+      {/* Device cards — column count measured against the main content area */}
+      <div
+        className="grid gap-3 items-start justify-center"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      >
       {sortedDevices.map((device) => {
         const displayOS = device.device_info?.os === 'Linux' ? 'Android' : device.device_info?.os;
         const lastActive = device.last_active_at ? new Date(device.last_active_at).toLocaleString() : 'Never';

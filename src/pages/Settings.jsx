@@ -29,6 +29,7 @@ import DevicesPanel from '@/components/devices/DevicesPanel';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
+
 // ── Profile Panel ─────────────────────────────────────────────────────────────
 export function ProfilePanel({ currentUser, onClose }) {
   const [displayName, setDisplayName] = useState(currentUser?.user_name || currentUser?.full_name || '');
@@ -453,6 +454,7 @@ export function SettingsDialog({
   // centering over the MAIN area — i.e. from the right edge of the sidebar to
   // the right edge of the page — instead of centering on the whole viewport.
   contentClassName = 'max-w-md',
+  contentStyle,
   mainAreaCentered = false,
 }) {
   const [leftInset, setLeftInset] = useState(0);
@@ -481,9 +483,12 @@ export function SettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={`w-full max-h-[85vh] overflow-y-auto px-4 py-4 ${contentClassName}`}
-        style={mainAreaCentered && leftInset > 0
-          ? { left: `calc(${leftInset}px + (100vw - ${leftInset}px) / 2)` }
-          : undefined}
+        style={{
+          ...(mainAreaCentered && leftInset > 0
+            ? { left: `calc(${leftInset}px + (100vw - ${leftInset}px) / 2)` }
+            : {}),
+          ...(contentStyle || {}),
+        }}
       >
         <DialogHeader className="pb-4 border-b border-slate-100 mb-2">
           <DialogTitle className="flex items-center gap-2 text-base">
@@ -839,6 +844,7 @@ export default function Settings() {
   const { logout: authLogout } = useAuth();
   const { currentUser } = useUser();
   const [openPanel, setOpenPanel] = useState(null);
+  const [devicesLayout, setDevicesLayout] = useState({ columns: 1, widthPx: 576 });
   const [userSettings, setUserSettings] = useState(null);
   const [eTransEmail, setETransEmail] = useState('');
 
@@ -1059,9 +1065,12 @@ export default function Settings() {
         description="View and manage your registered devices."
         icon={Smartphone}
         mainAreaCentered
-        contentClassName="max-w-[38rem] lg:max-w-[60rem] 2xl:max-w-[82rem]"
+        contentClassName="max-w-[96rem]"
+        contentStyle={{ maxWidth: `${devicesLayout.widthPx || 576}px` }}
       >
-        {currentUser && <DevicesPanel currentUser={currentUser} />}
+        {currentUser && (
+          <DevicesPanel currentUser={currentUser} onColumnCountChange={setDevicesLayout} />
+        )}
       </SettingsDialog>
       <SettingsDialog open={openPanel === 'apk'} onOpenChange={(o) => !o && setOpenPanel(null)} title={updateAvailable ? 'Update Android App' : 'Native App'} description={updateAvailable ? 'A newer build is available.' : 'Download the Android APK.'} icon={updateAvailable ? RefreshCw : Download}>
         <ApkDownloadPanel updateAvailable={updateAvailable} buildInfo={apkBuildInfo} onClose={() => setOpenPanel(null)} download={apkDownload} />
