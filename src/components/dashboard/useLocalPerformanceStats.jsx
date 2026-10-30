@@ -422,7 +422,16 @@ export function useLocalPerformanceStats({
           // device — never overrule it with a server read (that is what kept the
           // clock running through the break). Only a stale-looking off_duty is
           // cross-checked.
-          if (_localStatusLc !== 'on_break' && !_isOnDutyStatus && !_routeFinishedToday && hasOpenSegment(dailyRec)) {
+          // OWNER REPORT (Oct 30 2026 11:22): phone read 1h29 and tablet 1h31
+          // while the driver sat on a break since 11:05; the activity page (the
+          // server record) read the correct 1h15. Both devices still believed
+          // they were on_duty — they never received the break transition, and
+          // this cross-check was gated on `!_isOnDutyStatus`, so a STALE
+          // on_duty copy never asked the server at all and kept the open leg
+          // running. The check now runs for any non-break local copy, so a
+          // missed break/off-duty transition is always corrected from the
+          // server within one TTL instead of counting all shift.
+          if (_localStatusLc !== 'on_break' && !_routeFinishedToday && hasOpenSegment(dailyRec)) {
             const _authKey = `${segDriverId}:${segDate}`;
             const _cached = _authDutyStatus.get(_authKey);
             if (!_cached || Date.now() - _cached.at > _AUTH_DUTY_TTL_MS) {
@@ -437,6 +446,19 @@ export function useLocalPerformanceStats({
               _dutyStatusFinal = _authStatus;
               if (_authStatus === 'on_duty') {
                 console.log(`[DutyTime] local status "${segStatus || 'unknown'}" disagreed with an OPEN segment — using server status "on_duty" for ${segDriverId}`);
+              }
+              // A server state that differs from the local copy (break / off
+              // duty taken elsewhere, this device missed the WS event) means the
+              // local activity record is behind too — it still holds the OPEN
+              // leg the break should have closed. Freezing at "now" would keep
+              // the already-inflated number; re-read the authoritative record so
+              // the banked breaks come back (owner's 1h31 -> 1h15).
+              if (_authStatus !== _localStatusLc) {
+                try {
+                  const _authoritative = await fetchDriverDailyActivityCached(segDriverId, segDate, { force: true });
+                  if (_authoritative) dailyRec = _authoritative;
+                  console.log(`[DutyTime] local status "${segStatus || 'unknown'}" != server "${_authStatus}" — pulled the authoritative activity record for ${segDriverId}`);
+                } catch (_) { /* keep the local copy; the frozen clock is still safer than a running one */ }
               }
             }
           }
