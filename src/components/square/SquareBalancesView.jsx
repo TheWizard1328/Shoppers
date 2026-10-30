@@ -2326,7 +2326,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const saveTopUp = async () => {
     if (!config) return;
     const locations = (config.locations || []).map((loc) => {
-      const amt = parseFloat(topUpDraft[loc.location_id]);
+      const amt = signedCentsValue(topUpDraft[loc.location_id]);
       return {
         ...loc,
         card_start: Number.isFinite(amt) && amt !== 0 ? Number(loc.card_start || 0) + amt : loc.card_start
@@ -2344,10 +2344,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       setConfig(newConfig);
       setShowTopUp(false);
       const totalTopUp = (config.locations || []).reduce((s, loc) => {
-        const amt = parseFloat(topUpDraft[loc.location_id]);
+        const amt = signedCentsValue(topUpDraft[loc.location_id]);
         return Number.isFinite(amt) ? s + amt : s;
       }, 0);
-      toast.success(totalTopUp ? `Cards topped up (+${fmtMoney(totalTopUp)} split across cards)` : 'No amounts entered — nothing changed');
+      toast.success(
+        totalTopUp === 0
+          ? 'No amounts entered — nothing changed'
+          : totalTopUp > 0
+            ? `Cards topped up (+${fmtMoney(totalTopUp)} split across cards)`
+            : `Deducted ${fmtMoney(Math.abs(totalTopUp))} from cards`
+      );
     } catch (err) {
       console.error('top-up save failed:', err);
       toast.error('Could not save the top-up');
@@ -2371,6 +2377,37 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const n = Number(v);
     if (!Number.isFinite(n)) return '';
     return n.toFixed(2);
+  };
+
+  // ── Signed cents fields for Top Up / Adjust (owner request Oct 29 2026) ──
+  // Same "typed digits are cents" convention as True-Up, but a leading minus is
+  // KEPT so a card balance can be DEDUCTED (e.g. -5.93). The old path ran every
+  // keystroke through trueUpCentsValue, whose String.replace(/\D/g, '') threw the
+  // minus away, so negatives were impossible. Draft values are now the raw typed
+  // string ('', '-', '-593'), so the '-' shows while typing and the number is only
+  // computed on save.
+  const parseSignedCentsRaw = (raw) => {
+    const str = String(raw ?? '').trim();
+    const negative = str.startsWith('-');
+    const digits = str.replace(/\D/g, '');
+    return { negative, digits };
+  };
+  const signedCentsRaw = (raw) => {
+    const { negative, digits } = parseSignedCentsRaw(raw);
+    if (!digits) return negative ? '-' : '';
+    return (negative ? '-' : '') + digits;
+  };
+  const signedCentsValue = (raw) => {
+    const { negative, digits } = parseSignedCentsRaw(raw);
+    if (!digits) return null;
+    const value = (parseInt(digits, 10) || 0) / 100;
+    return negative ? -value : value;
+  };
+  const fmtSignedCentsField = (raw) => {
+    const { negative, digits } = parseSignedCentsRaw(raw);
+    if (!digits) return negative ? '-' : '';
+    const value = (parseInt(digits, 10) || 0) / 100;
+    return (negative ? -value : value).toFixed(2);
   };
   // True-Up edited-field highlight (owner spec Oct 21 2026): green border +
   // tint on any field carrying a NEW value (blank = keeps existing → no
@@ -3012,27 +3049,27 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTopUp(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Top Up Cards</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter the amount to ADD to each card's current balance. Blank fields are skipped. This does not reset the tracking window.</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Adjust Card Balances</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter an amount to ADD to (or DEDUCT from) each card's balance — negative values like -5.93 deduct. Blank fields are skipped. This does not reset the tracking window.</div>
             </div>
             {(config?.locations || []).map((loc) =>
           <label key={loc.location_id} className="block space-y-1">
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{loc.name || loc.location_id}</span>
                 <Input
               type="text"
-              inputMode="decimal"
-              placeholder={`add to ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
-              value={fmtTrueUpField(topUpDraft[loc.location_id])}
+              inputMode="text"
+              placeholder={`adjust ~${fmtMoney(perLocation.find((l) => l.location_id === loc.location_id)?.cardEstimate || 0)}`}
+              value={fmtSignedCentsField(topUpDraft[loc.location_id])}
               disabled={isSaving}
               onFocus={(e) => e.target.select()}
-              onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: trueUpCentsValue(e.target.value) }))} />
+              onChange={(e) => setTopUpDraft((d) => ({ ...d, [loc.location_id]: signedCentsRaw(e.target.value) }))} />
 
               </label>
           )}
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowTopUp(false)} disabled={isSaving}>Cancel</Button>
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveTopUp} disabled={isSaving}>
-                {isSaving ? 'Adding…' : 'Add to Cards'}
+                {isSaving ? 'Applying…' : 'Apply to Cards'}
               </Button>
             </div>
           </div>
