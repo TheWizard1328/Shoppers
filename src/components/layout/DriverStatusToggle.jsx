@@ -343,6 +343,27 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
       const localRecord = { ...existingRecord, ...updatePayload, id: appUserId, user_id: effectiveUser.id, updated_date: transitionAt };
       await offlineDB.save(offlineDB.STORES.APP_USERS, localRecord);
+      // OWNER DIRECTIVE (Oct 30 2026): "when the driver toggles on duty / off
+      // duty / on break it's supposed to update the IDB, sync to the server and
+      // broadcast so every device is the same for that user." The IDB + server
+      // writes were there, but the in-memory appUsers React state was never
+      // told — so every LOCAL consumer (Time On Duty clock, duty badges, driver
+      // markers) kept reading the previous status on the device that toggled,
+      // which is exactly how a phone and tablet both showed a break clock still
+      // running. Push the record into the shared app data context and fire the
+      // AppUser update event (same shape the WS handler produces) so the
+      // toggling device converges instantly, while remote devices converge on
+      // the WS broadcast of the same server write.
+      const _publishDutyStatus = (rec) => {
+        if (!rec) return;
+        try { appDataContext?.updateAppUsersLocally?.([rec], false); } catch (_) { /* non-fatal */ }
+        try {
+          window.dispatchEvent(new CustomEvent('appUserUpdated', {
+            detail: { appUser: rec, fromRealtime: false, locationOnly: false },
+          }));
+        } catch (_) { /* non-fatal */ }
+      };
+      _publishDutyStatus(localRecord);
       const hadPendingStatusBefore = await hasPendingDriverStatusMutation(appUserId);
       pendingMutationId = await offlineDB.addPendingMutation({
         operation: 'update',
@@ -406,6 +427,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
       const safeRecord = { ...localRecord, ...updatedAppUser, ...updatePayload, id: appUserId };
       await offlineDB.save(offlineDB.STORES.APP_USERS, safeRecord);
+      _publishDutyStatus(safeRecord);
 
       // Clear isNextDelivery flags when going off_duty or on_break
       if (newStatus === 'off_duty' || newStatus === 'on_break') {
@@ -446,6 +468,12 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       });
 
       const confirmedStatus = result?.data?.driver_status || newStatus;
+      // The backend is the final authority (it may normalize the status), so
+      // publish the confirmed value too — local state, IDB and server can never
+      // disagree after a toggle.
+      if (String(confirmedStatus) !== String(newStatus)) {
+        _publishDutyStatus({ ...safeRecord, driver_status: confirmedStatus });
+      }
       serverStatusConfirmed = true;
       if (pendingMutationId) await offlineDB.removePendingMutation(pendingMutationId);
       pendingStatusMutationRef.current = null;
