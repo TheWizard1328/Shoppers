@@ -58,6 +58,17 @@ const _lastOnDutyAt = new Map();
 // Per driver+date break accounting for an UNCLOSED open leg:
 // { openStart, pausedMs, since } — see the Break pause block below.
 const _dutyPause = new Map();
+// OWNER REPORT (Oct 30 2026 11:52): "clocked out twice for breaks, the card
+// should read 1h40 but my phone says 1h38 and the tablet is stuck at 1h59."
+// The server record (75 + 25 = 100 min) was correct the whole time. Both
+// devices were showing a STALE IDB mirror: on a duty transition the code
+// invalidated the activity cache but then re-fetched WITHOUT force, and
+// fetchDriverDailyActivityCached is IDB-first — so the invalidated key simply
+// re-served the same stale mirror and the numbers never caught up. Track the
+// last AUTHORITATIVE (server) pull per driver+date so transitions and a slow
+// periodic refresh can bypass the IDB copy.
+const _dutyAuthoritativeAt = new Map();
+const _DUTY_AUTH_REFRESH_MS = 120000;
 
 /**
  * Computes performance stats (pay, km, extra km, duty time) for the currently
@@ -351,10 +362,17 @@ export function useLocalPerformanceStats({
             || (freshAppUserMap && freshAppUserMap[segDriverId]);
           const segStatus = segAppUser?.driver_status || null;
           const prevStatus = _lastSeenDriverStatus.get(segDriverId);
-          if (prevStatus !== undefined && prevStatus !== segStatus) {
+          const _statusJustChanged = prevStatus !== undefined && prevStatus !== segStatus;
+          if (_statusJustChanged) {
             invalidateDriverDailyActivityCache(segDriverId, segDate);
+            // Counters are final the moment the status leaves on_duty: pull the
+            // server record (the activity page's number) instead of re-serving
+            // the local mirror that just got invalidated.
+            _dutyAuthoritativeAt.set(`${segDriverId}:${segDate}`, Date.now());
           }
           _lastSeenDriverStatus.set(segDriverId, segStatus);
+          const _authPulledAt = _dutyAuthoritativeAt.get(`${segDriverId}:${segDate}`) || 0;
+          const _needsAuthoritative = _statusJustChanged || (Date.now() - _authPulledAt > _DUTY_AUTH_REFRESH_MS);
           // OWNER REPORT (Oct 28 2026): the card must show the SAME number as
           // the Driver Activity page and must never keep counting once the
           // driver is off duty. Two failure modes caused the drift:
@@ -367,7 +385,10 @@ export function useLocalPerformanceStats({
           // or their stale copy still has an open segment (forced revalidate,
           // memoized per driver+date), and stop running open segments against
           // the clock while off duty.
-          let dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate);
+          let dailyRec = await fetchDriverDailyActivityCached(segDriverId, segDate, { force: _needsAuthoritative });
+          // Stamp the pull so the periodic refresh stays periodic (a stamp that
+          // never advances would force a server read on every single tick).
+          if (_needsAuthoritative) _dutyAuthoritativeAt.set(`${segDriverId}:${segDate}`, Date.now());
           const _isOnDutyStatus = String(segStatus || '').toLowerCase() === 'on_duty';
           // "Route finished" also ends the live clock: the owner's report was a
           // driver whose route was done while the card kept counting. Duty time
