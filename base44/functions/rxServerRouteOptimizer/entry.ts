@@ -670,6 +670,25 @@ Deno.serve(async (req) => {
       orderedStops = sharedEnforcePickupBeforePending(orderedStops, {});
       // ── 3. ISP-before-ISD ordering constraint (SHARED RULE: routeRules.js) ─
       orderedStops = sharedEnforceIspBeforeIsd(orderedStops, {});
+
+      // ── 3c. FINAL window-chronology pass (owner report Oct 30 2026) ───────
+      // Two pickups at one address (10:00-11:00 and 13:30-14:30) kept being
+      // sequenced back to back because the swap-based enforcements in 2b/3
+      // lift a pickup forward onto its same-address sibling, undoing the band
+      // sort. Windows win, so the shared band sort is re-applied last; inside
+      // a band the existing order is kept, so pickup-before-delivery and
+      // ISP-before-ISD still hold.
+      if (sharedHasTimeWindows(orderedStops, (st) => st.windowStart) && orderedStops.length > 1) {
+        const _finalLocked = _lockedStop && orderedStops[0]?.id === _lockedStop.id ? orderedStops[0] : null;
+        const _finalPool = _finalLocked ? orderedStops.slice(1) : orderedStops;
+        const _finalSorted = sharedWindowBandSort(_finalPool, {
+          routeIsToday: _routeIsToday,
+          currentMinutes,
+          windowOf: (st) => st.windowStart,
+          windowEndOf: (st) => st.windowEnd,
+        });
+        orderedStops = _finalLocked ? [_finalLocked, ..._finalSorted] : _finalSorted;
+      }
     }
 
     // ── 3b. CLIENT-PARITY backstop (Oct 21 2026): windowless patient stops

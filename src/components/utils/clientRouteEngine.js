@@ -1587,6 +1587,30 @@ let _inheritedWindowCount = 0;
     stopIdOf: (st) => st.stop_id,
   });
 
+  // ── FINAL window-chronology pass (owner report Oct 30 2026) ───────────────
+  // 'two Hamptons pickups at one address, windows 10:00-11:00 and 13:30-14:30,
+  // always optimized back to back instead of with stops between them'. Cause:
+  // the two swap-based enforcements above (pending-follows-pickup, ISP-before-
+  // ISD) move a stop EITHER WAY, and a swap pulls the later pickup forward to
+  // sit beside its same-address sibling — silently undoing the band sort that
+  // had correctly separated them. Windows outrank both constraints, so the
+  // shared band sort runs one final time here. Inside a band the current order
+  // is kept (pickup still before its delivery, ISP still before its ISD).
+  if (sharedHasTimeWindows(activeStops, (st) => st?.delivery_time_start) && activeStops.length > 1) {
+    const _finalBandOpts = {
+      routeIsToday,
+      currentMinutes,
+      windowOf: (st) => st?.delivery_time_start || '',
+      windowEndOf: (st) => st?.delivery_time_end || '',
+    };
+    const _beforeFinal = activeStops.map((st) => String(st.id)).join(',');
+    activeStops = sharedWindowBandSort(activeStops, _finalBandOpts);
+    const _afterFinal = activeStops.map((st) => String(st.id)).join(',');
+    if (_beforeFinal !== _afterFinal) {
+      console.log(`[clientRouteEngine] ${source} — final window pass restored band order (pickup/ISP swaps had pulled stops out of their windows)`);
+    }
+  }
+
 
   // Use max completed stop_order + 1 (not just count) to avoid collisions when
   // completed stops have non-contiguous stop_order values (e.g. 2, 5, 7).
