@@ -587,17 +587,57 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
     return unsubscribe;
   }, [selectedDate, selectedCityId]);
 
+  // OWNER DIRECTIVE (Oct 30 2026): "when the Save button is clicked on the Edit
+  // Activity Segments page, these to be saved and updated the same way as when
+  // the status toggle is changed" — IDB first, then the server, then the
+  // broadcast, with every other device updating its IDB and the UI reading from
+  // IDB. The old handler wrote the SERVER first and only mirrored to IDB on
+  // success, so an offline or rate-limited save silently left the local copy
+  // stale (and the duty clock with it).
+  const applyActivityLocally = async (record) => {
+    if (!record?.id) return null;
+    let merged = record;
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const existing = await offlineDB.getById(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, record.id).catch(() => null);
+      merged = { ...(existing || { id: record.id }), ...record };
+      await offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, merged);
+    } catch (_) { /* IDB degraded — the server call below still runs */ }
+    invalidateDriverDailyActivityCache(merged.driver_id, merged.activity_date);
+    // New event the stats cards and the 15s duty ticker listen for.
+    window.dispatchEvent(new CustomEvent('driverActivityUpdated', {
+      detail: { record: merged, fromEditor: true },
+    }));
+    return merged;
+  };
+
   const handleSave = async (updates) => {
     if (editingRecord?.id) {
-      const updated = await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
-      invalidateDriverDailyActivityCache(editingRecord.driver_id, editingRecord.activity_date);
-      // Persist to offline DB
+      const recordId = editingRecord.id;
+      // 1) Local mirror + UI first (works offline).
+      const optimistic = await applyActivityLocally({ ...editingRecord, ...updates, id: recordId });
+      // 2) Server write — a user-scoped update, so the platform broadcasts it and
+      //    every other device banks the same segments.
       try {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const existing = await offlineDB.getById(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, editingRecord.id).catch(() => null);
-        const merged = { ...(existing || { id: editingRecord.id }), ...updates, ...(updated || {}) };
-        await offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, merged);
-      } catch (_) {}
+        const updated = await base44.entities.DriverDailyActivity.update(recordId, updates);
+        if (updated?.id) await applyActivityLocally({ ...optimistic, ...updates, ...updated });
+      } catch (err) {
+        // 3) Offline / rate limited: queue it exactly like the duty toggle does,
+        //    so the save replays on reconnect instead of being lost.
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          await offlineDB.addPendingMutation({
+            operation: 'update',
+            entity: 'DriverDailyActivity',
+            recordId,
+            payload: updates,
+            _userInitiated: true,
+          });
+          console.warn('[ActivitySegments] server save queued for reconnect:', err?.message || err);
+        } catch (_) {
+          console.warn('[ActivitySegments] server save failed and could not be queued:', err?.message || err);
+        }
+      }
     }
     await loadRecords();
   };
@@ -641,14 +681,9 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
         activity_date: selectedDate,
         activity_segments: built
       });
-      invalidateDriverDailyActivityCache(created.driver_id, created.activity_date);
-      // Persist to offline DB
-      try {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        if (created?.id) {
-          await offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, created);
-        }
-      } catch (_) {}
+      // Same offline-first path as the duty toggle: IDB, then the event the duty
+      // cards listen for (the create itself already broadcast to other devices).
+      await applyActivityLocally(created);
       setShowNewForm(false);
       setNewDriverId('');
       setNewSegments([{ start_time: '', end_time: '', tot: '' }]);
