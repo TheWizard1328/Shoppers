@@ -9,6 +9,10 @@ import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon } from './M
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
 
+// Zoom level at which co-located markers fan out on their own (matches the
+// cycling start/end pin threshold so the map behaves consistently).
+const CLUSTER_FAN_ZOOM = 16;
+
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 export default function PickupMarkers({
@@ -30,7 +34,10 @@ export default function PickupMarkers({
     const cappedPrecision = pickup.status === 'pending' && fallbackPrecision > 4 ? 4 : fallbackPrecision;
     const lk = pickup.locationKey || `${pickup.latitude.toFixed(cappedPrecision)},${pickup.longitude.toFixed(cappedPrecision)}`;
     const isClustered = pickup.duplicateCount > 1;
-    const isFanned = fannedLocationKey === lk;
+    // OWNER REQUEST (Oct 30 2026): co-located markers fan out like flower petals
+    // automatically past CLUSTER_FAN_ZOOM (same threshold as the cycling pins).
+    const isAutoFannedCluster = isClustered && currentZoom >= CLUSTER_FAN_ZOOM;
+    const isFanned = fannedLocationKey === lk || isAutoFannedCluster;
     const isHighlighted = highlightedDeliveryId === pickup.id;
 
     const isFinishedForFade = FINISHED_STATUSES.includes(pickup.status);

@@ -9,6 +9,10 @@ import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
 import { portalWatchersStore, usePortalWatcherVersion } from '../utils/portalWatchers';
 
+// Zoom level at which co-located markers fan out on their own (matches the
+// cycling start/end pin threshold so the map behaves consistently).
+const CLUSTER_FAN_ZOOM = 16;
+
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 function DeliveryMarkers({
@@ -288,7 +292,12 @@ function DeliveryMarkers({
     const cappedPrecision = delivery.status === 'pending' && fallbackPrecision > 4 ? 4 : fallbackPrecision;
     const locationKey = delivery.locationKey || `${markerLatitude.toFixed(cappedPrecision)},${markerLongitude.toFixed(cappedPrecision)}`;
     const isClustered = delivery.duplicateCount > 1;
-    const isFanned = fannedLocationKey === locationKey;
+    // OWNER REQUEST (Oct 30 2026): co-located markers should fan out like flower
+    // petals automatically once the map is zoomed in past CLUSTER_FAN_ZOOM — the
+    // same behaviour the cycling start/end pins already have at zoom 16. The
+    // click-to-fan path still works below the threshold.
+    const isAutoFannedCluster = isClustered && currentZoom >= CLUSTER_FAN_ZOOM;
+    const isFanned = fannedLocationKey === locationKey || isAutoFannedCluster;
     const isHighlighted = highlightedDeliveryId === delivery.id;
 
     const isFinishedForFade = FINISHED_STATUSES.includes(delivery.status);
@@ -600,6 +609,9 @@ export default React.memo(DeliveryMarkers, (prev, next) => {
     prev.groupedPickupMarkers === next.groupedPickupMarkers &&
     prev.highlightedDeliveryId === next.highlightedDeliveryId &&
     prev.fannedLocationKey === next.fannedLocationKey &&
+    // Zoom drives auto-fanning of co-located clusters — without this the memo
+    // kept rendering the collapsed cluster after the user zoomed in.
+    prev.currentZoom === next.currentZoom &&
     prev.isMobile === next.isMobile &&
     prev.currentUser === next.currentUser
   );

@@ -58,6 +58,9 @@ const DRIVER_COLORS = [
   ];
 const FINISHED_STATUSES = ["completed", "failed", "cancelled"];
 const ZOOM_LEVELS = { HIDE_ROUTES: 8, SIMPLIFY_ROUTES: 12, HIDE_NUMBERS: 11, HIDE_CIRCLES: 11, FULL_DETAIL: 13 };
+// OWNER REQUEST (Oct 30 2026): co-located markers fan out like flower petals
+// automatically at this zoom — the same level the cycling start/end pins fan at.
+const AUTO_FAN_ZOOM = 16;
 const getDistanceMeters = (previousLocation, nextLocation) => {
   if (!previousLocation?.latitude || !previousLocation?.longitude) return Infinity;
   if (!nextLocation?.latitude || !nextLocation?.longitude) return 0;
@@ -1831,14 +1834,35 @@ function DeliveryMap({
   }, [map]);
 
   const calculateFannedPositionWrapperWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers) => {
-    const radius = 0.0008 + (18 - currentZoom) * 0.0008;
     const arcWidth = totalMarkers <= 2 ? 90 : totalMarkers === 3 ? 120 : totalMarkers === 4 ? 140 : Math.min(180, 140 + (totalMarkers - 4) * 10);
     const arcWidthRad = (arcWidth * Math.PI) / 180;
     const startAngle = Math.PI / 2 - arcWidthRad / 2;
     const endAngle = Math.PI / 2 + arcWidthRad / 2;
     const angle = totalMarkers === 1 ? Math.PI / 2 : startAngle + ((totalMarkers - 1 - markerIndex) * ((endAngle - startAngle) / (totalMarkers - 1)));
+
+    // OWNER REQUEST (Oct 30 2026): the petals must look the same at every zoom,
+    // so the spread is defined in PIXELS (like the cycling pins which fan via
+    // icon offsets) and projected onto the map instead of using a fixed
+    // lat/lng radius. The old 0.0024° radius at zoom 16 threw markers ~265 m
+    // apart — half the viewport — while zoom 18 packed them together.
+    const petalPx = totalMarkers <= 2 ? 34 : totalMarkers === 3 ? 38 : 42;
+    try {
+      if (map && typeof map.project === 'function') {
+        const z = map.getZoom();
+        const originPx = map.project([originalLat, originalLng], z);
+        const pt = L.point(
+          originPx.x + petalPx * Math.cos(angle),
+          originPx.y - petalPx * Math.sin(angle)
+        );
+        const un = map.unproject(pt, z);
+        return [un.lat, un.lng];
+      }
+    } catch (_) { /* fall through to the degree-based spread */ }
+
+    // Fallback (map not ready): keep the previous behaviour.
+    const radius = 0.0008 + (18 - currentZoom) * 0.0008;
     return [originalLat + radius * Math.sin(angle), originalLng + radius * Math.cos(angle)];
-  }, [currentZoom]);
+  }, [currentZoom, map]);
 
   const handleMarkerDragEnd = useCallback(() => {}, []);
 
@@ -2142,11 +2166,28 @@ function DeliveryMap({
         )}
 
         {/* Fan lines: draw lines from cluster origin to each fanned marker */}
-        {mapReady && fanRendererReady && fannedLocationKey && (() => {
-          const [originLat, originLng] = fannedLocationKey.split(',').map(Number);
-          if (!originLat || !originLng) return null;
-          const pickupsAtLocation = groupedPickupMarkers.get(fannedLocationKey) || [];
-          const deliveriesAtLocation = groupedDeliveryMarkers.get(fannedLocationKey) || [];
+        {mapReady && fanRendererReady && (fannedLocationKey || currentZoom >= AUTO_FAN_ZOOM) && (() => {
+          // OWNER REQUEST (Oct 30 2026): co-located markers fan out like flower
+          // petals automatically at high zoom, so the petal spokes must be drawn
+          // for EVERY auto-fanned cluster — not only the one that was tapped.
+          // Capped so a dense pending-route view can never spam polylines.
+          const _autoKeys = currentZoom >= AUTO_FAN_ZOOM
+            ? Array.from(new Set([
+                ...Array.from(groupedDeliveryMarkers.keys()),
+                ...Array.from(groupedPickupMarkers.keys()),
+              ])).filter((k) => {
+                const list = [...(groupedDeliveryMarkers.get(k) || []), ...(groupedPickupMarkers.get(k) || [])];
+                return list.length > 1;
+              }).slice(0, 12)
+            : [];
+          const _fanKeys = fannedLocationKey
+            ? [_autoKeys.includes(fannedLocationKey) ? null : fannedLocationKey]
+            : _autoKeys;
+          return _fanKeys.filter(Boolean).flatMap((key) => {
+          const [originLat, originLng] = key.split(',').map(Number);
+          if (!originLat || !originLng) return [];
+          const pickupsAtLocation = groupedPickupMarkers.get(key) || [];
+          const deliveriesAtLocation = groupedDeliveryMarkers.get(key) || [];
           const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
             .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
           return allAtLocation.map((marker, index) => {
@@ -2159,6 +2200,7 @@ function DeliveryMap({
                 pathOptions={{ color: marker.pinColor || '#64748b', weight: 1.5, opacity: 0.5, dashArray: '4 4' }}
               />
             );
+          });
           });
         })()}
 
