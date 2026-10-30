@@ -103,6 +103,11 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
           deliveryDate,
           preserveExistingOrder: true,
           bypassDriverStatus: true,
+          // Owner report Oct 30 2026 (Sharuk): the stop was gone from the route
+          // but its leg stayed painted — a delete that leaves stop_order
+          // unchanged skipped regeneration, so the stored polylines (drawn while
+          // the stop still existed) survived. A delete ALWAYS redraws.
+          forceRegenerate: true,
           source: 'delete_delivery',
         });
         console.log('✅ [DELETE Handler] Polylines purged and regenerated');

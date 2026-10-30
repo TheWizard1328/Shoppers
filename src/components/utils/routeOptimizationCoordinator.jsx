@@ -263,6 +263,24 @@ async function _performRouteOptimizationInner({
   // fetching from the backend. This is the old behavior and may still race, but it's
   // better than failing. New call sites should always pass local data.
   let resolvedDeliveries = deliveries;
+
+  // Owner report Oct 30 2026 (Sharuk, deleted stop still painted): the delete
+  // handler soft-marks a delivery before its async work, but a stale array,
+  // WS echo or refresh merge could still hand the optimizer the deleted row,
+  // which then becomes a polyline target/anchor. Every path into the engine
+  // now passes the deleted-delivery registry first.
+  if (Array.isArray(resolvedDeliveries)) {
+    try {
+      const { filterDeleted } = await import('./deletedDeliveryRegistry');
+      const _before = resolvedDeliveries.length;
+      resolvedDeliveries = filterDeleted(resolvedDeliveries);
+      if (resolvedDeliveries.length !== _before) {
+        console.warn(`[RouteOptimization] ${source} — dropped ${_before - resolvedDeliveries.length} deleted delivery record(s) from the optimizer input`);
+      }
+    } catch (err) {
+      console.warn(`[RouteOptimization] ${source} — deleted-delivery filter unavailable:`, err?.message);
+    }
+  }
   let resolvedPatients = patients;
   let resolvedStores = stores;
 

@@ -18,6 +18,7 @@ import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
 import { resolvePolylineOrigin } from './polylineOriginRules';
+import { filterDeleted } from './deletedDeliveryRegistry';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 /**
  * clientRouteEngine.js
@@ -336,7 +337,10 @@ export async function optimizeRouteClientSide({
   // The browser paints the optimistic UI when the microtask queue drains (after sync
   // work, before the HERE API response arrives).
 
-  const allDeliveries = deliveries || [];
+  // Owner report Oct 30 2026 (Sharuk, deleted stop still in the current leg):
+  // a deleted delivery could survive in a stale array and be sequenced, painted
+  // or used as an anchor. The deleted-delivery registry is authoritative.
+  const allDeliveries = filterDeleted(deliveries || []);
   if (allDeliveries.length === 0) {
     return { success: true, routeChanged: false, optimizedCount: 0, orderedDeliveryIds: [], optimizedRoute: [], writeBatch: [] };
   }
@@ -1120,6 +1124,9 @@ let _inheritedWindowCount = 0;
       : null;
     const _originPick = resolvePolylineOrigin({
       finishedDeliveries: completedDeliveries,
+      // A cancelled stop was never visited — it must never anchor the current
+      // leg (that painted the deleted stop -> first stop line the owner saw).
+      finishedStatuses: ['completed', 'failed'],
       resolveCoords: (d) => getDeliveryCoords(d, patientMap, storeMap),
       homePosition: resolvedHomePosition ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lon } : null,
       firstTargetCoords: _firstActiveCoords,
