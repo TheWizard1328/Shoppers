@@ -562,20 +562,62 @@ Deno.serve(async (req) => {
       return Date.now() - calculatedAt < CURRENT_MONTH_CACHE_TTL_MS;
     };
 
-    const fetchMonthlySummaryRecord = async (year, month, cityId) => {
-      const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, month, city_id: cityId }, '', 10).catch((error) => {
+    // ── NUMERIC SUMMARY MATCHING + DUPLICATE SELF-HEAL (owner report, Oct 29 2026) ─
+    // The platform stores numeric schema fields as STRINGS with a float tail
+    // ('2026.0', '12.0'), so filter({ year: 2026, month: 12 }) matched NOTHING.
+    // upsertPayrollSummaryRecords therefore never found the existing snapshot and
+    // created another copy on EVERY write cycle: PayrollSummary had grown to 131
+    // records / 50.7MB of identical snapshots (60 sharing one timestamp), and the
+    // entity editor died loading them. Rule from here on: filter only on keys that
+    // are stored verbatim as strings (city_id, kind), then compare year/month
+    // NUMERICALLY in code, and collapse any leftovers to a single newest record.
+    const summaryNum = (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const summaryRecency = (rec) => `${rec?.calculated_at || ''}|${rec?.updated_date || ''}|${rec?.created_date || ''}`;
+
+    const pickNewestSummary = (records) => {
+      return (records || []).slice().sort((a, b) => summaryRecency(b).localeCompare(summaryRecency(a)))[0] || null;
+    };
+
+    // Keeps the newest match, rewrites it with `payload`, deletes the strays.
+    const collapseSummaries = async (entity, matches, write) => {
+      const ordered = (matches || []).slice().sort((a, b) => summaryRecency(b).localeCompare(summaryRecency(a)));
+      const [keep, ...dupes] = ordered;
+      if (keep?.id && write) await write(keep);
+      for (const stray of dupes) {
+        if (!stray?.id) continue;
+        await entity.delete(stray.id).catch(() => null);
+      }
+      return keep || null;
+    };
+
+    const fetchMonthlySummaryRecords = async (year, month, cityId) => {
+      const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ city_id: cityId }, '', 200).catch((error) => {
         if (isNotFoundError(error)) return [];
         throw error;
       });
-      return summaryRecords?.[0] || null;
+      const wantYear = summaryNum(year);
+      const wantMonth = summaryNum(month);
+      return (summaryRecords || []).filter((rec) =>
+        summaryNum(rec?.year) === wantYear && summaryNum(rec?.month) === wantMonth
+      );
+    };
+
+    const fetchMonthlySummaryRecord = async (year, month, cityId) => {
+      return pickNewestSummary(await fetchMonthlySummaryRecords(year, month, cityId));
     };
 
     const fetchYearSummaryRecords = async (year, cityId) => {
-      const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, city_id: cityId }, '', 100).catch((error) => {
+      const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ city_id: cityId }, '', 200).catch((error) => {
         if (isNotFoundError(error)) return [];
         throw error;
       });
-      return dedupeById(summaryRecords || []);
+      const wantYear = summaryNum(year);
+      return dedupeById((summaryRecords || []).filter((rec) => summaryNum(rec?.year) === wantYear));
     };
 
     // ── SLIM PAYROLL METRICS (perf audit item 6, Oct 22 2026) ────────────────────
@@ -618,10 +660,20 @@ Deno.serve(async (req) => {
         calculated_at: new Date().toISOString()
       };
 
+      const entity = base44.asServiceRole.entities.AdminMetricsSummary;
       if (existingRecord?.id) {
-        return await base44.asServiceRole.entities.AdminMetricsSummary.update(existingRecord.id, payload);
+        // Collapse any duplicates that a previous race left behind.
+        const allMatches = await fetchMonthlySummaryRecords(year, month, cityId);
+        return await collapseSummaries(entity, allMatches, (keep) => entity.update(keep.id, payload));
       }
-      return await base44.asServiceRole.entities.AdminMetricsSummary.create(payload);
+      const created = await entity.create(payload);
+      // Two devices computing the same key at the same time both used to create.
+      // Re-read and collapse so the key converges to ONE record.
+      const afterCreate = await fetchMonthlySummaryRecords(year, month, cityId).catch(() => []);
+      if ((afterCreate || []).length > 1) {
+        return await collapseSummaries(entity, afterCreate, (keep) => entity.update(keep.id, payload));
+      }
+      return created;
     };
 
     // ── Durable payroll summary (PayrollSummary entity) ──────────────────────────
@@ -630,16 +682,33 @@ Deno.serve(async (req) => {
     // deliveries (union over months == gather's year patient set); refs holds
     // everything else the payload needs. Compose reproduces the exact
     // fetchYearData() output shape, so buildPayrollData() is unchanged.
+    const matchPayrollSummary = (rec, query) => (
+      String(rec?.city_id || '') === String(query.city_id || '')
+      && String(rec?.kind || '') === String(query.kind || '')
+      && summaryNum(rec?.year) === summaryNum(query.year)
+      && summaryNum(rec?.month) === summaryNum(query.month)
+    );
+
+    const fetchPayrollSummaryMatches = async (query) => {
+      const candidates = await base44.asServiceRole.entities.PayrollSummary
+        .filter({ city_id: query.city_id, kind: query.kind }, '', 200)
+        .catch(() => []);
+      return (candidates || []).filter((rec) => matchPayrollSummary(rec, query));
+    };
+
     const upsertPayrollSummaryRecords = async (filterQuery, payload) => {
-      const existing = await base44.asServiceRole.entities.PayrollSummary.filter(filterQuery, '', 20).catch(() => []);
-      const matches = existing || [];
+      const entity = base44.asServiceRole.entities.PayrollSummary;
+      const matches = await fetchPayrollSummaryMatches(filterQuery);
       if (matches.length === 0) {
-        await base44.asServiceRole.entities.PayrollSummary.create(payload);
-      } else {
-        for (const rec of matches) {
-          await base44.asServiceRole.entities.PayrollSummary.update(rec.id, payload);
+        await entity.create(payload).catch(() => null);
+        // Race guard: if a concurrent writer created the same snapshot, collapse.
+        const afterCreate = await fetchPayrollSummaryMatches(filterQuery).catch(() => []);
+        if ((afterCreate || []).length > 1) {
+          await collapseSummaries(entity, afterCreate, (keep) => entity.update(keep.id, payload));
         }
+        return;
       }
+      await collapseSummaries(entity, matches, (keep) => entity.update(keep.id, payload));
     };
 
     const writePayrollSummary = async (year, cityId, yearData, { collectDebug = false } = {}) => {

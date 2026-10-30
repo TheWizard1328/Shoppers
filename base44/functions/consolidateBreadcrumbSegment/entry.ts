@@ -363,6 +363,31 @@ const PAYROLL_DELIVERY_FIELDS = ['id', 'delivery_date', 'delivery_id', 'driver_i
 const PAYROLL_PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store', 'address'];
 const PAYROLL_SUMMARY_VERSION = '1';
 
+// ── NUMERIC MATCHING + DUPLICATE SELF-HEAL (owner report, Oct 29 2026) ────────
+// Numeric schema fields are stored as STRINGS with a float tail ('2026.0',
+// '12.0'). filter({ year: 2026, month: 12 }) therefore matched NOTHING and every
+// completion cycle created ANOTHER PayrollSummary snapshot (131 records /
+// 50.7MB before cleanup). Filter on the two verbatim string keys (city_id, kind)
+// and compare year/month numerically; collapse strays to the newest record.
+const payrollSummaryNum = (v) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const payrollSummaryRecency = (rec) => `${rec?.calculated_at || ''}|${rec?.updated_date || ''}|${rec?.created_date || ''}`;
+
+const fetchPayrollMonthMatches = async (base44, cityId, year, month) => {
+  const candidates = await base44.asServiceRole.entities.PayrollSummary
+    .filter({ city_id: cityId, kind: 'month' }, '', 200)
+    .catch(() => []);
+  return (candidates || []).filter((rec) => (
+    String(rec?.city_id || '') === String(cityId || '')
+    && payrollSummaryNum(rec?.year) === payrollSummaryNum(year)
+    && payrollSummaryNum(rec?.month) === payrollSummaryNum(month)
+  ));
+};
+
 const payrollPickFields = (record, fields) => {
   const out = {};
   (fields || []).forEach((f) => { out[f] = record?.[f]; });
@@ -415,15 +440,26 @@ async function rebuildPayrollMonthRecord(base44, cityId, year, month) {
     calculated_at: now,
     summary_version: PAYROLL_SUMMARY_VERSION
   };
-  const existing = await base44.asServiceRole.entities.PayrollSummary.filter(
-    { city_id: cityId, year: Number(year), month: Number(month), kind: 'month' }, '', 20
-  ).catch(() => []);
-  const matches = existing || [];
+  const matches = await fetchPayrollMonthMatches(base44, cityId, year, month);
   if (matches.length === 0) {
-    await base44.asServiceRole.entities.PayrollSummary.create(payload);
+    await base44.asServiceRole.entities.PayrollSummary.create(payload).catch(() => null);
+    // Race guard: a concurrent writer may have created the same snapshot.
+    const afterCreate = await fetchPayrollMonthMatches(base44, cityId, year, month).catch(() => []);
+    if ((afterCreate || []).length > 1) {
+      const ordered = afterCreate.slice().sort((a, b) => payrollSummaryRecency(b).localeCompare(payrollSummaryRecency(a)));
+      const [keep, ...dupes] = ordered;
+      await base44.asServiceRole.entities.PayrollSummary.update(keep.id, payload).catch(() => null);
+      for (const stray of dupes) {
+        await base44.asServiceRole.entities.PayrollSummary.delete(stray.id).catch(() => null);
+      }
+    }
   } else {
-    for (const rec of matches) {
-      await base44.asServiceRole.entities.PayrollSummary.update(rec.id, payload);
+    // Keep ONE record: rewrite the newest, delete any duplicates left behind.
+    const ordered = matches.slice().sort((a, b) => payrollSummaryRecency(b).localeCompare(payrollSummaryRecency(a)));
+    const [keep, ...dupes] = ordered;
+    await base44.asServiceRole.entities.PayrollSummary.update(keep.id, payload).catch(() => null);
+    for (const stray of dupes) {
+      await base44.asServiceRole.entities.PayrollSummary.delete(stray.id).catch(() => null);
     }
   }
   return { city: cityId, month, success: true, deliveries: deliveries.length };
@@ -465,10 +501,7 @@ async function syncPayrollMonthSnapshots(base44, recentCompleted) {
   const results = [];
   for (const { cityId, year, month, finished } of pairs.values()) {
     try {
-      const existing = await base44.asServiceRole.entities.PayrollSummary.filter(
-        { city_id: cityId, year: Number(year), month: Number(month), kind: 'month' }, '', 20
-      ).catch(() => []);
-      const matches = existing || [];
+      const matches = await fetchPayrollMonthMatches(base44, cityId, year, month);
       if (matches.length === 0) {
         // First completion of the month — no record to merge into yet.
         const r = await rebuildPayrollMonthRecord(base44, cityId, year, month);
