@@ -141,7 +141,7 @@ export default function DevicesPanel({ currentUser }) {
             merged.device_name === before.device_name &&
             merged.status === before.status &&
             merged.is_primary_tracker === before.is_primary_tracker &&
-            merged.device_info?.host === before.device_info?.host &&
+            (merged.host || merged.device_info?.host) === (before.host || before.device_info?.host) &&
             merged.device_info?.device_type === before.device_info?.device_type &&
             merged.last_active_minute_key === before.last_active_minute_key;
           // last_active_at alone still updates the "last active" label, so it is
@@ -187,7 +187,7 @@ export default function DevicesPanel({ currentUser }) {
         // Only replace state when something actually changed — identical data
         // must not re-render the panel.
         const sig = next
-          .map((d) => [d.id, d.device_name, d.status, d.is_primary_tracker, d.last_active_at, d.device_info?.host, d.device_info?.device_type, d.device_identifier].join('|'))
+          .map((d) => [d.id, d.device_name, d.status, d.is_primary_tracker, d.last_active_at, d.host || d.device_info?.host, d.device_info?.device_type, d.device_identifier].join('|'))
           .sort()
           .join('~');
         setDevices((prev) => (prev.length === next.length && sig === lastSignatureRef.current ? prev : next));
@@ -207,13 +207,14 @@ export default function DevicesPanel({ currentUser }) {
           try { host = window.location.hostname || null; } catch (_) {}
           const own = next.find((d) => d.device_identifier === storedId);
           const stampKey = `${storedId}:${host}`;
-          if (own?.id && host && own.device_info?.host !== host && hostStampAttemptedRef.current !== stampKey) {
+          const ownHost = own?.host || own?.device_info?.host;
+          if (own?.id && host && ownHost !== host && hostStampAttemptedRef.current !== stampKey) {
             hostStampAttemptedRef.current = stampKey;
             // Backend stamp: works even when the device's record was created by
             // another account (RLS would silently reject a direct update).
             base44.functions.invoke('stampDeviceHost', { deviceIdentifier: storedId, host }).then(() => {
               setDevices((prev) => prev.map((d) => d.id === own.id
-                ? { ...d, device_info: { ...(d.device_info || {}), host } }
+                ? { ...d, host, device_info: { ...(d.device_info || {}), host } }
                 : d));
             }).catch(() => {});
           }
@@ -495,7 +496,7 @@ export default function DevicesPanel({ currentUser }) {
         const lastActive = device.last_active_at ? new Date(device.last_active_at).toLocaleString() : 'Never';
         // "Current" only means something on your OWN device list.
         const isCurrent = isOwnDevices && device.id === currentDeviceId;
-        const deviceHost = device.device_info?.host
+        const deviceHost = device.host || device.device_info?.host
           || (isCurrent ? (() => { try { return window.location.hostname; } catch (_) { return ''; } })() : '')
           || '';
 

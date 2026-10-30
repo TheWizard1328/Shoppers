@@ -12,7 +12,7 @@
 // This function is callable by ANY signed-in user but only ever touches the
 // caller's OWN device record (user_id must equal the authenticated auth id),
 // writes under the service role, and merges device_info so nothing else is lost.
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const normalizeHost = (raw: unknown) => {
   const host = String(raw || '').trim().toLowerCase();
@@ -42,11 +42,22 @@ Deno.serve(async (req) => {
     if (!rec?.id) return Response.json({ skipped: 'device record not found' });
 
     const deviceInfo = rec.device_info && typeof rec.device_info === 'object' ? { ...rec.device_info } : {};
-    if (deviceInfo.host === host) return Response.json({ unchanged: true, host });
+    if (rec.host === host && deviceInfo.host === host) return Response.json({ unchanged: true, host });
 
     deviceInfo.host = host;
-    const updated = await base44.asServiceRole.entities.UserDevice.update(rec.id, { device_info: deviceInfo });
-    return Response.json({ host, device: updated });
+    // Write BOTH the flat field and the nested mirror. Older SDK builds filter
+    // undeclared nested device_info keys out of the payload, which is exactly
+    // how the first version of this function returned 200 while saving nothing.
+    const updated = await base44.asServiceRole.entities.UserDevice.update(rec.id, {
+      host,
+      device_info: deviceInfo,
+    });
+    const savedHost = updated?.host || updated?.device_info?.host || null;
+    return Response.json({
+      host: savedHost || host,
+      saved: savedHost === host,
+      device: updated,
+    });
   } catch (error) {
     return Response.json({ error: String((error as Error)?.message || error) }, { status: 500 });
   }

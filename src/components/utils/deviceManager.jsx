@@ -138,7 +138,9 @@ function maybeSyncDeviceRecord(userId, deviceId) {
         if (currentHost && deviceInfo.host !== currentHost) deviceInfo.host = currentHost;
         const updated = await base44.entities.UserDevice.update(rec.id, {
           last_active_at: new Date().toISOString(),
-          ...(currentHost ? { device_info: deviceInfo } : {}),
+          // host goes out FLAT and nested — older SDK builds drop undeclared
+          // nested device_info keys, so the flat field is the reliable one.
+          ...(currentHost ? { host: currentHost, device_info: deviceInfo } : {}),
         });
         const fresh = (updated && typeof updated === 'object') ? { ...rec, ...updated, id: rec.id } : { ...rec };
         memoryRecord = fresh;
@@ -175,12 +177,15 @@ function maybeSyncDeviceRecord(userId, deviceId) {
  * to the caller's own user_id + device_identifier, so this works regardless of
  * who created the row. Fired once per session per host.
  */
+// SESSION-scoped (not localStorage): one attempt per app session per host, so a
+// new app version or a fixed backend is retried on the next launch instead of
+// being suppressed forever by a stale key.
 const HOST_STAMP_KEY = 'rxdeliver_host_stamp';
 const readHostStamp = () => {
-  try { return localStorage.getItem(HOST_STAMP_KEY) || ''; } catch (_) { return ''; }
+  try { return sessionStorage.getItem(HOST_STAMP_KEY) || ''; } catch (_) { return ''; }
 };
 const writeHostStamp = (value) => {
-  try { localStorage.setItem(HOST_STAMP_KEY, value); } catch (_) {}
+  try { sessionStorage.setItem(HOST_STAMP_KEY, value); } catch (_) {}
 };
 
 export async function stampDeviceHost(userId, deviceRecord, { force = false } = {}) {
@@ -192,7 +197,8 @@ export async function stampDeviceHost(userId, deviceRecord, { force = false } = 
     if (!host) return null;
     const stampKey = `${userId}:${deviceId}:${host}`;
     if (!force && readHostStamp() === stampKey) return null;
-    if (deviceRecord && deviceRecord.device_info?.host === host) {
+    const recordedHost = deviceRecord?.host || deviceRecord?.device_info?.host;
+    if (recordedHost === host) {
       writeHostStamp(stampKey); // server already has it
       return host;
     }

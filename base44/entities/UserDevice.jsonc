@@ -38,6 +38,10 @@
         "browser": {
           "type": "string"
         },
+        "host": {
+          "type": "string",
+          "description": "Domain this device is running on (e.g. rxdeliver.wizardworxx.com, or a preview/sandbox host). Stamped by the device itself on boot via stampDeviceHost; the Devices panel shows it so each device's server is identifiable."
+        },
         "device_type": {
           "type": "string",
           "enum": [
@@ -47,6 +51,10 @@
           ]
         }
       }
+    },
+    "host": {
+      "type": "string",
+      "description": "Domain this device is running on. Written as a FLAT field (and mirrored into device_info.host) because older SDK versions strip undeclared nested device_info properties on write."
     },
     "status": {
       "type": "string",
