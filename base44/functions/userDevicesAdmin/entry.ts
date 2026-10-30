@@ -46,6 +46,22 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || '').trim();
 
+    if (action === 'listAll') {
+      // Every device across every user — used to colour the admin's "View
+      // devices for" list (green/yellow/red/blue by domain migration).
+      const all = await base44.asServiceRole.entities.UserDevice.filter({}).catch(() => []);
+      return Response.json({
+        devices: (Array.isArray(all) ? all : []).map((d) => ({
+          id: d.id,
+          user_id: d.user_id,
+          device_name: d.device_name,
+          device_identifier: d.device_identifier,
+          status: d.status,
+          host: d.host || d.device_info?.host || null,
+        })),
+      });
+    }
+
     if (action === 'list') {
       const userId = String(body?.userId || '').trim();
       if (!userId) return Response.json({ error: 'Missing userId' }, { status: 400 });

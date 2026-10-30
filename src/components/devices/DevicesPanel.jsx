@@ -14,6 +14,12 @@ import {
 import { toast } from 'sonner';
 import { getLocationProvider } from '@/components/utils/locationProviders';
 import DeviceForm from '@/components/devices/DeviceForm';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  classifyDeviceHost, summarizeUserDevices, domainStatus,
+} from '@/components/devices/deviceDomainStatus';
 // InkbirdBleLog moved to Admin Utilities - BLE Diag tab
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
@@ -49,6 +55,9 @@ export default function DevicesPanel({ currentUser }) {
   const loadedUserRef = useRef(null);
   const lastSignatureRef = useRef('');
   const hostStampAttemptedRef = useRef('');
+  // user_id -> { kind, count } for EVERY user, so the picker can be coloured
+  // (green/yellow/red/blue) without switching to each user first.
+  const [userDomainStatus, setUserDomainStatus] = useState({});
   const isAdminViewer = !!currentUser &&
     (currentUser.app_roles?.includes?.('admin') || currentUser.role === 'admin');
 
@@ -114,6 +123,31 @@ export default function DevicesPanel({ currentUser }) {
     })();
     return () => { cancelled = true; };
   }, [isAdminViewer]);
+
+  // Admin-wide domain roll-up for the picker (owner request Oct 29 2026).
+  useEffect(() => {
+    if (!isAdminViewer) { setUserDomainStatus({}); return undefined; }
+    let cancelled = false;
+    const loadAll = async () => {
+      try {
+        const res = await callAdminDevices({ action: 'listAll' });
+        const all = Array.isArray(res?.devices) ? res.devices : [];
+        const byUser = new Map();
+        for (const d of all) {
+          if (!d?.user_id) continue;
+          if (!byUser.has(d.user_id)) byUser.set(d.user_id, []);
+          byUser.get(d.user_id).push(d);
+        }
+        const next = {};
+        for (const [uid, list] of byUser.entries()) {
+          next[uid] = { kind: summarizeUserDevices(list), count: list.length };
+        }
+        if (!cancelled) setUserDomainStatus(next);
+      } catch (_) { /* picker simply stays uncoloured */ }
+    };
+    loadAll();
+    return () => { cancelled = true; };
+  }, [isAdminViewer, refreshTick]);
 
   // Live updates (owner request Oct 29 2026) — FLICKER FIX (owner report
   // Oct 29 2026, 23:11): the first version bumped a refresh tick, which re-ran
@@ -412,31 +446,72 @@ export default function DevicesPanel({ currentUser }) {
       {/* Toolbar: user picker (admin only) + Add Device + Refresh share one row
           (owner request Oct 29 2026 — the picker no longer spans the panel). */}
       <div className="flex items-center gap-2">
-        {isAdminViewer && (
-          <select
-            aria-label="View devices for"
-            value={viewUserId || ''}
-            onChange={(e) => {
-              const next = e.target.value === currentUser?.id ? null : e.target.value;
-              setTargetUserId(next);
-              setEditingSettings({});
-              setDeviceSettings({});
-              setShowForm(false);
-              setEditingDevice(null);
-            }}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded text-sm border bg-surface border-surface text-body"
-          >
-            <option value={currentUser?.id || ''}>Me{currentUser?.user_name ? ` (${currentUser.user_name})` : ''}</option>
-            {users
+        {isAdminViewer && (() => {
+          // Owner request Oct 29 2026: the "View devices for" list is colour
+          // coded by domain migration — green (all devices on the new domain),
+          // yellow (more than one device, at least one not migrated), red (none
+          // migrated), blue (preview), neutral (no domain recorded yet). A
+          // native <select> cannot colour its options, so this is a Radix
+          // Select whose items render as real DOM.
+          const selectedId = viewUserId || currentUser?.id || '';
+          const selectedKind = userDomainStatus[selectedId]?.kind || 'unknown';
+          const selectedStyle = domainStatus(selectedKind);
+          const pickerUsers = [
+            { user_id: currentUser?.id, name: `Me${currentUser?.user_name ? ` (${currentUser.user_name})` : ''}`, roles: currentUser?.app_roles },
+            ...users
               .filter((u) => u.user_id !== currentUser?.id)
-              .map((u) => (
-                <option key={u.id || u.user_id} value={u.user_id}>
-                  {u.user_name || u.full_name || u.ETrans_Email || 'Unnamed user'}
-                  {u.app_roles?.length ? ` — ${u.app_roles.join(', ')}` : ''}
-                </option>
-              ))}
-          </select>
-        )}
+              .map((u) => ({
+                user_id: u.user_id,
+                name: u.user_name || u.full_name || u.ETrans_Email || 'Unnamed user',
+                roles: u.app_roles,
+              })),
+          ].filter((u) => u.user_id);
+
+          return (
+            <Select
+              value={selectedId}
+              onValueChange={(value) => {
+                const next = value === currentUser?.id ? null : value;
+                setTargetUserId(next);
+                setEditingSettings({});
+                setDeviceSettings({});
+                setShowForm(false);
+                setEditingDevice(null);
+              }}
+            >
+              <SelectTrigger
+                aria-label="View devices for"
+                className={`flex-1 min-w-0 h-9 px-2 text-sm border bg-surface border-surface ${selectedStyle.rowText}`}
+              >
+                <SelectValue placeholder="View devices for" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[22rem]">
+                {pickerUsers.map((u) => {
+                  const info = userDomainStatus[u.user_id];
+                  const style = domainStatus(info?.kind || 'unknown');
+                  return (
+                    <SelectItem
+                      key={u.user_id}
+                      value={u.user_id}
+                      className={`${style.rowBg} focus:bg-accent/60`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot}`} aria-hidden="true" />
+                        <span className={`truncate ${style.rowText}`}>
+                          {u.name}
+                          {u.roles?.length ? ` — ${u.roles.join(', ')}` : ''}
+                        </span>
+                        {info?.count ? (
+                          <span className="ml-1 text-[10px] text-soft shrink-0">{info.count}d</span>
+                        ) : null}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          );
+        })()}
         <Button size="sm" className={`gap-2 shrink-0 ${isAdminViewer ? '' : 'flex-1'}`} onClick={() => { setEditingDevice(null); setShowForm(true); }}>
           <Plus className="w-4 h-4" /> Add Device{!isOwnDevices ? ` for ${viewUserName}` : ''}
         </Button>
@@ -500,8 +575,14 @@ export default function DevicesPanel({ currentUser }) {
           || (isCurrent ? (() => { try { return window.location.hostname; } catch (_) { return ''; } })() : '')
           || '';
 
+        // Owner request Oct 29 2026: cards use the SAME colour language as the
+        // picker — green on the new domain, yellow partial, red not migrated,
+        // blue preview, neutral when no domain is recorded yet.
+        const deviceKind = classifyDeviceHost(deviceHost);
+        const deviceStyle = domainStatus(deviceKind);
+
         return (
-          <Card key={device.id} className="bg-surface border-surface">
+          <Card key={device.id} className={`border border-l-4 ${deviceStyle.card}`}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -510,6 +591,7 @@ export default function DevicesPanel({ currentUser }) {
                     <p className="text-base font-semibold text-body">
                       {device.device_name}
                       {isCurrent && <Badge className="ml-2 bg-blue-500 text-white text-xs">Current</Badge>}
+                      <Badge className={`ml-2 text-[10px] ${deviceStyle.chip}`}>{deviceStyle.label}</Badge>
                     </p>
                     <p className="text-sm text-soft">{displayOS} · {lastActive}</p>
                     <p className="text-xs text-soft break-all">
