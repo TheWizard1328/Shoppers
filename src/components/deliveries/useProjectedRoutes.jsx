@@ -92,7 +92,7 @@ export function useProjectedRoutes({ activeDriver, activeDriverDeliveries, store
           })
           .map((p) => ({
             id: `projected-delivery-${p.id}-${dateString}-${period}-${store.id}`,
-            patient_id: p.id, patient_name: p.full_name, store_id: p.store_id,
+            patient_id: p.id, patient_name: p.full_name || '', store_id: p.store_id,
             driver_name: driverName, delivery_date: dateString, delivery_address: p.address,
             delivery_instructions: p.notes, latitude: p.latitude, longitude: p.longitude,
             delivery_time_start: p.time_window_start || null, delivery_time_end: p.time_window_end || null,
@@ -103,9 +103,9 @@ export function useProjectedRoutes({ activeDriver, activeDriverDeliveries, store
           .sort((a, b) => {
             if (a.frequencyPriority !== b.frequencyPriority) return a.frequencyPriority - b.frequencyPriority;
             const tA = a.delivery_time_start || '00:00', tB = b.delivery_time_start || '00:00';
-            if (tA !== tB) return tA.localeCompare(tB);
+            if (tA !== tB) return String(tA).localeCompare(String(tB));
             if (a.distance_from_store !== b.distance_from_store) return a.distance_from_store - b.distance_from_store;
-            return a.patient_name.localeCompare(b.patient_name);
+            return String(a.patient_name || '').localeCompare(String(b.patient_name || ''));
           });
 
         const pickupCard = {
@@ -145,11 +145,11 @@ export function useProjectedRoutes({ activeDriver, activeDriverDeliveries, store
     flatDeliveries.sort((a, b) => {
       const tA = a.sortTime || a.delivery_time_start || '00:00';
       const tB = b.sortTime || b.delivery_time_start || '00:00';
-      if (tA !== tB) return tA.localeCompare(tB);
-      return (a.tracking_number || '').localeCompare(b.tracking_number || '');
+      if (tA !== tB) return String(tA).localeCompare(String(tB));
+      return String(a.tracking_number || '').localeCompare(String(b.tracking_number || ''));
     });
     flatDeliveries.forEach((s, i) => { stopOrderMap[s.id] = i + 1; });
-    pickups.sort((a, b) => (a.sortTime || '00:00').localeCompare(b.sortTime || '00:00'));
+    pickups.sort((a, b) => String(a.sortTime || '00:00').localeCompare(String(b.sortTime || '00:00')));
 
     return { pickups, deliveries: flatDeliveries, stopOrderMap };
   }, [activeDriver, activeDriverDeliveries.length, stores, effectivePatients, allPatients, selectedDate]);

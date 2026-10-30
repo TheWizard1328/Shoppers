@@ -199,7 +199,7 @@ export default function DateListPanel({
                         const res = await printRouteManifestForDate({
                           currentUser,
                           dateValue: dateStr,
-                          deliveries: dateDeliveries,
+                          deliveries: deliveries.filter((d) => d?.delivery_date === dateStr),
                           driverFilter: selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null,
                         });
                         setPrintingDate(null);
