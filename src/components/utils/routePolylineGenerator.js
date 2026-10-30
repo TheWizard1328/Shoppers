@@ -412,67 +412,22 @@ export async function generateRoutePolylines({
   //   • Any stored leg NOT anchored at its current predecessor (Start Delivery
   //     renumber jumps a stop to the front, shifting adjacency) → FULL
   //     regeneration (owner report, Oct 7 2026).
-  let polyTargets = stopsToPolyline;
-  if (forceRegenerate && polyTargets.length > 0) {
-    console.log(`[routePolylineGenerator] ${source} — FORCE REGENERATE (${polyTargets.length} leg(s)) — full generation, leg-reuse skips bypassed`);
-  }
-  if (!forceRegenerate && orderUnchanged && polyTargets.length > 0) {
-    const allLegsPresent = polyTargets.every(s =>
-      typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10
-    );
-    if (!allLegsPresent) {
-      // Some leg is missing (e.g. stops just accepted, or a previous polyline
-      // pass failed) → full generation; the skip must never leave gaps.
-      console.log(`[routePolylineGenerator] ${source} — order unchanged but ${polyTargets.length - polyTargets.filter(s => typeof s.delivery?.encoded_polyline === 'string' && s.delivery.encoded_polyline.length > 10).length} leg(s) missing → full generation`);
-    } else {
-      // ── Adjacency validation (owner report, Oct 7 2026) ────────────────────
-      // "Same stop order" does NOT prove the STORED legs match the current
-      // adjacency. Start Delivery renumbers locally BEFORE the coordinator
-      // runs (started stop jumps to position K+1, everything shifts), so the
-      // optimizer's order equals the pre-opt LOCAL order and the skip fired —
-      // leaving mid-route legs anchored at their OLD origin/destination
-      // (e.g. start stop 9 → stops 8 and 10 keep stale polylines). A stored
-      // leg is only reusable when its decoded FIRST point sits at its expected
-      // anchor: the origin for leg 0, the previous stop for every later leg.
-      // Any mismatch → full generation.
-      const _anchorKm = (pts, anchor) => {
-        if (!Array.isArray(pts) || pts.length === 0) return Infinity;
-        if (!Number.isFinite(Number(pts[0][0])) || !Number.isFinite(Number(pts[0][1]))) return Infinity;
-        const _latRad = (Number(anchor.lat) || 0) * Math.PI / 180;
-        const _dLatKm = (Number(pts[0][0]) - Number(anchor.lat)) * 111.32;
-        const _dLonKm = (Number(pts[0][1]) - Number(anchor.lon)) * 111.32 * Math.max(Math.cos(_latRad), 0.01);
-        return Math.hypot(_dLatKm, _dLonKm);
-      };
-      let _staleLegIdx = -1;
-      for (let i = 0; i < polyTargets.length; i++) {
-        // OWNER RULE (Oct 13 2026): even ONE leg whose generation stamp
-        // (polyline_from_order) doesn't match the record's current stop_order
-        // — i.e. ANY stop renumbered anywhere on the route without an atomic
-        // leg regen (manual adjust-panel reordering) — forces full
-        // regeneration of ALL remaining stops.
-        if (isLegOrderStampStale(polyTargets[i].delivery)) {
-          console.log(`[routePolylineGenerator] ${source} — order unchanged but leg ${i + 1}/${polyTargets.length} stop_order stamp mismatch (manual reorder / unstamped) → full generation`);
-          _staleLegIdx = i;
-          break;
-        }
-        const expectedAnchor = i === 0
-          ? { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
-          : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };
-        let _km = Infinity;
-        try { _km = _anchorKm(decodeGooglePolyline(polyTargets[i].delivery.encoded_polyline), expectedAnchor); }
-        catch (_) { /* decode failure → treat as stale */ }
-        if (!(_km < 0.15)) { _staleLegIdx = i; break; }
-      }
-      if (_staleLegIdx >= 0) {
-        console.log(`[routePolylineGenerator] ${source} — order unchanged but stored leg ${_staleLegIdx + 1}/${polyTargets.length} is not anchored at its current predecessor (Start-renumber / adjacency change) → full generation`);
-      } else if (viaValid) {
-        console.log(`[routePolylineGenerator] ${source} — order unchanged, all legs anchored → current-leg-only regeneration (live-GPS via point); ${polyTargets.length - 1} later leg(s) keep existing polylines`);
-        polyTargets = [polyTargets[0]];
-      } else {
-        console.log(`[routePolylineGenerator] ${source} — ORDER UNCHANGED, all ${polyTargets.length} leg(s) present and anchored → polyline generation SKIPPED (ETAs still update from HERE sequencing)`);
-        return polylineByDeliveryId;
-      }
-    }
+  // ── ALWAYS REGENERATE (owner directive, Oct 29 2026) ────────────────────────
+  // "Remove the rule that ignores polyline generation when no stops changed
+  // their stop order — it's causing more issues than anything. Anytime polyline
+  // generation is requested it should get polylines, whether that's accepting
+  // stops, manual route optimization or the quick route adjustment panel. All
+  // active stops should get repolylined regardless of whether they already have
+  // polyline data."
+  //
+  // The Oct 5 / Oct 13 order-unchanged skip (and its leg-reuse / current-leg-
+  // only tiers) is GONE. Every invocation generates a leg for EVERY target, so
+  // a stale, mis-anchored or half-written leg can never survive a generation
+  // pass. `orderUnchanged` and `forceRegenerate` stay in the signature for
+  // callers but no longer change the outcome.
+  const polyTargets = stopsToPolyline;
+  if (polyTargets.length > 0) {
+    console.log(`[routePolylineGenerator] ${source} — ALWAYS REGENERATE (${polyTargets.length} leg(s)) — no order-unchanged skip, no leg reuse`);
   }
 
   // ── DEGENERATE-ORIGIN GUARD (owner directive, Oct 27 2026) ─────────────────
