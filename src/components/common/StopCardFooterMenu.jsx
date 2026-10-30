@@ -80,7 +80,20 @@ export default function StopCardFooterMenu(props) {
   // only applies to regular deliveries. Pickup cards update the Store record's
   // coords; InterStore cards update the InterStoreLocation record.
   const hasGpsTarget = !!(isPickupForMenu || isInterStore ? true : patient);
-  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && hasGpsTarget && (isNextDelivery || isFinishedDelivery || delivery?.status === 'in_transit'));
+  // OWNER REQUEST (Oct 30 2026): "the update GPS option in the pop-up menu on
+  // the stop cards for pickup locations must be available even if the pickup is
+  // not the next delivery." Pickup/en-route stops sit at 'pending' or 'en_route'
+  // until the driver starts them, and the old gate (isNextDelivery ||
+  // finished || in_transit) hid the option for every other card — exactly when
+  // a dispatcher or driver standing at the pharmacy needs to correct its pin.
+  // Pickup + InterStore cards now offer Update GPS on ANY unfinished stop;
+  // regular patient deliveries keep the previous next/in_transit/finished rule.
+  const isPickupLocationMenu = !!(isPickupForMenu || isInterStore);
+  const isUnfinishedStopForGps = !['completed', 'cancelled', 'failed'].includes(String(delivery?.status || '').toLowerCase());
+  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && hasGpsTarget
+    && (isPickupLocationMenu
+      ? (isUnfinishedStopForGps || isFinishedDelivery)
+      : (isNextDelivery || isFinishedDelivery || delivery?.status === 'in_transit')));
 
   const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
 
