@@ -119,7 +119,9 @@ export default function DevicesPanel({ currentUser }) {
         // Same ordering as the rest of the app's user lists: AppUser.sort_order
         // ascending (unset sorts last), name as a stable tie-break.
         setUsers((list || [])
-          .filter((u) => u?.user_id)
+          // Owner directive Oct 30 2026: inactive (archived/disabled) users are
+          // not offered here — only active accounts appear in the roster.
+          .filter((u) => u?.user_id && String(u.status || 'active').toLowerCase() !== 'inactive')
           .sort((a, b) => {
             const ao = typeof a.sort_order === 'number' && Number.isFinite(a.sort_order) ? a.sort_order : Infinity;
             const bo = typeof b.sort_order === 'number' && Number.isFinite(b.sort_order) ? b.sort_order : Infinity;
