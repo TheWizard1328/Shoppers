@@ -116,7 +116,32 @@ const edmontonNowMinutes = () => {
  * @param {string} params.driverId
  * @returns {Promise<{success:boolean, reason?:string, updatedDelivery?:Object}>}
  */
-export async function regenerateCurrentLegPolyline({
+// Single-flight per stop: the deviation monitor, the mis-anchor healer and the
+// route optimizer could all ask for the same leg within a second of each other,
+// which produced the owner's "two Google calls, clears then redraws, then
+// redraws again" flicker (Oct 30 2026). One request per leg at a time; callers
+// that arrive mid-flight share the in-progress result instead of paying again.
+const _inFlightLegRegens = new Map();
+
+export async function regenerateCurrentLegPolyline(params) {
+  const key = `${params?.driverId || ''}:${params?.nextStop?.id || ''}`;
+  const existing = _inFlightLegRegens.get(key);
+  if (existing) {
+    console.log(`[currentLegRegenerator] dedup — a regen for stop ${params?.nextStop?.stop_order} is already in flight, joining it`);
+    return existing;
+  }
+  const run = (async () => {
+    try {
+      return await _regenCurrentLegPolylineInner(params);
+    } finally {
+      _inFlightLegRegens.delete(key);
+    }
+  })();
+  _inFlightLegRegens.set(key, run);
+  return run;
+}
+
+async function _regenCurrentLegPolylineInner({
   nextStop,
   gps,
   deliveries,
@@ -159,11 +184,32 @@ export async function regenerateCurrentLegPolyline({
     gpsPosition: { lat: Number(gps.latitude), lon: Number(gps.longitude) },
     log: (msg) => console.warn(`[currentLegRegenerator] origin: ${msg}`),
   });
-  const origin = _pick.origin;
-  const originSource = _pick.source;
+  let origin = _pick.origin;
+  let originSource = _pick.source;
   if (!origin) {
     console.warn('[currentLegRegenerator] no polyline origin (no finished stop, no home) — skipping');
     return { success: false, reason: 'no_origin' };
+  }
+
+  // ── LOOP GUARD (owner report Oct 30 2026: the leg kept coming out as a loop
+  // from the current stop back to itself) ────────────────────────────────────
+  // A leg whose origin sits ON its destination can only be drawn as a round
+  // trip. If the driver's live GPS is meaningfully away from the stop, use it
+  // as the origin (the driven path so far ends there); otherwise leave the
+  // existing leg untouched instead of writing a loop over it.
+  {
+    const _legKm = haversineKm(Number(origin.lat), Number(origin.lon), Number(stopCoords.lat), Number(stopCoords.lng));
+    if (Number.isFinite(_legKm) && _legKm < 0.15) {
+      const _gpsKm = haversineKm(Number(gps.latitude), Number(gps.longitude), Number(stopCoords.lat), Number(stopCoords.lng));
+      if (Number.isFinite(_gpsKm) && _gpsKm > 0.2) {
+        console.warn(`[currentLegRegenerator] resolved origin sits on the stop (${_legKm.toFixed(3)}km) — re-anchoring at live GPS (${_gpsKm.toFixed(2)}km away) to avoid a stop→stop loop`);
+        origin = { lat: Number(gps.latitude), lon: Number(gps.longitude) };
+        originSource = 'live_gps_reanchor';
+      } else {
+        console.warn(`[currentLegRegenerator] origin and stop coincide (${_legKm.toFixed(3)}km) with the driver already at the stop — keeping the existing leg, no request`);
+        return { success: false, reason: 'degenerate_leg_origin_at_stop' };
+      }
+    }
   }
 
   // ── Live-GPS via-point (same gate as the engine: >100m from the anchor) ────

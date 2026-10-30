@@ -1311,6 +1311,10 @@ let _inheritedWindowCount = 0;
       forceRegenerate,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
       originPoint: polylineOrigin,
+      // OWNER SPEC (Oct 30 2026): one request covers origin -> vias -> GPS ->
+      // every active stop -> the driver's HOME. Cycling passes close on their
+      // own end marker instead.
+      destinationPoint: resolvedHomePosition ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng } : null,
       cyclingSegmentOnly,
       hereApiKey,
       polylineProvider,
@@ -1350,6 +1354,10 @@ let _inheritedWindowCount = 0;
             forceRegenerate: true,
             stops: _driveTargets.map((s) => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
             originPoint: polylineOrigin,
+      // OWNER SPEC (Oct 30 2026): one request covers origin -> vias -> GPS ->
+      // every active stop -> the driver's HOME. Cycling passes close on their
+      // own end marker instead.
+      destinationPoint: resolvedHomePosition ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng } : null,
             cyclingSegmentOnly: false,
             hereApiKey,
             polylineProvider,
@@ -1733,7 +1741,13 @@ let _inheritedWindowCount = 0;
       // stop keeps its existing stored leg instead of being overwritten with a
       // dot, which is what the map reads as "no polyline".
       ...(_segIsUsable(seg, stop) && (!isPending || stop.is_cycling_marker === true) ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
-      ...(isPending && stop.is_cycling_marker !== true ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
+      // OWNER REPORT (Oct 30 2026: "it keeps clearing the current leg polyline
+      // then redrawing it"): a stop the engine reads as pending was having its
+      // stored leg NULLED on every pass — and when that stop is the leg the
+      // driver is actually on (isNextDelivery), the clear/redraw alternated
+      // forever, one API call per round. The current leg is never cleared.
+      ...(isPending && stop.is_cycling_marker !== true && stop.delivery?.isNextDelivery !== true
+        ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
     // Deviation-waypoint transfer changes ride along with stop_order/polyline

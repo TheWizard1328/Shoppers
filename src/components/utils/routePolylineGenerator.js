@@ -337,6 +337,12 @@ export async function generateRoutePolylines({
                               // sequencing) — unless the current leg actually differs:
                               // if any eligible leg is missing, the origin anchor moved,
                               // or the live-GPS via point applies, ONLY that leg regenerates.
+  destinationPoint = null,    // OWNER SPEC (Oct 30 2026): the remaining route is
+                              // drawn in ONE call — origin (last finished stop or
+                              // home) → deviation vias → live GPS → every active
+                              // stop → the driver's HOME as the final destination.
+                              // Appended to the last mode group only, so the same
+                              // single request also encodes the return-home leg.
   logPurpose = null,          // Optional override for the Maps API usage-log purpose
                               // (e.g. 'Route Deviation (Google Directions) — Current Route Leg').
                               // Null → default 'Polyline generation' labels, unchanged.
@@ -574,6 +580,20 @@ export async function generateRoutePolylines({
       stopIdxs.push(points.length);
       points.push({ lat: stop.lat, lon: stop.lng });
     });
+    // OWNER SPEC (Oct 30 2026): close the pass at the driver's home so ONE
+    // request covers the whole remaining route. The trailing section belongs to
+    // no stop, so section→stop mapping below is unchanged.
+    if (groupIdx === modeGroups.length - 1 && destinationPoint
+      && Number.isFinite(Number(destinationPoint.lat)) && Number.isFinite(Number(destinationPoint.lon))) {
+      const _lastPt = points[points.length - 1];
+      const _homeKm = Math.hypot(
+        (Number(destinationPoint.lat) - _lastPt.lat) * 111.32,
+        (Number(destinationPoint.lon) - _lastPt.lon) * 111.32 * Math.max(Math.cos(((Number(destinationPoint.lat) + _lastPt.lat) / 2) * Math.PI / 180), 0.01)
+      );
+      if (_homeKm > 0.05) {
+        points.push({ lat: Number(destinationPoint.lat), lon: Number(destinationPoint.lon) });
+      }
+    }
     const viaTotal = stopViaCounts.reduce((s, n) => s + n, 0) + (liveViaIdx !== -1 ? 1 : 0);
     const result = useGooglePoly
       ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose, ...getPolylineRoutePrefs() }).catch((err) => {

@@ -183,6 +183,21 @@ async function _healMisAnchoredLeg({ nextStop, todayDeliveries, patients, stores
     const driftKm = haversineKm(Number(pts[0][0]), Number(pts[0][1]), origin.lat, origin.lon);
     if (!Number.isFinite(driftKm) || driftKm <= HEAL_MAX_DRIFT_KM) return;
 
+    // OWNER REPORT (Oct 30 2026: two API calls per cycle, leg cleared and
+    // redrawn as a loop): the healer measured drift from the TRUE origin
+    // (home / last finished stop), but a deviation leg legitimately STARTS at
+    // the recorded deviation exit point. Home-anchored -> healer redraws from
+    // home -> deviation monitor redraws the deviated leg -> healer again, for
+    // ever. A leg that starts on one of this stop's own deviation waypoints is
+    // correctly anchored and must be left alone.
+    const waypoints = Array.isArray(nextStop?.deviation_waypoints) ? nextStop.deviation_waypoints : [];
+    const startsOnDeviationPoint = waypoints.some((w) => {
+      const wLat = Number(w?.lat), wLng = Number(w?.lng);
+      if (!Number.isFinite(wLat) || !Number.isFinite(wLng)) return false;
+      return haversineKm(Number(pts[0][0]), Number(pts[0][1]), wLat, wLng) <= 0.15;
+    });
+    if (startsOnDeviationPoint) return;
+
     _healByDriver.set(driverId, { key, at: Date.now() });
     console.warn(`[RouteDeviation] stored current leg starts ${driftKm.toFixed(2)}km from its true origin (${pick.source}) — regenerating anchored to it`);
     await _regenCurrentLeg({
