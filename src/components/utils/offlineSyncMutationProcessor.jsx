@@ -84,6 +84,42 @@ export const processPendingMutationsInternal = async () => {
   const updates = batch.filter(m => m.operation === 'update');
   const deletes = batch.filter(m => m.operation === 'delete');
 
+  // ── COALESCE UPDATE MUTATIONS (owner report Oct 30 2026) ──────────────────
+  // The phone showed repeated 429 'entity_update' balloons while driving: the
+  // queue holds ONE mutation PER FIELD (a start writes status + arrival_time,
+  // a reorder writes stop_order + isNextDelivery + tracking_number for several
+  // stops), and every one of them replayed as its own Delivery.update — dozens
+  // of writes for what is really one record edit. Updates are now merged per
+  // entity+record before replay: later values win, one write per record, and
+  // every merged mutation id is cleared on success.
+  const coalescedUpdates = (() => {
+    const groups = new Map();
+    const passthrough = [];
+    for (const m of updates) {
+      if (!m.recordId || String(m.recordId).startsWith('temp_')) { passthrough.push(m); continue; }
+      const key = `${m.entity}|${m.recordId}`;
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, {
+          ...m,
+          payload: { ...(m.payload || {}) },
+          _mergedIds: [m.mutationId],
+        });
+      } else {
+        Object.assign(existing.payload, m.payload || {});
+        existing._mergedIds.push(m.mutationId);
+        if (!existing.driverStatusTransition && m.driverStatusTransition) {
+          existing.driverStatusTransition = m.driverStatusTransition;
+        }
+      }
+    }
+    const merged = [...groups.values(), ...passthrough];
+    if (merged.length < updates.length) {
+      console.log(`🧩 [OfflineSync] Coalesced ${updates.length} update mutation(s) into ${merged.length} record write(s)`);
+    }
+    return merged;
+  })();
+
   let successCount = 0;
   let failCount = 0;
   const failedMutationIds = []
@@ -150,7 +186,7 @@ export const processPendingMutationsInternal = async () => {
     }
   }
 
-  for (const mutation of [...creates, ...updates]) {
+  for (const mutation of [...creates, ...coalescedUpdates]) {
     if (getSyncPaused()) break;
 
     try {
@@ -353,7 +389,10 @@ export const processPendingMutationsInternal = async () => {
         }
       }
 
-      await offlineDB.removePendingMutation(mutation.mutationId);
+      // Coalesced groups clear EVERY mutation id they absorbed.
+      for (const _mid of (mutation._mergedIds && mutation._mergedIds.length ? mutation._mergedIds : [mutation.mutationId])) {
+        await offlineDB.removePendingMutation(_mid);
+      }
       invalidateEntityCache(mutation.entity);
       if (mutation.entity === 'AppUser' && mutation.driverStatusTransition && typeof window !== 'undefined') {
         const hasPendingStatus = await hasPendingDriverStatusMutation(mutation.recordId);

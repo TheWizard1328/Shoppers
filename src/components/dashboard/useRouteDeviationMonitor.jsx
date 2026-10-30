@@ -71,7 +71,16 @@ const FAILED_REGEN_RETRY_MS = 45 * 1000;
 // unaffected — after a regen the line bends through the driver, so distance
 // only grows again while actually moving away.
 const ESCALATION_DISTANCE_FACTOR = 2;
-const ESCALATION_SHORT_COOLDOWN_MS = 15 * 1000;
+// OWNER REPORT Oct 30 2026 (phone showed repeated 429 'entity_update' /
+// 'entity_list' balloons on the highway): with the admin threshold at 50m the
+// 2x escalation gate opened at 100m, i.e. ordinary GPS noise plus one reroute,
+// and the 15s short cooldown then fired a FULL current-leg regen — HERE Router
+// call plus a Delivery write — up to four times a minute for the whole drive
+// (logs: regen dist=145m / 583m / 2904m). Escalation is now bounded by an
+// absolute floor AND a sane cadence: it only shortens the cooldown when the
+// driver is at least 250m off the line, and never faster than once a minute.
+const ESCALATION_MIN_DISTANCE_M = 250;
+const ESCALATION_SHORT_COOLDOWN_MS = 60 * 1000;
 let regenInFlight = false;
 let regenInFlightAt = 0;
 // ── REGEN WATCHDOG (owner report Oct 5 2026) ────────────────────────────────
@@ -397,7 +406,8 @@ export async function checkCurrentLegDeviationOnDuty({
 
   const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
   const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
-  const _escalated = distance > ESCALATION_DISTANCE_FACTOR * threshold;
+  const _escalated = distance > ESCALATION_DISTANCE_FACTOR * threshold
+    && distance > ESCALATION_MIN_DISTANCE_M;
   const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES)
     ? FAILED_REGEN_RETRY_MS
     : (_escalated ? Math.min(cooldownMs, ESCALATION_SHORT_COOLDOWN_MS) : cooldownMs);
@@ -576,7 +586,8 @@ export function useRouteDeviationMonitor({
       // ── Cooldown + in-flight lock ──
       const lastRegenAt = lastRegenAtByDriver.get(driverId) || 0;
       const _failedAt = lastRegenFailedAtByDriver.get(driverId) || 0;
-      const _escalated = distance > ESCALATION_DISTANCE_FACTOR * threshold;
+      const _escalated = distance > ESCALATION_DISTANCE_FACTOR * threshold
+    && distance > ESCALATION_MIN_DISTANCE_M;
       const _effectiveCooldownMs = (_failedAt >= lastRegenAt && (regenConsecutiveFailuresByDriver.get(driverId) || 0) < MAX_REGEN_FAILURES)
         ? FAILED_REGEN_RETRY_MS
         : (_escalated ? Math.min(cooldownMs, ESCALATION_SHORT_COOLDOWN_MS) : cooldownMs);
