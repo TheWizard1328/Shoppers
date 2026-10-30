@@ -573,7 +573,27 @@ export async function generateRoutePolylines({
       }
       vias.forEach((v) => points.push(v));
       stopViaCounts.push(vias.length);
-      if (useVia && liveViaIdx === -1 && !_suppressLiveVia) {
+      // OWNER REPORT Oct 30 2026 (cycling start marker got a blank 1-point
+      // polyline): the driver was standing ON the first in-flight stop when the
+      // leg was generated, so the live-GPS via sat within a few metres of the
+      // destination. The Router then collapsed origin→GPS→stop into a
+      // zero-length section, the leg fell through to the synthesis path below
+      // and a GPS≈stop stub (12 chars, one real point) was written — the marker
+      // showed no line back to the previous finished stop. A via that is already
+      // at the stop carries no information: drop it and let the leg draw
+      // origin → stop as a normal road leg.
+      const _viaAtStopKm = (() => {
+        if (!useVia || liveViaIdx !== -1 || _suppressLiveVia) return null;
+        const _gLat = Number(viaPointAfterOrigin.lat);
+        const _gLon = Number(viaPointAfterOrigin.lon);
+        if (!Number.isFinite(_gLat) || !Number.isFinite(_gLon)) return null;
+        return haversineKm(_gLat, _gLon, Number(stop.lat), Number(stop.lng));
+      })();
+      const _viaSuppressedAtStop = _viaAtStopKm != null && _viaAtStopKm < 0.05;
+      if (_viaSuppressedAtStop) {
+        console.log(`[routePolylineGenerator] ${source} — live-GPS via is ${(_viaAtStopKm * 1000).toFixed(0)}m from the first stop (driver already there) — omitted so the inbound leg draws origin → stop`);
+      }
+      if (useVia && liveViaIdx === -1 && !_suppressLiveVia && !_viaSuppressedAtStop) {
         liveViaIdx = points.length;
         points.push({ lat: Number(viaPointAfterOrigin.lat), lon: Number(viaPointAfterOrigin.lon) });
       }
@@ -676,7 +696,10 @@ export async function generateRoutePolylines({
       // chain's inbound anchor to the stop instead — the next healthy
       // optimization replaces it with the true road shape.
       if (encoded == null) {
-        const _chainAnchor = points[Math.max(0, stopIdx - 1 - viaCount)];
+        // OWNER FIX Oct 30 2026: on the CURRENT leg the inbound anchor is the
+        // leg ORIGIN (last finished stop / home) — never the live-GPS via, which
+        // sits next to the destination and produced a 12-char stub "leg".
+        const _chainAnchor = points[liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount)];
         const _aLat = Number(_chainAnchor?.lat), _aLon = Number(_chainAnchor?.lon);
         const _bLat = Number(stop.lat), _bLon = Number(stop.lng);
         if ([_aLat, _aLon, _bLat, _bLon].every(Number.isFinite)) {
@@ -694,7 +717,7 @@ export async function generateRoutePolylines({
       // to the current stop" shape; substitute a straight anchor->stop line so
       // the loop can never be painted or persisted again.
       if (encoded != null) {
-        const _gateAnchor = points[Math.max(0, stopIdx - 1 - viaCount)];
+        const _gateAnchor = points[liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount)];
         const _gated = guardLegGeometry({
           encoded,
           decode: decodeGooglePolyline,
