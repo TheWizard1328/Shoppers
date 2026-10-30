@@ -424,6 +424,34 @@ function Dashboard() {
     return result;
   }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser, isSnapshotModeActive, snapshotData, driversList]);
 
+  // ── Next-delivery flag self-heal (owner report Oct 30 2026) ────────────────
+  // The owner's route lost its next stop after switching to another driver and
+  // editing THEIR route. v15 fixed the optimizer write path; this guard makes the
+  // symptom impossible regardless of which writer is at fault: whenever the viewed
+  // route has NO next stop while it still has active work, the flag is restored
+  // (accepted stop, non-pending, lowest stop_order). Throttled per driver+date so
+  // it costs nothing on a healthy route, and it never touches a finished route.
+  const _nextGuardRef = useRef(new Map());
+  useEffect(() => {
+    const _targetDriver = selectedDriverId && selectedDriverId !== 'all'
+      ? selectedDriverId
+      : currentUser?.id;
+    if (!_targetDriver || !Array.isArray(deliveries) || deliveries.length === 0) return;
+    const _guardDate = format(selectedDate, 'yyyy-MM-dd');
+    const _guardKey = `${_targetDriver}:${_guardDate}`;
+    const _lastRun = _nextGuardRef.current.get(_guardKey) || 0;
+    if (Date.now() - _lastRun < 45000) return;
+    _nextGuardRef.current.set(_guardKey, Date.now());
+    import('@/components/utils/nextDeliveryGuard')
+      .then(({ ensureRouteHasNextStop }) => ensureRouteHasNextStop({
+        driverId: _targetDriver,
+        deliveryDate: _guardDate,
+        deliveries,
+        source: 'dashboard',
+      }))
+      .catch(() => {});
+  }, [deliveries, selectedDate, selectedDriverId, currentUser?.id]);
+
   // Sort-key fingerprint cache — only re-sort when sort-relevant fields change.
   const _dwsoSortKeyRef   = useRef('');
   const _dwsoCachedResult = useRef([]);

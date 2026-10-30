@@ -549,9 +549,16 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             const nextStop = activeStops[0] || pendingStops[0] || null;
 
             // Build the updated deliveries: set isNextDelivery=true on nextStop, false on all others
+            // MASS-CLEAR GUARD (owner report Oct 30 2026): with no resolvable next
+            // stop the old mapping wrote isNextDelivery:false onto EVERY stop —
+            // wiping the flag the driver is actively working to. Unresolvable now
+            // PRESERVES whatever each stop already had.
+            if (!nextStop) {
+              console.warn('[DriverStatusToggle] on-duty flag sync: no active/pending stop resolved for', effectiveUser?.id, optimizerDate, '— existing flags preserved');
+            }
             const updatedDeliveries = allRouteDeliveries.map(d => ({
               ...d,
-              isNextDelivery: nextStop ? d.id === nextStop.id : false,
+              isNextDelivery: nextStop ? d.id === nextStop.id : d.isNextDelivery === true,
             }));
 
             // Write full set to offline DB immediately
