@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 16;
+export const BUILD_NUMBER = 17;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app

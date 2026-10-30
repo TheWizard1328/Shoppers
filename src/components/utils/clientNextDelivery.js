@@ -180,6 +180,19 @@ export function computeNextDeliveryState({
     }
   }
 
+  // ── NO ALL-FALSE CLEAR (owner report Oct 30 2026) ─────────────────────────
+  // This helper is a REPAIR, called from completion, delete, delivery-form save
+  // and reorder paths — several of which pass the driver's status as they last
+  // read it. With any non-'on_duty' value (a stale on_break mirror, an apparatus
+  // that never set it, a duty transition in flight) the old code resolved
+  // nextDelivery to null and then stamped isNextDelivery:false on EVERY stop —
+  // silently wiping the flag the driver was actively working to, with no writer
+  // to blame it on. Clearing flags is a deliberate act owned by the duty-toggle
+  // flows (going on break / off duty), never a side effect of a repair. So: when
+  // this run cannot resolve a next stop, existing flags are PRESERVED and only
+  // real stop_order changes are written.
+  const _preserveFlags = !nextDelivery;
+
   const lastFinishedOrigin = resolveLastFinishedOrigin(repairedDeliveries, patientLookup, storeLookup);
 
   // ── OWNER DIRECTIVE (Oct 15 2026): out-of-order stop_order resequencing ──
@@ -210,7 +223,12 @@ export function computeNextDeliveryState({
 
   const changedDeliveries = [];
   const updatedDeliveries = repairedDeliveries.map((delivery) => {
-    const isNext = Boolean(nextDelivery && delivery.id === nextDelivery.id);
+    // A TERMINAL stop never keeps the flag, even on a preserve run — finishing a
+    // stop must always drop its own badge (the completion writers rely on it).
+    const _isTerminalStop = FINISHED_STATUSES.has(String(delivery?.status || '').toLowerCase());
+    const isNext = _isTerminalStop
+      ? false
+      : (_preserveFlags ? Boolean(delivery.isNextDelivery) : (delivery.id === nextDelivery.id));
     const wasNext = Boolean(delivery.isNextDelivery);
 
     const isNextChanged = isNext !== wasNext;
