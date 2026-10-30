@@ -20,6 +20,7 @@ import { generateRoutePolylines, decodeGooglePolyline } from '@/components/utils
 import { resolvePolylineOrigin } from './polylineOriginRules';
 import { filterDeleted } from './deletedDeliveryRegistry';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
+import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 /**
  * clientRouteEngine.js
  *
@@ -215,8 +216,31 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
   params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
-  params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
-  params.set('improveFor', 'time');
+  // OWNER REQUEST (Oct 30 2026): the Fastest / Shortest / Best preference used
+  // to change ONLY the polyline geometry — the sequencing was hardcoded to
+  // fastest + improveFor=time, so the stop ORDER was identical whichever
+  // preference was active. A different road between the same two stops barely
+  // moves the total, which is why the setting felt cosmetic. The preference now
+  // drives the SEQUENCE SEARCH itself:
+  //   fastest  → mode=fastest, improveFor=time     (quickest total drive)
+  //   shortest → mode=shortest, improveFor=distance (fewest total km)
+  //   best     → mode=fastest, improveFor=quality  (HERE's own recommendation,
+  //                                                 the balanced default)
+  // Traffic awareness still only adds the traffic flag to the FASTEST modes —
+  // HERE's shortest mode does not support traffic weighting, so it is omitted
+  // there rather than silently degrading the request.
+  const _prefs = getPolylineRoutePrefs();
+  const _pref = _prefs?.routePreference === 'shortest'
+    ? 'shortest'
+    : (_prefs?.routePreference === 'best' ? 'best' : 'fastest');
+  const _traffic = _prefs?.trafficAware === true;
+  if (_pref === 'shortest') {
+    params.set('mode', `shortest;${hereTransportMode}`);
+    params.set('improveFor', 'distance');
+  } else {
+    params.set('mode', `fastest;${hereTransportMode};traffic:${_traffic ? 'enabled' : 'disabled'}`);
+    params.set('improveFor', _pref === 'best' ? 'quality' : 'time');
+  }
   params.set('start', `driverStart;${sequenceStart.lat},${sequenceStart.lng}`);
   if (resolvedHomePosition) {
     params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
@@ -254,7 +278,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
     signal: AbortSignal.timeout(25000)
   });
   console.log(`🌐 [HERE findsequence2] URL params:`, Object.fromEntries(params.entries()));
-  logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence', driverId, userName }).catch(() => {});
+  logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${_pref}${_pref !== 'shortest' ? `, traffic=${_traffic ? 'on' : 'off'}` : ''}`, source: 'callHereSequence', driverId, userName }).catch(() => {});
   const data = await response.json().catch(() => null);
   return { response, data, includeTimeWindows };
 }

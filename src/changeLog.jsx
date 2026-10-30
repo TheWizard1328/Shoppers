@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 12;
+export const BUILD_NUMBER = 13;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -67,6 +67,7 @@ export const CHANGE_LOG = [
   { build: 9, area: 'Time On Duty', audience: 'all', summary: 'Duty records broadcast to every device so phone and tablet show the same total.' },
   { build: 10, area: 'Time On Duty', audience: 'all', summary: 'Time On Duty rechecks every 15 seconds and only redraws when the minute changes.' },
   { build: 11, area: 'Payroll', audience: 'admins', summary: 'Edit Activity Segments saves offline first, then syncs and updates other devices.' },
+  { build: 13, area: 'Route Optimization', audience: 'drivers+dispatchers', summary: 'The Fastest, Shortest or Best route preference now changes the stop order, not just the map lines.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
