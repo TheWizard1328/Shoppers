@@ -711,6 +711,24 @@ export async function generateRoutePolylines({
         }
       }
 
+      // OWNER REPORT Oct 30 2026 (current leg cleared on Start, never re-encoded):
+      // when the next stop sits at/near the previous stop (multi-suite buildings,
+      // same-address pairs) the Router returns a ZERO-LENGTH section — a 1-point
+      // polyline. That stub used to be written over the good stored leg, so the
+      // drawn route vanished and no later pass could restore it. A section with
+      // fewer than 2 distinct points is never a leg: keep the stored geometry.
+      if (typeof encoded === 'string' && encoded.length > 0) {
+        let _pts = null;
+        try { _pts = decodeGooglePolyline(encoded); } catch (_) { _pts = null; }
+        const _distinct = Array.isArray(_pts)
+          ? new Set(_pts.map((pt) => `${Number(pt?.[0]).toFixed(5)},${Number(pt?.[1]).toFixed(5)}`)).size
+          : 0;
+        if (_distinct < 2) {
+          console.log(`[routePolylineGenerator] ${source} — stop ${stop.delivery?.stop_order} got a zero-length section (${encoded.length} chars, ${_distinct} distinct points) — keeping the stored leg instead of writing a stub`);
+          encoded = null;
+        }
+      }
+
       const _winterDurationMinutes = _winterPad(metricDuration, group.mode);
       polylineByDeliveryId.set(stop.delivery.id, {
         encodedPolyline: encoded,

@@ -16,7 +16,7 @@ import {
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
-import { generateRoutePolylines } from '@/components/utils/routePolylineGenerator';
+import { generateRoutePolylines, decodeGooglePolyline } from '@/components/utils/routePolylineGenerator';
 import { resolvePolylineOrigin } from './polylineOriginRules';
 import { filterDeleted } from './deletedDeliveryRegistry';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
@@ -1634,8 +1634,18 @@ let _inheritedWindowCount = 0;
   // which is why a Start cleared the current leg and manual reopt / Quick
   // Adjustments could never re-encode it. Hoisted function declaration now.
   function _segIsUsable(seg, stop) {
+    // A 1-point / all-identical-points "polyline" is not a leg — writing it
+    // wipes a real stored leg (owner report Oct 30 2026).
     if (!seg || typeof seg.encodedPolyline !== 'string' || seg.encodedPolyline.length <= 10) return false;
-    const pts = Array.isArray(seg.coordinates) ? seg.coordinates.length : null;
+    let pts = Array.isArray(seg.coordinates) ? seg.coordinates.length : null;
+    if (pts == null) {
+      try {
+        const _dec = decodeGooglePolyline(seg.encodedPolyline);
+        if (Array.isArray(_dec)) {
+          pts = new Set(_dec.map((p) => `${Number(p?.[0]).toFixed(5)},${Number(p?.[1]).toFixed(5)}`)).size;
+        }
+      } catch (_) { pts = null; }
+    }
     const km = Number(seg.estimatedDistanceKm);
     if (pts != null && pts <= 2 && (!Number.isFinite(km) || km < 0.03)) {
       console.log(`[clientRouteEngine] degenerate leg for stop ${stop?.id} (${pts} point(s), ${Number.isFinite(km) ? km.toFixed(3) : '?'} km) — keeping the stored polyline instead of writing a stub`);
