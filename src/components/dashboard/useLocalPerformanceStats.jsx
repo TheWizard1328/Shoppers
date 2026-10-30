@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { base44 } from '@/api/base44Client';
 import { decodeGooglePolyline } from '@/components/utils/routePolylineGenerator';
 import { haversineKm } from '@/components/utils/geoUtils';
@@ -81,6 +81,24 @@ const _DUTY_AUTH_REFRESH_MS = 120000;
  * refresh poll), the hook calls AppUser.filter({ user_id }) to fetch them so
  * StatsCard Total Pay never falls back to $0.
  */
+// ── Live duty clock (owner request Oct 30 2026) ──────────────────────────────
+// "If the app is offline first then the Time On Duty should be recalculated no
+// less than once a minute. It could be checked once every 15 seconds with the
+// location updates but only update if the time on duty has changed."
+//
+// The card used to move only when the expensive stats effect happened to re-run
+// (a delivery or appUser array arriving), so two devices could sit on different
+// numbers until something refreshed them. This ticker re-runs ONLY the shared
+// duty math every 15 s from the last snapshot the effect captured, and commits a
+// new value only when the displayed minute actually changes — so the number is
+// never more than 15 s stale, and no state is churned while it stands still
+// (frozen on break, off duty, or between minute boundaries).
+const _fmtDutyMinutes = (totalMinutes) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+};
+
 export function useLocalPerformanceStats({
   currentUser,
   isDataLoaded,
@@ -102,11 +120,35 @@ export function useLocalPerformanceStats({
   // activity change, so each device kept its own copy until some unrelated
   // delivery/appUser update happened to refresh it (the 2-minute drift).
   const [driverActivityVersion, setDriverActivityVersion] = useState(0);
+  // Last duty-clock snapshot captured by the stats effect (record + whether the
+  // open leg is live + the paused/frozen clock inputs). The 15 s ticker below
+  // recomputes from it without re-running the whole stats effect.
+  const dutyLiveRef = useRef(null);
   useEffect(() => {
     const handler = () => setDriverActivityVersion((v) => v + 1);
     window.addEventListener('driverActivityUpdated', handler);
     return () => window.removeEventListener('driverActivityUpdated', handler);
   }, []);
+
+  // 15-second duty clock tick — commits only when the minute value changes.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const live = dutyLiveRef.current;
+      if (!live?.record?.activity_segments?.length) return;
+      try {
+        const clockMs = live.isLive ? (Date.now() - (live.pausedMs || 0)) : (live.frozenAt || Date.now());
+        const minutes = Math.min(
+          sharedTotalOnDutyMinutes(live.record, clockMs, { liveOpenSegment: live.isLive || !!live.frozenAt }),
+          1440
+        );
+        const text = _fmtDutyMinutes(minutes);
+        if (text === live.lastText) return;
+        live.lastText = text;
+        setPerformanceStats((prev) => (prev ? { ...prev, totalTimeOnDuty: text } : prev));
+      } catch (_) { /* keep the current value */ }
+    }, 15000);
+    return () => clearInterval(id);
+  }, [setPerformanceStats]);
 
   useEffect(() => {
     if (!currentUser?.id || !isDataLoaded || isDispatcher) {
@@ -545,6 +587,15 @@ export function useLocalPerformanceStats({
             const segMinutes = sharedTotalOnDutyMinutes(dailyRec, _clockMs, { liveOpenSegment: _liveLeg });
 
             const cappedMinutes = Math.min(segMinutes, 1440);
+            // Snapshot for the 15 s live ticker: same record, same live/frozen
+            // inputs, so a re-compute lands on exactly the same number.
+            dutyLiveRef.current = {
+              record: dailyRec,
+              isLive: isOnDutyNowFinal,
+              pausedMs: _pausedMs,
+              frozenAt: _frozenAt || null,
+              lastText: formatMinutes(cappedMinutes),
+            };
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);
           } else {
             // No activity legs at all (record unreadable this tick). The old
