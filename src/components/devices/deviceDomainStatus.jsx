@@ -42,6 +42,7 @@ export const summarizeUserDevices = (devices = []) => {
 export const DOMAIN_STATUS = {
   new: {
     label: 'New domain',
+    shortLabel: 'New',
     longLabel: 'All devices on the new domain',
     dot: 'bg-emerald-500',
     rowText: 'text-emerald-700 dark:text-emerald-300',
@@ -52,6 +53,7 @@ export const DOMAIN_STATUS = {
   },
   mixed: {
     label: 'Mixed',
+    shortLabel: 'Mixed',
     longLabel: 'More than one device, at least one NOT on the new domain',
     dot: 'bg-amber-500',
     rowText: 'text-amber-700 dark:text-amber-300',
@@ -62,6 +64,7 @@ export const DOMAIN_STATUS = {
   },
   old: {
     label: 'Old domain',
+    shortLabel: 'Old',
     longLabel: 'No device on the new domain',
     dot: 'bg-red-500',
     rowText: 'text-red-700 dark:text-red-300',
@@ -72,6 +75,7 @@ export const DOMAIN_STATUS = {
   },
   preview: {
     label: 'Preview',
+    shortLabel: 'Preview',
     longLabel: 'Running a preview/sandbox host',
     dot: 'bg-blue-500',
     rowText: 'text-blue-700 dark:text-blue-300',
@@ -82,6 +86,7 @@ export const DOMAIN_STATUS = {
   },
   unknown: {
     label: 'Unknown',
+    shortLabel: 'Unknown',
     longLabel: 'No domain recorded yet',
     dot: 'bg-slate-400',
     rowText: 'text-soft',

@@ -601,11 +601,18 @@ export default function DevicesPanel({ currentUser }) {
                     <p className="text-base font-semibold text-body">
                       {device.device_name}
                       {isCurrent && <Badge className="ml-2 bg-blue-500 text-white text-xs">Current</Badge>}
-                      <Badge className={`ml-2 text-[10px] ${deviceStyle.chip}`}>{deviceStyle.label}</Badge>
                     </p>
                     <p className="text-sm text-soft">{displayOS} · {lastActive}</p>
-                    <p className="text-xs text-soft break-all">
-                      Domain: {formatDeviceHost(deviceHost) || <span className="italic opacity-70">not recorded yet</span>}
+                    {/* Owner request Oct 30 2026: one line, "Domain: <badge>" —
+                        the status badge lives here instead of beside the name.
+                        The raw host stays available as a hover title. */}
+                    <p className="text-xs text-soft flex items-center gap-1.5 flex-wrap">
+                      <span>Domain:</span>
+                      <Badge
+                        title={deviceHost || 'No domain recorded yet'}
+                        className={`text-[10px] ${deviceStyle.chip}`}>
+                        {deviceStyle.shortLabel || deviceStyle.label}
+                      </Badge>
                     </p>
                   </div>
                 </div>
