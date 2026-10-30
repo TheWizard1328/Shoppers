@@ -972,6 +972,7 @@ let _inheritedWindowCount = 0;
         const _sharedBandOpts = {
           routeIsToday, currentMinutes,
           windowOf: (st) => st?.windowStart || st?.delivery?.delivery_time_start || '',
+          windowEndOf: (st) => st?.windowEnd || st?.delivery?.delivery_time_end || '',
         };
         const bandOf = (stop) => sharedWindowBandOfStop(stop, _sharedBandOpts);
         finalStops = sharedWindowBandSort(orderedStops, _sharedBandOpts);

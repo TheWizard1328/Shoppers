@@ -661,6 +661,7 @@ Deno.serve(async (req) => {
           routeIsToday: _routeIsToday,
           currentMinutes,
           windowOf: (st) => st.windowStart,
+          windowEndOf: (st) => st.windowEnd,
         });
         orderedStops = _bandLocked ? [_bandLocked, ..._bandSorted] : _bandSorted;
       }

@@ -107,12 +107,32 @@ export function windowBandOfStop(stop, { routeIsToday, currentMinutes, windowOf 
   return Math.floor(m / TIME_BAND_MINUTES); // future window → chronological band
 }
 
-export function windowBandSort(stops, { routeIsToday, currentMinutes, windowOf }) {
+export function windowBandSort(stops, { routeIsToday, currentMinutes, windowOf, windowEndOf }) {
   const bandOf = (stop) => windowBandOfStop(stop, { routeIsToday, currentMinutes, windowOf });
   const inputOrder = new Map((stops || []).map((s, i) => [s, i]));
+  const endMin = (stop) => {
+    try {
+      const raw = windowEndOf ? windowEndOf(stop) : '';
+      const m = parseTimeToMinutes(raw || '');
+      return Number.isFinite(m) && m > 0 ? m : NaN;
+    } catch (_) { return NaN; }
+  };
   return [...(stops || [])].sort((a, b) => {
     const bandDiff = bandOf(a) - bandOf(b);
     if (bandDiff !== 0) return bandDiff;
+    // OWNER RULE (Oct 30 2026): "no matter what the route type is, time
+    // windows should always be respected." Inside a band the stop whose window
+    // CLOSES first now goes first, so a tighter deadline can no longer be
+    // pushed past its window end by a later-closing neighbour (the live route
+    // showed a 17:00-17:30 stop sitting behind a 17:30-18:00 one). Road order
+    // still decides between stops whose windows close together or are open.
+    const ea = endMin(a);
+    const eb = endMin(b);
+    if (Number.isFinite(ea) || Number.isFinite(eb)) {
+      if (Number.isFinite(ea) && Number.isFinite(eb) && ea !== eb) return ea - eb;
+      if (Number.isFinite(ea) && !Number.isFinite(eb)) return -1;
+      if (!Number.isFinite(ea) && Number.isFinite(eb)) return 1;
+    }
     return (inputOrder.get(a) ?? 0) - (inputOrder.get(b) ?? 0);
   });
 }
