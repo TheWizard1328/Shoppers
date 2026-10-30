@@ -29,40 +29,89 @@ export default function DevicesPanel({ currentUser }) {
   const [showChangeSettings, setShowChangeSettings] = useState(false);
   const [isRequestingLocationAccess, setIsRequestingLocationAccess] = useState(false);
 
+  // ── Admin "manage another user's devices" (owner request Oct 29 2026) ──
+  // An admin can pick any user and view/edit THAT user's devices without
+  // logging in as them. Device rows key on UserDevice.user_id, which is the
+  // auth user id, and AppUser.user_id carries the same value.
+  const [targetUserId, setTargetUserId] = useState(null);
+  const [users, setUsers] = useState([]);
+  const isAdminViewer = !!currentUser &&
+    (currentUser.app_roles?.includes?.('admin') || currentUser.role === 'admin');
+
+  const viewUserId = targetUserId || currentUser?.id || null;
+  const isOwnDevices = !currentUser?.id || viewUserId === currentUser.id;
+  const viewUser = !isOwnDevices ? users.find((u) => u.user_id === viewUserId) : null;
+  const viewUserName = viewUser
+    ? (viewUser.user_name || viewUser.full_name || viewUser.ETrans_Email || 'this user')
+    : null;
+  const devicesCacheKey = viewUserId ? `rxdeliver_devices_${viewUserId}` : null;
+
   const locationProvider = getLocationProvider();
   const isNativeBackgroundTrackingAvailable =
     locationProvider?.backgroundCapable === true && locationProvider?.isAvailable();
 
+  // Admin: user picker data (only fetched when an admin opens this panel)
   useEffect(() => {
-    if (!currentUser?.id) return;
-    const DEVICES_CACHE_KEY = `rxdeliver_devices_${currentUser.id}`;
+    if (!isAdminViewer) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await base44.entities.AppUser.list('user_name', 200);
+        if (cancelled) return;
+        setUsers((list || [])
+          .filter((u) => u?.user_id)
+          .sort((a, b) => String(a.user_name || a.full_name || '').localeCompare(String(b.user_name || b.full_name || ''))));
+      } catch { /* picker stays limited to "me" */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdminViewer]);
 
-    const applyDevices = (userDevices) => {
-      if (!userDevices?.length) return;
-      setDevices(userDevices);
-      const storedId = localStorage.getItem(DEVICE_ID_KEY);
-      if (storedId) {
-        const cur = userDevices.find((d) => d.device_identifier === storedId);
-        if (cur) setCurrentDeviceId(cur.id);
-      }
-    };
+  useEffect(() => {
+    if (!viewUserId) return;
+    const cacheKey = `rxdeliver_devices_${viewUserId}`;
+    let cancelled = false;
 
     const load = async () => {
+      setIsLoading(true);
+      setDevices([]);            // never show the previous user's devices
+      setCurrentDeviceId(null);
       try {
-        const cached = localStorage.getItem(DEVICES_CACHE_KEY);
+        const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const c = JSON.parse(cached);
-          if (Array.isArray(c) && c.length) { applyDevices(c); setIsLoading(false); }
+          if (Array.isArray(c) && c.length) setDevices(c);
         }
       } catch {}
       try {
-        const list = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
-        applyDevices(list || []);
-        localStorage.setItem(DEVICES_CACHE_KEY, JSON.stringify(list || []));
-      } catch { toast.error('Failed to load devices'); } finally { setIsLoading(false); }
+        const list = await base44.entities.UserDevice.filter({ user_id: viewUserId });
+        if (cancelled) return;
+        setDevices(list || []);
+        localStorage.setItem(cacheKey, JSON.stringify(list || []));
+        // Own devices: the "Current" badge + Use Here depend on the local id.
+        const storedId = localStorage.getItem(DEVICE_ID_KEY);
+        if (storedId) {
+          const cur = (list || []).find((d) => d.device_identifier === storedId);
+          if (cur) setCurrentDeviceId(cur.id);
+        }
+        // Domain self-stamp: if THIS device's record has no host yet, write it
+        // now instead of waiting for the 5-minute up-sync, so the panel shows
+        // the domain immediately.
+        if (storedId) {
+          let host = null;
+          try { host = window.location.hostname || null; } catch (_) {}
+          const own = (list || []).find((d) => d.device_identifier === storedId);
+          if (own?.id && host && own.device_info?.host !== host) {
+            const deviceInfo = { ...(own.device_info || {}), host };
+            base44.entities.UserDevice.update(own.id, { device_info: deviceInfo }).then(() => {
+              setDevices((prev) => prev.map((d) => d.id === own.id ? { ...d, device_info: deviceInfo } : d));
+            }).catch(() => {});
+          }
+        }
+      } catch { toast.error('Failed to load devices'); } finally { if (!cancelled) setIsLoading(false); }
     };
     load();
-  }, [currentUser]);
+    return () => { cancelled = true; };
+  }, [viewUserId]);
 
   const handleDeleteDevice = async (device) => {
     if (!confirm(`Delete "${device.device_name}"?`)) return;
@@ -70,7 +119,7 @@ export default function DevicesPanel({ currentUser }) {
       await base44.entities.UserDevice.delete(device.id);
       setDevices((prev) => {
         const u = prev.filter((d) => d.id !== device.id);
-        localStorage.setItem(`rxdeliver_devices_${currentUser.id}`, JSON.stringify(u));
+        if (devicesCacheKey) localStorage.setItem(devicesCacheKey, JSON.stringify(u));
         return u;
       });
       if (device.id === currentDeviceId) { localStorage.removeItem(DEVICE_ID_KEY); setCurrentDeviceId(null); }
@@ -194,7 +243,9 @@ export default function DevicesPanel({ currentUser }) {
       } else {
         const newDevice = await base44.entities.UserDevice.create({
           ...cleanDeviceData,
-          user_id: currentUser.id,
+          // Admin managing someone else's devices → the record belongs to THEM.
+          user_id: viewUserId,
+          user_name: isOwnDevices ? (currentUser?.user_name || currentUser?.full_name || '') : (viewUser?.user_name || viewUser?.full_name || ''),
           device_identifier: crypto.randomUUID(),
           last_active_at: new Date().toISOString(),
           status: 'active',
@@ -245,9 +296,43 @@ export default function DevicesPanel({ currentUser }) {
 
   return (
     <div className="space-y-4">
+      {/* Admin: manage someone else's devices (owner request Oct 29 2026) */}
+      {isAdminViewer && (
+        <div className="rounded-xl border p-2.5 space-y-1.5 bg-surface border-surface">
+          <label className="text-xs font-medium block text-soft">View devices for</label>
+          <select
+            value={viewUserId || ''}
+            onChange={(e) => {
+              const next = e.target.value === currentUser?.id ? null : e.target.value;
+              setTargetUserId(next);
+              setEditingSettings({});
+              setDeviceSettings({});
+              setShowForm(false);
+              setEditingDevice(null);
+            }}
+            className="w-full px-2 py-1.5 rounded text-sm border bg-surface border-surface text-body"
+          >
+            <option value={currentUser?.id || ''}>Me{currentUser?.user_name ? ` (${currentUser.user_name})` : ''}</option>
+            {users
+              .filter((u) => u.user_id !== currentUser?.id)
+              .map((u) => (
+                <option key={u.id || u.user_id} value={u.user_id}>
+                  {u.user_name || u.full_name || u.ETrans_Email || 'Unnamed user'}
+                  {u.app_roles?.length ? ` — ${u.app_roles.join(', ')}` : ''}
+                </option>
+              ))}
+          </select>
+          {!isOwnDevices && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              Showing {viewUserName}'s devices. Edits, primary flags, disables and deletes apply to their account.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Add Device button */}
       <Button size="sm" className="gap-2 w-full" onClick={() => { setEditingDevice(null); setShowForm(true); }}>
-        <Plus className="w-4 h-4" /> Add Device
+        <Plus className="w-4 h-4" /> Add Device{!isOwnDevices ? ` for ${viewUserName}` : ''}
       </Button>
 
       {/* Background GPS */}
@@ -280,11 +365,16 @@ export default function DevicesPanel({ currentUser }) {
         />
       )}
 
-      {/* Device cards */}
+      {/* Device cards — multi-column on wider screens (owner request Oct 29 2026) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
       {sortedDevices.map((device) => {
         const displayOS = device.device_info?.os === 'Linux' ? 'Android' : device.device_info?.os;
         const lastActive = device.last_active_at ? new Date(device.last_active_at).toLocaleString() : 'Never';
-        const isCurrent = device.id === currentDeviceId;
+        // "Current" only means something on your OWN device list.
+        const isCurrent = isOwnDevices && device.id === currentDeviceId;
+        const deviceHost = device.device_info?.host
+          || (isCurrent ? (() => { try { return window.location.hostname; } catch (_) { return ''; } })() : '')
+          || '';
 
         return (
           <Card key={device.id} className="bg-surface border-surface">
@@ -298,6 +388,9 @@ export default function DevicesPanel({ currentUser }) {
                       {isCurrent && <Badge className="ml-2 bg-blue-500 text-white text-xs">Current</Badge>}
                     </p>
                     <p className="text-sm text-soft">{displayOS} · {lastActive}</p>
+                    <p className="text-xs text-soft break-all">
+                      Domain: {deviceHost || <span className="italic opacity-70">not recorded yet</span>}
+                    </p>
                   </div>
                 </div>
                 {device.is_primary_tracker && (
@@ -319,6 +412,10 @@ export default function DevicesPanel({ currentUser }) {
                       placeholder={device.device_name}
                       className="flex-1 px-2 py-1 rounded text-sm border min-w-0 text-body bg-surface border-surface"
                     />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+                    <label className="text-sm font-medium flex-shrink-0 text-body">Domain</label>
+                    <span className="text-sm text-soft break-all text-right">{deviceHost || 'not recorded yet'}</span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
                     <label className="text-sm font-medium text-body">Status</label>
@@ -354,12 +451,12 @@ export default function DevicesPanel({ currentUser }) {
                     <Button variant="outline" size="sm" className="gap-1" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
                       <Edit2 className="w-3 h-3" /> Edit
                     </Button>
-                    {!isCurrent && device.status !== 'inactive' && (
+                    {isOwnDevices && !isCurrent && device.status !== 'inactive' && (
                       <Button variant="outline" size="sm" className="gap-1" onClick={() => handleSwitchToDeviceProfile(device)}>
                         <CheckCircle className="w-3 h-3" /> Use Here
                       </Button>
                     )}
-                    {isCurrent && devices.length > 1 && (
+                    {isOwnDevices && isCurrent && devices.length > 1 && (
                       <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowChangeSettings(true)}>
                         <Edit2 className="w-3 h-3" /> Copy From...
                       </Button>
@@ -402,6 +499,7 @@ export default function DevicesPanel({ currentUser }) {
           </Card>
         );
       })}
+      </div>
 
       {/* Empty state */}
       {devices.length === 0 && !showForm && (

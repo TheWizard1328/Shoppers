@@ -447,10 +447,44 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
 }
 
 // ── Settings Dialog wrapper ───────────────────────────────────────────────────
-export function SettingsDialog({ open, onOpenChange, title, description, icon: Icon, children }) {
+export function SettingsDialog({
+  open, onOpenChange, title, description, icon: Icon, children,
+  // Owner request Oct 29 2026 (Devices panel): optional wider content and
+  // centering over the MAIN area — i.e. from the right edge of the sidebar to
+  // the right edge of the page — instead of centering on the whole viewport.
+  contentClassName = 'max-w-md',
+  mainAreaCentered = false,
+}) {
+  const [leftInset, setLeftInset] = useState(0);
+
+  useEffect(() => {
+    if (!open || !mainAreaCentered) { setLeftInset(0); return undefined; }
+    const measure = () => {
+      try {
+        const el = document.querySelector('.app-sidebar');
+        if (!el) { setLeftInset(0); return; }
+        const rect = el.getBoundingClientRect();
+        const styles = window.getComputedStyle(el);
+        // Off-canvas / hidden sidebar (mobile drawer) must not shift the dialog.
+        const offCanvas = (styles.transform && styles.transform !== 'none' && rect.right <= 1)
+          || styles.display === 'none' || styles.visibility === 'hidden';
+        setLeftInset(!offCanvas && rect.width > 40 && rect.right > 0 ? Math.round(rect.right) : 0);
+      } catch { setLeftInset(0); }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const settle = setTimeout(measure, 350); // after the sidebar finishes animating
+    return () => { window.removeEventListener('resize', measure); clearTimeout(settle); };
+  }, [open, mainAreaCentered]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-md max-h-[85vh] overflow-y-auto px-4 py-4">
+      <DialogContent
+        className={`w-full max-h-[85vh] overflow-y-auto px-4 py-4 ${contentClassName}`}
+        style={mainAreaCentered && leftInset > 0
+          ? { left: `calc(${leftInset}px + (100vw - ${leftInset}px) / 2)` }
+          : undefined}
+      >
         <DialogHeader className="pb-4 border-b border-slate-100 mb-2">
           <DialogTitle className="flex items-center gap-2 text-base">
             {Icon && <Icon className="w-4 h-4" />}
@@ -1018,7 +1052,15 @@ export default function Settings() {
         {userSettings && <AppearancePanel currentUser={currentUser} settings={userSettings} onThemeChange={handleThemeChange} />}
       </SettingsDialog>
 
-      <SettingsDialog open={openPanel === 'devices'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Devices" description="View and manage your registered devices." icon={Smartphone}>
+      <SettingsDialog
+        open={openPanel === 'devices'}
+        onOpenChange={(o) => !o && setOpenPanel(null)}
+        title="Devices"
+        description="View and manage your registered devices."
+        icon={Smartphone}
+        mainAreaCentered
+        contentClassName="max-w-[35rem] lg:max-w-[56rem] 2xl:max-w-[74rem]"
+      >
         {currentUser && <DevicesPanel currentUser={currentUser} />}
       </SettingsDialog>
       <SettingsDialog open={openPanel === 'apk'} onOpenChange={(o) => !o && setOpenPanel(null)} title={updateAvailable ? 'Update Android App' : 'Native App'} description={updateAvailable ? 'A newer build is available.' : 'Download the Android APK.'} icon={updateAvailable ? RefreshCw : Download}>

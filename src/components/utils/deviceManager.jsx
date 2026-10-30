@@ -128,7 +128,18 @@ function maybeSyncDeviceRecord(userId, deviceId) {
     try {
       const rec = memoryRecord;
       if (rec?.id) {
-        const updated = await base44.entities.UserDevice.update(rec.id, { last_active_at: new Date().toISOString() });
+        // Domain stamp (owner request Oct 29 2026): the Devices panel now shows
+        // which domain each device is running on, so every up-sync also writes
+        // THIS device's host into device_info. MERGED, never replaced — an admin
+        // may have set device_type/other info on the record and that must survive.
+        let currentHost = null;
+        try { currentHost = window.location.hostname || null; } catch (_) {}
+        const deviceInfo = rec.device_info && typeof rec.device_info === 'object' ? { ...rec.device_info } : {};
+        if (currentHost && deviceInfo.host !== currentHost) deviceInfo.host = currentHost;
+        const updated = await base44.entities.UserDevice.update(rec.id, {
+          last_active_at: new Date().toISOString(),
+          ...(currentHost ? { device_info: deviceInfo } : {}),
+        });
         const fresh = (updated && typeof updated === 'object') ? { ...rec, ...updated, id: rec.id } : { ...rec };
         memoryRecord = fresh;
         await writeDeviceRecordToIdb(userId, deviceId, fresh).catch(() => {});

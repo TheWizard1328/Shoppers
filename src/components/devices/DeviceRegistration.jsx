@@ -217,7 +217,10 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
         device_info: {
           os,
           browser,
-          device_type: deviceType
+          device_type: deviceType,
+          // Domain this device registered on (owner request Oct 29 2026) — shown
+          // in the Devices panel so each device's server is identifiable.
+          host: (() => { try { return window.location.hostname; } catch (_) { return null; } })()
         },
         status: 'active'
       });
