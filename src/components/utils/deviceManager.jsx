@@ -166,6 +166,56 @@ function maybeSyncDeviceRecord(userId, deviceId) {
 }
 
 /**
+ * Domain stamp (owner report Oct 29 2026: "the logged in domain is not being
+ * saved at all"). The client-side device_info merge in the up-sync is not
+ * reliable on its own — UserDevice is RLS-scoped to created_by === the caller's
+ * email, so a record created by ANOTHER account (admin registration,
+ * service-role write) rejects the device's own update silently. The
+ * stampDeviceHost backend function writes under the service role and is scoped
+ * to the caller's own user_id + device_identifier, so this works regardless of
+ * who created the row. Fired once per session per host.
+ */
+const HOST_STAMP_KEY = 'rxdeliver_host_stamp';
+const readHostStamp = () => {
+  try { return localStorage.getItem(HOST_STAMP_KEY) || ''; } catch (_) { return ''; }
+};
+const writeHostStamp = (value) => {
+  try { localStorage.setItem(HOST_STAMP_KEY, value); } catch (_) {}
+};
+
+export async function stampDeviceHost(userId, deviceRecord, { force = false } = {}) {
+  try {
+    const deviceId = getDeviceIdentifier();
+    if (!deviceId || !userId) return null;
+    let host = '';
+    try { host = window.location.hostname || ''; } catch (_) { host = ''; }
+    if (!host) return null;
+    const stampKey = `${userId}:${deviceId}:${host}`;
+    if (!force && readHostStamp() === stampKey) return null;
+    if (deviceRecord && deviceRecord.device_info?.host === host) {
+      writeHostStamp(stampKey); // server already has it
+      return host;
+    }
+    writeHostStamp(stampKey); // set first: never retry-storm on failure
+    await base44.functions.invoke('stampDeviceHost', { deviceIdentifier: deviceId, host });
+    if (memoryRecord && memoryRecord.id) {
+      memoryRecord = {
+        ...memoryRecord,
+        device_info: { ...(memoryRecord.device_info || {}), host },
+      };
+      const cached = memoryRecord;
+      writeDeviceRecordToIdb(userId, deviceId, cached).catch(() => {});
+      try { localStorage.setItem(getDeviceCacheStorageKey(userId, deviceId), JSON.stringify(cached)); } catch (_) {}
+    }
+    console.log(`🌐 [DeviceManager] Domain stamped: ${host}`);
+    return host;
+  } catch (e) {
+    console.warn('[DeviceManager] Domain stamp failed (non-fatal):', e?.message || e);
+    return null;
+  }
+}
+
+/**
  * Get the current device's UserDevice record. IDB-first (owner spec Oct 13
  * 2026): steady state serves memory/IDB with ZERO server reads; the server is
  * touched only for the first down-sync (fresh login/reset) and the 5-minute
@@ -190,6 +240,7 @@ export async function getCurrentDevice(userId) {
   // Steady state: serve memory, refresh via the 5-minute cycle in background
   if (memoryRecord !== undefined) {
     maybeSyncDeviceRecord(userId, deviceId);
+    stampDeviceHost(userId, memoryRecord).catch(() => {});
     return memoryRecord;
   }
 
@@ -198,6 +249,7 @@ export async function getCurrentDevice(userId) {
   if (idbRec) {
     memoryRecord = idbRec;
     maybeSyncDeviceRecord(userId, deviceId);
+    stampDeviceHost(userId, idbRec).catch(() => {});
     console.log(`📱 [DeviceManager] IDB record: ${idbRec.device_name} (Status: ${idbRec.status || 'active'}, Primary: ${idbRec.is_primary_tracker ? 'YES' : 'NO'})`);
     return idbRec;
   }
@@ -212,6 +264,7 @@ export async function getCurrentDevice(userId) {
     const rec = devices && devices.length > 0 ? devices[0] : null;
     memoryRecord = rec;
     if (rec) {
+      stampDeviceHost(userId, rec).catch(() => {});
       await writeDeviceRecordToIdb(userId, deviceId, rec).catch(() => {});
       try { localStorage.setItem(getDeviceCacheStorageKey(userId, deviceId), JSON.stringify(rec)); } catch (_) {}
       console.log(`📱 [DeviceManager] Down-synced device record: ${rec.device_name} (Status: ${rec.status || 'active'}, Primary: ${rec.is_primary_tracker ? 'YES' : 'NO'}) — cached to IDB`);

@@ -18,6 +18,15 @@ import DeviceForm from '@/components/devices/DeviceForm';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
+// Owner spec Oct 29 2026: a preview/sandbox host is shown simply as "Preview" —
+// the full base44 sandbox URL is noise in the Devices panel.
+export const formatDeviceHost = (host) => {
+  const h = String(host || '').trim();
+  if (!h) return '';
+  if (/preview|sandbox/i.test(h)) return 'Preview';
+  return h;
+};
+
 export default function DevicesPanel({ currentUser }) {
   const [devices, setDevices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -103,6 +112,30 @@ export default function DevicesPanel({ currentUser }) {
     return () => { cancelled = true; };
   }, [isAdminViewer]);
 
+  // Live updates (owner request Oct 29 2026): any UserDevice change for the
+  // viewed user re-runs the load — new registrations, domain stamps, primary
+  // flags, disables and deletes appear without reopening the panel.
+  useEffect(() => {
+    if (!viewUserId) return undefined;
+    let unsubscribe = null;
+    let timer = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setRefreshTick((t) => t + 1), 700);
+    };
+    try {
+      unsubscribe = base44.entities.UserDevice.subscribe((event) => {
+        const row = event?.data || event;
+        const rowUserId = row?.user_id;
+        if (!rowUserId || String(rowUserId) === String(viewUserId)) bump();
+      });
+    } catch (_) { /* WS unavailable → manual Refresh still works */ }
+    return () => {
+      if (timer) clearTimeout(timer);
+      try { unsubscribe?.(); } catch (_) {}
+    };
+  }, [viewUserId]);
+
   useEffect(() => {
     if (!viewUserId) return;
     const cacheKey = `rxdeliver_devices_${viewUserId}`;
@@ -140,9 +173,12 @@ export default function DevicesPanel({ currentUser }) {
           try { host = window.location.hostname || null; } catch (_) {}
           const own = (list || []).find((d) => d.device_identifier === storedId);
           if (own?.id && host && own.device_info?.host !== host) {
-            const deviceInfo = { ...(own.device_info || {}), host };
-            updateDeviceRecord(own.id, { device_info: deviceInfo }).then(() => {
-              setDevices((prev) => prev.map((d) => d.id === own.id ? { ...d, device_info: deviceInfo } : d));
+            // Backend stamp: works even when the device's record was created by
+            // another account (RLS would silently reject a direct update).
+            base44.functions.invoke('stampDeviceHost', { deviceIdentifier: storedId, host }).then(() => {
+              setDevices((prev) => prev.map((d) => d.id === own.id
+                ? { ...d, device_info: { ...(d.device_info || {}), host } }
+                : d));
             }).catch(() => {});
           }
         }
@@ -439,7 +475,7 @@ export default function DevicesPanel({ currentUser }) {
                     </p>
                     <p className="text-sm text-soft">{displayOS} · {lastActive}</p>
                     <p className="text-xs text-soft break-all">
-                      Domain: {deviceHost || <span className="italic opacity-70">not recorded yet</span>}
+                      Domain: {formatDeviceHost(deviceHost) || <span className="italic opacity-70">not recorded yet</span>}
                     </p>
                   </div>
                 </div>
@@ -465,7 +501,7 @@ export default function DevicesPanel({ currentUser }) {
                   </div>
                   <div className="flex items-center justify-between gap-3 p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
                     <label className="text-sm font-medium flex-shrink-0 text-body">Domain</label>
-                    <span className="text-sm text-soft break-all text-right">{deviceHost || 'not recorded yet'}</span>
+                    <span className="text-sm text-soft break-all text-right">{formatDeviceHost(deviceHost) || 'not recorded yet'}</span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
                     <label className="text-sm font-medium text-body">Status</label>
@@ -498,34 +534,41 @@ export default function DevicesPanel({ currentUser }) {
                   </>
                 ) : (
                   <>
-                    <Button variant="outline" size="sm" className="gap-1" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
-                      <Edit2 className="w-3 h-3" /> Edit
-                    </Button>
-                    {isOwnDevices && !isCurrent && device.status !== 'inactive' && (
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleSwitchToDeviceProfile(device)}>
-                        <CheckCircle className="w-3 h-3" /> Use Here
+                    {/* Owner spec Oct 29 2026: the four action buttons share ONE row
+                        and stretch evenly to fill the card; Delete keeps its own
+                        row, aligned bottom-right. */}
+                    <div className="flex items-stretch gap-1.5 w-full">
+                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
+                        <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Edit</span>
                       </Button>
-                    )}
-                    {isOwnDevices && isCurrent && devices.length > 1 && (
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowChangeSettings(true)}>
-                        <Edit2 className="w-3 h-3" /> Copy From...
+                      {isOwnDevices && !isCurrent && device.status !== 'inactive' && (
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleSwitchToDeviceProfile(device)}>
+                          <CheckCircle className="w-3 h-3 shrink-0" /> <span className="truncate">Use Here</span>
+                        </Button>
+                      )}
+                      {isOwnDevices && isCurrent && devices.length > 1 && (
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => setShowChangeSettings(true)}>
+                          <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Copy From...</span>
+                        </Button>
+                      )}
+                      {device.is_primary_tracker ? (
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleClearPrimary(device)}>
+                          <span className="truncate">Remove Primary</span>
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleSetPrimary(device)}>
+                          <span className="truncate">Set Primary</span>
+                        </Button>
+                      )}
+                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleToggleDeviceStatus(device)}>
+                        <span className="truncate">{device.status === 'inactive' ? 'Enable' : 'Disable'}</span>
                       </Button>
-                    )}
-                    {device.is_primary_tracker ? (
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleClearPrimary(device)}>
-                        Remove Primary
+                    </div>
+                    <div className="flex justify-end w-full">
+                      <Button variant="destructive" size="sm" className="gap-1 shrink-0" onClick={() => handleDeleteDevice(device)} disabled={devices.length === 1}>
+                        <Trash2 className="w-3 h-3" /> Delete
                       </Button>
-                    ) : (
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleSetPrimary(device)}>
-                        Set Primary
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => handleToggleDeviceStatus(device)}>
-                      {device.status === 'inactive' ? 'Enable' : 'Disable'}
-                    </Button>
-                    <Button variant="destructive" size="sm" className="gap-1 ml-auto" onClick={() => handleDeleteDevice(device)} disabled={devices.length === 1}>
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </Button>
+                    </div>
                   </>
                 )}
               </div>

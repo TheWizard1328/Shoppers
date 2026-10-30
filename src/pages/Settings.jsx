@@ -1059,7 +1059,7 @@ export default function Settings() {
         description="View and manage your registered devices."
         icon={Smartphone}
         mainAreaCentered
-        contentClassName="max-w-[35rem] lg:max-w-[56rem] 2xl:max-w-[74rem]"
+        contentClassName="max-w-[38rem] lg:max-w-[60rem] 2xl:max-w-[82rem]"
       >
         {currentUser && <DevicesPanel currentUser={currentUser} />}
       </SettingsDialog>
