@@ -16,6 +16,7 @@ import { offlineDB } from './offlineDatabase';
 import { connectionMonitor } from './connectionMonitor';
 import { hasPendingEntityMutation } from './pendingEntityMutations';
 import { isDeleted, filterDeleted } from './deletedDeliveryRegistry';
+import { applyDeviationReset, isStopMoved } from './deviationResetOnMove';
 import { removeDeliverySquareCod } from './squareCodSync';
 
 // ========================================
@@ -656,6 +657,14 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
   const inMemory = Array.isArray(window.__appDeliveries)
     ? window.__appDeliveries.find(d => d?.id === deliveryId)
     : null;
+
+  // Owner rule Oct 30 2026: a stop moved to another date or driver must not
+  // carry deviation waypoints (the stale leg detour Sharuk hit).
+  const moveCheckedUpdates = applyDeviationReset(inMemory, sanitizedUpdates);
+  if (moveCheckedUpdates !== sanitizedUpdates) {
+    Object.assign(sanitizedUpdates, moveCheckedUpdates);
+    console.log('[EntityMutations] stop moved to a new date/driver — cleared deviation_waypoints', deliveryId);
+  }
   const optimistic = inMemory
     ? { ...inMemory, ...sanitizedUpdates, updated_date: new Date().toISOString() }
     : { id: deliveryId, ...sanitizedUpdates, updated_date: new Date().toISOString() };
@@ -667,6 +676,9 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
   try {
     // ─── STEP 2: Persist to IDB (async, after UI already updated) ──────────
     const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
+    if (!Array.isArray(sanitizedUpdates.deviation_waypoints) || sanitizedUpdates.deviation_waypoints.length) {
+      if (isStopMoved(inMemory || existing, sanitizedUpdates)) sanitizedUpdates.deviation_waypoints = [];
+    }
     const toStore = existing
       ? { ...existing, ...sanitizedUpdates, updated_date: new Date().toISOString() }
       : optimistic;
