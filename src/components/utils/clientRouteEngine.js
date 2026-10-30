@@ -1628,6 +1628,22 @@ let _inheritedWindowCount = 0;
       ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null)
       : (!routeInProgress ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null) : null));
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
+  // TDZ FIX (owner report Oct 30 2026): this guard was a const arrow declared
+  // AFTER the write-batch loop that calls it, so every polyline pass threw
+  // "Cannot access 'en' before initialization" and NO leg was ever written —
+  // which is why a Start cleared the current leg and manual reopt / Quick
+  // Adjustments could never re-encode it. Hoisted function declaration now.
+  function _segIsUsable(seg, stop) {
+    if (!seg || typeof seg.encodedPolyline !== 'string' || seg.encodedPolyline.length <= 10) return false;
+    const pts = Array.isArray(seg.coordinates) ? seg.coordinates.length : null;
+    const km = Number(seg.estimatedDistanceKm);
+    if (pts != null && pts <= 2 && (!Number.isFinite(km) || km < 0.03)) {
+      console.log(`[clientRouteEngine] degenerate leg for stop ${stop?.id} (${pts} point(s), ${Number.isFinite(km) ? km.toFixed(3) : '?'} km) — keeping the stored polyline instead of writing a stub`);
+      return false;
+    }
+    return true;
+  }
+
   const writeBatch = [];
 
   const resolvePendingStartTime = (stop) => {
@@ -1795,16 +1811,6 @@ let _inheritedWindowCount = 0;
   // two points, or a real distance. A zero-length two-point stub (origin ===
   // destination, e.g. Start pressed while parked on the stop) must never
   // overwrite the stop's stored polyline.
-  const _segIsUsable = (seg, stop) => {
-    if (!seg || typeof seg.encodedPolyline !== 'string' || seg.encodedPolyline.length <= 10) return false;
-    const pts = Array.isArray(seg.coordinates) ? seg.coordinates.length : null;
-    const km = Number(seg.estimatedDistanceKm);
-    if (pts != null && pts <= 2 && (!Number.isFinite(km) || km < 0.03)) {
-      console.log(`[clientRouteEngine] degenerate leg for stop ${stop?.id} (${pts} point(s), ${Number.isFinite(km) ? km.toFixed(3) : '?'} km) — keeping the stored polyline instead of writing a stub`);
-      return false;
-    }
-    return true;
-  };
 
   const orderedDeliveryIds = optimizedRouteStopsForResponse.map(s => s.id);
   const optimizedRoute = optimizedRouteStopsForResponse.map((stop, index) => {
