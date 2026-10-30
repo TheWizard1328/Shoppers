@@ -42,6 +42,7 @@ import SignatureCapture from "../common/SignatureCapture";
 import PhotoCapture from "../common/PhotoCapture";
 import ImageViewer from "../common/ImageViewer";
 import BarcodeThumb from "./BarcodeThumb";
+import StopPolylineDeviationMap from "../admin/StopPolylineDeviationMap";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
 import { persistDeliveryProof } from "../utils/persistDeliveryProof";
@@ -1143,6 +1144,14 @@ export default function StopDetailsPanel({
         </div>
         }
       </div>
+
+      {/* App Owner only: this stop's stored leg polyline + its deviation points
+          on a real map, with add/delete that redraw the route (Oct 30 2026). */}
+      {isAppOwner(currentUser) && delivery?.id &&
+      <div className="flex-shrink-0 px-4 pt-3 pb-1">
+        <StopPolylineDeviationMap delivery={delivery} />
+      </div>
+      }
 
       {/* Action Buttons - Drivers */}
       {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && !isRouteCompleted(delivery, allDeliveries) &&
