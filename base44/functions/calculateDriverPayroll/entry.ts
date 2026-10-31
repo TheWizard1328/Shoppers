@@ -193,11 +193,11 @@ Deno.serve(async (req) => {
       if (i > 0 && getTimeDiffMinutes(countableDeliveries[i - 1], d) > 90) return;
       // N/C deliveries still earn extra km — do not skip them here.
       let paidDistance = 0;
-      if (d.paid_km_override != null) {
-        paidDistance = d.paid_km_override;
-      } else if (d.patient_id) {
-        paidDistance = patientMap.get(d.patient_id)?.distance_from_store || 0;
-      }
+      // Oct 31 2026: larger of the stored override and the patient km from store
+      // (an override may only ADD km, never shrink a real patient distance).
+      const _overrideKm = Number(d.paid_km_override) || 0;
+      const _patientKm = d.patient_id ? (Number(patientMap.get(d.patient_id)?.distance_from_store) || 0) : 0;
+      if (_overrideKm > 0 || _patientKm > 0) paidDistance = Math.max(_overrideKm, _patientKm);
       // ISD/ISP: paid_km_override is the only source (no patient record) — already handled above
       if (paidDistance > extraKmLimit) {
         totalExtraKm += (paidDistance - extraKmLimit);

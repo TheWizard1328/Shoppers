@@ -235,8 +235,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         const r = hasRateHistory ? getEffectiveRates(appUser, d.delivery_date) : effectiveRates;
         const dExtraKmRate = r.extra_km_rate;
         const dExtraKmLimit = r.extra_km_limit;
-        let dist = d.paid_km_override ?? 0;
-        if (!dist && d.patient_id && patients) {dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;}
+        const dist = Math.max(
+          Number(d.paid_km_override) || 0,
+          (d.patient_id && patients ? Number(patients.find((p) => p && p.id === d.patient_id)?.distance_from_store) : 0) || 0);
         if (dist > dExtraKmLimit && dExtraKmRate > 0) {const ek = dist - dExtraKmLimit;totalExtraKm += ek;extraKmPay += ek * dExtraKmRate;}
       });
 
@@ -322,10 +323,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           const r = getEffectiveRates(appUser, d.delivery_date);
           const dExtraKmRate = r.extra_km_rate;
           const dExtraKmLimit = r.extra_km_limit;
-          let dist = d.paid_km_override ?? 0;
-          if (!dist && d.patient_id && patients) {
-            dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;
-          }
+          const dist = Math.max(
+            Number(d.paid_km_override) || 0,
+            (d.patient_id && patients ? Number(patients.find((p) => p && p.id === d.patient_id)?.distance_from_store) : 0) || 0);
           if (dist > dExtraKmLimit && dExtraKmRate > 0) {
             graphExtraKmPay += (dist - dExtraKmLimit) * dExtraKmRate;
           }
@@ -340,10 +340,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         const gNormalDeliveries = graphPayableDeliveries.filter((d) => !d.no_charge && !d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS')));
         graphBasePay = (gNormalDeliveries.length + gAhDeliveries.length * 2 + gAhPickups.length) * payRate;
         graphPayableDeliveries.forEach((d) => {
-          let dist = d.paid_km_override ?? 0;
-          if (!dist && d.patient_id && patients) {
-            dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;
-          }
+          const dist = Math.max(
+            Number(d.paid_km_override) || 0,
+            (d.patient_id && patients ? Number(patients.find((p) => p && p.id === d.patient_id)?.distance_from_store) : 0) || 0);
           if (dist > extraKmLimit && extraKmRate > 0) {
             graphExtraKmPay += (dist - extraKmLimit) * extraKmRate;
           }

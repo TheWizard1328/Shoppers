@@ -291,11 +291,12 @@ export default function DriverPayrollGrid({
     // Owner report Oct 30 2026: a stored 0 was treated as a REAL 0 here while the
     // payroll card treats 0 as "no override" — the two totals disagreed. Both now
     // treat 0 / null / undefined as unset and fall back to the patient distance.
-    let distance = delivery.paid_km_override;
-    if (distance === undefined || distance === null || Number(distance) === 0) {
-      const patient = patients?.find((p) => p.id === delivery.patient_id);
-      distance = patient?.distance_from_store || 0;
-    }
+    const patient = patients?.find((p) => p.id === delivery.patient_id);
+    // Oct 31 2026: larger of the stored override and the patient's km from store
+    // (an override can only ADD km, never shrink a real patient distance).
+    const distance = Math.max(
+      Number(delivery.paid_km_override) || 0,
+      Number(patient?.distance_from_store) || 0);
 
     const extraKmLimit = getDriverExtraKmLimit(delivery.driver_id);
     const extraKm = distance - extraKmLimit;

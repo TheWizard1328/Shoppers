@@ -563,48 +563,25 @@ Deno.serve(async (req) => {
           });
           console.log(`📏 [Stats TOTAL] Total Km: ${totalKm} km from ${finishedDeliveries.length} deliveries`);
 
-          // Extra Km: sum up distances using paid_km_override if available, otherwise patient distance_from_store
+          // Extra Km — owner report Oct 31 2026: the paid km for a stop is the
+          // LARGER of its stored Km Override and the patient's km from store.
+          // Old code used the override alone, so a small stale override (a leg-km
+          // snapshot) swallowed the real patient distance and the day total came
+          // out low (Robert Oct 19: 42.05 real vs 30.17 shown).
           let totalExtraKm = 0;
-          
-          // CRITICAL: Use paid_km_override if set, otherwise use patient distance_from_store
-          paidDeliveries.forEach(delivery => {
-            if (!delivery?.patient_id) return;
-            
-            // Check if delivery has X-KM override
-            if (delivery.paid_km_override !== null && delivery.paid_km_override !== undefined) {
-              const distance = parseFloat(delivery.paid_km_override);
-              if (!isNaN(distance) && distance > extraKmLimit) {
-                totalExtraKm += (distance - extraKmLimit);
-              }
-            }
-          });
-          
-          // Batch fetch patients only for deliveries without override
-          const deliveriesNeedingPatientDistance = paidDeliveries.filter(d => 
-            d.patient_id && (d.paid_km_override === null || d.paid_km_override === undefined)
-          );
-          
-          if (deliveriesNeedingPatientDistance.length > 0) {
-            const patientIds = deliveriesNeedingPatientDistance.map(d => d.patient_id).filter(Boolean);
-            
-            if (patientIds.length > 0) {
-              const patientsData = await fetchPatientsByIds(base44, patientIds);
-              
-              const patientMap = new Map(patientsData.map(p => [p.id, p]));
-              
-              deliveriesNeedingPatientDistance.forEach(delivery => {
-                const patient = patientMap.get(delivery.patient_id);
-                if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
-                  const distance = patient.distance_from_store;
-                  
-                  // CRITICAL: Only count extra km if THIS patient's distance exceeds limit
-                  if (distance > extraKmLimit) {
-                    totalExtraKm += (distance - extraKmLimit);
-                  }
-                }
-              });
-            }
+          const kmDeliveries = paidDeliveries.filter((d) => d?.patient_id);
+          const kmPatientIds = kmDeliveries.map((d) => d.patient_id).filter(Boolean);
+          const kmPatientMap = new Map();
+          if (kmPatientIds.length > 0) {
+            const kmPatients = await fetchPatientsByIds(base44, kmPatientIds);
+            (kmPatients || []).forEach((p) => kmPatientMap.set(p.id, p));
           }
+          kmDeliveries.forEach((delivery) => {
+            const patientKm = Number(kmPatientMap.get(delivery.patient_id)?.distance_from_store) || 0;
+            const overrideKm = Number(delivery.paid_km_override) || 0;
+            const distance = Math.max(overrideKm, patientKm);
+            if (distance > extraKmLimit) totalExtraKm += (distance - extraKmLimit);
+          });
 
           const extraKmPay = totalExtraKm * extraKmRate;
           const totalPay = basePayFromDeliveries + extraKmPay + oversizedPay;

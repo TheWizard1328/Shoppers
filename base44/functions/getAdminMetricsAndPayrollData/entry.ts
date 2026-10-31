@@ -1323,7 +1323,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const extraKmLimit = Number(driver?.extra_km_limit || 0);
     const overrideDistance = Number(delivery.paid_km_override ?? 0);
     const patientDistance = delivery.patient_id ? Number(patientMap.get(delivery.patient_id)?.distance_from_store || 0) : 0;
-    const baseDistance = overrideDistance > 0 ? overrideDistance : patientDistance;
+    // Oct 31 2026: larger of the override and the patient distance (an override
+    // may only add km) - a small stale override was swallowing real patient km.
+    const baseDistance = Math.max(overrideDistance, patientDistance);
     const extraKm = baseDistance - extraKmLimit;
     return extraKm > 0 ? extraKm : 0;
   };

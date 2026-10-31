@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 34;
+export const BUILD_NUMBER = 35;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -86,6 +86,7 @@ export const CHANGE_LOG = [
   { build: 32, area: 'Payroll', audience: 'admins', summary: 'On each driver card the Paid row now sits directly under Net, with the Paid over / Underpaid gap beneath it.' },
   { build: 33, area: 'Payroll', audience: 'admins', summary: 'The Paid over / Underpaid line only appears once an amount has been entered in the Paid field.' },
   { build: 34, area: 'Payroll', audience: 'admins', summary: 'Deliveries no longer copy the patient\'s km into their Km Override, so paid extra km always follows the patient record.' },
+  { build: 35, area: 'Payroll', audience: 'admins', summary: 'Extra km is now the larger of a stop\'s Km Override and its patient km from store, fixing day and store totals that were paid too low.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
