@@ -2057,28 +2057,6 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{formatPayrollAmount(getPeriodNetAmount({ grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0, deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0, appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0 }))}</td>
                             </tr>
-                            {(() => {
-                              // Owner report Oct 30 2026 (Anna, Oct 1-15: paid $590.03 vs
-                              // Net $582.29): a finalized period whose stored paid_amount no
-                              // longer matches the recalculated Net hid the difference. Show it
-                              // explicitly so the gap is never silent again.
-                              const rec = getDriverPayrollRecord(data.driver.id);
-                              const recordedPaid = Number(rec?.paid_amount);
-                              const computedNet = getPeriodNetAmount({
-                                grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0,
-                                deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0,
-                                appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0
-                              });
-                              const variance = recordedPaid - computedNet;
-                              if (!Number.isFinite(recordedPaid) || Math.abs(variance) < 0.005) return null;
-                              return (
-                                <tr data-paid-variance="true" style={{ color: variance > 0 ? '#b45309' : '#b91c1c' }}>
-                                  <td className="text-left pr-2">{variance > 0 ? 'Paid over Net:' : 'Underpaid:'}</td>
-                                  <td className="text-right pr-0.5">{variance > 0 ? '+$' : '-$'}</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(Math.abs(variance))}</td>
-                                </tr>
-                              );
-                            })()}
                             {canFinalize && (isAdmin || (selectedDriverId === currentUser?.id && driverHasConfirmed)) &&
                                 <tr className="text-label">
                               <td className="text-left pr-2">Paid:</td>
@@ -2126,6 +2104,28 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               </td>
                             </tr>
                                 }
+                            {(() => {
+                              // Owner report Oct 30 2026 (Anna, Oct 1-15: paid $590.03 vs
+                              // Net $582.29): a finalized period whose stored paid_amount no
+                              // longer matches the recalculated Net hid the difference. Shown
+                              // right under the Paid row (owner Oct 31: Paid first, then the gap).
+                              const rec = getDriverPayrollRecord(data.driver.id);
+                              const recordedPaid = Number(rec?.paid_amount);
+                              const computedNet = getPeriodNetAmount({
+                                grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0,
+                                deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0,
+                                appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0
+                              });
+                              const variance = recordedPaid - computedNet;
+                              if (!Number.isFinite(recordedPaid) || Math.abs(variance) < 0.005) return null;
+                              return (
+                                <tr data-paid-variance="true" style={{ color: variance > 0 ? '#b45309' : '#b91c1c' }}>
+                                  <td className="text-left pr-2">{variance > 0 ? 'Paid over Net:' : 'Underpaid:'}</td>
+                                  <td className="text-right pr-0.5">{variance > 0 ? '+$' : '-$'}</td>
+                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(Math.abs(variance))}</td>
+                                </tr>
+                              );
+                            })()}
                           </tbody>
                         </table>
                       </div>
