@@ -1443,65 +1443,105 @@ export default function DriverPayroll() {
     return next;
   }, [selectedCityId, selectedYear, payPeriod, currentPeriod, saveOfflinePayroll, persistPayrollCyclesToIdb]);
 
-  // OWNER SPEC Oct 31 2026: the payroll graph spinner must COMPLETELY recalculate
-  // the selected payroll period from the actual stop records — deliveries, extra
-  // km, oversized, after hours, no charge, failed/returns — not just the fields
-  // the server payload happens to think changed. This pulls every stop in the
-  // selected period straight from the Delivery entity and swaps them into the
-  // payroll rows, so the cards, the by-store table and the totals all recompute
-  // off live data.
+  // OWNER SPEC Oct 31 2026 (v2 - deep fix): the payroll spinner must COMPLETELY
+  // recalculate the selected period from the real stop data, including edits the
+  // owner just made on a delivery or a patient. Sources, in order:
+  //   1. the LOCAL offline DB for the period's deliveries and their patients -
+  //      this is what the stop cards and forms write instantly, so a km the owner
+  //      has just corrected is picked up even before the server catches up
+  //   2. the Delivery entity over the network, only when the local rows are empty
+  // The rows replace the payload's rows for the period, so deliveries, extra km,
+  // oversized, after hours, no charge and failed/returns all recompute from them.
   const refreshSelectedPeriodFromDeliveries = useCallback(async () => {
     if (!currentPeriod || !selectedCityId) return 0;
     const from = toLocalYMD(currentPeriod.start);
     const to = toLocalYMD(currentPeriod.end);
+
     let rows = [];
     try {
-      rows = await base44.entities.Delivery.filter(
-        { delivery_date: { $gte: from, $lte: to } },
-        'delivery_date',
-        5000
-      );
+      rows = await offlineDB.getDeliveriesByDateRange(from, to);
+      console.log(`📦 [DriverPayroll] period rebuild: ${Array.isArray(rows) ? rows.length : 0} local stop(s) for ${from}..${to}`);
     } catch (e) {
-      console.warn('[DriverPayroll] period delivery refresh failed:', e?.message || e);
-      return 0;
+      console.warn('[DriverPayroll] local period delivery read failed:', e?.message || e);
+      rows = [];
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      try {
+        rows = await base44.entities.Delivery.filter(
+          { delivery_date: { $gte: from, $lte: to } },
+          'delivery_date',
+          5000
+        );
+        console.log(`📥 [DriverPayroll] period rebuild: ${Array.isArray(rows) ? rows.length : 0} server stop(s) for ${from}..${to}`);
+      } catch (e) {
+        console.warn('[DriverPayroll] server period delivery read failed:', e?.message || e);
+        return 0;
+      }
     }
     if (!Array.isArray(rows) || rows.length === 0) return 0;
+
     const cityStoreIds = new Set((filteredStores || []).map((s) => s.id));
-    const fresh = rows.filter((d) => d && (!cityStoreIds.size || cityStoreIds.has(d.store_id))).map((d) => ({
-      id: d.id,
-      delivery_date: d.delivery_date,
-      delivery_id: d.delivery_id,
-      driver_id: d.driver_id,
-      driver_name: d.driver_name,
-      store_id: d.store_id,
-      patient_id: d.patient_id,
-      status: d.status,
-      after_hours_pickup: d.after_hours_pickup,
-      after_hours_rate: d.after_hours_rate,
-      paid_km_override: d.paid_km_override,
-      travel_dist: d.travel_dist,
-      oversized: d.oversized,
-      no_charge: d.no_charge,
-      delivery_notes: d.delivery_notes,
-      actual_delivery_time: d.actual_delivery_time
-    }));
     const inPeriod = (d) => d && d.delivery_date >= from && d.delivery_date <= to;
+    const fresh = rows
+      .filter((d) => d && inPeriod(d) && (!cityStoreIds.size || cityStoreIds.has(d.store_id)))
+      .map((d) => ({
+        id: d.id,
+        delivery_date: d.delivery_date,
+        delivery_id: d.delivery_id,
+        driver_id: d.driver_id,
+        driver_name: d.driver_name,
+        store_id: d.store_id,
+        patient_id: d.patient_id,
+        status: d.status,
+        after_hours_pickup: d.after_hours_pickup,
+        after_hours_rate: d.after_hours_rate,
+        paid_km_override: d.paid_km_override,
+        travel_dist: d.travel_dist,
+        oversized: d.oversized,
+        no_charge: d.no_charge,
+        delivery_notes: d.delivery_notes,
+        actual_delivery_time: d.actual_delivery_time
+      }));
+
+    // Patients for these stops, straight from the local DB too - a corrected
+    // patient km is what a blank-override stop is paid from.
+    let freshPatients = [];
+    try {
+      const neededIds = new Set(fresh.map((d) => d.patient_id).filter(Boolean));
+      if (neededIds.size > 0) {
+        const localPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        freshPatients = (localPatients || [])
+          .filter((p) => p && neededIds.has(p.id))
+          .map((p) => ({
+            id: p.id,
+            full_name: p.full_name,
+            store_id: p.store_id,
+            distance_from_store: p.distance_from_store,
+            latitude: p.latitude,
+            longitude: p.longitude
+          }));
+      }
+    } catch (e) {
+      console.warn('[DriverPayroll] local period patient read failed:', e?.message || e);
+    }
+
     setPayrollData((prev) => {
       if (!prev) return prev;
-      const kept = (prev.deliveries || []).filter((d) => !inPeriod(d));
+      const keptPatients = (prev.patients || []).filter((p) => !freshPatients.some((fp) => fp.id === p?.id));
       const next = {
         ...prev,
-        deliveries: [...kept, ...fresh],
+        deliveries: [...(prev.deliveries || []).filter((d) => !inPeriod(d)), ...fresh],
+        patients: [...keptPatients, ...freshPatients],
         __cacheKey: prev.__cacheKey || `${selectedYear}-${selectedCityId}`,
         __periodRefreshedAt: Date.now()
       };
       fullYearPayrollDataRef.current = next;
       payrollDataRef.current = next;
-      saveOfflinePayroll(selectedYear, selectedCityId, next);
       return next;
     });
     return fresh.length;
-  }, [currentPeriod, selectedCityId, filteredStores, selectedYear, saveOfflinePayroll]);
+  }, [currentPeriod, selectedCityId, filteredStores, selectedYear]);
+
 
   // PAYROLL DATA REFRESH (the spinner next to the by-store table). This must NOT
   // touch the app refresh manager — owner report Oct 31 2026: the table spinner
@@ -1510,8 +1550,8 @@ export default function DriverPayroll() {
     if (!selectedCityId) return;
     setIsRefreshing(true);
     try {
+      await deepRefreshPayrollCycle();
       await refreshSelectedPeriodFromDeliveries();
-    await deepRefreshPayrollCycle();
       if (refreshPayrollRecords) await refreshPayrollRecords();
       setLiveKmToken((n) => n + 1); // re-read the entity overrides
       setForceFinalizedSyncToken((n) => n + 1);
@@ -1522,7 +1562,7 @@ export default function DriverPayroll() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [deepRefreshPayrollCycle, refreshPayrollRecords, selectedCityId]);
+  }, [deepRefreshPayrollCycle, refreshSelectedPeriodFromDeliveries, refreshPayrollRecords, selectedCityId]);
 
 
   const handleManualRefresh = useCallback(async () => {

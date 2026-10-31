@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 36;
+export const BUILD_NUMBER = 37;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -88,6 +88,7 @@ export const CHANGE_LOG = [
   { build: 34, area: 'Payroll', audience: 'admins', summary: 'Deliveries no longer copy the patient\'s km into their Km Override, so paid extra km always follows the patient record.' },
   { build: 35, area: 'Payroll', audience: 'admins', summary: 'Extra km is now the larger of a stop\'s Km Override and its patient km from store, fixing day and store totals that were paid too low.' },
   { build: 36, area: 'Payroll', audience: 'admins', summary: 'The payroll spinner now rebuilds the whole selected period from the stop records (deliveries, extra km, oversized, after hours, no charge, failed and returns).' },
+  { build: 37, area: 'Payroll', audience: 'admins', summary: 'The payroll spinner now rebuilds the period from the stops and patients saved on this device, so km you just corrected shows up immediately.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
