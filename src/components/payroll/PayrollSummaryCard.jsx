@@ -2109,15 +2109,19 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                               // Net $582.29): a finalized period whose stored paid_amount no
                               // longer matches the recalculated Net hid the difference. Shown
                               // right under the Paid row (owner Oct 31: Paid first, then the gap).
-                              const rec = getDriverPayrollRecord(data.driver.id);
-                              const recordedPaid = Number(rec?.paid_amount);
+                              // Owner Oct 31 2026: the gap is only meaningful once money
+                              // has actually been entered in the Paid field — a blank Paid
+                              // box must not pop a red Underpaid line on every card.
+                              const paidFieldRaw = String(edit.paidAmount ?? '').trim();
+                              const paidFieldValue = parsePaidAmount(edit.paidAmount, 0);
+                              if (!paidFieldRaw || !Number.isFinite(paidFieldValue) || paidFieldValue === 0) return null;
                               const computedNet = getPeriodNetAmount({
                                 grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0,
                                 deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0,
                                 appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0
                               });
-                              const variance = recordedPaid - computedNet;
-                              if (!Number.isFinite(recordedPaid) || Math.abs(variance) < 0.005) return null;
+                              const variance = paidFieldValue - computedNet;
+                              if (!Number.isFinite(variance) || Math.abs(variance) < 0.005) return null;
                               return (
                                 <tr data-paid-variance="true" style={{ color: variance > 0 ? '#b45309' : '#b91c1c' }}>
                                   <td className="text-left pr-2">{variance > 0 ? 'Paid over Net:' : 'Underpaid:'}</td>

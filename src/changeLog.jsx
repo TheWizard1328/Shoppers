@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 32;
+export const BUILD_NUMBER = 33;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -84,6 +84,7 @@ export const CHANGE_LOG = [
   { build: 30, area: 'Payroll', audience: 'admins', summary: 'Payroll refresh is now authoritative: it re-reads the selected cycle from the server and can no longer be overwritten by older cached data.' },
   { build: 31, area: 'Payroll', audience: 'admins', summary: 'The by-store refresh now only reloads payroll (no app-wide refresh storm), and paid km comes straight from the delivery records.' },
   { build: 32, area: 'Payroll', audience: 'admins', summary: 'On each driver card the Paid row now sits directly under Net, with the Paid over / Underpaid gap beneath it.' },
+  { build: 33, area: 'Payroll', audience: 'admins', summary: 'The Paid over / Underpaid line only appears once an amount has been entered in the Paid field.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
