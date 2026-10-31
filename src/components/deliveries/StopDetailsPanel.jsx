@@ -52,6 +52,7 @@ import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
 import { useDeliveryDisplayInfo } from "../common/StopCardRedaction";
 import { userHasRole } from "../utils/userRoles";
+import { haversineKm } from "../utils/geoUtils";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
@@ -118,6 +119,65 @@ export default function StopDetailsPanel({
     );
     setArrivalTime(delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '');
   }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time, delivery?.arrival_time]);
+
+  // ── STORE DISTANCE (owner request Oct 30 2026) ─────────────────────────────
+  // The "km from store" badge showed patient.distance_from_store, which for many
+  // older patients is a plain crow-flies number (saved before the driving lookup
+  // existed; Claudia Gomez: 16.54 km = exact haversine from Meadows). The badge
+  // now shows the stop's REAL road distance: when the stored value is missing or
+  // matches the straight line, one getGoogleDrivingDistance lookup fills it, the
+  // result is written back onto the patient record (so every screen reads the
+  // actual stored distance from now on) and held in state for the open panel.
+  const [storeDistanceKm, setStoreDistanceKm] = useState(null);
+  const storeDistanceAttemptRef = useRef(null);
+  useEffect(() => {
+    const patientId = delivery?.patient_id || patient?.id || null;
+    const storeId = delivery?.store_id || patient?.store_id || store?.id || null;
+    const pLat = Number(patient?.latitude);
+    const pLng = Number(patient?.longitude);
+    const sLat = Number(store?.latitude);
+    const sLng = Number(store?.longitude);
+    const stored = Number(patient?.distance_from_store);
+    const hasCoords = Number.isFinite(pLat) && Number.isFinite(pLng) && Number.isFinite(sLat) && Number.isFinite(sLng);
+    const crow = hasCoords ? haversineKm(sLat, sLng, pLat, pLng) : null;
+
+    if (!patientId || !storeId) { setStoreDistanceKm(null); return; }
+
+    // Already a real road distance (clearly different from the straight line)?
+    const looksCrowFlies = !Number.isFinite(stored) || stored <= 0 || (Number.isFinite(crow) && Math.abs(stored - crow) <= Math.max(0.3, crow * 0.03));
+    if (!looksCrowFlies) { setStoreDistanceKm(stored); return; }
+
+    const attemptKey = `${patientId}:${storeId}:${Number.isFinite(pLat) ? pLat.toFixed(5) : ''}:${Number.isFinite(pLng) ? pLng.toFixed(5) : ''}`;
+    if (storeDistanceAttemptRef.current === attemptKey) {
+      setStoreDistanceKm(Number.isFinite(stored) && stored > 0 ? stored : null);
+      return;
+    }
+    if (!hasCoords) {
+      setStoreDistanceKm(Number.isFinite(stored) && stored > 0 ? stored : null);
+      return;
+    }
+    storeDistanceAttemptRef.current = attemptKey;
+    let cancelled = false;
+    base44.functions.invoke('getGoogleDrivingDistance', {
+      originLat: sLat, originLng: sLng, destLat: pLat, destLng: pLng
+    }).then((res) => {
+      if (cancelled) return;
+      const km = Number(res?.data?.distance_km ?? res?.distance_km);
+      if (Number.isFinite(km) && km > 0) {
+        setStoreDistanceKm(km);
+        // Heal the patient record once so the actual road distance is STORED.
+        if (!Number.isFinite(stored) || Math.abs(km - stored) > 0.05) {
+          base44.entities.Patient.update(patientId, { distance_from_store: Math.round(km * 100) / 100 }).catch(() => {});
+        }
+      } else {
+        setStoreDistanceKm(Number.isFinite(stored) && stored > 0 ? stored : null);
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      setStoreDistanceKm(Number.isFinite(stored) && stored > 0 ? stored : null);
+    });
+    return () => { cancelled = true; };
+  }, [delivery?.patient_id, delivery?.store_id, patient?.id, patient?.distance_from_store, patient?.latitude, patient?.longitude, store?.id, store?.latitude, store?.longitude]);
 
   // Must be called before any early returns to satisfy React hooks rules
   const isPickupForHook = !delivery?.patient_id;
@@ -689,9 +749,13 @@ export default function StopDetailsPanel({
                         {patient?.unit_number &&
                       <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)' }} className="text-body-2">Unit {patient.unit_number}</Badge>
                       }
-                     {patient?.distance_from_store > 0 &&
-                      <Badge variant="outline" className="text-xs bg-surface" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)' }}>
-                       {patient.distance_from_store.toFixed(1)} km from store
+                     {(storeDistanceKm > 0 || patient?.distance_from_store > 0) &&
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-surface"
+                        title="Road distance from the store"
+                        style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)' }}>
+                       {Number(storeDistanceKm > 0 ? storeDistanceKm : patient?.distance_from_store || 0).toFixed(1)} km from store
                      </Badge>
                       }
                    </div>

@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 23;
+export const BUILD_NUMBER = 24;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -75,6 +75,7 @@ export const CHANGE_LOG = [
   { build: 21, area: 'Driver Overview', audience: 'admins', summary: 'Inactive driver cards now sit in their own section under the active drivers, with a count and a collapse toggle.' },
   { build: 22, area: 'Driver Overview', audience: 'admins', summary: 'Every driver card shows a Start Date; inactive cards also show the date of their last delivery.' },
   { build: 23, area: 'Driver Overview', audience: 'admins', summary: 'Driver cards show how long they have been driving (years, months, weeks, days) under the Start Date, and your own start date is set to Feb 21, 2023.' },
+  { build: 24, area: 'Route Management', audience: 'all', summary: 'The "km from store" badge in Stop Details now shows the real road distance instead of the straight-line distance.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
