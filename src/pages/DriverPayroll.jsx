@@ -468,6 +468,56 @@ export default function DriverPayroll() {
   // paid km silently fell back to the patient's stored distance. Overlay the
   // local IDB overrides onto the payroll rows so payroll always agrees with the
   // dashboard. A missing/blank local value never erases a server value.
+  // LIVE KM OVERRIDES (owner report Oct 31 2026: payroll kept replaying 6.54 /
+  // 10.41 while the Delivery records already held 21.90). The payroll payload
+  // clearly serves stale delivery rows on some devices, so the paid km is now
+  // resolved from the Delivery ENTITY for the selected period - one query per
+  // period/refresh - and overlaid on both the by-store table and the driver
+  // cards. Same server record for every device, no local caches involved.
+  const [liveKmOverrides, setLiveKmOverrides] = useState({});
+  const [liveKmToken, setLiveKmToken] = useState(0);
+  const liveKmFetchedRef = useRef('');
+  useEffect(() => {
+    if (!currentPeriod?.start || !currentPeriod?.end) return;
+    const from = toLocalYMD(currentPeriod.start);
+    const to = toLocalYMD(currentPeriod.end);
+    const key = `${from}:${to}:${selectedCityId || ''}:${liveKmToken}`;
+    if (liveKmFetchedRef.current === key) return;
+    liveKmFetchedRef.current = key;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await base44.entities.Delivery.filter(
+          { delivery_date: { $gte: from, $lte: to } },
+          '-delivery_date',
+          5000
+        );
+        if (cancelled || !Array.isArray(rows)) return;
+        const map = {};
+        rows.forEach((r) => {
+          const v = Number(r?.paid_km_override);
+          if (r?.id && Number.isFinite(v) && v > 0) map[r.id] = v;
+        });
+        setLiveKmOverrides(map);
+        console.log(`📏 [DriverPayroll] live km overrides for ${from}..${to}: ${Object.keys(map).length}`);
+      } catch (e) {
+        console.warn('[DriverPayroll] live km override fetch failed:', e?.message || e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentPeriod?.start?.getTime?.() ?? null, currentPeriod?.end?.getTime?.() ?? null, selectedCityId, liveKmToken]);
+
+  const applyLiveKmOverrides = (rows) => {
+    if (!Array.isArray(rows) || Object.keys(liveKmOverrides).length === 0) return rows;
+    return rows.map((d) => {
+      const live = liveKmOverrides[d?.id];
+      if (live === undefined) return d;
+      const current = Number(d?.paid_km_override);
+      if (Number.isFinite(current) && Math.abs(current - live) < 0.005) return d;
+      return { ...d, paid_km_override: live };
+    });
+  };
+
   // All deliveries for the selected city (no period filter) for App Fee monthly pool
   const allCityDeliveries = useMemo(() => {
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
@@ -504,8 +554,8 @@ export default function DriverPayroll() {
       });
     }
 
-    return filtered;
-  }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod]);
+    return applyLiveKmOverrides(filtered);
+  }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod, liveKmOverrides]);
 
   // Screenshot/share "Save" file name: pay-period date range + selected driver
   // ("All Drivers" when no driver is filtered), mirroring the PDF export naming.
@@ -783,8 +833,8 @@ export default function DriverPayroll() {
       });
     }
 
-    return filtered;
-  }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod, payrollData?.payrollRecords]);
+    return applyLiveKmOverrides(filtered);
+  }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod, payrollData?.payrollRecords, liveKmOverrides]);
 
   const filteredPayrollRecords = useMemo(() => {
     if (!currentPeriod || !Array.isArray(payrollRecords)) return [];
@@ -1393,6 +1443,26 @@ export default function DriverPayroll() {
     return next;
   }, [selectedCityId, selectedYear, payPeriod, currentPeriod, saveOfflinePayroll, persistPayrollCyclesToIdb]);
 
+  // PAYROLL DATA REFRESH (the spinner next to the by-store table). This must NOT
+  // touch the app refresh manager — owner report Oct 31 2026: the table spinner
+  // was firing the page-level refresh too and spamming rate limits.
+  const handlePayrollDataRefresh = useCallback(async () => {
+    if (!selectedCityId) return;
+    setIsRefreshing(true);
+    try {
+      await deepRefreshPayrollCycle();
+      if (refreshPayrollRecords) await refreshPayrollRecords();
+      setLiveKmToken((n) => n + 1); // re-read the entity overrides
+      setForceFinalizedSyncToken((n) => n + 1);
+      toast.success('Payroll data refreshed');
+    } catch (error) {
+      console.error('❌ [DriverPayroll] Payroll data refresh failed:', error);
+      toast.error(error?.response?.data?.error || error?.message || 'Failed to refresh payroll data');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [deepRefreshPayrollCycle, refreshPayrollRecords, selectedCityId]);
+
   const handleManualRefresh = useCallback(async () => {
     if (!selectedCityId) return;
     setIsRefreshing(true);
@@ -1405,6 +1475,7 @@ export default function DriverPayroll() {
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
+      setLiveKmToken((n) => n + 1);
       // Re-read the local delivery km overrides so a just-edited override shows
       // up even when the payroll payload lags behind.
       // Push the recalculated totals onto the stored records — even when the
@@ -2133,7 +2204,7 @@ export default function DriverPayroll() {
             onNextPeriod={goToNextPeriod}
             driverStats={payrollData?.driverStats || {}}
             storeStats={payrollData?.storeStats || {}}
-            onRefreshPayrollData={handleManualRefresh} />
+            onRefreshPayrollData={handlePayrollDataRefresh} />
           
           </div>
 
