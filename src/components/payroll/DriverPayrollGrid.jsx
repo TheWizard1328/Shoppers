@@ -271,9 +271,12 @@ export default function DriverPayrollGrid({
     if (!delivery) return 0;
     // N/C deliveries still earn extra km — do not skip them here.
 
-    // Use paid_km_override if set, otherwise get distance_from_store from patient
+    // Use paid_km_override if set, otherwise get distance_from_store from patient.
+    // Owner report Oct 30 2026: a stored 0 was treated as a REAL 0 here while the
+    // payroll card treats 0 as "no override" — the two totals disagreed. Both now
+    // treat 0 / null / undefined as unset and fall back to the patient distance.
     let distance = delivery.paid_km_override;
-    if (distance === undefined || distance === null) {
+    if (distance === undefined || distance === null || Number(distance) === 0) {
       const patient = patients?.find((p) => p.id === delivery.patient_id);
       distance = patient?.distance_from_store || 0;
     }
