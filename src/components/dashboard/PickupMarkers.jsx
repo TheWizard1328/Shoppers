@@ -20,7 +20,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 export default function PickupMarkers({
   pickupMarkers, groupedPickupMarkers, groupedDeliveryMarkers,
   routeRenderKey, currentZoom, ZOOM_LEVELS, isMobile,
-  fannedLocationKey, highlightedDeliveryId,
+  fannedLocationKey, clusterOrigins, highlightedDeliveryId,
   fadedMarkerHighlights, setFadedMarkerHighlights,
   driversWithCompleteRoute, hasIncompleteStops,
   calculateFannedPositionWrapperWrapper,
@@ -69,7 +69,12 @@ export default function PickupMarkers({
     if (isFanned && isClustered) {
       const all = [...(groupedPickupMarkers.get(lk)||[]), ...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
       const clusterIndex = all.findIndex(p => p.id === pickup.id);
-      markerPosition = calculateFannedPositionWrapperWrapper(pickup.latitude, pickup.longitude, clusterIndex, all.length, pickup.stop_order);
+      // Shared cluster centroid (see DeliveryMarkers) — petals and spokes must
+      // radiate from one point or pending clusters detach from their lines.
+      const _origin = clusterOrigins?.get(lk);
+      const _originLat = Number.isFinite(Number(_origin?.lat)) ? Number(_origin.lat) : pickup.latitude;
+      const _originLng = Number.isFinite(Number(_origin?.lng)) ? Number(_origin.lng) : pickup.longitude;
+      markerPosition = calculateFannedPositionWrapperWrapper(_originLat, _originLng, clusterIndex, all.length, pickup.stop_order);
       // Fanned cluster: same tier logic — incomplete on top, finished underneath, lowest stop_order on top within each tier
       if (isNextDeliveryMarker) dynamicZIndex = 12000;
       else if (!isFinished) dynamicZIndex = 11000 - stopOrder;

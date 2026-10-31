@@ -832,6 +832,45 @@ function DeliveryMap({
     return badges;
   }, [groupedPickupMarkers, groupedDeliveryMarkers]);
 
+  // ── CLUSTER FAN ORIGIN (owner bug report Oct 30 2026) ──────────────────────
+  // The petal spokes and the petals themselves MUST radiate from the same point,
+  // otherwise they detach. They didn't: pending markers cluster on a key rounded
+  // to ~110m (LOCATION_KEY_CAP_FOR_PENDING = 3), the spokes were drawn from THAT
+  // rounded coordinate while each pin fanned out from its own real position — up
+  // to ~80m apart at zoom 16 (~55px). Result: two properly fanned pending pins,
+  // and a floating dashed V somewhere else. Both now use ONE origin per cluster:
+  // the true centroid of the markers in it (same point the count badge sits on).
+  const clusterOrigins = useMemo(() => {
+    const origins = new Map();
+    const keys = new Set([...groupedPickupMarkers.keys(), ...groupedDeliveryMarkers.keys()]);
+    for (const key of keys) {
+      const all = [
+        ...(groupedPickupMarkers.get(key) || []),
+        ...(groupedDeliveryMarkers.get(key) || []),
+      ];
+      if (all.length < 2) continue; // single marker fans from its own coords
+      let lat = 0;
+      let lng = 0;
+      let valid = 0;
+      for (const m of all) {
+        const mLat = Number(m?.latitude);
+        const mLng = Number(m?.longitude);
+        if (Number.isFinite(mLat) && Number.isFinite(mLng)) {
+          lat += mLat;
+          lng += mLng;
+          valid++;
+        }
+      }
+      if (valid > 0) {
+        origins.set(key, { lat: lat / valid, lng: lng / valid });
+        continue;
+      }
+      const [kLat, kLng] = String(key).split(',').map(Number);
+      if (Number.isFinite(kLat) && Number.isFinite(kLng)) origins.set(key, { lat: kLat, lng: kLng });
+    }
+    return origins;
+  }, [groupedPickupMarkers, groupedDeliveryMarkers]);
+
   const driverLocationMarkers = useMemo(() => {
     const today = getEdmDate();
     if (selectedDate && selectedDate < today) {
@@ -2181,10 +2220,14 @@ function DeliveryMap({
               ])).filter((k) => {
                 const list = [...(groupedDeliveryMarkers.get(k) || []), ...(groupedPickupMarkers.get(k) || [])];
                 return list.length > 1;
-              }).slice(0, 12)
+              }).slice(0, 40)
             : [];
+          // Tapped cluster: keep the auto-fanned spokes too (the old ternary
+          // DROPPED every spoke when the tapped cluster was also auto-fanned,
+          // so fanned pins at high zoom could sit without any lines), and add
+          // the tapped key when it is below the auto-fan threshold.
           const _fanKeys = fannedLocationKey
-            ? [_autoKeys.includes(fannedLocationKey) ? null : fannedLocationKey]
+            ? (_autoKeys.includes(fannedLocationKey) ? _autoKeys : [..._autoKeys, fannedLocationKey])
             : _autoKeys;
           return _fanKeys.filter(Boolean).flatMap((key) => {
           const [originLat, originLng] = key.split(',').map(Number);
@@ -2193,12 +2236,15 @@ function DeliveryMap({
           const deliveriesAtLocation = groupedDeliveryMarkers.get(key) || [];
           const allAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
             .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          // One origin per cluster (true centroid) — the same point the pins
+          // fan out from and the count badge sits on.
+          const _origin = clusterOrigins.get(key) || { lat: originLat, lng: originLng };
           return allAtLocation.map((marker, index) => {
-            const [fanLat, fanLng] = calculateFannedPositionWrapperWrapper(originLat, originLng, index, allAtLocation.length);
+            const [fanLat, fanLng] = calculateFannedPositionWrapperWrapper(_origin.lat, _origin.lng, index, allAtLocation.length);
             return (
               <Polyline
                 key={`fan-line-${marker.id}`}
-                positions={[[originLat, originLng], [fanLat, fanLng]]}
+                positions={[[_origin.lat, _origin.lng], [fanLat, fanLng]]}
                 renderer={fanCanvasRenderer.current}
                 pathOptions={{ color: marker.pinColor || '#64748b', weight: 1.5, opacity: 0.5, dashArray: '4 4' }}
               />
@@ -2208,11 +2254,11 @@ function DeliveryMap({
         })()}
 
         {mapReady && (
-          <PickupMarkers pickupMarkers={pickupMarkers} groupedPickupMarkers={groupedPickupMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClickWithImmersive} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} />
+          <PickupMarkers pickupMarkers={pickupMarkers} groupedPickupMarkers={groupedPickupMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} clusterOrigins={clusterOrigins} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClickWithImmersive} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} />
         )}
 
         {mapReady && (
-          <DeliveryMarkers deliveryMarkers={deliveryMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} groupedPickupMarkers={groupedPickupMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} setFannedLocationKey={setFannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClickWithImmersive} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} stores={stores} />
+          <DeliveryMarkers deliveryMarkers={deliveryMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} groupedPickupMarkers={groupedPickupMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} clusterOrigins={clusterOrigins} setFannedLocationKey={setFannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClickWithImmersive} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} stores={stores} />
         )}
 
         {mapReady && (

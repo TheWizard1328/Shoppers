@@ -28,6 +28,7 @@ function DeliveryMarkers({
   ZOOM_LEVELS,
   isMobile,
   fannedLocationKey,
+  clusterOrigins,
   setFannedLocationKey,
   highlightedDeliveryId,
   fadedMarkerHighlights,
@@ -343,7 +344,14 @@ function DeliveryMarkers({
       const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
-      markerPosition = calculateFannedPositionWrapperWrapper(markerLatitude, markerLongitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
+      // Fan from the cluster's TRUE centroid, the same point the spokes and the
+      // count badge use (owner bug Oct 30 2026: pending clusters round their key
+      // to ~110 m, so fanning from each pin's own coords detached the petals
+      // from their spokes).
+      const _origin = clusterOrigins?.get(locationKey);
+      const _originLat = Number.isFinite(Number(_origin?.lat)) ? Number(_origin.lat) : markerLatitude;
+      const _originLng = Number.isFinite(Number(_origin?.lng)) ? Number(_origin.lng) : markerLongitude;
+      markerPosition = calculateFannedPositionWrapperWrapper(_originLat, _originLng, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
       // Within a fanned cluster: same tier logic — pending highest, then next-delivery,
       // then active, then finished; lowest stop_order on top within each tier
       if (isPending) dynamicZIndex = 11400 - stopOrder;
@@ -613,6 +621,7 @@ export default React.memo(DeliveryMarkers, (prev, next) => {
     prev.groupedPickupMarkers === next.groupedPickupMarkers &&
     prev.highlightedDeliveryId === next.highlightedDeliveryId &&
     prev.fannedLocationKey === next.fannedLocationKey &&
+    prev.clusterOrigins === next.clusterOrigins &&
     // Zoom drives auto-fanning of co-located clusters — without this the memo
     // kept rendering the collapsed cluster after the user zoomed in.
     prev.currentZoom === next.currentZoom &&
