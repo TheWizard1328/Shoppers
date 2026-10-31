@@ -2470,6 +2470,57 @@ export default function DeliveriesPage() {
   backendDriverStats]
   );
 
+  // ── DRIVER DATE SPAN (owner request Oct 30 2026) ───────────────────────────
+  // Cards now show "Start Date: <first delivery>" and, for inactive accounts,
+  // " - <last delivery>". There is no hire-date field on AppUser, so the span is
+  // the driver's ALL-TIME delivery history (delivery_date), keyed by driver_id
+  // AND by lowercased driver_name because older rows carry a name but no id.
+  // allDeliveries — never the year-filtered set — so the span is account-wide.
+  const driverDateSpan = useMemo(() => {
+    const map = new Map();
+    const bump = (key, date) => {
+      if (!key || !date) return;
+      const cur = map.get(key);
+      if (!cur) { map.set(key, { first: date, last: date }); return; }
+      if (date < cur.first) cur.first = date;
+      if (date > cur.last) cur.last = date;
+    };
+    (allDeliveries || []).forEach((d) => {
+      if (!d || !d.delivery_date) return;
+      const date = String(d.delivery_date).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}/.test(date)) return;
+      bump(d.driver_id, date);
+      const name = (d.driver_name || '').toLowerCase().trim();
+      if (name) bump(name, date);
+    });
+    return map;
+  }, [allDeliveries]);
+
+  // Resolve a card's driver to its span (id first, then appUserId, then name).
+  const getDriverDateSpan = (driver) => {
+    if (!driver) return null;
+    const keys = [
+      driver.id,
+      driver.appUserId,
+      (driver.full_name || '').toLowerCase().trim(),
+      (driver.user_name || '').toLowerCase().trim()
+    ].filter(Boolean);
+    for (const key of keys) {
+      const span = driverDateSpan.get(key);
+      if (span) return span;
+    }
+    return null;
+  };
+
+  const formatCardDate = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      return format(parseISO(String(dateStr).slice(0, 10)), 'MMM d, yyyy');
+    } catch (e) {
+      return null;
+    }
+  };
+
   // ── ACTIVE / INACTIVE SPLIT (owner request Oct 30 2026) ────────────────────
   // The Driver Overview grid mixed retired/disabled driver accounts in with the
   // working ones. Cards for drivers whose AppUser is inactive now live in their
@@ -2669,6 +2720,19 @@ export default function DeliveriesPage() {
               </Badge>
             </span>
           </CardTitle>
+          {(() => {
+            // START DATE (first delivery). Inactive accounts also get the date of
+            // their last delivery appended: "Start Date: Jan 5, 2025 - Sep 12, 2026".
+            const span = getDriverDateSpan(card.driver);
+            const startLabel = formatCardDate(span?.first) || formatCardDate(card.driver?.created_date) || 'Unknown';
+            const lastLabel = dimmed ? formatCardDate(span?.last) : null;
+            return (
+              <div className="text-xs text-label" title={lastLabel ? `Last delivery: ${lastLabel}` : `Start date: ${startLabel}`}>
+                <span className="font-medium">Start Date:</span> {startLabel}
+                {lastLabel && <span className="text-label"> - {lastLabel}</span>}
+              </div>
+            );
+          })()}
         </CardHeader>
         <CardContent className="p-6 px-4 py-3 flex flex-col">
           <div className="mb-3 flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
