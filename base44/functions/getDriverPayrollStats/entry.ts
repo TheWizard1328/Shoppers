@@ -150,10 +150,11 @@ Deno.serve(async (req) => {
       // Extra km = based on paid_km_override or patient.distance_from_store
       let paidDistance = 0;
 
-      // Oct 31 2026: larger of the stored override and the patient km from store.
-      paidDistance = Math.max(
-        Number(d.paid_km_override) || 0,
-        d.patient_id ? (Number(patientMap.get(d.patient_id)?.distance_from_store) || 0) : 0);
+      // OWNER RULE Oct 31 2026: patient km first, positive override replaces it.
+      const _ovrKm = Number(d.paid_km_override) || 0;
+      paidDistance = _ovrKm > 0
+        ? _ovrKm
+        : (d.patient_id ? (Number(patientMap.get(d.patient_id)?.distance_from_store) || 0) : 0);
 
       // Extra km: if paid distance > limit, add the excess
       if (paidDistance > extraKmLimit) {

@@ -274,9 +274,7 @@ export function useLocalPerformanceStats({
           totalPay += calculateDeliveryPay(delivery, driverAppUser, patient);
 
           // Extra km debug total feeds the "Extra" badge — not part of calculateDeliveryPay's return.
-          const distance = Math.max(
-            Number(delivery.paid_km_override) || 0,
-            Number(patient?.distance_from_store) || 0);
+          const distance = (Number(delivery.paid_km_override) > 0) ? Number(delivery.paid_km_override) : (Number(patient?.distance_from_store) || 0);
 
           if (typeof distance === "number" && !Number.isNaN(distance) && distance > extraKmLimit) {
             totalExtraKm += distance - extraKmLimit;

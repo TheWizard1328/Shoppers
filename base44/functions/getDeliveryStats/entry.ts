@@ -563,11 +563,8 @@ Deno.serve(async (req) => {
           });
           console.log(`📏 [Stats TOTAL] Total Km: ${totalKm} km from ${finishedDeliveries.length} deliveries`);
 
-          // Extra Km — owner report Oct 31 2026: the paid km for a stop is the
-          // LARGER of its stored Km Override and the patient's km from store.
-          // Old code used the override alone, so a small stale override (a leg-km
-          // snapshot) swallowed the real patient distance and the day total came
-          // out low (Robert Oct 19: 42.05 real vs 30.17 shown).
+          // Extra Km — OWNER RULE Oct 31 2026: the patient's km from store is
+          // used first; a POSITIVE Delivery Km Override always replaces it.
           let totalExtraKm = 0;
           const kmDeliveries = paidDeliveries.filter((d) => d?.patient_id);
           const kmPatientIds = kmDeliveries.map((d) => d.patient_id).filter(Boolean);
@@ -579,7 +576,7 @@ Deno.serve(async (req) => {
           kmDeliveries.forEach((delivery) => {
             const patientKm = Number(kmPatientMap.get(delivery.patient_id)?.distance_from_store) || 0;
             const overrideKm = Number(delivery.paid_km_override) || 0;
-            const distance = Math.max(overrideKm, patientKm);
+            const distance = overrideKm > 0 ? overrideKm : patientKm;
             if (distance > extraKmLimit) totalExtraKm += (distance - extraKmLimit);
           });
 
