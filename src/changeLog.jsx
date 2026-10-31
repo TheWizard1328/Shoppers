@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 20;
+export const BUILD_NUMBER = 21;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -72,6 +72,7 @@ export const CHANGE_LOG = [
   { build: 18, area: 'Version', audience: 'all', summary: 'Version numbers now start with 2 on the new domain, including preview. The old domain keeps counting as 1.' },
   { build: 19, area: 'Map', audience: 'all', summary: 'Clustered pending markers now fan out in a line to their own pins instead of leaving the lines floating away from them.' },
   { build: 20, area: 'Map', audience: 'all', summary: 'Tapping a fanned-out pending marker opens the patient history panel again, just like a single pending marker.' },
+  { build: 21, area: 'Driver Overview', audience: 'admins', summary: 'Inactive driver cards now sit in their own section under the active drivers, with a count and a collapse toggle.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

@@ -23,6 +23,7 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Filter,
   X as XIcon,
   Navigation,
@@ -2469,6 +2470,33 @@ export default function DeliveriesPage() {
   backendDriverStats]
   );
 
+  // ── ACTIVE / INACTIVE SPLIT (owner request Oct 30 2026) ────────────────────
+  // The Driver Overview grid mixed retired/disabled driver accounts in with the
+  // working ones. Cards for drivers whose AppUser is inactive now live in their
+  // own section under the active grid (see the render below), so the working
+  // drivers are never pushed down the page by people who no longer run routes.
+  // "Inactive" = the ACCOUNT flag (AppUser.status 'inactive' / is_active false),
+  // NOT the live duty status — an off-duty driver is still a working driver.
+  const [showInactiveDrivers, setShowInactiveDrivers] = useState(true);
+  const { activeDriverCards, inactiveDriverCards } = useMemo(() => {
+    const isInactiveDriver = (driver) => {
+      if (!driver) return false;
+      const fresh = freshAppUsers.find((au) => au?.user_id === driver.id || au?.id === driver.id || au?.user_id === driver.appUserId);
+      const status = String(fresh?.status ?? driver.status ?? '').toLowerCase();
+      const isActiveFlag = [fresh?.is_active, driver.is_active].find((v) => v !== undefined && v !== null);
+      if (status === 'inactive') return true;
+      if (isActiveFlag === false) return true;
+      return false;
+    };
+    const active = [];
+    const inactive = [];
+    (driverCards || []).forEach((card) => {
+      if (isInactiveDriver(card.driver)) inactive.push(card);
+      else active.push(card);
+    });
+    return { activeDriverCards: active, inactiveDriverCards: inactive };
+  }, [driverCards, freshAppUsers]);
+
   const canCreateDeliveries = useMemo(() => {
     return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');
   }, [currentUser]);
@@ -2614,8 +2642,70 @@ export default function DeliveriesPage() {
 
   const shouldShowNoDataMessage = !isLoading && (isOffline || effectiveDeliveries.length === 0);
 
+  // One card renderer for BOTH sections (active + inactive) so the two grids
+  // can never drift apart. `dimmed` only softens the inactive cards.
+  const renderDriverOverviewCard = (card, dimmed = false) => {
+    const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
+    return (
+      <Card
+        key={card.driver.id || card.driver.appUserId || card.firstName}
+        className={`bg-surface text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto text-body bg-surface border-surface${dimmed ? ' opacity-70' : ''}`}
+        style={{ minWidth: '280px', display: 'flex', flexDirection: 'column' }}
+        onClick={() => handleDriverCardClick(card.driver)}>
+        <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="text-lg font-bold text-body">
+              {card.firstName}
+            </span>
+            <span className="flex items-center gap-1.5">
+              {dimmed && (
+                <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600">
+                  Inactive
+                </Badge>
+              )}
+              <Badge
+                variant="outline" className={`px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${driverBadgeClass}`}>
+                {card.stats.totalStops} stops
+              </Badge>
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 px-4 py-3 flex flex-col">
+          <div className="mb-3 flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
+            {card.todayStats && card.todayStats.total > 0 ?
+              <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
+                <span className="text-blue-600">Active: {card.todayStats.active}</span>
+                <span className="text-green-600">Comp: {card.todayStats.completed}</span>
+                <span className="text-red-600">Failed: {card.todayStats.failed}</span>
+                <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
+              </div> :
+              <div className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No deliveries today</div>
+            }
+          </div>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-label">Pickups:</span>
+              <span className="bg-blue-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">{card.stats.pickups}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-label">Completed:</span>
+              <span className="bg-emerald-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">{card.stats.completed}</span>
+            </div>
+            {(card.stats.failed > 0 || card.stats.returned > 0) &&
+              <div className="flex justify-between items-center">
+                <span className="text-label">Failed/Returned:</span>
+                <span className="bg-red-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">
+                  {card.stats.failed}/{card.stats.returned}
+                </span>
+              </div>
+            }
+          </div>
+        </CardContent>
+      </Card>);
+  };
+
   return (
-    <div className="h-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="h-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
 
       <div className={`${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20 bg-surface`} style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
         {isDriverOverviewMode ?
@@ -2986,63 +3076,39 @@ export default function DeliveriesPage() {
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-              <div key={refreshKey} className="flex-1 min-h-0 w-full overflow-y-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start', marginBottom: 'var(--bottom-nav-height, 0px)', paddingBottom: '12px', boxSizing: 'border-box' }}>
-                  {driverCards.map((card) => {
-                  const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
-                  return (
-                    <Card
-                      key={card.driver.id || card.driver.appUserId || card.firstName} className="bg-surface text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto text-body bg-surface border-surface" style={{ minWidth: '280px', display: 'flex', flexDirection: 'column' }}
-                      onClick={() => handleDriverCardClick(card.driver)}>
-
-                        <CardHeader className="px-6 py-2 flex flex-col space-y-1.5">
-                          <CardTitle className="text-base flex items-center justify-between">
-                            <span className="text-lg font-bold text-body">
-                              {card.firstName}
-                            </span>
-                            <Badge
-                            variant="outline" className={`px-2.5 py-0.5 text-xs font-semibold rounded-full inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${driverBadgeClass}`}>
-
-                            
-
-                              {card.stats.totalStops} stops
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 px-4 py-3 flex flex-col">
-                          <div className="mb-3 flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-                            {card.todayStats && card.todayStats.total > 0 ?
-                          <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
-                                <span className="text-blue-600">Active: {card.todayStats.active}</span>
-                                <span className="text-green-600">Comp: {card.todayStats.completed}</span>
-                                <span className="text-red-600">Failed: {card.todayStats.failed}</span>
-                                <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
-                              </div> :
-                          <div className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No deliveries today</div>
-                          }
-                          </div>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-label">Pickups:</span>
-                              <span className="bg-blue-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">{card.stats.pickups}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-label">Completed:</span>
-                              <span className="bg-emerald-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">{card.stats.completed}</span>
-                            </div>
-                            {(card.stats.failed > 0 || card.stats.returned > 0) &&
-                          <div className="flex justify-between items-center">
-                                <span className="text-label">Failed/Returned:</span>
-                                <span className="bg-red-500 text-white px-3 py-1 text-xs rounded-full font-medium text-center">
-                                  {card.stats.failed}/{card.stats.returned}
-                                </span>
-                              </div>
-                          }
-                          </div>
-                        </CardContent>
-                      </Card>);
-
-                })}
+              <div key={refreshKey} className="flex-1 min-h-0 w-full overflow-y-auto" style={{ marginBottom: 'var(--bottom-nav-height, 0px)', paddingBottom: '12px', boxSizing: 'border-box' }}>
+                  {/* ACTIVE DRIVERS (owner request Oct 30 2026: driver cards are
+                      split — working accounts here, inactive accounts in their own
+                      section below, so retired drivers never push the active grid down). */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start' }}>
+                    {activeDriverCards.map((card) => renderDriverOverviewCard(card, false))}
                   </div>
+
+                  {/* INACTIVE DRIVERS — collapsible, dimmed cards, count in the header. */}
+                  {inactiveDriverCards.length > 0 && (
+                    <div className="mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setShowInactiveDrivers((v) => !v)}
+                        className="flex items-center gap-2 w-full text-left px-1 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        aria-expanded={showInactiveDrivers}>
+                        {showInactiveDrivers ?
+                          <ChevronDown className="w-4 h-4 text-label flex-shrink-0" /> :
+                          <ChevronRight className="w-4 h-4 text-label flex-shrink-0" />
+                        }
+                        <span className="text-sm font-semibold text-label uppercase tracking-wide">Inactive drivers</span>
+                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                          {inactiveDriverCards.length}
+                        </span>
+                      </button>
+                      {showInactiveDrivers && (
+                        <div className="mt-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', alignContent: 'start' }}>
+                          {inactiveDriverCards.map((card) => renderDriverOverviewCard(card, true))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+              </div>
               }
               </div>
             </div> :
