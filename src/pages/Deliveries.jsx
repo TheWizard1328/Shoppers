@@ -2512,6 +2512,63 @@ export default function DeliveriesPage() {
     return null;
   };
 
+  // Start dates the delivery history cannot prove (owner report Oct 30 2026:
+  // Robert started Feb 21 2023, which is before any data this app holds). Keyed
+  // by lowercased AppUser user_name / full_name. Add more names here as needed.
+  const DRIVER_START_DATE_OVERRIDES = useMemo(() => ({
+    'robert': '2023-02-21'
+  }), []);
+
+  const getDriverStartDateOverride = (driver) => {
+    if (!driver) return null;
+    const names = [
+      (driver.user_name || '').toLowerCase().trim(),
+      (driver.full_name || '').toLowerCase().trim(),
+      (driver.display_name || '').toLowerCase().trim()
+    ].filter(Boolean);
+    for (const name of names) {
+      if (DRIVER_START_DATE_OVERRIDES[name]) return DRIVER_START_DATE_OVERRIDES[name];
+      const firstWord = name.split(/\s+/)[0];
+      if (firstWord && DRIVER_START_DATE_OVERRIDES[firstWord]) return DRIVER_START_DATE_OVERRIDES[firstWord];
+    }
+    return null;
+  };
+
+  // Calendar-correct "3y . 8m . 1w . 2d" between two dates (owner spec: years,
+  // months, weeks, days, dot-separated, zero units dropped).
+  const describeDateSpan = (startStr, endStr) => {
+    if (!startStr || !endStr) return null;
+    let start;
+    let end;
+    try {
+      start = parseISO(String(startStr).slice(0, 10));
+      end = parseISO(String(endStr).slice(0, 10));
+    } catch (e) {
+      return null;
+    }
+    if (!start || !end || isNaN(start) || isNaN(end) || end < start) return null;
+    let years = end.getFullYear() - start.getFullYear();
+    let months = end.getMonth() - start.getMonth();
+    let days = end.getDate() - start.getDate();
+    if (days < 0) {
+      months -= 1;
+      // Borrow the length of the month BEFORE the end date.
+      days += new Date(end.getFullYear(), end.getMonth(), 0).getDate();
+    }
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+    const weeks = Math.floor(days / 7);
+    const remDays = days % 7;
+    const parts = [];
+    if (years > 0) parts.push(`${years}y`);
+    if (months > 0) parts.push(`${months}m`);
+    if (weeks > 0) parts.push(`${weeks}w`);
+    if (remDays > 0) parts.push(`${remDays}d`);
+    return parts.length ? parts.join(' . ') : '0d';
+  };
+
   const formatCardDate = (dateStr) => {
     if (!dateStr) return null;
     try {
@@ -2721,16 +2778,29 @@ export default function DeliveriesPage() {
             </span>
           </CardTitle>
           {(() => {
-            // START DATE (first delivery). Inactive accounts also get the date of
-            // their last delivery appended: "Start Date: Jan 5, 2025 - Sep 12, 2026".
+            // START DATE. Priority: manual override (history cannot reach that far
+            // back) → first delivery on record → account created_date.
+            // Inactive accounts also append the date of their last delivery:
+            // "Start Date: Jan 5, 2025 - Sep 12, 2026".
             const span = getDriverDateSpan(card.driver);
-            const startLabel = formatCardDate(span?.first) || formatCardDate(card.driver?.created_date) || 'Unknown';
+            const overrideStart = getDriverStartDateOverride(card.driver);
+            const startStr = overrideStart || span?.first || (card.driver?.created_date ? String(card.driver.created_date).slice(0, 10) : null);
+            const startLabel = formatCardDate(startStr) || 'Unknown';
             const lastLabel = dimmed ? formatCardDate(span?.last) : null;
+            // Tenure: start → today for a working driver, start → last delivery for
+            // an inactive one. Dots instead of dashes per owner spec.
+            const spanEnd = dimmed ? (span?.last || null) : format(new Date(), 'yyyy-MM-dd');
+            const spanText = describeDateSpan(startStr, spanEnd);
             return (
-              <div className="text-xs text-label" title={lastLabel ? `Last delivery: ${lastLabel}` : `Start date: ${startLabel}`}>
-                <span className="font-medium">Start Date:</span> {startLabel}
-                {lastLabel && <span className="text-label"> - {lastLabel}</span>}
-              </div>
+              <>
+                <div className="text-xs text-label" title={lastLabel ? `Last delivery: ${lastLabel}` : `Start date: ${startLabel}`}>
+                  <span className="font-medium">Start Date:</span> {startLabel}
+                  {lastLabel && <span className="text-label"> - {lastLabel}</span>}
+                </div>
+                {spanText && (
+                  <div className="text-xs text-label font-medium">({spanText})</div>
+                )}
+              </>
             );
           })()}
         </CardHeader>
