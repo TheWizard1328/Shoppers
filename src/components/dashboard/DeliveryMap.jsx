@@ -1947,6 +1947,35 @@ function DeliveryMap({
     if (marker.duplicateCount > 1) {
       onMapInteraction?.();
 
+      // PENDING PIN INSIDE A CLUSTER (owner report Oct 30 2026): tapping a
+      // clustered / auto-fanned pending marker must behave exactly like a lone
+      // pending marker — open the patient history panel when it has a patient,
+      // then centre its own stop card (or the pickup it belongs to) — instead
+      // of only re-centring the cluster's lowest-order stop card. Once the pins
+      // fanned out, the panel never opened at all.
+      // Fan toggling stays available on the SECOND tap of the same pin.
+      if (marker.status === 'pending') {
+        if (marker.patient_id) {
+          window.dispatchEvent(new CustomEvent('openPatientHistoryPanel', {
+            detail: { patientId: marker.patient_id, patient: marker.patient || null }
+          }));
+        }
+        const assignedPickup = marker.puid
+          ? pickupMarkers.find((pickup) => pickup?.stop_id === marker.puid)
+          : null;
+        const pendingTarget = assignedPickup || marker;
+        if (pendingTarget?.id) {
+          window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: pendingTarget.id, fromMarkerClick: true } }));
+        }
+        onMarkerClick?.(pendingTarget, markerType);
+        panToMarkerOffset(marker.latitude, marker.longitude);
+        if (isSecondTap) {
+          if (fannedLocationKey === locationKey) setFannedLocationKey(null);
+          else setFannedLocationKey(locationKey);
+        }
+        return;
+      }
+
       // Desktop: first click centers/zooms AND fans out; clicking again collapses
       if (!isMobile) {
         if (fannedLocationKey === locationKey) return setFannedLocationKey(null);
