@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 27;
+export const BUILD_NUMBER = 28;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -79,6 +79,7 @@ export const CHANGE_LOG = [
   { build: 25, area: 'Payroll', audience: 'all', summary: 'Hitting Refresh on a pay period now updates its stored payroll totals even when the period is already confirmed or finalized.' },
   { build: 26, area: 'Payroll', audience: 'admins', summary: 'A driver card now shows "Paid over Net" (or "Underpaid") when the amount paid no longer matches the recalculated net, and the Extra KM by Store table counts a blank km override the same way the payroll card does.' },
   { build: 27, area: 'Payroll', audience: 'admins', summary: 'Payroll now reads each delivery\'s Km Override from the device, so the paid extra km always matches what the dashboard shows.' },
+  { build: 28, area: 'Payroll', audience: 'admins', summary: 'The payroll Refresh button now re-checks every month of the pay cycle you are viewing, finalized or not.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

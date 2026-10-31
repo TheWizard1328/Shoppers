@@ -225,6 +225,23 @@ const getCurrentPayrollCycleMonths = (year, payPeriodType) => {
   }
 };
 
+// Owner directive Oct 30 2026: the payroll Refresh spinner must re-check ALL the
+// data for the SELECTED pay cycle, finalized or not — never only the current
+// cycle. Returns the months spanned by the selected period.
+const getSelectedPeriodMonths = (currentPeriod) => {
+  try {
+    if (!currentPeriod?.start || !currentPeriod?.end) return [];
+    const months = [];
+    [currentPeriod.start, currentPeriod.end].forEach((d) => {
+      const m = new Date(d).getMonth() + 1;
+      if (m >= 1 && m <= 12 && !months.includes(m)) months.push(m);
+    });
+    return months;
+  } catch (_) {
+    return [];
+  }
+};
+
 // Helper: Find current period index based on today's date
 // For weekly/biweekly, if today is near year boundary ensure we use the classification-year set
 const findCurrentPeriodIndex = (periods, today) => {
@@ -515,8 +532,10 @@ export default function DriverPayroll() {
       filtered = filtered.map((d) => {
         const local = kmOverrideOverlay[d.id];
         if (local === undefined) return d;
+        // Only fill a BLANK server value. A server number always wins, so two
+        // devices can never disagree just because their local caches differ.
         const server = Number(d?.paid_km_override);
-        if (Number.isFinite(server) && Math.abs(server - local) < 0.005) return d;
+        if (Number.isFinite(server) && server > 0) return d;
         return { ...d, paid_km_override: local };
       });
     }
@@ -1349,9 +1368,14 @@ export default function DriverPayroll() {
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
     try {
-      // Oct 15 owner spec: the Refresh button syncs ONLY the current pay cycle —
-      // the deep full-year regather is the history host's job (Editor/PWA).
-      await fetchPayroll(false, true, { refreshMonths: getCurrentPayrollCycleMonths(selectedYear, payPeriod) });
+      // Owner directive Oct 30 2026: Refresh re-checks the SELECTED pay cycle's
+      // own months (finalized or not), plus the current cycle, and asks the
+      // server for live entity data instead of the cached summary.
+      const refreshCycleMonths = [...new Set([
+        ...getSelectedPeriodMonths(currentPeriod),
+        ...getCurrentPayrollCycleMonths(selectedYear, payPeriod),
+      ])].sort((a, b) => a - b);
+      await fetchPayroll(false, true, { refreshMonths: refreshCycleMonths, bypassSummary: true });
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
@@ -1369,7 +1393,7 @@ export default function DriverPayroll() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchPayroll, refreshPayrollRecords, selectedCityId, selectedYear, payPeriod]);
+  }, [fetchPayroll, refreshPayrollRecords, selectedCityId, selectedYear, payPeriod, currentPeriod]);
 
   // ON-DEMAND PERIOD SYNC (owner report Oct 23 2026: selecting an older
   // payroll cycle showed empty data). Page load gathers only the CURRENT
