@@ -728,13 +728,26 @@ export default function DeliveryForm({
       }
     }
     const careProKeywordSearch = isCareProSearch(searchLower);
-    let results = availablePatients.filter((patient) => {
+    const matchesSearch = (patient) => {
       if (!patient) return false;
       const name = patient.full_name?.toLowerCase() || '';
       if (name.includes('deceased') || name.includes('(old')) return false;
       if (careProKeywordSearch && patient.care_pros) return true;
       return patient.full_name?.toLowerCase().includes(searchLower) || patient.address?.toLowerCase().includes(searchLower) || patient.phone?.toLowerCase().includes(searchLower) || patient.notes?.toLowerCase().includes(searchLower) || patient.cp_name?.toLowerCase().includes(searchLower);
-    });
+    };
+    const storeRestricted = availablePatients !== patients && availablePatients.length !== (patients || []).length;
+    let results = availablePatients.filter(matchesSearch);
+    // Owner report Oct 31 2026 (Sharuk at Beverly: no patients in the search list):
+    // the store scoping above hid every patient the user's own store list did not
+    // cover, so a legitimate Beverly search came back empty. When the scoped
+    // search finds nothing, fall back to the full patient list instead of a blank
+    // dropdown - the stop can still be added, and scoped matches always win.
+    if (results.length === 0 && storeRestricted) {
+      results = (patients || []).filter(matchesSearch);
+      if (results.length > 0) {
+        console.log(`[DeliveryForm] patient search "${searchLower}" had no store-scoped match - fell back to all patients (${results.length})`);
+      }
+    }
     results = sortFilteredPatients(results, { currentUser, userHasRole, stores, stagedPatientIds, calculateDistance });
     return results.slice(0, 50).map(patient => ({ ...patient, _isAlreadyStaged: stagedPatientIds.has(patient.id) }));
   }, [patientSearch, patients, stores, currentUser, formData.patient_id, stagedDeliveries, allDeliveries]);
