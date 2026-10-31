@@ -1167,11 +1167,21 @@ export default function DriverPayroll() {
     console.log(`[DriverPayroll] quiet history backfill: ${missing.length} missing month(s) for ${year}/${cityId} [${scopeKey}]`);
 
     const run = async () => {
-      let merged = payrollDataRef.current;
       let ok = 0;
       for (const m of missing) {
         await new Promise((r) => setTimeout(r, 2500));
         try {
+          // Owner report Oct 31 2026 (values flipping between 6.54 / 10.41 on every
+          // refresh): this loop captured ONE snapshot up front and wrote it back
+          // minutes later, so a manual refresh landing mid-pass was silently
+          // reverted to the older rows. Always merge onto the CURRENT state and
+          // skip months that are already loaded.
+          const latest = payrollDataRef.current;
+          if (!latest) continue;
+          const alreadyLoaded = new Set(
+            (latest.deliveries || []).map((d) => Number(String(d?.delivery_date || '').slice(5, 7))).filter(Boolean)
+          );
+          if (alreadyLoaded.has(Number(m))) continue;
           const res = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
             payrollYear: year,
             payrollCityId: cityId,
@@ -1180,7 +1190,7 @@ export default function DriverPayroll() {
           });
           const raw = res?.data?.payrollData || res?.payrollData;
           if (raw) {
-            merged = { ...mergePagedPayrollData(merged, raw, [m]), __cacheKey: `${year}-${cityId}` };
+            merged = { ...mergePagedPayrollData(payrollDataRef.current || latest, raw, [m]), __cacheKey: `${year}-${cityId}` };
             // per-month cycle persistence into the offline DB (quiet)
             persistPayrollCyclesToIdb(year, raw?.payrollRecords || []).catch(() => {});
             ok++;
@@ -1327,6 +1337,62 @@ export default function DriverPayroll() {
     return fetchPayrollInFlightRef.current;
   }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive, saveOfflinePayroll]);
 
+  // Authoritative payroll re-gather (owner directive Oct 31 2026): the spinner
+  // must re-check the SELECTED cycle's real records every time, finalized or
+  // not. This bypasses every client cache guard (in-flight promise reuse,
+  // 5s signature skip, offline base merge) and writes the server rows for the
+  // cycle's months straight into state, so a click can never leave last week's
+  // numbers on screen.
+  const deepRefreshPayrollCycle = useCallback(async () => {
+    if (!selectedCityId) throw new Error('No city selected');
+    const months = [...new Set([
+      ...getSelectedPeriodMonths(currentPeriod),
+      ...getCurrentPayrollCycleMonths(selectedYear, payPeriod),
+    ])].sort((a, b) => a - b);
+    const effectiveMonths = months.length ? months : [new Date().getMonth() + 1];
+    const res = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+      payrollYear: selectedYear,
+      payrollCityId: selectedCityId,
+      payrollPaginationMode: 'paged',
+      payrollPageMonths: effectiveMonths,
+      forceRefreshCurrentYear: true
+    });
+    const raw = res?.data?.payrollData || res?.payrollData;
+    if (!raw || !Array.isArray(raw.deliveries)) throw new Error('Payroll service returned no data');
+    const base = fullYearPayrollDataRef.current || payrollDataRef.current || {};
+    const monthSet = new Set(effectiveMonths.map(Number));
+    const inMonths = (d) => monthSet.has(Number(String(d?.delivery_date || '').slice(5, 7)));
+    const byId = (a, b) => {
+      const map = new Map();
+      (a || []).forEach((r) => { if (r?.id) map.set(r.id, r); });
+      (b || []).forEach((r) => { if (r?.id) map.set(r.id, r); });
+      return Array.from(map.values());
+    };
+    const next = {
+      ...base,
+      ...raw,
+      deliveries: [
+        ...((base?.deliveries) || []).filter((d) => !inMonths(d)),
+        ...(raw.deliveries || [])
+      ],
+      patients: byId(base?.patients, raw.patients),
+      appUsers: byId(base?.appUsers, raw.appUsers),
+      stores: byId(base?.stores, raw.stores),
+      cities: byId(base?.cities, raw.cities),
+      payrollRecords: byId(base?.payrollRecords, raw.payrollRecords),
+      __cacheKey: `${selectedYear}-${selectedCityId}`
+    };
+    fullYearPayrollDataRef.current = next;
+    lastFetchTimestampRef.current = Date.now();
+    lastFetchSignatureRef.current = '';
+    setPayrollData(next);
+    setPayrollRecords(next.payrollRecords || []);
+    saveOfflinePayroll(selectedYear, selectedCityId, next);
+    // Keep the history host's markers in step with what just landed.
+    try { persistPayrollCyclesToIdb(selectedYear, next.payrollRecords).catch(() => {}); } catch (_) {}
+    return next;
+  }, [selectedCityId, selectedYear, payPeriod, currentPeriod, saveOfflinePayroll, persistPayrollCyclesToIdb]);
+
   const handleManualRefresh = useCallback(async () => {
     if (!selectedCityId) return;
     setIsRefreshing(true);
@@ -1335,11 +1401,7 @@ export default function DriverPayroll() {
       // Owner directive Oct 30 2026: Refresh re-checks the SELECTED pay cycle's
       // own months (finalized or not), plus the current cycle, and asks the
       // server for live entity data instead of the cached summary.
-      const refreshCycleMonths = [...new Set([
-        ...getSelectedPeriodMonths(currentPeriod),
-        ...getCurrentPayrollCycleMonths(selectedYear, payPeriod),
-      ])].sort((a, b) => a - b);
-      await fetchPayroll(false, true, { refreshMonths: refreshCycleMonths, bypassSummary: true });
+      await deepRefreshPayrollCycle();
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
@@ -1355,7 +1417,7 @@ export default function DriverPayroll() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchPayroll, refreshPayrollRecords, selectedCityId, selectedYear, payPeriod, currentPeriod]);
+  }, [deepRefreshPayrollCycle, refreshPayrollRecords, selectedCityId, selectedYear, payPeriod, currentPeriod]);
 
   // ON-DEMAND PERIOD SYNC (owner report Oct 23 2026: selecting an older
   // payroll cycle showed empty data). Page load gathers only the CURRENT
