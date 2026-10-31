@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
+import { commitDeliveryUpdatesSilently } from '../components/utils/routeCommitMarker';
 import { mergePagedPayrollData, missingPayrollMonthsFor } from '@/components/utils/payrollPagedMerge';
 import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
 import MobileBottomActions from '@/components/payroll/MobileBottomActions';
@@ -1523,6 +1524,30 @@ export default function DriverPayroll() {
       }
     } catch (e) {
       console.warn('[DriverPayroll] local period patient read failed:', e?.message || e);
+    }
+
+    // OWNER REQUEST Oct 31 2026: clear every Km Override that simply repeats the
+    // patient's own km (those came from the old auto-copy and mean nothing), so
+    // only a real, deliberate override survives. Exact matches only (0.05 km),
+    // written silently in one bulk so no device sees a broadcast storm.
+    try {
+      const patMap = new Map(freshPatients.map((p) => [p.id, p]));
+      const toClear = [];
+      fresh.forEach((d) => {
+        const ov = Number(d.paid_km_override) || 0;
+        const pk = Number(patMap.get(d.patient_id)?.distance_from_store) || 0;
+        if (ov > 0 && pk > 0 && Math.abs(ov - pk) <= 0.05) toClear.push(d.id);
+      });
+      if (toClear.length > 0) {
+        const clearedCount = await commitDeliveryUpdatesSilently(
+          toClear.map((id) => ({ id, data: { paid_km_override: null } }))
+        );
+        const clearSet = new Set(toClear);
+        fresh.forEach((d) => { if (clearSet.has(d.id)) d.paid_km_override = null; });
+        console.log(`[DriverPayroll] cleared ${clearedCount} km override(s) that matched the patient km`);
+      }
+    } catch (e) {
+      console.warn('[DriverPayroll] km override cleanup failed:', e?.message || e);
     }
 
     setPayrollData((prev) => {

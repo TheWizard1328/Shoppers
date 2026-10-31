@@ -40,7 +40,9 @@ export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   if (delivery.patient_id || isInterStoreDelivery(delivery.delivery_id)) {
     const extraKmRate = driver.extra_km_rate || 0;
     const extraKmLimit = driver.extra_km_limit || 0;
-    const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? 0;
+    // OWNER RULE: patient km from store first, a POSITIVE Km Override replaces it.
+    const _ovrKm = Number(delivery.paid_km_override) || 0;
+    const paidKm = _ovrKm > 0 ? _ovrKm : (Number(patient?.distance_from_store) || 0);
 
     if (paidKm > extraKmLimit && extraKmRate > 0) {
       totalPay += (paidKm - extraKmLimit) * extraKmRate;
