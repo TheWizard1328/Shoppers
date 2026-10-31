@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 17;
+export const BUILD_NUMBER = 18;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -69,6 +69,7 @@ export const CHANGE_LOG = [
   { build: 11, area: 'Payroll', audience: 'admins', summary: 'Edit Activity Segments saves offline first, then syncs and updates other devices.' },
   { build: 13, area: 'Route Optimization', audience: 'drivers+dispatchers', summary: 'The Fastest, Shortest or Best route preference now changes the stop order, not just the map lines.' },
   { build: 15, area: 'Route', audience: 'drivers', summary: 'A route can no longer lose its next delivery flag, including after switching to another driver and back; the next stop is restored automatically.' },
+  { build: 18, area: 'Version', audience: 'all', summary: 'Version numbers now start with 2 on the new domain, including preview. The old domain keeps counting as 1.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
