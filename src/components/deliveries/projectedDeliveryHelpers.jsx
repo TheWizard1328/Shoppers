@@ -123,5 +123,7 @@ export const buildProjectedStagedItem = ({
   distanceFromStore,
   delivery_address: patient.address || '',
   isNextDelivery: false,
-  paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
+  // Same Oct 31 2026 rule: projections must not stamp the patient distance onto
+  // the delivery - that snapshot outlived every later patient-km correction.
+  paid_km_override: null
 });

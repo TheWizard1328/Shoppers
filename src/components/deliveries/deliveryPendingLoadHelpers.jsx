@@ -84,7 +84,13 @@ export const mapPendingDeliveriesToStaged = ({
     cod_payments: delivery.cod_payments || [],
     ampm_deliveries: timeSlot,
     puid: puid || '',
-    paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null,
+    // Owner report Oct 31 2026 (Hamptons stop paid 30.12 km while the patient is
+    // 29.91): opening/editing a delivery used to COPY patient.distance_from_store
+    // into paid_km_override, freezing that number on the delivery forever. When
+    // the patient's km was later corrected the pay never followed. A blank
+    // override now stays blank so the paid km always tracks the patient record;
+    // only an override someone actually typed survives.
+    paid_km_override: delivery.paid_km_override ?? null,
     // Delivery's own time windows take priority over patient time windows.
     // Patient windows are only a fallback for deliveries that haven't had
     // their delivery_time_start/end explicitly set yet.
