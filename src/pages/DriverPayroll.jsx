@@ -468,30 +468,6 @@ export default function DriverPayroll() {
   // paid km silently fell back to the patient's stored distance. Overlay the
   // local IDB overrides onto the payroll rows so payroll always agrees with the
   // dashboard. A missing/blank local value never erases a server value.
-  const [kmOverrideOverlay, setKmOverrideOverlay] = useState({});
-  const [kmOverlayToken, setKmOverlayToken] = useState(0);
-  const overlayBuiltForRef = useRef('');
-  useEffect(() => {
-    let cancelled = false;
-    const build = async () => {
-      try {
-        const rows = await offlineDB.getDeliveriesByDateRange(`${selectedYear}-01-01`, `${selectedYear}-12-31`);
-        if (cancelled || !Array.isArray(rows)) return;
-        const overlay = {};
-        rows.forEach((r) => {
-          const v = Number(r?.paid_km_override);
-          if (r?.id && Number.isFinite(v) && v > 0) overlay[r.id] = v;
-        });
-        setKmOverrideOverlay(overlay);
-      } catch (_) { /* IDB unavailable — payroll keeps the server values */ }
-    };
-    const key = `${selectedYear}:${kmOverlayToken}`;
-    if (overlayBuiltForRef.current !== key) {
-      overlayBuiltForRef.current = key;
-      build();
-    }
-  }, [selectedYear, kmOverlayToken]);
-
   // All deliveries for the selected city (no period filter) for App Fee monthly pool
   const allCityDeliveries = useMemo(() => {
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
@@ -528,20 +504,8 @@ export default function DriverPayroll() {
       });
     }
 
-    if (Object.keys(kmOverrideOverlay).length > 0) {
-      filtered = filtered.map((d) => {
-        const local = kmOverrideOverlay[d.id];
-        if (local === undefined) return d;
-        // Only fill a BLANK server value. A server number always wins, so two
-        // devices can never disagree just because their local caches differ.
-        const server = Number(d?.paid_km_override);
-        if (Number.isFinite(server) && server > 0) return d;
-        return { ...d, paid_km_override: local };
-      });
-    }
-
     return filtered;
-  }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod, kmOverrideOverlay]);
+  }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod]);
 
   // Screenshot/share "Save" file name: pay-period date range + selected driver
   // ("All Drivers" when no driver is filtered), mirroring the PDF export naming.
@@ -1381,8 +1345,6 @@ export default function DriverPayroll() {
       }
       // Re-read the local delivery km overrides so a just-edited override shows
       // up even when the payroll payload lags behind.
-      overlayBuiltForRef.current = '';
-      setKmOverlayToken((n) => n + 1);
       // Push the recalculated totals onto the stored records — even when the
       // selected pay period is already driver-confirmed / admin-finalized.
       setForceFinalizedSyncToken((n) => n + 1);
@@ -2108,7 +2070,8 @@ export default function DriverPayroll() {
             onPrevPeriod={goToPrevPeriod}
             onNextPeriod={goToNextPeriod}
             driverStats={payrollData?.driverStats || {}}
-            storeStats={payrollData?.storeStats || {}} />
+            storeStats={payrollData?.storeStats || {}}
+            onRefreshPayrollData={handleManualRefresh} />
           
           </div>
 

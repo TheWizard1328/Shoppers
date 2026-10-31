@@ -29,7 +29,8 @@ export default function DriverPayrollGrid({
   allPeriods,
   selectedPeriodIndex,
   onPrevPeriod,
-  onNextPeriod
+  onNextPeriod,
+  onRefreshPayrollData = null
 }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -113,10 +114,25 @@ export default function DriverPayrollGrid({
   };
 
   // Manual refresh handler
+  // Owner Oct 31 2026: THIS spinner (next to the graph title) is the PAYROLL
+  // DATA refresh. It used to be a no-op that only spun 600ms and reset the
+  // smart-refresh timers, so the table never re-gathered anything. It now
+  // awaits the page's deep re-gather (selected cycle months, finalized or not).
   const handleManualRefresh = async () => {
     if (isRefreshing) return;
 
     setIsRefreshing(true);
+
+    if (onRefreshPayrollData) {
+      try {
+        await onRefreshPayrollData();
+      } catch (e) {
+        console.warn('[DriverPayrollGrid] payroll refresh failed:', e?.message || e);
+      } finally {
+        setIsRefreshing(false);
+      }
+      return;
+    }
 
     smartRefreshManager.lastRefreshTimes = {
       driverLocation: 0,
