@@ -106,7 +106,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   allPayrollRecords = [],
   refreshPayrollRecords,
   driverStats = {},
-  onExportingChange
+  onExportingChange,
+  forceFinalizedSyncToken = 0
 }, ref) {
   const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -1219,6 +1220,15 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   // Auto-sync payroll entity records with live-calculated data whenever payrollData or records change
   const syncInProgressRef = useRef(false);
   const skipNextAutoSyncRef = useRef(false);
+  // Owner Oct 30 2026: the header Refresh spinner must push the recalculated
+  // totals onto the period's stored Payroll records even when the period is
+  // already driver-confirmed / admin-finalized. The parent bumps
+  // forceFinalizedSyncToken on a manual refresh; that one sync pass is allowed
+  // to rewrite finalized (never 'paid') totals.
+  const forceFinalizedOnceRef = useRef(false);
+  useEffect(() => {
+    if (forceFinalizedSyncToken > 0) forceFinalizedOnceRef.current = true;
+  }, [forceFinalizedSyncToken]);
   useEffect(() => {
     if (!payrollData || payrollData.length === 0 || !periodStartStr || !periodEndStr) return;
     if (syncInProgressRef.current || skipNextAutoSyncRef.current) {
@@ -1245,8 +1255,11 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           }));
         }
       }
-    }).finally(() => {syncInProgressRef.current = false;});
-  }, [payrollData, payrollRecords, periodStartStr, periodEndStr]);
+    }, { forceFinalized: forceFinalizedOnceRef.current }).finally(() => {
+      forceFinalizedOnceRef.current = false;
+      syncInProgressRef.current = false;
+    });
+  }, [payrollData, payrollRecords, periodStartStr, periodEndStr, forceFinalizedSyncToken]);
 
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {

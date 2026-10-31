@@ -21,7 +21,12 @@ const round2 = (v) => Math.round((v || 0) * 100) / 100;
  * @param {Function} getDriverPayrollRecord - fn(driverId) => record | undefined
  * @param {Function} onRecordsUpdated - callback after records are updated
  */
-export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayrollRecord, onRecordsUpdated) {
+export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayrollRecord, onRecordsUpdated, options = {}) {
+  // Owner Oct 30 2026: the payroll REFRESH must update a period's stored totals
+  // even after the driver confirmed / the admin finalized it. Pass
+  // { forceFinalized: true } from the manual-refresh path only — background
+  // syncs keep the freeze so confirmed amounts can't drift on their own.
+  const forceFinalized = options.forceFinalized === true;
   if (!payrollData || payrollData.length === 0) return;
 
   const updatedRecords = [];
@@ -42,7 +47,10 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
     // between driver-confirmation and admin-payment.
     const recordStatus = record.status || 'draft';
     if (recordStatus === 'paid') continue;
-    const canSyncTotals = (recordStatus === 'draft');
+    // 'paid' stays fully locked. A forced (manual refresh) sync also rewrites
+    // driver_finalized / admin_finalized totals; the background sync does not.
+    const canSyncTotals = (recordStatus === 'draft') ||
+      (forceFinalized && (recordStatus === 'driver_finalized' || recordStatus === 'admin_finalized'));
     const canSyncDeductions = true; // any non-paid status
 
     const updates = {};

@@ -366,6 +366,9 @@ export default function DriverPayroll() {
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Owner Oct 30 2026: bumped after every manual refresh so the summary card runs
+  // ONE payroll sync pass that may also rewrite finalized (never 'paid') totals.
+  const [forceFinalizedSyncToken, setForceFinalizedSyncToken] = useState(0);
   // Owner Oct 12: true while ANY payroll fetch is in flight (manual click OR
   // automatic background sync). Drives the header refresh spinner + the
   // "Syncing Payroll" balloon so the owner always sees when a sync is running.
@@ -1312,6 +1315,9 @@ export default function DriverPayroll() {
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
+      // Push the recalculated totals onto the stored records — even when the
+      // selected pay period is already driver-confirmed / admin-finalized.
+      setForceFinalizedSyncToken((n) => n + 1);
       toast.success('Payroll data refreshed');
     } catch (error) {
       console.error('❌ [DriverPayroll] Refresh failed:', error);
@@ -2078,6 +2084,7 @@ export default function DriverPayroll() {
             payrollRecords={payrollRecords}
             allPayrollRecords={payrollData?.payrollRecords || []}
             refreshPayrollRecords={refreshPayrollRecords}
+            forceFinalizedSyncToken={forceFinalizedSyncToken}
             storeStats={payrollData?.storeStats || {}} />
           
           </div>
