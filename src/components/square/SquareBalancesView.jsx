@@ -2138,7 +2138,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const isChargedRow = (it) => {
         const id = it?.delivery_id ? String(it.delivery_id) : null;
         const mark = id ? (manualSpendMarks || {})[id] : null;
-        if (mark?.notTapped === true) return false;
+        // Same rule as the balance math: a Not Tapped mark is stale once the
+        // card was actually charged after the mark (see computePendingCod
+        // Deduction — Anastasia/Callingwood $97.97 report).
+        const _markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+        const _spendAt = it?.spend_at ? new Date(it.spend_at).getTime() : null;
+        const _superseded = _spendAt != null && Number.isFinite(_spendAt) && (_markAt == null || !Number.isFinite(_markAt) || _spendAt >= _markAt);
+        if (mark?.notTapped === true && !_superseded) return false;
         if (String(it?.status || '') === 'completed') {
           if (it?.reason === 'collected_charge') return true;
           return !!mark;

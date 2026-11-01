@@ -1371,6 +1371,14 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // completed charge still deducts but is not part of the current figure.
       in_window: isCounted(d),
       reason: _cardCollected ? 'collected_charge' : 'cash_awaiting_card',
+      // CARD-SPEND STAMP (owner report Nov 1 2026, Callingwood/Scona Anastasia
+      // $97.97): a COD collected as CASH first and converted to Debit/Credit on
+      // the Square card AFTER the true-up is credited as new card money (see
+      // the credit-side isCounted: cod_card_spend_at >= true-up). Its charge
+      // must pull the same amount back off the card, so the deduction gate
+      // needs the stamp too — without it the credit landed and the deduction
+      // did not, leaving the balance exactly one COD too high.
+      spend_at: _pair ? null : (d.cod_card_spend_at || null),
       date: _pair ? _pair.date : String(d.delivery_date || '').slice(0, 10),
       created_date: _pair ? _pair.created : (d.created_date || null),
     });
@@ -1690,8 +1698,22 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
     const amountAddedSinceTrueUp = !isNewSinceTrueUp && inScopeAtTrueUp;
     const touchedT = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
     const isTouchedSinceTrueUp = tu != null && touchedT != null && touchedT >= tu;
-    if (!isNewSinceTrueUp && !amountAddedSinceTrueUp && !isTouchedSinceTrueUp) continue; // neutral — untouched pre-existing COD
-    if (mark?.notTapped === true) continue; // explicitly not tapped — never deducts
+    // Same rule as the credit side: a card-spend stamp after the true-up is
+    // NEW card activity, so its charge deducts even when the delivery itself
+    // predates the true-up (it was drawer cash at true-up, not card money).
+    const spendT = it?.spend_at ? new Date(it.spend_at).getTime() : null;
+    const isChargedSinceTrueUp = tu != null && spendT != null && Number.isFinite(spendT) && spendT >= tu;
+    if (!isNewSinceTrueUp && !amountAddedSinceTrueUp && !isTouchedSinceTrueUp && !isChargedSinceTrueUp) continue; // neutral — untouched pre-existing COD
+    // NOT TAPPED, UNLESS THE CARD WAS CHARGED AFTERWARDS (owner report Nov 1
+    // 2026, Callingwood/Scona Anastasia $97.97): the mark means "this COD was
+    // NOT charged to the card", so it must stop suppressing the deduction once
+    // the delivery actually carries a card-spend stamp newer than the mark.
+    // Collected first, charged later left the stale mark in place: the credit
+    // landed and the charge did not, so the card read exactly one COD high.
+    const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+    const spendMs = spendT != null && Number.isFinite(spendT) ? spendT : null;
+    const markSupersededBySpend = spendMs != null && (markAt == null || !Number.isFinite(markAt) || spendMs >= markAt);
+    if (mark?.notTapped === true && !markSupersededBySpend) continue; // explicitly not tapped — never deducts
     deductCents += cents; count += 1;
   }
   return { deductCents, count };
