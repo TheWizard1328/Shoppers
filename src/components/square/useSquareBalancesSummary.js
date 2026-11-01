@@ -1367,6 +1367,9 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const _pair = retryPairById.get(String(d.id));
     deductByLoc.get(locId).push({
       delivery_id: _pair ? _pair.id : d.id, status: 'completed', amount: centsOf(required) / 100,
+      // in_window drives the DISPLAY only (see computeByLocId): a past-window
+      // completed charge still deducts but is not part of the current figure.
+      in_window: isCounted(d),
       reason: _cardCollected ? 'collected_charge' : 'cash_awaiting_card',
       date: _pair ? _pair.date : String(d.delivery_date || '').slice(0, 10),
       created_date: _pair ? _pair.created : (d.created_date || null),
@@ -1743,6 +1746,18 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     // at true-up time are neutralized via excludeIds so the trued-up starting
     // balance isn't re-deducted; only CODs created/collected after deduct.
     const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(outstandingItems, marksMap, countedIdsSet || null, truedUpAt);
+    // DISPLAY figure (owner report Oct 31 2026: "the balances are correct but
+    // the charged to cards is way in the negative" — the line read −$444 while
+    // the Uncollected lists only showed the current window). The card math
+    // keeps the FULL balance scope above; the "CODs charged to card" line shows
+    // ONLY the charges still listed on the page (current window + current
+    // completed charges), so the number always matches the rows the owner can
+    // see.
+    const displayItems = [
+      ...((codOutstandingDetailed?.[loc.location_id]?.items) || []),
+      ...((codOutstandingDetailed?.[loc.location_id]?.deductItems) || []).filter((it) => it?.in_window !== false),
+    ];
+    const { deductCents: displayDeductCents, count: displayDeductCount } = computePendingCodDeduction(displayItems, marksMap, countedIdsSet || null, truedUpAt);
     // Full integer-cent estimate (owner spec Oct 7 2026): float dollar
     // addition (e.g. 96.85 + 97.64 − 53.05) can land a cent off — sum cents.
     const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;
@@ -1755,8 +1770,10 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
       sweptOut: Math.round(withdrawn * 100) / 100, // real withdrawals since true-up
       chargedToCard: 0, // payout-matching retired Oct 7: sale nets ARRIVE on the card, they don't leave
       chargedCount: 0,
-      pendingDeducted: Math.round(pendingDeductCents) / 100,
-      pendingDeductCount,
+      pendingDeducted: Math.round(displayDeductCents) / 100,
+      pendingDeductCount: displayDeductCount,
+      // Full balance-scope deduction (incl. past-window rows the page hides).
+      balanceDeduction: Math.round(pendingDeductCents) / 100,
       storeCardSpend: Math.round(storeCardSpend * 100) / 100,
       level: getBalanceLevel(cardEstimate, codAvg),
     });

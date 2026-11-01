@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 50;
+export const BUILD_NUMBER = 51;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -134,6 +134,7 @@ export const CHANGE_LOG = [
   { build: 48, area: 'Update Log', audience: 'owner', summary: 'The role badges and tabs are now flat, shorter text labels instead of filled pill buttons; the selected one is green and underlined.' },
   { build: 49, area: 'Card Balances', audience: 'admins', summary: 'The card balance estimate is back down to the real number: uncollected CODs from before yesterday are hidden from the Charged to Card list again, but they still hold their deduction off the card until they are collected or trued up.' },
   { build: 50, area: 'Route Optimization', audience: 'admins', summary: 'Regenerated polylines no longer flash and revert: the manual optimize and regenerate runs now wait for the server save to finish before syncing, so the new lines stay on screen.' },
+  { build: 51, area: 'Card Balances', audience: 'admins', summary: 'CODs charged to card now shows only the charges listed on the page (yesterday onward), so the figure matches the rows and stopped reading as a huge negative. The card balance still subtracts every charge since the last True-Up.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

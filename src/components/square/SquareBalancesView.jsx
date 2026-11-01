@@ -2127,6 +2127,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // (post-True-Up) COD deducts by default and STAYS deducted after
       // collection. See computePendingCodDeduction.
       const { deductCents: pendingDeductCents, count: pendingDeductCount } = computePendingCodDeduction(estimateItems, manualSpendMarks || {}, countedIdsSet, config?.trued_up_at || null);
+      // DISPLAY figure (owner report Oct 31 2026: balances correct, but "CODs
+      // charged to card" read −$444 against lists that only show the current
+      // window). The card estimate above keeps the FULL balance scope; this
+      // line shows only the charges still listed on the page, so the number
+      // matches the rows the owner can see and tap.
+      const displayItems = [...(codOut?.items || []), ...(codOut?.deductItems || []).filter((it) => it?.in_window !== false)];
+      const { deductCents: displayDeductCents, count: displayDeductCount } = computePendingCodDeduction(displayItems, manualSpendMarks || {}, countedIdsSet, config?.trued_up_at || null);
       return {
         ...loc,
         saleCount: Number(dc.count || 0),
@@ -2149,8 +2156,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         level: getBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        pendingDeducted: r2(pendingDeductCents / 100),
-        pendingDeductCount,
+        pendingDeducted: r2(displayDeductCents / 100),
+        pendingDeductCount: displayDeductCount,
+        balanceDeduction: r2(pendingDeductCents / 100),
         codOutstanding: codOut,
         lastSaleAt: dc.lastAt || null
       };
