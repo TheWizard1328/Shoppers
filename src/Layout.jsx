@@ -310,6 +310,11 @@ export default function Layout({ children, currentPageName }) {
   // (+X) stays honest across APK bumps and the WEB_VERSION reset to 0.
   const [changeLogBaseline, setChangeLogBaseline] = useState(() => getChangeLogStateSync().baselineBuild);
   const [buildUpdateEntries, setBuildUpdateEntries] = useState(null);
+  // OWNER REQUEST (Oct 31 2026): on-demand update log. The automatic "What's
+  // new" dialog only fires on the live domain after a publish, and non-owners
+  // do not see it yet — this lets the owner open the same view any time,
+  // including on preview, to confirm a publish landed correctly.
+  const [showUpdateLog, setShowUpdateLog] = useState(false);
   const isOwnerDevice = isAppOwner(currentUser);
 
   useEffect(() => {
@@ -343,6 +348,19 @@ export default function Layout({ children, currentPageName }) {
     : (publishedBuildNumber
         ? Math.max(0, BUILD_NUMBER - publishedBuildNumber)
         : (changeLogBaseline > 0 ? Math.max(0, buildsAhead(changeLogBaseline)) : 0));
+
+  // Entries shown by the on-demand log: everything newer than the live build
+  // (the same window the publish dialog would report). With nothing pending it
+  // falls back to the newest few builds so the log is never empty.
+  const updateLogEntries = (() => {
+    if (!showUpdateLog) return [];
+    if (publishedBuildNumber) {
+      const pending = entriesSince(publishedBuildNumber);
+      if (pending.length > 0) return pending;
+    }
+    const recent = entriesSince(BUILD_NUMBER - 6);
+    return recent.length > 0 ? recent : entriesSince(0);
+  })();
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
@@ -1770,6 +1788,7 @@ export default function Layout({ children, currentPageName }) {
                   branding={branding}
                   appVersion={sidebarVersion}
                   buildsAheadCount={buildsAheadCount}
+                  onOpenUpdateLog={isOwnerDevice ? () => setShowUpdateLog(true) : undefined}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}
                   autoUpdatedNotice={autoUpdatedNotice}
@@ -1882,6 +1901,13 @@ export default function Layout({ children, currentPageName }) {
           entries={buildUpdateEntries}
           versionLabel={sidebarVersion}
           onClose={() => setBuildUpdateEntries(null)}
+        />
+      )}
+      {showUpdateLog && updateLogEntries.length > 0 && (
+        <BuildUpdateDialog
+          entries={updateLogEntries}
+          versionLabel={publishedBuildNumber ? `${sidebarVersion} · live v${publishedBuildNumber}` : sidebarVersion}
+          onClose={() => setShowUpdateLog(false)}
         />
       )}
     </AppErrorBoundary>);

@@ -56,7 +56,7 @@ import { useAndroidAppUpdateCheck, NativeUpdateBadge } from '../utils/nativeAppU
  */
 export default function AppSidebar({
   sidebarOpen, setSidebarOpen,
-  branding, appVersion, buildsAheadCount,
+  branding, appVersion, buildsAheadCount, onOpenUpdateLog,
   currentUser, setCurrentUser,
   currentPageName,
   stores, cities, drivers, users, appUsers,
@@ -306,7 +306,17 @@ export default function AppSidebar({
           </h2>
           <p className="text-xs text-soft">Pharmacy Logistics</p>
           <div className="flex items-center gap-1">
-            <p className="text-xs text-soft">
+            {/* OWNER REQUEST (Oct 31 2026): the version line is the way into the
+                update log. Non-owners never see the published "What's new"
+                dialog yet, so the owner needs an on-demand view of the same
+                entries — including everything not published yet. */}
+            <button
+              type="button"
+              onClick={onOpenUpdateLog || undefined}
+              disabled={!onOpenUpdateLog}
+              title={onOpenUpdateLog ? 'View update log' : undefined}
+              className={`text-xs text-soft text-left ${onOpenUpdateLog ? 'hover:text-body hover:underline cursor-pointer' : 'cursor-default'}`}
+            >
               {appVersion}
               {/* Owner-only builds-ahead counter: monotonic BUILD_NUMBER minus
                   the last published baseline, so it survives APK bumps and the
@@ -314,7 +324,10 @@ export default function AppSidebar({
               {buildsAheadCount > 0 && (
                 <span className="ml-1 font-semibold text-amber-600">(+{buildsAheadCount})</span>
               )}
-            </p>
+              {onOpenUpdateLog && (
+                <span className="ml-1 text-[10px] font-semibold text-emerald-600">log</span>
+              )}
+            </button>
             {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
         </div>
