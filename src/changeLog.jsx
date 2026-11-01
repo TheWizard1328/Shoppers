@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 47;
+export const BUILD_NUMBER = 48;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -66,11 +66,11 @@ export const AUDIENCE_ORDER = [
 // update log; an entry with audience 'all' applies to every role, and a
 // combined audience ('drivers+dispatchers') applies to each of its parts.
 export const ROLE_VIEWS = [
-  { key: 'all', label: 'Everyone' },
+  { key: 'all', label: 'All' },
   { key: 'drivers', label: 'Drivers' },
-  { key: 'dispatchers', label: 'Dispatchers' },
+  { key: 'dispatchers', label: 'Dispatch' },
   { key: 'admins', label: 'Admins' },
-  { key: 'owner', label: 'App owner' },
+  { key: 'owner', label: 'Owner' },
 ];
 
 export const audienceAppliesToRole = (audience, role) => {
@@ -131,6 +131,7 @@ export const CHANGE_LOG = [
   { build: 45, area: 'App', audience: 'owner', summary: 'Tap the version line at the top of the sidebar to open the update log any time, including on preview, so you can confirm a publish landed before non-owners see it.' },
   { build: 46, area: 'Update Log', audience: 'owner', summary: 'The update log now has role tabs - Everyone, Drivers, Dispatchers, Admins and App owner - each showing only the changes that affect that role, with a role tag on every entry.' },
   { build: 47, area: 'Update Log', audience: 'owner', summary: 'Every update-log entry now has clickable Owner / Drivers / Dispatchers / Admins / Everyone badges so you can correct who a change is for; the correction is saved app-wide and survives the next build.' },
+  { build: 48, area: 'Update Log', audience: 'owner', summary: 'The role badges and tabs are now flat, shorter text labels instead of filled pill buttons; the selected one is green and underlined.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

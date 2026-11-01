@@ -18,10 +18,15 @@ import { groupEntriesByAudience, entriesForRole, ROLE_VIEWS, AUDIENCE_LABELS } f
 const AUDIENCE_CHOICES = [
   { key: 'owner', label: 'Owner' },
   { key: 'drivers', label: 'Drivers' },
-  { key: 'dispatchers', label: 'Dispatchers' },
+  { key: 'dispatchers', label: 'Dispatch' },
   { key: 'admins', label: 'Admins' },
-  { key: 'all', label: 'Everyone' },
+  { key: 'all', label: 'All' },
 ];
+
+// Flat text badges, not buttons: no pill fill, no border. The active one is
+// emerald and bold, the rest stay quiet grey (owner request Oct 31 2026:
+// "shorter and less bubble like ... regular badges that are clickable").
+const tagBase = 'rounded px-1 py-[1px] text-[10px] leading-none transition-colors';
 
 export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSetAudience }) {
   // ROLE TABS (owner request Oct 31 2026): the owner wants to see at a glance
@@ -69,7 +74,7 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
           </button>
         </div>
 
-        <div className="sticky top-[57px] z-10 flex flex-wrap gap-1.5 border-b bg-white px-4 py-2">
+        <div className="sticky top-[57px] z-10 flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-white px-4 py-1.5">
           {ROLE_VIEWS.map((view) => {
             const active = roleView === view.key;
             return (
@@ -77,10 +82,10 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
                 key={view.key}
                 type="button"
                 onClick={() => setRoleView(view.key)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`text-[11px] transition-colors ${active ? 'font-bold text-emerald-700 underline decoration-emerald-600 decoration-2 underline-offset-4' : 'font-medium text-gray-400 hover:text-gray-700'}`}
               >
                 {view.label}
-                <span className={`ml-1 ${active ? 'text-emerald-100' : 'text-gray-400'}`}>{roleCounts[view.key] || 0}</span>
+                <span className={`ml-0.5 text-[9px] ${active ? 'text-emerald-600' : 'text-gray-300'}`}>{roleCounts[view.key] || 0}</span>
               </button>
             );
           })}
@@ -112,7 +117,7 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
                         badge to correct who this change is for. Saved app-wide,
                         so the correction survives the next build. */}
                     {onSetAudience && (
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-gray-400">
                         {AUDIENCE_CHOICES.map((choice) => {
                           const active = (item.audience || 'all') === choice.key;
                           return (
@@ -120,7 +125,8 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
                               key={choice.key}
                               type="button"
                               onClick={() => onSetAudience(item, choice.key)}
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
+                              title={`Set this change to ${choice.label}`}
+                              className={`${tagBase} ${active ? 'font-bold text-emerald-700 underline decoration-emerald-600 underline-offset-2' : 'font-medium text-gray-400 hover:text-gray-700'}`}
                             >
                               {choice.label}
                             </button>
