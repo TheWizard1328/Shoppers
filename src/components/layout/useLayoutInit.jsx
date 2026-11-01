@@ -219,6 +219,9 @@ export function useLayoutInit({
           // user had chosen Dark in Settings (owner saw the wrong theme in desktop
           // Chrome preview). Now every device honors its own saved preference;
           // devices with no saved preference fall back to following the system.
+          // Persist alongside the state: Layout seeds its initial state from this
+          // key, and index.html's head script reads it before React boots.
+          try { localStorage.setItem('rxdeliver_theme_preference', s.theme_preference || 'auto'); } catch { /* storage blocked */ }
           setThemePreference(s.theme_preference || 'auto');
           if (s.data_source) setDataSource(s.data_source);
           if (s.fab_map_cycle_phase && setInitialFabPhase) setInitialFabPhase(Number(s.fab_map_cycle_phase) || 1);

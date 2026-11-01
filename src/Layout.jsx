@@ -202,7 +202,20 @@ export default function Layout({ children, currentPageName }) {
   // Remove unused driverLocationIntervalRef - now handled by unified refresh
 
   const [sidebarWidth, setSidebarWidth] = useState(260); // Will be loaded from user settings
-  const [themePreference, setThemePreference] = useState('auto');
+  // SEEDED FROM THE CACHE (owner report Nov 1 2026: after a soft refresh a
+  // handful of elements came up dark again on a dark-OS PC and only a full
+  // close + reopen fixed it). The state used to start as 'auto', so the boot
+  // painted auto-theme + dark from the OS for a moment - and any path where the
+  // saved settings did not arrive left it there. The cached preference written
+  // by useAutoThemeSync (and read by the head script in index.html) is the
+  // right first value; 'auto' only when nothing is cached yet.
+  const [themePreference, setThemePreference] = useState(() => {
+    try {
+      const cached = localStorage.getItem('rxdeliver_theme_preference');
+      if (cached === 'light' || cached === 'dark' || cached === 'auto') return cached;
+    } catch { /* private mode / blocked storage */ }
+    return 'auto';
+  });
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
   useAutoThemeSync(themePreference);

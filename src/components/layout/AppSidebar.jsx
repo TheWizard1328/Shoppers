@@ -326,7 +326,7 @@ export default function AppSidebar({
               type="button"
               onClick={onOpenUpdateLog}
               title="View the change log"
-              className="mt-0.5 text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
+              className="-mt-1 leading-none text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
             >
               Change Logs
             </button>
