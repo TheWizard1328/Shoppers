@@ -31,6 +31,7 @@ import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './componen
 import { BUILD_NUMBER, buildsAhead, entriesSince } from './changeLog';
 import { getChangeLogStateSync, loadChangeLogState, detectPublishAndCollect } from './components/utils/changeLogState';
 import { usePublishedBuildNumber } from './components/utils/publishedBuildInfo';
+import { getAudienceOverridesSync, loadAudienceOverrides, saveAudienceOverrides, applyAudienceOverrides, entryAudienceKey } from './components/utils/changeLogAudience';
 import BuildUpdateDialog from './components/common/BuildUpdateDialog';
 import DispatcherLocationGate from './components/common/DispatcherLocationGate';
 import { getDriverDisplayName } from './components/utils/driverUtils';
@@ -315,6 +316,8 @@ export default function Layout({ children, currentPageName }) {
   // do not see it yet — this lets the owner open the same view any time,
   // including on preview, to confirm a publish landed correctly.
   const [showUpdateLog, setShowUpdateLog] = useState(false);
+  // Owner-edited audiences for the log entries (tap a badge in the dialog).
+  const [audienceOverrides, setAudienceOverrides] = useState(() => getAudienceOverridesSync());
   const isOwnerDevice = isAppOwner(currentUser);
 
   useEffect(() => {
@@ -348,6 +351,25 @@ export default function Layout({ children, currentPageName }) {
     : (publishedBuildNumber
         ? Math.max(0, BUILD_NUMBER - publishedBuildNumber)
         : (changeLogBaseline > 0 ? Math.max(0, buildsAhead(changeLogBaseline)) : 0));
+
+  // Load the saved audience corrections on the owner device (non-owners never
+  // edit them, but they still read the same shared record when they show them).
+  useEffect(() => {
+    let cancelled = false;
+    loadAudienceOverrides().then((overrides) => {
+      if (!cancelled && overrides) setAudienceOverrides(overrides);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSetAudience = useCallback((entry, audience) => {
+    const key = entryAudienceKey(entry);
+    setAudienceOverrides((prev) => {
+      const next = { ...(prev || {}), [key]: audience };
+      saveAudienceOverrides(next);
+      return next;
+    });
+  }, []);
 
   // Entries shown by the on-demand log: everything newer than the live build
   // (the same window the publish dialog would report). With nothing pending it
@@ -1898,16 +1920,18 @@ export default function Layout({ children, currentPageName }) {
       {/* Version update summary — owner only, once per detected publish */}
       {buildUpdateEntries && buildUpdateEntries.length > 0 && (
         <BuildUpdateDialog
-          entries={buildUpdateEntries}
+          entries={applyAudienceOverrides(buildUpdateEntries, audienceOverrides)}
           versionLabel={sidebarVersion}
           onClose={() => setBuildUpdateEntries(null)}
+          onSetAudience={isOwnerDevice ? handleSetAudience : undefined}
         />
       )}
       {showUpdateLog && updateLogEntries.length > 0 && (
         <BuildUpdateDialog
-          entries={updateLogEntries}
+          entries={applyAudienceOverrides(updateLogEntries, audienceOverrides)}
           versionLabel={publishedBuildNumber ? `${sidebarVersion} · live v${publishedBuildNumber}` : sidebarVersion}
           onClose={() => setShowUpdateLog(false)}
+          onSetAudience={isOwnerDevice ? handleSetAudience : undefined}
         />
       )}
     </AppErrorBoundary>);

@@ -13,7 +13,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, PackageCheck } from 'lucide-react';
 import { groupEntriesByAudience, entriesForRole, ROLE_VIEWS, AUDIENCE_LABELS } from '@/changeLog';
 
-export default function BuildUpdateDialog({ entries, versionLabel, onClose }) {
+// The five audiences the owner can assign from the log. 'everyone' is stored as
+// 'all' to match the shipped keys in src/changeLog.jsx.
+const AUDIENCE_CHOICES = [
+  { key: 'owner', label: 'Owner' },
+  { key: 'drivers', label: 'Drivers' },
+  { key: 'dispatchers', label: 'Dispatchers' },
+  { key: 'admins', label: 'Admins' },
+  { key: 'all', label: 'Everyone' },
+];
+
+export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSetAudience }) {
   // ROLE TABS (owner request Oct 31 2026): the owner wants to see at a glance
   // which changes are for Drivers, Dispatchers, Admins and himself. 'Everyone'
   // keeps the full grouped view; the other tabs narrow the list to the changes
@@ -89,12 +99,38 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose }) {
                 {group.items.map((item) => (
                   <li key={`${item.build}-${item.area}-${item.summary}`} className="rounded-lg bg-gray-50 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold text-gray-700">{item.area}</p>
+                      <p className="text-xs font-semibold text-gray-700">
+                        {item.area}
+                        <span className="ml-1.5 text-[10px] font-normal text-gray-400">build {item.build}</span>
+                      </p>
                       <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
                         {AUDIENCE_LABELS[item.audience] || 'Everyone'}
                       </span>
                     </div>
                     <p className="text-xs leading-snug text-gray-600">{item.summary}</p>
+                    {/* Owner-editable audience (owner request Oct 31 2026): tap a
+                        badge to correct who this change is for. Saved app-wide,
+                        so the correction survives the next build. */}
+                    {onSetAudience && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        {AUDIENCE_CHOICES.map((choice) => {
+                          const active = (item.audience || 'all') === choice.key;
+                          return (
+                            <button
+                              key={choice.key}
+                              type="button"
+                              onClick={() => onSetAudience(item, choice.key)}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
+                            >
+                              {choice.label}
+                            </button>
+                          );
+                        })}
+                        {item.audience_overridden && (
+                          <span className="text-[10px] text-amber-600">edited</span>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

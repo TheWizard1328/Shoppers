@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 46;
+export const BUILD_NUMBER = 47;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -127,9 +127,10 @@ export const CHANGE_LOG = [
   { build: 41, area: 'Patients', audience: 'all', summary: 'Device now keeps every store\'s patients resident (refreshed daily) and a store/city change never deletes patient records any more, so occasional weekend stores stay searchable.' },
   { build: 42, area: 'Patients', audience: 'all', summary: 'The patient address search now shows one row per address (duplicates grouped, with a +N badge) and lists Google addresses below it, restricted to 50 km around the assigned store.' },
   { build: 43, area: 'App', audience: 'owner', summary: 'Builds-ahead counter now compares against the live deployment\'s own build number instead of a baseline that only existed once someone opened the live site, so it shows the real number of unpublished builds.' },
-  { build: 44, area: 'App', audience: 'all', summary: 'Removed the duplicate (Prev) tag next to the version at the top of the sidebar; it still shows in the user badge at the bottom.' },
+  { build: 44, area: 'App', audience: 'owner', summary: 'Removed the duplicate (Prev) tag next to the version at the top of the sidebar; it still shows in the user badge at the bottom.' },
   { build: 45, area: 'App', audience: 'owner', summary: 'Tap the version line at the top of the sidebar to open the update log any time, including on preview, so you can confirm a publish landed before non-owners see it.' },
   { build: 46, area: 'Update Log', audience: 'owner', summary: 'The update log now has role tabs - Everyone, Drivers, Dispatchers, Admins and App owner - each showing only the changes that affect that role, with a role tag on every entry.' },
+  { build: 47, area: 'Update Log', audience: 'owner', summary: 'Every update-log entry now has clickable Owner / Drivers / Dispatchers / Admins / Everyone badges so you can correct who a change is for; the correction is saved app-wide and survives the next build.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
