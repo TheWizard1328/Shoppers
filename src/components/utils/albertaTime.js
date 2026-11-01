@@ -1,68 +1,99 @@
 /**
- * Alberta (America/Edmonton) wall-clock math — 100% pure UTC arithmetic.
+ * Alberta (America/Edmonton) wall-clock helpers.
  *
- * ZERO Intl usage, ZERO system-local Date getters (getFullYear/getHours/etc.).
- * Some devices in the fleet have broken or premature timezone databases (one PC
- * reports America/Edmonton as UTC-7 while true Edmonton is still on MDT/-6
- * until the legislated change), so nothing in this module may trust the
- * runtime's timezone engine. Every conversion here is computed from the UTC
- * instant plus the legislated Alberta DST rule, so results are byte-identical
- * on every device.
+ * OWNER DIRECTIVE (Nov 1 2026): Alberta did NOT go permanent UTC-6. The Nov 1
+ * fall-back happened normally and the province keeps the ordinary DST cycle
+ * (-6 MDT / -7 MST). The previous version of this module hardcoded a
+ * "permanent UTC-6 from Nov 1 2026" rule, which was false and made every
+ * November instant render an hour late (Driver Activity end times shifted +1h
+ * on every open+save cycle).
  *
- * Alberta rule (owner-confirmed Sep 23 2026):
- *   - Through October 2026: normal North American DST rule
- *     (2nd Sunday of March 2:00 local -> 1st Sunday of November 2:00 local; -6 MDT / -7 MST)
- *   - From Nov 1 2026 (08:00 UTC = 2:00 local): the fall-back is SKIPPED —
- *     Alberta stays on permanent UTC-6 (MDT) year-round.
+ * Rule from here on: NEVER hardcode an offset and NEVER hardcode a transition
+ * date. The offset always comes from the tz database via Intl with
+ * timeZone 'America/Edmonton'.
+ *
+ * Conventions:
+ *   - Naive strings ("YYYY-MM-DDTHH:mm[:ss]", no Z / no offset) are Edmonton
+ *     WALL CLOCK — the same convention as Delivery.actual_delivery_time. They
+ *     are read verbatim and written verbatim, never converted.
+ *   - Real ISO strings (with Z or an offset) are true instants and resolve to
+ *     Edmonton wall through the tz database.
  */
 
-// Moment the Nov 2026 fall-back is skipped: 1st Sunday Nov 2026, 2:00 local MDT = 08:00 UTC
-export const ALBERTA_PERMANENT_UTC6_MS = Date.UTC(2026, 10, 1, 8, 0, 0);
+const TZ = 'America/Edmonton';
 
-// UTC instant -> Alberta offset (-6 / -7) for that instant
-export const albertaOffsetHoursAt = (utcMs) => {
-  if (utcMs >= ALBERTA_PERMANENT_UTC6_MS) return -6; // permanent MDT from Nov 1 2026
-  const y = new Date(utcMs).getUTCFullYear();
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);  // 2nd Sun Mar 2:00 MST = 09:00 UTC
-  const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);       // 1st Sun Nov 2:00 MDT = 08:00 UTC
-  return utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
-};
+const pad = (v) => String(v).padStart(2, '0');
 
-// Alberta wall date (y, mo 1-based, d) -> offset for that wall-clock day
-export const albertaOffsetHoursForWallDate = (y, mo, d) => {
-  if (Date.UTC(y, mo - 1, d) >= ALBERTA_PERMANENT_UTC6_MS) return -6;
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const afterMar = mo - 1 > 2 || (mo - 1 === 2 && d >= firstSundayDate(2) + 7);
-  const beforeNov = mo - 1 < 10 || (mo - 1 === 10 && d < firstSundayDate(10));
-  return afterMar && beforeNov ? -6 : -7;
-};
+const WALL_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+const DAY_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
 
 // UTC instant -> Alberta wall components
 export const toEdmontonWall = (date) => {
-  const local = new Date(date.getTime() + albertaOffsetHoursAt(date.getTime()) * 3600000);
+  const p = {};
+  for (const part of WALL_FMT.formatToParts(date)) p[part.type] = part.value;
   return {
-    y: local.getUTCFullYear(),
-    mo: local.getUTCMonth() + 1,
-    d: local.getUTCDate(),
-    h: local.getUTCHours(),
-    mi: local.getUTCMinutes(),
-    s: local.getUTCSeconds()
+    y: Number(p.year),
+    mo: Number(p.month),
+    d: Number(p.day),
+    h: Number(p.hour),
+    mi: Number(p.minute),
+    s: Number(p.second),
   };
 };
 
-// Alberta wall components -> UTC Date
-export const edmontonWallToUTC = (y, mo, d, h, mi, s = 0) =>
-  new Date(Date.UTC(y, mo - 1, d, h, mi, s) - albertaOffsetHoursForWallDate(y, mo, d) * 3600000);
+// Minutes east of UTC that Edmonton is observing at a given instant
+const offsetMsAt = (utcMs) => {
+  const w = toEdmontonWall(new Date(utcMs));
+  return Date.UTC(w.y, w.mo - 1, w.d, w.h, w.mi, w.s) - Math.floor(utcMs / 1000) * 1000;
+};
 
-const pad = (v) => String(v).padStart(2, '0');
+// UTC instant -> Alberta offset in hours (-6 MDT / -7 MST) for that instant
+export const albertaOffsetHoursAt = (utcMs) => offsetMsAt(utcMs) / 3600000;
+
+// Alberta wall date (y, mo 1-based, d) -> offset for that wall-clock day
+export const albertaOffsetHoursForWallDate = (y, mo, d) =>
+  albertaOffsetHoursAt(Date.UTC(y, mo - 1, d, 12, 0, 0));
+
+// Alberta wall components -> UTC Date (resolved through the tz database)
+export const edmontonWallToUTC = (y, mo, d, h, mi, s = 0) => {
+  const wallAsUtc = Date.UTC(y, mo - 1, d, h, mi, s);
+  // Converge: the offset at the guessed instant is the one that applies.
+  let utc = wallAsUtc - offsetMsAt(wallAsUtc);
+  utc = wallAsUtc - offsetMsAt(utc);
+  utc = wallAsUtc - offsetMsAt(utc);
+  return new Date(utc);
+};
+
+const naiveComponents = (str) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(str));
+  if (!m) return null;
+  return {
+    y: Number(m[1]), mo: Number(m[2]), d: Number(m[3]),
+    h: Number(m[4]), mi: Number(m[5]), s: Number(m[6] || 0),
+  };
+};
 
 // ── Device-tz-proof wall clock for form fields (owner report Oct 29 2026) ────
 // "Manual Complete set 07:40 when it was 08:40." Handlers were using
 // format(new Date(), 'HH:mm') / date.getHours(), i.e. the DEVICE timezone
-// engine — machines whose tz database already flipped Alberta off DST report
-// UTC-7 and prefill completion times an hour early. These read the legislated
-// Alberta wall clock instead, identical on every device.
+// engine — machines whose tz database had flipped Alberta off DST reported
+// UTC-7 and prefilled completion times an hour early. These read the Alberta
+// wall clock instead, identical on every device.
 export const edmontonNowHHmm = (date = new Date()) => {
   const w = toEdmontonWall(date);
   return `${pad(w.h)}:${pad(w.mi)}`;
@@ -77,7 +108,7 @@ export const edmontonHHmm = (timestamp) => {
 };
 
 // Edmonton wall date "YYYY-MM-DD" for an instant (defaults to now).
-export const edmontonTodayKey = (date = new Date()) => edmontonWallString(date).slice(0, 10);
+export const edmontonTodayKey = (date = new Date()) => DAY_FMT.format(date);
 
 // UTC instant -> naive Edmonton wall string "YYYY-MM-DDTHH:mm:ss" (storage convention
 // for client-generated wall timestamps like actual_delivery_time)
@@ -90,28 +121,72 @@ export const edmontonWallString = (date) => {
 // 05:00 Edmonton — between midnight and 5am, sales/collections still count
 // as the PREVIOUS calendar day's bucket on the Square Balances page.
 export const edmontonBusinessDayKey = (date = new Date()) => {
-  const w = edmontonWallString(date);
-  if (Number(w.slice(11, 13)) >= 5) return w.slice(0, 10);
-  const y = Number(w.slice(0, 4)), mo = Number(w.slice(5, 7)), d = Number(w.slice(8, 10));
-  return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
+  const w = toEdmontonWall(date);
+  if (w.h >= 5) return `${w.y}-${pad(w.mo)}-${pad(w.d)}`;
+  return new Date(Date.UTC(w.y, w.mo - 1, w.d) - 86400000).toISOString().slice(0, 10);
 };
 
 // Is a timestamp string naive (no Z / no +/- offset)?
 export const isNaiveTimestamp = (str) =>
-  typeof str === 'string' && !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str);
+  typeof str === 'string' && !/Z$/i.test(str) && !/[+-]\d{2}:?\d{2}$/.test(str);
 
 // Parse a timestamp that may be a naive Edmonton wall string OR a real UTC/offset
 // ISO string, into a true UTC Date. Naive strings are Edmonton wall time by
 // convention (see generateCompletionTimestamp / actual_delivery_time) — NOT
-// device-local time. Device-local parsing was the bug: machines with premature
-// tz data misread naive strings by an hour.
+// device-local time. Device-local parsing was the bug: machines with wrong tz
+// data read naive strings an hour off.
 export const parseAnyTimestamp = (str) => {
   if (!str) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(str));
   if (!m) return new Date(str);
+  const naive = isNaiveTimestamp(str);
   const [, y, mo, d, h, mi, s] = m.map(Number);
-  if (isNaiveTimestamp(str)) {
-    return edmontonWallToUTC(y, mo, d, h, mi, s || 0);
-  }
+  if (naive) return edmontonWallToUTC(y, mo, d, h, mi, s || 0);
   return new Date(str);
+};
+
+// Any stored timestamp -> {h, m} Edmonton wall clock, or null.
+// Short "HH:mm" and naive wall strings are read verbatim (they are already
+// wall clock); ISO strings resolve to Edmonton wall.
+export const edmontonWallHM = (timestamp) => {
+  if (!timestamp) return null;
+  const str = String(timestamp);
+  let m = /^(\d{1,2}):(\d{2})$/.exec(str);
+  if (m) return { h: Number(m[1]), m: Number(m[2]) };
+  if (isNaiveTimestamp(str)) {
+    const c = naiveComponents(str);
+    return c ? { h: c.h, m: c.mi } : null;
+  }
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return null;
+  const w = toEdmontonWall(d);
+  return { h: w.h, m: w.mi };
+};
+
+// Any stored timestamp -> datetime-local input value "YYYY-MM-DDTHH:mm".
+// Naive (already wall clock) passes through untouched — open + save can never
+// shift the value. Legacy ISO-Z rows are converted once, for display only.
+export const edmontonDateTimeInput = (timestamp) => {
+  if (!timestamp) return '';
+  const str = String(timestamp);
+  if (isNaiveTimestamp(str)) {
+    const c = naiveComponents(str);
+    if (!c) return '';
+    return `${c.y}-${pad(c.mo)}-${pad(c.d)}T${pad(c.h)}:${pad(c.mi)}`;
+  }
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
+  const w = toEdmontonWall(d);
+  return `${w.y}-${pad(w.mo)}-${pad(w.d)}T${pad(w.h)}:${pad(w.mi)}`;
+};
+
+// Plain wall-clock minutes between two wall times (no offset math — this is how
+// on-duty totals are meant to be paid).
+export const wallMinutesBetween = (start, end) => {
+  const a = naiveComponents(edmontonDateTimeInput(start));
+  const b = naiveComponents(edmontonDateTimeInput(end));
+  if (!a || !b) return null;
+  const msA = Date.UTC(a.y, a.mo - 1, a.d, a.h, a.mi, a.s);
+  const msB = Date.UTC(b.y, b.mo - 1, b.d, b.h, b.mi, b.s);
+  return Math.round((msB - msA) / 60000);
 };

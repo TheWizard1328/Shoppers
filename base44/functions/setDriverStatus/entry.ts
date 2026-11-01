@@ -1,100 +1,29 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+// OWNER DIRECTIVE (Nov 1 2026): Alberta did NOT go permanent UTC-6 — the Nov 1
+// fall-back happened normally and the normal DST cycle continues. Activity
+// segments are now stored as NAIVE Edmonton wall-clock strings
+// ("YYYY-MM-DDTHH:mm", no Z, no offset) and never converted, so an edit can
+// never compound a +1h shift. The offset is only ever asked from the tz
+// database (Intl + America/Edmonton) inside the shared helper.
+import {
+  edmontonTodayKey,
+  edmontonWallString,
+  roundWallTo5Min,
+  utcMsOf,
+  wallMinutesBetween,
+  wallStringOf,
+} from '../../shared/albertaWall.ts';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-// Detects a "naive" local timestamp string with NO timezone info (no trailing
-// Z, no +HH:MM/-HH:MM offset) — e.g. "2026-08-06T13:40:00". Delivery.actual_delivery_time
-// and anchorTime values built by generateCompletionTimestamp() on the client are
-// ALWAYS in this naive format, representing Edmonton wall-clock time.
-const isNaiveTimestamp = (str) => {
-  if (typeof str !== 'string') return false;
-  return !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str);
-};
+// Wall-clock conversions, segment rounding and "what day is it in Edmonton" all
+// live in base44/shared/albertaWall.ts — one Intl-backed implementation shared
+// with squareBalancesCompute and dashboardWeatherPoll. No offset is hardcoded
+// anywhere in this function any more.
 
-// Moment the Nov 2026 fall-back is skipped: 1st Sun Nov 2026, 2:00 local MDT = 08:00 UTC
-const ALBERTA_PERMANENT_UTC6_MS = Date.UTC(2026, 10, 1, 8, 0, 0);
-
-// Converts a naive "YYYY-MM-DDTHH:MM:SS" string that represents America/Edmonton
-// wall-clock time into a true UTC ISO instant.
-//
-// Pure UTC arithmetic — NO Intl and NO timezone-engine reads anywhere in this
-// conversion. History: naive strings were once Date-parsed as UTC here (6-7h
-// shift); the Intl-based fix that followed was itself vulnerable to premature or
-// broken tz databases describing Alberta's legislated change early (seen on
-// fleet Windows machines reporting UTC-7 before the real Nov 1 2026 switch).
-// The offset is now computed from the legislated rule directly.
-const edmontonNaiveToUTCISOString = (naiveStr) => {
-  const match = String(naiveStr).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
-  if (!match) return new Date(naiveStr).toISOString();
-
-  // Pure-UTC Alberta wall math — NO Intl, NO timezone-engine reads. This server's
-  // tz database (like some client machines') may describe Alberta's legislated
-  // change prematurely (UTC-7 before the real Nov 1 2026 switch), so the old
-  // Intl.DateTimeFormat({timeZone:'America/Edmonton'}) convergence could convert
-  // naive wall strings an hour off. The rule: standard North American DST
-  // (2nd Sun Mar 2:00 local -> 1st Sun Nov 2:00 local, -6/-7) through October
-  // 2026, then permanent UTC-6 from Nov 1 2026 (08:00 UTC).
-  const y = Number(match[1]), mo = Number(match[2]), d = Number(match[3]);
-  const h = Number(match[4]), mi = Number(match[5]), sec = Number(match[6]);
-
-  const albertaOffsetHoursForWallDate = (yy, mm, dd) => {
-    if (Date.UTC(yy, mm - 1, dd) >= ALBERTA_PERMANENT_UTC6_MS) return -6;
-    const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(yy, monthIdx, 1)).getUTCDay()) % 7);
-    const afterMar = mm - 1 > 2 || (mm - 1 === 2 && dd >= firstSundayDate(2) + 7);
-    const beforeNov = mm - 1 < 10 || (mm - 1 === 10 && dd < firstSundayDate(10));
-    return afterMar && beforeNov ? -6 : -7;
-  };
-  const offsetHours = albertaOffsetHoursForWallDate(y, mo, d);
-  return new Date(Date.UTC(y, mo - 1, d, h, mi, sec) - offsetHours * 3600000).toISOString();
-};
-
-const normalizeToUTC = (timestamp) => {
-  if (!timestamp) return timestamp;
-  return isNaiveTimestamp(timestamp) ? edmontonNaiveToUTCISOString(timestamp) : timestamp;
-};
-
-const getEdmDate = () => {
-  // Pure-UTC Alberta date (no Intl / tz-engine reads — see comment above)
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const utcMs = now.getTime();
-  if (utcMs < ALBERTA_PERMANENT_UTC6_MS) {
-    const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);
-    const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);
-    const offsetHours = utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
-    const local = new Date(utcMs + offsetHours * 3600000);
-    return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
-  }
-  const local = new Date(utcMs - 6 * 3600000);
-  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
-};
-
-/**
- * Round an ISO timestamp to the nearest 5-minute mark.
- * on_duty          → round DOWN (floor) to previous 5-min mark
- * off_duty / on_break → round UP (ceil) to next 5-min mark
- */
-const roundTo5Min = (isoTimestamp, direction) => {
-  const d = new Date(isoTimestamp);
-  const ms = d.getTime();
-  const fiveMin = 5 * 60 * 1000;
-  const minute = 60 * 1000;
-  // OWNER RULE (Oct 29 2026): SECONDS ARE IGNORED. Truncate to the minute first
-  // (08:30:41 -> 08:30), THEN apply the 5-minute rule. A minute that is already
-  // a multiple of 5 is left alone instead of being pushed to 08:35 because a
-  // few seconds had elapsed on the clock.
-  const truncated = Math.floor(ms / minute) * minute;
-  let rounded;
-  if (truncated % fiveMin === 0) {
-    rounded = truncated;                       // already on a 5-min mark
-  } else if (direction === 'floor') {
-    rounded = Math.floor(truncated / fiveMin) * fiveMin;
-  } else {
-    rounded = Math.ceil(truncated / fiveMin) * fiveMin;
-  }
-  return new Date(rounded).toISOString();
-};
+// Rounding to the 5-minute mark now happens on the WALL clock (roundWallTo5Min):
+// on_duty → floor (previous mark), on_break/off_duty → ceil (next mark), seconds
+// ignored and an exact 5-minute mark left alone (owner rule Oct 29 2026).
 
 /**
  * Record a DriverDailyActivity segment for a status transition.
@@ -136,7 +65,9 @@ const mergeDuplicateActivityRecords = async (base44, records) => {
       mergedSegments.push(seg);
     });
   });
-  mergedSegments.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  // Sort on the wall-clock keys so a mix of legacy ISO-Z rows and new naive rows
+  // still orders chronologically.
+  mergedSegments.sort((a, b) => String(wallStringOf(a.start_time) || '').localeCompare(String(wallStringOf(b.start_time) || '')));
 
   await base44.asServiceRole.entities.DriverDailyActivity.update(survivor.id, { activity_segments: mergedSegments }).catch(() => {});
   for (const dupe of dupes) {
@@ -206,16 +137,17 @@ const recordActivitySegment = async (base44, requestClient, driverId, driverName
   // to every connected device the moment it changes.
   let lastSavedActivity = null;
   try {
-    const todayStr = getEdmDate();
-    const rawNow = anchorTime ? normalizeToUTC(anchorTime) : new Date().toISOString();
+    const todayStr = edmontonTodayKey();
+    // Anchor (a naive actual_delivery_time) passes through verbatim; anything
+    // else becomes Edmonton wall clock from "now". No offset math.
+    const rawNow = anchorTime ? wallStringOf(anchorTime) : edmontonWallString();
 
     // Round segment boundary to nearest 5-minute mark per direction rule:
     //   on_duty  → floor (previous 5-min mark)
     //   on_break → ceil  (next 5-min mark)
     //   off_duty → ceil  (next 5-min mark)
     const roundDirection = (newStatus === 'off_duty' || newStatus === 'on_break') ? 'ceil' : 'floor';
-    const now = roundTo5Min(rawNow, roundDirection);
-    const nowMs = new Date(now).getTime();
+    const now = roundWallTo5Min(rawNow, roundDirection);
 
     const record = await getOrCreateDailyActivityRecord(base44, driverId, driverName, todayStr);
 
@@ -235,8 +167,8 @@ const recordActivitySegment = async (base44, requestClient, driverId, driverName
         // no currently open segment. If there IS an open segment (crash recovery /
         // returning from on_break where the close didn't propagate), close it first.
         if (openIdx !== -1) {
-          const startMs = new Date(segments[openIdx].start_time).getTime();
-          segments[openIdx] = { ...segments[openIdx], end_time: now, tot: Math.max(0, Math.round((nowMs - startMs) / 60000)) };
+          const tot = Math.max(0, wallMinutesBetween(segments[openIdx].start_time, now) ?? 0);
+          segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
           console.log(`⏱️ [setDriverStatus] Closed dangling open segment before opening new one for ${driverId}`);
         }
         segments.push({ start_time: now, end_time: null, tot: null });
@@ -249,8 +181,7 @@ const recordActivitySegment = async (base44, requestClient, driverId, driverName
       // Close the open segment. Guard: require previousStatus === 'on_duty' OR an open segment exists.
       // This prevents double-close if the driver is already on_break/off_duty.
       if (openIdx !== -1) {
-        const startMs = new Date(segments[openIdx].start_time).getTime();
-        const tot = Math.max(0, Math.round((nowMs - startMs) / 60000));
+        const tot = Math.max(0, wallMinutesBetween(segments[openIdx].start_time, now) ?? 0);
         segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
         const savedClose = await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
         lastSavedActivity = savedClose || { ...record, activity_segments: segments };
@@ -374,7 +305,7 @@ Deno.serve(async (req) => {
     // - on_duty (first segment of the day): use actual_delivery_time of the first completed stop
     // - all other cases: use current time
     let activityAnchorTime = null;
-    const targetDate = selectedDate || getEdmDate();
+    const targetDate = selectedDate || edmontonTodayKey();
 
     if (newStatus === 'off_duty' && previousStatus === 'on_duty') {
       if (clientAnchorTime) {
@@ -420,7 +351,8 @@ Deno.serve(async (req) => {
           // UTC) instant against real current time — comparing the naive string
           // directly against Date.now() misreads it as UTC and always looks
           // artificially far in the past, defeating the "in the past" guard.
-          if (normalizeToUTC(firstDeliveryTime) && new Date(normalizeToUTC(firstDeliveryTime)).getTime() < Date.now()) {
+          const firstDeliveryUtcMs = utcMsOf(firstDeliveryTime);
+          if (firstDeliveryUtcMs != null && firstDeliveryUtcMs < Date.now()) {
             activityAnchorTime = firstDeliveryTime;
             console.log(`⏱️ [setDriverStatus] Using first delivery time as on_duty anchor: ${activityAnchorTime}`);
           }
@@ -439,7 +371,7 @@ Deno.serve(async (req) => {
 
     // When going on_break, clear all next-stop flags for the selected driver/date
     if (newStatus === 'on_break') {
-      const targetDate = selectedDate || getEdmDate();
+      const targetDate = selectedDate || edmontonTodayKey();
       console.log(`🔄 [setDriverStatus] Driver going on break - clearing all isNextDelivery flags for ${targetDate}`);
       const clearedCount = await clearNextDeliveryFlags(base44, subjectUserId, targetDate);
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
@@ -463,7 +395,7 @@ Deno.serve(async (req) => {
     // cycling markers included) by stop_order, else pending stops by stop_order.
     // Only records whose flag actually changes are written.
     if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
-      const targetDate = selectedDate || getEdmDate();
+      const targetDate = selectedDate || edmontonTodayKey();
       const FINISHED = new Set(['completed', 'failed', 'cancelled']);
       const ACTIVE = new Set(['in_transit', 'en_route', 'arrived']);
       const byOrder = (a, b) => {
@@ -516,7 +448,7 @@ Deno.serve(async (req) => {
 
     // When going off_duty, clear all next-stop flags for the selected driver/date
     if (newStatus === 'off_duty') {
-      const targetDate = selectedDate || getEdmDate();
+      const targetDate = selectedDate || edmontonTodayKey();
       console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags for ${targetDate}`);
       const clearedCount = await clearNextDeliveryFlags(base44, subjectUserId, targetDate);
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);

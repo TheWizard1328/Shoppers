@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RefreshCw, Plus, Edit, Trash2, Loader2, Clock, User, LayoutGrid, List, BarChart2, AlertCircle } from 'lucide-react';
-import { differenceInMinutes } from 'date-fns';
+import { edmontonDateTimeInput, edmontonTodayKey, edmontonWallHM, wallMinutesBetween } from '@/components/utils/albertaTime';
 
 const STATUS_COLORS = {
   on_duty: { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', label: 'On Duty' },
@@ -26,7 +26,7 @@ const formatDuration = (minutes) => {
 
 const formatTime = (isoStr) => {
   if (!isoStr) return '—';
-  const hm = parseTimelineHM(isoStr);
+  const hm = edmontonWallHM(isoStr);
   if (!hm) return isoStr;
   const h12 = hm.h % 12 === 0 ? 12 : hm.h % 12;
   return `${h12}:${String(hm.m).padStart(2, '0')} ${hm.h >= 12 ? 'PM' : 'AM'}`;
@@ -44,90 +44,13 @@ const totalOnDutyMinutes = (record) => sharedTotalOnDutyMinutes(record, Date.now
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
 
-// Alberta (America/Edmonton) wall-clock math — 100% pure UTC arithmetic, NO Intl
-// and NO system-local Date getters involved anywhere, so a device's own timezone
-// database health can never skew the rendering (one PC has a stale Windows tz database
-// AND a broken Intl engine; its system-tz paths were unreliable, which started this
-// whole saga). The real Alberta rule (owner-confirmed Sep 23 2026): Alberta keeps the
-// normal North American DST rule through October 2026, then SKIPS the November 1 2026
-// fall-back and stays on permanent UTC-6 (MDT) from that moment on. So:
-//   - up to Oct 31 2026: standard DST rule (2nd Sun Mar 2:00 local -> 1st Sun Nov 2:00 local; -6 MDT / -7 MST)
-//   - from Nov 1 2026 (08:00 UTC = 2:00 local): fixed -6 forever
-// This renders Sep 2026 as -6 (matching phone/tablet/laptop), last winter as -7, and
-// all future dates as -6 — identically on every device regardless of tz data health.
-
-// Moment the Nov 2026 fall-back is skipped: 1st Sun Nov 2026, 2:00 local MDT = 08:00 UTC
-const ALBERTA_PERMANENT_UTC6_MS = Date.UTC(2026, 10, 1, 8, 0, 0);
-
-// UTC instant -> Alberta offset (-6 / -7) for that instant
-const edmontonOffsetHoursAt = (utcMs) => {
-  if (utcMs >= ALBERTA_PERMANENT_UTC6_MS) return -6; // permanent MDT from Nov 1 2026
-  const y = new Date(utcMs).getUTCFullYear();
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);  // 2nd Sun Mar 2:00 MST = 09:00 UTC
-  const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);       // 1st Sun Nov 2:00 MDT = 08:00 UTC
-  return utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
-};
-
-// UTC instant -> {h, m} Alberta wall-clock
-const getEdmontonHM = (date) => {
-  const local = new Date(date.getTime() + edmontonOffsetHoursAt(date.getTime()) * 3600000);
-  return { h: local.getUTCHours(), m: local.getUTCMinutes() };
-};
-
-// UTC ISO string -> Edmonton datetime-local input value "YYYY-MM-DDTHH:mm"
-const isoToEdmontonInput = (isoStr) => {
-  if (!isoStr) return '';
-  const d = new Date(isoStr);
-  if (isNaN(d)) return '';
-  const local = new Date(d.getTime() + edmontonOffsetHoursAt(d.getTime()) * 3600000);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
-};
-
-// Edmonton datetime-local input value "YYYY-MM-DDTHH:mm" -> UTC ISO string
-const edmontonInputToIso = (inputVal) => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(inputVal || '');
-  if (!m) return null;
-  const [, y, mo, d, h, mi] = m.map(Number);
-  // Wall dates on/after Nov 1 2026 are permanent UTC-6; earlier dates use the DST rule
-  let offsetHours;
-  if (Date.UTC(y, mo - 1, d) >= ALBERTA_PERMANENT_UTC6_MS) offsetHours = -6;
-  else {
-    const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-    const afterMar = mo - 1 > 2 || (mo - 1 === 2 && d >= firstSundayDate(2) + 7);
-    const beforeNov = mo - 1 < 10 || (mo - 1 === 10 && d < firstSundayDate(10));
-    offsetHours = afterMar && beforeNov ? -6 : -7;
-  }
-  return new Date(Date.UTC(y, mo - 1, d, h, mi) - offsetHours * 3600000).toISOString();
-};
-
-// Device-independent {h, m} extraction for ANY stored time format:
-//   - naive "YYYY-MM-DDTHH:mm[:ss]" (actual_delivery_time convention): these ARE
-//     Edmonton wall-clock strings — read the components VERBATIM. Never
-//     Date-parse them: new Date(naive) applies the device's own timezone engine,
-//     which is broken/premature on some fleet machines (-1hr skew).
-//   - short "HH:mm": already wall-clock, verbatim.
-//   - real ISO with Z/offset: true instant -> Edmonton wall via pure UTC math.
-const parseTimelineHM = (timeStr) => {
-  if (!timeStr) return null;
-  try {
-    const str = String(timeStr);
-    let m = /^(\d{1,2}):(\d{2})$/.exec(str);
-    if (m) return { h: Number(m[1]), m: Number(m[2]) };
-    m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(str);
-    if (m && !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str)) {
-      return { h: Number(m[4]), m: Number(m[5]) }; // naive Edmonton wall — verbatim
-    }
-    const d = new Date(str);
-    if (isNaN(d)) return null;
-    return getEdmontonHM(d);
-  } catch {return null;}
-};
-
-// Parse any time string to Alberta-local minutes-since-midnight
+// Parse any time string to Alberta-local minutes-since-midnight.
+// Segment times are naive Edmonton wall clock ("YYYY-MM-DDTHH:mm") and are read
+// verbatim; legacy ISO-Z rows resolve to Edmonton wall. All of that lives in the
+// one shared helper (utils/albertaTime) — the inline offset/DST block that used
+// to sit here hardcoded a false "permanent UTC-6 from Nov 1 2026" rule.
 const localMinutes = (timeStr) => {
-  const hm = parseTimelineHM(timeStr);
+  const hm = edmontonWallHM(timeStr);
   return hm ? hm.h * 60 + hm.m : null;
 };
 
@@ -379,8 +302,8 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
 function SegmentDialog({ record, onSave, onClose }) {
   const [segments, setSegments] = useState(
     (record?.activity_segments || []).map((s) => ({
-      start_time: s.start_time ? isoToEdmontonInput(s.start_time) : '',
-      end_time: s.end_time ? isoToEdmontonInput(s.end_time) : '',
+      start_time: s.start_time ? edmontonDateTimeInput(s.start_time) : '',
+      end_time: s.end_time ? edmontonDateTimeInput(s.end_time) : '',
       tot: s.tot ?? ''
     }))
   );
@@ -396,10 +319,12 @@ function SegmentDialog({ record, onSave, onClose }) {
       const built = segments.
       filter((s) => s.start_time).
       map((s) => {
-        const start = edmontonInputToIso(s.start_time);
-        const end = s.end_time ? edmontonInputToIso(s.end_time) : null;
-        const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
-        return { start_time: start, end_time: end, tot };
+        // OWNER DIRECTIVE (Nov 1 2026): store exactly what was selected. The
+        // datetime-local value is written VERBATIM as a naive wall-clock string
+        // and never converted, so repeated open + save can never shift it.
+        const end = s.end_time || null;
+        const tot = end ? wallMinutesBetween(s.start_time, end) : null;
+        return { start_time: s.start_time, end_time: end, tot };
       });
       await onSave({ activity_segments: built });
       onClose();
@@ -453,7 +378,7 @@ function SegmentDialog({ record, onSave, onClose }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DriverActivityTab({ appUsers = [], cities = [], stores = [] }) {
-  const today = isoToEdmontonInput(new Date().toISOString()).slice(0, 10);
+  const today = edmontonTodayKey();
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedCityId, setSelectedCityId] = useState('all');
@@ -670,10 +595,12 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
       const built = newSegments.
       filter((s) => s.start_time).
       map((s) => {
-        const start = edmontonInputToIso(s.start_time);
-        const end = s.end_time ? edmontonInputToIso(s.end_time) : null;
-        const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
-        return { start_time: start, end_time: end, tot };
+        // OWNER DIRECTIVE (Nov 1 2026): store exactly what was selected. The
+        // datetime-local value is written VERBATIM as a naive wall-clock string
+        // and never converted, so repeated open + save can never shift it.
+        const end = s.end_time || null;
+        const tot = end ? wallMinutesBetween(s.start_time, end) : null;
+        return { start_time: s.start_time, end_time: end, tot };
       });
       const created = await base44.entities.DriverDailyActivity.create({
         driver_id: newDriverId,

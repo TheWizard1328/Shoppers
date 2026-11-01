@@ -21,28 +21,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 class HttpError extends Error { constructor(s, m) { super(m); this.status = s; } }
 const requireUser = async (b44) => { const u = await b44.auth.me().catch(() => null); if (!u) throw new HttpError(401, 'Unauthorized'); return u; };
 
-// ── Alberta wall-clock (port of albertaTime.js — pure UTC arithmetic, no Intl) ──
-const ALBERTA_PERMANENT_UTC6_MS = Date.UTC(2026, 10, 1, 8, 0, 0);
-const albertaOffsetHoursAt = (utcMs) => {
-  if (utcMs >= ALBERTA_PERMANENT_UTC6_MS) return -6;
-  const y = new Date(utcMs).getUTCFullYear();
-  const firstSundayDate = (monthIdx) => 1 + ((7 - new Date(Date.UTC(y, monthIdx, 1)).getUTCDay()) % 7);
-  const dstStartMs = Date.UTC(y, 2, firstSundayDate(2) + 7, 9, 0, 0);
-  const dstEndMs = Date.UTC(y, 10, firstSundayDate(10), 8, 0, 0);
-  return utcMs >= dstStartMs && utcMs < dstEndMs ? -6 : -7;
-};
-const pad = (v) => String(v).padStart(2, '0');
-const toEdmontonWall = (date) => {
-  const local = new Date(date.getTime() + albertaOffsetHoursAt(date.getTime()) * 3600000);
-  return { y: local.getUTCFullYear(), mo: local.getUTCMonth() + 1, d: local.getUTCDate(), h: local.getUTCHours(), mi: local.getUTCMinutes(), s: local.getUTCSeconds() };
-};
-const edmontonWallString = (date) => { const w = toEdmontonWall(date); return `${w.y}-${pad(w.mo)}-${pad(w.d)}T${pad(w.h)}:${pad(w.mi)}:${pad(w.s)}`; };
-const edmontonBusinessDayKey = (date = new Date()) => {
-  const w = edmontonWallString(date);
-  if (Number(w.slice(11, 13)) >= 5) return w.slice(0, 10);
-  const y = Number(w.slice(0, 4)), mo = Number(w.slice(5, 7)), d = Number(w.slice(8, 10));
-  return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
-};
+// ── Alberta wall-clock — SHARED Intl-backed helper ───────────────────────────
+// OWNER DIRECTIVE (Nov 1 2026): the previous copy of this math hardcoded a
+// "permanent UTC-6 from Nov 1 2026" rule that was false (Alberta kept MST/-7 and
+// the normal DST cycle), so every November instant resolved an hour late. The
+// offset now comes from the tz database via base44/shared/albertaWall.ts — never
+// a hardcoded offset or transition date.
+import { edmontonBusinessDayKey, edmontonWallString } from '../../shared/albertaWall.ts';
 
 // ── Fee sheet + whole-cent rounding (owner spec Oct 7 2026) ──
 const DEFAULT_FOLDER_RATE = 0.02;

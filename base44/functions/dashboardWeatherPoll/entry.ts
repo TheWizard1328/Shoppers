@@ -24,6 +24,11 @@
 //    drivers on duty). Still subject to the 4-minute freshness guard.
 //  force_refresh — bypasses the freshness guard (admin/testing).
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+// Edmonton wall date from the SHARED Intl-backed helper (base44/shared/albertaWall.ts).
+// OWNER DIRECTIVE (Nov 1 2026): the old `Date.now() - 6h` shortcut assumed a
+// permanent UTC-6 that never happened — Alberta kept MST/-7 and the normal DST
+// cycle, so that shortcut produced the wrong day for an hour every evening.
+import { edmontonTodayKey } from '../../shared/albertaWall.ts';
 
 const SETTINGS_KEY = 'dashboard_weather';
 
@@ -179,10 +184,10 @@ async function getWeatherForCity(lat, lon) {
 }
 
 // Fields that count as a "real change" (source flapping alone is not a change)
-// Edmonton wall date (pure math — Alberta stays on permanent UTC-6; DST in
-// 2026 is also UTC-6). Never trust device/system timezone.
+// Edmonton wall date — asked from the tz database (America/Edmonton), never from
+// a hardcoded offset. Never trust the runtime's own timezone either.
 function edmontonDayKey() {
-  return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return edmontonTodayKey();
 }
 
 const COMPARE_FIELDS = ['temp', 'feels', 'text', 'icon', 'high', 'low', 'precipProb', 'snowCm', 'day_high', 'day_low', 'next_high', 'next_low'];
