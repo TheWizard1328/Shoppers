@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 55;
+export const BUILD_NUMBER = 56;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -139,6 +139,7 @@ export const CHANGE_LOG = [
   { build: 53, area: 'Card Balances', audience: 'admins', summary: 'A COD marked Not Tapped that is then charged to the card no longer stays exempt: the later charge overrides the mark, so the balance stops reading one COD high.' },
   { build: 54, area: 'Theme', audience: 'owner', summary: 'Dark-mode colours now ship in the stylesheet instead of an injected style tag, fixing the white sidebar and cards that only appeared in the Base44 editor. Live, preview, PWA and APK are unchanged.' },
   { build: 55, area: 'Theme', audience: 'all', summary: 'Dark styling now follows the app theme only, never the computers own dark setting, so a light app on a dark PC no longer shows stray dark bars, badges and cards.' },
+  { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

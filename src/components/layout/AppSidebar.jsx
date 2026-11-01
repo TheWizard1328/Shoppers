@@ -306,30 +306,31 @@ export default function AppSidebar({
           </h2>
           <p className="text-xs text-soft">Pharmacy Logistics</p>
           <div className="flex items-center gap-1">
-            {/* OWNER REQUEST (Oct 31 2026): the version line is the way into the
-                update log. Non-owners never see the published "What's new"
-                dialog yet, so the owner needs an on-demand view of the same
-                entries — including everything not published yet. */}
-            <button
-              type="button"
-              onClick={onOpenUpdateLog || undefined}
-              disabled={!onOpenUpdateLog}
-              title={onOpenUpdateLog ? 'View update log' : undefined}
-              className={`text-xs text-soft text-left ${onOpenUpdateLog ? 'hover:text-body hover:underline cursor-pointer' : 'cursor-default'}`}
-            >
+            {/* OWNER LAYOUT (Nov 1 2026): the version line is plain text again —
+                the entry point is now a separate "Change Logs" row underneath,
+                so the version number is not itself a link and the builds-ahead
+                counter reads cleanly next to it. */}
+            <p className="text-xs text-soft text-left">
               {appVersion}
               {/* Owner-only builds-ahead counter: monotonic BUILD_NUMBER minus
-                  the last published baseline, so it survives APK bumps and the
-                  WEB_VERSION reset to 0 (owner request Oct 30 2026). */}
+                  the live deployment's build number, so it survives APK bumps
+                  and the WEB_VERSION reset to 0 (owner request Oct 30 2026). */}
               {buildsAheadCount > 0 && (
                 <span className="ml-1 font-semibold text-amber-600">(+{buildsAheadCount})</span>
               )}
-              {onOpenUpdateLog && (
-                <span className="ml-1 text-[10px] font-semibold text-emerald-600">log</span>
-              )}
-            </button>
+            </p>
             {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
+          {onOpenUpdateLog && (
+            <button
+              type="button"
+              onClick={onOpenUpdateLog}
+              title="View the change log"
+              className="mt-0.5 text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
+            >
+              Change Logs
+            </button>
+          )}
         </div>
       </div>
 
