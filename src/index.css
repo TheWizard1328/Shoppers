@@ -114,7 +114,7 @@ button:focus-visible {
      element (the Base44 editor is known to add one) darkened only its own
      subtree — half-dark pages that only ever reproduced in the editor. The app
      only ever puts the class on <html>, so gate on the root. */
-  html.dark, html.dark-theme {
+  html.dark-theme, html.auto-theme.dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -472,9 +472,7 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
 }
 
 html.dark-theme,
-html.dark-theme body,
-html.dark,
-html.dark body {
+html.dark-theme body {
   --bg-white: #0f172a;
   --bg-slate-50: #1e293b;
   --bg-slate-100: #334155;
@@ -517,10 +515,8 @@ html.dark body {
 }
 
 @media (prefers-color-scheme: dark) {
-  html.auto-theme,
-  html.auto-theme body,
-  html.dark,
-  html.dark body {
+  html.auto-theme.dark,
+  html.auto-theme.dark body {
     --bg-white: #0f172a;
     --bg-slate-50: #1e293b;
     --bg-slate-100: #334155;

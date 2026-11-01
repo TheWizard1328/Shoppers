@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentDevice } from '../utils/deviceManager';
 import { useUser } from '../utils/UserContext';
+import { isAppDarkTheme } from '@/lib/utils';
 
 export default function BatteryIndicator({ vertical = false }) {
   const [batteryLevel, setBatteryLevel] = useState(null);
@@ -62,13 +63,11 @@ export default function BatteryIndicator({ vertical = false }) {
   // set for both explicit Dark and Auto+system-dark by useAutoThemeSync).
   // FIX (Oct 21 2026): previously read the OS prefers-color-scheme FIRST, so a PC
   // set to OS-dark rendered white battery text while the app itself was Light.
-  const [isDarkMode, setIsDarkMode] = useState(() =>
-    document.documentElement.classList.contains('dark-theme') ||
-    document.documentElement.classList.contains('dark'));
+  const [isDarkMode, setIsDarkMode] = useState(() => isAppDarkTheme());
   useEffect(() => {
     const root = document.documentElement;
     const observer = new MutationObserver(() => {
-      const dark = root.classList.contains('dark-theme') || root.classList.contains('dark');
+      const dark = isAppDarkTheme();
       setIsDarkMode(prev => prev === dark ? prev : dark);
     });
     observer.observe(root, { attributes: true, attributeFilter: ['class'] });

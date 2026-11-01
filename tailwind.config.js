@@ -54,7 +54,16 @@ module.exports = {
     // 'html.dark .dark\:x' — keeps every existing theme path (explicit Dark and
     // Auto+system-dark both add html.dark via useAutoThemeSync) and makes foreign
     // nested .dark elements powerless inside the app.
-    darkMode: ['selector', 'html.dark &'],
+    // FIX (Nov 1 2026, owner report: app set to LIGHT while the PC is DARK, so
+    // only a handful of dark: boxes rendered dark, editor-only). 'html.dark &'
+    // trusted a BARE dark class on <html>; the Base44 editor puts one there
+    // while the app's own 'light-theme' class is also set, so every dark:
+    // utility fired while the CSS variables stayed light. The gate is now the
+    // app's OWN resolved signals only:
+    //   html.dark-theme          = explicit Dark
+    //   html.auto-theme + .dark  = Auto with a dark OS
+    // A bare stray 'dark' (or '.dark') no longer turns anything dark.
+    darkMode: ['selector', ':is(html.dark-theme, html.auto-theme.dark) &'],
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {

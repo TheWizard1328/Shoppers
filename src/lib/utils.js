@@ -9,6 +9,30 @@ export function cn(...inputs) {
 export const isIframe = window.self !== window.top;
 
 /**
+ * Single source of truth for "is the app in dark mode?" used by every
+ * component that styles itself in JS (map tiles, markers, canvas viewers).
+ *
+ * OWNER REPORT (Nov 1 2026): the app was set to LIGHT while the PC's OS was
+ * DARK, and a few JS-themed pieces still rendered dark. Two traps caused it:
+ * reading prefers-color-scheme directly (the OS, not the app's choice) and
+ * trusting a bare `dark` class. The Base44 editor puts its OWN dark classes on
+ * the preview document, so a bare `dark` must never count.
+ *
+ * Signals owned by useAutoThemeSync:
+ *   light   → html.light-theme
+ *   dark    → html.dark-theme
+ *   auto    → html.auto-theme + html.dark only when the OS is dark
+ */
+export const isAppDarkTheme = () => {
+  if (typeof document === 'undefined' || !document.documentElement) return false;
+  const root = document.documentElement;
+  const cls = root.classList;
+  if (cls.contains('light-theme')) return false;
+  if (cls.contains('dark-theme')) return true;
+  return cls.contains('auto-theme') && cls.contains('dark');
+};
+
+/**
  * True when the app is running inside the Base44 editor's Preview tab
  * (desktop PWA editor, the Base44 Android APK editor, or any sandbox host).
  *

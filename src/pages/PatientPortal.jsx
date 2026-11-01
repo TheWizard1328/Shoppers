@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 import { getHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { patientPortalPing } from '@/functions/patientPortalPing';
+import { isAppDarkTheme } from '@/lib/utils';
 
 // Fix default Leaflet icon paths
 delete L.Icon.Default.prototype._getIconUrl;
@@ -381,17 +382,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Same detection the dashboard map uses: the 'dark-theme' root class, or
   // 'auto-theme' + system prefers-dark. A MutationObserver flips tiles live
   // when the theme changes.
-  const [isDarkTheme, setIsDarkTheme] = useState(() =>
-    typeof document !== 'undefined' && (
-      document.documentElement.classList.contains('dark-theme') ||
-      (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    )
-  );
+  const [isDarkTheme, setIsDarkTheme] = useState(() => isAppDarkTheme());
   const [hereApiKey, setHereApiKey] = useState(() => getHereApiKey() || null);
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      const dark = document.documentElement.classList.contains('dark-theme') ||
-        (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const dark = isAppDarkTheme();
       setIsDarkTheme(prev => (prev === dark ? prev : dark));
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });

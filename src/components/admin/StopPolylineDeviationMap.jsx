@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import 'leaflet/dist/leaflet.css';
+import { isAppDarkTheme } from '@/lib/utils';
 
 const MAX_WAYPOINTS = 3; // schema: max 3 chronological via points per leg
 
@@ -132,11 +133,7 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
   const tileLayerUrl = useMemo(() => {
     if (!hereApiKey) return null;
     let dark = false;
-    try {
-      dark = document.documentElement.classList.contains('dark-theme') ||
-        (document.documentElement.classList.contains('auto-theme') &&
-          window.matchMedia('(prefers-color-scheme: dark)').matches);
-    } catch (_) { dark = false; }
+    try { dark = isAppDarkTheme(); } catch (_) { dark = false; }
     return dark ? buildHereDarkTileUrl(hereApiKey) : buildHereLightTileUrl(hereApiKey);
   }, [hereApiKey]);
   const [selectedIdx, setSelectedIdx] = useState(null);

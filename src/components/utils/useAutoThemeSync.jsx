@@ -53,6 +53,27 @@ export default function useAutoThemeSync(themePreference) {
     else root.classList.remove('dark');
   }, []);
 
+  // EDITOR GUARD (owner report Nov 1 2026: app set to LIGHT on a Dark-OS PC,
+  // and a handful of elements still rendered dark — editor only). The Base44
+  // editor's preview document writes its OWN theme classes onto <html>. The app
+  // never needs a bare 'dark': its own state is always expressed as
+  // 'dark-theme' (explicit Dark) or 'auto-theme' + 'dark' (Auto + dark OS). So
+  // a 'dark' with neither of those companions is somebody else's and is
+  // stripped, which keeps tailwind dark: utilities, the .dark CSS block and
+  // every JS check on the app's own signal.
+  useEffect(() => {
+    const root = document.documentElement;
+    const stripForeignDark = () => {
+      if (!root.classList.contains('dark')) return;
+      if (root.classList.contains('dark-theme') || root.classList.contains('auto-theme')) return;
+      root.classList.remove('dark');
+    };
+    stripForeignDark();
+    const observer = new MutationObserver(stripForeignDark);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const recheck = () => {
       let sysDark = false;

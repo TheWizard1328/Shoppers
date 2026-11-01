@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { broadcastMutation } from '@/components/utils/realtimeSync';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { isAppDarkTheme } from '@/lib/utils';
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -534,8 +535,7 @@ export default function PolylineViewer({ users = [] }) {
 
   const tileLayerUrl = useMemo(() => {
     if (!hereApiKey) return null;
-    const dark = document.documentElement.classList.contains('dark-theme') ||
-      (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const dark = isAppDarkTheme();
     return dark ? buildHereDarkTileUrl(hereApiKey) : buildHereLightTileUrl(hereApiKey);
   }, [hereApiKey]);
 

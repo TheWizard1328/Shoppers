@@ -8,6 +8,7 @@ import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
+import { isAppDarkTheme } from '@/lib/utils';
 
 // OWNER REQUEST (Oct 30 2026): co-located markers fan out at zoom 15 on phones
 // and 16 on larger screens, same rule as the cycling pins.
@@ -103,7 +104,7 @@ export default function PickupMarkers({
       dragend: (e) => handleMarkerDragEnd(pickup.id, e, 'pickup')
     };
 
-    const isDark = document.documentElement.classList.contains('dark-theme') || (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const isDark = isAppDarkTheme();
 
     return [
       // Store pickup zone ring — REAL store pickups only. InterStore pickups

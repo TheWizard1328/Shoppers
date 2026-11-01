@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { haversineMeters } from '@/components/utils/geoUtils';
+import { isAppDarkTheme } from '@/lib/utils';
 import { MapContainer, Pane, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -1161,15 +1162,11 @@ function DeliveryMap({
     unhideCandidatesRef.current = cands;
   }, [currentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, sharedLocationMarkersTick]);
 
-  const [isDarkTheme, setIsDarkTheme] = useState(() =>
-    document.documentElement.classList.contains("dark-theme") ||
-    (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
-  );
+  const [isDarkTheme, setIsDarkTheme] = useState(() => isAppDarkTheme());
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      const dark = document.documentElement.classList.contains("dark-theme") ||
-        (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const dark = isAppDarkTheme();
       setIsDarkTheme(prev => prev === dark ? prev : dark);
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
