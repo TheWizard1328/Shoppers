@@ -110,7 +110,11 @@ button:focus-visible {
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
-  .dark {
+  /* ROOT-ONLY (Nov 1 2026): was bare `.dark`, so ANY injected nested .dark
+     element (the Base44 editor is known to add one) darkened only its own
+     subtree — half-dark pages that only ever reproduced in the editor. The app
+     only ever puts the class on <html>, so gate on the root. */
+  html.dark, html.dark-theme {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -424,4 +428,133 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
    hue back to natural colors, brightness/contrast/saturate tune the result. */
 .portal-osm-dark .leaflet-tile {
   filter: brightness(0.9) invert(1) hue-rotate(185deg) saturate(0.35) contrast(0.85);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   APP THEME TOKENS — STATIC (owner report Nov 1 2026, editor-only dark mode
+   failure). These variables used to live in the runtime <style> block built by
+   getLayoutStyles() inside Layout.jsx. The Base44 EDITOR does not apply that
+   injected style block, so every surface built on these variables (sidebar,
+   stop cards, dialogs, borders, text colours) fell back to white-with-black-text
+   browser defaults in the editor while compiled Tailwind utilities (map, header,
+   dark: variants) stayed correct. Live, preview, PWA and APK were fine.
+   Moved here so the tokens ship in the built stylesheet; the runtime tag now
+   only carries branding + sidebar geometry.
+   Gates unchanged: explicit dark = html.dark / html.dark-theme;
+   auto = html.auto-theme + prefers-color-scheme: dark.
+   Placed LAST so it keeps winning same-specificity ties, exactly as the
+   injected tag used to.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg-white: #ffffff;
+  --bg-slate-50: #f8fafc;
+  --bg-slate-100: #f1f5f9;
+  --bg-slate-200: #e2e8f0;
+  --text-slate-900: #0f172a;
+  --text-slate-800: #1e293b;
+  --text-slate-700: #334155;
+  --text-slate-600: #475569;
+  --text-slate-500: #64748b;
+  --text-slate-400: #94a3b8;
+  --border-slate-200: #e2e8f0;
+  --border-slate-300: #cbd5e1;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --image-filter: none;
+  --menu-border: #000000;
+  --primary-color: ${branding.primary_color};
+  --secondary-color: ${branding.secondary_color};
+  --accent-color: ${branding.accent_color};
+  --safe-area-bg: #cbd5e1; /* slate-300 grey for system bars in light mode */
+  --bg-indigo-50: #eef2ff;
+  --border-indigo-200: #c7d2fe;
+  --text-indigo-700: #4338ca;
+  --text-indigo-800: #3730a3;
+}
+
+html.dark-theme,
+html.dark-theme body,
+html.dark,
+html.dark body {
+  --bg-white: #0f172a;
+  --bg-slate-50: #1e293b;
+  --bg-slate-100: #334155;
+  --bg-slate-200: #475569;
+  --text-slate-900: #f8fafc;
+  --text-slate-800: #f1f5f9;
+  --text-slate-700: #e2e8f0;
+  --text-slate-600: #cbd5e1;
+  --text-slate-500: #94a3b8;
+  --text-slate-400: #64748b;
+  --border-slate-200: #cbd5e1;
+  --border-slate-300: #94a3b8;
+  --shadow-color: rgba(255, 255, 255, 0.1);
+  --image-filter: invert(1) hue-rotate(180deg);
+  --menu-border: #e2e8f0;
+  --safe-area-bg: #0f172a; /* dark for system bars in dark mode */
+  --bg-indigo-50: #1e2540;
+  --border-indigo-200: #3730a3;
+  --text-indigo-700: #c7d2fe;
+  --text-indigo-800: #e0e7ff;
+
+  /* shadcn/Tailwind theme vars — wired to the app's navy dark palette
+     (instead of the generic near-black/white shadcn defaults) so raw
+     shadcn components (Button outline, Dialog, Select, Popover, etc.)
+     match the app's actual dark surfaces. */
+  --background: 222 47% 11%;      /* slate-900, = --bg-white dark */
+  --foreground: 210 40% 98%;      /* slate-50, = --text-slate-900 dark */
+  --card: 222 47% 11%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 11%;
+  --popover-foreground: 210 40% 98%;
+  --secondary: 215 25% 27%;       /* slate-700, = --bg-slate-100 dark */
+  --secondary-foreground: 210 40% 98%;
+  --muted: 215 25% 27%;
+  --muted-foreground: 215 20% 65%; /* slate-400, = --text-slate-400 dark */
+  --accent: 215 25% 27%;
+  --accent-foreground: 210 40% 98%;
+  --border: 213 27% 84%;          /* slate-300, = --border-slate-200 dark */
+  --input: 213 27% 84%;
+}
+
+@media (prefers-color-scheme: dark) {
+  html.auto-theme,
+  html.auto-theme body,
+  html.dark,
+  html.dark body {
+    --bg-white: #0f172a;
+    --bg-slate-50: #1e293b;
+    --bg-slate-100: #334155;
+    --bg-slate-200: #475569;
+    --text-slate-900: #f8fafc;
+    --text-slate-800: #f1f5f9;
+    --text-slate-700: #e2e8f0;
+    --text-slate-600: #cbd5e1;
+    --text-slate-500: #94a3b8;
+    --text-slate-400: #64748b;
+    --border-slate-200: #cbd5e1;
+    --border-slate-300: #94a3b8;
+    --shadow-color: rgba(255, 255, 255, 0.1);
+    --image-filter: invert(1) hue-rotate(180deg);
+    --menu-border: #e2e8f0;
+    --safe-area-bg: #0f172a;
+    --bg-indigo-50: #1e2540;
+    --border-indigo-200: #3730a3;
+    --text-indigo-700: #c7d2fe;
+    --text-indigo-800: #e0e7ff;
+
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 25% 27%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 215 25% 27%;
+    --accent-foreground: 210 40% 98%;
+    --border: 213 27% 84%;
+    --input: 213 27% 84%;
+  }
 }

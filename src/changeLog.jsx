@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 53;
+export const BUILD_NUMBER = 54;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -137,6 +137,7 @@ export const CHANGE_LOG = [
   { build: 51, area: 'Card Balances', audience: 'admins', summary: 'CODs charged to card now shows only the charges listed on the page (yesterday onward), so the figure matches the rows and stopped reading as a huge negative. The card balance still subtracts every charge since the last True-Up.' },
   { build: 52, area: 'Card Balances', audience: 'admins', summary: 'CODs charged to card is now the exact total of the rows wearing a Card Spend pill on that store card. Not Tapped rows are left out, and the card balance math is unchanged.' },
   { build: 53, area: 'Card Balances', audience: 'admins', summary: 'A COD marked Not Tapped that is then charged to the card no longer stays exempt: the later charge overrides the mark, so the balance stops reading one COD high.' },
+  { build: 54, area: 'Theme', audience: 'owner', summary: 'Dark-mode colours now ship in the stylesheet instead of an injected style tag, fixing the white sidebar and cards that only appeared in the Base44 editor. Live, preview, PWA and APK are unchanged.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
