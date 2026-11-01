@@ -313,6 +313,10 @@ export default function DashboardDialogs({
                   // above and "preserve" the stale pre-drag order.
                   deliveries: optimisticDeliveries,
                   source: 'admin_reset_polylines',
+                  // Owner report Oct 31 2026: this path resumed syncs / read the
+                  // route back before the silent commit landed, so the fresh
+                  // polylines flashed and reverted. Await the server write.
+                  awaitServerWrite: true,
                 }).catch(() => null);
 
                 // OWNER FIX (Oct 15 2026): use the coordinator's freshDeliveries

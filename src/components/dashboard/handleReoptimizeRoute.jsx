@@ -69,6 +69,14 @@ export async function handleReoptimizeRoute({
       appUsers,
       source: 'reoptimize_fab',
       bypassDriverStatus: true,
+      // OWNER REPORT (Oct 31 2026): "new polylines show for a fraction of a
+      // second then revert; a refresh shows them correctly." Cause: the silent
+      // server commit is fire-and-forget, so the `finally` block's
+      // resumeOfflineSync() pulled the route back from the server BEFORE that
+      // commit landed and the pre-optimization polylines overwrote the new
+      // ones. Awaiting the server write means the resume pull reads the
+      // committed geometry.
+      awaitServerWrite: true,
       // Same owner rule as the FAB: redraw only when the run actually changed
       // the order. The Quick Route Adjustments panel keeps forceRegenerate:true.
       forceRegenerate: false,

@@ -44,6 +44,10 @@ async function runClientSideOptimize({
     source,
     bypassDriverStatus: true,
     preserveExistingOrder: false,
+    // Read-your-write for the manual run (owner report Oct 31 2026): the sync
+    // managers resume right after this call, so the silent server commit must
+    // have landed or the pull reverts the fresh polylines to the old ones.
+    awaitServerWrite: true,
     // OWNER RULE (Oct 29 2026, corrected): the MANUAL optimize FAB redraws the
     // polylines ONLY when the optimization actually changed the route (at least
     // one stop_order moved). No change -> no redraw, the existing legs stand.
