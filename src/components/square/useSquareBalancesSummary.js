@@ -1085,8 +1085,21 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   };
   const cfg = cfgArg;
   const tu = cfg?.trued_up_at ? new Date(cfg.trued_up_at) : null;
-  const cutoffDate = (tu ? new Date(tu.getTime() - 6 * 3600000) : new Date(Date.now() - 6 * 3600000)).toISOString().slice(0, 10);
-  const isCounted = (d) => String(d?.delivery_date || '') >= cutoffDate;
+  // OWNER DIRECTIVE (Oct 31 2026): "Charged to Card" must reflect ONLY the
+  // CURRENT active/pending, uncollected COD. The old gate counted everything
+  // dated since the last True-Up (minus 6h), so the total kept stacking days
+  // of uncollected CODs and never looked like the current route. Outstanding
+  // now counts ONLY the current window — yesterday, today and any future-dated
+  // pending stop (Edmonton dates). Anything older is not money the card is
+  // holding today and drops out of the total, the badge and the forecast.
+  const edmDateString = (ms = Date.now()) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+  const oldestCountedDate = edmDateString(Date.now() - 86400000);
+  const isCounted = (d) => {
+    const dd = String(d?.delivery_date || '').slice(0, 10);
+    if (!dd) return false;
+    return dd >= oldestCountedDate;
+  };
+  void tu;
   const centsOf = (n) => Math.round(Number(n || 0) * 100);
   const byLoc = new Map();
   const aggFor = (locId) => {

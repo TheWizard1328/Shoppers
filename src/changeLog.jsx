@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 39;
+export const BUILD_NUMBER = 40;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -91,6 +91,9 @@ export const CHANGE_LOG = [
   { build: 37, area: 'Payroll', audience: 'admins', summary: 'The payroll spinner now rebuilds the period from the stops and patients saved on this device, so km you just corrected shows up immediately.' },
   { build: 38, area: 'Payroll', audience: 'admins', summary: 'Km Overrides that only repeat the patient km are cleared automatically on refresh, and nothing auto-fills them any more.' },
   { build: 39, area: 'Deliveries', audience: 'all', summary: 'Patient search in the add-to-route form now falls back to every patient when the store-scoped list has no match, instead of showing an empty list.' },
+  { build: 40, area: 'Deliveries', audience: 'all', summary: 'Patient search now asks the server for the store (then all active patients) when nothing matches locally, so a store you are not cached for still finds its patients.' },
+  { build: 40, area: 'Square', audience: 'all', summary: 'Charged to Card now counts only the current uncollected COD (yesterday, today and future stops) instead of stacking every day since the last true-up.' },
+  { build: 40, area: 'App', audience: 'all', summary: 'The published version id is now keyed to the build and web version numbers, so publishing always changes the version every device reports.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

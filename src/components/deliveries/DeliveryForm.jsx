@@ -160,6 +160,8 @@ export default function DeliveryForm({
   }));
 
   const [patientSearch, setPatientSearch] = useState("");
+  // Server-side patient hits — the last-resort search source (owner report Oct 31 2026).
+  const [serverPatientHits, setServerPatientHits] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(() => (initialPatientId && Array.isArray(patients) ? (patients.find((pt) => pt && pt.id === initialPatientId) || null) : null));
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -690,7 +692,7 @@ export default function DeliveryForm({
     return sortStores(expandedStores);
   }, [freshStores, stores, isPickupMode, formData.patient_id, formData.driver_id, formData.delivery_date, formData.store_id, formData.ampm_deliveries, patients, currentUser, selectedPatient, delivery, allDeliveries, stagedDeliveries]);
 
-  const filteredPatients = useMemo(() => {
+  const localPatientMatches = useMemo(() => {
     if (!patientSearch || !patients || formData.patient_id) return [];
     const searchLower = patientSearch.toLowerCase().trim();
     if (!searchLower) return [];
@@ -751,6 +753,67 @@ export default function DeliveryForm({
     results = sortFilteredPatients(results, { currentUser, userHasRole, stores, stagedPatientIds, calculateDistance });
     return results.slice(0, 50).map(patient => ({ ...patient, _isAlreadyStaged: stagedPatientIds.has(patient.id) }));
   }, [patientSearch, patients, stores, currentUser, formData.patient_id, stagedDeliveries, allDeliveries]);
+
+  // OWNER REPORT (Oct 31 2026, Sharuk at Beverly): his device's patient cache
+  // only holds the stores that were hydrated for him, so a Beverly patient the
+  // dispatcher assigned (visible on the stop card, which carries its own name)
+  // was in NEITHER the store-scoped list NOR the full local list — the v39
+  // local fallback still came back empty. Final fallback: ask the SERVER for
+  // the form's selected store (then all active patients), debounced, only when
+  // the local lists produced nothing.
+  useEffect(() => {
+    const term = (patientSearch || '').trim();
+    if (term.length < 2 || formData.patient_id || localPatientMatches.length > 0) {
+      setServerPatientHits((prev) => (prev.length ? [] : prev));
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const needle = term.toLowerCase();
+        const stagedIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
+        const matchFn = (p) => {
+          if (!p) return false;
+          const name = (p.full_name || '').toLowerCase();
+          if (name.includes('deceased') || name.includes('(old')) return false;
+          return name.includes(needle)
+            || (p.address || '').toLowerCase().includes(needle)
+            || (p.phone || '').toLowerCase().includes(needle)
+            || (p.cp_name || '').toLowerCase().includes(needle);
+        };
+        // Scope to the form's store, or every store in the user's list when no
+        // store is chosen yet. PAGED: the API caps one response, so a single
+        // big-limit filter could return a slice that misses the patient.
+        const storeIds = formData.store_id
+          ? [formData.store_id]
+          : [...new Set([
+              ...((currentUser?.store_ids) || []),
+              ...(currentUser?.store_id ? [currentUser.store_id] : []),
+              ...(stores || []).filter((st) => !currentUser?.city_id || st?.city_id === currentUser.city_id).map((st) => st?.id),
+            ].filter(Boolean))].slice(0, 40);
+        const scopedRows = [];
+        for (let skip = 0; skip < 2000; skip += 500) {
+          const query = storeIds.length
+            ? { store_id: { $in: storeIds } }
+            : {};
+          const page = await base44.entities.Patient.filter(query, '-updated_date', 500, skip).catch(() => []);
+          if (!Array.isArray(page) || page.length === 0) break;
+          scopedRows.push(...page);
+          if (page.length < 500) break;
+        }
+        const hits = scopedRows.filter(matchFn);
+        if (cancelled) return;
+        console.log(`[DeliveryForm] server patient search "${needle}" -> ${hits.length} hit(s)`);
+        setServerPatientHits(hits.slice(0, 50).map((p) => ({ ...p, _isAlreadyStaged: stagedIds.has(p.id) })));
+      } catch {
+        if (!cancelled) setServerPatientHits([]);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [patientSearch, formData.patient_id, formData.store_id, localPatientMatches.length, stagedDeliveries, currentUser?.store_ids, currentUser?.store_id, currentUser?.city_id, stores]);
+
+  // Local matches always win; server hits only fill a genuinely empty list.
+  const filteredPatients = localPatientMatches.length > 0 ? localPatientMatches : serverPatientHits;
 
   const hasAnyDaySelected = useMemo(() => {
     return formData.recurring_weekly_mon || formData.recurring_weekly_tue || formData.recurring_weekly_wed || formData.recurring_weekly_thu || formData.recurring_weekly_fri || formData.recurring_weekly_sat || formData.recurring_weekly_sun;
