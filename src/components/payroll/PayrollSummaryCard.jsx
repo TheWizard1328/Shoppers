@@ -25,6 +25,7 @@ import LeftStatsAndNotes from './LeftStatsAndNotes';
 import { AppFeeAllDriversDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
+import { freezePayrollKmOverrides } from './freezePayrollKmOverrides';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
 import { applyStillOwedToNotes } from './stillOwedNote';
@@ -707,6 +708,15 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const handleDriverFinalize = async (driverData) => {
     setIsFinalizing(true);
     try {
+      // OWNER SPEC (Nov 1 2026): freeze every Paid Km Override above the 10 km
+      // limit at the PATIENT km for this driver + pay cycle BEFORE the payroll
+      // record is written, so a later patient-km edit cannot alter a confirmed
+      // payroll. One driver, one cycle per call; failures never block payroll.
+      await freezePayrollKmOverrides({
+        driverId: driverData.driver.id,
+        periodStart: periodStartStr,
+        periodEnd: periodEndStr
+      });
       let existingRecord = getDriverPayrollRecord(driverData.driver.id);
       // CRITICAL: Check server before creating — prevents duplicate payroll records
       if (!existingRecord) {
@@ -793,6 +803,18 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       const finalizedById = new Map();
       for (const dd of dwdList) {
         const rec = getDriverPayrollRecord(dd.driver.id);
+        // OWNER SPEC (Nov 1 2026): Finalize All freezes the Paid Km Overrides
+        // for one driver + pay cycle at a time, and ONLY for drivers that are
+        // not already confirmed (an already driver-finalized / admin-finalized
+        // cycle keeps the overrides it was confirmed with).
+        const alreadyConfirmed = !!rec && ['driver_finalized', 'admin_finalized'].includes(String(rec.status || ''));
+        if (!alreadyConfirmed) {
+          await freezePayrollKmOverrides({
+            driverId: dd.driver.id,
+            periodStart: periodStartStr,
+            periodEnd: periodEndStr
+          });
+        }
         const edit = driverEdits[dd.driver.id] || {};
         const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(dd.driver.id, edit.appFeePercent || 0);
         const netAmount = getPeriodNetAmount({
