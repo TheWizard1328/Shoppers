@@ -396,10 +396,46 @@ export default function PatientForm({
       distance: Number.isFinite(Number(pt.distance_from_store)) ? Number(pt.distance_from_store) : null,
       unit: pt.unit_number || pt.unit || null
     });
+    // OWNER SPEC (Oct 31 2026): group identical places into ONE row. Two
+    // patients at the same street address, or the same GPS rounded to ~10 m,
+    // are the same pickup point — the list showed a row per patient before.
+    const _addrKey = (v) => String(v || '')
+      .toLowerCase()
+      .replace(/\b(street|st|avenue|ave|boulevard|blvd|drive|dr|road|rd|lane|ln|court|ct|place|pl|terrace|ter|northwest|nw|northeast|ne|southwest|sw|southeast|se)\b\.?/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    const _gpsKey = (pt) => {
+      const la = Number(pt?.latitude ?? pt?.lat);
+      const lo = Number(pt?.longitude ?? pt?.lng);
+      return Number.isFinite(la) && Number.isFinite(lo) ? `${la.toFixed(4)}|${lo.toFixed(4)}` : '';
+    };
+    const groupRows = (rows) => {
+      const byKey = new Map();
+      (rows || []).forEach((pt) => {
+        const key = _addrKey(_addrOf(pt)) || _gpsKey(pt) || String(pt?.id || '');
+        if (!key) return;
+        const existing = byKey.get(key);
+        const isSameStore = !!(formData.store_id && pt.store_id === formData.store_id);
+        if (!existing) {
+          byKey.set(key, { patient: pt, count: 1, sameStore: isSameStore });
+          return;
+        }
+        existing.count += 1;
+        // A same-store patient is the most useful label for the shared address.
+        if (isSameStore && !existing.sameStore) {
+          existing.patient = pt;
+          existing.sameStore = true;
+        }
+      });
+      return Array.from(byKey.values()).map(({ patient, count }) => ({
+        ...norm(patient),
+        same_address_count: count
+      }));
+    };
     const sameStore = (allPatients || []).filter((pt) => pt && pt.store_id && pt.store_id === formData.store_id && _match(pt));
-    if (sameStore.length > 0) return sameStore.slice(0, 6).map(norm);
+    if (sameStore.length > 0) return groupRows(sameStore).slice(0, 6);
     const allStores = (allPatients || []).filter((pt) => pt && _match(pt));
-    return allStores.slice(0, 6).map(norm);
+    return groupRows(allStores).slice(0, 6);
   }, [allPatients, formData.store_id]);
 
   const handleAddressSelect = async (addressData) => {

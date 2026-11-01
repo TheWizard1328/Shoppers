@@ -150,9 +150,20 @@ Deno.serve(async (req) => {
 
     if (latitude && longitude) {
       requestBody.origin = { latitude, longitude };
-      requestBody.locationBias = {
-        circle: { center: { latitude, longitude }, radius: 50000 }
-      };
+      // OWNER SPEC (Oct 31 2026): callers can demand a STRICT radius (the
+      // patient form asks for 50 km around the assigned store) so lookups from
+      // other towns never appear. locationRestriction hard-filters server-side;
+      // without it the old soft bias (bias only, 50 km) is kept.
+      const restrictMeters = Number(body?.restrictRadiusMeters);
+      if (Number.isFinite(restrictMeters) && restrictMeters > 0) {
+        requestBody.locationRestriction = {
+          circle: { center: { latitude, longitude }, radius: Math.min(Math.round(restrictMeters), 50000) }
+        };
+      } else {
+        requestBody.locationBias = {
+          circle: { center: { latitude, longitude }, radius: 50000 }
+        };
+      }
     }
 
     googleApiCallCount += 1;

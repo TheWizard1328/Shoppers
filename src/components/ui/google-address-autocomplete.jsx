@@ -50,6 +50,15 @@ const unabbreviateAddress = (address) => {
   return result;
 };
 
+// Normalizes an address so "123 Main St" and "123 MAIN STREET" collapse to one
+// key — used to drop a Google row that repeats a saved patient address and to
+// group duplicate saved addresses into a single result.
+const normalizeAddressKey = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/\b(street|st|avenue|ave|boulevard|blvd|drive|dr|road|rd|lane|ln|court|ct|place|pl|terrace|ter|northwest|nw|northeast|ne|southwest|sw|southeast|se)\b\.?/g, '')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
 /**
  * Google Address Autocomplete Component
  * Provides address suggestions within 75km of a specified city center
@@ -70,7 +79,11 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   // carry __source:'patient' and are selected WITHOUT a googlePlaceDetails
   // call — their stored GPS coordinates (and, for the same store, the stored
   // distance) are reused directly.
-  localSearch = null
+  localSearch = null,
+  // OWNER SPEC (Oct 31 2026): the Google lookups must be STRICTLY inside a
+  // 50 km radius of the patient's assigned store, and they always render
+  // BELOW the deduped saved-patient addresses instead of being skipped.
+  radiusKm = 50
 }, ref) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -98,19 +111,26 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // Our own patient database answers before Google costs a call. The
       // caller's localSearch implements the ladder: same-store patients →
       // all patients → (empty) Google.
+      // OWNER SPEC (Oct 31 2026): saved-patient address matches are grouped
+      // and listed FIRST, and Google lookups now ALWAYS render below them
+      // (previously a single DB hit suppressed Google entirely). Addresses that
+      // are already shown from the patient database are dropped from the
+      // Google half so the same street never appears twice.
+      const localItems = [];
+      const localAddressKeys = new Set();
       if (localSearch) {
         try {
-          const localItems = await localSearch(searchText);
-          if (Array.isArray(localItems) && localItems.length > 0) {
-            console.log(`[GoogleAddressAutocomplete] ${localItems.length} DB match(es) for "${searchText}" — Google search skipped`);
-            setSuggestions(localItems);
-            setSelectedIndex(0);
-            setOpen(true);
-            return;
+          const found = await localSearch(searchText);
+          if (Array.isArray(found)) {
+            found.forEach((item) => {
+              localItems.push(item);
+              const k = normalizeAddressKey(item?.street_address || item?.description);
+              if (k) localAddressKeys.add(k);
+            });
           }
-          console.log(`[GoogleAddressAutocomplete] no DB matches for "${searchText}" — falling through to Google`);
+          console.log(`[GoogleAddressAutocomplete] ${localItems.length} DB match(es) for "${searchText}"`);
         } catch (localErr) {
-          console.warn('[GoogleAddressAutocomplete] local patient search failed — falling through to Google:', localErr?.message || localErr);
+          console.warn('[GoogleAddressAutocomplete] local patient search failed — using Google only:', localErr?.message || localErr);
         }
       }
       console.log(`📍 [GoogleAddressAutocomplete] Request #${requestCount.current} for: "${searchText}"`);
@@ -137,6 +157,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       if (cityCenter?.latitude && cityCenter?.longitude) {
         requestPayload.latitude = cityCenter.latitude;
         requestPayload.longitude = cityCenter.longitude;
+        // STRICT circle around the assigned store (owner spec Oct 31 2026).
+        requestPayload.restrictRadiusMeters = Math.round(Number(radiusKm || 50) * 1000);
       }
       
       console.log('📤 Request payload:', JSON.stringify(requestPayload, null, 2));
@@ -148,23 +170,30 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       console.log('[GoogleAddressAutocomplete] Parsed data:', data);
       console.log('[GoogleAddressAutocomplete] Predictions array:', data?.predictions);
 
-      if (data?.predictions && data.predictions.length > 0) {
-        console.log('[GoogleAddressAutocomplete] Got predictions:', data.predictions.length, data.predictions);
-        setSuggestions(data.predictions);
+      const googleItems = (data?.predictions || [])
+        .filter((pred) => !localAddressKeys.has(normalizeAddressKey(pred?.description)));
+      console.log('[GoogleAddressAutocomplete] Google predictions kept:', googleItems.length, 'of', (data?.predictions || []).length);
+      const merged = [...localItems, ...googleItems];
+      if (merged.length > 0) {
+        setSuggestions(merged);
         setSelectedIndex(0);
         setOpen(true);
-        console.log('[GoogleAddressAutocomplete] State updated - open:', true, 'suggestions:', data.predictions);
       } else {
-        console.log('[GoogleAddressAutocomplete] No predictions found');
         setSuggestions([]);
         setOpen(false);
         onSearchStateChange?.(false);
       }
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
-      setSuggestions([]);
-      setOpen(false);
-      onSearchStateChange?.(false);
+      if (typeof localItems !== 'undefined' && localItems.length > 0) {
+        setSuggestions(localItems);
+        setSelectedIndex(0);
+        setOpen(true);
+      } else {
+        setSuggestions([]);
+        setOpen(false);
+        onSearchStateChange?.(false);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -414,9 +443,20 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       {/* Dropdown for suggestions */}
       {open && suggestions.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-[10050] max-h-60 overflow-auto bg-surface border-surface" style={{ border: '1px solid var(--border-slate-200)' }}>
-          {suggestions.map((prediction, index) => (
+          {suggestions.map((prediction, index) => {
+            // GROUP HEADERS (owner spec Oct 31 2026): saved patient addresses
+            // first, then the Google lookups inside the store's 50 km circle.
+            const isPatientRow = prediction.__source === 'patient';
+            const prev = suggestions[index - 1];
+            const startsGroup = index === 0 || (prev?.__source === 'patient') !== isPatientRow;
+            return (
+            <React.Fragment key={prediction.place_id || prediction.patient_id || `row-${index}`}>
+            {startsGroup && (
+              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-soft bg-slate-50 dark:bg-slate-800/60" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+                {isPatientRow ? 'Saved addresses' : 'Google addresses (within 50 km of store)'}
+              </div>
+            )}
             <button
-              key={prediction.place_id}
               type="button"
               onPointerDownCapture={(e) => {
                 e.preventDefault();
@@ -455,6 +495,11 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
                       {prediction.same_store ? 'saved · this store' : 'saved'}
                     </span>
                   )}
+                  {Number(prediction.same_address_count) > 1 && (
+                    <span className="ml-1.5 text-[10px] font-semibold px-1 py-0.5 rounded-full bg-slate-500/15 text-slate-600 dark:text-slate-300 align-middle">
+                      +{Number(prediction.same_address_count) - 1} more here
+                    </span>
+                  )}
                 </span>
                 {prediction.distance !== null && prediction.distance !== undefined && (
                   <span className="text-xs text-soft">
@@ -463,7 +508,9 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
                 )}
               </div>
             </button>
-          ))}
+            </React.Fragment>
+            );
+          })}
         </div>
       )}
     </div>
