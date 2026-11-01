@@ -166,7 +166,12 @@ export default function StopDetailsPanel({
       if (Number.isFinite(km) && km > 0) {
         setStoreDistanceKm(km);
         // Heal the patient record once so the actual road distance is STORED.
-        if (!Number.isFinite(stored) || Math.abs(km - stored) > 0.05) {
+        // Only when the saved value IS the straight-line stamp (or missing) —
+        // the old `|km - stored| > 0.05` test overwrote a deliberately typed
+        // distance back to the computed one (owner report Nov 1 2026).
+        const storedLooksCrow = !Number.isFinite(stored) || stored <= 0 ||
+          (Number.isFinite(crow) && Math.abs(stored - crow) <= 0.05);
+        if (storedLooksCrow) {
           base44.entities.Patient.update(patientId, { distance_from_store: Math.round(km * 100) / 100 }).catch(() => {});
         }
       } else {

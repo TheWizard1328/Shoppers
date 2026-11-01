@@ -338,6 +338,16 @@ export default function PatientForm({
       setWeeklyDays(initialWeeklyDays);
       setShowWeeklyDays(false);
 
+      // CLAIM THE DISTANCE-REF (owner report Nov 1 2026: edited Patient
+      // distances did not stick). The store-change effect below seeds its ref
+      // from the FIRST render, where formData.store_id is still '' — so the
+      // patient's real store id looked like a store CHANGE, and every edit
+      // session silently cleared the saved distance and replaced it with a
+      // fresh Google lookup that could land after the owner had retyped it.
+      // Seeding the ref here (same commit, patient already known) makes that
+      // effect only ever fire on a genuine store change.
+      lastStoreIdForDistanceRef.current = patient.store_id || null;
+
       setTimeout(() => {
         isInitialLoad.current = false;
       }, 0);
