@@ -1099,7 +1099,28 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     if (!dd) return false;
     return dd >= oldestCountedDate;
   };
-  void tu;
+  // BALANCE-SIDE SCOPE (owner report Oct 31 2026: once Charged to Card was cut
+  // to the current window, the ACTUAL card balance read too HIGH). Display and
+  // the Charged-to-Card total stay current-window only, but the pending
+  // DEDUCTION must keep counting every uncollected COD the card was already
+  // charged for since the last True-Up. Otherwise a 3-day-old past-due stop
+  // silently drops its deduction and the estimate inflates by that amount.
+  // Cutoff mirrors computePendingCodDeduction (true-up − 6h, compared by date).
+  const tuCutoffDate = tu != null ? new Date(tu.getTime() - 6 * 3600000).toISOString().slice(0, 10) : null;
+  const inBalanceScope = (d) => {
+    if (isCounted(d)) return true;
+    const dd = String(d?.delivery_date || '').slice(0, 10);
+    if (!dd) return false;
+    return tuCutoffDate == null ? true : dd >= tuCutoffDate;
+  };
+  // Legacy-window items: they do NOT show in the Uncollected lists or the
+  // Charged-to-Card total, they only ride into the deduction math.
+  const legacyDeductByLoc = new Map();
+  const pushLegacy = (locId, item) => {
+    if (!locId || !item) return;
+    if (!legacyDeductByLoc.has(locId)) legacyDeductByLoc.set(locId, []);
+    legacyDeductByLoc.get(locId).push(item);
+  };
   const centsOf = (n) => Math.round(Number(n || 0) * 100);
   const byLoc = new Map();
   const aggFor = (locId) => {
@@ -1180,7 +1201,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     .sort((a, b) => (new Date(a?.created_date || 0).getTime() - new Date(b?.created_date || 0).getTime()));
   for (const d of failedRowsAsc) {
     const required = Number(d?.cod_total_amount_required || 0);
-    if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected || !d?.id) continue;
+    if (required <= 0 || !inBalanceScope(d) || d?.cod_confirmed_collected || !d?.id) continue;
     const amtC = Math.round(centsOf(required));
     const item0 = { delivery_id: d.id, amount: amtC / 100, date: String(d.delivery_date || '').slice(0, 10), store_id: d.store_id };
     const refunded = !!manualRefundMarks[String(d.id)]
@@ -1214,7 +1235,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
     const rows = deliveriesWithStatus(allDeliveries, status);
     for (const d of rows || []) {
       const required = Number(d?.cod_total_amount_required || 0);
-      if (required <= 0 || !isCounted(d) || d?.cod_confirmed_collected) continue;
+      if (required <= 0 || !inBalanceScope(d) || d?.cod_confirmed_collected) continue;
       const locId = storeToLoc.get(String(d?.store_id || ''));
       if (!locId) continue;
       const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
@@ -1264,6 +1285,9 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
           continue;
         }
       }
+      // Older than the current window: it still deducts (money already off
+      // the card) but must not appear in the Uncollected lists or totals.
+      if (!isCounted(d)) { pushLegacy(locId, item); continue; }
       const agg = aggFor(locId);
       agg.total += outstanding; agg.pendingCount += 1;
       agg.items.push(item);
@@ -1285,7 +1309,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   const cashByLoc = new Map();
   for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
     const required = Number(d?.cod_total_amount_required || 0);
-    if (required <= 0 || !isCounted(d)) continue;
+    if (required <= 0 || !isCounted(d)) continue; // display only — deduction comes from deductItems
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
@@ -1314,7 +1338,9 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   const deductByLoc = new Map();
   for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
     const required = Number(d?.cod_total_amount_required || 0);
-    if (required <= 0 || !isCounted(d)) continue;
+    // BALANCE SCOPE, not display scope: a completed cash COD from before the
+    // current window still holds its charge off the card until converted.
+    if (required <= 0 || !inBalanceScope(d)) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) continue;
     // CASH/CHEQUE completions KEEP their deduction (owner report Oct 9
@@ -1349,10 +1375,10 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
 
   const out = {};
   if (autoRefundedFailed.length) out.autoRefundedFailed = autoRefundedFailed;
-  const allLocs = new Set([...byLoc.keys(), ...deductByLoc.keys(), ...cashByLoc.keys()]);
+  const allLocs = new Set([...byLoc.keys(), ...deductByLoc.keys(), ...cashByLoc.keys(), ...legacyDeductByLoc.keys()]);
   for (const locId of allLocs) {
     const agg = byLoc.get(locId) || { total: 0, pendingCount: 0, awaitingCount: 0, items: [] };
-    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50), deductItems: deductByLoc.get(locId) || [], cashItems: cashByLoc.get(locId) || [] };
+    out[locId] = { location_id: locId, total: agg.total / 100, pending_count: agg.pendingCount, awaiting_square_count: agg.awaitingCount, items: agg.items.slice(0, 50), deductItems: deductByLoc.get(locId) || [], cashItems: cashByLoc.get(locId) || [], legacyDeductItems: legacyDeductByLoc.get(locId) || [] };
   }
   return out;
 }
@@ -1707,6 +1733,9 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     const outstandingItems = [
       ...((codOutstandingDetailed?.[loc.location_id]?.items) || []),
       ...((codOutstandingDetailed?.[loc.location_id]?.deductItems) || []),
+      // Past-window uncollected CODs: hidden from the lists/total (Oct 31
+      // directive) but they still hold their charge off the card.
+      ...((codOutstandingDetailed?.[loc.location_id]?.legacyDeductItems) || []),
     ];
     // Owner rule Oct 6 2026 + Oct 7 2026 fix: deducted CODs (active OR
     // completed post-True-Up) keep deducting; "Not Tapped" marks never deduct.

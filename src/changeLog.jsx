@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 48;
+export const BUILD_NUMBER = 49;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -132,6 +132,7 @@ export const CHANGE_LOG = [
   { build: 46, area: 'Update Log', audience: 'owner', summary: 'The update log now has role tabs - Everyone, Drivers, Dispatchers, Admins and App owner - each showing only the changes that affect that role, with a role tag on every entry.' },
   { build: 47, area: 'Update Log', audience: 'owner', summary: 'Every update-log entry now has clickable Owner / Drivers / Dispatchers / Admins / Everyone badges so you can correct who a change is for; the correction is saved app-wide and survives the next build.' },
   { build: 48, area: 'Update Log', audience: 'owner', summary: 'The role badges and tabs are now flat, shorter text labels instead of filled pill buttons; the selected one is green and underlined.' },
+  { build: 49, area: 'Card Balances', audience: 'admins', summary: 'The card balance estimate is back down to the real number: uncollected CODs from before yesterday are hidden from the Charged to Card list again, but they still hold their deduction off the card until they are collected or trued up.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

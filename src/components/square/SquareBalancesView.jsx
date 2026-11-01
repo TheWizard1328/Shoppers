@@ -2110,7 +2110,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // deducted COD KEEPS its deduction after completion — the order's goods
       // were already charged to the Square card. Only the collected net
       // (credits) comes back on top.
-      const estimateItems = [...(codOut?.items || []), ...(codOut?.deductItems || [])];
+      // + legacyDeductItems (owner report Oct 31 2026): uncollected CODs from
+      // before the current window are hidden from the lists and the Charged to
+      // Card total, but they still hold their charge off the card — dropping
+      // them made this estimate read too high.
+      const estimateItems = [...(codOut?.items || []), ...(codOut?.deductItems || []), ...(codOut?.legacyDeductItems || [])];
       // REAL card withdrawals only (owner report Oct 7 2026): a card sale's
       // settled/net cents auto-sweep FROM the store location ONTO the card
       // ('store_topup' rows) — they ARRIVE, they never leave. Subtracting
