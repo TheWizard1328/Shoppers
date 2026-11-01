@@ -16,12 +16,12 @@ import { groupEntriesByAudience, entriesForRole, ROLE_VIEWS, AUDIENCE_LABELS } f
 // The five audiences the owner can assign from the log. 'everyone' is stored as
 // 'all' to match the shipped keys in src/changeLog.jsx.
 const AUDIENCE_CHOICES = [
-  { key: 'owner', label: 'Owner' },
-  { key: 'drivers', label: 'Drivers' },
-  { key: 'dispatchers', label: 'Dispatchers' },
-  { key: 'admins', label: 'Admins' },
-  { key: 'all', label: 'Everyone' },
-];
+{ key: 'owner', label: 'Owner' },
+{ key: 'drivers', label: 'Drivers' },
+{ key: 'dispatchers', label: 'Dispatchers' },
+{ key: 'admins', label: 'Admins' },
+{ key: 'all', label: 'Everyone' }];
+
 
 export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSetAudience }) {
   // ROLE TABS (owner request Oct 31 2026): the owner wants to see at a glance
@@ -33,13 +33,13 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
   const groups = useMemo(() => groupEntriesByAudience(roleFiltered), [roleFiltered]);
   const roleCounts = useMemo(() => {
     const counts = {};
-    ROLE_VIEWS.forEach((view) => { counts[view.key] = entriesForRole(entries || [], view.key).length; });
+    ROLE_VIEWS.forEach((view) => {counts[view.key] = entriesForRole(entries || [], view.key).length;});
     return counts;
   }, [entries]);
 
   // Escape closes — matches every other dialog in the app.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    const onKey = (e) => {if (e.key === 'Escape') onClose?.();};
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -63,8 +63,8 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
             type="button"
             onClick={onClose}
             className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-          >
+            aria-label="Close">
+            
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -77,27 +77,27 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
                 key={view.key}
                 type="button"
                 onClick={() => setRoleView(view.key)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                
                 {view.label}
                 <span className={`ml-1 ${active ? 'text-emerald-100' : 'text-gray-400'}`}>{roleCounts[view.key] || 0}</span>
-              </button>
-            );
+              </button>);
+
           })}
         </div>
 
         <div className="space-y-4 px-4 py-3">
-          {groups.length === 0 && (
-            <p className="text-xs text-gray-500">No changes for this role in this window.</p>
-          )}
-          {groups.map((group) => (
-            <div key={group.audience}>
+          {groups.length === 0 &&
+          <p className="text-xs text-gray-500">No changes for this role in this window.</p>
+          }
+          {groups.map((group) =>
+          <div key={group.audience}>
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 {group.label}
               </p>
               <ul className="space-y-1.5">
-                {group.items.map((item) => (
-                  <li key={`${item.build}-${item.area}-${item.summary}`} className="rounded-lg bg-gray-50 px-3 py-2">
+                {group.items.map((item) =>
+              <li key={`${item.build}-${item.area}-${item.summary}`} className="rounded-lg bg-gray-50 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold text-gray-700">
                         {item.area}
@@ -109,45 +109,45 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose, onSe
                     </div>
                     <p className="text-xs leading-snug text-gray-600">{item.summary}</p>
                     {/* Owner-editable audience (owner request Oct 31 2026): tap a
-                        badge to correct who this change is for. Saved app-wide,
-                        so the correction survives the next build. */}
-                    {onSetAudience && (
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                     badge to correct who this change is for. Saved app-wide,
+                     so the correction survives the next build. */}
+                    {onSetAudience &&
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         {AUDIENCE_CHOICES.map((choice) => {
-                          const active = (item.audience || 'all') === choice.key;
-                          return (
-                            <button
-                              key={choice.key}
-                              type="button"
-                              onClick={() => onSetAudience(item, choice.key)}
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
-                            >
+                    const active = (item.audience || 'all') === choice.key;
+                    return (
+                      <button
+                        key={choice.key}
+                        type="button"
+                        onClick={() => onSetAudience(item, choice.key)}
+                        className={`px-2 py-0.5 text-[10px] font-semibold transition-colors rounded-[50px] ${active ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}>
+                        
                               {choice.label}
-                            </button>
-                          );
-                        })}
-                        {item.audience_overridden && (
-                          <span className="text-[10px] text-amber-600">edited</span>
-                        )}
+                            </button>);
+
+                  })}
+                        {item.audience_overridden &&
+                  <span className="text-[10px] text-amber-600">edited</span>
+                  }
                       </div>
-                    )}
+                }
                   </li>
-                ))}
+              )}
               </ul>
             </div>
-          ))}
+          )}
         </div>
 
         <div className="sticky bottom-0 border-t bg-white px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
+            className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+            
             Got it
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
