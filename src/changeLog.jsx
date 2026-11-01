@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 42;
+export const BUILD_NUMBER = 43;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -96,6 +96,7 @@ export const CHANGE_LOG = [
   { build: 40, area: 'App', audience: 'all', summary: 'The published version id is now keyed to the build and web version numbers, so publishing always changes the version every device reports.' },
   { build: 41, area: 'Patients', audience: 'all', summary: 'Device now keeps every store\'s patients resident (refreshed daily) and a store/city change never deletes patient records any more, so occasional weekend stores stay searchable.' },
   { build: 42, area: 'Patients', audience: 'all', summary: 'The patient address search now shows one row per address (duplicates grouped, with a +N badge) and lists Google addresses below it, restricted to 50 km around the assigned store.' },
+  { build: 43, area: 'App', audience: 'owner', summary: 'Builds-ahead counter now compares against the live deployment\'s own build number instead of a baseline that only existed once someone opened the live site, so it shows the real number of unpublished builds.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */

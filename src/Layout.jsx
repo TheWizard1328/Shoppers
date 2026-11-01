@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
 import { BUILD_NUMBER, buildsAhead, entriesSince } from './changeLog';
 import { getChangeLogStateSync, loadChangeLogState, detectPublishAndCollect } from './components/utils/changeLogState';
+import { usePublishedBuildNumber } from './components/utils/publishedBuildInfo';
 import BuildUpdateDialog from './components/common/BuildUpdateDialog';
 import DispatcherLocationGate from './components/common/DispatcherLocationGate';
 import { getDriverDisplayName } from './components/utils/driverUtils';
@@ -327,7 +328,18 @@ export default function Layout({ children, currentPageName }) {
     return () => { cancelled = true; };
   }, [currentUser?.id, isOwnerDevice, isPreviewEnv]);
 
-  const buildsAheadCount = isOwnerDevice ? buildsAhead(changeLogBaseline) : 0;
+  // OWNER REPORT (Oct 31 2026): the counter read (+42) instead of (+1) because
+  // the baseline was only stamped when an owner device was open on the LIVE
+  // domain — with nobody on live it stayed 0, so every build counted. The
+  // baseline is now the LIVE deployment's own build number (cached 5 min);
+  // the stamped baseline is only a fallback, and with neither resolved the
+  // badge shows nothing rather than an invented number.
+  const publishedBuildNumber = usePublishedBuildNumber(isOwnerDevice);
+  const buildsAheadCount = !isOwnerDevice
+    ? 0
+    : (publishedBuildNumber
+        ? Math.max(0, BUILD_NUMBER - publishedBuildNumber)
+        : (changeLogBaseline > 0 ? Math.max(0, buildsAhead(changeLogBaseline)) : 0));
 
   // Web code update detection — polls /version.json every 5 min
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
