@@ -1753,11 +1753,32 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     // ONLY the charges still listed on the page (current window + current
     // completed charges), so the number always matches the rows the owner can
     // see.
+    // The displayed figure mirrors the ROWS the card shows (owner report Oct 31
+    // 2026: still not matching the store cards). Every uncollected row wears a
+    // Card Spend pill unless it is marked Not Tapped; a completed card-collected
+    // COD wears one too (collected_charge); a completed cash COD only does once
+    // it is marked. Sum exactly those, with NO true-up neutrality gate — a
+    // visible pill is a visible charge.
+    const isChargedRow = (it) => {
+      const id = it?.delivery_id ? String(it.delivery_id) : null;
+      const mark = id ? marksMap?.[id] : null;
+      if (mark?.notTapped === true) return false;
+      if (String(it?.status || '') === 'completed') {
+        if (it?.reason === 'collected_charge') return true;
+        return !!mark;
+      }
+      return true;
+    };
     const displayItems = [
       ...((codOutstandingDetailed?.[loc.location_id]?.items) || []),
       ...((codOutstandingDetailed?.[loc.location_id]?.deductItems) || []).filter((it) => it?.in_window !== false),
-    ];
-    const { deductCents: displayDeductCents, count: displayDeductCount } = computePendingCodDeduction(displayItems, marksMap, countedIdsSet || null, truedUpAt);
+    ].filter(isChargedRow);
+    let displayDeductCents = 0, displayDeductCount = 0;
+    for (const it of displayItems) {
+      const c = Math.round(Number(it?.amount || 0) * 100);
+      if (!(c > 0)) continue;
+      displayDeductCents += c; displayDeductCount += 1;
+    }
     // Full integer-cent estimate (owner spec Oct 7 2026): float dollar
     // addition (e.g. 96.85 + 97.64 − 53.05) can land a cent off — sum cents.
     const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;

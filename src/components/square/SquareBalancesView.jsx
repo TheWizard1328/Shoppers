@@ -2132,8 +2132,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // window). The card estimate above keeps the FULL balance scope; this
       // line shows only the charges still listed on the page, so the number
       // matches the rows the owner can see and tap.
-      const displayItems = [...(codOut?.items || []), ...(codOut?.deductItems || []).filter((it) => it?.in_window !== false)];
-      const { deductCents: displayDeductCents, count: displayDeductCount } = computePendingCodDeduction(displayItems, manualSpendMarks || {}, countedIdsSet, config?.trued_up_at || null);
+      // Mirrors the ROWS on this card (owner report Oct 31 2026): uncollected
+      // rows wear a Card Spend pill unless marked Not Tapped, completed
+      // card-collected CODs wear one too, completed cash CODs only once marked.
+      const isChargedRow = (it) => {
+        const id = it?.delivery_id ? String(it.delivery_id) : null;
+        const mark = id ? (manualSpendMarks || {})[id] : null;
+        if (mark?.notTapped === true) return false;
+        if (String(it?.status || '') === 'completed') {
+          if (it?.reason === 'collected_charge') return true;
+          return !!mark;
+        }
+        return true;
+      };
+      const displayItems = [...(codOut?.items || []), ...(codOut?.deductItems || []).filter((it) => it?.in_window !== false)].filter(isChargedRow);
+      let displayDeductCents = 0; let displayDeductCount = 0;
+      for (const it of displayItems) {
+        const c = Math.round(Number(it?.amount || 0) * 100);
+        if (!(c > 0)) continue;
+        displayDeductCents += c; displayDeductCount += 1;
+      }
       return {
         ...loc,
         saleCount: Number(dc.count || 0),
