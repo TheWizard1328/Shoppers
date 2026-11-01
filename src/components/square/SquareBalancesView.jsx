@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3 } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, UserRound } from "lucide-react";
 import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
@@ -329,7 +329,20 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               ))}
               {/* FINAL ROW — one per transaction: time, combined fee breakdown, settled net, tender badge */}
               <div className="flex items-center justify-between text-lg gap-1.5">
-                <span className="text-[13px] text-slate-500 dark:text-slate-400 tabular-nums">{r.sub}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[13px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">{r.sub}</span>
+                  {/* ASSIGNED DRIVER (owner request Nov 1 2026): the empty space
+                      between the date and the status pill now names the driver
+                      this COD is assigned to. Truncates on narrow cards so the
+                      status pill keeps its place. */}
+                  {r.driverName &&
+                  <span
+                    title={`Assigned to ${r.driverName}`}
+                    className="inline-flex items-center gap-0.5 min-w-0 rounded-full border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-[11px] font-medium leading-none text-slate-600 dark:text-slate-300">
+                    <UserRound className="w-3 h-3 shrink-0" />
+                    <span className="truncate max-w-[76px]">{r.driverName}</span>
+                  </span>}
+                </div>
                 {showNetAmount && isOwner && r.feeParts &&
                 <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">
                   S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
@@ -975,12 +988,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // Rows with no delivery link get no driver and stay owner-only.
       const scopeId = !isAppOwner(currentUser) && currentUser?.id && userHasRole(currentUser, 'driver') ? String(currentUser.id) : null;
       const driverByDelivery = new Map();
-      if (scopeId) {
-        try {
-          const allDel = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          (allDel || []).forEach((dd) => {if (dd?.id && dd?.driver_id) driverByDelivery.set(String(dd.id), String(dd.driver_id));});
-        } catch {/* fall through — unstamped catalog rows are driver-hidden */}
-      }
+      // ASSIGNED DRIVER (owner request Nov 1 2026): the store cards must name
+      // the driver on every COD row, so the same pass also records the
+      // delivery's driver_name (ids alone are unreadable on screen).
+      const driverNameByDelivery = new Map();
+      try {
+        const allDel = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        (allDel || []).forEach((dd) => {
+          if (dd?.id && dd?.driver_id) driverByDelivery.set(String(dd.id), String(dd.driver_id));
+          if (dd?.id && dd?.driver_name) driverNameByDelivery.set(String(dd.id), String(dd.driver_name));
+        });
+      } catch {/* fall through — unstamped catalog rows are driver-hidden */}
       const itemsPages = [];
       let anyFetchFailed = false;
       for (let skip = 0; skip < 20000; skip += 500) {
@@ -1018,6 +1036,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           key: `cat-${it.id || it.square_catalog_object_id}`,
           delivery_id: it.delivery_id || null,
           driver_id: driverByDelivery.get(String(it.delivery_id || '')) || null,
+          driverName: driverNameByDelivery.get(String(it.delivery_id || '')) || null,
           patientName: resolvePatientName(it.patient_id)?.full_name || parsed?.patientName || extractNameFromCatalogDescription(it.description) || null,
           storeAbbrev: abbrev,
           storeColor: sInfo?.color || sInfoByAbbrev?.color || null,
@@ -1351,6 +1370,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // driver scoping (owner rule Oct 9 2026): drivers only see rows
           // for deliveries assigned to them.
           driver_id: String(d.driver_id || '') || null,
+          driverName: d.driver_name || null,
           patientName: resolvePatientName(d.patient_id)?.full_name || null,
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
@@ -1523,6 +1543,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               combinedCount: group.length,
               combinedItems: group.map((r) => ({ storeAbbrev: r.storeAbbrev || null, storeColor: r.storeColor || null, patientName: r.patientName || null, amount: r.amount, sub: r.sub || null })),
               driver_id: group[0].driver_id || null,
+              driverName: group[0].driverName || null,
               patientName: names.join(' + ') || 'COD',
               storeAbbrev: group[0].storeAbbrev || null,
               storeColor: group[0].storeColor || null,
@@ -2782,6 +2803,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     key: `o-${it.delivery_id}`,
                     delivery_id: it.delivery_id,
                     driver_id: it.driver_id || null,
+                    driverName: it.driver_name || null,
                     patientName: it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -2795,6 +2817,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     key: `c-${it.delivery_id}`,
                     delivery_id: it.delivery_id,
                     driver_id: it.driver_id || null,
+                    driverName: it.driver_name || null,
                     patientName: it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -2819,6 +2842,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     key: it.key || `cat-${it.delivery_id || it.patientName}`,
                     delivery_id: it.delivery_id || null,
                     driver_id: it.driver_id || null,
+                    driverName: it.driverName || null,
                     patientName: it.patientName || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -2854,6 +2878,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const awaitingPickupRows = combinedSrc.filter(isAwaitingPickupRow).map((it) => ({
                     key: it.key || `f-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
+                    driver_id: it.driver_id || null,
+                    driverName: it.driverName || null,
                     patientName: it.patientName || it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -2872,6 +2898,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date === todayStr) && !isAwaitingPickupRow(it)).map((it) => ({
                     key: it.key || `o-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
+                    driver_id: it.driver_id || null,
+                    driverName: it.driverName || null,
                     patientName: it.patientName || it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,
@@ -2892,6 +2920,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const pastUncollectedRows = combinedSrc.filter((it) => it.date && it.date < todayStr).map((it) => ({
                     key: it.key || `p-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
+                    driver_id: it.driver_id || null,
+                    driverName: it.driverName || null,
                     patientName: it.patientName || it.patient || null,
                     storeAbbrev: it.storeAbbrev || null,
                     storeColor: it.storeColor || null,

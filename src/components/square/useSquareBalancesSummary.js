@@ -1262,7 +1262,10 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // driver_id rides along so the Square Balances page can scope the
       // visible rows per driver (owner rule Oct 9 2026: a driver only sees
       // the delivery items assigned to them).
-      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id) };
+      // ASSIGNED DRIVER (owner request Nov 1 2026): every COD row on a store
+      // card must name the driver it is assigned to, so driver_name rides
+      // along next to driver_id (driver_id alone is unreadable on screen).
+      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, driver_name: d.driver_name || null, ...storeBadgeOf(d.store_id) };
       if (status === 'failed' && failedKeepIds.has(String(d.id))) item.covers_retry_ids = coversByFailed.get(String(d.id)) || [];
       // FAILED + REFUNDED (auto or manual) → resolved: the refund put the
       // money back on the card, so the row leaves the Uncollected lists and
@@ -1321,7 +1324,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
       reason: 'cash_collected', date: String(d.delivery_date || '').slice(0, 10),
       created_date: d.created_date || null,
-      patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id)
+      patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, driver_name: d.driver_name || null, ...storeBadgeOf(d.store_id)
     });
   }
 
