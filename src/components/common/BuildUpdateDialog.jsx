@@ -9,12 +9,23 @@
 // and store PCs alike without pulling a dialog chunk into the boot path, and it
 // is owner-only so the surface stays small.
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, PackageCheck } from 'lucide-react';
-import { groupEntriesByAudience } from '@/changeLog';
+import { groupEntriesByAudience, entriesForRole, ROLE_VIEWS, AUDIENCE_LABELS } from '@/changeLog';
 
 export default function BuildUpdateDialog({ entries, versionLabel, onClose }) {
-  const groups = useMemo(() => groupEntriesByAudience(entries || []), [entries]);
+  // ROLE TABS (owner request Oct 31 2026): the owner wants to see at a glance
+  // which changes are for Drivers, Dispatchers, Admins and himself. 'Everyone'
+  // keeps the full grouped view; the other tabs narrow the list to the changes
+  // that actually affect that role.
+  const [roleView, setRoleView] = useState('all');
+  const roleFiltered = useMemo(() => entriesForRole(entries || [], roleView), [entries, roleView]);
+  const groups = useMemo(() => groupEntriesByAudience(roleFiltered), [roleFiltered]);
+  const roleCounts = useMemo(() => {
+    const counts = {};
+    ROLE_VIEWS.forEach((view) => { counts[view.key] = entriesForRole(entries || [], view.key).length; });
+    return counts;
+  }, [entries]);
 
   // Escape closes — matches every other dialog in the app.
   useEffect(() => {
@@ -34,7 +45,7 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose }) {
             <div>
               <h3 className="text-sm font-bold text-gray-900">What's new</h3>
               <p className="text-xs text-gray-500">
-                {versionLabel ? `${versionLabel} · ` : ''}{entries.length} change{entries.length === 1 ? '' : 's'} published
+                {versionLabel ? `${versionLabel} · ` : ''}{roleFiltered.length} change{roleFiltered.length === 1 ? '' : 's'}
               </p>
             </div>
           </div>
@@ -48,7 +59,27 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose }) {
           </button>
         </div>
 
+        <div className="sticky top-[57px] z-10 flex flex-wrap gap-1.5 border-b bg-white px-4 py-2">
+          {ROLE_VIEWS.map((view) => {
+            const active = roleView === view.key;
+            return (
+              <button
+                key={view.key}
+                type="button"
+                onClick={() => setRoleView(view.key)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                {view.label}
+                <span className={`ml-1 ${active ? 'text-emerald-100' : 'text-gray-400'}`}>{roleCounts[view.key] || 0}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="space-y-4 px-4 py-3">
+          {groups.length === 0 && (
+            <p className="text-xs text-gray-500">No changes for this role in this window.</p>
+          )}
           {groups.map((group) => (
             <div key={group.audience}>
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
@@ -57,7 +88,12 @@ export default function BuildUpdateDialog({ entries, versionLabel, onClose }) {
               <ul className="space-y-1.5">
                 {group.items.map((item) => (
                   <li key={`${item.build}-${item.area}-${item.summary}`} className="rounded-lg bg-gray-50 px-3 py-2">
-                    <p className="text-xs font-semibold text-gray-700">{item.area}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-gray-700">{item.area}</p>
+                      <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
+                        {AUDIENCE_LABELS[item.audience] || 'Everyone'}
+                      </span>
+                    </div>
                     <p className="text-xs leading-snug text-gray-600">{item.summary}</p>
                   </li>
                 ))}

@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 45;
+export const BUILD_NUMBER = 46;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -43,6 +43,9 @@ export const AUDIENCE_LABELS = {
   'drivers+dispatchers': 'Drivers & Dispatchers',
   'dispatchers+admins': 'Dispatchers & Administrators',
   'drivers+admins': 'Drivers & Administrators',
+  // Owner-only changes (version counter, update log, owner tooling). This key
+  // was missing, so those entries silently fell into the "Everyone" bucket.
+  owner: 'App Owner',
 };
 
 // Display order for the grouped dialog (broadest first).
@@ -54,7 +57,34 @@ export const AUDIENCE_ORDER = [
   'drivers',
   'dispatchers',
   'admins',
+  'owner',
 ];
+
+// ── Role views (owner request Oct 31 2026) ──────────────────────────────────
+// The owner needs to see, at a glance, which changes belong to Drivers,
+// Dispatchers, Administrators and himself. These are the filter tabs in the
+// update log; an entry with audience 'all' applies to every role, and a
+// combined audience ('drivers+dispatchers') applies to each of its parts.
+export const ROLE_VIEWS = [
+  { key: 'all', label: 'Everyone' },
+  { key: 'drivers', label: 'Drivers' },
+  { key: 'dispatchers', label: 'Dispatchers' },
+  { key: 'admins', label: 'Admins' },
+  { key: 'owner', label: 'App owner' },
+];
+
+export const audienceAppliesToRole = (audience, role) => {
+  const aud = String(audience || 'all');
+  if (!role || role === 'all') return true;
+  if (aud === 'all' || aud === role) return true;
+  return aud.split('+').includes(role);
+};
+
+/** Entries (newest first) that affect the given role view. */
+export const entriesForRole = (entries = [], role = 'all') => entries
+  .filter((entry) => audienceAppliesToRole(entry.audience, role))
+  .slice()
+  .sort((a, b) => Number(b.build) - Number(a.build));
 
 export const CHANGE_LOG = [
   // ── Oct 30 2026 ────────────────────────────────────────────────────────────
@@ -99,6 +129,7 @@ export const CHANGE_LOG = [
   { build: 43, area: 'App', audience: 'owner', summary: 'Builds-ahead counter now compares against the live deployment\'s own build number instead of a baseline that only existed once someone opened the live site, so it shows the real number of unpublished builds.' },
   { build: 44, area: 'App', audience: 'all', summary: 'Removed the duplicate (Prev) tag next to the version at the top of the sidebar; it still shows in the user badge at the bottom.' },
   { build: 45, area: 'App', audience: 'owner', summary: 'Tap the version line at the top of the sidebar to open the update log any time, including on preview, so you can confirm a publish landed before non-owners see it.' },
+  { build: 46, area: 'Update Log', audience: 'owner', summary: 'The update log now has role tabs - Everyone, Drivers, Dispatchers, Admins and App owner - each showing only the changes that affect that role, with a role tag on every entry.' },
 ];
 
 /** How many pushes ahead of the last publish this build is. */
