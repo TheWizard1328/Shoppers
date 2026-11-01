@@ -590,18 +590,16 @@ export const AppDataProvider = ({ children, value }) => {
         updateDeliveriesLocallyRef.current(filteredDeliveries, true);
       }
 
+      // OWNER DIRECTIVE (Oct 31 2026): a city/store selection change must NEVER
+      // remove patient records. Drivers cover occasional stores (Sharuk: Beverly
+      // on weekends) and the delete-on-filter was exactly how those patients
+      // vanished from the device. Upsert only — additive, never destructive.
       if (value.applyPatientChangesLocally) {
-        const existingPatientIds = new Set((patientsRef.current || []).filter(Boolean).map((patient) => patient.id));
-        const nextPatientIds = new Set(filteredPatients.map((patient) => patient.id));
-        const deleteIds = Array.from(existingPatientIds).filter((id) => !nextPatientIds.has(id));
-        value.applyPatientChangesLocally({ upserts: filteredPatients, deleteIds });
+        value.applyPatientChangesLocally({ upserts: filteredPatients, deleteIds: [] });
       } else if (value.updatePatientsLocally) {
         value.updatePatientsLocally({ upserts: filteredPatients, deleteIds: [] });
       } else if (applyPatientChangesLocallyRef.current) {
-        const existingPatientIds = new Set((patientsRef.current || []).filter(Boolean).map((patient) => patient.id));
-        const nextPatientIds = new Set(filteredPatients.map((patient) => patient.id));
-        const deleteIds = Array.from(existingPatientIds).filter((id) => !nextPatientIds.has(id));
-        applyPatientChangesLocallyRef.current({ upserts: filteredPatients, deleteIds });
+        applyPatientChangesLocallyRef.current({ upserts: filteredPatients, deleteIds: [] });
       }
 
       if (updateAppUsersLocallyRef.current) {
@@ -620,7 +618,6 @@ export const AppDataProvider = ({ children, value }) => {
           detail: {
             patients: filteredPatients,
             preserveLocalState: true,
-            fullReplacement: true,
             triggeredBy: 'cityChanged'
           }
         }));

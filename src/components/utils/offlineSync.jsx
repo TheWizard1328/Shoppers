@@ -392,6 +392,18 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       console.warn('⚠️ [PrioritySync] Future 7-day pass failed:', futureErr?.message || futureErr);
     }
     
+    // Step 3c (owner directive Oct 31 2026): keep EVERY store's patients
+    // resident, not just the ones on today's route. Runs at most once per 12h
+    // per device, additive only, fire-and-forget so boot is untouched.
+    try {
+      const { hydrateAllPatients } = await import('./fullPatientHydrate');
+      hydrateAllPatients({ cityId }).then((r) => {
+        if (!r?.skipped) console.log(`🩺 [PrioritySync] Patient mirror kept resident: ${r.saved} across ${r.stores || 0} stores`);
+      }).catch((e) => console.warn('[PrioritySync] patient hydrate skipped:', e?.message || e));
+    } catch (e) {
+      console.warn('[PrioritySync] patient hydrate import failed:', e?.message || e);
+    }
+
     // Step 4: Sync ONLY patients for these deliveries (priority light-weight sync)
     notifySyncStatus({ status: 'syncing', entity: 'Patients (priority)', progress: 60 });
     const patientIds = Array.from(new Set(
