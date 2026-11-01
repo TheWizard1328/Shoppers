@@ -299,7 +299,10 @@ export default function Layout({ children, currentPageName }) {
       }
     }
     if (!base) base = latestBuild.displayVersion || installedVersion?.versionLabel || appVersion;
-    return isPreviewEnv ? `${base} (Prev)` : base;
+    // OWNER REQUEST (Oct 31 2026): the "(Prev)" tag is deliberately NOT shown
+    // next to the sidebar version any more — it already appears in the user
+    // badge at the bottom of the sidebar, and showing it twice was noise.
+    return base;
   })();
 
   // ── Builds-ahead counter + publish summary (owner request Oct 30 2026) ─────
