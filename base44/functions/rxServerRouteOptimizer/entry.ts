@@ -36,6 +36,7 @@ import {
   isPolylineEligibleStop as sharedIsPolylineEligible,
   dwellMinutesForStop as sharedDwellMinutes,
   isSameAddressAnchor as sharedIsSameAddress,
+  unitNumberMicroSort as sharedUnitNumberMicroSort,
   SAME_ADDRESS_TRAVEL_MINUTES as SHARED_SAME_ADDRESS_MINUTES,
   resolveSequenceSearch,
 } from './routeRules.js';
@@ -729,6 +730,28 @@ Deno.serve(async (req) => {
         });
         orderedStops = _finalLocked ? [_finalLocked, ..._finalSorted] : _finalSorted;
       }
+    }
+
+    // ── 3d. UNIT-NUMBER MICRO-SORT (SHARED RULE: routeRules.js) ─────────────
+    // OWNER SPEC (Nov 2 2026): stops that share the same address or GPS
+    // coordinates are subsorted by unit number (210 -> 222 -> 312 -> 336) so
+    // the driver walks one building in unit order. Runs LAST, after every
+    // window/pickup/ISP pass, matching the client engine's position — and only
+    // reorders stops inside a cluster, so route chronology is untouched.
+    try {
+      sharedUnitNumberMicroSort(orderedStops, {
+        idOf: (st) => st?.id,
+        unitOf: (st) => st?.unitNumber || null,
+        addressOf: (st) => st?.address || null,
+        coordsOf: (st) => (Number.isFinite(Number(st?.lat)) && Number.isFinite(Number(st?.lng))
+          ? { lat: Number(st.lat), lng: Number(st.lng) } : null),
+        puidOf: (st) => st?.puid || null,
+        eligible: (st) => !!st && !st.isPickup && !st.isInterStore && !st.isCyclingMarker &&
+          ['pending', 'en_route', 'in_transit'].includes(String(st?.status || '').toLowerCase()) &&
+          String(st?.deliveryId || '').toUpperCase().startsWith('DID'),
+      });
+    } catch (unitErr) {
+      console.warn(`[rxServerRouteOptimizer] unit micro-sort skipped: ${unitErr?.message || unitErr}`);
     }
 
     // ── 3b. CLIENT-PARITY backstop (Oct 21 2026): windowless patient stops

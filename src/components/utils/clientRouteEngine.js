@@ -13,6 +13,7 @@ import {
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
+  unitNumberMicroSort as sharedUnitNumberMicroSort,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
 import { base44 } from '@/api/base44Client';
@@ -2234,76 +2235,30 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
 //     (same puid) only — chain order across different pickups is preserved, so
 //     a delivery can never move ahead of its own pickup.
 function _unitNumberMicroSort(stops, patientMap, storeMap) {
-  const GPS_PRECISION = 4; // ~11m — same-building coordinate snap
-  const roundGps = (v) => Number(Number(v).toFixed(GPS_PRECISION));
-
-  // Street-address key: unit/apt/suite/room/floor tokens stripped (the unit
-  // number is the varying part), punctuation dropped, whitespace collapsed.
-  const UNIT_TOKEN_RX = /\b(?:UNIT|APT|APARTMENT|SUITE|STE|RM|ROOM|FL|FLOOR|BLDG|BUILDING|BAY|SPC|SPACE|#)\b\.?/gi;
-  const addrKeyCache = new Map();
-  const addressKeyOf = (d) => {
-    const k = d?.id || d?.patient_id;
-    if (k != null && addrKeyCache.has(k)) return addrKeyCache.get(k);
-    const addr = String(d?.patient_address || patientMap.get(d?.patient_id)?.address || '').trim();
-    const key = addr
-      ? addr.toUpperCase().replace(UNIT_TOKEN_RX, ' ').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
-      : '';
-    if (k != null) addrKeyCache.set(k, key);
-    return key;
-  };
-  const unitOf = (d) => String(d?.unit_number || patientMap.get(d?.patient_id)?.unit_number || '').trim();
-  const eligible = (s) => {
-    const d = s?.delivery;
-    return !!d?.patient_id
-      && ['pending', 'in_transit', 'en_route'].includes(String(d.status || ''))
-      && String(d.delivery_id || '').toUpperCase().startsWith('DID'); // patient stops only — pickups/markers/InterStore excluded
-  };
-
-  const processed = new Set();
-  for (let i = 0; i < stops.length; i++) {
-    if (processed.has(i) || !eligible(stops[i])) continue;
-    const ca = getDeliveryCoords(stops[i].delivery, patientMap, storeMap);
-    const aLat = ca ? roundGps(ca.lat) : null;
-    const aLng = ca ? roundGps(ca.lng) : null;
-    const aAddr = addressKeyOf(stops[i].delivery);
-    const groupIndices = [i];
-    for (let j = i + 1; j < stops.length; j++) {
-      if (processed.has(j) || !eligible(stops[j])) continue;
-      const cb = getDeliveryCoords(stops[j].delivery, patientMap, storeMap);
-      const sameGps = aLat != null && !!cb && roundGps(cb.lat) === aLat && roundGps(cb.lng) === aLng;
-      const sameAddr = !!aAddr && addressKeyOf(stops[j].delivery) === aAddr;
-      if (sameGps || sameAddr) groupIndices.push(j);
-    }
-    if (groupIndices.length < 2) { processed.add(i); continue; }
-
-    // PUID partition: unit-sort each pickup chain's members; chains keep
-    // their first-appearance order at the cluster's positions.
-    const byPuid = new Map();
-    for (const idx of groupIndices) {
-      const pk = String(stops[idx].delivery.puid || 'none');
-      if (!byPuid.has(pk)) byPuid.set(pk, []);
-      byPuid.get(pk).push(stops[idx]);
-    }
-    const partitions = [...byPuid.values()];
-    partitions.forEach(part => part.sort((x, y) => {
-      const na = parseInt(unitOf(x.delivery), 10);
-      const nb = parseInt(unitOf(y.delivery), 10);
-      if (!isNaN(na) && !isNaN(nb)) return na - nb;
-      if (!isNaN(na)) return -1; // numbered units before unnumbered
-      if (!isNaN(nb)) return 1;
-      return unitOf(x.delivery).localeCompare(unitOf(y.delivery));
-    }));
-    // Interleave: fill cluster positions chain by chain, unit-sorted inside each.
-    const flat = [];
-    const iters = partitions.map(part => part[Symbol.iterator]());
-    let more = true;
-    while (more) {
-      more = false;
-      for (const it of iters) {
-        const next = it.next();
-        if (!next.done) { flat.push(next.value); more = true; }
-      }
-    }
-    groupIndices.forEach((idx, pos) => { stops[idx] = flat[pos]; processed.add(idx); });
-  }
+  // SHARED RULE (routeRules.js unitNumberMicroSort — one rule, two engines).
+  // OWNER SPEC Nov 2 2026: clustered stops (same rounded GPS ~11 m OR same
+  // normalized street address) subsort by UNIT number - 210 -> 222 -> 312 ->
+  // 336 - and units sort WITHIN each pickup chain (puid) only, so a delivery
+  // can never jump ahead of its own pickup. The algorithm now lives in
+  // routeRules.js so the client and server engines cannot drift; this wrapper
+  // only supplies the client's delivery wrappers as adapters.
+  sharedUnitNumberMicroSort(stops, {
+    idOf: (s) => s?.delivery?.id,
+    unitOf: (s) => {
+      const d = s?.delivery || {};
+      return d.unit_number || patientMap.get(d.patient_id)?.unit_number || '';
+    },
+    addressOf: (s) => {
+      const d = s?.delivery || {};
+      return d.patient_address || patientMap.get(d.patient_id)?.address || '';
+    },
+    coordsOf: (s) => getDeliveryCoords(s?.delivery, patientMap, storeMap),
+    puidOf: (s) => s?.delivery?.puid || null,
+    eligible: (s) => {
+      const d = s?.delivery;
+      return !!d?.patient_id
+        && ['pending', 'in_transit', 'en_route'].includes(String(d.status || ''))
+        && String(d.delivery_id || '').toUpperCase().startsWith('DID');
+    },
+  });
 }

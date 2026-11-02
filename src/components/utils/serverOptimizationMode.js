@@ -409,6 +409,11 @@ export const buildServerOptimizeRequest = async ({
       currentStopOrder: Number(d.stop_order) || null,
       estimatedDurationMinutes: Number(d.estimated_duration_minutes) || null,
       patientId: d.patient_id || null,
+      // UNIT MICRO-SORT inputs (owner spec Nov 2 2026): the server engine sorts
+      // clustered stops (same address / same GPS) by unit number, so it needs
+      // the address and the unit. Address falls back to the patient record.
+      address: d.patient_address || patient?.address || null,
+      unitNumber: d.unit_number || patient?.unit_number || null,
       deviationWaypoints: _stopDeviationVias(d, latestFinishedForOrigin),
     });
   }

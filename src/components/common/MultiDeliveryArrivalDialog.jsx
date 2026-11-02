@@ -14,6 +14,7 @@ const GPS_MATCH_THRESHOLD = 0.025; // ~25 metres tolerance
 
 // Consolidated into geoUtils — identical math, single source of truth.
 import { haversineKm } from '@/components/utils/geoUtils';
+import { compareUnitNumbers } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -57,6 +58,13 @@ export default function MultiDeliveryArrivalDialog({
 
   const sameLocationDeliveries = useMemo(() => {
     if (!currentDelivery?.patient_id) return [];
+    const unitOfDelivery = (d) => {
+      if (!d) return '';
+      const fromField = d.unit_number;
+      const fromPatient = patients?.find?.((p) => p?.id === d.patient_id)?.unit_number;
+      return String(fromField || fromPatient || '').trim();
+    };
+
     const origin = getCoords(currentDelivery);
     if (!origin) return [];
 
@@ -73,7 +81,15 @@ export default function MultiDeliveryArrivalDialog({
       const coords = getCoords(d);
       if (!coords) return false;
       return haversineKm(origin.lat, origin.lon, coords.lat, coords.lon) <= GPS_MATCH_THRESHOLD;
-    }).sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+    }).sort((a, b) => {
+      // OWNER SPEC (Nov 2 2026): stops at one address subsort by UNIT number so
+      // the list reads 210, 222, 312, 336 like the walk. stop_order stays the
+      // primary key (route sequence wins); the unit only breaks ties / fills in
+      // when the two stops share a stop_order slot.
+      const orderDiff = (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+      if (orderDiff !== 0) return orderDiff;
+      return compareUnitNumbers(unitOfDelivery(a), unitOfDelivery(b));
+    });
   }, [currentDelivery, allDeliveries, patients]);
 
   const allAtLocation = [currentDelivery, ...sameLocationDeliveries]

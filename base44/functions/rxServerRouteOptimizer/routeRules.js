@@ -291,3 +291,107 @@ export function isSameAddressAnchor(a, b, km = SAME_ADDRESS_KM) {
   const d = crowFliesKm(a, b);
   return Number.isFinite(d) && d < km;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RULE: unit-number micro-sort for clustered stops (SHARED, both engines)
+// ═══════════════════════════════════════════════════════════════════════════
+// OWNER SPEC (Oct 26 2026, restated Nov 2 2026): "stops that share the same
+// address or GPS coordinates should be getting subsorted via their unit
+// numbers." A building with units 222 / 312 / 210 / 336 must be walked
+// 210 -> 222 -> 312 -> 336, not in whatever order findsequence2 returned.
+//
+// Clustering: identical rounded GPS (4dp ≈ 11 m) OR identical normalized
+// street address (unit/apt/suite/room/floor tokens stripped, because units in
+// one building often carry slightly different coordinates).
+// PUID-partitioned: units sort WITHIN each pickup chain only, so a delivery can
+// never jump ahead of its own pickup; chains keep their first-appearance order.
+//
+// The client engine (clientRouteEngine.js) and the server engine (entry.ts)
+// both call THIS function with their own adapters — one rule, two engines.
+export const UNIT_GPS_PRECISION = 4;
+// Strips the unit TOKEN *and its value* ('Unit 222', 'Apt #12B', '#222')
+// so the same building collapses to one address key.
+const UNIT_TOKEN_RX = /(?:\b(?:UNIT|APT|APARTMENT|SUITE|STE|RM|ROOM|FL|FLOOR|BLDG|BUILDING|BAY|SPC|SPACE)\b\.?\s*#?\s*[A-Z0-9-]+|#\s*[A-Z0-9-]+)/gi;
+
+export function normalizeAddressKey(address) {
+  const addr = String(address || '').trim();
+  if (!addr) return '';
+  return addr
+    .toUpperCase()
+    .replace(UNIT_TOKEN_RX, ' ')
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Numeric-aware: 210 < 222 < 312 < 336; unnumbered after numbered; letters A/B/C.
+export function compareUnitNumbers(a, b) {
+  const sa = String(a ?? '').trim();
+  const sb = String(b ?? '').trim();
+  const ma = sa.match(/^(\d+)\s*(.*)$/);
+  const mb = sb.match(/^(\d+)\s*(.*)$/);
+  if (ma && mb) {
+    const diff = Number(ma[1]) - Number(mb[1]);
+    if (diff !== 0) return diff;
+    return (ma[2] || '').localeCompare(mb[2] || '');
+  }
+  if (ma) return -1;
+  if (mb) return 1;
+  return sa.localeCompare(sb);
+}
+
+export function unitNumberMicroSort(stops, adapters = {}) {
+  const {
+    idOf = (s) => s?.id,
+    unitOf = (s) => s?.unitNumber,
+    addressOf = (s) => s?.address,
+    coordsOf = (s) => (Number.isFinite(Number(s?.lat)) && Number.isFinite(Number(s?.lng)) ? { lat: Number(s.lat), lng: Number(s.lng) } : null),
+    puidOf = (s) => s?.puid,
+    eligible = () => true,
+  } = adapters;
+  if (!Array.isArray(stops) || stops.length < 2) return stops;
+
+  const roundGps = (v) => Number(Number(v).toFixed(UNIT_GPS_PRECISION));
+  const processed = new Set();
+
+  for (let i = 0; i < stops.length; i++) {
+    if (processed.has(i) || !eligible(stops[i])) continue;
+    const aCoords = coordsOf(stops[i]);
+    const aLat = aCoords ? roundGps(aCoords.lat) : null;
+    const aLng = aCoords ? roundGps(aCoords.lng) : null;
+    const aAddr = normalizeAddressKey(addressOf(stops[i]));
+    const groupIndices = [i];
+    for (let j = i + 1; j < stops.length; j++) {
+      if (processed.has(j) || !eligible(stops[j])) continue;
+      const bCoords = coordsOf(stops[j]);
+      const sameGps = aLat != null && !!bCoords && roundGps(bCoords.lat) === aLat && roundGps(bCoords.lng) === aLng;
+      const sameAddr = !!aAddr && normalizeAddressKey(addressOf(stops[j])) === aAddr;
+      if (sameGps || sameAddr) groupIndices.push(j);
+    }
+    if (groupIndices.length < 2) { processed.add(i); continue; }
+
+    const byPuid = new Map();
+    for (const idx of groupIndices) {
+      const pk = String(puidOf(stops[idx]) || 'none');
+      if (!byPuid.has(pk)) byPuid.set(pk, []);
+      byPuid.get(pk).push(stops[idx]);
+    }
+    const partitions = [...byPuid.values()];
+    partitions.forEach((part) => part.sort((x, y) => compareUnitNumbers(unitOf(x), unitOf(y))));
+
+    const flat = [];
+    const iters = partitions.map((part) => part[Symbol.iterator]());
+    let more = true;
+    while (more) {
+      more = false;
+      for (const it of iterators(iters)) {
+        const next = it.next();
+        if (!next.done) { flat.push(next.value); more = true; }
+      }
+    }
+    groupIndices.forEach((idx, pos) => { stops[idx] = flat[pos]; processed.add(idx); });
+  }
+  return stops;
+}
+
+function* iterators(list) { for (const it of list) yield it; }
