@@ -14,6 +14,7 @@
  * and the immersive-mode Navigate FAB follow the same scheme.
  */
 
+import { edmontonNowMinutes, edmontonTodayKey } from './albertaTime';
 import { useEffect, useState } from 'react';
 import { inheritPickupWindows as sharedInheritPickupWindows } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -154,15 +155,12 @@ const parseTimeToMinutesLocal = (timeStr) => {
   return h * 60 + m;
 };
 
-const edmontonNowMinutes = () => {
+// SHARED Alberta rule (albertaTime) - Intl America/Denver is an hour behind
+// after the Nov 1 2026 fall-back Alberta did not take, and the server request's
+// currentMinutes drives window clamping + band sort.
+const edmontonNowMinutesLocal = () => {
   try {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Edmonton', hour: '2-digit', minute: '2-digit', hour12: false
-    });
-    const parts = fmt.formatToParts(new Date());
-    const h = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const m = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-    return h * 60 + m;
+    return edmontonNowMinutes();
   } catch (_) {
     return 0;
   }
@@ -170,9 +168,7 @@ const edmontonNowMinutes = () => {
 
 const edmontonTodayStr = () => {
   try {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(new Date());
+    return edmontonTodayKey();
   } catch (_) {
     return '';
   }
@@ -340,7 +336,7 @@ export const buildServerOptimizeRequest = async ({
   }
 
   const isToday = deliveryDate === edmontonTodayStr();
-  const currentMinutes = isToday ? edmontonNowMinutes() : 8 * 60; // future routes anchor at 08:00
+  const currentMinutes = isToday ? edmontonNowMinutesLocal() : 8 * 60; // future routes anchor at 08:00
   const routeInProgress = completed.length > 0;
 
   // FUTURE-ROUTE PARITY (owner report Oct 20 2026): the client engine has a
@@ -354,7 +350,7 @@ export const buildServerOptimizeRequest = async ({
   // shapes so the client fast-path owns future routes. Mirrors the identical
   // server-side gate in entry.ts (defense in depth).
   const _isFutureRoute = isToday
-    ? edmontonNowMinutes() < 9 * 60
+    ? edmontonNowMinutesLocal() < 9 * 60
     : String(deliveryDate) > edmontonTodayStr();
   const _hasCyclingMarkers = active.some((d) => d.is_cycling_marker);
   if (_isFutureRoute && !routeInProgress && !preserveExistingOrder && !_hasCyclingMarkers) {

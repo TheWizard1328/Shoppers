@@ -15,6 +15,7 @@ import {
   resolveSequenceSearch,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { edmontonNowMinutes, edmontonNowHHmm, edmontonTodayKey, edmontonOffsetStringForWallDate } from './albertaTime';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
@@ -50,7 +51,6 @@ import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
-const TIME_ZONE = 'America/Edmonton';
 const LAST_FINISHED_STOP_PROXIMITY_KM = 0.25;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
@@ -133,14 +133,11 @@ const getWeekdayCode = (dateStr) => {
 };
 
 const getTimeZoneOffset = (dateStr) => {
+  // SHARED Alberta rule (albertaTime): permanent UTC-6 from Nov 1 2026. Intl
+  // America/Denver still answers -7 there, which put every HERE departure and
+  // access constraint an hour off after the fall-back.
   const [year, month, day] = String(dateStr).split('-').map(Number);
-  const sampleDate = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
-  const tzName = new Intl.DateTimeFormat('en-US', {
-    timeZone: TIME_ZONE, timeZoneName: 'shortOffset', hour: '2-digit'
-  }).formatToParts(sampleDate).find((part) => part.type === 'timeZoneName')?.value || 'GMT-07:00';
-  const match = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
-  if (!match) return '-07:00';
-  return `${match[1]}${String(match[2]).padStart(2, '0')}:${String(match[3] || '00').padStart(2, '0')}`;
+  return edmontonOffsetStringForWallDate(year || 2026, month || 1, day || 1);
 };
 
 const buildLocalIso = (dateStr, timeStr) =>
@@ -158,11 +155,7 @@ const buildAccessConstraint = (dateStr, startTime, endTime) => {
   return `acc:${weekday}${start}${offset}|${weekday}${end}${offset}`;
 };
 
-const getEdmontonTodayDateString = () => {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
-  }).format(new Date());
-};
+const getEdmontonTodayDateString = () => edmontonTodayKey();
 
 const isHistoricalRouteDate = (dateStr) => {
   if (!dateStr) return false;
@@ -429,15 +422,11 @@ export async function optimizeRouteClientSide({
   const cyclingHereMode = cyclingSegmentOnly ? 'bicycle' : hereTransportMode;
 
   // Current time in Edmonton
-  const now = new Date();
-  const edmontonFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false
-  });
-  const edmontonParts = edmontonFormatter.formatToParts(now);
-  const edmontonHour = parseInt(edmontonParts.find(p => p.type === 'hour')?.value || '0', 10);
-  const edmontonMinute = parseInt(edmontonParts.find(p => p.type === 'minute')?.value || '0', 10);
-  let currentMinutes = edmontonHour * 60 + edmontonMinute;
-  const currentLocalTime = `${String(edmontonHour).padStart(2, '0')}:${String(edmontonMinute).padStart(2, '0')}`;
+  // SHARED Alberta rule (albertaTime): 'now' must be the province wall clock,
+  // not Intl America/Denver (which is an hour behind after the Nov 1 fall-back
+  // Alberta did not take). An hour behind promotes imminent windows wrongly.
+  let currentMinutes = edmontonNowMinutes();
+  const currentLocalTime = edmontonNowHHmm();
 
   // CRITICAL: Filter to only this driver's deliveries for this date.
   // allDeliveries may contain other drivers' stops (admin/dispatcher view), which would

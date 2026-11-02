@@ -140,6 +140,25 @@ const naiveComponents = (str) => {
 // engine — machines whose tz database had flipped Alberta off DST reported
 // UTC-7 and prefilled completion times an hour early. These read the Alberta
 // wall clock instead, identical on every device.
+// Minutes since Edmonton midnight for an instant (optimizer/ETA 'now').
+// OWNER REPORT (Nov 2 2026): the optimizer kept promoting a 15:30-window CarePro
+// stop ahead of six earlier stops because its 'now' came from Intl
+// America/Denver, which still returns -7 while Alberta runs permanent UTC-6 -
+// an hour behind made every upcoming window look imminent.
+export const edmontonNowMinutes = (date = new Date()) => {
+  const w = toEdmontonWall(date);
+  return w.h * 60 + w.mi;
+};
+
+// Offset string ('-06:00') for an Alberta WALL DATE (HERE departure / access
+// constraints). Same permanent-UTC-6 rule as every other conversion here.
+export const edmontonOffsetStringForWallDate = (y, mo, d) => {
+  const hours = albertaOffsetHoursForWallDate(y, mo, d);
+  const sign = hours < 0 ? '-' : '+';
+  const abs = Math.abs(hours);
+  return `${sign}${String(Math.trunc(abs)).padStart(2, '0')}:${String(Math.round((abs % 1) * 60)).padStart(2, '0')}`;
+};
+
 export const edmontonNowHHmm = (date = new Date()) => {
   const w = toEdmontonWall(date);
   return `${pad(w.h)}:${pad(w.mi)}`;

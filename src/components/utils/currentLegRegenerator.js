@@ -28,6 +28,7 @@
  * 'Route Deviation (Google Directions) — Current Route Leg' instead of the
  * generic 'Polyline generation' label.
  */
+import { edmontonNowMinutes } from './albertaTime';
 import { base44 } from '@/api/base44Client';
 import { resolvePolylineOrigin } from './polylineOriginRules';
 import { haversineKm } from './geoUtils';
@@ -40,7 +41,6 @@ import { updateDelivery } from './entityMutations';
 import { findDeviationExitPoint } from './routeDeviationDetector';
 import { getRecentTrailPoints } from './locationBreadcrumbService';
 
-const TIME_ZONE = 'America/Edmonton';
 export const DEVIATION_REGEN_LOG_PURPOSE = 'Route Deviation (Google Directions) — Current Route Leg';
 
 // ── Deviation waypoint persistence (Sep 17 2026) ────────────────────────────
@@ -95,12 +95,10 @@ const formatMinutesToTime = (mins) => {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
 
-const edmontonNowMinutes = () => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(new Date());
-  const g = (t) => Number(parts.find((p) => p.type === t)?.value || 0);
-  return (g('hour') % 24) * 60 + g('minute');
+// SHARED Alberta rule (albertaTime): Intl America/Denver is an hour behind
+// after the Nov 1 2026 fall-back Alberta did not take.
+const edmontonNowMinutesLocal = () => {
+  try { return edmontonNowMinutes(); } catch (_) { return 0; }
 };
 
 /**
@@ -302,7 +300,7 @@ async function _regenCurrentLegPolylineInner({
 
   // ── ETA: now + GPS→stop travel, clamped up to the stop's window start ───────
   // Mirrors the engine's stage-1 ETA (currentMinutes + travel, window floor).
-  let etaMinutes = edmontonNowMinutes();
+  let etaMinutes = edmontonNowMinutesLocal();
   if (Number.isFinite(seg.estimatedDurationMinutes) && seg.estimatedDurationMinutes > 0) {
     etaMinutes += Math.ceil(seg.estimatedDurationMinutes);
   }
