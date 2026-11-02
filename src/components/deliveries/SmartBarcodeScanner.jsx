@@ -105,6 +105,33 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
 
 }
 
+const BAND_TOP = 0.30;
+const BAND_BOTTOM = 0.70;
+
+/**
+ * True when a detected barcode's CENTRE falls inside the aiming band of the
+ * video frame. Codes elsewhere in the picture are ignored, so a bag holding
+ * several labels no longer auto-collects every one of them.
+ */
+const barcodeCentreInBand = (bc, videoHeight) => {
+  try {
+    const vh = videoHeight || 0;
+    if (!vh) return true; // unknown frame height — never block detection
+    let cy = null;
+    const bb = bc?.boundingBox;
+    if (bb && bb.height != null && bb.y != null) {
+      cy = (Number(bb.y) + Number(bb.height) / 2) / vh;
+    } else if (Array.isArray(bc?.cornerPoints) && bc.cornerPoints.length) {
+      const ys = bc.cornerPoints.map((p) => Number(p?.y ?? p?.Y ?? 0)).filter(Number.isFinite);
+      if (ys.length) cy = ((Math.min(...ys) + Math.max(...ys)) / 2) / vh;
+    }
+    if (cy == null || !Number.isFinite(cy)) return true;
+    return cy >= BAND_TOP && cy <= BAND_BOTTOM;
+  } catch {
+    return true;
+  }
+};
+
 export default function SmartBarcodeScanner({
   receiptBarcodeValues = [],
   rxBarcodeValues = [],
@@ -132,6 +159,19 @@ export default function SmartBarcodeScanner({
   // Now the viewfinder takes the camera's real aspect ratio and shows the WHOLE
   // frame (object-contain), so what you see is exactly what is being scanned.
   const [frameAspect, setFrameAspect] = useState(null);
+  // ── AIMING BAND (owner report Nov 2 2026) ────────────────────────────────
+  // The decoder read the WHOLE camera frame, so one aimed bill of lading could
+  // collect every label in view: the owner scanned ONE Rx barcode and got two
+  // Rx codes plus the receipt because the bag held all three. Detection is now
+  // restricted to the middle band of the picture, which is also the only place
+  // the on-screen guide says counts — what you aim at is what gets scanned.
+  const BAND_TOP_FRAC = 0.30;
+  const BAND_BOTTOM_FRAC = 0.70;
+  // Only codes captured in THIS camera session are listed in the overlay — the
+  // form's earlier codes stay in the form, they just stop re-listing themselves
+  // every time the camera opens.
+  const sessionBaseRef = useRef(null);
+  const [sessionBase, setSessionBase] = useState([]);
   const [zoom, setZoom] = useState(1);
   const [canZoom, setCanZoom] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
@@ -393,10 +433,15 @@ export default function SmartBarcodeScanner({
 
         // Downscale full frame to max 800px wide for ZXing (keeps aspect ratio).
         // 800px gives better resolution than 640px for small pharmacy barcodes.
+        // BAND CROP (owner report Nov 2 2026): only the middle band is decoded,
+        // matching what the on-screen guide shows. Cropping also keeps more
+        // pixels per barcode than downscaling the whole frame did.
+        const bandY = Math.round(vh * BAND_TOP_FRAC);
+        const bandH = Math.max(1, Math.round(vh * (BAND_BOTTOM_FRAC - BAND_TOP_FRAC)));
         const scale = Math.min(1, 800 / vw);
         zxingCanvas.width = Math.round(vw * scale);
-        zxingCanvas.height = Math.round(vh * scale);
-        zxingCtx.drawImage(videoRef.current, 0, 0, zxingCanvas.width, zxingCanvas.height);
+        zxingCanvas.height = Math.max(1, Math.round(bandH * scale));
+        zxingCtx.drawImage(videoRef.current, 0, bandY, vw, bandH, 0, 0, zxingCanvas.width, zxingCanvas.height);
 
         // Every 5th frame, use TRY_HARDER for difficult/blurry barcodes
         frameCount++;
@@ -423,14 +468,18 @@ export default function SmartBarcodeScanner({
         if (frameCount % 3 === 0) {
           const foundThisPass = new Set();
           const OVER = 0.12; // overlap fraction — barcodes spanning a grid line stay decodable
+          // Grid lives INSIDE the aiming band: two labels side by side in the
+          // band still both collect, but nothing outside the band does.
+          const bandTopPx = Math.round(vh * BAND_TOP_FRAC);
+          const bandHeightPx = Math.max(1, Math.round(vh * (BAND_BOTTOM_FRAC - BAND_TOP_FRAC)));
           const cols = 2, rows = 2;
-          const cw = vw / cols, ch = vh / rows;
+          const cw = vw / cols, ch = bandHeightPx / rows;
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
               const sx = Math.max(0, c * cw - cw * OVER);
-              const sy = Math.max(0, r * ch - ch * OVER);
+              const sy = Math.max(bandTopPx, bandTopPx + r * ch - ch * OVER);
               const sw = Math.min(vw - sx, cw * (1 + 2 * OVER));
-              const sh = Math.min(vh - sy, ch * (1 + 2 * OVER));
+              const sh = Math.min(bandTopPx + bandHeightPx - sy, ch * (1 + 2 * OVER));
               if (sw < 100 || sh < 100) continue;
               const cropScale = Math.min(1, 800 / sw);
               zxingCanvas.width = Math.round(sw * cropScale);
@@ -540,6 +589,7 @@ export default function SmartBarcodeScanner({
                 for (const bc of barcodes) {
                   const text = bc?.rawValue || String(bc?.value || '');
                   if (!text || seenThisFrame.has(text)) continue;
+                  if (!barcodeCentreInBand(bc, videoRef.current?.videoHeight)) continue; // outside the aiming band — ignore
                   seenThisFrame.add(text);
                   handleCameraDetected(text);
                 }
@@ -733,7 +783,14 @@ export default function SmartBarcodeScanner({
           size="sm"
           variant="outline"
           className="h-9 px-3 flex-shrink-0 bg-white dark:bg-slate-900 text-slate-900 border-slate-300 hover:bg-slate-100 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
-          onClick={() => setShowCamera(true)}
+          onClick={() => {
+            // Snapshot what the form already holds so the overlay only lists
+            // codes captured in THIS session (owner report Nov 2 2026).
+            const base = [...(receiptBarcodesRef.current || []), ...(rxBarcodesRef.current || [])];
+            sessionBaseRef.current = base;
+            setSessionBase(base);
+            setShowCamera(true);
+          }}
           disabled={disabled}
           title="Scan with camera"
           aria-label="Scan with camera">
@@ -794,10 +851,25 @@ export default function SmartBarcodeScanner({
           }
         `}</style>
 
-        {/* ── Top: viewfinder + status hint + scanned list ── */}
-        <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
+        {/* ── Top: viewfinder + status hint + scanned list ──
+             min-h-0 + overflow-hidden keeps this block from growing past the
+             screen no matter how many codes are listed (owner report Nov 2
+             2026: the check button kept sliding under the taskbar). */}
+        <div className="w-full max-w-lg flex-1 min-h-0 overflow-hidden flex flex-col items-center px-2 pt-2 gap-2">
           {/* Viewfinder — 50% shorter (16:4.5 instead of 16:9) */}
-          <div className="relative w-full" style={{ aspectRatio: frameAspect || '16 / 8' }}>
+          <div
+            className="relative mx-auto"
+            style={(() => {
+              // OWNER REPORT Nov 2 2026: the viewfinder took the camera's full
+              // aspect ratio at full width, so on a phone it was taller than the
+              // screen and shoved the green check button under the taskbar as
+              // results piled up below it. Height is now capped at 42% of the
+              // viewport and the width derives from the real aspect ratio, so
+              // the picture stays undistorted and always fits.
+              const m = /^([\d.]+)\s*\/\s*([\d.]+)$/.exec(String(frameAspect || '16 / 8'));
+              const ratio = m ? (Number(m[1]) / Number(m[2])) || 2 : 2;
+              return { aspectRatio: frameAspect || '16 / 8', width: `min(100%, ${(42 * ratio).toFixed(2)}vh)`, maxHeight: '42vh' };
+            })()}>
             <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
               flashHit ? 'border-emerald-400' : 'border-white/30'
             }`}>
@@ -834,31 +906,30 @@ export default function SmartBarcodeScanner({
                 </div>
               )}
 
-              {/* Alignment laser bar — iOS-only aiming aid.
-                  Android/desktop scan the ENTIRE frame (native detector or ZXing
-                  full-frame), so no strip guide is shown there — it misled users
-                  into thinking only the strip area could detect (owner Sep 29). */}
-              {!flashHit && !cameraError && isIOSDevice && (
+              {/* AIMING BAND GUIDE — shown on EVERY device (owner report Nov 2
+                  2026). Detection is restricted to this middle band, so the
+                  guide is now the truth: whatever sits inside it is scanned,
+                  whatever sits outside it is not. The area above and below is
+                  dimmed so it is obvious where the band ends. */}
+              {!flashHit && !cameraError && (
                 <>
-                  {/* Crop zone outline — center 60% × 15% */}
+                  <div className="absolute inset-x-0 top-0 bg-black/45 pointer-events-none" style={{ height: '30%' }} />
+                  <div className="absolute inset-x-0 bottom-0 bg-black/45 pointer-events-none" style={{ height: '30%' }} />
                   <div
-                    className="absolute left-0 right-0 border-2 border-white/50 rounded-md pointer-events-none"
-                    style={{ top: '42.5%', height: '15%' }}
+                    className="absolute left-0 right-0 border-2 border-white/60 rounded-md pointer-events-none"
+                    style={{ top: '30%', height: '40%' }}
                   />
-                  {/* Laser line — animated scan line inside the crop zone */}
-                  <div
-                    className="absolute left-0 right-0 pointer-events-none overflow-hidden"
-                    style={{ top: '42.5%', height: '15%' }}
-                  >
+                  {isIOSDevice && (
                     <div
-                      className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_2px_rgba(239,68,68,0.6)]"
-                      style={{
-                        animation: 'barcodeScan 1.8s ease-in-out infinite',
-                        top: '50%',
-                      }}
-                    />
-                  </div>
-                  {/* Corner brackets */}
+                      className="absolute left-0 right-0 pointer-events-none overflow-hidden"
+                      style={{ top: '30%', height: '40%' }}
+                    >
+                      <div
+                        className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_2px_rgba(239,68,68,0.6)]"
+                        style={{ animation: 'barcodeScan 1.8s ease-in-out infinite', top: '50%' }}
+                      />
+                    </div>
+                  )}
                   <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-white/40 rounded-tl" />
                   <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-white/40 rounded-tr" />
                   <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-white/40 rounded-bl" />
@@ -870,13 +941,16 @@ export default function SmartBarcodeScanner({
 
           {/* Status hint — centered white text */}
           <div className="text-white text-sm font-medium text-center px-4">
-            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point at any barcode — full frame auto-detects'}
+            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Line up ONE barcode inside the band'}
           </div>
 
-          {/* Scanned barcodes list — shows each barcode scanned during this session */}
-          {allValues.length > 0 && (
-            <div className="w-full max-h-[35vh] overflow-y-auto space-y-1.5 pb-1">
-              {allValues.map((val, idx) => {
+          {/* Scanned barcodes list — THIS session only, capped and scrollable so
+              it can never push the round buttons off the bottom of the screen.
+              Codes the form already had are NOT re-listed here (owner report
+              Nov 2 2026: the overlay appeared to pre-load the last scan). */}
+          {allValues.filter((v) => !sessionBase.includes(v)).length > 0 && (
+            <div className="w-full flex-1 min-h-0 max-h-[20vh] overflow-y-auto space-y-1.5 pb-1">
+              {allValues.filter((v) => !sessionBase.includes(v)).map((val, idx) => {
                 const isRx = rxBarcodeValues.includes(val);
                 return (
                   <div key={`scan-${idx}-${val}`} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 border border-white/15">
@@ -893,7 +967,7 @@ export default function SmartBarcodeScanner({
         </div>
 
         {/* ── Bottom: all buttons pinned to bottom ── */}
-        <div className="w-full max-w-lg flex items-center justify-between px-6 pb-4 gap-2">
+        <div className="w-full max-w-lg flex flex-shrink-0 items-center justify-between px-6 pb-4 gap-2">
           {/* Left: switch camera */}
           <div className="w-16 h-16 flex items-center justify-center">
             {cameraCount > 1 ? (
