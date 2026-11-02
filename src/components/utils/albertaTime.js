@@ -39,6 +39,24 @@
 // No offset or transition date is hardcoded anywhere.
 const TZ = 'America/Denver';
 
+// ── PERMANENT UTC-6 FROM NOV 1 2026 (verified again Nov 2 2026) ──────────────
+// Alberta does NOT follow the Nov 1 2026 fall-back: the province stays on
+// UTC-6 (permanent daylight time). The Nov 1 2026 revision of this module
+// trusted the Denver transition instead and every Intl-derived wall time came
+// out one hour BEHIND the real clock from the switch-over onward — completion
+// stamps (actual_delivery_time) landed an hour earlier than the arrival time,
+// while the device-wall stamps stayed correct.
+// Proof used on Nov 2 2026 (UTC 18:12): the platform clock reports 12:12
+// America/Edmonton, the sandbox tz database reports 12:12 CST for the same
+// instant, and both drivers' device-written arrival stamps read 12:0x — all
+// -6. Only the Denver-based conversion said -7.
+// The cutoff keeps HISTORY correct: before Nov 1 2026 Alberta observed the
+// ordinary Mountain DST cycle (MDT -6 summer / MST -7 winter), so past
+// payroll and delivery dates still resolve through the tz database.
+const PERMANENT_MDT_FROM_MS = Date.UTC(2026, 10, 1, 9, 0, 0); // Nov 1 2026 09:00Z
+const PERMANENT_MDT_OFFSET_MS = -6 * 3600000;
+const usesPermanentMdt = (utcMs) => Number.isFinite(utcMs) && utcMs >= PERMANENT_MDT_FROM_MS;
+
 const pad = (v) => String(v).padStart(2, '0');
 
 const WALL_FMT = new Intl.DateTimeFormat('en-CA', {
@@ -61,6 +79,16 @@ const DAY_FMT = new Intl.DateTimeFormat('en-CA', {
 
 // UTC instant -> Alberta wall components
 export const toEdmontonWall = (date) => {
+  // Permanent UTC-6 from Nov 1 2026 (see PERMANENT_MDT_FROM_MS): pure math, no
+  // tz-database dependence, so every device reports the same Alberta wall.
+  const _ms = date?.getTime?.();
+  if (usesPermanentMdt(_ms)) {
+    const shifted = new Date(_ms + PERMANENT_MDT_OFFSET_MS);
+    return {
+      y: shifted.getUTCFullYear(), mo: shifted.getUTCMonth() + 1, d: shifted.getUTCDate(),
+      h: shifted.getUTCHours(), mi: shifted.getUTCMinutes(), s: shifted.getUTCSeconds(),
+    };
+  }
   const p = {};
   for (const part of WALL_FMT.formatToParts(date)) p[part.type] = part.value;
   return {
@@ -75,6 +103,7 @@ export const toEdmontonWall = (date) => {
 
 // Minutes east of UTC that Edmonton is observing at a given instant
 const offsetMsAt = (utcMs) => {
+  if (usesPermanentMdt(utcMs)) return PERMANENT_MDT_OFFSET_MS;
   const w = toEdmontonWall(new Date(utcMs));
   return Date.UTC(w.y, w.mo - 1, w.d, w.h, w.mi, w.s) - Math.floor(utcMs / 1000) * 1000;
 };
