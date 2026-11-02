@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 69;
+export const BUILD_NUMBER = 70;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 70, area: 'Barcode scanner', audience: 'dispatchers', summary: 'The scanner window is full width again instead of a narrow strip. Same height, and the band it reads still lines up with the box on screen.' },
   { build: 69, area: 'App', audience: 'everyone', summary: 'Every phone now notices a new publish. The page itself checks the live build before the app even starts and pulls the newer one, so the update balloon shows up on the live site again.' },
   { build: 68, area: 'Barcode scanner', audience: 'dispatchers', summary: 'The scanner now only reads the middle band it shows you, so aiming at one label no longer grabs every barcode in the picture. The window is smaller, the list only shows this scan, and the buttons stay on screen.' },
   { build: 67, area: 'App', audience: 'everyone', summary: 'Devices now pick up a new build when you come back to the app. Before this, a phone could sit on old code for hours because it only updated after 10 minutes away or idle, so fixes like the time correction never reached it.' },

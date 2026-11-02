@@ -113,7 +113,7 @@ const BAND_BOTTOM = 0.70;
  * video frame. Codes elsewhere in the picture are ignored, so a bag holding
  * several labels no longer auto-collects every one of them.
  */
-const barcodeCentreInBand = (bc, videoHeight) => {
+const barcodeCentreInBand = (bc, videoHeight, bandTop = BAND_TOP, bandBottom = BAND_BOTTOM) => {
   try {
     const vh = videoHeight || 0;
     if (!vh) return true; // unknown frame height — never block detection
@@ -126,7 +126,7 @@ const barcodeCentreInBand = (bc, videoHeight) => {
       if (ys.length) cy = ((Math.min(...ys) + Math.max(...ys)) / 2) / vh;
     }
     if (cy == null || !Number.isFinite(cy)) return true;
-    return cy >= BAND_TOP && cy <= BAND_BOTTOM;
+    return cy >= bandTop && cy <= bandBottom;
   } catch {
     return true;
   }
@@ -172,6 +172,13 @@ export default function SmartBarcodeScanner({
   // every time the camera opens.
   const sessionBaseRef = useRef(null);
   const [sessionBase, setSessionBase] = useState([]);
+  // Measured viewfinder box, used to place the aiming band guide exactly over
+  // the rows the decoder reads once the preview is cover-cropped.
+  const viewfinderRef = useRef(null);
+  // Decoded rows, as fractions of the CAMERA frame. Recomputed from the real
+  // on-screen geometry so the band the engine reads always equals the band the
+  // guide draws, even though the preview is cover-cropped.
+  const bandRef = useRef({ top: BAND_TOP, bottom: BAND_BOTTOM });
   const [zoom, setZoom] = useState(1);
   const [canZoom, setCanZoom] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
@@ -382,6 +389,55 @@ export default function SmartBarcodeScanner({
     } catch {}
   }, []);
 
+  // ── Band geometry from the real preview box (owner report Nov 2 2026) ────
+  // The preview fills a fixed-height, full-width box with object-cover, so the
+  // camera frame is cropped top/bottom. The guide is drawn over the middle 40%
+  // of the BOX; this maps that box band back into camera-frame rows so the
+  // decoder reads exactly what the guide shows.
+  useEffect(() => {
+    if (!showCamera) return;
+    const el = viewfinderRef.current;
+    if (!el) return;
+    const recompute = () => {
+      try {
+        const rect = el.getBoundingClientRect();
+        const boxW = rect.width || 0;
+        const boxH = rect.height || 0;
+        const m = /^([\d.]+)\s*\/\s*([\d.]+)$/.exec(String(frameAspect || ''));
+        const vw = m ? Number(m[1]) : 0;
+        const vh = m ? Number(m[2]) : 0;
+        if (!boxW || !boxH || !vw || !vh) {
+          bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM };
+          return;
+        }
+        const scale = Math.max(boxW / vw, boxH / vh); // object-cover
+        const dispH = vh * scale;
+        const offsetY = (dispH - boxH) / 2;
+        const toVideoRow = (boxY) => Math.min(1, Math.max(0, (boxY + offsetY) / dispH));
+        const top = toVideoRow(boxH * BAND_TOP);
+        const bottom = toVideoRow(boxH * BAND_BOTTOM);
+        bandRef.current = bottom - top >= 0.05
+          ? { top, bottom }
+          : { top: BAND_TOP, bottom: BAND_BOTTOM };
+      } catch {
+        bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM };
+      }
+    };
+    recompute();
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(recompute);
+      try { ro.observe(el); } catch {}
+    }
+    window.addEventListener('resize', recompute);
+    window.addEventListener('orientationchange', recompute);
+    return () => {
+      try { ro?.disconnect(); } catch {}
+      window.removeEventListener('resize', recompute);
+      window.removeEventListener('orientationchange', recompute);
+    };
+  }, [showCamera, frameAspect]);
+
   const [cameraLabel, setCameraLabel] = useState('');
   const [cameraCount, setCameraCount] = useState(1);
 
@@ -436,8 +492,8 @@ export default function SmartBarcodeScanner({
         // BAND CROP (owner report Nov 2 2026): only the middle band is decoded,
         // matching what the on-screen guide shows. Cropping also keeps more
         // pixels per barcode than downscaling the whole frame did.
-        const bandY = Math.round(vh * BAND_TOP_FRAC);
-        const bandH = Math.max(1, Math.round(vh * (BAND_BOTTOM_FRAC - BAND_TOP_FRAC)));
+        const bandY = Math.round(vh * bandRef.current.top);
+        const bandH = Math.max(1, Math.round(vh * (bandRef.current.bottom - bandRef.current.top)));
         const scale = Math.min(1, 800 / vw);
         zxingCanvas.width = Math.round(vw * scale);
         zxingCanvas.height = Math.max(1, Math.round(bandH * scale));
@@ -470,8 +526,8 @@ export default function SmartBarcodeScanner({
           const OVER = 0.12; // overlap fraction — barcodes spanning a grid line stay decodable
           // Grid lives INSIDE the aiming band: two labels side by side in the
           // band still both collect, but nothing outside the band does.
-          const bandTopPx = Math.round(vh * BAND_TOP_FRAC);
-          const bandHeightPx = Math.max(1, Math.round(vh * (BAND_BOTTOM_FRAC - BAND_TOP_FRAC)));
+          const bandTopPx = Math.round(vh * bandRef.current.top);
+          const bandHeightPx = Math.max(1, Math.round(vh * (bandRef.current.bottom - bandRef.current.top)));
           const cols = 2, rows = 2;
           const cw = vw / cols, ch = bandHeightPx / rows;
           for (let r = 0; r < rows; r++) {
@@ -589,7 +645,7 @@ export default function SmartBarcodeScanner({
                 for (const bc of barcodes) {
                   const text = bc?.rawValue || String(bc?.value || '');
                   if (!text || seenThisFrame.has(text)) continue;
-                  if (!barcodeCentreInBand(bc, videoRef.current?.videoHeight)) continue; // outside the aiming band — ignore
+                  if (!barcodeCentreInBand(bc, videoRef.current?.videoHeight, bandRef.current.top, bandRef.current.bottom)) continue; // outside the aiming band — ignore
                   seenThisFrame.add(text);
                   handleCameraDetected(text);
                 }
@@ -858,24 +914,26 @@ export default function SmartBarcodeScanner({
         <div className="w-full max-w-lg flex-1 min-h-0 overflow-hidden flex flex-col items-center px-2 pt-2 gap-2">
           {/* Viewfinder — 50% shorter (16:4.5 instead of 16:9) */}
           <div
-            className="relative mx-auto"
-            style={(() => {
-              // OWNER REPORT Nov 2 2026: the viewfinder took the camera's full
-              // aspect ratio at full width, so on a phone it was taller than the
-              // screen and shoved the green check button under the taskbar as
-              // results piled up below it. Height is now capped at 42% of the
-              // viewport and the width derives from the real aspect ratio, so
-              // the picture stays undistorted and always fits.
-              const m = /^([\d.]+)\s*\/\s*([\d.]+)$/.exec(String(frameAspect || '16 / 8'));
-              const ratio = m ? (Number(m[1]) / Number(m[2])) || 2 : 2;
-              return { aspectRatio: frameAspect || '16 / 8', width: `min(100%, ${(42 * ratio).toFixed(2)}vh)`, maxHeight: '42vh' };
-            })()}>
+            ref={viewfinderRef}
+            className="relative w-full"
+            style={{
+              // OWNER REPORT Nov 2 2026 (second pass): capping the height while
+              // keeping the camera's own aspect ratio made the window far too
+              // NARROW on a portrait phone (a 3:4 camera in a 42vh box is only
+              // ~31vh wide). The box is now FULL WIDTH with a fixed 42vh height
+              // and the preview fills it (object-cover), so the picture is wide
+              // and the camera frame is cropped top/bottom. The aiming band guide
+              // below is positioned from the measured video geometry, so it still
+              // marks exactly the rows the decoder reads.
+              height: '42vh',
+              maxHeight: '42vh',
+            }}>
             <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
               flashHit ? 'border-emerald-400' : 'border-white/30'
             }`}>
               <video
                 ref={videoRef}
-                className="absolute inset-0 w-full h-full object-contain"
+                className="absolute inset-0 w-full h-full object-cover"
                 playsInline
                 autoPlay
                 muted
