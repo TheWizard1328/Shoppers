@@ -750,10 +750,18 @@ function DeliveryMap({
     const bandKey = (m) => getLocationKey(m.latitude, m.longitude, bucketedZoom, null);
     const pendingCappedKey = (m) => getLocationKey(m.latitude, m.longitude, bucketedZoom, LOCATION_KEY_CAP_FOR_PENDING);
 
-    // Pass 1: non-pending markers (pickups, active, finished, cycling) at band precision.
-    allMarkers.forEach((marker) => {
+    // Pass 1: non-pending markers (pickups, active, finished) at band precision.
+    // OWNER REPORT (Nov 2 2026): cycling start/end markers must NEVER join a
+    // cluster — they carry their own paired start/end visuals and their own
+    // fan-out at larger zoom levels, so a red count badge on top of them and
+    // petal spokes radiating out of them were double-coding the same thing.
+    // Each cycling marker gets a UNIQUE cluster key: count 1, so no badge, no
+    // spokes, no generic fan, and the pair rendering is untouched.
+    allMarkers.forEach((marker, markerIndex) => {
       if (!marker || isPendingMarker(marker)) return;
-      const key = bandKey(marker);
+      const key = isCyclingMarker(marker)
+        ? `cycling::${marker.id || marker.delivery_id || `idx-${markerIndex}`}`
+        : bandKey(marker);
       clusterKeyByMarker.set(marker, key);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
