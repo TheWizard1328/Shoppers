@@ -17,7 +17,17 @@
 // paying wall-clock hours is the intended behaviour and payroll math is
 // unaffected for every other hour of the year.
 
-const TZ = 'America/Edmonton';
+// WHY 'America/Denver' AND NOT 'America/Edmonton':
+// Alberta observes the ordinary North American Mountain-Time DST rule (2nd Sun
+// Mar 02:00 -> 1st Sun Nov 02:00, -6 MDT / -7 MST) — the rule America/Denver
+// encodes in ICU/tzdata. Some tzdata builds additionally ship an Alberta-only
+// override that skips the Nov 1 2026 fall-back and freezes the province on MDT
+// (-6); that override does not match reality (owner-verified Nov 1 2026: server
+// clock 20:53Z = 13:53 MST, and a tzdata build with the override reports 14:53
+// for the same instant). Denver carries the standard Mountain rule on every
+// build: identical to Edmonton when the database is right, and still right when
+// the database carries the override. No offset or transition date is hardcoded.
+const TZ = 'America/Denver';
 
 const pad = (v: number) => String(v).padStart(2, '0');
 

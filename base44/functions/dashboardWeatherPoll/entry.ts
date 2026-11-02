@@ -32,9 +32,10 @@ import { edmontonTodayKey } from '../../shared/albertaWall.ts';
 
 const SETTINGS_KEY = 'dashboard_weather';
 
+// Same shared helper as the day key below — one definition of "what day is it
+// in Edmonton", no per-function Intl formatters drifting apart.
 function edmontonToday(date = new Date()) {
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-  return fmt.format(date);
+  return edmontonTodayKey(date);
 }
 
 // WMO weather interpretation codes → short text

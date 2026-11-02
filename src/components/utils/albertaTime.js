@@ -18,9 +18,26 @@
  *     are read verbatim and written verbatim, never converted.
  *   - Real ISO strings (with Z or an offset) are true instants and resolve to
  *     Edmonton wall through the tz database.
+ *
+ * Accepted once-a-year ambiguity: on the fall-back night the 01:00–02:00 wall
+ * hour happens twice, and a naive wall string cannot say which one it means. A
+ * segment started in the first pass and closed in the second reads as one hour
+ * shorter than the clock on the wall suggests. That window is the only place
+ * this shows up — it never touches daytime shifts, payroll day totals or the
+ * Square day buckets, and paying wall-clock hours is the intended behaviour.
  */
 
-const TZ = 'America/Edmonton';
+// WHY 'America/Denver' AND NOT 'America/Edmonton':
+// Alberta observes the ordinary North American Mountain-Time DST rule (2nd Sun
+// Mar 02:00 -> 1st Sun Nov 02:00, -6 MDT / -7 MST) — the rule America/Denver
+// encodes in ICU/tzdata. Some tzdata builds additionally ship an Alberta-only
+// override that skips the Nov 1 2026 fall-back and freezes the province on MDT
+// (-6); that override does not match reality (owner-verified Nov 1 2026: server
+// clock 20:53Z = 13:53 MST, and an override build reports 14:53 for the same
+// instant). Denver carries the standard Mountain rule on every build: identical
+// to Edmonton when the database is right, and still right when it is not.
+// No offset or transition date is hardcoded anywhere.
+const TZ = 'America/Denver';
 
 const pad = (v) => String(v).padStart(2, '0');
 
