@@ -125,20 +125,54 @@ export function usePortalWatcherVersion() {
   return useSyncExternalStore(portalWatchersStore.subscribe, portalWatchersStore.getVersion);
 }
 
-/** True while this patient is watching the portal right now. */
+// ── STORE SCOPE (owner report Nov 2 2026) ───────────────────────────────────
+// The watcher list is per DATE, not per store, so every consumer had to
+// intersect it with deliveries it could see. A dispatcher CAN see another
+// store's driver route, so Callingwood saw the glowing halo / eye / FAB ring
+// for a Hampton patient (Kyle Jennings on Robert's route). Owner rule: a store
+// dispatcher only sees these three patient-viewing indicators when the
+// patient's delivery belongs to one of THEIR stores.
+//   • app_owner / admin          → every route they view
+//   • the stop's own driver      → their own route
+//   • dispatcher / store_owner   → only deliveries whose store_id is in store_ids
+export const isDeliveryInStoreScope = (delivery, appUser) => {
+  if (!delivery || !appUser) return false;
+  const roles = Array.isArray(appUser.app_roles) ? appUser.app_roles : [];
+  if (appUser.is_app_owner === true || roles.includes('app_owner') || roles.includes('admin')) return true;
+  if (appUser.user_id && delivery.driver_id && appUser.user_id === delivery.driver_id) return true;
+  const stores = Array.isArray(appUser.store_ids) ? appUser.store_ids : [];
+  return !!delivery.store_id && stores.includes(delivery.store_id);
+};
+
+/** True while this delivery's patient is watching AND is inside the viewer's store scope. */
+export function isWatcherVisibleForDelivery(delivery, appUser) {
+  if (!delivery?.patient_id || !_watchers.has(delivery.patient_id)) return false;
+  return isDeliveryInStoreScope(delivery, appUser);
+}
+
+/** React binding: is this delivery's patient watching, within the viewer's store scope? */
+export function useIsDeliveryPatientWatching(delivery, appUser) {
+  useSyncExternalStore(portalWatchersStore.subscribe, portalWatchersStore.getVersion);
+  return isWatcherVisibleForDelivery(delivery, appUser);
+}
+
+/** Legacy per-patient binding (kept for callers with no delivery in scope). */
 export function useIsPatientWatching(patientId) {
   useSyncExternalStore(portalWatchersStore.subscribe, portalWatchersStore.getVersion);
   return !!patientId && _watchers.has(patientId);
 }
 
-/** How many of the given deliveries' patients are watching right now. */
-export function usePortalWatchCount(deliveries) {
+/** How many of the given deliveries' patients are watching right now (store-scoped). */
+export function usePortalWatchCount(deliveries, appUser = null) {
   useSyncExternalStore(portalWatchersStore.subscribe, portalWatchersStore.getVersion);
   return useMemo(() => {
     let count = 0;
     for (const d of deliveries || []) {
-      if (d?.patient_id && _watchers.has(d.patient_id)) count++;
+      if (!d?.patient_id || !_watchers.has(d.patient_id)) continue;
+      // No appUser supplied → keep the old behaviour for callers that gate elsewhere.
+      if (appUser && !isDeliveryInStoreScope(d, appUser)) continue;
+      count++;
     }
     return count;
-  }, [deliveries]);
+  }, [deliveries, appUser]);
 }

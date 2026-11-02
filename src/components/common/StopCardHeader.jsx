@@ -7,6 +7,7 @@ import { getDriverDisplayName } from "../utils/driverUtils";
 import { calculateDeliveryPay, formatPay } from "../utils/payCalculator";
 import { userHasRole } from "../utils/userRoles";
 import { useAppData } from "../utils/AppDataContext";
+import { useIsDeliveryPatientWatching } from "../utils/portalWatchers";
 import { format } from "date-fns";
 import { getCurrentEtaForDelivery, getEtaTrendForDelivery, primeEtaTrendBus } from "../utils/etaTrendBus";
 import { Thermometer, Eye } from "lucide-react";
@@ -180,13 +181,19 @@ export default function StopCardHeader({
   ispSourceStore = null,
   allDeliveries = [],
 }) {
-  const { appUsers: contextAppUsers } = useAppData();
+  const { appUsers: contextAppUsers, currentUser: _headerViewer } = useAppData();
   const resolvedAppUsers = appUsers?.length ? appUsers : (contextAppUsers || []);
+  // STORE SCOPE (owner report Nov 2 2026): the eye appears only for a store
+  // dispatcher whose store owns this delivery (plus the driver and admins).
+  const _viewerAppUser = React.useMemo(
+    () => (resolvedAppUsers || []).find((u) => u?.user_id === _headerViewer?.id) || null,
+    [resolvedAppUsers, _headerViewer?.id]
+  );
 
   // Patient-portal watcher indicator (owner spec Oct 23 2026): blue eye when
   // this patient is watching the portal right now (delivery-that-date gate is
   // inherent — the card only exists for a visible delivery).
-  const isPatientWatching = useIsPatientWatching(patient?.id);
+  const isPatientWatching = useIsDeliveryPatientWatching(delivery, _viewerAppUser);
 
 
   const liveTemp = useLiveTempReading(delivery?.driver_id);

@@ -1,3 +1,4 @@
+import { useAppData } from '../utils/AppDataContext';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,15 @@ export default function MapViewCycleFAB({
   // carries the watching count in its corner (same badge style as the phase
   // number). The FAB is the one element present in every map phase, including
   // immersive mode where stop cards and the stats panel are hidden.
-  const watchingCount = usePortalWatchCount(filteredDeliveries);
+  // STORE SCOPE (owner report Nov 2 2026): the FAB ring + count only reflect
+  // patients whose delivery belongs to the viewer's own store (dispatchers),
+  // their own route (drivers), or everything (admins/owners).
+  const { currentUser: _fabViewer, appUsers: _fabAppUsers } = useAppData();
+  const _fabViewerAppUser = React.useMemo(
+    () => (_fabAppUsers || []).find((u) => u?.user_id === _fabViewer?.id) || null,
+    [_fabAppUsers, _fabViewer?.id]
+  );
+  const watchingCount = usePortalWatchCount(filteredDeliveries, _fabViewerAppUser);
 
 
   const flashUpdate = useCallback((reason = 'generic', details = {}) => {

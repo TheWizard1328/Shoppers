@@ -7,7 +7,8 @@ import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
-import { portalWatchersStore, usePortalWatcherVersion } from '../utils/portalWatchers';
+import { portalWatchersStore, usePortalWatcherVersion, isWatcherVisibleForDelivery } from '../utils/portalWatchers';
+import { useAppData } from '../utils/AppDataContext';
 
 // Zoom level at which co-located markers fan out on their own. OWNER REQUEST
 // (Oct 30 2026): 15 on phones (they show far less ground per zoom step), 16 on
@@ -49,6 +50,13 @@ function DeliveryMarkers({
   // Patient-portal watcher indicator: re-render markers when the watcher list
   // changes (once a minute at most) so rings appear/disappear live.
   usePortalWatcherVersion();
+  // STORE SCOPE (owner report Nov 2 2026): a dispatcher only gets the patient
+  // halos for HIS stores' patients. Resolve the viewer's own AppUser once.
+  const { currentUser: _markerViewer, appUsers: _markerAppUsers } = useAppData();
+  const _viewerAppUser = React.useMemo(
+    () => (_markerAppUsers || []).find((u) => u?.user_id === _markerViewer?.id) || null,
+    [_markerAppUsers, _markerViewer?.id]
+  );
 
   const [gpsOverrides, setGpsOverrides] = React.useState({});
 
@@ -367,7 +375,7 @@ function DeliveryMarkers({
     // Leaflet circle). Non-fanned only (fanned positions are offset; the FAB
     // badge + card eye carry the signal there).
     const isPatientWatching = !delivery.is_cycling_marker && delivery.patient_id
-      ? portalWatchersStore.isWatching(delivery.patient_id)
+      ? isWatcherVisibleForDelivery(delivery, _viewerAppUser)
       : false;
     const showWatchHalo = isPatientWatching && !isFanned;
     const icon = delivery.useSimpleCircle || delivery.isOtherDriver
