@@ -579,7 +579,9 @@ export function useStopCardStartActions({
           return { ...d, deviation_waypoints: [] };
         };
 
-        // OWNER DIRECTIVE (Oct 27 2026 evening): START CLEARS WAYPOINTS.
+        // SUPERSEDED (Nov 2 2026): START now TRANSFERS the points onto the
+        // started stop — see the transfer block after startedRouteDeliveries.
+        // Historic rule (kept for context): START CLEARS WAYPOINTS.
         // When the driver completes a stop and starts the NEXT one, any
         // deviation_waypoints that next stop is carrying (left over from an
         // earlier leg, transferred by the engine, or recorded before the
@@ -607,10 +609,48 @@ export function useStopCardStartActions({
             return { ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime };
           }
           if (d?.isNextDelivery) {
-            return _clearStaleVias({ ...d, isNextDelivery: false });
+            // START TRANSFERS DEVIATION POINTS (owner directive Nov 2 2026):
+            // the points on the previous next stop are the path the driver
+            // ACTUALLY drove, so they move onto the newly started stop below —
+            // the regenerated current leg keeps bending through them. The old
+            // holder is emptied here (a point lives on exactly one leg).
+            return { ...d, isNextDelivery: false, ...(Array.isArray(d.deviation_waypoints) && d.deviation_waypoints.length > 0 ? { deviation_waypoints: [] } : {}) };
           }
           return _clearStaleVias(d);
         }).filter(Boolean);
+
+        // ── Deviation transfer (owner Nov 2 2026, supersedes Oct 27 clear) ────
+        // Previous next stop -> started stop, guarded + capped, merged with the
+        // started stop's own points.
+        try {
+          const { computeDeviationTransferOnStart } = await import('../utils/deviationTransferOnStart');
+          const prevNext = routeDeliveries.find((d) => d?.isNextDelivery && d?.id !== delivery.id) || null;
+          if (prevNext) {
+            const patientMap = new Map((patients || []).map((pt) => [pt.id, pt]));
+            const storeMap = new Map((stores || []).map((st) => [st.id, st]));
+            const { getDeliveryCoords } = await import('../utils/clientRouteEngine');
+            const toPoint = getDeliveryCoords(routeDeliveries.find((d) => d?.id === delivery.id), patientMap, storeMap);
+            // Leg origin = the driver's live GPS when known (that is where the
+            // travelled points sit relative to), else no origin guard.
+            const _lat = Number(currentDriverAppUser?.current_latitude);
+            const _lng = Number(currentDriverAppUser?.current_longitude);
+            const originPoint = Number.isFinite(_lat) && Number.isFinite(_lng) ? { lat: _lat, lng: _lng } : null;
+            const changes = computeDeviationTransferOnStart({
+              deliveries: startedRouteDeliveries,
+              fromId: prevNext.id,
+              toId: delivery.id,
+              originPoint,
+              toPoint,
+            });
+            const startedNewPts = changes.get(delivery.id);
+            if (Array.isArray(startedNewPts) && startedNewPts.length > 0) {
+              const idx = startedRouteDeliveries.findIndex((d) => d?.id === delivery.id);
+              if (idx >= 0) startedRouteDeliveries[idx] = { ...startedRouteDeliveries[idx], deviation_waypoints: startedNewPts };
+            }
+          }
+        } catch (transferErr) {
+          console.warn('[Start] deviation transfer failed (non-blocking):', transferErr?.message);
+        }
 
         const { offlineDB } = await import('../utils/offlineDatabase');
         const startedChangedDeliveries = startedRouteDeliveries.filter((item) => {

@@ -24,6 +24,8 @@ import { determinePolylineSegment, fetchPolylineForSegment } from '@/components/
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
 import { edmontonNowMinutes, edmontonTodayKey } from '@/components/utils/albertaTime';
 import { setDriverStatus } from '@/functions/setDriverStatus';
+import { computeDeviationTransferOnStart } from '@/components/utils/deviationTransferOnStart';
+import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
 
 // Minutes -> 'HH:mm' (local helper; keeps this module dependency-free).
 const formatAlbertaMinutes = (mins) => {
@@ -222,6 +224,45 @@ export async function handleStartDelivery({
       };
     });
 
+    // ── STEP 2c: START TRANSFERS DEVIATION POINTS (owner directive Nov 2 2026) ──
+    // The points recorded on the stop that was next are the path the driver
+    // ACTUALLY drove, so they ride onto the newly started stop and the
+    // regenerated current leg keeps bending through them. Guarded (points
+    // already passed / behind the leg are dropped) and capped at 3, merged with
+    // the started stop's own points. Both ids join the final commit so the
+    // transfer hits the server in the same single push.
+    try {
+      const prevNextLocal = driverLocalDeliveries.find((d) => d?.isNextDelivery && d?.id !== deliveryId) || null;
+      if (prevNextLocal) {
+        const patientMap = new Map((patients || []).map((pt) => [pt.id, pt]));
+        const storeMap = new Map((stores || []).map((st) => [st.id, st]));
+        const toPoint = getDeliveryCoords(driverLocalDeliveries.find((d) => d?.id === deliveryId), patientMap, storeMap);
+        const _loc = driverLocation || {};
+        const _lat = Number(_loc.lat ?? _loc.latitude);
+        const _lng = Number(_loc.lng ?? _loc.lon ?? _loc.longitude);
+        const originPoint = Number.isFinite(_lat) && Number.isFinite(_lng) ? { lat: _lat, lng: _lng } : null;
+        const viasByPrev = computeDeviationTransferOnStart({
+          deliveries: mutatedDeliveries,
+          fromId: prevNextLocal.id,
+          toId: deliveryId,
+          originPoint,
+          toPoint,
+        });
+        if (viasByPrev.size > 0) {
+          for (let i = 0; i < mutatedDeliveries.length; i++) {
+            const nextVias = viasByPrev.get(mutatedDeliveries[i]?.id);
+            if (nextVias) {
+              mutatedDeliveries[i] = { ...mutatedDeliveries[i], deviation_waypoints: nextVias };
+              transitionedIds.add(mutatedDeliveries[i].id);
+            }
+          }
+          console.log(`[handleStartDelivery] Step 2c — deviation points transferred ${prevNextLocal.id} -> ${deliveryId}`);
+        }
+      }
+    } catch (transferErr) {
+      console.warn('[handleStartDelivery] Step 2c deviation transfer failed (non-blocking):', transferErr?.message);
+    }
+
     // Write ALL mutations to offlineDB atomically
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mutatedDeliveries);
     console.log(`✅ [handleStartDelivery] Step 2 complete — ${transitionedIds.size} stops written to offlineDB`);
@@ -332,6 +373,10 @@ export async function handleStartDelivery({
         mergedDataMap.set(id, {
           ...existing,
           stop_order: existing.stop_order != null ? existing.stop_order : Number(d.stop_order),
+          // Deviation points ride the SAME single commit (owner Nov 2 2026) —
+          // the transfer from the previous next stop and the emptied holder
+          // must reach the server or the regenerated leg loses the driven path.
+          ...(Array.isArray(d.deviation_waypoints) ? { deviation_waypoints: d.deviation_waypoints } : {}),
           ...(id === deliveryId
             ? {
                 status: newStatus,
