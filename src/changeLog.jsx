@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 66;
+export const BUILD_NUMBER = 67;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 67, area: 'App', audience: 'everyone', summary: 'Devices now pick up a new build when you come back to the app. Before this, a phone could sit on old code for hours because it only updated after 10 minutes away or idle, so fixes like the time correction never reached it.' },
   { build: 66, area: 'Routes', audience: 'drivers', summary: 'Start now carries your detour points onto the new stop, so the line for your current leg still bends through the road you actually drove instead of snapping back to the straight plan.' },
   { build: 65, area: 'Dashboard', audience: 'dispatchers', summary: 'Patient-viewing alerts are now store-scoped. The map halo, the eye on the stop card and the ring on the map cycle button only appear for your own stores patients, instead of every dispatcher seeing another stores patient.' },
   { build: 64, area: 'Stops', audience: 'drivers', summary: 'Start now brings you back on duty. Tapping Start while on break or off duty flips you on, draws the leg to that stop and pins it as your next stop instead of leaving the route unmoved.' },

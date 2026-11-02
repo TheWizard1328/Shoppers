@@ -451,10 +451,17 @@ export default function Layout({ children, currentPageName }) {
     const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
     const IDLE_RESTART_DELAY_MS = 60 * 1000;
 
-    const applyUpdate = () => {
+    const applyUpdate = async () => {
       try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { }
       try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
-      window.location.reload(true);
+      // HTTP cache: a plain reload can hand back the OLD index.html, which
+      // still points at the old hashed chunks (why devices sat on stale
+      // bundles for hours). cache:'reload' revalidates the document and
+      // refreshes the cache entry BEFORE we reload, so the new bundle wins.
+      try {
+        await fetch(`/?_u=${Date.now()}`, { cache: 'reload', credentials: 'same-origin' });
+      } catch { /* offline — the reload below still runs */ }
+      window.location.reload();
     };
 
     let backgroundedAt = document.hidden ? Date.now() : null;
@@ -469,6 +476,15 @@ export default function Layout({ children, currentPageName }) {
     const disarmIdleRestart = () => {
       if (idleRestartTimer) { clearTimeout(idleRestartTimer); idleRestartTimer = null; }
     };
+
+    // ── Case 3 (owner report Nov 2 2026): SHORT background gaps ─────────────
+    // Drivers keep the app open all day, so the 10-minute background window and
+    // the 10-minute idle window almost never fire and devices ran HOURS-old
+    // code (Anna finished a whole route on pre-DST-fix code because of it).
+    // Coming back from a normal short background gap (a delivery at the door)
+    // is the safest natural boundary there is: the app re-hydrates from IDB and
+    // the route is never mid-tap. Reload once the gap reaches 45 seconds.
+    const SHORT_BACKGROUND_THRESHOLD_MS = 45 * 1000;
 
     // Update just became ready — if the device is already foreground-idle past
     // the threshold, arm the 1-minute restart right away.
@@ -487,9 +503,24 @@ export default function Layout({ children, currentPageName }) {
       }
     };
     const iv = setInterval(tick, 60 * 1000);
+    const hiddenSince = { t: document.hidden ? Date.now() : null };
     const onVis = () => {
-      backgroundedAt = document.hidden ? Date.now() : null;
-      if (document.hidden) disarmIdleRestart();
+      if (document.hidden) {
+        hiddenSince.t = Date.now();
+        backgroundedAt = hiddenSince.t;
+        disarmIdleRestart();
+        return;
+      }
+      const awayMs = hiddenSince.t ? (Date.now() - hiddenSince.t) : 0;
+      hiddenSince.t = null;
+      backgroundedAt = null;
+      // Short-gap resume (Case 3): load the new build now, while nothing is in
+      // flight. Falls through to the idle/background cases when the gap is tiny.
+      if (awayMs >= SHORT_BACKGROUND_THRESHOLD_MS) {
+        applyUpdate();
+        return;
+      }
+      if (getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
     };
     // A user coming back cancels a pending idle restart mid-countdown.
     const onActivity = () => disarmIdleRestart();
