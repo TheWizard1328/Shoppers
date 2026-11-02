@@ -13,11 +13,50 @@
  */
 /* global __WEB_BUILD_ID__ */
 import { useState, useEffect, useRef } from 'react';
+import { BUILD_NUMBER } from '@/changeLog';
+import { WEB_VERSION } from '@/version';
+import { base44 } from '@/api/base44Client';
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 // Fallback if the define didn't run (dev mode, etc.)
 const BUILT_BUILD_ID = typeof __WEB_BUILD_ID__ !== 'undefined' ? __WEB_BUILD_ID__ : 'dev';
+
+/**
+ * Is the server build newer than the build this device is running?
+ *
+ * OWNER REPORT (Nov 2 2026): drivers on the LIVE site never saw the update
+ * balloon — only a manual refresh got them the new code — while preview
+ * worked. Two reasons:
+ *   1. the whole check was string-only (server buildId vs the baked define)
+ *      and the guard `BUILT_BUILD_ID !== 'dev'` DISABLED it completely on any
+ *      bundle whose build id was missing at deploy time;
+ *   2. /version.json is served with max-age=3600, so a plain fetch could come
+ *      back as the device's own old copy.
+ * The comparison is now numeric (BUILD_NUMBER + WEB_VERSION are real imports,
+ * always present) with the id string kept only as an extra hint, and the
+ * published build is fetched through the backend function as a fallback so a
+ * CDN cache or a blocked fetch can no longer hide a publish.
+ */
+const parseBuildNumbers = (id) => {
+  const m = /^b(\d+)\.w(\d+)/.exec(String(id || ''));
+  if (!m) return null;
+  return { buildNumber: Number(m[1]), webVersion: Number(m[2]) };
+};
+
+const serverIsNewer = (server) => {
+  if (!server) return false;
+  const sBn = Number(server.buildNumber);
+  const sWv = Number(server.webVersion);
+  if (Number.isFinite(sBn) && sBn > BUILD_NUMBER) return true;
+  if (Number.isFinite(sBn) && sBn === BUILD_NUMBER) {
+    if (Number.isFinite(sWv) && sWv > Number(WEB_VERSION)) return true;
+    // same numbers, different id = code published without a version bump
+    if (server.buildId && BUILT_BUILD_ID !== 'dev' && server.buildId !== BUILT_BUILD_ID) return true;
+    return false;
+  }
+  return false;
+};
 
 export function useWebUpdateCheck() {
   const [hasUpdate, setHasUpdate] = useState(false);
@@ -44,12 +83,45 @@ export function useWebUpdateCheck() {
 
         setCurrentBuildId(serverBuildId);
 
-        // Mismatch = server has a newer build than what's loaded
+        const parsed = parseBuildNumbers(serverBuildId);
+        const server = {
+          buildId: serverBuildId,
+          buildNumber: data?.buildNumber ?? parsed?.buildNumber,
+          webVersion: data?.webVersion ?? parsed?.webVersion,
+        };
+        if (serverIsNewer(server)) {
+          setHasUpdate(true);
+          return;
+        }
+        // Exact-id check kept for same-number publishes on a stamped bundle.
         if (BUILT_BUILD_ID !== 'dev' && serverBuildId !== BUILT_BUILD_ID) {
+          setHasUpdate(true);
+          return;
+        }
+        // Same numbers AND same id: the relative fetch may simply be the
+        // device's own cached copy (max-age=3600). Ask the backend once.
+        if (BUILT_BUILD_ID === 'dev' || serverBuildId === BUILT_BUILD_ID) {
+          await checkViaBackend();
+        }
+      } catch {
+        // Direct fetch failed (CORS, CDN oddity, offline). Fall back to the
+        // backend lookup of the LIVE published build before giving up.
+        await checkViaBackend();
+      }
+    };
+
+    const checkViaBackend = async () => {
+      try {
+        const res = await base44.functions.invoke('getPublishedBuildInfo', {});
+        const data = res?.data || res;
+        if (cancelled || !mountedRef.current) return;
+        if (!data?.buildNumber) return;
+        setCurrentBuildId(data.buildId || null);
+        if (serverIsNewer({ buildId: data.buildId, buildNumber: data.buildNumber, webVersion: data.webVersion })) {
           setHasUpdate(true);
         }
       } catch {
-        // Network error or version.json not found — silent, no badge
+        // silent — no badge
       }
     };
 

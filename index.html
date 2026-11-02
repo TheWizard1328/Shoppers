@@ -25,6 +25,40 @@
     // useAutoThemeSync whenever the real preference resolves) → OS/browser
     // dark-mode media query. Matches useAutoThemeSync's own logic exactly so
     // there is no mismatch once React takes over.
+    // ── LIVE BUILD GUARD (owner report Nov 2 2026) ──────────────────────
+    // A driver published-to device showed no "update available" balloon and
+    // only got the new code when he manually refreshed. Reason: the in-app
+    // check compares the RUNNING bundle's baked build id against
+    // /version.json, and a stale cached bundle can carry 'dev' (or a very old
+    // id) so the check silently disabled itself. This runs before React, uses
+    // the id stamped into THIS html, and pulls the newer build itself. Two
+    // attempts per page session, 6s apart, never in a loop.
+    (function() {
+      try {
+        var meta = document.querySelector('meta[name="rx-build"]');
+        var mine = meta ? (meta.getAttribute('content') || '') : '';
+        if (!mine) return; // unstamped build (local dev) — in-app check handles it
+        var KEY = 'rx_live_build_guard_v1';
+        var state = {};
+        try { state = JSON.parse(sessionStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+        if ((state.attempts || 0) >= 2) return;
+        if (state.lastAt && Date.now() - state.lastAt < 6000) return;
+        fetch('/version.json?cb=' + Date.now(), { cache: 'no-store' })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(d) {
+            var theirs = d && d.buildId ? String(d.buildId) : '';
+            if (!theirs || theirs === mine) return;
+            try {
+              sessionStorage.setItem(KEY, JSON.stringify({ attempts: (state.attempts || 0) + 1, lastAt: Date.now(), from: mine, to: theirs }));
+            } catch (e) {}
+            // cache-busting navigation: a plain reload can hand back the same
+            // stale document from the WebView/browser cache.
+            location.replace(location.pathname + '?rxb=' + encodeURIComponent(theirs) + location.hash);
+          })
+          .catch(function() {});
+      } catch (e) {}
+    })();
+
     (function() {
       try {
         var pref = localStorage.getItem('rxdeliver_theme_preference');

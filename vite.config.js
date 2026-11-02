@@ -25,6 +25,24 @@ export default defineConfig({
     hmr: false,
   },
   plugins: [
+    // ── BUILD STAMP IN THE HTML (owner report Nov 2 2026) ──────────────────
+    // Drivers on the live site never saw the update balloon. version.json is
+    // served with cache-control: public, max-age=3600 and the running bundle's
+    // own id can fall back to 'dev' (no .build-id at deploy time), which
+    // disabled the in-app check entirely. stamping the id into index.html lets
+    // a tiny inline script compare the page itself against /version.json and
+    // pull a newer build before React even boots — no dependence on what the
+    // previously cached bundle was built with.
+    {
+      name: 'rx-build-stamp',
+      transformIndexHtml(html) {
+        const stamp = webBuildId && webBuildId !== 'dev' ? webBuildId : '';
+        return html.replace(
+          '</head>',
+          `  <meta name="rx-build" content="${stamp}" />\n  </head>`
+        );
+      },
+    },
     base44({
       // Support for legacy code that imports the base44 SDK with @/integrations, @/entities, etc.
       // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
