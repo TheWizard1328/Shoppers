@@ -456,9 +456,12 @@ Deno.serve(async (req) => {
     if (routeStops.length === 0) {
       return Response.json({ success: true, supported: false, reason: 'no_mappable_stops' });
     }
-    if (routeStops.length > 40) {
-      return Response.json({ success: true, supported: false, reason: 'too_many_stops' });
-    }
+    // STOP CAP REMOVED (owner directive Nov 2 2026: "cap is not need"). The
+    // old 40-stop refusal was my own safety margin, not a HERE limit, and real
+    // routes peak at 8-16 live stops at once (measured Oct 22 / 26 / 28), so it
+    // only ever risked a silent fallback. The bound that remains is HERE's own:
+    // findsequence2 rejects an oversized waypoint list, that surfaces as a
+    // normal server error, and the coordinator falls back to the client engine.
     // ── Mixed-mode detection (owner directive Oct 16 2026): cycling routes now
     // follow the SAME client/server switch as driving routes. Mirrors the
     // client engine's split (clientRouteEngine.js): a route WITH an END cycling
