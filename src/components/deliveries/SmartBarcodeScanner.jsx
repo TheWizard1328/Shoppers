@@ -113,10 +113,23 @@ const BAND_BOTTOM = 0.70;
  * video frame. Codes elsewhere in the picture are ignored, so a bag holding
  * several labels no longer auto-collects every one of them.
  */
-const barcodeCentreInBand = (bc, videoHeight, bandTop = BAND_TOP, bandBottom = BAND_BOTTOM) => {
+const barcodeCentreInBand = (bc, videoHeight, bandTop = BAND_TOP, bandBottom = BAND_BOTTOM, videoWidth = 0, x1 = 0, x2 = 1) => {
   try {
     const vh = videoHeight || 0;
     if (!vh) return true; // unknown frame height — never block detection
+    // Horizontal window: the preview is cropped at the sides too, so a code
+    // outside the visible columns must not be captured either.
+    const vw = videoWidth || 0;
+    if (vw > 0 && (x1 > 0 || x2 < 1)) {
+      let cxVal = null;
+      const bbX = bc?.boundingBox;
+      if (bbX && bbX.width != null && bbX.x != null) cxVal = (Number(bbX.x) + Number(bbX.width) / 2) / vw;
+      else if (Array.isArray(bc?.cornerPoints) && bc.cornerPoints.length) {
+        const xs = bc.cornerPoints.map((p) => Number(p?.x ?? p?.X ?? 0)).filter(Number.isFinite);
+        if (xs.length) cxVal = ((Math.min(...xs) + Math.max(...xs)) / 2) / vw;
+      }
+      if (cxVal != null && Number.isFinite(cxVal) && (cxVal < x1 || cxVal > x2)) return false;
+    }
     let cy = null;
     const bb = bc?.boundingBox;
     if (bb && bb.height != null && bb.y != null) {
@@ -236,28 +249,58 @@ export default function SmartBarcodeScanner({
     } catch {}
   };
 
-  const addBarcode = useCallback((value) => {
+  const digitsOf = (v) => String(v || '').replace(/\D/g, '');
+  // Does `longer` look like the same physical barcode read in full?
+  const isFullerReadOf = (longer, shorter) => {
+    const dl = digitsOf(longer);
+    const ds = digitsOf(shorter);
+    if (!dl || !ds || ds.length < 6 || dl.length <= ds.length) return false;
+    return dl.includes(ds);
+  };
+
+  const addBarcode = useCallback((value, opts = {}) => {
+    const fromCamera = opts?.fromCamera === true;
     const trimmed = String(value || '').trim();
     scannerLeadCharRef.current = '';
-    const currentAll = [...(receiptBarcodesRef.current || []), ...(rxBarcodesRef.current || [])];
-    if (!trimmed || currentAll.includes(trimmed)) {
+    const receipts = [...(receiptBarcodesRef.current || [])];
+    const rx = [...(rxBarcodesRef.current || [])];
+    const currentAll = [...receipts, ...rx];
+    const focusBack = () => {
       setManualInput('');
       if (!showCameraRef.current) setTimeout(() => inputRef.current?.focus(), 0);
-      return;
-    }
+    };
+    if (!trimmed || currentAll.includes(trimmed)) { focusBack(); return; }
+
+    // A cut-off read of a barcode we already hold is the SAME barcode — never
+    // a second entry (owner report Nov 2 2026: duplicates kept appearing).
+    if (currentAll.some((v) => isFullerReadOf(v, trimmed))) { focusBack(); return; }
+    const fragments = currentAll.filter((v) => isFullerReadOf(trimmed, v));
 
     if (classifyBarcode(trimmed) === 'rx') {
-      const updated = [...(rxBarcodesRef.current || []), trimmed];
+      const updated = [...rx.filter((v) => !fragments.includes(v)), trimmed];
       rxBarcodesRef.current = updated; // update ref immediately to prevent duplicates
+      if (fragments.some((v) => receipts.includes(v))) {
+        const nextReceipts = receipts.filter((v) => !fragments.includes(v));
+        receiptBarcodesRef.current = nextReceipts;
+        onReceiptChange(nextReceipts);
+      }
       onRxChange(updated);
     } else {
-      const updated = [...(receiptBarcodesRef.current || []), trimmed];
+      // A receipt carries ONE barcode. A shorter read never displaces a longer
+      // one; a longer read replaces the fragments already stored. This is what
+      // keeps '000' / a 12-digit misread from living beside the real code.
+      const best = receipts.reduce((m, v) => (!m || v.length > m.length ? v : m), null);
+      // Only camera reads are held to the one-receipt rule — typed and
+      // physical-scanner entries are always accepted as given.
+      if (fromCamera && best && best.length >= trimmed.length) { focusBack(); return; }
+      const updated = fromCamera
+        ? [...receipts.filter((v) => !fragments.includes(v) && v !== best), trimmed]
+        : [...receipts.filter((v) => !fragments.includes(v)), trimmed];
       receiptBarcodesRef.current = updated; // update ref immediately to prevent duplicates
       onReceiptChange(updated);
     }
 
-    setManualInput('');
-    if (!showCameraRef.current) setTimeout(() => inputRef.current?.focus(), 0);
+    focusBack();
   }, [onReceiptChange, onRxChange]);
 
   const removeReceiptBarcode = useCallback((index) => {
@@ -348,17 +391,42 @@ export default function SmartBarcodeScanner({
     lastKeyAtRef.current = now;
   };
 
+  // ── Camera read confirmation (owner report Nov 2 2026) ──────────────────
+  // One frame used to be enough to file a barcode, so a half-read code became
+  // a second receipt barcode ('000', a 12-digit misread) sitting beside the
+  // real one. A camera hit now needs TWO matching reads inside 2.5s, and short
+  // or all-zero fragments are dropped outright.
+  const pendingHitsRef = useRef(new Map());
+  const MIN_CAMERA_CODE_LEN = 6;
+  const CONFIRM_HITS = 2;
+  const CONFIRM_WINDOW_MS = 4000;
+
   const handleCameraDetected = useCallback((value) => {
     const trimmed = String(value || '').trim();
     if (!trimmed) return;
+    const compactLen = trimmed.replace(/\s+/g, '').length;
+    if (compactLen < MIN_CAMERA_CODE_LEN) return;   // fragment, not a barcode
+    if (/^0+$/.test(trimmed)) return;               // padding read
+
     const now = Date.now();
+    const pending = pendingHitsRef.current;
+    const prev = pending.get(trimmed);
+    if (prev && now - prev.firstAt <= CONFIRM_WINDOW_MS) prev.count += 1;
+    else pending.set(trimmed, { count: 1, firstAt: now });
+    for (const [k, v] of pending) {
+      if (now - v.firstAt > CONFIRM_WINDOW_MS) pending.delete(k);
+    }
+    const hits = pending.get(trimmed)?.count || 0;
+    if (hits < CONFIRM_HITS) return; // wait for a second matching read
+    pending.delete(trimmed);
+
     if (trimmed === lastValueRef.current && now - lastScanAtRef.current < 800) return;
     lastValueRef.current = trimmed;
     lastScanAtRef.current = now;
     beep();
     setFlashHit(true);
     setTimeout(() => setFlashHit(false), 120);
-    addBarcode(trimmed);
+    addBarcode(trimmed, { fromCamera: true });
   }, [addBarcode]);
 
   // Native BarcodeDetector + ZXing fallback
@@ -407,20 +475,18 @@ export default function SmartBarcodeScanner({
         const vw = m ? Number(m[1]) : 0;
         const vh = m ? Number(m[2]) : 0;
         if (!boxW || !boxH || !vw || !vh) {
-          bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM };
+          bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM, x1: 0, x2: 1 };
           return;
         }
-        const scale = Math.max(boxW / vw, boxH / vh); // object-cover
-        const dispH = vh * scale;
-        const offsetY = (dispH - boxH) / 2;
-        const toVideoRow = (boxY) => Math.min(1, Math.max(0, (boxY + offsetY) / dispH));
-        const top = toVideoRow(boxH * BAND_TOP);
-        const bottom = toVideoRow(boxH * BAND_BOTTOM);
-        bandRef.current = bottom - top >= 0.05
-          ? { top, bottom }
-          : { top: BAND_TOP, bottom: BAND_BOTTOM };
+        // The preview shows ONLY the band rows, blown up to fill the box, so
+        // the decoded rows and the visible picture are the same rectangle.
+        const bandFrac = BAND_BOTTOM - BAND_TOP;
+        const dispH = boxH / bandFrac;     // video display height in px
+        const dispW = dispH * (vw / vh);   // keeps the camera aspect ratio
+        const x1 = dispW > boxW ? ((dispW - boxW) / 2) / dispW : 0;
+        bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM, x1, x2: 1 - x1 };
       } catch {
-        bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM };
+        bandRef.current = { top: BAND_TOP, bottom: BAND_BOTTOM, x1: 0, x2: 1 };
       }
     };
     recompute();
@@ -494,10 +560,12 @@ export default function SmartBarcodeScanner({
         // pixels per barcode than downscaling the whole frame did.
         const bandY = Math.round(vh * bandRef.current.top);
         const bandH = Math.max(1, Math.round(vh * (bandRef.current.bottom - bandRef.current.top)));
-        const scale = Math.min(1, 800 / vw);
-        zxingCanvas.width = Math.round(vw * scale);
+        const bandX = Math.round(vw * (bandRef.current.x1 || 0));
+        const bandW = Math.max(1, Math.round(vw * ((bandRef.current.x2 ?? 1) - (bandRef.current.x1 || 0))));
+        const scale = Math.min(1, 800 / bandW);
+        zxingCanvas.width = Math.round(bandW * scale);
         zxingCanvas.height = Math.max(1, Math.round(bandH * scale));
-        zxingCtx.drawImage(videoRef.current, 0, bandY, vw, bandH, 0, 0, zxingCanvas.width, zxingCanvas.height);
+        zxingCtx.drawImage(videoRef.current, bandX, bandY, bandW, bandH, 0, 0, zxingCanvas.width, zxingCanvas.height);
 
         // Every 5th frame, use TRY_HARDER for difficult/blurry barcodes
         frameCount++;
@@ -528,13 +596,15 @@ export default function SmartBarcodeScanner({
           // band still both collect, but nothing outside the band does.
           const bandTopPx = Math.round(vh * bandRef.current.top);
           const bandHeightPx = Math.max(1, Math.round(vh * (bandRef.current.bottom - bandRef.current.top)));
+          const bandLeftPx = Math.round(vw * (bandRef.current.x1 || 0));
+          const bandWidthPx = Math.max(1, Math.round(vw * ((bandRef.current.x2 ?? 1) - (bandRef.current.x1 || 0))));
           const cols = 2, rows = 2;
-          const cw = vw / cols, ch = bandHeightPx / rows;
+          const cw = bandWidthPx / cols, ch = bandHeightPx / rows;
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-              const sx = Math.max(0, c * cw - cw * OVER);
+              const sx = Math.max(bandLeftPx, bandLeftPx + c * cw - cw * OVER);
               const sy = Math.max(bandTopPx, bandTopPx + r * ch - ch * OVER);
-              const sw = Math.min(vw - sx, cw * (1 + 2 * OVER));
+              const sw = Math.min(bandLeftPx + bandWidthPx - sx, cw * (1 + 2 * OVER));
               const sh = Math.min(bandTopPx + bandHeightPx - sy, ch * (1 + 2 * OVER));
               if (sw < 100 || sh < 100) continue;
               const cropScale = Math.min(1, 800 / sw);
@@ -645,7 +715,15 @@ export default function SmartBarcodeScanner({
                 for (const bc of barcodes) {
                   const text = bc?.rawValue || String(bc?.value || '');
                   if (!text || seenThisFrame.has(text)) continue;
-                  if (!barcodeCentreInBand(bc, videoRef.current?.videoHeight, bandRef.current.top, bandRef.current.bottom)) continue; // outside the aiming band — ignore
+                  if (!barcodeCentreInBand(
+                    bc,
+                    videoRef.current?.videoHeight,
+                    bandRef.current.top,
+                    bandRef.current.bottom,
+                    videoRef.current?.videoWidth,
+                    bandRef.current.x1,
+                    bandRef.current.x2
+                  )) continue; // outside the visible scan window — ignore
                   seenThisFrame.add(text);
                   handleCameraDetected(text);
                 }
@@ -933,11 +1011,21 @@ export default function SmartBarcodeScanner({
             }`}>
               <video
                 ref={videoRef}
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute max-w-none"
                 playsInline
                 autoPlay
                 muted
-                style={{ objectPosition: 'center', background: '#000' }}
+                style={{
+                  // Show ONLY the band: the video is scaled so those rows fill
+                  // the box entirely — no dimmed strips above or below (owner
+                  // request Nov 2 2026).
+                  top: `${-(BAND_TOP / (BAND_BOTTOM - BAND_TOP)) * 100}%`,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  height: `${100 / (BAND_BOTTOM - BAND_TOP)}%`,
+                  width: 'auto',
+                  background: '#000',
+                }}
                 onLoadedMetadata={(e) => {
                   // Match the viewfinder to the camera's own frame so the
                   // preview and the decoder see the SAME picture (no crop).
@@ -971,16 +1059,12 @@ export default function SmartBarcodeScanner({
                   dimmed so it is obvious where the band ends. */}
               {!flashHit && !cameraError && (
                 <>
-                  <div className="absolute inset-x-0 top-0 bg-black/45 pointer-events-none" style={{ height: '30%' }} />
-                  <div className="absolute inset-x-0 bottom-0 bg-black/45 pointer-events-none" style={{ height: '30%' }} />
-                  <div
-                    className="absolute left-0 right-0 border-2 border-white/60 rounded-md pointer-events-none"
-                    style={{ top: '30%', height: '40%' }}
-                  />
+                  {/* No dimmed strips: everything on screen is scanned, so
+                      everything on screen is the band. */}
+                  <div className="absolute inset-0 border-2 border-white/60 rounded-lg pointer-events-none" />
                   {isIOSDevice && (
                     <div
-                      className="absolute left-0 right-0 pointer-events-none overflow-hidden"
-                      style={{ top: '30%', height: '40%' }}
+                      className="absolute inset-0 pointer-events-none overflow-hidden"
                     >
                       <div
                         className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_2px_rgba(239,68,68,0.6)]"
