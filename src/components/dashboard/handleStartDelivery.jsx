@@ -22,6 +22,60 @@ import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager'
 import { notifyDriverStarted } from '@/components/utils/deliveryMessaging';
 import { determinePolylineSegment, fetchPolylineForSegment } from '@/components/utils/dynamicPolylineManager';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
+import { edmontonNowMinutes, edmontonTodayKey } from '@/components/utils/albertaTime';
+import { setDriverStatus } from '@/functions/setDriverStatus';
+
+// Minutes -> 'HH:mm' (local helper; keeps this module dependency-free).
+const formatAlbertaMinutes = (mins) => {
+  const m = ((Math.round(mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+// ── Start puts the driver back ON DUTY (owner report Nov 2 2026) ─────────────
+// "Clicking start on a delivery while on break does not pull the driver back on
+// duty nor does it actually set that stop as the next stop." The footer Start
+// runs THIS function, and this function never touched driver_status - only the
+// expanded-card Start (stopCardStartActions -> ensureDriverOnline) did. So a
+// driver on break stayed on break: the blue current-leg step below is gated on
+// on_duty, location tracking stayed paused and the stop never behaved like the
+// next stop. Restores duty for TODAY's stops only, optimistic + backend.
+async function restoreDriverOnDuty({ driverId, deliveryDate, currentUser }) {
+  try {
+    if (!driverId || deliveryDate !== edmontonTodayKey()) return false;
+    const records = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', driverId).catch(() => []);
+    const existing = records?.[0] || null;
+    const prevStatus = existing?.driver_status || null;
+    if (prevStatus === 'on_duty') return false;
+
+    const nowIso = new Date().toISOString();
+    const updatedRecord = {
+      ...(existing || {}),
+      ...(currentUser?.id === driverId ? currentUser : {}),
+      driver_status: 'on_duty',
+      location_tracking_enabled: true,
+      location_updated_at: nowIso,
+      updated_date: nowIso,
+      user_id: driverId,
+      ...(existing?.id ? { id: existing.id } : {}),
+    };
+    await offlineDB.save(offlineDB.STORES.APP_USERS, updatedRecord).catch(() => {});
+    window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: updatedRecord } }));
+    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedRecord], mergeMode: 'merge' } }));
+    window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: driverId, newStatus: 'on_duty' } }));
+    console.log(`[handleStartDelivery] duty restore: ${prevStatus || 'unknown'} -> on_duty for ${driverId}`);
+
+    setDriverStatus({
+      newStatus: 'on_duty',
+      selectedDate: deliveryDate,
+      ...(currentUser?.id === driverId ? {} : { targetUserId: driverId }),
+    }).catch((err) => console.warn('[handleStartDelivery] setDriverStatus failed (local flip kept):', err?.message));
+    return true;
+  } catch (err) {
+    console.warn('[handleStartDelivery] duty restore failed (non-blocking):', err?.message);
+    return false;
+  }
+}
+
 
 export async function handleStartDelivery({
   deliveryId,
@@ -64,9 +118,8 @@ export async function handleStartDelivery({
   const isInterStoreStop = !!(deliveryFromUI._interstore_source_id || deliveryFromUI._interstore_dest_id);
   const isPickup = !deliveryFromUI.patient_id && !isCyclingMarker && !isInterStoreStop;
   const newStatus = isPickup ? 'en_route' : 'in_transit';
-  const now = new Date();
-  const etaMinutes = now.getHours() * 60 + now.getMinutes() + 5;
-  const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
+  // Alberta wall clock (device-local getHours() misreports on stale tz data).
+  const etaString = formatAlbertaMinutes(edmontonNowMinutes() + 5);
 
   // Track which delivery IDs were mutated locally so we can batch-sync them
   const transitionedIds = new Set();
@@ -79,7 +132,13 @@ export async function handleStartDelivery({
   let finalCommitUpdates = null;
   let startCommitFailed = false;
 
+  let dutyRestored = false;
   try {
+    // ─── STEP 1b: Start pulls the driver back ON DUTY (on_break/off_duty) ────
+    // Must run BEFORE the local transitions + optimizer so the current-leg step
+    // (gated on on_duty) and the next-stop behaviour line up with the tap.
+    dutyRestored = await restoreDriverOnDuty({ driverId, deliveryDate, currentUser });
+
     // ─── STEP 2: Compute all transitions locally, write ONLY to offlineDB ────
     // Read the current driver route from IndexedDB (source of truth while syncs are paused)
     const allLocalDeliveries = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]);
@@ -309,6 +368,24 @@ export async function handleStartDelivery({
       console.warn(`⚠️ [handleStartDelivery] Step 6c clearAndSetNextDelivery failed:`, err?.message);
     }
 
+    // ─── STEP 6d: VERIFY the started stop really holds the next flag ─────────
+    // Owner report Nov 2 2026 (Start while on break left the stop un-flagged):
+    // the single commit above can be dropped when the route optimizer bails or
+    // the bulk write fails mid-flight, which left the started stop with no
+    // isNextDelivery anywhere. Re-assert it locally + server-side once.
+    try {
+      const verify = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]);
+      const started = (verify || []).find((d) => d?.id === deliveryId);
+      if (started && started.isNextDelivery !== true) {
+        const { updateDeliveryLocal } = await import('@/components/utils/offlineMutations');
+        await updateDeliveryLocal(deliveryId, { isNextDelivery: true }, { skipSmartRefresh: true });
+        await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true }).catch(() => null);
+        console.warn(`[handleStartDelivery] Step 6d — next flag was missing on the started stop, re-asserted (${deliveryId})`);
+      }
+    } catch (verifyErr) {
+      console.warn('[handleStartDelivery] Step 6d verify failed (non-blocking):', verifyErr?.message);
+    }
+
     // ─── STEP 6.5: Apply the optimized result to the UI immediately (pass 2) ───
     // Accept-All-parity UI choreography (owner directive, Sep 28 2026): the
     // start flow re-sorts the stop cards MULTIPLE times before settling —
@@ -338,7 +415,9 @@ export async function handleStartDelivery({
     // 7a: Blue polyline (driver → next stop)
     try {
       const driver = users.find((u) => u && u.id === driverId);
-      if (driver?.driver_status === 'on_duty' && driver?.location_tracking_enabled === true) {
+      // dutyRestored covers the on_break/off_duty case: the users prop is stale
+      // at this point, but the duty flip already landed locally.
+      if ((driver?.driver_status === 'on_duty' || dutyRestored) && driver?.location_tracking_enabled === true) {
         // Fetch the latest delivery set before computing the segment
         const latestLocal = await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]);
         const driverLatestDeliveries = latestLocal.filter(

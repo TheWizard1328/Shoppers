@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 63;
+export const BUILD_NUMBER = 64;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 64, area: 'Stops', audience: 'drivers', summary: 'Start now brings you back on duty. Tapping Start while on break or off duty flips you on, draws the leg to that stop and pins it as your next stop instead of leaving the route unmoved.' },
   { build: 63, area: 'Routes', audience: 'all', summary: 'Route optimization now reads the correct Alberta clock. It was an hour behind, so a stop with a 3:30 window looked due and jumped ahead of earlier stops. Windows, time-aware routing and ETA all use the same corrected clock.' },
   { build: 62, area: 'Times', audience: 'all', summary: 'Fixed completion times landing an hour early. Alberta stayed on UTC-6 after Nov 1, so the phone-written arrival times stayed right while the app-computed completion time drifted an hour behind. All Alberta time math now uses the permanent -6 rule from Nov 1 2026, with history before that still reading correctly.' },
   { build: 61, area: 'Routes', audience: 'all', summary: 'Stops at the same address or GPS point are now sorted by unit number, so a building is walked 210, 222, 312, 336 instead of in whatever order the router returned. Applies to the server optimizer too.' },
