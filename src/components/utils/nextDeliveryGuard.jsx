@@ -51,6 +51,54 @@ export function pickNextStopCandidate(routeDeliveries = []) {
  * `deliveries` — optional pre-loaded list (skips the IDB read).
  * `skipServerWrite` — IDB + UI only (used by read-only/viewer surfaces).
  */
+/**
+ * Clear the next-delivery flag from any FINISHED stop on a driver's route.
+ *
+ * OWNER REPORT (Nov 2 2026): "two stops with the next delivery flag, including
+ * my very first stop which has been completed already". A completed / failed /
+ * cancelled stop can never be the next stop, but every refresh path (pull,
+ * queued replay, snapshot, background sync) happily re-wrote a stale copy that
+ * still carried the flag. offlineDatabase now refuses to store the flag on a
+ * terminal record; this heals rows that are ALREADY wrong in IndexedDB and on
+ * the server, and it runs on every route guard pass.
+ *
+ * Returns the ids it cleared.
+ */
+export async function clearTerminalNextFlags({
+  driverId,
+  deliveryDate,
+  deliveries = null,
+  skipServerWrite = false,
+} = {}) {
+  const cleared = [];
+  try {
+    if (!driverId || !deliveryDate) return cleared;
+    let list = Array.isArray(deliveries) ? deliveries : null;
+    if (!list) list = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const stale = (list || []).filter(
+      (d) => d && d.id && d.isNextDelivery === true &&
+        d.driver_id === driverId && d.delivery_date === deliveryDate &&
+        TERMINAL.includes(String(d.status || '').toLowerCase())
+    );
+    for (const d of stale) {
+      await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+      cleared.push(d.id);
+    }
+    if (cleared.length > 0 && !skipServerWrite) {
+      const { base44 } = await import('@/api/base44Client');
+      for (const id of cleared) {
+        base44.entities.Delivery.update(id, { isNextDelivery: false }).catch(() => {});
+      }
+    }
+    if (cleared.length > 0) {
+      console.warn(`[NextDeliveryGuard] cleared next-delivery flag from ${cleared.length} finished stop(s) on ${driverId}/${deliveryDate}`);
+    }
+  } catch (err) {
+    console.warn('[NextDeliveryGuard] clearTerminalNextFlags failed:', err?.message || err);
+  }
+  return cleared;
+}
+
 export async function ensureRouteHasNextStop({
   driverId,
   deliveryDate,
@@ -60,6 +108,8 @@ export async function ensureRouteHasNextStop({
 } = {}) {
   try {
     if (!driverId || !deliveryDate) return null;
+    // Heal first: finished stops must never hold the flag (owner report Nov 2 2026).
+    await clearTerminalNextFlags({ driverId, deliveryDate, deliveries, skipServerWrite });
 
     let list = Array.isArray(deliveries) ? deliveries : null;
     if (!list) {

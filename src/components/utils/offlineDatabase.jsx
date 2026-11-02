@@ -545,11 +545,29 @@ const _getDeliveryFlagGuard = async () => {
   }
   return _deliveryFlagGuard;
 };
+// ── Finished stops can never be "next" ───────────────────────────────────────
+// OWNER REPORT (Nov 2 2026): two stops carried the next-delivery flag, one of
+// them his FIRST stop which was already completed. Nothing in the refresh
+// managers ever stripped the flag from a finished stop, so any pull, queued
+// replay, snapshot or background sync that wrote a stale copy back into
+// IndexedDB could restore isNextDelivery: true on a completed stop and the map
+// then painted two yellow markers. This is the hard rule at the write gate:
+// a TERMINAL record is stored with the flag false, whatever the writer wanted.
+const TERMINAL_STATUSES_FOR_NEXT_FLAG = ['completed', 'failed', 'cancelled'];
+const _enforceTerminalNextFlag = (record) => {
+  if (!record?.id) return record;
+  if (record.isNextDelivery !== true) return record;
+  const status = String(record.status || '').toLowerCase();
+  if (!TERMINAL_STATUSES_FOR_NEXT_FLAG.includes(status)) return record;
+  return { ...record, isNextDelivery: false };
+};
+
 const _guardDeliveryRecord = async (storeName, record) => {
   if (storeName !== STORES.DELIVERIES || !record?.id) return record;
+  let out = _enforceTerminalNextFlag(record);
   const guard = await _getDeliveryFlagGuard();
-  if (!guard) return record;
-  try { return guard(record) || record; } catch (_) { return record; }
+  if (!guard) return out;
+  try { return guard(out) || out; } catch (_) { return out; }
 };
 
 const save = async (storeName, record) => {
@@ -613,6 +631,9 @@ const bulkSave = async (storeName, records) => {
     if (guard) {
       try { records = records.map((r) => guard(r) || r); } catch (_) { /* keep originals */ }
     }
+    // Finished stops can never be "next" (owner report Nov 2 2026) — see
+    // _enforceTerminalNextFlag above.
+    try { records = records.map(_enforceTerminalNextFlag); } catch (_) { /* keep originals */ }
   }
 
   const isPHI = isPHIStore(storeName);
