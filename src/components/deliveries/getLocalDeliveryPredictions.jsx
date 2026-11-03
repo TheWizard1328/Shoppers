@@ -13,7 +13,7 @@ const diffDays = (leftDate, rightDate) => {
   return Math.floor((leftDate - rightDate) / (1000 * 60 * 60 * 24));
 };
 
-export function getLocalDeliveryPredictions({ currentUser, stores, patients, allDeliveries, selectedDate, scheduledDriverMap }) {
+export function getLocalDeliveryPredictions({ currentUser, stores, patients, allDeliveries, selectedDate, scheduledDriverMap, excludeDeliveryIds = null }) {
   if (!currentUser || !selectedDate) return [];
 
   const dateObj = new Date(`${selectedDate}T00:00:00`);
@@ -59,14 +59,26 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
 
   if (storeIdsToPredict.length === 0 && !userHasRole(currentUser, 'admin')) return [];
 
+  // OWNER REPORT (Nov 3 2026): a projection patient added to the staged list and
+  // then DELETED did not come back in the projections until the form was closed
+  // and reopened, because the deleted delivery was still present in the
+  // allDeliveries prop the form was given. The form registers every delivery id
+  // it deleted, and those rows are ignored here exactly as if they were gone.
+  const _excludedIds = excludeDeliveryIds instanceof Set
+    ? excludeDeliveryIds
+    : new Set(Array.isArray(excludeDeliveryIds) ? excludeDeliveryIds : []);
+  const liveDeliveries = _excludedIds.size > 0
+    ? (allDeliveries || []).filter((delivery) => !delivery || !_excludedIds.has(delivery.id))
+    : (allDeliveries || []);
+
   const existingPatientIds = new Set(
-    (allDeliveries || [])
+    (liveDeliveries || [])
       .filter((delivery) => delivery && delivery.delivery_date === selectedDate && storeIdsToPredict.includes(delivery.store_id) && delivery.patient_id)
       .map((delivery) => delivery.patient_id)
   );
 
   const recentlyDeliveredPatientIds = new Set(
-    (allDeliveries || [])
+    (liveDeliveries || [])
       .filter((delivery) => {
         if (!delivery || !delivery.patient_id || !storeIdsToPredict.includes(delivery.store_id)) return false;
         if (delivery.status !== 'completed') return false;
@@ -81,7 +93,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
 
   // Find most recent completed delivery date per patient from allDeliveries
   const lastDeliveryDateFromRecords = new Map();
-  (allDeliveries || [])
+  (liveDeliveries || [])
     .filter((delivery) => delivery && delivery.patient_id && delivery.delivery_date && delivery.status === 'completed')
     .forEach((delivery) => {
       const deliveredDate = new Date(`${delivery.delivery_date}T00:00:00`);

@@ -14,10 +14,10 @@ export function codAmountOf(row) {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-/** "$12.34" / "" when there is no COD. */
+/** "COD: $12.34" / "" when there is no COD (owner: label the amount, Nov 3 2026). */
 export function formatCodAmount(row) {
   const amount = codAmountOf(row);
-  return amount > 0 ? `$${amount.toFixed(2)}` : '';
+  return amount > 0 ? `COD: $${amount.toFixed(2)}` : '';
 }
 
 /**

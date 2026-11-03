@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLocalDeliveryPredictions } from "./getLocalDeliveryPredictions";
 
 const MIN_REFRESH_INDICATOR_MS = 900;
 
-const filterPredictionsAgainstStaged = ({ predictions, stagedDeliveries, allDeliveries, selectedDate }) => {
+const filterPredictionsAgainstStaged = ({ predictions, stagedDeliveries, allDeliveries, selectedDate, excludeDeliveryIds }) => {
   const stagedPatientIds = new Set((stagedDeliveries || []).map((item) => item?.patient_id).filter(Boolean));
+  const excluded = excludeDeliveryIds instanceof Set ? excludeDeliveryIds : new Set();
 
   return (predictions || []).filter((prediction) => {
     if (!prediction?.patient_id) return false;
     if (stagedPatientIds.has(prediction.patient_id)) return false;
     return !(allDeliveries || []).some(
-      (delivery) => delivery && delivery.delivery_date === selectedDate && delivery.patient_id === prediction.patient_id
+      (delivery) => delivery
+        && !excluded.has(delivery.id)
+        && delivery.delivery_date === selectedDate
+        && delivery.patient_id === prediction.patient_id
     );
   });
 };
@@ -23,7 +27,8 @@ export default function useDeliveryProjectionManager({
   allDeliveries,
   selectedDate,
   stagedDeliveries,
-  scheduledDriverMap
+  scheduledDriverMap,
+  excludeDeliveryIds
 }) {
   const [projectedDeliveries, setProjectedDeliveries] = useState([]);
   const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
@@ -31,6 +36,12 @@ export default function useDeliveryProjectionManager({
   const predictionsBlockedRef = useRef(false);
   const rebuildTokenRef = useRef(0);
   const idleHandleRef = useRef(null);
+  // Delivery ids the form deleted this session (see getLocalDeliveryPredictions
+  // exclusion note). Kept as a stable Set so the rebuild effect sees one identity.
+  const excludedDeliveryIds = useMemo(
+    () => new Set(Array.isArray(excludeDeliveryIds) ? excludeDeliveryIds.filter(Boolean) : []),
+    [excludeDeliveryIds]
+  );
 
   const rebuildProjectedDeliveries = useCallback(() => {
     const nextPredictions = getLocalDeliveryPredictions({
@@ -39,7 +50,8 @@ export default function useDeliveryProjectionManager({
       patients,
       allDeliveries,
       selectedDate,
-      scheduledDriverMap
+      scheduledDriverMap,
+      excludeDeliveryIds: excludedDeliveryIds
     });
 
     fullPredictionListRef.current = nextPredictions;
@@ -48,12 +60,13 @@ export default function useDeliveryProjectionManager({
         predictions: nextPredictions,
         stagedDeliveries,
         allDeliveries,
-        selectedDate
+        selectedDate,
+        excludeDeliveryIds: excludedDeliveryIds
       })
     );
 
     return nextPredictions;
-  }, [currentUser, stores, patients, allDeliveries, selectedDate, stagedDeliveries, scheduledDriverMap]);
+  }, [currentUser, stores, patients, allDeliveries, selectedDate, stagedDeliveries, scheduledDriverMap, excludedDeliveryIds]);
 
   const handleRefreshProjections = useCallback(async () => {
     if (predictionsBlockedRef.current) return;
@@ -148,7 +161,7 @@ export default function useDeliveryProjectionManager({
 
     scheduleRebuild();
     return cancelScheduledRebuild;
-  }, [delivery, selectedDate, currentUser, stores, patients, allDeliveries, stagedDeliveries, rebuildProjectedDeliveries, scheduleRebuild, cancelScheduledRebuild]);
+  }, [delivery, selectedDate, currentUser, stores, patients, allDeliveries, stagedDeliveries, excludedDeliveryIds, rebuildProjectedDeliveries, scheduleRebuild, cancelScheduledRebuild]);
 
   // Cancel any queued rebuild when the form unmounts (Done closes it).
   useEffect(() => () => cancelScheduledRebuild(), [cancelScheduledRebuild]);

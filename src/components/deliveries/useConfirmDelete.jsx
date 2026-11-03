@@ -24,6 +24,7 @@ export function useConfirmDelete({
   setAllDeletedWerePending,
   patientSearchInputRef,
   shouldAutoFocusFields,
+  registerDeletedDeliveryId,
 }) {
   return useCallback(async () => {
     const staged = deleteConfirmation.staged;
@@ -111,6 +112,10 @@ export function useConfirmDelete({
       // ── Delete: offline DB + online DB (entityMutations handles both) ────
       await deleteDeliveryLocal(staged.id);
       __perf('deleteDeliveryLocal_done');
+      // Put the patient back in the projections (owner, Nov 3 2026): the form
+      // keeps the stale allDeliveries row until the server refresh, so the id is
+      // excluded from the projection rebuild instead of hiding the patient.
+      if (typeof registerDeletedDeliveryId === 'function') registerDeletedDeliveryId(staged.id);
 
       // ── Update local UI state ─────────────────────────────────────────────
       const nextStagedDeliveries = stagedDeliveries.filter(

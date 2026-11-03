@@ -257,6 +257,16 @@ export default function DeliveryForm({
   
   const [newPatientMode, setNewPatientMode] = useState(null);
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
+  // OWNER REPORT (Nov 3 2026): deleting a projected patient from the staged or
+  // pending list must put them straight back in the projections. The form's
+  // allDeliveries prop still carries the deleted row until the next server
+  // refresh, so every delivery id this form deletes is registered here and the
+  // projection builder ignores it as if it were already gone.
+  const [locallyDeletedDeliveryIds, setLocallyDeletedDeliveryIds] = useState([]);
+  const registerDeletedDeliveryId = useCallback((id) => {
+    if (!id) return;
+    setLocallyDeletedDeliveryIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  }, []);
   const [scheduledDriverMap, setScheduledDriverMap] = useState({}); // storeId -> driverId
   const scheduledDriverMapRef = useRef({}); // always-current ref for handlePatientSelect closure
   // Slot-specific map of `${storeId}_AM`/`${storeId}_PM` -> scheduled driver display name
@@ -281,7 +291,8 @@ export default function DeliveryForm({
     allDeliveries,
     selectedDate: formData.delivery_date,
     stagedDeliveries,
-    scheduledDriverMap
+    scheduledDriverMap,
+    excludeDeliveryIds: locallyDeletedDeliveryIds
   });
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [activeRecurringType, setActiveRecurringType] = useState(null);
@@ -1525,6 +1536,7 @@ export default function DeliveryForm({
     if (delivery || stagedDeliveries.length === 0) return;
     const deletedPendingDeliveries = stagedDeliveries.filter((staged) => { if (!staged.id) return false; return !allDeliveries?.some((d) => d && d.id === staged.id); });
     if (deletedPendingDeliveries.length > 0) {
+      deletedPendingDeliveries.forEach((del) => registerDeletedDeliveryId(del.id));
       setStagedDeliveries((prev) => prev.filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id)));
       const remainingStagedIds = new Set(stagedDeliveries.filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id)).map((d) => d.patient_id).filter(Boolean));
       const filteredPredictions = fullPredictionListRef.current.filter((pred) => !remainingStagedIds.has(pred.patient_id));
@@ -1629,7 +1641,7 @@ export default function DeliveryForm({
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: formData.driver_id }), [stagedDeliveries, stores, formData.driver_id]);
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, patients, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap, calculateDistance }), [projectedDeliveries, allDeliveries, stores, patients, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
-  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
+  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields, registerDeletedDeliveryId });
 
   // Stat holiday enforcement — on a stat holiday the driver is NOT pre-selected at
   // form-open for dispatchers/admins; it is resolved only after a patient is selected
