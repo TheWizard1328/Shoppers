@@ -755,7 +755,7 @@ export default function PatientPortal({ embedded = false } = {}) {
           setRouteDeliveries(routeDeliveries);
           setStopsRemaining(countStopsRemaining(routeDeliveries, activeToday));
         } catch (_) {
-          setStopsBeforePatient(null);
+          setStopsRemaining(null);
         }
       } else {
         routeDeliveriesRef.current = [];
@@ -894,7 +894,7 @@ export default function PatientPortal({ embedded = false } = {}) {
     }
 
     return () => { try { unsub?.(); } catch (_) {} };
-  }, [patient?.id, recountStopsBefore]);
+  }, [patient?.id, recountStopsRemaining]);
 
   // ── WebSocket: AppUser subscription (driver location) ────────────
   // Listens for any AppUser change. When the record matches the driver assigned
