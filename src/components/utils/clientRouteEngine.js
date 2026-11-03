@@ -11,6 +11,7 @@ import {
   inheritedPickupWindowStart as sharedInheritedPickupWindowStart,
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
+  enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
@@ -1626,6 +1627,22 @@ let _inheritedWindowCount = 0;
     }
   }
 
+  // ── SHARED RULE (owner directive Nov 3 2026): an IN-HAND stop is never ────
+  // dragged behind its own pickup. The pickup-first constraint only exists
+  // because the driver cannot deliver meds still on the store shelf; an
+  // en_route/in_transit stop already holds them, so its own window decides its
+  // position. Runs LAST so no earlier swap can leave it behind the pickup.
+  activeStops = sharedEnforceInHandBeforePickup(activeStops, {
+    idOf: (st) => st.id,
+    patientOf: (st) => st.patient_id,
+    puidOf: (st) => st.puid,
+    statusOf: (st) => st.status,
+    isPickupOf: (st) => st.isPickup,
+    pickupKeyOf: (st) => st.stop_id,
+    startOf: (st) => st.delivery_time_start,
+    parseStart: parseTimeToMinutes,
+  });
+
 
   // Use max completed stop_order + 1 (not just count) to avoid collisions when
   // completed stops have non-contiguous stop_order values (e.g. 2, 5, 7).
@@ -2143,6 +2160,31 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   // (same address/GPS) sort by unit number. PUID-partitioned so the pickup
   // chain order is never broken — units only sort WITHIN each chain.
   try { _unitNumberMicroSort(orderedStops, patientMap, storeMap); } catch (e) { console.warn('[clientRouteEngine] unit micro-sort skipped:', e?.message || e); }
+
+  // ── SHARED RULE (owner directive Nov 3 2026): an IN-HAND stop is never ────
+  // dragged behind its own pickup (see the live-path note above). Applied to the
+  // future/pre-start ordering too, on the flattened stop list, immediately
+  // before the ETA ladder so times are computed from the final sequence.
+  {
+    const _flat = orderedStops.map((it) => ({ ...it.delivery, __isPickup: !!it.isPickup }));
+    const _repaired = sharedEnforceInHandBeforePickup(_flat, {
+      idOf: (st) => st.id,
+      patientOf: (st) => st.patient_id,
+      puidOf: (st) => st.puid,
+      statusOf: (st) => st.status,
+      isPickupOf: (st) => st.__isPickup,
+      pickupKeyOf: (st) => st.stop_id,
+      startOf: (st) => st.delivery_time_start,
+      parseStart: parseTimeToMinutes,
+    });
+    const _before = _flat.map((x) => String(x.id)).join(',');
+    const _after = _repaired.map((x) => String(x.id)).join(',');
+    if (_before !== _after) {
+      console.log(`[clientRouteEngine] ${source} — in-hand stop(s) lifted ahead of their pickup (in-hand negates pickup-first)`);
+      const _itemBy = new Map(orderedStops.map((it) => [String(it.delivery.id), it]));
+      orderedStops = _repaired.map((row) => _itemBy.get(String(row.id))).filter(Boolean);
+    }
+  }
 
   // For future routes: first non-ISP/ISD stop gets isNextDelivery=true.
   // ISP/ISD stops must never steal isNextDelivery from regular delivery stops.

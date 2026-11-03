@@ -266,6 +266,71 @@ export function enforcePickupBeforePendingDeliveries(stops, adapters) {
   return ordered;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// RULE: an IN-HAND stop is never dragged behind its own pickup
+// (owner directive Nov 3 2026: "it is the delivery must be after pickup rule
+// I think. even though this stop is already in transit. That status should
+// negate the pickup before delivery rule.")
+//
+// The pickup-first constraint exists because the driver cannot hand over meds
+// still sitting on the store shelf. A stop that is en_route/in_transit already
+// HAS its meds in hand, so the constraint does not apply to it at all: its own
+// window decides its position, exactly like every other in-hand stop.
+//
+// RUns LAST, after the window bands / pickup swaps / ISP-ISD passes, so no
+// earlier swap can leave an in-hand stop sitting behind its own pickup. Only
+// lifts the delivery AHEAD of the pickup; never pushes anything else around.
+//   · in-hand delivery whose pickup is AHEAD of it, and
+//   · (its start is blank — in-hand blanks lead the route) or
+//   · (its start is at/before the pickup's start),
+// moves to just before that pickup. A stop whose window opens AFTER the
+// pickup's window stays put: it was sequenced there on purpose.
+export function enforceInHandBeforeItsPickup(stops, adapters) {
+  const {
+    idOf = (s) => s.id,
+    patientOf = (s) => s.patientId,
+    puidOf = (s) => s.puid,
+    statusOf = (s) => s.status,
+    isPickupOf = (s) => s.isPickup,
+    pickupKeyOf = (s) => s.stopId,
+    startOf = (s) => s.deliveryTimeStart,
+    parseStart = null,
+  } = adapters || {};
+  const parse = parseStart || ((v) => {
+    const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+  });
+  const IN_HAND = new Set(['en_route', 'in_transit']);
+  let ordered = [...(stops || [])];
+  const pickupByKey = new Map(ordered.filter((s) => isPickupOf(s)).map((s) => [String(pickupKeyOf(s)), s]));
+  if (pickupByKey.size === 0) return ordered;
+  let guard = 0;
+  let moved = true;
+  while (moved && guard < 200) {
+    moved = false;
+    guard += 1;
+    for (let i = 0; i < ordered.length; i++) {
+      const stop = ordered[i];
+      if (isPickupOf(stop) || !patientOf(stop) || !puidOf(stop)) continue;
+      if (!IN_HAND.has(String(statusOf(stop) || '').toLowerCase())) continue;
+      const pickup = pickupByKey.get(String(puidOf(stop)));
+      if (!pickup) continue;
+      const pIdx = ordered.findIndex((s) => idOf(s) === idOf(pickup));
+      if (pIdx < 0 || pIdx > i) continue; // pickup already after the stop (or absent)
+      const dStart = parse(startOf(stop));
+      const pStart = parse(startOf(pickup));
+      const leads = !Number.isFinite(dStart) || !Number.isFinite(pStart) || dStart <= pStart;
+      if (!leads) continue;
+      ordered.splice(i, 1);
+      const target = ordered.findIndex((s) => idOf(s) === idOf(pickup));
+      ordered.splice(target, 0, stop);
+      moved = true;
+      break;
+    }
+  }
+  return ordered;
+}
+
 // ── RULE: polyline eligibility ───────────────────────────────────────────────
 // ONLY en_route + in_transit stops (plus cycling markers and cycling-mode
 // stops) receive polylines. A pending stop hasn't been picked up yet — no

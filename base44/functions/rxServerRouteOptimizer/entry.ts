@@ -33,6 +33,7 @@ import {
   hasTimeWindows as sharedHasTimeWindows,
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
+  enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
   isPolylineEligibleStop as sharedIsPolylineEligible,
   dwellMinutesForStop as sharedDwellMinutes,
   isSameAddressAnchor as sharedIsSameAddress,
@@ -755,6 +756,25 @@ Deno.serve(async (req) => {
       });
     } catch (unitErr) {
       console.warn(`[rxServerRouteOptimizer] unit micro-sort skipped: ${unitErr?.message || unitErr}`);
+    }
+
+    // ── 3e. SHARED RULE: an IN-HAND stop is never dragged behind its pickup ──
+    // OWNER DIRECTIVE Nov 3 2026: "it is the delivery must be after pickup rule
+    // I think. even though this stop is already in transit. That status should
+    // negate the pickup before delivery rule." Runs LAST (after bands, pickup
+    // swaps, ISP-ISD and the unit micro-sort) so nothing can re-bury it.
+    try {
+      orderedStops = sharedEnforceInHandBeforePickup(orderedStops, {
+        idOf: (st) => st?.id,
+        patientOf: (st) => st?.patientId,
+        puidOf: (st) => st?.puid,
+        statusOf: (st) => st?.status,
+        isPickupOf: (st) => !!st?.isPickup,
+        pickupKeyOf: (st) => st?.stopId,
+        startOf: (st) => st?.windowStart,
+      });
+    } catch (inHandErr) {
+      console.warn(`[rxServerRouteOptimizer] in-hand pickup bypass skipped: ${inHandErr?.message || inHandErr}`);
     }
 
     // ── 3b. CLIENT-PARITY backstop (Oct 21 2026): windowless patient stops
