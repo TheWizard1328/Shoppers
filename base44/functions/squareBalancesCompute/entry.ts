@@ -802,7 +802,12 @@ Deno.serve(async (req) => {
   try {
     const b44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-    const user = await requireUser(b44);
+    // SOFTENED AUTH (Nov 3 2026): the night COD briefing (and automations)
+    // invoke this server-side, and cross-function invoke does not forward a
+    // user token. Fall back to the service-role client instead of 401-ing, so
+    // the briefing can reuse this ONE balance math rather than its own tally.
+    const user = await b44.auth.me().catch(() => null);
+    const db = user ? b44 : b44.asServiceRole;
     const force = !!body?.force;
     const userId = user?.id || null;
 
@@ -811,7 +816,7 @@ Deno.serve(async (req) => {
     // delivery events ride the cache) — one compute per change at most.
     if (!force) {
       try {
-        const rows = await b44.entities.SquareBalancesSnapshot.list('-version', 10, 0);
+        const rows = await db.entities.SquareBalancesSnapshot.list('-version', 10, 0);
         const latest = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0];
         if (latest?.computed_at && Date.now() - new Date(latest.computed_at).getTime() < DEBOUNCE_MS && latest?.payload) {
           return Response.json({ debounced: true, version: Number(latest.version), computed_at: latest.computed_at, computed_by: latest.computed_by || null, payload: latest.payload });
@@ -819,7 +824,7 @@ Deno.serve(async (req) => {
       } catch { /* no snapshot yet / transient — compute */ }
     }
 
-    const { payload, autoRefundedFailed } = await computeSummary(b44, userId);
+    const { payload, autoRefundedFailed } = await computeSummary(db, userId);
     const version = Date.now();
     const computed_at = new Date().toISOString();
     return Response.json({

@@ -609,61 +609,55 @@ async function handleBriefing(base44, params = {}) {
           for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
           lines.push('');
         }
-        // ── Card / Loan / Folder balance estimates (owner-only section, Oct 2026) ──
-        // Loan repayment + folder contribution are NOT in Square's API; they're
-        // computed from owner-supplied rates in the AppSettings 'square_balances'
-        // record. Freshens the SquareLedgerEntry ledger first (cross-function
-        // invoke; squareLedgerSync has softened auth so it proceeds without a
-        // forwarded user context).
+        // ── Card / Loan / Folder balance estimates (owner-only section) ──
+        // SINGLE SOURCE OF TRUTH (owner report Nov 3 2026: "the Balances are way
+        // too high. Not sure where the high amounts are coming from"): this
+        // section used to tally the ledger on its own — it added every card sale
+        // since the true-up and subtracted only the small pending + cash-awaiting
+        // figure, so the COD money that never actually sat on the card piled up
+        // (~$500 per store over a week; Bonnie Doon read $539.90 instead of
+        // $53.90). The Square Balances page already deducts the FULL outstanding
+        // COD set through squareBalancesCompute, so the briefing now reuses that
+        // exact payload — the two can never drift again. Ledger freshen first so
+        // the compute sees tonight's swipes.
         try {
           const cfgRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => []);
           const cfg = cfgRows?.[0]?.setting_value;
           if (cfg?.locations?.length && cfg.trued_up_at) {
-            const ledgerRes = await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at, includeCodOutstanding: true }).catch((e) => { console.log('[briefing] ledger freshen skipped:', e?.message || e); return null; });
-            const codOutByLoc = new Map((ledgerRes?.codOutstanding || []).map((o) => [o.location_id, Number(o.total || 0)]));
-            const codOutAll = (ledgerRes?.codOutstanding || []).reduce((s, o) => s + Number(o.total || 0), 0);
-            const sinceRows = await base44.asServiceRole.entities.SquareLedgerEntry.filter(
-              { tender_type: 'CARD', status: 'COMPLETED', occurred_at: { $gte: cfg.trued_up_at } },
-              '-occurred_at', 2000
-            ).catch(() => []);
-            const since = (sinceRows || []).filter((s) => ['sale', 'collected'].includes(String(s?.entry_kind || '')));
-            // INTEGER-CENT MATH (owner spec Oct 7 2026, "CW shows $10.64,
-            // should be $10.65"): every fee component is rounded to the cent
-            // per transaction and the whole estimate is summed in cents —
-            // float dollar math drifted a cent. Also fixes the TDZ bug that
-            // silently killed this BALANCES section (folderTotal was used
-            // above its `let` declaration, so the catch block swallowed a
-            // ReferenceError every night).
-            const folderRate = Number(cfg.folder_rate ?? 0.02);
-            const balParts = [];
-            const balStrs = [];
-            let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
-            for (const loc of cfg.locations) {
-              let grossC = 0, feeC = 0, loanC = 0, folderC = 0;
-              for (const s of since) {
-                if (s?.location_id !== loc.location_id) continue;
-                const g = Math.round(Number(s.amount_cents || 0));
-                const f = Math.round(Number(s.fee_cents || 0));
-                const l = Math.round(g * Number(loc.loan_rate || 0));
-                const fo = Math.floor(g * folderRate); // folder % truncates (verified vs Square's SIMPLE payouts, Oct 7 2026)
-                grossC += g; feeC += f; loanC += l; folderC += fo;
+            await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at })
+              .catch((e) => { console.log('[briefing] ledger freshen skipped:', e?.message || e); return null; });
+            let payload = null;
+            try {
+              const res = await base44.functions.invoke('squareBalancesCompute', { force: true });
+              payload = res?.data?.payload || res?.payload || null;
+            } catch (e) { console.log('[briefing] balances compute failed:', e?.message || e); }
+            if (payload?.byLocId?.length) {
+              const byLoc = new Map((payload.byLocId || []).map(([id, v]) => [String(id), v]));
+              const nameById = new Map(((payload?.config?.locations) || cfg.locations || []).map((l) => [String(l.location_id), String(l.name || l.location_id)]));
+              // Folder + loan rates are NOT in Square's API; the compute carries
+              // the per-sale folder cents (already truncated per sale) and the
+              // remaining loan per location.
+              let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
+              for (const [, dc] of (payload?.deliveryCredits || [])) folderTotalC += Math.round(Number(dc?.folder || 0) * 100);
+              let codOutC = 0;
+              for (const [, v] of (payload?.byLocId || [])) codOutC += Math.round(Number(v?.pendingDeducted || 0) * 100);
+              // Owner format (Nov 3 2026): "<Store>: $  53.90 Loan $ 2732.17" —
+              // "$" then the amount right-aligned in 7 columns (the widest case
+              // is $9999.99), so small balances carry only the padding they need.
+              // Loans keep their single space after the "$".
+              const cmoney = (amt) => `$${(Number(amt) || 0).toFixed(2).padStart(7)}`;
+              const lmoney = (amt) => `$ ${(Number(amt) || 0).toFixed(2).padStart(7)}`;
+              lines.push('BALANCES (est):');
+              for (const loc of (cfg.locations || [])) {
+                const v = byLoc.get(String(loc.location_id));
+                if (!v) continue;
+                const name = nameById.get(String(loc.location_id)) || String(loc.name || loc.location_id);
+                lines.push(`${name}: ${cmoney(v.cardEstimate)} Loan ${lmoney(v.loanRemaining)}`);
               }
-              folderTotalC += folderC;
-              const cardEstC = Math.round(Number(loc.card_start || 0) * 100) + grossC - feeC - loanC - folderC - Math.round((codOutByLoc.get(loc.location_id) || 0) * 100);
-              const loanLeftC = Math.max(0, Math.round(Number(loc.loan_start || 0) * 100) - loanC);
-              const name = String(loc.name || loc.location_id);
-              const card = cardEstC / 100;
-              const loan = loanLeftC / 100;
-              balParts.push({ name, card, loan });
-              balStrs.push(name, card.toFixed(2), loan.toFixed(2));
+              lines.push(`Folder ${cmoney(folderTotalC / 100)} (2% since true-up)`);
+              lines.push(`CODs out ${cmoney(codOutC / 100)} (not yet on the card)`);
+              lines.push('');
             }
-            const bw = Math.max(...balStrs.map((x) => x.length), 5);
-            const bmoney = (amt) => `$ ${amt.toFixed(2).padStart(bw)}`;
-            lines.push('BALANCES (est):');
-            for (const b of balParts) lines.push(`${b.name} Card ${bmoney(b.card)} Loan ${bmoney(b.loan)}`);
-            lines.push(`Folder ${bmoney(folderTotalC / 100)} (2% since true-up)`);
-            lines.push(`CODs out ${bmoney(Math.round(codOutAll * 100) / 100)} (pending + cash awaiting Square)`);
-            lines.push('');
           }
         } catch (e) {
           console.log('[briefing] balance estimates failed:', e?.message || e);
