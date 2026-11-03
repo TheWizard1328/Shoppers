@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 81;
+export const BUILD_NUMBER = 82;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 82, area: 'Patient portal', audience: 'patients', summary: 'Map side padding cut from 50 to 20, so the driver and patient markers use more of the map width.' },
   { build: 81, area: 'Patient portal', audience: 'patients', summary: 'Map framing nudged: 40 less padding at the bottom and 40 more at the top, so the driver and patient sit a little lower in view.' },
   { build: 80, area: 'Patient portal', audience: 'patients', summary: 'Map is full height again with today\'s card floating over it. The auto-fit now keeps the markers clear of the card at the top and the tracking badge at the bottom, and the whole route line is green.' },
   { build: 79, area: 'Patient portal', audience: 'patients', summary: 'The map now reserves top padding for today\'s floating card, so the card sits above the map instead of on top of it. Expanding it leaves the map in place.' },

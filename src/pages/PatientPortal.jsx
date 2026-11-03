@@ -194,7 +194,9 @@ const PORTAL_FIT_MAX_ZOOM = 17;
 //            the top of the map to the bottom
 //   top    : the collapsed height of the floating today card, so the two
 //            markers never tuck underneath it
-const PORTAL_PAD_SIDE = 50;
+// OWNER TWEAK (Nov 2 2026): sides cut from 50 to 20 so the driver and patient
+// sit closer to the map edges.
+const PORTAL_PAD_SIDE = 20;
 // OWNER TWEAK (Nov 2 2026): bottom padding reduced by 40 (75 -> 35) and the top
 // padding raised by the same 40 so the frame sits lower on the map.
 const PORTAL_PAD_BOTTOM = 35;
@@ -419,8 +421,8 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Inner fit paddings handed to every auto-fit call: top clears the floating
   // today card, bottom clears the tracking badge that now lives down there.
   const mapPad = useMemo(() => ({
-    left: 50,
-    right: 50,
+    left: 20,
+    right: 20,
     bottom: 35,
     top: floatCardHeight ? floatCardHeight + 52 : 115,
   }), [floatCardHeight]);
