@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, UserRound } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, UserRound, ChevronDown } from "lucide-react";
 import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
@@ -2717,6 +2717,56 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       <div className="flex flex-wrap justify-center gap-3">
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
+          // ROWS-TRUTH for "CODs charged to card" (owner report Nov 3 2026:
+          // "Bonnie Doon says (1) but I see 6 delivery cards"). The count now
+          // comes from the SAME rows this card renders — the delivery-derived
+          // uncollected rows, the cash-collected rows and the catalog
+          // leftovers — and only the ones that still hold their charge (a
+          // Not Tapped row does not, unless the card was charged after the
+          // mark). Each row is listed under the line, so the count always
+          // accounts for itself. The CARD BALANCE math is untouched (that still
+          // uses the full balance scope in summaryByLoc).
+          const chargedDetail = (() => {
+            const src = localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {};
+            const marks = manualSpendMarksRef.current || {};
+            const rows = [];
+            const seen = new Set();
+            const addRow = (it, kind) => {
+              const id = it?.delivery_id ? String(it.delivery_id) : null;
+              const amount = Number(it?.amount || 0);
+              if (!(amount > 0)) return;
+              if (id && seen.has(id)) return;
+              const mark = id ? marks[id] : null;
+              // A Not Tapped mark is STALE once the delivery carries a card
+              // spend newer than the mark (Anastasia/Callingwood $97.97 case).
+              const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+              const spendAt = it?.spend_at ? new Date(it.spend_at).getTime() : null;
+              const superseded = spendAt != null && Number.isFinite(spendAt) && (markAt == null || !Number.isFinite(markAt) || spendAt >= markAt);
+              if (mark?.notTapped === true && !superseded) return;
+              if (id) seen.add(id);
+              const day = String(it?.date || '').slice(0, 10);
+              rows.push({
+                key: `${kind}-${id || rows.length}`,
+                patientName: it?.patient || it?.patientName || null,
+                amount,
+                sub: day ? `${day.slice(5, 7)}/${day.slice(8, 10)}` : '',
+                driverName: it?.driver_name || it?.driverName || null,
+              });
+            };
+            for (const it of src.items || []) addRow(it, 'o');
+            for (const it of src.cashItems || []) addRow(it, 'c');
+            // Completed charges collected by card since true-up (they have no
+            // row of their own on the card — the drill-down is where they show).
+            for (const it of src.deductItems || []) {
+              if (it?.in_window === false) continue;
+              if (String(it?.reason || '') !== 'collected_charge') continue;
+              addRow(it, 'd');
+            }
+            for (const it of catalogUncollectedByLoc?.[loc.location_id] || []) addRow(it, 'cat');
+            rows.sort((x, y) => (y.sub || '').localeCompare(x.sub || ''));
+            const cents = rows.reduce((sum, r) => sum + Math.round(r.amount * 100), 0);
+            return { rows, cents };
+          })();
           return (
             <div key={loc.location_id}
             className="rounded-xl border-2 bg-white dark:bg-slate-900 overflow-hidden w-full min-w-0 sm:w-[360px] sm:min-w-[320px] sm:max-w-[380px] sm:flex-1 sm:basis-[340px]"
@@ -2773,10 +2823,39 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.sweptOut)}</div>
                 </div>
                 }
-              <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><Receipt className="w-3.5 h-3.5" /> CODs charged to card{loc.pendingDeductCount ? ` (${loc.pendingDeductCount})` : ''}</div>
-                  <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(loc.pendingDeducted)}</div>
-                </div>
+              {(() => {
+                  // ROWS-TRUTH (owner report Nov 3 2026): the count and the
+                  // amount are the rows listed right here, so "charged to
+                  // card (3)" always has 3 items underneath it. Tapping the
+                  // line opens the list.
+                  const rows = chargedDetail.rows;
+                  const total = chargedDetail.cents / 100;
+                  if (!rows.length && !(Number(loc.pendingDeducted) > 0)) return null;
+                  const shownTotal = rows.length ? total : Number(loc.pendingDeducted);
+                  return (
+                    <details className="text-xs group">
+                      <summary className="flex items-center justify-between cursor-pointer list-none select-none">
+                        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                          <Receipt className="w-3.5 h-3.5" /> CODs charged to card{rows.length ? ` (${rows.length})` : ''}
+                          <ChevronDown className="w-3 h-3 opacity-50 group-open:rotate-180 transition-transform" />
+                        </div>
+                        <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(shownTotal)}</div>
+                      </summary>
+                      {rows.length > 0 &&
+                        <div className="mt-1 space-y-0.5 pl-5 pr-1">
+                          {rows.map((r) => (
+                            <div key={r.key} className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                              <span className="truncate">
+                                {r.patientName || 'COD'}{r.sub ? ` · ${r.sub}` : ''}{r.driverName ? ` · ${r.driverName}` : ''}
+                              </span>
+                              <span className="tabular-nums shrink-0">{fmtMoney(r.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      }
+                    </details>
+                  );
+                })()}
               {loc.storeCardSpend > 0 &&
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><CreditCard className="w-3.5 h-3.5" /> Store-card spends (excluded)</div>
