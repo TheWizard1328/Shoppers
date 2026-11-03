@@ -329,11 +329,14 @@ export default function DriverPayrollGrid({
       const storeId = d.store_id;
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
         storeHasData[storeId] = true;
-        // After-hours PICKUPS (store pickups, no patient_id, not interstore) are
-        // paid separately via after_hours_rate — excluded from the daily count,
-        // but still marked with '-' next to the total (matching deliveries).
+        // After-hours PICKUPS (store pickups, no patient_id, not interstore) count
+        // as ONE delivery (owner rule Nov 3 2026) so the day totals and the grand
+        // total match the delivery count on the payroll summary cards. The '-'
+        // marker still flags the after-hours rate.
         if (isAfterHoursPickup(d)) {
           afterHoursCountMap[dateKey][storeId]++;
+          deliveryMap[dateKey][storeId]++;
+          kmMap[dateKey][storeId] += calculateExtraKm(d);
           return;
         }
         if (d.oversized) {

@@ -4,7 +4,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
 const CACHE_VERSION = '6';
-const SUMMARY_VERSION = '5';
+const SUMMARY_VERSION = '6';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
@@ -1502,7 +1502,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
             };
           }
           const dsEntry = metrics.driverStoreByMonth[m][delivery.driver_id][delivery.store_id];
-          if (isCountableCompletedDelivery(delivery)) dsEntry.completed++;
+          // RETURNS COUNT AS DELIVERIES (owner rule Nov 3 2026): a return is a
+          // finished delivery that came back to the store, so it must land in the
+          // driver grid's completed count. Previously returns were dropped here,
+          // which made the per-driver monthly grid read short (Robert Oct 2026:
+          // 565 shown vs 577 payable). Kept out of storeDataByMonth so store
+          // invoicing maths is unchanged.
+          if (isCountableCompletedDelivery(delivery) || isCountableReturnDelivery(delivery)) dsEntry.completed++;
           if (isCountableFailedDelivery(delivery)) dsEntry.failed++;
           if (isCountableAfterHoursPickup(delivery)) dsEntry.afterHours++;
         }
