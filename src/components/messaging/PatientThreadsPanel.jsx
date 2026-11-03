@@ -10,9 +10,12 @@ import {
   loadDriverPatientThreads,
   loadPatientsForDriver,
   sendDriverMessageToPatient,
+  sendStaffMessageToDriverThread,
+  loadDriverDirectory,
   isPatientSender,
   staffStoreIds,
 } from './patientThreads';
+import DriverDutyBadge from './DriverDutyBadge';
 import { userHasRole } from '@/components/utils/userRoles';
 
 /**
@@ -30,6 +33,12 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   const [sending, setSending] = useState(false);
   const [thread, setThread] = useState([]);
   const [threadLoading, setThreadLoading] = useState(false);
+  // THREAD PICKER (owner report Nov 3 2026): a patient thread and each
+  // patient↔driver thread are separate conversations. They used to be merged
+  // into one list, so a message sent to a driver looked like it went to the
+  // pharmacy team, and every staff reply was forced into the store thread.
+  const [threadSel, setThreadSel] = useState('store'); // 'store' | driverId
+  const [driverDir, setDriverDir] = useState([]);
   const [storeRows, setStoreRows] = useState(stores || []);
   const unreadContributedRef = useRef(0);
   const endRef = useRef(null);
@@ -122,7 +131,13 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   const openThread = useCallback(async (patient) => {
     if (!patient?.id) return;
     setSelected(patient);
+    setThreadSel('store');
     setThreadLoading(true);
+    if (!isDriverMode) {
+      loadDriverDirectory(patient.id)
+        .then((dir) => setDriverDir(dir.drivers || []))
+        .catch(() => setDriverDir([]));
+    }
     try {
       const query = isDriverMode
         ? { patient_id: patient.id, driver_id: currentUser?.id }
@@ -170,9 +185,19 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     if (!text || sending || !selected) return;
     setSending(true);
     try {
+      const pickedDriver = threadSel !== 'store' ? threadSel : null;
       const created = isDriverMode
         ? await sendDriverMessageToPatient({ user: currentUser, patient: selected, content: text, storeName })
-        : await sendStaffMessageToPatient({ user: currentUser, patient: selected, content: text, storeName });
+        : pickedDriver
+          ? await sendStaffMessageToDriverThread({
+              user: currentUser,
+              patient: selected,
+              driverId: pickedDriver,
+              driverName: (driverDir || []).find((d) => String(d.driver_id) === String(pickedDriver))?.driver_name,
+              content: text,
+              storeName,
+            })
+          : await sendStaffMessageToPatient({ user: currentUser, patient: selected, content: text, storeName });
       setInput('');
       if (created?.id) setThread((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
     } catch { /* the thread still shows the error state via input retention */ } finally {
@@ -197,6 +222,33 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     });
   }, [patients, search, threadStats]);
 
+  // Staff thread picker: the pharmacy thread plus one entry per driver thread.
+  const staffThreads = useMemo(() => {
+    if (isDriverMode || !selected) return [];
+    const ids = new Set();
+    (thread || []).forEach((m) => { if (m?.driver_id) ids.add(String(m.driver_id)); });
+    (driverDir || []).forEach((d) => { if (d?.is_current && d?.driver_id) ids.add(String(d.driver_id)); });
+    return Array.from(ids).map((id) => {
+      const dir = (driverDir || []).find((d) => String(d.driver_id) === id);
+      const last = (thread || []).find((m) => String(m.driver_id) === id);
+      return {
+        id,
+        name: dir?.driver_name || last?.receiver_name || 'Driver',
+        duty: dir?.duty_status || 'off_duty',
+      };
+    });
+  }, [isDriverMode, selected, thread, driverDir]);
+
+  const visibleThread = useMemo(() => {
+    if (isDriverMode) return thread || [];
+    if (threadSel === 'store') return (thread || []).filter((m) => !m.driver_id);
+    return (thread || []).filter((m) => String(m.driver_id) === String(threadSel));
+  }, [thread, threadSel, isDriverMode]);
+
+  const activeThreadName = threadSel === 'store'
+    ? 'Pharmacy team'
+    : (staffThreads.find((t) => t.id === String(threadSel))?.name || 'Driver');
+
   if (selected) {
     return (
       <div className="flex flex-col h-full w-full">
@@ -206,21 +258,53 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold truncate text-slate-900 dark:text-slate-100">{selected.full_name}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{selected.phone || 'Patient portal'}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{activeThreadName}</p>
           </div>
+          {!isDriverMode && threadSel !== 'store' && (
+            <DriverDutyBadge
+              status={staffThreads.find((t) => t.id === String(threadSel))?.duty || 'off_duty'}
+              size="xs"
+            />
+          )}
         </div>
+
+        {/* THREAD PICKER — pharmacy thread and each driver thread are separate */}
+        {!isDriverMode && (
+          <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <button
+              onClick={() => setThreadSel('store')}
+              className={`h-7 px-2.5 rounded-full text-xs font-medium whitespace-nowrap border ${threadSel === 'store'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+            >
+              Pharmacy team
+            </button>
+            {staffThreads.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setThreadSel(t.id)}
+                className={`h-7 px-2.5 rounded-full text-xs font-medium whitespace-nowrap border flex items-center gap-1.5 ${String(threadSel) === t.id
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+              >
+                {t.name}
+                <DriverDutyBadge status={t.duty} size="xs" />
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-slate-50 dark:bg-slate-950/40">
           {threadLoading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
-          ) : thread.length === 0 ? (
+          ) : visibleThread.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center gap-1 px-6">
               <MessageSquare className="w-7 h-7 text-slate-300 dark:text-slate-600" />
               <p className="text-sm text-slate-500 dark:text-slate-400">No messages yet</p>
               <p className="text-xs text-slate-400 dark:text-slate-500">Send the first message — it is pushed to the patient's devices.</p>
             </div>
           ) : (
-            thread.map((m) => {
+            visibleThread.map((m) => {
               const fromPatient = isPatientSender(m.sender_id);
               const ts = parseEntityTimestamp?.(m.created_date) || m.created_date;
               return (

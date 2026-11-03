@@ -183,6 +183,57 @@ export async function sendDriverMessageToPatient({ user, patient, content, store
   return message;
 }
 
+/**
+ * STAFF reply inside a patient↔driver thread (owner report Nov 3 2026).
+ * The row belongs to that DRIVER's thread so the patient's portal separates it
+ * from the pharmacy thread, the driver receives the push, and the patient gets
+ * their own device alert.
+ */
+export async function sendStaffMessageToDriverThread({ user, patient, driverId, driverName, content, storeName }) {
+  const text = String(content || '').trim();
+  if (!text || !patient?.id || !driverId) return null;
+  const staffName = user?.full_name || user?.user_name || 'Pharmacy';
+
+  const message = await base44.entities.Message.create({
+    sender_id: user?.id || '',
+    sender_name: staffName,
+    receiver_id: patientSenderId(patient.id),
+    receiver_name: patient.full_name || 'Patient',
+    conversation_id: driverThreadConversationId(driverId, patient.id),
+    content: text,
+    message_type: 'text',
+    read: false,
+    patient_id: patient.id,
+    store_id: patient.store_id || '',
+    driver_id: driverId,
+  });
+
+  const preview = text.length > 140 ? `${text.slice(0, 137)}...` : text;
+
+  // Patient's devices.
+  base44.functions.invoke('patientPush', {
+    action: 'send',
+    patient_id: patient.id,
+    title: driverName ? `${staffName} · ${driverName}` : staffName,
+    body: preview,
+    url: '/patient-portal',
+    tag: `driver-thread-${patient.id}`,
+  }).catch(() => {});
+
+  // The driver's devices.
+  base44.functions.invoke('patientPush', {
+    action: 'notifyDriver',
+    driver_id: driverId,
+    patient_id: patient.id,
+    title: `${staffName} · ${patient.full_name || 'Patient'}`,
+    body: preview,
+    url: '/',
+    tag: `driver-thread-${patient.id}`,
+  }).catch(() => {});
+
+  return message;
+}
+
 /** Duty status for a set of driver ids (patient-facing status chips). */
 export async function loadDriverDirectory(patientId) {
   if (!patientId) return { drivers: [], today: '' };

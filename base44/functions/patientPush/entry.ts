@@ -30,6 +30,23 @@ import webpush from 'npm:web-push@3.6.7';
  *   send             → AUTHENTICATED staff/driver push to the patient's devices
  */
 
+// ── Driver identity (owner report Nov 3 2026) ────────────────────────────
+// Delivery.driver_id and DriverDailyActivity.driver_id store the AUTH user id,
+// which lives on AppUser.user_id — AppUser.id is a DIFFERENT record id. Keying
+// the old lookup by AppUser.id therefore never matched a real driver, so the
+// portal always read duty_status 'off_duty' AND patient→driver sends silently
+// fell back to the store thread (the driver profile resolved to null).
+// This map indexes every AppUser by BOTH keys.
+async function loadAppUsersByDriverId(base44: any): Promise<Map<string, any>> {
+  const map = new Map<string, any>();
+  const users = await base44.asServiceRole.entities.AppUser.filter({}, '-created_date', 500).catch(() => []);
+  for (const u of users || []) {
+    if (u?.user_id) map.set(String(u.user_id), u);
+    if (u?.id) map.set(String(u.id), u);
+  }
+  return map;
+}
+
 // ── FCM (APK devices) — OAuth2 access token from the service account ────
 let _cachedFcmToken: { token: string; expiresAt: number } | null = null;
 
@@ -292,15 +309,14 @@ Deno.serve(async (req) => {
       const deliveries = await base44.asServiceRole.entities.Delivery
         .filter({ patient_id }, '-delivery_date', 200)
         .catch(() => []);
-      const users = await base44.asServiceRole.entities.AppUser.filter({}, '-created_date', 200).catch(() => []);
-      const userById = new Map((users || []).map((u: any) => [u.id, u]));
+      const userByDriverId = await loadAppUsersByDriverId(base44);
 
       const byDriver = new Map<string, any>();
       for (const d of deliveries || []) {
         if (!d?.driver_id) continue;
         const entry = byDriver.get(d.driver_id) || {
           driver_id: d.driver_id,
-          driver_name: d.driver_name || userById.get(d.driver_id)?.full_name || 'Driver',
+          driver_name: d.driver_name || userByDriverId.get(String(d.driver_id))?.user_name || userByDriverId.get(String(d.driver_id))?.full_name || 'Driver',
           last_delivery_date: '',
           is_current: false,
           is_past: false,
@@ -315,18 +331,37 @@ Deno.serve(async (req) => {
       const drivers = Array.from(byDriver.values())
         .filter((d) => d.is_current || d.is_past)
         .map((d) => {
-          const user = userById.get(d.driver_id);
+          const user = userByDriverId.get(String(d.driver_id));
           const status = String(user?.driver_status || 'off_duty');
           return {
             ...d,
             duty_status: ['on_duty', 'on_break', 'off_duty'].includes(status) ? status : 'off_duty',
             phone: '',
+            resolved_profile: !!user,
           };
         })
-        .sort((a, b) => {
+        .sort((a: any, b: any) => {
           if (a.is_current !== b.is_current) return a.is_current ? -1 : 1;
           return String(b.last_delivery_date).localeCompare(String(a.last_delivery_date));
         });
+
+      // Last-resort duty signal: a driver with an OPEN activity segment today is
+      // working, even when no AppUser profile row resolves for them.
+      const unresolvedIds = drivers.filter((d: any) => !d.resolved_profile).map((d: any) => String(d.driver_id));
+      if (unresolvedIds.length) {
+        const activityRows = await base44.asServiceRole.entities.DriverDailyActivity
+          .filter({ activity_date: today }, '-activity_date', 300)
+          .catch(() => []);
+        const openIds = new Set(
+          (activityRows || [])
+            .filter((r: any) => unresolvedIds.includes(String(r.driver_id))
+              && (Array.isArray(r.activity_segments) ? r.activity_segments : [])
+                .some((seg: any) => seg && seg.start_time && !seg.end_time))
+            .map((r: any) => String(r.driver_id))
+        );
+        drivers.forEach((d: any) => { if (openIds.has(String(d.driver_id))) d.duty_status = 'on_duty'; });
+      }
+      drivers.forEach((d: any) => { delete d.resolved_profile; });
 
       return Response.json({ ok: true, today, drivers });
     }
@@ -374,14 +409,24 @@ Deno.serve(async (req) => {
         if (!prior || prior.length === 0) {
           return Response.json({ ok: false, error: 'That driver has no delivery with this patient' }, { status: 403 });
         }
-        try { driver = await base44.asServiceRole.entities.AppUser.get(driver_id); } catch (_) { driver = null; }
+        const userByDriverId = await loadAppUsersByDriverId(base44);
+        driver = userByDriverId.get(String(driver_id)) || null;
+        if (!driver) {
+          try { driver = await base44.asServiceRole.entities.AppUser.get(driver_id); } catch (_) { driver = null; }
+        }
+        if (!driver) {
+          // No profile row resolved: keep the DRIVER thread (never the store one)
+          // and use the name stamped on their delivery.
+          const priorName = (prior || []).map((d: any) => d.driver_name).find(Boolean);
+          driver = { id: driver_id, user_name: priorName || 'Driver' };
+        }
       }
 
       const created = await base44.asServiceRole.entities.Message.create({
         sender_id: patientSenderId,
         sender_name: patient.full_name || 'Patient',
         receiver_id: driver ? driver_id : '',
-        receiver_name: driver ? (driver.full_name || 'Driver') : 'Pharmacy',
+        receiver_name: driver ? (driver.user_name || driver.full_name || 'Driver') : 'Pharmacy',
         conversation_id: driver ? `driver:${driver_id}:patient:${patient_id}` : `patient:${patient_id}`,
         content: text,
         message_type: 'text',
@@ -424,6 +469,23 @@ Deno.serve(async (req) => {
     // ── Send to a patient's devices (authenticated staff OR driver) ─────────
     const user = await base44.auth.me();
     if (!user) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+    // Staff reply inside a patient↔driver thread → alert that DRIVER's devices.
+    // (Patients are pushed separately by the client through action: 'send'.)
+    if (action === 'notifyDriver') {
+      const { driver_id, patient_id: pid, title: dTitle, body: dBody, url: dUrl, tag: dTag } = payload;
+      if (!driver_id || !dTitle) {
+        return Response.json({ ok: false, error: 'driver_id and title are required' }, { status: 400 });
+      }
+      const result = await pushToUser(base44, driver_id, {
+        title: dTitle,
+        body: dBody || '',
+        url: dUrl || '/',
+        tag: dTag || `driver-thread-${pid || ''}`,
+        patient_id: pid || '',
+      }).catch(() => ({ sent: 0 }));
+      return Response.json({ ok: true, ...result });
+    }
 
     const { patient_id, title, body, url, tag } = payload;
     if (!patient_id || !title) {

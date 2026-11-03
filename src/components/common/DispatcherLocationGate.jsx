@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MapPinOff, MapPin, RefreshCw } from 'lucide-react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { useAppData } from '@/components/utils/AppDataContext';
+import { base44 } from '@/api/base44Client';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { haversineKm } from '@/components/utils/geoUtils';
 
@@ -18,6 +20,12 @@ import { haversineKm } from '@/components/utils/geoUtils';
  *    asked for location — "no GPS fix = most likely a non-mobile device".
  *  - Exempts driver, admin, and app-owner roles (dual-role users keep full
  *    access so driving isn't broken).
+ *  - OWNER DEVICES (owner request Nov 3 2026): the gate used to judge the
+ *    CURRENT user object, which is a dispatcher-shaped clone while the owner
+ *    runs "Test as Dispatcher". That locked the owner out of his own phone and
+ *    tablet. The gate now also checks the REAL authenticated account
+ *    (base44.auth.me() → platform role 'admin') and any Test Mode overlay, so
+ *    the owner keeps full access anywhere on phone, tablet, PWA or APK.
  *  - A fix only LOCKS when it confidently proves the user is off-site:
  *    (distance to nearest assigned store - fix accuracy) > LOCK_RADIUS_M.
  *    Low-accuracy fixes (WiFi/indoors) can never confidently prove
@@ -50,6 +58,43 @@ export default function DispatcherLocationGate() {
   const [lockInfo, setLockInfo] = useState(null); // { storeName, distanceM }
   const [isRechecking, setIsRechecking] = useState(false);
 
+  // REAL account identity — never the test-mode overlay clone.
+  const [realAccount, setRealAccount] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    base44.auth.me()
+      .then((u) => { if (alive) setRealAccount(u || null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const realRoles = Array.isArray(realAccount?.app_roles) ? realAccount.app_roles : [];
+  const serverOwner = !!realAccount && (realAccount.role === 'admin' || realRoles.includes('admin')
+    || realRoles.includes('app_owner') || realRoles.includes('driver'));
+
+  // OFFLINE fallback: the overlay only rewrites the in-memory copy, so the
+  // cached AppUser row still carries the account's REAL roles. This keeps the
+  // owner exempt on an APK/PWA with no connection.
+  const [cachedOwner, setCachedOwner] = useState(false);
+  useEffect(() => {
+    const id = currentUser?.id;
+    if (!id || serverOwner) { setCachedOwner(false); return; }
+    let alive = true;
+    offlineDB.getById(offlineDB.STORES.APP_USERS, id)
+      .then((row) => {
+        if (!alive || !row) return;
+        const roles = Array.isArray(row.app_roles) ? row.app_roles : [];
+        setCachedOwner(roles.includes('admin') || roles.includes('app_owner') || roles.includes('driver'));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [currentUser?.id, serverOwner]);
+
+  const isRealAppOwner = serverOwner || cachedOwner || isAppOwner(currentUser);
+
+  // Test Mode ("Test as Dispatcher") is owner-only — its overlay must never gate.
+  const isTestModeClone = !!currentUser?.__testModeActive;
+
   const streakRef = useRef(0);
   const lastEvalAtRef = useRef(0);
   const lockInfoRef = useRef(null);
@@ -57,6 +102,8 @@ export default function DispatcherLocationGate() {
   // ── Eligibility ──────────────────────────────────────────────────────────
   const isEligible = !!(
     currentUser &&
+    !isTestModeClone &&
+    !isRealAppOwner &&
     deviceType === 'Mobile' &&
     userHasRole(currentUser, 'dispatcher') &&
     !userHasRole(currentUser, 'driver') &&
