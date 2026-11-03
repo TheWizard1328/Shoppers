@@ -9,6 +9,7 @@ import { PatientSessionManager } from '@/components/patient-portal/PatientSessio
 import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import PatientTodayFloatingCard from '@/components/patient-portal/PatientTodayFloatingCard';
+import MapCrosshair from '@/components/dashboard/MapCrosshair';
 import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { format } from 'date-fns';
@@ -986,7 +987,14 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, [patient?.id, messagingOpen]);
 
   return (
-    <div className={`flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}>
+    // Height: 100dvh on phones/tablets so the layout stops at the DEVICE
+    // navigation bar instead of running underneath it (100vh includes the area
+    // behind the OS bar). Owner report Nov 2 2026: the sidebar footer was
+    // slipping behind the nav bar on wider screens.
+    <div
+      className={`flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}
+      style={embedded ? undefined : { height: '100dvh' }}
+    >
       <PatientPortalGuard />
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
 
@@ -1086,7 +1094,12 @@ export default function PatientPortal({ embedded = false } = {}) {
               </div>
             </div>
           )}
-          <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm relative">
+            {/* Map centre crosshair — same overlay the main dashboard map uses.
+                Sits at the centre of the SAME padded region the auto-fit uses
+                (left/right 20, top clears the floating today card, bottom 35),
+                so it marks the exact point the fit is centred on. */}
+            <MapCrosshair topPadding={mapPad.top} bottomPadding={mapPad.bottom} zClass="z-[600]" />
             <MapContainer
               center={defaultCenter}
               zoom={13}

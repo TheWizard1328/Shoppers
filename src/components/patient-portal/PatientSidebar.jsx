@@ -37,6 +37,10 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
         className={`fixed top-0 left-0 h-full w-72 bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-[1000] transform transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
+        // 100dvh: stop at the DEVICE navigation bar instead of underneath it
+        // (owner report Nov 2 2026 — the Sign Out footer was hidden behind it on
+        // wider screens). The footer also keeps the app's safe-bottom padding.
+        style={{ height: '100dvh' }}
       >
         {/* Header */}
         <div

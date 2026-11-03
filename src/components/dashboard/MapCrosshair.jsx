@@ -13,14 +13,14 @@ import React from 'react';
  *
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
-export default function MapCrosshair({ topPadding = 0, bottomPadding = 0 }) {
+export default function MapCrosshair({ topPadding = 0, bottomPadding = 0, zClass = 'z-[10]' }) {
   const verticalShift = topPadding === 0 && bottomPadding === 0
     ? 0
     : Math.round((topPadding - bottomPadding) / 2);
 
   return (
     <div
-      className="absolute inset-0 pointer-events-none z-[10]"
+      className={`absolute inset-0 pointer-events-none ${zClass}`}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {/* Crosshair container - shifted to center in the visible (padded) map area */}
