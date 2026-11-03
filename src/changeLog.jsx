@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 85;
+export const BUILD_NUMBER = 86;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 86, area: 'Patient portal', audience: 'patients', summary: 'Map framing tightened: with the sidebar showing, the top padding now matches the bottom, and with the card showing the top padding drops another 20.' },
   { build: 85, area: 'Patient portal', audience: 'patients', summary: 'Sidebar panel sits flush at the top again and no longer runs under the device navigation bar, and it now layers above the tracking badge and the Exit Patient View button.' },
   { build: 84, area: 'Patient portal', audience: 'patients', summary: 'The patient map now shows the same centre crosshair as the main map, and the sidebar stops at the device navigation bar instead of slipping behind it.' },
   { build: 83, area: 'Patient portal', audience: 'patients', summary: 'When the sidebar is showing (desktop, or the drawer open on a phone) the map top padding no longer counts the floating today card, so the markers use the full height.' },

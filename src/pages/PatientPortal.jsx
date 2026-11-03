@@ -201,7 +201,9 @@ const PORTAL_PAD_SIDE = 20;
 // OWNER TWEAK (Nov 2 2026): bottom padding reduced by 40 (75 -> 35) and the top
 // padding raised by the same 40 so the frame sits lower on the map.
 const PORTAL_PAD_BOTTOM = 35;
-const PORTAL_PAD_TOP_DEFAULT = 115;
+// Sidebar visible (desktop, or the drawer open): the top padding matches the
+// bottom exactly — no card to clear. OWNER TWEAK Nov 2 2026.
+const PORTAL_PAD_TOP_DEFAULT = 35;
 function portalFit(map, points, pad = {}) {
   // Guard: a single NaN/undefined coordinate makes latLngBounds invalid and
   // getBoundsZoom throw — which would silently kill the auto-fit forever.
@@ -452,7 +454,10 @@ export default function PatientPortal({ embedded = false } = {}) {
     left: 20,
     right: 20,
     bottom: 35,
-    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 52 : 115,
+    // Card showing (sidebar hidden on a narrow screen): card height + 32
+    // (was + 52, cut by 20 per owner tweak Nov 2 2026). Sidebar visible: 35,
+    // identical to the bottom padding.
+    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 32 : PORTAL_PAD_TOP_DEFAULT,
   }), [showFloatTodayCard, floatCardHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
