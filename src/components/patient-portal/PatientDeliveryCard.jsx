@@ -44,10 +44,26 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
   // Small timestamp shown under the status badge on the collapsed card:
   // current delivery → ETA, past deliveries → delivered / attempted time.
   let subBadge = null;
+  // FINISHED STOPS (owner request Nov 3 2026): the sidebar card already says
+  // Completed / Failed in the status pill, so the line beneath it is just the
+  // TIME as a pill of its own — green for completed, red for failed. No second
+  // "Delivered" / "Failed" wording.
   if (delivery.status === 'completed' && actualTime) {
-    subBadge = { text: `Delivered ${actualTime}`, color: 'text-green-600 dark:text-green-400' };
+    subBadge = {
+      text: actualTime,
+      pill: true,
+      pillCls: expanded
+        ? 'bg-green-900/60 border-green-700 text-green-300'
+        : 'bg-green-50 border-green-200 text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300',
+    };
   } else if (delivery.status === 'failed' && actualTime) {
-    subBadge = { text: `Attempted ${actualTime}`, color: 'text-red-600 dark:text-red-400' };
+    subBadge = {
+      text: actualTime,
+      pill: true,
+      pillCls: expanded
+        ? 'bg-red-900/60 border-red-700 text-red-300'
+        : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300',
+    };
   } else if (['in_transit', 'en_route'].includes(delivery.status) && delivery.delivery_time_eta) {
     // Owner request (Sep 29 2026): when the ETA equals the delivery window START
     // (the optimizer clamps arrival up to the window floor, e.g. 17:30), the
@@ -118,11 +134,15 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
                 : <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
               }
             </div>
-            {subBadge && (
+            {subBadge && (subBadge.pill ? (
+              <span className={`inline-flex items-center justify-center mt-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight tabular-nums whitespace-nowrap ${subBadge.pillCls}`}>
+                {subBadge.text}
+              </span>
+            ) : (
               <p className={`text-sm font-medium mt-0.5 leading-tight text-center ${expanded ? 'text-slate-300' : subBadge.color}`}>
                 {subBadge.text}
               </p>
-            )}
+            ))}
             {/* REMAINING STOPS (owner requests Nov 3 2026): directly under the
                 Pending / In Transit badge, CENTRE-aligned with it. This is the
                 count of stops still PRIOR to the patient's own stop (their own
