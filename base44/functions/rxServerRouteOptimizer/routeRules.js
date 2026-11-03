@@ -150,34 +150,119 @@ export function windowBandOfStop(stop, { routeIsToday, currentMinutes, windowOf 
   return Math.floor(m / TIME_BAND_MINUTES); // future window → chronological band
 }
 
-export function windowBandSort(stops, { routeIsToday, currentMinutes, windowOf, windowEndOf }) {
+export function windowBandSort(stops, { routeIsToday, currentMinutes, windowOf }) {
   const bandOf = (stop) => windowBandOfStop(stop, { routeIsToday, currentMinutes, windowOf });
   const inputOrder = new Map((stops || []).map((s, i) => [s, i]));
-  const endMin = (stop) => {
-    try {
-      const raw = windowEndOf ? windowEndOf(stop) : '';
-      const m = parseTimeToMinutes(raw || '');
-      return Number.isFinite(m) && m > 0 ? m : NaN;
-    } catch (_) { return NaN; }
-  };
   return [...(stops || [])].sort((a, b) => {
     const bandDiff = bandOf(a) - bandOf(b);
     if (bandDiff !== 0) return bandDiff;
-    // OWNER RULE (Oct 30 2026): "no matter what the route type is, time
-    // windows should always be respected." Inside a band the stop whose window
-    // CLOSES first now goes first, so a tighter deadline can no longer be
-    // pushed past its window end by a later-closing neighbour (the live route
-    // showed a 17:00-17:30 stop sitting behind a 17:30-18:00 one). Road order
-    // still decides between stops whose windows close together or are open.
-    const ea = endMin(a);
-    const eb = endMin(b);
-    if (Number.isFinite(ea) || Number.isFinite(eb)) {
-      if (Number.isFinite(ea) && Number.isFinite(eb) && ea !== eb) return ea - eb;
-      if (Number.isFinite(ea) && !Number.isFinite(eb)) return -1;
-      if (!Number.isFinite(ea) && Number.isFinite(eb)) return 1;
-    }
+    // OWNER SPEC (Nov 3 2026) SUPERSEDES the Oct 30 "closes first" hoist:
+    // "deliveries must be done after the delivery start time, anytime after
+    // the delivery start time, and if there is a delivery END time the
+    // optimizer should be able to place that stop ANYWHERE prior to that end
+    // time and not have to hoist it first if there's time to get to it with
+    // other stops before it."
+    // So inside a band the road order (HERE drive time) now decides, full stop.
+    // A stop is no longer pulled to the front because its window merely closes
+    // sooner — that hoist is what sent the owner's 13:30-15:30 stop 10 km east
+    // first, back west for six stops, then east again past it for two more.
+    // Deadline protection moved to enforceWindowDeadlines below, which lifts a
+    // stop only when the forward clock proves it would otherwise arrive late.
     return (inputOrder.get(a) ?? 0) - (inputOrder.get(b) ?? 0);
   });
+}
+
+// ── RULE: window STARTS gate the clock, window ENDS are deadlines ────────────
+// OWNER SPEC (Nov 3 2026), verbatim: "we are basically supposed to use the time
+// windows as gates for ordering meaning deliveries must be done after the
+// delivery start time anytime after the delivery start time and if there is a
+// delivery end time the optimizer should be able to place that stop anywhere
+// prior to that end time and not have to hoist it first if there's time to get
+// to it with other stops before it."
+// Walks the order with a forward clock (wait for a start that has not opened
+// yet, then add leg + dwell) and lifts ONLY a stop the simulation proves will
+// arrive after its own window end. The lift is the smallest one that fixes the
+// violation (nearest earlier slot first) and it never increases the total
+// number of late stops. No end time → never lifted, ever.
+// Adapters: startOf(s), endOf(s), coordsOf(s) -> {lat,lng}|null or legMinutes(a,b).
+export function enforceWindowDeadlines(stops, {
+  currentMinutes,
+  startOf,
+  endOf,
+  coordsOf,
+  legMinutes,
+  dwellMinutes = 2,
+  averageSpeedKph = 32,
+  maxLifts = 6,
+} = {}) {
+  const toMin = (v) => {
+    const m = parseTimeToMinutes(v || '');
+    return Number.isFinite(m) && m > 0 ? m : NaN;
+  };
+  const legMin = (a, b) => {
+    try {
+      if (legMinutes) {
+        const m = legMinutes(a, b);
+        if (Number.isFinite(m) && m >= 0) return m;
+      }
+      const ca = coordsOf ? coordsOf(a) : null;
+      const cb = coordsOf ? coordsOf(b) : null;
+      if (ca && cb && Number.isFinite(ca.lat) && Number.isFinite(cb.lat)) {
+        const dLat = ((cb.lat - ca.lat) * Math.PI) / 180;
+        const dLng = ((cb.lng - ca.lng) * Math.PI) / 180;
+        const h = Math.sin(dLat / 2) ** 2
+          + Math.cos((ca.lat * Math.PI) / 180) * Math.cos((cb.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+        const km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+        return Math.max(1, Math.round((km / Math.max(10, averageSpeedKph)) * 60));
+      }
+    } catch (_) { /* fall through to the generic hop */ }
+    return 5;
+  };
+  const simulate = (arr) => {
+    let t = Number.isFinite(currentMinutes) ? currentMinutes : 0;
+    const arrivals = [];
+    let violations = 0;
+    for (let i = 0; i < arr.length; i++) {
+      if (i > 0) t += legMin(arr[i - 1], arr[i]);
+      const st = toMin(startOf ? startOf(arr[i]) : null);
+      if (Number.isFinite(st) && t < st) t = st; // gate: never before the start
+      arrivals.push(t);
+      const en = toMin(endOf ? endOf(arr[i]) : null);
+      if (Number.isFinite(en) && t > en) violations++;
+      t += dwellMinutes;
+    }
+    return { arrivals, violations };
+  };
+
+  let out = [...(stops || [])];
+  if (out.length < 2) return out;
+  let sim = simulate(out);
+  for (let lift = 0; lift < maxLifts && sim.violations > 0; lift++) {
+    let riskIdx = -1;
+    for (let i = 0; i < out.length; i++) {
+      const en = toMin(endOf ? endOf(out[i]) : null);
+      if (Number.isFinite(en) && sim.arrivals[i] > en) { riskIdx = i; break; }
+    }
+    if (riskIdx <= 0) break; // nothing earlier to lift past
+    const risky = out[riskIdx];
+    const riskyEnd = toMin(endOf ? endOf(risky) : null);
+    let applied = false;
+    for (let j = riskIdx - 1; j >= 0; j--) {
+      const cand = out.slice();
+      cand.splice(riskIdx, 1);
+      cand.splice(j, 0, risky);
+      const candSim = simulate(cand);
+      const riskyOnTime = !Number.isFinite(riskyEnd) || candSim.arrivals[j] <= riskyEnd;
+      if (riskyOnTime && candSim.violations < sim.violations) {
+        out = cand;
+        sim = candSim;
+        applied = true;
+        break;
+      }
+    }
+    if (!applied) break;
+  }
+  return out;
 }
 
 // Gate for the band sort: does ANY stop carry a real future-ish window?

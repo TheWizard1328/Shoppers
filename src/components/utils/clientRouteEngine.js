@@ -13,6 +13,7 @@ import {
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
   enforceCyclingBlock as sharedEnforceCyclingBlock,
+  enforceWindowDeadlines as sharedEnforceWindowDeadlines,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
@@ -994,6 +995,25 @@ let _inheritedWindowCount = 0;
         const bandOf = (stop) => sharedWindowBandOfStop(stop, _sharedBandOpts);
         finalStops = sharedWindowBandSort(orderedStops, _sharedBandOpts);
 
+        // SHARED RULE (owner spec Nov 3 2026): window STARTS gate the clock,
+        // window ENDS are deadlines. A stop may sit anywhere before its end, so
+        // the band sort no longer hoists it to the front — this pass lifts it
+        // ONLY when the forward clock proves it would otherwise arrive late.
+        try {
+          finalStops = sharedEnforceWindowDeadlines(finalStops, {
+            currentMinutes,
+            startOf: (st) => st?.windowStart || st?.delivery?.delivery_time_start || '',
+            endOf: (st) => st?.windowEnd || st?.delivery?.delivery_time_end || '',
+            coordsOf: (st) => {
+          const la = Number(st?.lat ?? st?.latitude ?? st?.patient_latitude);
+          const ln = Number(st?.lng ?? st?.lon ?? st?.longitude ?? st?.patient_longitude);
+          return Number.isFinite(la) && Number.isFinite(ln) && la !== 0 ? { lat: la, lng: ln } : null;
+        },
+          });
+        } catch (wdErr) {
+          console.warn('[clientRouteEngine] window deadline pass skipped:', wdErr?.message || wdErr);
+        }
+
         // HERE's own sequence order — the leg rebuild below maps each stop back
         // to its HERE position to decide which transitions keep their real legs.
         const hereOrder = new Map(orderedStops.map((stop, i) => [stop, i]));
@@ -1625,6 +1645,24 @@ let _inheritedWindowCount = 0;
     const _afterFinal = activeStops.map((st) => String(st.id)).join(',');
     if (_beforeFinal !== _afterFinal) {
       console.log(`[clientRouteEngine] ${source} — final window pass restored band order (pickup/ISP swaps had pulled stops out of their windows)`);
+    }
+
+    // SHARED RULE (owner spec Nov 3 2026): the swaps above can bury a stop with
+    // a real deadline, so the clock is walked once more — and only a stop that
+    // would genuinely arrive after its own window end is lifted earlier.
+    try {
+      activeStops = sharedEnforceWindowDeadlines(activeStops, {
+        currentMinutes,
+        startOf: (st) => st?.delivery_time_start || '',
+        endOf: (st) => st?.delivery_time_end || '',
+        coordsOf: (st) => {
+          const la = Number(st?.lat ?? st?.latitude ?? st?.patient_latitude);
+          const ln = Number(st?.lng ?? st?.lon ?? st?.longitude ?? st?.patient_longitude);
+          return Number.isFinite(la) && Number.isFinite(ln) && la !== 0 ? { lat: la, lng: ln } : null;
+        },
+      });
+    } catch (wdErr) {
+      console.warn('[clientRouteEngine] final window deadline pass skipped:', wdErr?.message || wdErr);
     }
   }
 

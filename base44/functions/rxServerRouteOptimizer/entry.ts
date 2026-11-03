@@ -35,6 +35,7 @@ import {
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
   enforceCyclingBlock as sharedEnforceCyclingBlock,
+  enforceWindowDeadlines as sharedEnforceWindowDeadlines,
   isPolylineEligibleStop as sharedIsPolylineEligible,
   dwellMinutesForStop as sharedDwellMinutes,
   isSameAddressAnchor as sharedIsSameAddress,
@@ -734,6 +735,30 @@ Deno.serve(async (req) => {
           windowEndOf: (st) => st.windowEnd,
         });
         orderedStops = _finalLocked ? [_finalLocked, ..._finalSorted] : _finalSorted;
+      }
+
+      // ── 3c-2. SHARED RULE (owner spec Nov 3 2026): window STARTS gate the ──
+      // clock, window ENDS are deadlines. A stop may be placed ANYWHERE before
+      // its end, so nothing is hoisted to the front just because it closes
+      // sooner; only a stop the forward clock proves would arrive late is
+      // lifted, and lifted as little as possible. This replaces the Oct 30
+      // "closes first" hoist (owner report: 13:30-15:30 stop sent 10 km east
+      // first, back west for six stops, then east again past it for two more).
+      if (sharedHasTimeWindows(orderedStops, (st) => st.windowStart) && orderedStops.length > 1) {
+        try {
+          const _dlLocked = _lockedStop && orderedStops[0]?.id === _lockedStop.id ? orderedStops[0] : null;
+          const _dlPool = _dlLocked ? orderedStops.slice(1) : orderedStops;
+          const _dlFixed = sharedEnforceWindowDeadlines(_dlPool, {
+            currentMinutes,
+            startOf: (st) => st.windowStart,
+            endOf: (st) => st.windowEnd,
+            coordsOf: (st) => (Number.isFinite(Number(st?.lat)) && Number.isFinite(Number(st?.lng))
+              ? { lat: Number(st.lat), lng: Number(st.lng) } : null),
+          });
+          orderedStops = _dlLocked ? [_dlLocked, ..._dlFixed] : _dlFixed;
+        } catch (dlErr) {
+          console.warn(`[rxServerRouteOptimizer] window deadline pass skipped: ${dlErr?.message || dlErr}`);
+        }
       }
     }
 
