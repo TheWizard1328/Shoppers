@@ -290,6 +290,66 @@ function edmontonToday() {
   return fmt.format(new Date());
 }
 
+// ── BALANCES (est) lines — shared with the Square Balances page ─────────────
+// Owner report Nov 3 2026: "the Balances are way too high. Not sure where the
+// high amounts are coming from." The old inline tally added every CARD sale
+// since the true-up and subtracted only pending + cash-awaiting, so COD money
+// that never actually sat on the card accumulated (~$486 / $526 / $522 per
+// store in a week). squareBalancesCompute (the page's own math) deducts the
+// FULL outstanding COD set, so the briefing renders THAT payload verbatim:
+// card = cardEstimate, loan = loanRemaining, folder = folder_start + the
+// per-sale folder cents. Falls back to the newest stored snapshot if the
+// cross-function invoke is unavailable, and says so when neither works.
+async function buildBalanceLines(base44, opts = {}) {
+  const cmoney = (amt) => `$${(Number(amt) || 0).toFixed(2).padStart(7)}`;
+  const lmoney = (amt) => `$ ${(Number(amt) || 0).toFixed(2).padStart(7)}`;
+  const cfgRows = (await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => [])) || [];
+  const cfg = cfgRows?.[0]?.setting_value;
+  if (!cfg?.locations?.length || !cfg.trued_up_at) return { lines: [], source: 'none', note: 'no config' };
+
+  if (opts.freshen !== false) {
+    await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at })
+      .catch((e) => { console.log('[briefing] ledger freshen skipped:', e?.message || e); return null; });
+  }
+
+  let payload = null;
+  let source = 'compute';
+  try {
+    const res = await base44.functions.invoke('squareBalancesCompute', { force: true });
+    payload = res?.data?.payload || res?.payload || null;
+  } catch (e) { console.log('[briefing] balances compute failed:', e?.message || e); }
+  if (!payload?.byLocId?.length) {
+    try {
+      const rows = (await base44.asServiceRole.entities.SquareBalancesSnapshot.list('-version', 5, 0)) || [];
+      const latest = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0];
+      if (latest?.payload?.byLocId?.length) { payload = latest.payload; source = `snapshot ${latest.computed_at || ''}`.trim(); }
+    } catch (e) { console.log('[briefing] snapshot fallback failed:', e?.message || e); }
+  }
+  if (!payload?.byLocId?.length) return { lines: ['BALANCES (est): unavailable (open the Square Balances page)', ''], source: 'none', note: 'no payload' };
+
+  const byLoc = new Map((payload.byLocId || []).map(([id, v]) => [String(id), v]));
+  const nameById = new Map(((payload?.config?.locations) || cfg.locations || []).map((l) => [String(l.location_id), String(l.name || l.location_id)]));
+  let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
+  for (const [, dc] of (payload?.deliveryCredits || [])) folderTotalC += Math.round(Number(dc?.folder || 0) * 100);
+  let codOutC = 0;
+  for (const [, v] of (payload?.byLocId || [])) codOutC += Math.round(Number(v?.pendingDeducted || 0) * 100);
+
+  // Owner format (Nov 3 2026): "<Store>: $  53.90 Loan $ 2732.17" — "$" then the
+  // amount right-aligned in 7 columns (widest case $9999.99), so small balances
+  // carry only the padding they need; loans keep one space after the "$".
+  const lines = ['BALANCES (est):'];
+  for (const loc of (cfg.locations || [])) {
+    const v = byLoc.get(String(loc.location_id));
+    if (!v) continue;
+    const name = nameById.get(String(loc.location_id)) || String(loc.name || loc.location_id);
+    lines.push(`${name}: ${cmoney(v.cardEstimate)} Loan ${lmoney(v.loanRemaining)}`);
+  }
+  lines.push(`Folder ${cmoney(folderTotalC / 100)} (2% since true-up)`);
+  lines.push(`CODs out ${cmoney(codOutC / 100)} (not yet on the card)`);
+  lines.push('');
+  return { lines, source, note: '' };
+}
+
 async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
   const testDriverId = params?.test_driver_id || null;
@@ -298,6 +358,14 @@ async function handleBriefing(base44, params = {}) {
   const startedAt = Date.now();
 
   const today = edmontonToday();
+
+  // ZERO-NOISE diagnostic (Nov 3 2026): render the BALANCES lines only — no
+  // driver pass, no pushes — so the balance source and format can be verified
+  // without sending a briefing to anyone.
+  if (params?.balances_preview) {
+    const bal = await buildBalanceLines(base44, { freshen: params?.freshen !== false });
+    return Response.json({ source: bal.source, note: bal.note || null, lines: bal.lines });
+  }
 
   console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none', '| date:', today);
 
@@ -611,54 +679,16 @@ async function handleBriefing(base44, params = {}) {
         }
         // ── Card / Loan / Folder balance estimates (owner-only section) ──
         // SINGLE SOURCE OF TRUTH (owner report Nov 3 2026: "the Balances are way
-        // too high. Not sure where the high amounts are coming from"): this
-        // section used to tally the ledger on its own — it added every card sale
-        // since the true-up and subtracted only the small pending + cash-awaiting
-        // figure, so the COD money that never actually sat on the card piled up
-        // (~$500 per store over a week; Bonnie Doon read $539.90 instead of
-        // $53.90). The Square Balances page already deducts the FULL outstanding
-        // COD set through squareBalancesCompute, so the briefing now reuses that
-        // exact payload — the two can never drift again. Ledger freshen first so
-        // the compute sees tonight's swipes.
+        // too high. Not sure where the high amounts are coming from"): this used
+        // to tally the ledger itself — it added every card sale since the true-up
+        // and subtracted only the small pending + cash-awaiting figure, so COD
+        // money that never sat on the card piled up (~$500 per store a week:
+        // Bonnie Doon read $539.90 instead of $53.90). buildBalanceLines reuses
+        // the Square Balances page compute, so the two can never drift again.
         try {
-          const cfgRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'square_balances' }).catch(() => []);
-          const cfg = cfgRows?.[0]?.setting_value;
-          if (cfg?.locations?.length && cfg.trued_up_at) {
-            await base44.functions.invoke('squareLedgerSync', { startDate: cfg.trued_up_at })
-              .catch((e) => { console.log('[briefing] ledger freshen skipped:', e?.message || e); return null; });
-            let payload = null;
-            try {
-              const res = await base44.functions.invoke('squareBalancesCompute', { force: true });
-              payload = res?.data?.payload || res?.payload || null;
-            } catch (e) { console.log('[briefing] balances compute failed:', e?.message || e); }
-            if (payload?.byLocId?.length) {
-              const byLoc = new Map((payload.byLocId || []).map(([id, v]) => [String(id), v]));
-              const nameById = new Map(((payload?.config?.locations) || cfg.locations || []).map((l) => [String(l.location_id), String(l.name || l.location_id)]));
-              // Folder + loan rates are NOT in Square's API; the compute carries
-              // the per-sale folder cents (already truncated per sale) and the
-              // remaining loan per location.
-              let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
-              for (const [, dc] of (payload?.deliveryCredits || [])) folderTotalC += Math.round(Number(dc?.folder || 0) * 100);
-              let codOutC = 0;
-              for (const [, v] of (payload?.byLocId || [])) codOutC += Math.round(Number(v?.pendingDeducted || 0) * 100);
-              // Owner format (Nov 3 2026): "<Store>: $  53.90 Loan $ 2732.17" —
-              // "$" then the amount right-aligned in 7 columns (the widest case
-              // is $9999.99), so small balances carry only the padding they need.
-              // Loans keep their single space after the "$".
-              const cmoney = (amt) => `$${(Number(amt) || 0).toFixed(2).padStart(7)}`;
-              const lmoney = (amt) => `$ ${(Number(amt) || 0).toFixed(2).padStart(7)}`;
-              lines.push('BALANCES (est):');
-              for (const loc of (cfg.locations || [])) {
-                const v = byLoc.get(String(loc.location_id));
-                if (!v) continue;
-                const name = nameById.get(String(loc.location_id)) || String(loc.name || loc.location_id);
-                lines.push(`${name}: ${cmoney(v.cardEstimate)} Loan ${lmoney(v.loanRemaining)}`);
-              }
-              lines.push(`Folder ${cmoney(folderTotalC / 100)} (2% since true-up)`);
-              lines.push(`CODs out ${cmoney(codOutC / 100)} (not yet on the card)`);
-              lines.push('');
-            }
-          }
+          const bal = await buildBalanceLines(base44);
+          if (bal.lines.length) lines.push(...bal.lines);
+          console.log('[briefing] balances source:', bal.source, bal.note || '');
         } catch (e) {
           console.log('[briefing] balance estimates failed:', e?.message || e);
         }
