@@ -772,7 +772,13 @@ Deno.serve(async (req) => {
         statusOf: (st) => st?.status,
         isPickupOf: (st) => !!st?.isPickup,
         pickupKeyOf: (st) => st?.stopId,
-        startOf: (st) => st?.windowStart,
+        // FIELD PARITY (owner report Nov 3 2026): the client passes the
+        // delivery's OWN start (delivery_time_start), this passed the resolved
+        // windowStart — which for a windowless stop is the INHERITED pickup
+        // start + 5 min. The rule then read "this stop starts AFTER its
+        // pickup" and refused to move it, while the client moved it: one rule,
+        // two answers, different route. Same field on both engines now.
+        startOf: (st) => st?.deliveryTimeStart,
       });
     } catch (inHandErr) {
       console.warn(`[rxServerRouteOptimizer] in-hand pickup bypass skipped: ${inHandErr?.message || inHandErr}`);

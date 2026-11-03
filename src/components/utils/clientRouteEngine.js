@@ -1578,6 +1578,29 @@ let _inheritedWindowCount = 0;
   // purely about WHAT CAN PHYSICALLY HAPPEN (pickup before its delivery, an
   // in-hand stop before nothing, the cycling block), not about time.
 
+  // ── SHARED RULE: UNIT-NUMBER MICRO-SORT (owner spec Nov 2 2026) ───────────
+  // Stops that share an address or GPS point are subsorted by unit number
+  // (210 -> 222 -> 312 -> 336) so the driver walks one building in order.
+  // PARITY (owner report Nov 3 2026: server and client gave different orders
+  // for the same stops): this pass existed ONLY on the server engine, so every
+  // multi-unit building could order differently engine to engine. Same call,
+  // same fields, same position (after ISP/ISD, before the in-hand repair).
+  try {
+    sharedUnitNumberMicroSort(activeStops, {
+      idOf: (st) => st?.id,
+      unitOf: (st) => st?.unit_number || patientMap.get(st?.patient_id)?.unit_number || null,
+      addressOf: (st) => st?.patient_address || patientMap.get(st?.patient_id)?.address || null,
+      coordsOf: (st) => (Number.isFinite(Number(st?.lat)) && Number.isFinite(Number(st?.lng))
+        ? { lat: Number(st.lat), lng: Number(st.lng) } : null),
+      puidOf: (st) => st?.puid || null,
+      eligible: (st) => !!st && !st.isPickup && !st.is_cycling_marker &&
+        ['pending', 'en_route', 'in_transit'].includes(String(st?.status || '').toLowerCase()) &&
+        String(st?.delivery_id || '').toUpperCase().startsWith('DID'),
+    });
+  } catch (unitErr) {
+    console.warn(`[clientRouteEngine] ${source} — unit micro-sort skipped: ${unitErr?.message || unitErr}`);
+  }
+
   // ── SHARED RULE (owner directive Nov 3 2026): an IN-HAND stop is never ────
   // dragged behind its own pickup. The pickup-first constraint only exists
   // because the driver cannot deliver meds still on the store shelf; an
