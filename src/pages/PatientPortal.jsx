@@ -992,7 +992,7 @@ export default function PatientPortal({ embedded = false } = {}) {
     // behind the OS bar). Owner report Nov 2 2026: the sidebar footer was
     // slipping behind the nav bar on wider screens.
     <div
-      className={`flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}
+      className={`relative flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}
       style={embedded ? undefined : { height: '100dvh' }}
     >
       <PatientPortalGuard />
@@ -1006,6 +1006,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         stores={stores}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        embedded={embedded}
       />
 
       {/* Main Content */}

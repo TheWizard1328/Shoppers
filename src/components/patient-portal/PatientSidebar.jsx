@@ -4,7 +4,7 @@ import PatientDeliveryCard from './PatientDeliveryCard';
 import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { PatientSessionManager } from './PatientSessionManager';
 
-export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose }) {
+export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false }) {
   const [showAll, setShowAll] = useState(false);
 
   const storeMap = {};
@@ -34,18 +34,26 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
       )}
 
       <div
-        className={`fixed top-0 left-0 h-full w-72 bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-[1000] transform transition-transform duration-300 ${
+        /* ABSOLUTE, not fixed (owner fix Nov 2 2026). The panel now fills the
+           PORTAL BOX (root is relative, inset-y-0) instead of the raw viewport.
+           Fixed positioning ignored the App-Owner "Exit Patient View" overlay's
+           safe-area padding wrapper, so the panel started above the padded box
+           (a strip of empty space at the top) while its bottom ran under the
+           device navigation bar. Filling the box puts it flush at the top and
+           stops it exactly where the box does.
+           z-[100001]: above the tracking badge (z-1000) and above the overlay's
+           Exit Patient View button (z-100000) — owner request. */
+        className={`absolute inset-y-0 left-0 w-72 max-h-full bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-[100001] transform transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
-        // 100dvh: stop at the DEVICE navigation bar instead of underneath it
-        // (owner report Nov 2 2026 — the Sign Out footer was hidden behind it on
-        // wider screens). The footer also keeps the app's safe-bottom padding.
-        style={{ height: '100dvh' }}
       >
         {/* Header */}
         <div
           className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
-          style={{ paddingTop: 'calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}
+          /* Embedded (App-Owner overlay): the overlay wrapper already pads the
+             safe-area insets, so the sidebar must NOT add them again — that was
+             the extra empty strip at the top of the panel. */
+          style={{ paddingTop: embedded ? '1rem' : 'calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center flex-shrink-0">
@@ -107,7 +115,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
         {/* Footer */}
         <div
           className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
-          style={{ paddingBottom: 'calc(0.75rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
+          style={{ paddingBottom: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
           <button
             onClick={handleLogout}
