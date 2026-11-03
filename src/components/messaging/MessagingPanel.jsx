@@ -18,7 +18,20 @@ import {
 function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   // Patient portal threads (owner build Nov 2 2026) live beside staff chat.
-  const [tab, setTab] = useState('staff');
+  // A push notification or balloon for a patient/driver thread arrives as a
+  // conversation id (`patient:<id>` or `driver:<d>:patient:<id>`) — open the
+  // Patients tab straight onto that thread instead of a staff chat window.
+  const initialPatientId = (() => {
+    const cid = String(initialConversation?.conversationId || '');
+    if (cid.startsWith('driver:') || cid.startsWith('patient:')) {
+      const parts = cid.split('patient:');
+      if (parts[1]) return parts[1];
+    }
+    const other = String(initialConversation?.otherUserId || '');
+    if (other.startsWith('patient:')) return other.slice('patient:'.length);
+    return null;
+  })();
+  const [tab, setTab] = useState(initialPatientId ? 'patients' : 'staff');
   // Unread patient messages, so the tab shows a badge before it is opened.
   const [patientUnread, setPatientUnread] = useState(0);
   const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
@@ -168,7 +181,11 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
         {/* Content: patient portal threads or staff chat */}
         {tab === 'patients' ? (
           <div className="flex-1 flex overflow-hidden">
-            <PatientThreadsPanel currentUser={currentUser} onUnreadCountChange={onUnreadCountChange} />
+            <PatientThreadsPanel
+              currentUser={currentUser}
+              onUnreadCountChange={onUnreadCountChange}
+              initialPatientId={initialPatientId}
+            />
           </div>
         ) : (
         <div className="flex-1 flex overflow-hidden">

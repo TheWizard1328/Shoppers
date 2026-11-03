@@ -18,6 +18,8 @@ import { base44 } from '@/api/base44Client';
 export const PATIENT_SENDER_PREFIX = 'patient:';
 
 export const patientConversationId = (patientId) => `patient:${patientId}`;
+export const driverThreadConversationId = (driverId, patientId) => `driver:${driverId}:patient:${patientId}`;
+export const isDriverThread = (message) => !!message?.driver_id;
 export const patientSenderId = (patientId) => `${PATIENT_SENDER_PREFIX}${patientId}`;
 export const isPatientSender = (senderId) => String(senderId || '').startsWith(PATIENT_SENDER_PREFIX);
 export const patientIdFromSender = (senderId) => String(senderId || '').slice(PATIENT_SENDER_PREFIX.length);
@@ -111,4 +113,84 @@ export async function sendStaffMessageToPatient({ user, patient, content, storeN
   }).catch(() => {});
 
   return message;
+}
+
+/**
+ * DRIVER SIDE (owner request Nov 2 2026)
+ *
+ * A driver sees only the patient threads they are part of: messages carrying
+ * their own driver_id. Patients they have delivered to can start a new thread
+ * with them, so the "messageable" list is the patients on their deliveries.
+ */
+export async function loadDriverPatientThreads(user, limit = 300) {
+  if (!user?.id) return [];
+  try {
+    const rows = await base44.entities.Message.filter({ driver_id: user.id }, '-created_date', limit);
+    return rows || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function loadPatientsForDriver(user, limit = 300) {
+  if (!user?.id) return [];
+  try {
+    const deliveries = await base44.entities.Delivery.filter({ driver_id: user.id }, '-delivery_date', limit);
+    const ids = Array.from(new Set((deliveries || []).map((d) => d.patient_id).filter(Boolean)));
+    if (ids.length === 0) return [];
+    const rows = await Promise.all(
+      ids.slice(0, 120).map((id) => base44.entities.Patient.get(id).catch(() => null))
+    );
+    const seen = new Set();
+    return rows.filter((p) => {
+      if (!p?.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Driver → patient reply: writes the driver thread row and pushes to the patient. */
+export async function sendDriverMessageToPatient({ user, patient, content, storeName }) {
+  const text = String(content || '').trim();
+  if (!text || !patient?.id || !user?.id) return null;
+
+  const message = await base44.entities.Message.create({
+    sender_id: user.id,
+    sender_name: user.full_name || user.user_name || 'Driver',
+    receiver_id: patientSenderId(patient.id),
+    receiver_name: patient.full_name || 'Patient',
+    conversation_id: driverThreadConversationId(user.id, patient.id),
+    content: text,
+    message_type: 'text',
+    read: false,
+    patient_id: patient.id,
+    store_id: patient.store_id || '',
+    driver_id: user.id,
+  });
+
+  base44.functions.invoke('patientPush', {
+    action: 'send',
+    patient_id: patient.id,
+    title: user.full_name || storeName || 'Your driver',
+    body: text.length > 140 ? `${text.slice(0, 137)}...` : text,
+    url: '/patient-portal',
+    tag: `driver-thread-${patient.id}`,
+  }).catch(() => {});
+
+  return message;
+}
+
+/** Duty status for a set of driver ids (patient-facing status chips). */
+export async function loadDriverDirectory(patientId) {
+  if (!patientId) return { drivers: [], today: '' };
+  try {
+    const res = await base44.functions.invoke('patientPush', { action: 'driverDirectory', patient_id: patientId });
+    const data = res?.data || res || {};
+    return { drivers: data.drivers || [], today: data.today || '' };
+  } catch {
+    return { drivers: [], today: '' };
+  }
 }

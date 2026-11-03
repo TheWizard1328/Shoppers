@@ -7,18 +7,20 @@ import {
   loadPatientThreadMessages,
   loadMessagablePatients,
   sendStaffMessageToPatient,
-  patientConversationId,
-  patientSenderId,
+  loadDriverPatientThreads,
+  loadPatientsForDriver,
+  sendDriverMessageToPatient,
   isPatientSender,
   staffStoreIds,
 } from './patientThreads';
+import { userHasRole } from '@/components/utils/userRoles';
 
 /**
  * PatientThreadsPanel — staff side of the patient portal chat (owner build
  * Nov 2 2026). Lists patients of the staff member's store(s) with an unread
  * count, opens the thread, and pushes the reply to the patient's devices.
  */
-export default function PatientThreadsPanel({ currentUser, stores = [], onUnreadCountChange }) {
+export default function PatientThreadsPanel({ currentUser, stores = [], onUnreadCountChange, initialPatientId = null }) {
   const [patients, setPatients] = useState([]);
   const [messages, setMessages] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -31,6 +33,9 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   const [storeRows, setStoreRows] = useState(stores || []);
   const unreadContributedRef = useRef(0);
   const endRef = useRef(null);
+  const selectedRef = useRef(null);
+  // Helper keeps the deep-link effect dependency-free of the selected state.
+  const patientIdHandled = (id) => selected?.id === id;
 
   // Store name for the push title — fetched once when the parent has no list.
   useEffect(() => {
@@ -48,16 +53,25 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     return match?.name || 'Your pharmacy';
   }, [currentUser, storeRows]);
 
+  // DRIVERS (owner request Nov 2 2026): a driver only ever sees the patient
+  // threads they are part of, and may message the patients on their own
+  // deliveries. Dispatchers/admins keep the store-wide view.
+  const isDriverMode = useMemo(
+    () => userHasRole(currentUser, 'driver')
+      && !userHasRole(currentUser, 'dispatcher')
+      && !userHasRole(currentUser, 'admin'),
+    [currentUser]
+  );
+
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [patientRows, messageRows] = await Promise.all([
-      loadMessagablePatients(currentUser),
-      loadPatientThreadMessages(currentUser),
-    ]);
+    const [patientRows, messageRows] = isDriverMode
+      ? await Promise.all([loadPatientsForDriver(currentUser), loadDriverPatientThreads(currentUser)])
+      : await Promise.all([loadMessagablePatients(currentUser), loadPatientThreadMessages(currentUser)]);
     setPatients(patientRows || []);
     setMessages(messageRows || []);
     setLoading(false);
-  }, [currentUser]);
+  }, [currentUser, isDriverMode]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -106,14 +120,14 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   }, [threadStats, onUnreadCountChange]);
 
   const openThread = useCallback(async (patient) => {
+    if (!patient?.id) return;
     setSelected(patient);
     setThreadLoading(true);
     try {
-      const rows = await base44.entities.Message.filter(
-        { patient_id: patient.id },
-        '-created_date',
-        200
-      );
+      const query = isDriverMode
+        ? { patient_id: patient.id, driver_id: currentUser?.id }
+        : { patient_id: patient.id };
+      const rows = await base44.entities.Message.filter(query, '-created_date', 200);
       setThread((rows || []).slice().reverse());
       // Opening the thread clears the unread badge for that patient.
       const unread = (rows || []).filter((m) => !m.read && isPatientSender(m.sender_id));
@@ -126,23 +140,39 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     } finally {
       setThreadLoading(false);
     }
-  }, []);
+  }, [isDriverMode, currentUser?.id]);
 
   useEffect(() => {
     if (selected) endRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [selected, thread.length]);
+
+  // Deep link (push notification / balloon): open the requested thread once the
+  // patient list is available.
+  const deepLinkRef = useRef('');
+  useEffect(() => {
+    if (!initialPatientId || patientIdHandled(initialPatientId) || loading) return;
+    if (deepLinkRef.current === initialPatientId) return;
+    const existing = (patients || []).find((p) => p.id === initialPatientId);
+    if (existing) {
+      deepLinkRef.current = initialPatientId;
+      openThread(existing);
+      return;
+    }
+    // Patient may not be in the loaded list (driver mode) — fetch directly.
+    deepLinkRef.current = initialPatientId;
+    base44.entities.Patient.get(initialPatientId)
+      .then((row) => { if (row?.id) openThread(row); })
+      .catch(() => {});
+  }, [initialPatientId, loading, patients, openThread]);
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text || sending || !selected) return;
     setSending(true);
     try {
-      const created = await sendStaffMessageToPatient({
-        user: currentUser,
-        patient: selected,
-        content: text,
-        storeName,
-      });
+      const created = isDriverMode
+        ? await sendDriverMessageToPatient({ user: currentUser, patient: selected, content: text, storeName })
+        : await sendStaffMessageToPatient({ user: currentUser, patient: selected, content: text, storeName });
       setInput('');
       if (created?.id) setThread((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
     } catch { /* the thread still shows the error state via input retention */ } finally {

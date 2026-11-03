@@ -78,6 +78,10 @@
     "store_id": {
       "type": "string",
       "description": "For patient-portal threads: the patient's store at send time (lets dispatchers list only their own patients' threads)."
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "Patient-driver threads: the driver AppUser id. Empty for store threads and staff chat."
     }
   },
   "required": [
