@@ -16,6 +16,10 @@ import { format } from 'date-fns';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 import { getHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { patientPortalPing } from '@/functions/patientPortalPing';
+import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
+import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
+import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
+import { clearUserCache } from '@/components/utils/auth';
 import { isAppDarkTheme } from '@/lib/utils';
 
 // Fix default Leaflet icon paths
@@ -25,6 +29,12 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
+
+// OWNER REQUEST (Nov 3 2026): the driver's live location must be visible even
+// while the patient's delivery is still PENDING (the driver is already working
+// and has not picked this parcel up yet). Every live-tracking gate in this page
+// reads this one list so pending / en route / in transit all behave alike.
+const LIVE_DRIVER_STATUSES = ['pending', 'en_route', 'in_transit'];
 
 const HOUSE_SVG = (strokeColor) =>
   `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
@@ -536,6 +546,88 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, []);
   const [driverStatus, setDriverStatus] = useState(null);
 
+  // ── Web code update detection (owner request Nov 3 2026): patients get the
+  // SAME update balloon the dispatchers, drivers and admins get, and the same
+  // automatic refresh when the portal sits idle or backgrounded with a new
+  // build waiting. Patients are not app users, so the balloon is driven by the
+  // /version.json poll rather than an app-update broadcast Message.
+  const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
+  useEffect(() => {
+    // Idle measurement lives in the shared tracker (Layout owns the same one;
+    // the init is idempotent) so "idle" means the same thing everywhere.
+    try { initInteractionIdleTracker(); } catch { /* non-critical */ }
+  }, []);
+  useEffect(() => {
+    if (!hasWebUpdate) return;
+    const BACKGROUND_THRESHOLD_MS = 10 * 60 * 1000; // away this long = refresh on return
+    const IDLE_THRESHOLD_MS = 10 * 60 * 1000;       // foreground but untouched this long
+    const IDLE_RESTART_DELAY_MS = 60 * 1000;        // let the balloon be seen first
+    const SHORT_BACKGROUND_THRESHOLD_MS = 45 * 1000; // normal short gap resume
+
+    const applyUpdate = async () => {
+      try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { /* ignore */ }
+      try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
+      // Revalidate the document first: a plain reload can hand back the OLD
+      // index.html, which still points at the old hashed chunks.
+      try { await fetch(`/?_u=${Date.now()}`, { cache: 'reload', credentials: 'same-origin' }); } catch { /* offline */ }
+      window.location.reload();
+    };
+
+    let backgroundedAt = document.hidden ? Date.now() : null;
+    let idleRestartTimer = null;
+    const armIdleRestart = () => {
+      if (idleRestartTimer) return;
+      idleRestartTimer = setTimeout(() => {
+        if (document.hidden) return;
+        void applyUpdate();
+      }, IDLE_RESTART_DELAY_MS);
+    };
+    const disarmIdleRestart = () => {
+      if (idleRestartTimer) { clearTimeout(idleRestartTimer); idleRestartTimer = null; }
+    };
+
+    if (!document.hidden && getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+
+    const tick = () => {
+      if (document.hidden) {
+        disarmIdleRestart();
+        if (backgroundedAt == null) backgroundedAt = Date.now();
+        if (Date.now() - backgroundedAt >= BACKGROUND_THRESHOLD_MS) void applyUpdate();
+      } else {
+        backgroundedAt = null;
+        if (getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+      }
+    };
+    const iv = setInterval(tick, 60 * 1000);
+    const hiddenSince = { t: document.hidden ? Date.now() : null };
+    const onVis = () => {
+      if (document.hidden) {
+        hiddenSince.t = Date.now();
+        backgroundedAt = hiddenSince.t;
+        disarmIdleRestart();
+        return;
+      }
+      const awayMs = hiddenSince.t ? (Date.now() - hiddenSince.t) : 0;
+      hiddenSince.t = null;
+      backgroundedAt = null;
+      if (awayMs >= SHORT_BACKGROUND_THRESHOLD_MS) { void applyUpdate(); return; }
+      if (getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+    };
+    const onActivity = () => disarmIdleRestart();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pointerdown', onActivity, { capture: true, passive: true });
+    window.addEventListener('keydown', onActivity, { capture: true, passive: true });
+    window.addEventListener('touchstart', onActivity, { capture: true, passive: true });
+    return () => {
+      clearInterval(iv);
+      disarmIdleRestart();
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pointerdown', onActivity, { capture: true });
+      window.removeEventListener('keydown', onActivity, { capture: true });
+      window.removeEventListener('touchstart', onActivity, { capture: true });
+    };
+  }, [hasWebUpdate]);
+
   // Keep a ref to the current todayDelivery so subscriptions can read it without
   // going stale in closures.
   const todayDeliveryRef = useRef(null);
@@ -608,7 +700,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       }
 
       // Seed driver location from initial load (no poll — WS takes over after this)
-      if (activeToday?.driver_id && ['in_transit', 'en_route'].includes(activeToday.status)) {
+      if (activeToday?.driver_id && LIVE_DRIVER_STATUSES.includes(activeToday.status)) {
         try {
           const appUsers = await base44.entities.AppUser.filter({ user_id: activeToday.driver_id });
           const driver = appUsers?.[0];
@@ -762,7 +854,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         setLiveConnected(true);
 
         const today = todayDeliveryRef.current;
-        const isActive = today && ['in_transit', 'en_route'].includes(today.status);
+        const isActive = today && LIVE_DRIVER_STATUSES.includes(today.status);
         if (!isActive) return;
 
         // Match by user_id (the AppUser.user_id field holds the auth user id,
@@ -793,7 +885,7 @@ export default function PatientPortal({ embedded = false } = {}) {
 
   // ── Clear driver location + tracking when delivery is no longer active ───────
   useEffect(() => {
-    const isActive = todayDelivery && ['in_transit', 'en_route'].includes(todayDelivery.status);
+    const isActive = todayDelivery && LIVE_DRIVER_STATUSES.includes(todayDelivery.status);
     if (!isActive) {
       setDriverLocation(null);
       setTrackingMode(false);
@@ -954,7 +1046,11 @@ export default function PatientPortal({ embedded = false } = {}) {
     const now = new Date();
     return now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() >= 30);
   })();
-  const showLiveTracking = isAfter930am && driverStatus === 'on_duty';
+  // OWNER REQUEST (Nov 3 2026): a PENDING (not yet picked up) delivery still
+  // shows the driver — an on-duty driver shows immediately whatever the clock,
+  // and the 9:30am floor stays as the guard against an overnight stale fix.
+  const isLiveDeliveryStatus = !!todayDelivery && LIVE_DRIVER_STATUSES.includes(todayDelivery.status);
+  const showLiveTracking = !!driverLocation && isLiveDeliveryStatus && (driverStatus === 'on_duty' || isAfter930am);
 
   // Unread pharmacy replies — badge on the header button. Refreshed on mount,
   // on focus and after the sheet closes; the sheet itself clears it on open.
@@ -1056,13 +1152,37 @@ export default function PatientPortal({ embedded = false } = {}) {
                 </span>
               )}
             </button>
+            {/* WEB-UPDATE BALLOON (owner request Nov 3 2026) — identical look
+                and rhythm to the staff balloon, anchored to this refresh
+                button. Tapping it reloads onto the new build. */}
+            <UpdateInfoBalloon
+              active={!!hasWebUpdate}
+              anchorSelector="[data-patient-update-btn]"
+              direction="down"
+              accent="#10b981"
+              icon="⬆️"
+              title="Update available"
+              message="A new version of the patient portal is ready. Tap here to refresh."
+              cta="Tap to update"
+              onClick={() => {
+                try { clearUserCache(); } catch { /* silent */ }
+                window.location.reload(true);
+              }}
+            />
             <button
+              data-patient-update-btn
               onClick={loadData}
-              className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
-              title="Refresh"
+              className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
+              title={hasWebUpdate ? 'Update available — tap to refresh' : 'Refresh'}
               aria-label="Refresh"
             >
               <RefreshCw className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              {/* Green update dot (owner request Nov 3 2026): the same cue the
+                  staff update arrow gives, so a patient knows why the balloon
+                  keeps appearing. */}
+              {hasWebUpdate && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+              )}
             </button>
           </div>
         </div>
