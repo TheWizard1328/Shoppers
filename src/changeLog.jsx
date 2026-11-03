@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 75;
+export const BUILD_NUMBER = 76;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 76, area: 'Patient portal', audience: 'patients', summary: 'On a phone, today\'s delivery now floats in the top left of the map with the same expandable details as the sidebar, and disappears once that delivery date has passed.' },
   { build: 75, area: 'Patient portal', audience: 'patients', summary: 'Patients now choose who they message: the pharmacy team (one thread every dispatcher at that store shares) or a specific driver, with that driver on duty, on break or off duty shown on both the thread card and the chat.' },
   { build: 75, area: 'Messaging', audience: 'drivers', summary: 'Drivers get patient threads in Messages: only their own conversations, replying pushes to the patient phone.' },
   { build: 74, area: 'Patient portal', audience: 'patients', summary: 'Patient messages and read receipts now go through the patientPush function with service-role writes, so sending works reliably from the public portal page and the store is alerted in the same call.' },

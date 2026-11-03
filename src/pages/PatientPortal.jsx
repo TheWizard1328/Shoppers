@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { PatientSessionManager } from '@/components/patient-portal/PatientSessionManager';
 import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
+import PatientTodayFloatingCard from '@/components/patient-portal/PatientTodayFloatingCard';
 import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { format } from 'date-fns';
@@ -382,6 +383,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   const [pickupStops, setPickupStops]       = useState([]);
   const [stores, setStores]                 = useState([]);
   const [todayDelivery, setTodayDelivery]   = useState(null);
+  // Live calendar day for the floating today-card gate. TODAY is a module
+  // constant (frozen at load), so a portal left open past midnight would keep
+  // offering yesterday's card — the floating card compares against this one and
+  // its own minute tick instead.
+  const [liveDay, setLiveDay] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [driverLocation, setDriverLocation] = useState(null);
 
   // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
@@ -880,6 +886,21 @@ export default function PatientPortal({ embedded = false } = {}) {
 
   // Unread pharmacy replies — badge on the header button. Refreshed on mount,
   // on focus and after the sheet closes; the sheet itself clears it on open.
+  // Midnight rollover for the floating today card: re-read the calendar day
+  // every minute so the card disappears the moment its date is no longer today.
+  useEffect(() => {
+    const tick = () => {
+      const next = format(new Date(), 'yyyy-MM-dd');
+      setLiveDay((prev) => (prev === next ? prev : next));
+    };
+    const timer = setInterval(tick, 60000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, []);
+
   useEffect(() => {
     if (!patient?.id) return undefined;
     let cancelled = false;
@@ -973,6 +994,21 @@ export default function PatientPortal({ embedded = false } = {}) {
           className="flex-1 px-4 pt-3 overflow-hidden relative"
           style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
+          {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
+              Only while the sidebar is hidden (phones, or the drawer closed), and
+              only while the delivery date is TODAY: todayDelivery is resolved for
+              TODAY only, so tomorrow this card simply stops rendering and the
+              delivery lives in the sidebar history. */}
+          {todayDelivery && todayDelivery.delivery_date === liveDay && !sidebarOpen && (
+            <div className="absolute top-2 left-2 z-[900] md:hidden">
+              <PatientTodayFloatingCard
+                delivery={todayDelivery}
+                pickupStops={pickupStops}
+                stores={stores}
+              />
+            </div>
+          )}
+
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>

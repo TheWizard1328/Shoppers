@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HeartPulse, LogOut, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import PatientDeliveryCard from './PatientDeliveryCard';
+import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { PatientSessionManager } from './PatientSessionManager';
 
 export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose }) {
@@ -74,36 +75,12 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
             </div>
           ) : (
             <div className="space-y-2 relative">
-              {displayed.map((delivery) => {
-                const pickupStop = delivery.puid
-                  ? (pickupStops || []).find((d) =>
-                      d.puid === delivery.puid &&
-                      d.delivery_date === delivery.delivery_date &&
-                      d.actual_delivery_time
-                    )
-                  : null;
-
-                // Count stops between the pickup stop and this patient's stop (exclusive of both endpoints)
-                let stopsBetween = null;
-                if (
-                  pickupStop?.stop_order != null &&
-                  delivery.stop_order != null
-                ) {
-                  const pickupOrder = Number(pickupStop.stop_order);
-                  const patientOrder = Number(delivery.stop_order);
-                  stopsBetween = Math.max(0, patientOrder - pickupOrder - 1);
-                }
-
-                return (
-                  <PatientDeliveryCard
-                    key={delivery.id}
-                    delivery={delivery}
-                    storeName={storeMap[delivery.store_id]}
-                    pickupTime={pickupStop?.actual_delivery_time || null}
-                    stopsBetween={stopsBetween}
-                  />
-                );
-              })}
+              {displayed.map((delivery) => (
+                <PatientDeliveryCard
+                  key={delivery.id}
+                  {...buildDeliveryCardProps(delivery, { pickupStops, storeMap })}
+                />
+              ))}
 
               {sorted.length > 10 && (
                 <button
