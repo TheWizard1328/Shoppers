@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 89;
+export const BUILD_NUMBER = 90;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 90, area: 'Square balances', audience: 'dispatchers', summary: 'Collected CODs can be tapped back to Not Tapped again, those rows stay listed under Collected Today, and Payment discrepancies starts collapsed.' },
   { build: 89, area: 'Route writing', audience: 'dispatchers', summary: 'Bulk editing stops to another date or driver now places each moved stop the same way a single transfer does: store pickup link, start time, cleared end time and the transfer note.' },
   { build: 88, area: 'Driver reassignment', audience: 'drivers', summary: 'A stop moved to another driver or date disappears for the original driver straight away, instead of lingering until the next refresh.' },
   { build: 87, area: 'Route writing', audience: 'dispatchers', summary: 'Moving a stop to another date or driver now clears its polyline, the predecessor it was drawn from, the PolylineUpdated flag and the leg distance stamps, along with the deviation points.' },

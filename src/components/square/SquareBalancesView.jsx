@@ -236,7 +236,19 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             ? r.combinedItems
             : [{ storeAbbrev: r.storeAbbrev, storeColor: r.storeColor, patientName: r.patientName, amount: r.amount, sub: r.sub }];
           const spendPill =
-            r.collected ? r.hasCardSpend ?
+            r.collected ? (r.hasCardSpend || r.manualCardSpend || r.notTapped) && canMarkSpend && !!r.delivery_id && onMarkSpend ?
+                  // COLLECTED rows toggle exactly like uncollected ones (owner
+                  // rule Nov 3 2026: "I need to still be able to click the Card
+                  // Spend badges for Collected Today items to change them to
+                  // Not Tapped"). No role="button" - same 44px min-height trap.
+                  <span
+                    onClick={() => onMarkSpend(r.delivery_id)}
+                    title={r.notTapped ? 'Mark this COD as tapped in your Square app (Card Spend)' : 'Mark this collected COD as Not Tapped in your Square app'}
+                    className={r.notTapped ?
+                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]" :
+                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]"}>
+                    {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
+                  r.hasCardSpend ?
                   <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
                   r.manualCardSpend ?
                   <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]">Card Spend</span> :
@@ -1381,6 +1393,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // delivery-data model — the sky "Card Spend" pill marks them.
           hasCardSpend: isCard,
           manualCardSpend: !!(mark?.touchedAt || mark?.at),
+          // OWNER RULE (Nov 3 2026): the Card Spend pill on a COLLECTED row is
+          // a toggle again (tap => Not Tapped) and a Not Tapped mark NEVER
+          // removes the row from Collected Today - the money really was
+          // collected, only the POS-tap claim is disputed. A mark is stale
+          // (ignored) when the card was charged AFTER it was made, the same
+          // superseded test the balance math uses.
+          notTapped: (() => {
+            if (mark?.notTapped !== true) return false;
+            const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+            const spendAt = d?.cod_card_spend_at ? new Date(d.cod_card_spend_at).getTime() : null;
+            if (spendAt != null && Number.isFinite(spendAt) &&
+            (markAt == null || !Number.isFinite(markAt) || spendAt >= markAt)) return false;
+            return true;
+          })(),
           collectedLabel: label,
           // Cash / Cheque never touch the card — no fee/loan/folder math.
           // COMBINED-SWIPE (Oct 9 2026): conversions store the per-item

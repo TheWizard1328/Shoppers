@@ -50,7 +50,7 @@ export default function PaymentDiscrepanciesList({
   const sorted = [...discrepancies].sort((a, b) => deliveryMomentOf(b) - deliveryMomentOf(a));
 
   return (
-    <details open className="group mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
+    <details className="group mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
       <summary className="flex items-center justify-between gap-2 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
         <span className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
           <span className="inline-block text-[10px] transition-transform -rotate-90 group-open:rotate-0">▼</span>
