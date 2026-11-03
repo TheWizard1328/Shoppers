@@ -2963,7 +2963,50 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     notTapped: notTapped(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
-                  const collectedTodayRows = !driverScopeId ? codCollectedTodayByLoc[loc.location_id] || [] : (codCollectedTodayByLoc[loc.location_id] || []).filter((r) => String(r.driver_id || '') === driverScopeId);
+                  // OWNER RULE (Nov 3 2026): a completed COD marked Not Tapped
+                  // keeps its row on the store card even after its collected
+                  // date has passed — the MONEY is neutral, the row is not. It
+                  // comes from the completed deduct items (balance scope, so
+                  // past days are present), skipping any mark the card has
+                  // since superseded by an actual charge.
+                  const carryOverNotTappedRows = (() => {
+                    const out = [];
+                    const ded = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).deductItems || [];
+                    const alreadyListed = new Set((codCollectedTodayByLoc[loc.location_id] || []).map((r) => String(r.delivery_id || '')));
+                    for (const it of ded) {
+                      if (String(it?.status || '') !== 'completed') continue;
+                      const id = it?.delivery_id ? String(it.delivery_id) : null;
+                      if (!id || alreadyListed.has(id)) continue;
+                      const mark = manualSpendMarksRef.current?.[id];
+                      if (mark?.notTapped !== true) continue;
+                      const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+                      const spendAt = it?.spend_at ? new Date(it.spend_at).getTime() : null;
+                      const superseded = spendAt != null && Number.isFinite(spendAt) && (markAt == null || !Number.isFinite(markAt) || spendAt >= markAt);
+                      if (superseded) continue;
+                      const day = String(it?.date || '').slice(0, 10);
+                      if (!day || day >= todayStr) continue; // today's rows are already listed
+                      out.push({
+                        key: `nt-${id}`,
+                        delivery_id: id,
+                        driver_id: it.driver_id || null,
+                        driverName: it.driver_name || null,
+                        patientName: it.patient || null,
+                        storeAbbrev: it.storeAbbrev || null,
+                        storeColor: it.storeColor || null,
+                        amount: Number(it.amount) || 0,
+                        sub: `${day.slice(5, 7)}/${day.slice(8, 10)}`,
+                        collected: true,
+                        hasCardSpend: false,
+                        manualCardSpend: true,
+                        notTapped: true,
+                        collectedLabel: 'COD',
+                        carriedOver: true,
+                      });
+                    }
+                    return out;
+                  })();
+                  const allCollectedRows = [...(codCollectedTodayByLoc[loc.location_id] || []), ...carryOverNotTappedRows];
+                  const collectedTodayRows = !driverScopeId ? allCollectedRows : allCollectedRows.filter((r) => String(r.driver_id || '') === driverScopeId);
                   const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
                   return (
                     <CardCodList
@@ -2975,7 +3018,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       onCashToCard={cashToCard}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
-                      { label: 'Collected Today', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
+                      { label: 'Collected', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
                       { label: 'Uncollected Today', color: '#d97706', rows: uncollectedTodayRows, total: sumOf(uncollectedTodayRows) },
                       { label: 'Uncollected Past', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
                       { label: 'Awaiting Pickup', color: '#7c3aed', rows: awaitingPickupRows, total: sumOf(awaitingPickupRows) }]

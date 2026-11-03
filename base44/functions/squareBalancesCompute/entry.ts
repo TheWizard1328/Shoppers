@@ -439,7 +439,7 @@ async function computeSummary(b44, userId) {
       // the money — the failed original must NOT show or deduct. A stamp or
       // an active/pending retry alone no longer hides a failed row.
       if (status === 'failed' && failedHiddenByCompleted.has(String(d.id))) continue;
-      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id) };
+      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, spend_at: d?.cod_card_spend_at || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id) };
       if (status === 'failed' && failedKeepIds.has(String(d.id))) item.covers_retry_ids = coversByFailed.get(String(d.id)) || [];
       if (status === 'failed') {
         if (manualRefundMarks[String(d.id)]) continue;
@@ -497,9 +497,20 @@ async function computeSummary(b44, userId) {
     const _pair = retryPairById.get(String(d.id));
     deductByLoc.get(locId).push({
       delivery_id: _pair ? _pair.id : d.id, status: 'completed', amount: centsOf(required) / 100,
+      // in_window drives DISPLAY only: a past-window completed charge still
+      // deducts, it just is not part of the current figure.
+      in_window: isCountedDate(d),
       reason: cardCollected ? 'collected_charge' : 'cash_awaiting_card',
+      // CARD-SPEND STAMP (owner report Nov 3 2026, Callingwood/Scona Anastasia
+      // $97.97 — parity with the client that was fixed Nov 1): a COD converted
+      // to Debit/Credit on the Square card AFTER the true-up is credited as new
+      // card money, so its charge must pull the same amount back off the card.
+      // Without the stamp on the item the deduction gate could not see it.
+      spend_at: _pair ? null : (d?.cod_card_spend_at || null),
       date: _pair ? _pair.date : String(d.delivery_date || '').slice(0, 10),
       created_date: _pair ? _pair.created : (d.created_date || null),
+      patient: patientNameOf(d.patient_id), store_id: d.store_id,
+      driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id),
     });
   }
   const codOutstandingDetailed = {};
@@ -579,8 +590,22 @@ async function computeSummary(b44, userId) {
       const amountAddedSinceTrueUp = !isNewSinceTrueUp && inScopeAtTrueUp;
       const touchedT = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
       const isTouchedSinceTrueUp = tuMs != null && touchedT != null && touchedT >= tuMs;
-      if (!isNewSinceTrueUp && !amountAddedSinceTrueUp && !isTouchedSinceTrueUp) continue;
-      if (mark?.notTapped === true) continue;
+      // CARD CHARGED SINCE TRUE-UP (client parity, fixed there Nov 1 2026):
+      // a card-spend stamp after the true-up is NEW card activity, so its
+      // charge deducts even when the delivery itself predates the true-up.
+      const spendT = it?.spend_at ? new Date(it.spend_at).getTime() : null;
+      const isChargedSinceTrueUp = tuMs != null && spendT != null && Number.isFinite(spendT) && spendT >= tuMs;
+      if (!isNewSinceTrueUp && !amountAddedSinceTrueUp && !isTouchedSinceTrueUp && !isChargedSinceTrueUp) continue;
+      // NOT TAPPED — UNLESS THE CARD WAS CHARGED AFTERWARDS (owner report
+      // Nov 3 2026, the $97.97 Callingwood/Scona COD): the mark claims the COD
+      // was never swiped, so it stops suppressing the deduction once the
+      // delivery carries a card-spend stamp newer than the mark. A stale mark
+      // left the credit on the card and the charge off it, so Callingwood read
+      // exactly one COD high ($191.19 vs $93.22). Client parity.
+      const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+      const spendMs = spendT != null && Number.isFinite(spendT) ? spendT : null;
+      const markSupersededBySpend = spendMs != null && (markAt == null || !Number.isFinite(markAt) || spendMs >= markAt);
+      if (mark?.notTapped === true && !markSupersededBySpend) continue;
       pendingDeductCents += cents; pendingDeductCount += 1;
     }
     const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;

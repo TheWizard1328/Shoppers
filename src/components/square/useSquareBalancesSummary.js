@@ -1384,6 +1384,12 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       spend_at: _pair ? null : (d.cod_card_spend_at || null),
       date: _pair ? _pair.date : String(d.delivery_date || '').slice(0, 10),
       created_date: _pair ? _pair.created : (d.created_date || null),
+      // DISPLAY IDENTITY (owner request Nov 3 2026): a completed COD marked
+      // Not Tapped must stay visible on the store card after its collected date
+      // passes, so the row needs who/what it was without a delivery lookup.
+      patient_id: d.patient_id || null,
+      store_id: d.store_id || null, driver_id: d.driver_id || null,
+      driver_name: d.driver_name || null,
     });
   }
 
