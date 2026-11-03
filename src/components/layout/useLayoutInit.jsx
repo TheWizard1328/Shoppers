@@ -87,12 +87,28 @@ export function useLayoutInit({
         // device identifier → drivers were re-prompted to select a device from
         // the device manager on every boot. Restore from the IDB backup first,
         // then keep the backup current.
+        // Did this browser already have an identifier BEFORE this boot? A
+        // generated-on-this-boot id must never be written into the IDB backup:
+        // it would overwrite the good backup with a throwaway id and re-prompt
+        // the device chooser on every later boot (owner report Nov 3 2026).
+        let hadIdentifierBeforeBoot = false;
+        let identifierFromIdbBackup = false;
         try {
           const dm = await import('../utils/deviceManager.jsx');
-          await dm.restoreDeviceIdentifierFromIdb();
-          dm.backupDeviceIdentifierToIdb().catch(() => {});
+          hadIdentifierBeforeBoot = !!localStorage.getItem('rxdeliver_device_identifier');
+          identifierFromIdbBackup = await dm.restoreDeviceIdentifierFromIdb();
+          // Only keep the backup current when the id is a real, previously
+          // registered one — never a freshly generated placeholder.
+          if (hadIdentifierBeforeBoot || identifierFromIdbBackup) {
+            dm.backupDeviceIdentifierToIdb().catch(() => {});
+          }
         } catch (e) { /* non-fatal — boot continues with whatever id exists */ }
         const deviceIdentifier = getDeviceIdentifier();
+        // The identifier this boot will actually register/link against. A
+        // successful silent re-link swaps this to the linked device (below) so
+        // the registered flag and the remembered identity are written against
+        // the REAL device, never the throwaway id the browser generated.
+        let effectiveDeviceIdentifier = deviceIdentifier;
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const cachedReg = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
 
@@ -171,6 +187,26 @@ export function useLayoutInit({
         // the UserDevice record was deleted/never created) — silently disabling GPS
         // heartbeats for that user with no way to self-heal. Only trust the cache when
         // the manifest call itself failed (offline), never to override a fresh "false".
+        // SELF-HEAL (owner report Nov 3 2026 — dispatchers were treated as
+        // first-time logins every morning): before pausing the boot for the
+        // device chooser, try to silently re-link this machine to a device the
+        // account already has. Only when nothing is certain do we fall through
+        // to the chooser below, exactly as before.
+        if (!isDeviceRegistered && (manifestSucceeded || cachedReg !== 'true')) {
+          try {
+            const { trySelfHealDeviceRegistration } = await import('../utils/deviceSelfHeal.jsx');
+            const healed = await _withTimeout(
+              trySelfHealDeviceRegistration({ userId: fetchedUser.id, deviceIdentifier }),
+              12000, 'device self-heal'
+            ).catch(() => null);
+            if (healed?.device_identifier) {
+              isDeviceRegistered = true;
+              effectiveDeviceIdentifier = healed.device_identifier;
+              localStorage.setItem(`rxdeliver_device_registered_${healed.device_identifier}`, 'true');
+            }
+          } catch (_) { /* fall through to the chooser */ }
+        }
+
         if (!isDeviceRegistered && (manifestSucceeded || cachedReg !== 'true')) {
           // Device not registered — pause boot so the DeviceRegistration modal
           // (rendered via GlobalOverlays) becomes the user's only path forward to
@@ -194,8 +230,14 @@ export function useLayoutInit({
           setShowInitRetryHint(false);
           return;
         }
-        localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
+        localStorage.setItem(`rxdeliver_device_registered_${effectiveDeviceIdentifier}`, 'true');
         setDeviceRegistered(true);
+        // Remember the device this browser profile uses for this user, so the
+        // next boot can re-link it silently instead of prompting.
+        try {
+          const { rememberDeviceIdentity } = await import('../utils/deviceSelfHeal.jsx');
+          rememberDeviceIdentity(fetchedUser.id, { device_identifier: effectiveDeviceIdentifier }).catch(() => {});
+        } catch (_) { /* non-fatal */ }
 
         try {
           // Wrap loadUserSettings in a timeout — if the throttler is stuck or the

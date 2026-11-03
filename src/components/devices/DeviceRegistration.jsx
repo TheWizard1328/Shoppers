@@ -32,6 +32,13 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
     // Keep the IDB backup current so a future localStorage eviction restores
     // this identifier instead of re-prompting the chooser (owner fix Oct 8 2026).
     import('../utils/deviceManager.jsx').then(({ backupDeviceIdentifierToIdb }) => backupDeviceIdentifierToIdb()).catch(() => {});
+    // DEVICE MEMORY (owner report Nov 3 2026): remember the device this browser
+    // profile just linked, per user, in localStorage + IDB. The boot gate uses
+    // it to re-link silently next time instead of showing this chooser again —
+    // dispatchers were getting the "first login ever" chooser every morning.
+    import('../utils/deviceSelfHeal.jsx')
+      .then(({ rememberDeviceIdentity }) => rememberDeviceIdentity(currentUser?.id, device))
+      .catch(() => {});
     setShowDialog(false);
     if (onDeviceRegistered) onDeviceRegistered(device);
     window.dispatchEvent(new CustomEvent('deviceRegistrationCompleted', {
