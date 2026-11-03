@@ -1365,7 +1365,11 @@ export default function DeliveryForm({
         baselineWindowEndRef.current = dataToSave.delivery_time_end ?? formData.delivery_time_end ?? null;
         // Register before the backend write so the WS echo is recognized as self-originated
         try { const { smartRefreshManager: srm } = await import('../utils/smartRefreshManager'); srm.registerPendingUpdate(delivery.id, formData.driver_id, formData.delivery_date); } catch (_) {}
-        await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true });
+        // OWNER REPORT Nov 3 2026: a transfer used to reach the receiving device as
+        // 3-5 separate renders (record write + sweep + optimizer + marker). On a
+        // transfer the record write goes out SILENT and the single route_commit
+        // marker fired at the end of the placement run carries the whole change.
+        await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true, silentServer: Boolean(transferTarget) });
         // ONE Square reconcile for every edit path (create-on-activate, amount change,
         // COD added/removed, terminal transition). The backend decides from the
         // authoritative record; the patch carries the just-written form values.

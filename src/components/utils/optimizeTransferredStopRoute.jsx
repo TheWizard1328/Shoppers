@@ -227,6 +227,20 @@ export async function optimizeTransferredStopRoute({
     if (attempt === 1) await sleep(1500);
   }
 
+  // The record write went out SILENT (silentServer), so if the run could not
+  // sequence the stop the receiving device would learn nothing until its next
+  // sync. Fire ONE marker here so it still refreshes exactly once.
+  try {
+    const fallback = await readLocalStop(deliveryId);
+    if (fallback?.id) {
+      const { fireRouteCommitMarker } = await import('./routeCommitMarker');
+      await fireRouteCommitMarker(fallback.id, 1, [fallback.id]);
+      console.log(`[TransferOptimize] ${source} — optimization fell short; fired the single fallback commit marker`);
+    }
+  } catch (err) {
+    console.warn('[TransferOptimize] fallback marker skipped:', err?.message || err);
+  }
+
   return { success: false, placed: placementOf(await readLocalStop(deliveryId)), result };
 }
 

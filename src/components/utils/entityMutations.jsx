@@ -635,7 +635,11 @@ export const createDelivery = async (deliveryData, options = {}) => {
  * Update a Delivery (local-first with guaranteed cache refresh)
  */
 export const updateDelivery = async (deliveryId, updates, options = {}) => {
-  const { skipSmartRefresh = false, isBatchOperation = false } = options;
+  // silentServer (owner report Nov 3 2026): write the record with SERVICE ROLE
+  // (zero WebSocket broadcasts) and let ONE end-of-action route_commit marker
+  // carry the change to other devices. Used by transfers, where the move + the
+  // optimizer commit used to reach the receiving device as 3-5 separate renders.
+  const { skipSmartRefresh = false, isBatchOperation = false, silentServer = false } = options;
   
   if (mutationsPaused) throw new Error('Mutations are paused');
   
@@ -700,7 +704,20 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       notBefore: connectionMonitor.canAttemptNetwork() ? Date.now() + 30000 : 0,
     });
 
-    if (connectionMonitor.canAttemptNetwork()) {
+    if (connectionMonitor.canAttemptNetwork() && silentServer) {
+      // SILENT SERVER WRITE: no WS broadcast. The caller fires the single
+      // route_commit marker that tells receivers to fetch the route once.
+      import('./routeCommitMarker')
+        .then(({ commitDeliveryUpdatesSilently }) => commitDeliveryUpdatesSilently([{ id: deliveryId, data: toStore }]))
+        .then(() => {
+          refreshOfflineEntitySnapshots('Delivery', toStore).catch(() => {});
+          import('./dataManager').then(({ updateCache }) => updateCache('Delivery', deliveryId, toStore));
+        })
+        .catch((error) => {
+          console.warn('⚠️ [EntityMutations] Silent delivery write failed:', error?.message || error);
+          base44.entities.Delivery.update(deliveryId, toStore).catch(() => {});
+        });
+    } else if (connectionMonitor.canAttemptNetwork()) {
       base44.entities.Delivery.update(deliveryId, toStore)
         .then(async (backendDelivery) => {
           await offlineDB.removePendingMutation(pendingMutationId);
