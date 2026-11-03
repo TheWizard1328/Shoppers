@@ -12,6 +12,7 @@ import {
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
+  enforceCyclingBlock as sharedEnforceCyclingBlock,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
@@ -1643,6 +1644,33 @@ let _inheritedWindowCount = 0;
     parseStart: parseTimeToMinutes,
   });
 
+
+  // ── FINAL PASS: CYCLING BLOCK STRUCTURE (owner report Nov 3 2026) ─────────
+  // "the cycling stops keep getting optimized outside the loop, non-cycling
+  // stops before the cycling stops instead of after the cycling end marker" —
+  // on both the manual optimize FAB and the Start button. Every pass above
+  // reorders individual stops by window / pickup / ISP / unit / in-hand and has
+  // no idea the loop is structural, so any of them can drop a driving stop into
+  // the block or leave a cycling stop outside it. The shared rule runs LAST and
+  // restores [start marker] → [cycling stops] → [end marker] → [driving stops],
+  // keeping each group's internal order (SHARED RULE: routeRules.js
+  // enforceCyclingBlock — identical on the server engine).
+  try {
+    const _cycBefore = activeStops.map((st) => String(st.id)).join(',');
+    activeStops = sharedEnforceCyclingBlock(activeStops, {
+      idOf: (st) => st?.id,
+      notesOf: (st) => st?.delivery_notes,
+      isMarkerOf: (st) => st?.is_cycling_marker === true,
+      transportModeOf: (st) => st?.transport_mode,
+      statusOf: (st) => st?.status,
+    });
+    const _cycAfter = activeStops.map((st) => String(st.id)).join(',');
+    if (_cycBefore !== _cycAfter) {
+      console.log(`[clientRouteEngine] ${source} — cycling block restored: [start] cycling stops [end] then driving stops (a later ordering pass had scattered the loop)`);
+    }
+  } catch (cycErr) {
+    console.warn('[clientRouteEngine] cycling block enforcement skipped:', cycErr?.message || cycErr);
+  }
 
   // Use max completed stop_order + 1 (not just count) to avoid collisions when
   // completed stops have non-contiguous stop_order values (e.g. 2, 5, 7).

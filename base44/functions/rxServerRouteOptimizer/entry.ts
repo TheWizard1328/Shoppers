@@ -34,6 +34,7 @@ import {
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
+  enforceCyclingBlock as sharedEnforceCyclingBlock,
   isPolylineEligibleStop as sharedIsPolylineEligible,
   dwellMinutesForStop as sharedDwellMinutes,
   isSameAddressAnchor as sharedIsSameAddress,
@@ -775,6 +776,30 @@ Deno.serve(async (req) => {
       });
     } catch (inHandErr) {
       console.warn(`[rxServerRouteOptimizer] in-hand pickup bypass skipped: ${inHandErr?.message || inHandErr}`);
+    }
+
+    // ── 3f. CYCLING BLOCK STRUCTURE (owner report Nov 3 2026) ────────────────
+    // The loop is ONE block: [start marker] → [cycling stops] → [end marker],
+    // and every driving stop comes AFTER the end marker. Each pass above (bands,
+    // pickup follow, ISP/ISD, unit micro-sort, in-hand) moves individual stops
+    // and can drop a driving stop into the loop or leave a cycling stop outside
+    // it — the owner's route came back with the end marker at 9 and its cycling
+    // stops at 11-13. Runs LAST so no earlier pass can undo it. SHARED RULE:
+    // routeRules.js enforceCyclingBlock (identical on the client engine).
+    try {
+      const _cycBefore = orderedStops.map((st) => String(st?.id)).join(',');
+      orderedStops = sharedEnforceCyclingBlock(orderedStops, {
+        idOf: (st) => st?.id,
+        notesOf: (st) => st?.deliveryNotes,
+        isMarkerOf: (st) => st?.isCyclingMarker === true,
+        transportModeOf: (st) => st?.transportMode,
+        statusOf: (st) => st?.status,
+      });
+      if (_cycBefore !== orderedStops.map((st) => String(st?.id)).join(',')) {
+        console.log('[rxServerRouteOptimizer] cycling block restored: [start] cycling stops [end] then driving stops');
+      }
+    } catch (cycErr) {
+      console.warn(`[rxServerRouteOptimizer] cycling block enforcement skipped: ${cycErr?.message || cycErr}`);
     }
 
     // ── 3b. CLIENT-PARITY backstop (Oct 21 2026): windowless patient stops

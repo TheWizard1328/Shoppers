@@ -331,6 +331,83 @@ export function enforceInHandBeforeItsPickup(stops, adapters) {
   return ordered;
 }
 
+// ── RULE: cycling block structure (owner report Nov 3 2026) ──────────────────
+// A cycling loop is ONE contiguous block in the route:
+//     [cycling START marker] → [every cycling-mode stop] → [cycling END marker]
+// and every non-cycling stop is AFTER the end marker (leading pickups / already
+// finished work excepted — they are the loop's origin and stay in front).
+//
+// Symptom that produced this rule: Robert's route came back with the END marker
+// at position 9, one driving delivery right behind it, and the three remaining
+// cycling stops scattered at 11-13 — driving stops "optimized before the
+// cycling stops instead of after the cycling end marker" — from BOTH the manual
+// optimize FAB and the Start button. Every earlier pass (window bands, pickup
+// follow, ISP/ISD, unit micro-sort, in-hand repair) sorts stops individually and
+// has no idea the loop is structural, so ANY of them can pull a driving stop
+// into the block. This rule runs LAST in both engines: it takes whatever order
+// those passes produced and restores the block, keeping each group's relative
+// order (so window chronology inside the cycling stops and inside the driving
+// stops survives untouched).
+//
+// Returns a NEW array. No-op (same array content, in original order) when the
+// route has no end marker or no cycling stops — a route without an end marker is
+// a single-pool driving route by owner rule (Sep 8 2026).
+export function enforceCyclingBlock(stops, adapters) {
+  const {
+    idOf = (s) => s?.id,
+    notesOf = (s) => s?.deliveryNotes,
+    isMarkerOf = (s) => s?.isCyclingMarker === true,
+    transportModeOf = (s) => s?.transportMode,
+    statusOf = (s) => s?.status,
+  } = adapters || {};
+  const ordered = [...(stops || [])];
+  if (ordered.length < 2) return ordered;
+
+  const notesOfLower = (s) => String(notesOf(s) || '').toLowerCase();
+  const isMarker = (s) => isMarkerOf(s) === true;
+  const isCycleStop = (s) => !isMarker(s) && String(transportModeOf(s) || '').toLowerCase() === 'cycling';
+  const isFinished = (s) => ['completed', 'failed', 'cancelled'].includes(String(statusOf(s) || '').toLowerCase());
+
+  const endMarker = ordered.find((s) => isMarker(s) && notesOfLower(s).includes('end') && !isFinished(s)) || null;
+  const cyclingStops = ordered.filter((s) => isCycleStop(s) && !isFinished(s));
+  if (!endMarker || cyclingStops.length === 0) return ordered;
+
+  const startMarker = ordered.find((s) => isMarker(s) && notesOfLower(s).includes('start') && !isFinished(s)) || null;
+  // End marker that carried "start" in its notes (defensive): never treat it as both.
+  const startIsEnd = startMarker && idOf(startMarker) === idOf(endMarker);
+
+  const blockIds = new Set(
+    [startIsEnd ? null : startMarker, ...cyclingStops, endMarker]
+      .filter(Boolean)
+      .map((s) => String(idOf(s)))
+  );
+  const blockMembers = ordered.filter((s) => blockIds.has(String(idOf(s))));
+  if (blockMembers.length <= 1) return ordered;
+
+  const firstBlockIdx = ordered.findIndex((s) => blockIds.has(String(idOf(s))));
+  if (firstBlockIdx < 0) return ordered;
+
+  // Everything the loop has to travel through already ordered, EXCLUDING the
+  // markers themselves (they are positional anchors, placed by this rule).
+  const cyclingOrdered = ordered.filter((s) => isCycleStop(s) && !isFinished(s) && blockIds.has(String(idOf(s))));
+
+  const leading = ordered.slice(0, firstBlockIdx);
+  const trailing = ordered.filter((s) => !blockIds.has(String(idOf(s))) && !leading.includes(s));
+
+  const next = [
+    ...leading,
+    ...(startIsEnd ? [] : startMarker ? [startMarker] : []),
+    ...cyclingOrdered,
+    endMarker,
+    ...trailing,
+  ];
+
+  // Preserve length and identity — a rule bug must never drop or duplicate a stop.
+  if (next.length !== ordered.length) return ordered;
+  const sameOrder = next.every((s, i) => idOf(s) === idOf(ordered[i]));
+  return sameOrder ? ordered : next;
+}
+
 // ── RULE: polyline eligibility ───────────────────────────────────────────────
 // ONLY en_route + in_transit stops (plus cycling markers and cycling-mode
 // stops) receive polylines. A pending stop hasn't been picked up yet — no
