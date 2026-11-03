@@ -814,20 +814,16 @@ export default function PatientPortal({ embedded = false } = {}) {
   // a PENDING stop ALSO counts when its engine-assigned ETA precedes the
   // patient's ETA — the ETAs are cumulative along the optimized sequence, so
   // an earlier ETA = a temporary route position before the patient.
+  // OWNER RULE (Nov 3 2026): this number is "total stops PRIOR to the
+  // patient's stop" — the patient's own stop is NEVER counted. Every other
+  // non-terminal stop on the driver's route today counts, store pickups
+  // included (Phoenix Campbell: 5 in transit + 3 en-route pickups = 8, her own
+  // pending stop excluded, and the card shows the same 8 as the map badge).
   const countStopsRemaining = useCallback((routeDeliveries, patientDelivery) => {
     const TERMINAL = ['completed', 'failed', 'cancelled'];
-    const live = (routeDeliveries || []).filter((d) => d && !TERMINAL.includes(d.status));
-    // The patient's OWN stop is part of "stops remaining" (a route with only
-    // their delivery left reads 1, not 0) and must be counted even when the
-    // route snapshot has not picked it up yet.
-    if (
-      patientDelivery &&
-      !TERMINAL.includes(patientDelivery.status) &&
-      !live.some((d) => d.id === patientDelivery.id)
-    ) {
-      live.push(patientDelivery);
-    }
-    return live.length;
+    return (routeDeliveries || []).filter(
+      (d) => d && d.id !== patientDelivery?.id && !TERMINAL.includes(d.status)
+    ).length;
   }, []);
 
   // Helper: recount stops before patient from a given route deliveries array

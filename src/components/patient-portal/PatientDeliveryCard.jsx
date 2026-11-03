@@ -124,12 +124,15 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               </p>
             )}
             {/* REMAINING STOPS (owner requests Nov 3 2026): directly under the
-                Pending / In Transit badge, CENTRE-aligned with it (owner fix
-                same day — it was rendering off-centre to the right), so the
-                patient sees how many stops the driver still has today. */}
+                Pending / In Transit badge, CENTRE-aligned with it. This is the
+                count of stops still PRIOR to the patient's own stop (their own
+                delivery never counts), matching the red badge on their home
+                marker. 0 of them reads "You're next". */}
             {remainingStops != null && ['pending', 'en_route', 'in_transit'].includes(delivery.status) && (
               <p className={`text-[11px] font-semibold mt-0.5 leading-tight text-center ${expanded ? 'text-slate-400 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                {Number(remainingStops) === 1 ? 'Last stop' : `${remainingStops} stops left`}
+                {Number(remainingStops) === 0
+                  ? "You're next"
+                  : `${remainingStops} stop${Number(remainingStops) === 1 ? '' : 's'} left`}
               </p>
             )}
           </div>
