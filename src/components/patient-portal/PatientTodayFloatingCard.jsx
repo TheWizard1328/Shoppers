@@ -23,14 +23,19 @@ export default function PatientTodayFloatingCard({ delivery, pickupStops, stores
   if (!cardProps) return null;
 
   return (
-    <div className="w-[19rem] max-w-[calc(100vw-2.5rem)] max-h-[55vh] overflow-y-auto rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg border border-slate-200 dark:border-slate-700 p-2">
+    <div
+      className="w-[19rem] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg border border-slate-200 dark:border-slate-700 p-2"
+      // Grows with the expanded details, only scrolling once it fills the map
+      // area (previously a fixed 55vh cap clipped the expansion).
+      style={{ maxHeight: 'calc(100% - 1rem)' }}
+    >
       <div className="flex items-center gap-1.5 px-1 pb-1.5">
         <Sun className="w-3.5 h-3.5 text-amber-500" />
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Today
         </p>
       </div>
-      <PatientDeliveryCard {...cardProps} />
+      <PatientDeliveryCard {...cardProps} expandInline />
     </div>
   );
 }

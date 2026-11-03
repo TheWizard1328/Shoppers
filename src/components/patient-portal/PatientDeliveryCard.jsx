@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, expandInline = false }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -122,7 +122,13 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
 
       {/* Expanded detail — floats over cards below, doesn't push them down */}
       {expanded && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
+        <div className={`mt-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden ${
+          // Sidebar keeps the overlay behaviour (the list is scrollable, the detail
+          // floats over the cards below). The floating today card sets expandInline
+          // so the card GROWS and its container enlarges with it (owner report
+          // Nov 2 2026: expanding looked stuck inside a fixed-height box).
+          expandInline ? 'relative' : 'absolute left-0 right-0 top-full z-20'
+        }`}>
           <div className="p-3 space-y-0.5">
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
             {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}

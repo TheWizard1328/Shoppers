@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 77;
+export const BUILD_NUMBER = 78;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 78, area: 'Patient portal', audience: 'patients', summary: 'Expanding today\'s floating card now grows the card and its container instead of squeezing the details into a fixed-height box.' },
   { build: 77, area: 'Patient portal', audience: 'patients', summary: 'The driver tracking badge now sits at the bottom centre of the map instead of the top, so it no longer crowds the floating today card.' },
   { build: 76, area: 'Patient portal', audience: 'patients', summary: 'On a phone, today\'s delivery now floats in the top left of the map with the same expandable details as the sidebar, and disappears once that delivery date has passed.' },
   { build: 75, area: 'Patient portal', audience: 'patients', summary: 'Patients now choose who they message: the pharmacy team (one thread every dispatcher at that store shares) or a specific driver, with that driver on duty, on break or off duty shown on both the thread card and the chat.' },
