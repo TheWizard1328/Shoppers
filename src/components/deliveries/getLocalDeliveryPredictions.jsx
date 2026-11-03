@@ -1,4 +1,5 @@
 import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
+import { projectionVisibleInCycle } from '@/components/utils/projectionCycleRule';
 const RECENT_DELIVERY_LOOKBACK_DAYS = 5; // Check past 5 days for recent deliveries
 
 const userHasRole = (user, role) => {
@@ -165,7 +166,24 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
     const _isDayFlagDue = frequency === 'Daily' || frequency === 'Weekly';
     if (shouldDeliver && !_isDayFlagDue && recentlyDeliveredPatientIds.has(patient.id)) shouldDeliver = false;
     if (shouldDeliver && lastDate && lastDate > dateObj) shouldDeliver = false;
-    
+
+    // ── OWNER RULE (Nov 3 2026): OVERDUE PROJECTIONS GO WEEKLY ──────────────
+    // A projection more than 2 days past due drops out of the list and returns
+    // only inside its cycle window — the cycle weekday plus the 2 days after it
+    // (Thu/Fri/Sat for a Thursday cycle) — then hides again and repeats weekly
+    // until it is delivered. Owner example: Anne Kit Seto (Hamptons, Weekly x4,
+    // 5 days late on a Thursday cycle) is hidden Tue Nov 3, listed Nov 5-7,
+    // hidden Nov 8-11, listed again Nov 12-14.
+    if (shouldDeliver && !projectionVisibleInCycle({
+      daysSinceLast,
+      frequency,
+      patient,
+      lastDate,
+      todayDow: dayOfWeek,
+    })) {
+      return null;
+    }
+
     if (!shouldDeliver) return null;
 
     return {
