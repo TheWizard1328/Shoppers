@@ -342,12 +342,14 @@ export default function DriverPayrollGrid({
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
-        if (d.after_hours_pickup) {
-          // After-hours DELIVERY (patient/ISD) — '-' marker (2× base pay) AND
-          // counted 1× below, like every other finished delivery.
-          afterHoursCountMap[dateKey][storeId]++;
-        }
         deliveryMap[dateKey][storeId]++;
+        if (d.after_hours_pickup) {
+          // After-hours DELIVERY (patient/ISD) — '-' marker (2× base pay) and TWO
+          // deliveries (owner rule Nov 3 2026): the delivery itself plus one extra
+          // unit, matching the payroll summary card total.
+          afterHoursCountMap[dateKey][storeId]++;
+          deliveryMap[dateKey][storeId]++;
+        }
         kmMap[dateKey][storeId] += calculateExtraKm(d);
       }
     });

@@ -173,6 +173,12 @@ Deno.serve(async (req) => {
 
     const oversizedCount = countableDeliveries.filter(d => d.oversized === true).length;
     const afterHoursCount = countableAfterHoursPickups.length;
+    // OWNER RULE Nov 3 2026 — DELIVERY UNITS: an after-hours DELIVERY is paid at
+    // 2x base, so it counts as TWO deliveries in every total. After-hours pickups
+    // are already their own single delivery. This keeps the saved
+    // Payroll.total_deliveries in step with the payroll summary cards.
+    const afterHoursDeliveryUnitCount = countablePatientDeliveries.filter(d => d.after_hours_pickup === true).length;
+    const payableDeliveryUnits = countableDeliveries.length + afterHoursDeliveryUnitCount;
 
     // --- Calculate extra km ---
     const getTimeDiffMinutes = (d1, d2) => {
@@ -243,7 +249,7 @@ Deno.serve(async (req) => {
 
     const netPay = round2(grossPay + taxAmount - totalDeductions);
 
-    console.log(`💰 [PayrollCalc] Totals — deliveries: ${countableDeliveries.length}, grossPay: $${grossPay}, extraKm: ${round2(totalExtraKm)}km, oversized: ${oversizedCount}, afterHours: ${afterHoursCount}, deductions: $${totalDeductions}`);
+    console.log(`💰 [PayrollCalc] Totals — deliveries: ${payableDeliveryUnits}, grossPay: $${grossPay}, extraKm: ${round2(totalExtraKm)}km, oversized: ${oversizedCount}, afterHours: ${afterHoursCount}, deductions: $${totalDeductions}`);
 
     // --- Find or create Payroll record ---
     const existingRecords = await base44.asServiceRole.entities.Payroll.filter({
@@ -261,7 +267,7 @@ Deno.serve(async (req) => {
     }
 
     const payrollFields = {
-      total_deliveries: countableDeliveries.length,
+      total_deliveries: payableDeliveryUnits,
       total_extra_km: round2(totalExtraKm),
       total_oversized_deliveries: oversizedCount,
       total_after_hours_deliveries: afterHoursCount,
@@ -317,7 +323,7 @@ Deno.serve(async (req) => {
       driverId,
       period,
       totals: {
-        deliveries: countableDeliveries.length,
+        deliveries: payableDeliveryUnits,
         grossPay,
         netPay,
         taxAmount,

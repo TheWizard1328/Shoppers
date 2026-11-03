@@ -4,7 +4,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
 const CACHE_VERSION = '6';
-const SUMMARY_VERSION = '6';
+const SUMMARY_VERSION = '7';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
@@ -1431,23 +1431,30 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const isNonBillable = isNonBillableDelivery(delivery, wasPayingOnDeliveryDate);
     const countsTowardMonthlySplit = isDriverPayable;
 
+    // OWNER RULE Nov 3 2026 — DELIVERY UNITS: every payable delivery counts as
+    // one, and an AFTER-HOURS DELIVERY adds one extra unit on top (it is paid at
+    // 2x base, so it must read as 2 deliveries). An after-hours PICKUP is its own
+    // single delivery. Applied to every driver/month/day total below; the store
+    // tables keep expressing after-hours in their own afterHours column.
+    const payableUnits = (isAfterHoursPickupDelivery(delivery) && isStandardOrInterStoreDelivery(delivery)) ? 2 : 1;
+
     if (countsTowardMonthlySplit) {
-      metrics.monthlyData[monthIndex].total++;
+      metrics.monthlyData[monthIndex].total += payableUnits;
       if (isBillable) {
-        metrics.monthlyData[monthIndex].billable++;
-        metrics.yearTotals.billable++;
+        metrics.monthlyData[monthIndex].billable += payableUnits;
+        metrics.yearTotals.billable += payableUnits;
       } else if (isNonBillable) {
-        metrics.monthlyData[monthIndex].nonBillable++;
-        metrics.yearTotals.nonBillable++;
+        metrics.monthlyData[monthIndex].nonBillable += payableUnits;
+        metrics.yearTotals.nonBillable += payableUnits;
       }
 
       if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
       let dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
       if (dailyEntry) {
-        if (isBillable) dailyEntry.billable++;
-        else if (isNonBillable) dailyEntry.nonBillable++;
+        if (isBillable) dailyEntry.billable += payableUnits;
+        else if (isNonBillable) dailyEntry.nonBillable += payableUnits;
       } else {
-        metrics.dailyDeliveryData[monthIndex + 1].push({ day: dayOfMonth, billable: isBillable ? 1 : 0, nonBillable: isNonBillable ? 1 : 0 });
+        metrics.dailyDeliveryData[monthIndex + 1].push({ day: dayOfMonth, billable: isBillable ? payableUnits : 0, nonBillable: isNonBillable ? payableUnits : 0 });
       }
 
       if (delivery.driver_id) {
@@ -1458,8 +1465,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           annualDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
           metrics.driverData.push(annualDriverEntry);
         }
-        if (isBillable) annualDriverEntry.billable++;
-        else annualDriverEntry.nonBillable++;
+        if (isBillable) annualDriverEntry.billable += payableUnits;
+        else annualDriverEntry.nonBillable += payableUnits;
 
         if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
         let monthlyDriverEntry = metrics.driverDataByMonth[monthIndex + 1].find(d => d.driverId === delivery.driver_id);
@@ -1467,8 +1474,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           monthlyDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
           metrics.driverDataByMonth[monthIndex + 1].push(monthlyDriverEntry);
         }
-        if (isBillable) monthlyDriverEntry.billable++;
-        else monthlyDriverEntry.nonBillable++;
+        if (isBillable) monthlyDriverEntry.billable += payableUnits;
+        else monthlyDriverEntry.nonBillable += payableUnits;
 
         if (!metrics.dailyDriverData[monthIndex + 1]) metrics.dailyDriverData[monthIndex + 1] = {};
         if (!metrics.dailyDriverData[monthIndex + 1][delivery.driver_id]) metrics.dailyDriverData[monthIndex + 1][delivery.driver_id] = [];
@@ -1477,8 +1484,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           dailyDriverEntry = { day: dayOfMonth, billable: 0, nonBillable: 0 };
           metrics.dailyDriverData[monthIndex + 1][delivery.driver_id].push(dailyDriverEntry);
         }
-        if (isBillable) dailyDriverEntry.billable++;
-        else dailyDriverEntry.nonBillable++;
+        if (isBillable) dailyDriverEntry.billable += payableUnits;
+        else dailyDriverEntry.nonBillable += payableUnits;
 
         if (delivery.store_id) {
           if (!metrics.driverDataByStore[delivery.store_id]) metrics.driverDataByStore[delivery.store_id] = [];
@@ -1487,8 +1494,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
             storeDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
             metrics.driverDataByStore[delivery.store_id].push(storeDriverEntry);
           }
-          if (isBillable) storeDriverEntry.billable++;
-          else storeDriverEntry.nonBillable++;
+          if (isBillable) storeDriverEntry.billable += payableUnits;
+          else storeDriverEntry.nonBillable += payableUnits;
 
           // driverStoreByMonth: per-month per-driver per-store counts for accurate grid filtering
           const m = monthIndex + 1;

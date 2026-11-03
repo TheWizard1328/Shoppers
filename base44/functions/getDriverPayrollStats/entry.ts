@@ -95,6 +95,10 @@ Deno.serve(async (req) => {
     );
 
     const completedDeliveries = [...completedPatientDeliveries, ...completedAfterHoursPickups];
+    // OWNER RULE Nov 3 2026 — DELIVERY UNITS: an after-hours DELIVERY is paid at
+    // 2x base, so it counts as TWO deliveries; after-hours pickups count as one.
+    const afterHoursDeliveryUnitCount = completedPatientDeliveries.filter(d => d.after_hours_pickup === true).length;
+    const payableDeliveryUnits = completedDeliveries.length + afterHoursDeliveryUnitCount;
 
     // Count oversized deliveries
     const oversizedCount = completedDeliveries.filter(d => d.oversized === true).length;
@@ -271,7 +275,7 @@ Deno.serve(async (req) => {
       totalTimeOnDuty: totalTimeOnDuty,
       extraKmLimit: extraKmLimit,
       breakdown: {
-        completedDeliveries: completedDeliveries.length,
+        completedDeliveries: payableDeliveryUnits,
         deliveryPay: deliveryPay,
         extraKmPay: extraKmPay,
         oversizedCount: oversizedCount,
